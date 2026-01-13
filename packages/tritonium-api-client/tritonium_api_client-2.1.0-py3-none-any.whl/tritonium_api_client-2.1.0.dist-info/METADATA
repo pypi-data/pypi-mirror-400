@@ -1,0 +1,449 @@
+Metadata-Version: 2.4
+Name: tritonium-api-client
+Version: 2.1.0
+Summary: Official Python SDK for the Tritonium API - Customer feedback analytics platform
+License: MIT
+Keywords: tritonium,api,sdk,reviews,analytics,feedback
+Author: Tritonium
+Author-email: support@tritonium.com
+Requires-Python: >=3.9,<4.0
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Dist: attrs (>=22.2.0)
+Requires-Dist: httpx (>=0.23.0,<0.29.0)
+Requires-Dist: python-dateutil (>=2.8.0,<3.0.0)
+Project-URL: Documentation, https://api.tritonium.com/api/v1/docs
+Project-URL: Homepage, https://tritonium.com
+Project-URL: Repository, https://github.com/tritonium/python-sdk
+Description-Content-Type: text/markdown
+
+# tritonium-api-client
+
+Official Python SDK for the Tritonium API - Customer feedback analytics platform.
+
+## Installation
+
+```bash
+pip install tritonium-api-client
+```
+
+## Quick Start
+
+### Using API Key Authentication
+
+```python
+from tritonium_api_client import create_api_key_client
+
+# Create a client with API key authentication
+client = create_api_key_client("trtn_live_your_key_here")
+
+# Make API calls
+response = client.get("/api/v1/apps")
+apps = response.json()
+print(apps)
+```
+
+### Using Bearer Token (JWT)
+
+```python
+from tritonium_api_client import create_bearer_client
+
+# Create a client with Bearer token authentication
+client = create_bearer_client("your_jwt_token")
+
+# Make API calls
+response = client.get("/api/v1/apps")
+```
+
+### Using the Generated Client
+
+```python
+from tritonium_api_client import AuthenticatedClient
+from tritonium_api_client.api.apps import get_apps
+
+client = AuthenticatedClient(
+    base_url="https://api.tritonium.com",
+    token="your_jwt_token"
+)
+
+with client as client:
+    apps = get_apps.sync(client=client)
+```
+
+## Authentication
+
+The SDK supports two authentication methods:
+
+### API Key Authentication
+
+Best for server-side applications and integrations.
+
+```python
+from tritonium_api_client import APIKeyAuth, create_api_key_client
+import httpx
+
+# Option 1: Use the factory function
+client = create_api_key_client("trtn_live_abc123...")
+
+# Option 2: Use the auth class directly with httpx
+auth = APIKeyAuth("trtn_live_abc123...")
+client = httpx.Client(base_url="https://api.tritonium.com", auth=auth)
+```
+
+### Bearer Token Authentication
+
+Best for applications with existing Cognito authentication.
+
+```python
+from tritonium_api_client import BearerAuth, create_bearer_client
+import httpx
+
+# Option 1: Use the factory function
+client = create_bearer_client("eyJhbGciOiJSUzI1NiIs...")
+
+# Option 2: Use the auth class directly
+auth = BearerAuth("your_jwt_token")
+client = httpx.Client(base_url="https://api.tritonium.com", auth=auth)
+```
+
+### Async Support
+
+```python
+from tritonium_api_client import APIKeyAuth
+import httpx
+
+auth = APIKeyAuth("trtn_live_abc123...")
+
+async with httpx.AsyncClient(base_url="https://api.tritonium.com", auth=auth) as client:
+    response = await client.get("/api/v1/apps")
+    apps = response.json()
+```
+
+## Webhook Verification
+
+Verify incoming webhooks from Tritonium to ensure they're authentic.
+
+```python
+from tritonium_api_client import (
+    verify_webhook,
+    WebhookVerificationError,
+    WebhookExpiredError,
+    WebhookSignatureError,
+    EventType,
+)
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+WEBHOOK_SECRET = "whsec_your_secret"
+
+@app.route("/webhook", methods=["POST"])
+def handle_webhook():
+    try:
+        event = verify_webhook(
+            payload=request.data,
+            signature=request.headers.get("X-Tritonium-Signature", ""),
+            timestamp=request.headers.get("X-Tritonium-Timestamp", ""),
+            secret=WEBHOOK_SECRET,
+        )
+
+        if event.event_type == EventType.REVIEW_RECEIVED:
+            print(f"New review: {event.data}")
+        elif event.event_type == EventType.ALERT_TRIGGERED:
+            print(f"Alert: {event.data}")
+        elif event.event_type == EventType.CRISIS_DETECTED:
+            print(f"Crisis detected: {event.data}")
+
+        return jsonify({"status": "ok"})
+
+    except WebhookExpiredError as e:
+        return jsonify({"error": "Webhook expired"}), 401
+    except WebhookSignatureError as e:
+        return jsonify({"error": "Invalid signature"}), 401
+    except WebhookVerificationError as e:
+        return jsonify({"error": str(e)}), 400
+```
+
+### FastAPI Example
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+from tritonium_api_client import verify_webhook, WebhookVerificationError
+
+app = FastAPI()
+WEBHOOK_SECRET = "whsec_your_secret"
+
+@app.post("/webhook")
+async def handle_webhook(request: Request):
+    body = await request.body()
+    signature = request.headers.get("X-Tritonium-Signature", "")
+    timestamp = request.headers.get("X-Tritonium-Timestamp", "")
+
+    try:
+        event = verify_webhook(
+            payload=body,
+            signature=signature,
+            timestamp=timestamp,
+            secret=WEBHOOK_SECRET,
+        )
+
+        # Handle the event
+        print(f"Received {event.event_type}: {event.data}")
+
+        return {"status": "ok"}
+
+    except WebhookVerificationError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+```
+
+### Webhook Event Types
+
+| Event Type | Description |
+|------------|-------------|
+| `review.received` | New review was received |
+| `alert.triggered` | Alert rule was triggered |
+| `crisis.detected` | Crisis event was detected |
+| `insight.generated` | New insight was generated |
+| `analysis.completed` | Analysis job completed |
+| `test.ping` | Test webhook (manual trigger) |
+
+### WebhookEvent Object
+
+```python
+@dataclass
+class WebhookEvent:
+    event_id: str          # Unique event identifier
+    event_type: str        # Event type (e.g., "review.received")
+    timestamp: datetime    # When the event occurred
+    tenant_id: str         # Your tenant ID
+    app_uuid: str | None   # Related app UUID (if applicable)
+    data: dict            # Event-specific payload
+    raw_payload: dict     # Original JSON payload
+```
+
+## Low-Level Signature Verification
+
+For custom implementations:
+
+```python
+from tritonium_api_client import verify_signature, verify_timestamp
+
+# Verify signature only
+is_valid = verify_signature(
+    payload=request_body,
+    signature=signature_header,
+    secret=WEBHOOK_SECRET,
+)
+
+# Verify timestamp only (default 5 minute tolerance)
+is_fresh = verify_timestamp(timestamp_header)
+
+# Custom tolerance (10 minutes)
+is_fresh = verify_timestamp(timestamp_header, tolerance_seconds=600)
+```
+
+## Generated API Client
+
+The SDK includes a fully typed API client generated from the OpenAPI specification.
+
+### Synchronous Usage
+
+```python
+from tritonium_api_client import AuthenticatedClient
+from tritonium_api_client.api.apps import get_apps
+from tritonium_api_client.types import Response
+
+client = AuthenticatedClient(base_url="https://api.tritonium.com", token="your_token")
+
+with client as client:
+    # Simple call
+    apps = get_apps.sync(client=client)
+
+    # Detailed response with status code
+    response: Response = get_apps.sync_detailed(client=client)
+    print(f"Status: {response.status_code}")
+```
+
+### Asynchronous Usage
+
+```python
+from tritonium_api_client import AuthenticatedClient
+from tritonium_api_client.api.apps import get_apps
+
+client = AuthenticatedClient(base_url="https://api.tritonium.com", token="your_token")
+
+async with client as client:
+    apps = await get_apps.asyncio(client=client)
+```
+
+## Available Services
+
+| Service | Description | Key Methods |
+|---------|-------------|-------------|
+| `apps` | App management | `get_apps`, `create_app`, `sync_reviews` |
+| `reviews` | Review operations | `get_reviews`, `get_review_stats`, `post_reply` |
+| `insights` | AI-generated insights | `get_insights`, `get_topics`, `get_sentiment` |
+| `alerts` | Alert management | `get_alerts`, `create_rule`, `acknowledge_alert` |
+| `predictions` | ML forecasting | `get_rating_forecast`, `post_feature_impact` |
+| `billing` | Subscription management | `get_subscription`, `create_checkout` |
+| `integrations` | Third-party connections | `list_integrations`, `connect_slack` |
+| `credentials` | API credential vault | `list_credentials`, `create_credential` |
+| `workflows` | Workflow automation | `list_workflows`, `create_workflow` |
+
+### Service Examples
+
+**Managing Apps:**
+```python
+from tritonium_api_client.api.apps import get_apps, sync_reviews
+
+# List all connected apps
+apps = get_apps.sync(client=client)
+
+# Trigger review sync for an app
+sync_reviews.sync(client=client, app_uuid="app-123")
+```
+
+**Working with Reviews:**
+```python
+from tritonium_api_client.api.reviews import get_reviews, post_reply
+
+# Get reviews with filters
+reviews = get_reviews.sync(
+    client=client,
+    app_uuid="app-123",
+    rating_min=1,
+    rating_max=3,
+    limit=50
+)
+
+# Post a reply to a review
+post_reply.sync(
+    client=client,
+    app_uuid="app-123",
+    review_id="review-456",
+    body={"text": "Thank you for your feedback!"}
+)
+```
+
+**Predictions & Forecasting:**
+```python
+from tritonium_api_client.api.predictions import (
+    get_rating_forecast,
+    post_feature_impact_prediction
+)
+
+# Get 30-day rating forecast
+forecast = get_rating_forecast.sync(
+    client=client,
+    app_uuid="app-123",
+    horizon=30
+)
+print(f"Predicted rating: {forecast.forecasted_rating}")
+```
+
+**Managing Credentials (Admin only):**
+```python
+from tritonium_api_client.api.credentials import (
+    list_credentials,
+    create_credential,
+    delete_credential
+)
+
+# List stored credentials
+creds = list_credentials.sync(client=client)
+
+# Store new App Store Connect credentials
+create_credential.sync(
+    client=client,
+    body={
+        "name": "App Store Connect",
+        "platform": "app_store",
+        "credentials": {
+            "key_id": "ABC123",
+            "issuer_id": "xxx-yyy-zzz",
+            "private_key": "-----BEGIN PRIVATE KEY-----..."
+        }
+    }
+)
+```
+
+**Workflow Automation:**
+```python
+from tritonium_api_client.api.workflows import (
+    list_workflows,
+    create_workflow,
+    list_templates
+)
+
+# List available templates
+templates = list_templates.sync(client=client)
+
+# Create workflow from template
+workflow = create_workflow.sync(
+    client=client,
+    body={
+        "name": "Daily Digest",
+        "template_id": "weekly-digest",
+        "config": {
+            "schedule": "0 9 * * *",
+            "channels": ["slack"]
+        }
+    }
+)
+```
+
+## Error Handling
+
+```python
+import httpx
+from tritonium_api_client import create_api_key_client
+
+client = create_api_key_client("trtn_live_abc123...")
+
+try:
+    response = client.get("/api/v1/apps")
+    response.raise_for_status()
+    apps = response.json()
+except httpx.HTTPStatusError as e:
+    print(f"HTTP Error {e.response.status_code}: {e.response.text}")
+except httpx.RequestError as e:
+    print(f"Request failed: {e}")
+```
+
+## Building / Publishing
+
+This project uses [Poetry](https://python-poetry.org/) to manage dependencies and packaging.
+
+```bash
+# Install dependencies
+poetry install
+
+# Run tests
+poetry run pytest
+
+# Build the package
+poetry build
+
+# Publish to PyPI
+poetry publish
+```
+
+## Requirements
+
+- Python >= 3.9
+- httpx >= 0.23.0
+
+## License
+
+MIT
+
