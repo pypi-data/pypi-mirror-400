@@ -1,0 +1,163 @@
+# logging-blueprint
+
+> Environment-driven configuration for Python’s standard library `logging` module.
+
+## Overview
+
+`logging-blueprint` is a small, stdlib-first library for configuring Python’s built-in
+[`logging`](https://docs.python.org/3/library/logging.html) module using environment variables.
+
+The library is designed to be:
+
+- **Drop-in** — integrates directly with `logging.config.dictConfig`
+- **Environment-driven** — inspired by Rust’s `env_logger` ergonomics
+- **Non-invasive** — augments existing logging configurations instead of replacing them
+- **Strictly typed** — intended for use in modern, typed Python codebases
+
+`logging-blueprint` does **not** introduce a new logging framework.
+It exists solely to make configuration of the standard library logging system easier,
+more composable, and more production-friendly.
+
+## Installation
+
+```bash
+pip install logging-blueprint
+```
+
+_(Exact installation instructions may change depending on distribution method.)_
+
+## Quick Start
+
+```python
+import logging_blueprint
+
+logging_blueprint.apply_env_logging()
+```
+
+This reads logging configuration from environment variables and applies it directly
+to Python’s standard library logging system.
+
+## Examples
+
+Run the demo scripts with `uv run` to see the library in action:
+
+- `uv run python examples/basic_quickstart.py` — minimal quick start using env-driven config
+- `PY_LOG_STREAM=stdout PY_LOG_STYLE=plain uv run python examples/devops_cli_demo.py` — DevOps-style CLI mixing stdout and logs
+- `PY_LOG=debug PY_LOG_STREAM=stdout PY_LOG_STYLE=plain uv run python examples/asgi_app_demo.py` — tiny ASGI app emitting request lifecycle logs
+
+## Environment Variables
+
+The following environment variables are supported:
+
+| Variable                  | Description                                                |
+| ------------------------- | ---------------------------------------------------------- |
+| `PY_LOG`                  | Logging directives (e.g. `info,myapp=debug`)               |
+| `PY_LOG_STYLE`            | Output style (`plain`, `pretty`, `logfmt`, `json`, `auto`) |
+| `PY_LOG_STREAM`           | Output stream (`stdout` or `stderr`)                       |
+| `PY_LOG_FMT`              | Log format string (plain/pretty/logfmt styles)             |
+| `PY_LOG_DATEFMT`          | Datetime format string                                     |
+| `PY_LOG_DISABLE_EXISTING` | Disable existing loggers (`1` or `0`)                      |
+
+Exact semantics and defaults are documented in the API reference.
+
+## Rust-Style Logging Directives
+
+`PY_LOG` follows a Rust-inspired directive format:
+
+```text
+info,myapp=debug,myapp.db=warning
+```
+
+- A bare level sets the default/root log level
+- `module=level` entries override specific loggers
+- Later directives override earlier ones
+
+This maps directly onto Python logger names.
+
+## Using With Existing `dictConfig` / YAML
+
+`logging-blueprint` is designed to work alongside existing logging configurations.
+
+```python
+import logging.config
+import logging_blueprint
+
+base_config = {
+    # existing dictConfig-style configuration
+}
+
+config = logging_blueprint.merge_env_into_dict_config(base_config)
+logging.config.dictConfig(config)
+```
+
+This allows environment variables to override or extend static configurations
+without duplicating configuration logic.
+
+## API Overview
+
+### Core Entry Points
+
+```python
+apply_env_logging(...)
+build_dict_config_from_env(...)
+merge_env_into_dict_config(...)
+```
+
+### Parsing Utilities
+
+```python
+EnvLoggingConfig.from_env(...)
+parse_directives(...)
+```
+
+All public APIs are strictly typed.
+
+## Output Styles
+
+`logging-blueprint` supports multiple output styles:
+
+- **plain** — standard `logging.Formatter`
+- **pretty** — human-readable output with ANSI colors and extras
+- **logfmt** — key=value output with extras, colorized on TTY
+- **json** — structured JSON suitable for log aggregation
+- **auto** — selects an appropriate style based on environment
+
+Exact formatting behavior is intentionally minimal and configurable.
+
+## Design Goals
+
+- Use the Python standard library wherever possible
+- Avoid hidden global state
+- Avoid opinionated logging frameworks
+- Preserve compatibility with existing logging setups
+- Be explicit, inspectable, and boring in production
+
+## Non-Goals
+
+- Replacing Python’s logging system
+- Introducing a new logging API
+- Providing transport, filtering, or routing beyond stdlib capabilities
+
+## Compatibility
+
+- Python: v3.10+
+
+## Development Status
+
+This project is currently:
+
+- ☑ Experimental
+- ☐ Beta
+- ☐ Stable
+
+APIs may change until a stable release is declared.
+
+## Contributing
+
+Contribution guidelines, development setup, and code style are documented in: [CONTRIBUTING.md](`CONTRIBUTING.md`).
+
+## License
+
+Licensed under the **MIT License**.
+
+See `LICENSE` for details.
