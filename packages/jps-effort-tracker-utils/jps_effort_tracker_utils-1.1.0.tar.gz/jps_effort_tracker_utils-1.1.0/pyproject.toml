@@ -1,0 +1,262 @@
+[build-system]
+requires = ["setuptools>=68", "wheel", "build"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jps-effort-tracker-utils"
+version = "1.1.0"
+description = "A command-line task and effort tracking utility for managing daily tasks with priorities, effort estimates, and status tracking."
+readme = "README.md"
+authors = [{ name = "Jaideep Sundaram", email = "jai.python3@gmail.com" }]
+requires-python = ">=3.12"
+keywords = ["jps_effort_tracker_utils"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "typer>=0.12.0",
+    "colorama",
+    "Pydantic",
+    "PyYAML",
+    "Rich",
+]
+
+[project.urls]
+Homepage = "https://github.com/jai-python3/effort-tracker-utils"
+Repository = "https://github.com/jai-python3/effort-tracker-utils"
+Issues = "https://github.com/jai-python3/effort-tracker-utils/issues"
+
+[project.scripts]
+jps-effort-tracker = "jps_effort_tracker_utils.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "coverage>=4.5.4",
+    "tox>=3.14.0",
+    "black",
+    "deadcode",
+    "flake8",
+    "isort",
+    "mypy",
+    "pre-commit",
+    "pydocstyle",
+    "pylint",
+    "rm_unneeded_f_str",
+    "vulture",
+    "bump-my-version>=1.0.1",
+    "wheel",
+    "watchdog",
+    "Sphinx",
+    "twine",
+    "git-changelog>=2.0.0",
+]
+
+[tool.setuptools]
+include-package-data = true
+package-dir = { "" = "src" }
+zip-safe = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["jps_effort_tracker_utils", "jps_effort_tracker_utils.*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+jps_effort_tracker_utils = ["conf/config.yaml"]
+
+# -----------------------------
+# Formatting Tools
+# -----------------------------
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+src_paths = ["src", "tests"]
+
+# -----------------------------
+# Testing & Coverage
+# -----------------------------
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "-v --disable-warnings"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+# -----------------------------
+# Type Checking
+# -----------------------------
+[tool.mypy]
+python_version = "3.12"
+
+# --- Strictness for production code ---
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+ignore_missing_imports = true
+strict_optional = true
+warn_unused_ignores = true
+warn_unreachable = true
+warn_return_any = true
+show_error_codes = true
+
+# --- Paths to exclude from main analysis ---
+exclude = [
+    "build/",
+    "dist/",
+]
+
+# --- Override: Relax typing rules for test modules ---
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+check_untyped_defs = false
+ignore_missing_imports = true
+
+# -----------------------------
+# Linting
+# -----------------------------
+[tool.flake8]
+max-line-length = 120
+
+# E203: Black disagrees with slice whitespace rules
+# W503: Black prefers line breaks before binary operators
+# W292: Black intentionally removes trailing newline at EOF (Black behavior)
+extend-ignore = ["E203", "W503", "W292"]
+
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "venv",
+    ".venv",
+    ".tox",
+    ".pytest_cache",
+    "docs"
+]
+
+# -----------------------------
+# Build Distribution
+# -----------------------------
+[tool.bdist_wheel]
+universal = true
+
+# -----------------------------
+# Security (Bandit)
+# -----------------------------
+[tool.bandit]
+# Rules intentionally skipped because they are either safe in this context or false positives.
+# Skipped rules:
+#   B101 - assert_used: Safe since assertions are not used for security enforcement.
+#   B110 - try_except_pass: Handled via code review standards instead.
+#   B404 - import_subprocess: subprocess used safely for CLI operations (no user input).
+#   B603 - subprocess_without_shell_equals_true: All subprocess calls use shell=False.
+#   B607 - start_process_with_partial_path: Safe usage of 'gh' (GitHub CLI) in developer tools.
+#   B108 - hardcoded_tmp_directory: Acceptable since temp dirs are user- and timestamp-specific.
+
+skips = ["B101", "B110", "B404", "B603", "B607", "B108"]
+
+# Bandit target directories (recursive)
+targets = ["src"]
+recursive = true
+
+# Exclude test code from Bandit scans
+exclude = ["tests"]
+
+# -----------------------------
+# Docstring Style Checkers
+# -----------------------------
+[tool.pydocstyle]
+convention = "google"
+add-ignore = [
+    "D107",  # Missing docstring in __init__
+    "D203",  # 1 blank line required before class docstring
+]
+match-dir = "src"
+
+[tool.darglint]
+docstring_style = "google"
+strictness = "short"
+ignore_regex = "(^test_)"
+message_template = "{path}:{line}: {msg_id} {msg}"
+
+# -----------------------------------------------------------
+# bump-my-version for manual version bumps
+# -----------------------------------------------------------
+[tool.bumpversion]
+current_version = "1.1.0"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+message = "chore(release): bump version to v{new_version} [skip ci]"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "src/jps_effort_tracker_utils/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[tool.git-changelog]
+convention = "conventional"
+template = "keepachangelog"
+output = "CHANGELOG.md"
+parse-trailers = true
+parse-refs = false
+filter-commits = false
+include-merges = false
+omit-empty-versions = false
+bump = "auto"
+version-regex = "^## \\\\[(?P<version>v?[^\\\\]]+)]"
+
+[[tool.git-changelog.sections]]
+type = "feat"
+section = "Features"
+
+[[tool.git-changelog.sections]]
+type = "fix"
+section = "Bug Fixes"
+
+[[tool.git-changelog.sections]]
+type = "docs"
+section = "Documentation"
+
+[[tool.git-changelog.sections]]
+type = "refactor"
+section = "Code Refactoring"
+
+[[tool.git-changelog.sections]]
+type = "perf"
+section = "Performance Improvements"
+
+[[tool.git-changelog.sections]]
+type = "test"
+section = "Tests"
+
+[[tool.git-changelog.sections]]
+type = "chore"
+section = "Chores"
+
+[[tool.git-changelog.sections]]
+type = "build"
+section = "Build System"
