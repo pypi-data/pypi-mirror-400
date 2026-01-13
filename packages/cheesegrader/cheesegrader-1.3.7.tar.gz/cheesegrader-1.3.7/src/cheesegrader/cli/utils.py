@@ -1,0 +1,266 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2025 Jesse Ward-Bond
+
+"""CLI prompt utilities for CheeseGrader.
+
+This module provides reusable prompt and confirmation functions with built-in
+help messages and quit options. It includes utilities for:
+
+    - Prompting for and validating CSV files and directories
+    - Selecting columns from CSV headers
+    - Setting up Quercus courses and assignments
+    - Ensuring consistent CLI formatting and feedback with colors
+
+All prompts support entering 'h' for help or 'q' to quit.
+"""
+
+import csv
+import os
+import textwrap
+from collections.abc import Callable
+from pathlib import Path
+
+import typer
+
+from cheesegrader.api_tools import QuercusAssignment, QuercusCourse
+
+HELP_REGISTRY = {}
+DEFAULT_HELP_MSG = "Enter 'q' or press ctrl+c to quit at any time.\nEnter 'h' for help."
+
+# Prompt styles
+PROMPT_BG = typer.colors.YELLOW
+PROMPT_FG = typer.colors.BLACK
+
+# Help message styles
+HELP_FG = typer.colors.CYAN
+HELP_BG = typer.colors.CYAN
+
+# General styles
+ERROR_FG = typer.colors.RED
+SUCCESS_FG = typer.colors.GREEN
+WARN_FG = typer.colors.YELLOW
+
+
+def create_prompt(help_msg: str) -> Callable[..., str]:
+    """Creates a function to replace typer.prompt.
+
+    Adds a help message and the option to enter 'q' to quit.
+    """
+
+    def patched_prompt(*args, **kwargs) -> str:  # noqa: ANN002, ANN003
+        prompt_text = args[0] if args else kwargs.get("text", "")
+
+        # Remove text from args so not duplicated
+        if args:
+            args = args[1:]
+
+        while True:
+            typer.echo()
+            typer.secho(prompt_text, fg=PROMPT_FG, bg=PROMPT_BG, nl=False)
+
+            response = typer.prompt("", *args, **kwargs)
+            typer.echo()
+
+            # Loop if user enters help
+            if response in ("h", "H"):
+                typer.secho(help_msg, fg=HELP_FG)
+                typer.echo()
+                typer.secho(
+                    "Press any key to continue",
+                    fg=PROMPT_FG,
+                    bg=HELP_BG,
+                    nl=False,
+                )
+                input()
+            elif response in ("q", "Q"):
+                raise typer.Exit
+            else:
+                return response
+
+    return patched_prompt
+
+
+def create_confirm(help_msg: str) -> Callable[..., str]:
+    """Creates a function to replace typer.confirm.
+
+    Adds a help message and the option to enter 'q' to quit.
+    """
+
+    def patched_confirm(*args, **kwargs) -> bool:  # noqa: ANN002, ANN003
+        while True:
+            prompt_text = args[0] if args else kwargs.get("text", "")
+            typer.echo()
+            typer.secho(prompt_text + " [y/n]", fg=PROMPT_FG, bg=PROMPT_BG, nl=False)
+
+            # Remove text from args so not duplicated
+            if args:
+                args = args[1:]
+
+            response = typer.prompt("", *args, **kwargs).strip().lower()
+            typer.echo()
+
+            if response == "h":
+                typer.secho(help_msg, fg=HELP_FG)
+                typer.echo()
+                typer.secho(
+                    "Press any key to continue",
+                    fg=PROMPT_FG,
+                    bg=HELP_BG,
+                    nl=False,
+                )
+                input()
+            elif response == "q":
+                typer.Exit()
+            elif response in ("y", "yes"):
+                return True
+            elif response in ("n", "no"):
+                return False
+            else:
+                typer.secho("Invalid input. Enter 'y', 'n', or 'h'.", fg=ERROR_FG)
+
+    return patched_confirm
+
+
+def prompt_get_csv(prompt_text: str) -> tuple[list, Path, dict]:
+    """Prompt user to input a CSV file path and returns its contents as a list of dicts."""
+    help_msg = """
+    Help Menu:
+        Enter the full path to the CSV file.
+
+        ---
+        Enter 'q' or press ctrl+c to quit at any time.
+        Enter 'h' for help.
+    """
+    prompt = create_prompt(help_msg)
+
+    while True:
+        typer.echo(prompt_text)
+        path_str = prompt("CSV path").strip().strip('"')
+        path = Path(path_str)
+
+        # Validate filepath
+        if not path.exists():
+            typer.secho("File does not exist!", fg=typer.colors.RED)
+            continue
+        if path.suffix.lower() != ".csv":
+            typer.secho("File is not a CSV!", fg=typer.colors.RED)
+            continue
+
+        # Read CSV contents
+        with path.open("r", newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            headers = reader.fieldnames
+            data = list(reader)
+
+        return data, headers, path
+
+
+def prompt_select_header(headers: list[str]) -> str:
+    """Select a header (column) from a list."""
+    help_msg = textwrap.dedent("""
+    Help Menu:
+        Enter the number corresponding to the column you want to select.
+
+        ---
+        Enter 'q' or press ctrl+c to quit at any time.
+        Enter 'h' for help.
+    """)
+    prompt = create_prompt(help_msg)
+
+    while True:
+        for i, h in enumerate(headers):
+            typer.echo(f"    [{i}] {h}")
+        selection = prompt("Select column:", type=int)
+
+        if selection in range(len(headers)):
+            return headers[selection]
+        typer.secho("Invalid selection", fg=ERROR_FG)
+
+
+def prompt_input_dir(prompt_text: str) -> Path:
+    """Prompt the user for a path to a directory and validate that it exists."""
+    help_msg = textwrap.dedent("""
+    Help Menu:
+        Enter the full path to the desired directory.
+
+        ---
+        Enter 'q' or press ctrl+c to quit at any time.
+        Enter 'h' for help.
+    """)
+    prompt = create_prompt(help_msg)
+
+    while True:
+        typer.echo(prompt_text)
+        path_str = prompt("Directory path").strip().strip('"')
+        path = Path(path_str).resolve()
+        if path.exists():
+            return path
+
+        typer.secho("Directory does not exist!", fg=WARN_FG)
+        typer.secho("Creating directory...", fg=WARN_FG)
+        path.mkdir(parents=True, exist_ok=True)
+        typer.secho(f"Created directory at {path}", fg=SUCCESS_FG)
+        return path
+
+
+def prompt_setup_course() -> QuercusCourse:
+    """Prompt the user to set up a QuercusCourse object."""
+    help_msg = textwrap.dedent("""
+    Help Menu:
+        Enter the Course ID for the Quercus course you want to set up.
+
+        The easiest way to find this is to log into Quercus, navigate to the course, and look at the URL.
+
+        ---
+        Enter 'q' or press ctrl+c to quit at any time.
+        Enter 'h' for help.
+    """)
+    prompt = create_prompt(help_msg)
+
+    while True:
+        typer.echo("Enter The Course ID.")
+        course_id = prompt("Course ID")
+        typer.echo("Loading course...")
+
+        course = QuercusCourse(course_id, token=os.getenv("CG_TOKEN"))
+
+        try:
+            typer.secho(
+                f"Loaded course: {course.course_name} ({course_id})\n",
+                fg=SUCCESS_FG,
+            )
+            return course
+        except Exception as e:
+            emsg = "Error loading course"
+            typer.secho(emsg, fg=ERROR_FG)
+            msg = "You likely \n   a) put in the wrong course ID or\n   b) do not have permissions for the course, or\n   c) your token is invalid.\n"
+            typer.secho(msg, fg=ERROR_FG)
+            continue
+
+    return course
+
+
+def prompt_setup_assignment(course: QuercusCourse) -> QuercusAssignment:
+    """Prompt the user to set up a QuercusAssignment object."""
+    help_msg = textwrap.dedent("""
+    Help Menu:
+        Enter the Assignment ID for the Quercus assignment you want to set up.
+
+        The easiest way to find this is to log into Quercus, navigate to the assignment, and look at the URL.
+
+        ---
+        Enter 'q' or press ctrl+c to quit at any time.
+        Enter 'h' for help.
+    """)
+    prompt = create_prompt(help_msg)
+
+    typer.echo("Enter the Assignment ID.")
+    assignment_id = prompt("Assignment ID")
+    typer.echo("Loading assignment...")
+    assignment = QuercusAssignment(course.course_id, assignment_id, token=os.getenv("CG_TOKEN"))
+    typer.secho(
+        f"Loaded assignment: {assignment.name} ({assignment_id})\n",
+        fg=SUCCESS_FG,
+    )
+
+    return assignment
