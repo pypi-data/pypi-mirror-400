@@ -1,0 +1,292 @@
+Metadata-Version: 2.3
+Name: chesscom-guru
+Version: 0.1.2
+Summary: Async Chess.com public API client
+Keywords: chess,chess.com,api,pgn,async,aiohttp
+Author: Richard Ramsell
+Author-email: Richard Ramsell <richramsell@proton.me>
+License: # PolyForm Noncommercial License 1.0.0
+         
+         <https://polyformproject.org/licenses/noncommercial/1.0.0>
+         
+         ## Acceptance
+         
+         In order to get any license under these terms, you must agree
+         to them as both strict obligations and conditions to all
+         your licenses.
+         
+         ## Copyright License
+         
+         The licensor grants you a copyright license for the
+         software to do everything you might do with the software
+         that would otherwise infringe the licensor's copyright
+         in it for any permitted purpose.  However, you may
+         only distribute the software according to [Distribution
+         License](#distribution-license) and make changes or new works
+         based on the software according to [Changes and New Works
+         License](#changes-and-new-works-license).
+         
+         ## Distribution License
+         
+         The licensor grants you an additional copyright license
+         to distribute copies of the software.  Your license
+         to distribute covers distributing the software with
+         changes and new works permitted by [Changes and New Works
+         License](#changes-and-new-works-license).
+         
+         ## Notices
+         
+         You must ensure that anyone who gets a copy of any part of
+         the software from you also gets a copy of these terms or the
+         URL for them above, as well as copies of any plain-text lines
+         beginning with `Required Notice:` that the licensor provided
+         with the software.  For example:
+         
+         > Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+         
+         ## Changes and New Works License
+         
+         The licensor grants you an additional copyright license to
+         make changes and new works based on the software for any
+         permitted purpose.
+         
+         ## Patent License
+         
+         The licensor grants you a patent license for the software that
+         covers patent claims the licensor can license, or becomes able
+         to license, that you would infringe by using the software.
+         
+         ## Noncommercial Purposes
+         
+         Any noncommercial purpose is a permitted purpose.
+         
+         ## Personal Uses
+         
+         Personal use for research, experiment, and testing for
+         the benefit of public knowledge, personal study, private
+         entertainment, hobby projects, amateur pursuits, or religious
+         observance, without any anticipated commercial application,
+         is use for a permitted purpose.
+         
+         ## Noncommercial Organizations
+         
+         Use by any charitable organization, educational institution,
+         public research organization, public safety or health
+         organization, environmental protection organization,
+         or government institution is use for a permitted purpose
+         regardless of the source of funding or obligations resulting
+         from the funding.
+         
+         ## Fair Use
+         
+         You may have "fair use" rights for the software under the
+         law. These terms do not limit them.
+         
+         ## No Other Rights
+         
+         These terms do not allow you to sublicense or transfer any of
+         your licenses to anyone else, or prevent the licensor from
+         granting licenses to anyone else.  These terms do not imply
+         any other licenses.
+         
+         ## Patent Defense
+         
+         If you make any written claim that the software infringes or
+         contributes to infringement of any patent, your patent license
+         for the software granted under these terms ends immediately. If
+         your company makes such a claim, your patent license ends
+         immediately for work on behalf of your company.
+         
+         ## Violations
+         
+         The first time you are notified in writing that you have
+         violated any of these terms, or done anything with the software
+         not covered by your licenses, your licenses can nonetheless
+         continue if you come into full compliance with these terms,
+         and take practical steps to correct past violations, within
+         32 days of receiving notice.  Otherwise, all your licenses
+         end immediately.
+         
+         ## No Liability
+         
+         ***As far as the law allows, the software comes as is, without
+         any warranty or condition, and the licensor will not be liable
+         to you for any damages arising out of these terms or the use
+         or nature of the software, under any kind of legal claim.***
+         
+         ## Definitions
+         
+         The **licensor** is the individual or entity offering these
+         terms, and the **software** is the software the licensor makes
+         available under these terms.
+         
+         **You** refers to the individual or entity agreeing to these
+         terms.
+         
+         **Your company** is any legal entity, sole proprietorship,
+         or other kind of organization that you work for, plus all
+         organizations that have control over, are under the control of,
+         or are under common control with that organization.  **Control**
+         means ownership of substantially all the assets of an entity,
+         or the power to direct its management and policies by vote,
+         contract, or otherwise.  Control can be direct or indirect.
+         
+         **Your licenses** are all the licenses granted to you for the
+         software under these terms.
+         
+         **Use** means anything you do with the software requiring one
+         of your licenses.
+Classifier: License :: Other/Proprietary License
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Typing :: Typed
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Games/Entertainment :: Board Games
+Classifier: Topic :: Software Development :: Libraries
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: backoff>=2.2.1
+Requires-Python: >=3.9
+Project-URL: Homepage, https://github.com/rramsell/chesscom-guru
+Project-URL: Issues, https://github.com/rramsell/chesscom-guru/issues
+Project-URL: Repository, https://github.com/rramsell/chesscom-guru
+Description-Content-Type: text/markdown
+
+# chesscom-guru
+
+**Async Python client for the Chess.com Public API.**
+
+- **Async-first** (built on `aiohttp`)
+- **Automatic retries** for transient failures (429 + 5xx) via `backoff`
+- **Library-safe logging** (no files written; you control handlers/levels)
+- **Game archive fetching** with optional UTC time filtering + concurrency control
+
+---
+
+## Install
+
+> Requires Python 3.9+ and an async runtime (uses `aiohttp`).
+
+```bash
+pip install chesscom-guru
+```
+
+---
+
+## Quickstart
+
+```python
+import asyncio
+import aiohttp
+
+from chesscom_guru import ChesscomAPI
+
+async def main():
+    async with aiohttp.ClientSession() as session:
+        api = ChesscomAPI(session, user_agent="my-app/1.0")
+        # or:
+        api = ChesscomAPI(session, headers={"User-Agent": "my-app/1.0"})
+
+        profile = await api.get_player("erik")
+        print(profile.get("username"), profile.get("country"))
+
+        data = await api.get_games("erik", max_concurrency=8)
+        print("months fetched:", len(data["months"]))
+
+        # Each month payload contains a "games" list
+        first_month = next(iter(data["months"].values()))
+        print("games in first month:", len(first_month.get("games", [])))
+
+asyncio.run(main())
+```
+
+---
+
+## What you get back from `get_games()`
+
+`get_games()` returns a dict shaped like:
+
+```python
+{
+  "username": "erik",
+  "archives": ["https://api.chess.com/pub/player/erik/games/2024/06", ...],
+  "months": {
+    "<archive_url>": {
+      # month payload from chess.com
+      "games": [{...}, {...}, ...]
+    },
+    ...
+  },
+  "errors": {
+    "<archive_url>": "<repr(exception)>",
+    ...
+  },
+  "from_ts": "2024-01-01T00:00:00+00:00" | None,
+  "to_ts": "2024-06-30T23:59:59+00:00" | None,
+}
+```
+
+- **`months`** is keyed by the monthly archive URL.
+- **`errors`** includes per-month failures (fetch exceptions) without killing the whole run.
+
+---
+
+## Time filtering (UTC)
+
+You can provide `from_ts` and/or `to_ts` to filter games by **game `end_time`**.
+
+- If you pass a **naive datetime** (no `tzinfo`), the library assumes it is **UTC**.
+- Filtering happens in two stages:
+  1) filters monthly archive URLs by `(year, month)` derived from your timestamps  
+  2) filters games within those months by `end_time`
+
+```python
+from datetime import datetime, timezone
+
+from_ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+to_ts   = datetime(2024, 6, 30, 23, 59, 59, tzinfo=timezone.utc)
+
+data = await api.get_games("erik", from_ts=from_ts, to_ts=to_ts)
+```
+
+---
+
+## Concurrency
+
+`max_concurrency` controls how many monthly archive requests run at once:
+
+```python
+data = await api.get_games("erik", max_concurrency=5)
+```
+
+---
+
+## Logging
+
+This library does **not** configure logging by default. If you want to see logs, configure
+logging in your application:
+
+```python
+import logging
+logging.basicConfig(level=logging.WARNING)
+```
+
+---
+
+## Supported methods
+
+- `get_player(username)`
+- `get_archives(username)`
+- `get_games(username, max_concurrency=10, from_ts=None, to_ts=None, user_agent, headers)`
+
+---
+
+## License
+
+PolyForm Noncommercial 1.0.0 — free for noncommercial use.  
+For commercial licensing, contact: **richramsell@proton.me**.
