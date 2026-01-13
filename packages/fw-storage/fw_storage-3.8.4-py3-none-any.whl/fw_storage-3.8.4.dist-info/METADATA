@@ -1,0 +1,100 @@
+Metadata-Version: 2.4
+Name: fw-storage
+Version: 3.8.4
+Summary: Unified storage interface.
+Project-URL: Repository, https://gitlab.com/flywheel-io/tools/lib/fw-storage
+Project-URL: Documentation, https://gitlab.com/flywheel-io/tools/lib/fw-storage
+Author-email: Flywheel <support@flywheel.io>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: Flywheel,file,object,storage
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.11
+Requires-Dist: azure-identity<2,>=1.11.0
+Requires-Dist: azure-storage-blob>12.22.0
+Requires-Dist: boto3<2,>=1.17.7
+Requires-Dist: fw-utils>=4.2.2
+Requires-Dist: google-cloud-storage<4,>=3.1.0
+Requires-Dist: pydantic<3,>=2.3.0
+Requires-Dist: typing-extensions<5,>=4.9.0
+Description-Content-Type: text/markdown
+
+# fw-storage
+
+Unified file storage interface tuned for simple filtering, memory-efficiency and
+performance to support processing large datasets in Flywheel imports and exports.
+
+Supported storage backends:
+
+- `fs://` - Local file-system
+- `s3://` - Amazon S3
+- `gs://` - Google Cloud Storage
+- `az://` - Azure Blob Storage
+
+## Installation
+
+Add as a `poetry` dependency to your project:
+
+```bash
+poetry add fw-storage
+```
+
+## Usage
+
+```python
+from fw_storage import create_storage_client
+
+# instantiate storage with URL
+fs = create_storage_client("fs:///tmp")
+
+# set objects from bytes, filepaths or open files
+fs.set("test/file1.dat", b"content")
+fs.set("test/file2.dat", "/tmp/test/file1.dat")
+fs.set("test/file3.dat", open("/tmp/test/file2.dat"))
+
+# list objects, filtering with expressions
+files = list(fs.ls("test", include=["size<1kB"], exclude=["path!~file3"]))
+len(files) == 2
+
+# get object info with path, size, created and modified
+info = fs.stat("test/file1.dat")
+info.size == 7
+
+# read object contents
+file = fs.get("test/file1.dat")
+file.read() == b"content"
+
+# remove one or more objects
+fs.rm("test", recurse=True)
+```
+
+## Configuration
+
+Credentials for cloud storage providers are loaded using the vendor SDKs to
+support every standard config file location and environment variable recommended
+by the provider:
+
+| Storage | Config docs           |
+| ------- | --------------------- |
+| `s3://` | [Boto][boto-docs]     |
+| `gs://` | [Google][google-docs] |
+| `az://` | [Azure][azure-docs]   |
+
+In addition, `az://` can be configured with the envvar `AZ_ACCESS_KEY`.
+
+[boto-docs]: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
+[google-docs]: https://google-auth.readthedocs.io/en/latest/reference/google.auth.html
+[azure-docs]: https://docs.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential
+
+## Development
+
+Install the project using `poetry` and enable `pre-commit`:
+
+```bash
+poetry install -E all
+pre-commit install
+```
+
+## License
+
+[![MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
