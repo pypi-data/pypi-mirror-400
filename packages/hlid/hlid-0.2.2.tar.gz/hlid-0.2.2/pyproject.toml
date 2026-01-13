@@ -1,0 +1,88 @@
+[build-system]
+build-backend = "pdm.backend"
+requires = [
+    "pdm-backend",
+]
+
+[project]
+authors = [
+    { name = "Nicholas de Jong", email = "ndejong@threatpatrols.com" },
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "typing>=3.0",
+]
+description = "HLID: a Human Lexicographically (sortable) Identifier"
+name = "hlid"
+requires-python = ">=3.8,<4"
+version = "0.2.2"
+readme = "README.md"
+keywords = [
+    "HLID",
+    "UUID",
+    "ULID",
+    "Sortable",
+]
+
+[project.license]
+text = "MIT"
+
+[project.urls]
+"Bug Tracker" = "https://github.com/threatpatrols/hlid/issues"
+Documentation = "https://github.com/threatpatrols/hlid"
+Homepage = "https://pypi.python.org/pypi/hlid/"
+Repository = "https://github.com/threatpatrols/hlid"
+
+[tool.slap]
+typed = true
+
+[tool.slap.release]
+branch = "dev"
+
+[tool.slap.test]
+check = "slap check"
+mypy = "dmypy run src"
+pytest = "pytest tests/ -vv"
+ruff-format = "ruff format --check"
+ruff-lint = "ruff check"
+
+[tool.slap.run]
+format = "ruff format ."
+package-build = "set -e; slap release --validate && slap test && slap publish --dry --build-directory ./dist\n"
+check-prereqs = "set -e; uv --help > /dev/null || (echo 'Failed uv prereq!' && exit 1); pdm --help > /dev/null || (echo 'Failed pdm prereq!' && exit 1); flit --help > /dev/null || (echo 'Failed flit prereq!' && exit 1); echo \"Prereqs okay.\"\n"
+
+[tool.mypy]
+pretty = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+namespace_packages = true
+show_error_codes = true
+show_error_context = true
+warn_no_return = true
+warn_unreachable = true
+
+[tool.uv]
+dev-dependencies = [
+    "ruff",
+    "pytest",
+    "mypy",
+    "pytest-asyncio",
+    "types-psutil",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+ignore = [
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**.py" = [
+    "F401",
+]
