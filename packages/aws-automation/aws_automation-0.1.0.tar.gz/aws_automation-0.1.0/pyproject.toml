@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aws-automation"
+dynamic = ["version", "readme", "dependencies"]
+description = "AWS 운영 자동화 CLI 도구"
+license = "MIT"
+authors = [{name = "Euncheol Hong", email = "where906@gmail.com"}]
+keywords = ["aws", "automation", "cli", "devops", "cloud"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+requires-python = ">=3.10"
+
+[project.urls]
+Homepage = "https://github.com/expeor/aws-automation"
+Issues = "https://github.com/expeor/aws-automation/issues"
+
+[project.scripts]
+aa = "cli.app:cli"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "moto>=5.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.10.0",
+    "bandit>=1.7.0",
+    "safety>=3.0.0",
+    "pre-commit>=3.8.0",
+]
+
+[tool.setuptools]
+packages = {find = {exclude = ["tests*", "scripts*", "output*"]}}
+
+[tool.setuptools.dynamic]
+version = {file = "version.txt"}
+readme = {file = "README.md", content-type = "text/markdown"}
+dependencies = {file = "requirements.txt"}
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [".git", "__pycache__", "build", "dist", ".eggs", "output", "temp"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # Line length handled by formatter
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+# Gradual typing - enable more checks over time
+check_untyped_defs = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+warn_return_any = false
+warn_unused_ignores = false
+# Keep these enabled for catching real bugs
+warn_redundant_casts = true
+warn_unused_configs = true
+no_implicit_optional = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101", "B311", "B608"]
+# B101: assert usage (normal in tests)
+# B311: random usage (not for security)
+# B608: DuckDB queries with internal AWS data, not user input
+
+[tool.coverage.run]
+source = ["cli", "core", "plugins"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--tb=short", "-q"]
