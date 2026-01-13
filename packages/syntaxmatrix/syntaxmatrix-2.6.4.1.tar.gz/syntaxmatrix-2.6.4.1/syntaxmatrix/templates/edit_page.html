@@ -1,0 +1,2535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Edit page · {{ page_name }}</title>
+
+  <!-- SortableJS (drag & drop) -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+
+  <!-- CodeMirror (real code editor: syntax colours + matching brackets) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closetag.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+
+  <style>
+    :root{
+      --bg0:#020617;
+      --bg1:#0b1224;
+      --bg2:#0f1b33;
+      --line:rgba(148,163,184,.25);
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --good:#22c55e;
+      --bad:#ef4444;
+      --brandA:#0ea5e9;
+      --brandB:#22c55e;
+      --cardShadow: 0 20px 40px rgba(15,23,42,.75), 0 0 0 .5px rgba(148,163,184,.35);
+      --radius:14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    *{box-sizing:border-box}
+    html, body{
+      height: 100%;
+    }
+    body{
+      margin:0;
+      font-family:var(--ui);
+      background: radial-gradient(circle at 0 0, #1e293b 0, var(--bg0) 55%, #000 100%);
+      color:var(--text);
+
+      /* NEW: prevent whole-page scrolling */
+      overflow: hidden;
+    }
+
+    .topbar{
+      position:sticky; top:0; z-index:50;
+      background: rgba(2,6,23,.78);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid var(--line);
+      padding:14px 16px;
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+    }
+    .topbar .left{
+      display:flex; flex-direction:column; gap:2px;
+      min-width: 280px;
+    }
+    .topbar h1{margin:0; font-size:1.05rem; font-weight:650;}
+    .topbar .sub{color:var(--muted); font-size:.82rem;}
+    .topbar .right{display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;}
+    .pill{
+      font-size:.72rem;
+      padding:3px 9px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      color:var(--muted);
+    }
+    .pill.ok{border-color:rgba(34,197,94,.7); color:#bbf7d0;}
+    .pill.fail{border-color:rgba(239,68,68,.7); color:#fecaca;}
+
+    .btn{
+      border:1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      padding:8px 12px;
+      border-radius:999px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:.85rem;
+    }
+    .btn:hover{border-color:rgba(56,189,248,.65); color:#38bdf8;}
+    .btn.primary{
+      border:none;
+      background: linear-gradient(135deg, var(--brandA), var(--brandB));
+      color:#07111f;
+      box-shadow: 0 12px 24px rgba(8,47,73,.75);
+    }
+    .btn.primary:hover{filter:brightness(1.06);}
+    .btn.small{padding:6px 10px; font-size:.78rem; font-weight:650;}
+    .btn.danger{border-color:rgba(239,68,68,.55); color:#fecaca;}
+    .btn.danger:hover{border-color:rgba(239,68,68,.9); color:#fff;}
+
+    .wrap{
+      display:grid;
+      grid-template-columns: 290px minmax(0, 1fr) 340px;
+      gap: 12px;
+      padding: 12px;
+
+      /* NEW: fill viewport below topbar */
+      height: calc(100vh - 86px);
+      align-items: stretch;
+      grid-template-rows: 1fr;
+      min-height: 0;
+    }
+    .wrap > *{
+      min-height: 0;
+    }
+
+    .panel{
+      border:1px solid var(--line);
+      background: rgba(2,6,23,.65);
+      border-radius: var(--radius);
+      box-shadow: var(--cardShadow);
+      overflow:hidden;
+    }
+    .panel .hd{
+      padding:12px 12px 10px;
+      border-bottom:1px solid var(--line);
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .panel .hd h2{margin:0; font-size:.9rem; font-weight:750;}
+    .panel .bd{padding:12px;}
+    .muted{color:var(--muted); font-size:.82rem; line-height:1.35;}
+
+    .palette{display:flex; flex-direction:column; gap:8px;}
+    .widget{
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px dashed rgba(148,163,184,.35);
+      background: rgba(15,23,42,.55);
+      cursor:grab;
+      user-select:none;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+    }
+    .widget b{font-size:.86rem;}
+    .widget span{color:var(--muted); font-size:.75rem;}
+    .widget:active{cursor:grabbing;}
+    .hint{margin-top:8px; color:var(--muted); font-size:.78rem;}
+
+    .canvas{
+      height: 100%;
+      min-height: 0;
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(2,6,23,.35);
+      box-shadow: var(--cardShadow);
+
+      /* ✅ canvas is the scroll container */
+      overflow-y: auto;
+      overflow-x: hidden;
+
+      /* optional but nice: stop scroll chaining */
+      overscroll-behaviour: contain;
+    }
+
+    /* scroll area inside the canvas */
+    .canvas .sections{
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+
+      /* ✅ not the scroller anymore */
+      overflow: visible;
+      height: auto;
+    }
+    .canvas .hd{
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .canvas .hd .title{display:flex; flex-direction:column; gap:2px;}
+    .canvas .hd .title b{font-size:.92rem;}
+    .canvas .hd .title small{color:var(--muted); font-size:.78rem;}
+
+    .section{
+      border:1px solid rgba(148,163,184,.22);
+      background: rgba(15,23,42,.45);
+      border-radius: 16px;
+      overflow:hidden;
+    }
+    .section.selected{outline:2px solid rgba(56,189,248,.55);}
+    .section .shd{
+      padding:10px 10px;
+      border-bottom:1px solid rgba(148,163,184,.18);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .handle{
+      font-family: var(--mono);
+      color: rgba(148,163,184,.9);
+      padding: 2px 7px;
+      border-radius: 10px;
+      border: 1px solid rgba(148,163,184,.22);
+      cursor:grab;
+      user-select:none;
+    }
+    .section .meta{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    }
+    .section .meta b{font-size:.86rem;}
+    .chip{
+      font-size:.72rem;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.22);
+      color: var(--muted);
+    }
+    .section .actions{display:flex; gap:6px; align-items:center;}
+    .section .sbd{padding:10px;}
+
+    .items{
+      display:grid;
+      gap:10px;
+    }
+    .items.cols-1{grid-template-columns: 1fr;}
+    .items.cols-2{grid-template-columns: repeat(2, 1fr);}
+    .items.cols-3{grid-template-columns: repeat(3, 1fr);}
+    .items.cols-4{grid-template-columns: repeat(4, 1fr);}
+    .items.cols-5{grid-template-columns: repeat(5, 1fr);}
+    @media (max-width: 1100px){
+      .wrap{grid-template-columns: 1fr; }
+      .canvas{min-height: 0;}
+      .items.cols-4,.items.cols-5{grid-template-columns: repeat(2, 1fr);}
+    }
+    @media (max-width: 520px){
+      .items.cols-2,.items.cols-3,.items.cols-4,.items.cols-5{grid-template-columns: 1fr;}
+    }
+
+    .item{
+      border:1px solid rgba(148,163,184,.22);
+      background: rgba(2,6,23,.55);
+      border-radius: 14px;
+      padding:10px;
+      display:flex; flex-direction:column; gap:8px;
+      cursor:pointer;
+    }
+    .item.selected{outline:2px solid rgba(34,197,94,.5);}
+    .item .cta-drop{
+      margin-top:6px;
+      padding:8px 10px;
+      border-radius: 12px;
+      border: 1px dashed rgba(148,163,184,.35);
+      color: rgba(148,163,184,.95);
+      font-size: .92rem;
+      user-select:none;
+    }
+    .item .cta-drop.has{
+      border-style: solid;
+      color: rgba(229,231,235,.92);
+    }
+    .item .cta-drop.over{
+      border-color: rgba(34,197,94,.65);
+      box-shadow: 0 0 0 2px rgba(34,197,94,.18) inset;
+    }
+    .item .thumb{
+      border-radius: 12px;
+      border:1px solid rgba(148,163,184,.18);
+      background: rgba(15,23,42,.55);
+      height: 110px;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden;
+      position:relative;
+    }
+    .item .thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+    .item .thumb .drop{
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      color: rgba(229,231,235,.85);
+      font-size:.75rem;
+      opacity:.0;
+      background: rgba(2,6,23,.45);
+      transition: opacity .12s ease;
+    }
+    .item:hover .thumb .drop{opacity:1;}
+    .item .title{font-weight:750; font-size:.86rem;}
+    .item .text{color:var(--muted); font-size:.8rem; line-height:1.25;}
+
+    .item .cta-drop{
+      margin-top:6px;
+      padding:8px 10px;
+      border-radius: 12px;
+      border: 1px dashed rgba(148,163,184,.35);
+      color: rgba(148,163,184,.95);
+      font-size: .78rem;
+      user-select:none;
+    }
+    .item .cta-drop.has{
+      border-style: solid;
+      color: rgba(229,231,235,.92);
+    }
+    .item .cta-drop.over{
+      border-color: rgba(34,197,94,.65);
+      box-shadow: 0 0 0 2px rgba(34,197,94,.18) inset;
+    }
+
+    .tabs{display:flex; gap:6px; padding:10px; border-bottom:1px solid var(--line); background: rgba(2,6,23,.55);}
+    .tabbtn{
+      flex:1;
+      padding:8px 10px;
+      border-radius: 12px;
+      border:1px solid rgba(148,163,184,.22);
+      background: rgba(15,23,42,.35);
+      color: var(--text);
+      font-weight:700;
+      cursor:pointer;
+      font-size:.82rem;
+    }
+    .tabbtn.active{
+      border-color: rgba(56,189,248,.55);
+      box-shadow: inset 0 0 0 1px rgba(56,189,248,.35);
+      color:#38bdf8;
+    }
+    .tab{display:none; padding:12px;}
+    .tab.active{display:block;}
+
+    .field{display:flex; flex-direction:column; gap:6px; margin-bottom:10px;}
+    .field label{font-size:.78rem; font-weight:750; color:#d1d5db;}
+    .field input, .field textarea, .field select{
+      width:100%;
+      padding:8px 10px;
+      border-radius: 12px;
+      border:1px solid rgba(148,163,184,.28);
+      background: rgba(2,6,23,.75);
+      color: var(--text);
+      outline:none;
+      font-size:.85rem;
+    }
+    .field textarea{min-height:92px; resize:vertical; font-family: var(--ui);}
+    .row{display:flex; gap:8px; align-items:center;}
+    .row > *{flex:1;}
+    .hr{height:1px; background: var(--line); margin:12px 0;}
+
+    .media-grid{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:8px;
+    }
+    .media-tile{
+      border:1px solid rgba(148,163,184,.22);
+      border-radius: 12px;
+      background: rgba(15,23,42,.35);
+      overflow:hidden;
+      cursor:grab;
+      height: 88px;
+      position:relative;
+    }
+    .media-tile img{width:100%; height:100%; object-fit:cover; display:block;}
+    .media-tile .cap{
+      position:absolute; left:0; right:0; bottom:0;
+      padding:4px 6px;
+      background: rgba(2,6,23,.65);
+      color: rgba(229,231,235,.9);
+      font-size:.68rem;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .media-empty{
+      color:var(--muted);
+      font-size:.82rem;
+      padding:10px;
+      border:1px dashed rgba(148,163,184,.25);
+      border-radius: 12px;
+      background: rgba(2,6,23,.35);
+    }
+
+    /* Code editor block */
+    .codewrap{
+      margin: 12px;
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      overflow:hidden;
+      box-shadow: var(--cardShadow);
+      background: rgba(2,6,23,.65);
+    }
+    .codewrap .hd{
+      padding:12px;
+      border-bottom:1px solid var(--line);
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+      background: rgba(2,6,23,.55);
+    }
+    .codewrap .hd b{font-size:.9rem;}
+    .codewrap .bd{padding:12px;}
+    .CodeMirror{
+      height: 520px;
+      font-family: var(--mono);
+      font-size: 13.5px;
+      border-radius: 14px;
+      border: 1px solid rgba(15,23,42,.95);
+    }
+
+    /* CodeMirror theme */
+    .cm-s-smx-dark.CodeMirror{background: var(--bg0); color: var(--text);}
+    .cm-s-smx-dark .CodeMirror-gutters{background: var(--bg0); border-right:1px solid rgba(30,64,175,.85); color:#6b7280;}
+    .cm-s-smx-dark .CodeMirror-linenumber{color:#4b5563;}
+    .cm-s-smx-dark span{background:none;}
+    .cm-s-smx-dark .cm-tag{color:#60a5fa;}
+    .cm-s-smx-dark .cm-attribute{color:#facc15;}
+    .cm-s-smx-dark .cm-string{color:#4ade80;}
+    .cm-s-smx-dark .cm-number{color:#fb923c;}
+    .cm-s-smx-dark .cm-keyword{color:#f97373;}
+    .cm-s-smx-dark .cm-comment{color:#9ca3af; font-style:italic;}
+    .cm-s-smx-dark .cm-error{background:none; color:#f97373; border-bottom:1px dotted #f97373;}
+    .cm-s-smx-dark .CodeMirror-matchingbracket{
+      background-color: rgba(34,197,94,.18) !important;
+      border-radius: 3px;
+      border: 1px solid rgba(34,197,94,.9);
+      color: #f9fafb !important;
+    }
+    .cm-s-smx-dark .CodeMirror-nonmatchingbracket{
+      background-color: rgba(239,68,68,.18) !important;
+      border-radius: 3px;
+      border: 1px solid rgba(239,68,68,.95);
+      color: #fee2e2 !important;
+    }
+    .widget, .section, .item { cursor: grab; user-select: none; }
+    .widget:active, .section:active, .item:active { cursor: grabbing; }
+
+    .panel{
+      height: 100%;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+    .panel .bd{
+      overflow:auto;
+      min-height:0;
+    }
+    .tab.active{
+      overflow:auto;
+      min-height:0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="left">
+      <h1>Edit page</h1>
+      <div class="sub">
+        Editing <code style="font-family:var(--mono)">{{ page_name }}</code> · Builder + HTML editor (CodeMirror)
+      </div>
+    </div>
+
+    {% if published_as %}
+    <div id="publishedBanner" style="
+        max-width:1100px; margin:12px auto 0; padding:10px 12px;
+        border-radius:12px;
+        border:1px solid rgba(34,197,94,.45);
+        background: rgba(34,197,94,.10);
+        color:#bbf7d0;
+        display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <div>
+        <strong>Published as:</strong>
+        <code style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
+            {{ published_as }}
+        </code>
+        </div>
+        <button type="button" id="closePublishedBanner" style="
+            border:1px solid rgba(148,163,184,.35);
+            background:transparent; color:#e5e7eb;
+            border-radius:999px; padding:4px 10px; cursor:pointer;">
+        OK
+        </button>
+    </div>
+
+    <script>
+        (function () {
+        // Remove published_as from the URL so the banner shows once only.
+        try {
+            const u = new URL(window.location.href);
+            u.searchParams.delete("published_as");
+            const qs = u.searchParams.toString();
+            history.replaceState({}, document.title, u.pathname + (qs ? "?" + qs : "") + u.hash);
+        } catch (e) {}
+
+        const btn = document.getElementById("closePublishedBanner");
+        const banner = document.getElementById("publishedBanner");
+        if (btn && banner) btn.addEventListener("click", () => banner.remove());
+        })();
+    </script>
+    {% endif %}
+
+    <div class="right">
+      <span id="status" class="pill">Ready</span>
+      <a class="btn" href="{{ url_for('admin_panel') }}">Back to Admin</a>
+      <a class="btn" target="_blank" href="{{ url_for('view_page', page_name=page_name) }}">Preview</a>
+      <button class="btn" id="btn-save-layout" type="button">Save layout</button>
+      <button class="btn primary" id="btn-generate-html" type="button">Update</button>
+      <button class="btn primary" id="btn-publish-layout" type="button">Publish layout</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- LEFT: palette -->
+    <div class="panel">
+      <div class="hd"><h2>Drag sections</h2></div>
+      <div class="bd">
+        <div id="section-palette" class="palette">
+          <div class="widget" data-kind="section" data-type="hero"><b>Hero</b><span>headline + CTA</span></div>
+          <div class="widget" data-kind="section" data-type="features"><b>Features</b><span>cards grid</span></div>
+          <div class="widget" data-kind="section" data-type="gallery"><b>Gallery</b><span>images grid</span></div>
+          <div class="widget" data-kind="section" data-type="testimonials"><b>Testimonials</b><span>quotes</span></div>
+          <div class="widget" data-kind="section" data-type="faq"><b>FAQ</b><span>questions</span></div>
+          <div class="widget" data-kind="section" data-type="cta"><b>CTA block</b><span>banner</span></div>
+          <div class="widget" data-kind="section" data-type="richtext"><b>Rich text</b><span>free content</span></div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="muted"><b>Drag items</b> (into a section):</div>
+        <div id="item-palette" class="palette" style="margin-top:8px;">
+          <div class="widget" data-kind="item" data-type="card"><b>Card</b><span>title + text + image</span></div>
+          <div class="widget" data-kind="item" data-type="image"><b>Image</b><span>single media</span></div>
+          <div class="widget" data-kind="item" data-type="faq"><b>FAQ item</b><span>Q + A</span></div>
+          <div class="widget" data-kind="item" data-type="quote"><b>Quote</b><span>name + quote</span></div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="muted"><b>Card actions</b> (drop onto a card):</div>
+        <div id="card-action-palette" class="palette" style="margin-top:8px;">
+          <div class="widget" draggable="true" data-action="card-cta">
+            <b>Button</b><span>attach to a card</span></div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="hint">
+          Tip: Sections accept items. Each item can have its own image (perfect for feature cards with icons/images).
+        </div>
+      </div>
+    </div>
+
+    <!-- MIDDLE: builder canvas -->
+    <div class="canvas">
+      <div class="hd">
+        <div class="title">
+          <b>Page builder</b>
+          <small>Drag sections here · drag items into a section · click to edit</small>
+        </div>
+        <div class="row" style="max-width:420px;">
+          <select id="default-cols" title="Default grid columns">
+            <option value="1">Default: 1 col</option>
+            <option value="2">Default: 2 cols</option>
+            <option value="3" selected>Default: 3 cols</option>
+            <option value="4">Default: 4 cols</option>
+            <option value="5">Default: 5 cols</option>
+          </select>
+          <button class="btn danger" id="btn-clear" type="button">Clear</button>
+        </div>
+      </div>
+      <div class="sections" id="sections"></div>
+    </div>
+
+    <!-- RIGHT: inspector + media + ai -->
+    <div class="panel">
+      <div class="tabs">
+        <button class="tabbtn active" data-tab="inspector" type="button">Inspector</button>
+        <button class="tabbtn" data-tab="design" type="button">Design</button>
+        <button class="tabbtn" data-tab="media" type="button">Media</button>
+        <button class="tabbtn" data-tab="pixabay" type="button">Online images</button>
+      </div>
+
+      <div class="tab active" id="tab-inspector">
+        <div class="muted" id="insp-empty">
+          Click a section or item to edit it.
+        </div>
+
+        <div id="insp" style="display:none;">
+          <div class="field">
+            <label>Selected</label>
+            <input id="insp-kind" disabled />
+          </div>
+
+          <div class="field">
+            <label>Title</label>
+            <input id="insp-title" placeholder="Title"/>
+          </div>
+
+          <div class="field">
+            <label>Text</label>
+            <textarea id="insp-text" placeholder="Text / description"></textarea>
+          </div>
+
+          <div class="row">
+            <div class="field" id="field-cols">
+              <label>Columns</label>
+              <select id="insp-cols">
+                <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+              </select>
+            </div>
+
+            <div class="field" id="field-img">
+              <label>Image URL</label>
+              <input id="insp-img" placeholder="/uploads/media/images/..." />
+            </div>
+            <div class="field" id="field-href" style="display:none;">
+              <label>Button link URL</label>
+              <input id="insp-href" placeholder="/page/contact or https://example.com" />
+            </div>
+
+            <!-- Sprint 3: card CTA alignment -->
+            <div class="field" id="field-cta-align" style="display:none; min-width:180px;">
+              <label>Button alignment</label>
+              <select id="insp-cta-align">
+                <option value="">Default (Left)</option>
+                <option value="left">Left</option>
+                <option value="center">Centre</option>
+                <option value="right">Right</option>
+                <option value="full">Full width</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- HERO overlay buttons (only shown when Hero section is selected) -->
+          <div id="hero-ctas" style="display:none;">
+            <div class="hr"></div>
+            <div class="muted"><b>Hero buttons</b> (leave URL blank to hide a button)</div>
+
+            <div class="row">
+              <div class="field" style="flex:1;">
+                <label>Button 1 label</label>
+                <input id="hero-cta1-label" placeholder="Explore features" />
+              </div>
+              <div class="field" style="flex:1;">
+                <label>Button 1 URL</label>
+                <input id="hero-cta1-href" placeholder="#sec_... or https://example.com" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="field" style="flex:1;">
+                <label>Button 2 label</label>
+                <input id="hero-cta2-label" placeholder="Talk to us" />
+              </div>
+              <div class="field" style="flex:1;">
+                <label>Button 2 URL</label>
+                <input id="hero-cta2-href" placeholder="#sec_... or https://example.com" />
+              </div>
+            </div>
+
+            <div class="hint">
+              Tip: use <code style="font-family:var(--mono)">#</code> + a section id (e.g. <code style="font-family:var(--mono)">#sec_xxx</code>) to jump.
+            </div>
+          </div>
+          
+          <div class="row" id="row-cta" style="display:none;">
+            <div class="field" style="flex:1;">
+              <label>Button label</label>
+              <input id="insp-cta-label" placeholder="Read more" />
+            </div>
+            <div class="field" style="width:140px;align-self:flex-end;">
+              <button class="btn danger" id="btn-remove-cta" type="button">Remove</button>
+            </div>
+          </div>
+          
+          <div class="row" id="row-cta-align" style="display:none;"></div>
+         
+          <div class="row">
+            <button class="btn" id="btn-apply" type="button">Apply</button>
+            <button class="btn danger" id="btn-delete" type="button">Delete</button>
+          </div>
+
+          <div class="hint">
+            You can drag an image from the Media tab onto an item's thumbnail area.
+          </div>
+
+          <!-- Sprint 4: per-section styling -->
+          <div class="hr" id="hr-sec-style" style="display:none;"></div>
+
+          <div id="sec-style-box" style="display:none;">
+            <div class="muted" style="margin-bottom:8px;"><b>Section style</b></div>
+
+            <div class="row">
+              <div class="field" style="flex:1;">
+                <label>Background colour</label>
+                <input type="color" id="sec-bg" value="#ffffff" />
+              </div>
+
+              <div class="field" style="width:180px;">
+                <label>Spacing</label>
+                <select id="sec-pad">
+                  <option value="">Default</option>
+                  <option value="compact">Compact</option>
+                  <option value="normal">Normal</option>
+                  <option value="spacious">Spacious</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="field" style="width:180px;">
+                <label>Text alignment</label>
+                <select id="sec-align">
+                  <option value="">Default</option>
+                  <option value="left">Left</option>
+                  <option value="center">Centre</option>
+                </select>
+              </div>
+
+              <div class="field" style="flex:1;">
+                <label style="display:flex;gap:10px;align-items:center;">
+                  <input type="checkbox" id="sec-style-on" />
+                  Enable custom section style
+                </label>
+                <div class="muted" style="margin-top:4px;">Turn off to revert to the page defaults.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="tab" id="tab-design">
+        <div class="field">
+          <label>Body font</label>
+          <select id="design-font-body">
+            <option value="">Default (as generated)</option>
+            <option value="system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif">System</option>
+            <option value="Arial, Helvetica, sans-serif">Arial</option>
+            <option value="&quot;Trebuchet MS&quot;, &quot;Segoe UI&quot;, Arial, sans-serif">Trebuchet MS</option>
+            <option value="Georgia, &quot;Times New Roman&quot;, serif">Georgia (serif)</option>
+            <option value="&quot;Times New Roman&quot;, Times, serif">Times New Roman</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Heading font</label>
+          <select id="design-font-heading">
+            <option value="">Default (same as body)</option>
+            <option value="system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif">System</option>
+            <option value="Arial, Helvetica, sans-serif">Arial</option>
+            <option value="&quot;Trebuchet MS&quot;, &quot;Segoe UI&quot;, Arial, sans-serif">Trebuchet MS</option>
+            <option value="Georgia, &quot;Times New Roman&quot;, serif">Georgia (serif)</option>
+            <option value="&quot;Times New Roman&quot;, Times, serif">Times New Roman</option>
+          </select>
+        </div>
+
+        <div class="hint">
+          Colours apply to the published page. Leave toggles off to keep current defaults.
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label style="display:flex;gap:10px;align-items:center;">
+              <input type="checkbox" id="design-accent-on" />
+              Accent colour
+            </label>
+            <input type="color" id="design-accent" value="#6366f1" disabled />
+          </div>
+
+          <div class="field">
+            <label style="display:flex;gap:10px;align-items:center;">
+              <input type="checkbox" id="design-text-on" />
+              Text colour
+            </label>
+            <input type="color" id="design-text" value="#0f172a" disabled />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label style="display:flex;gap:10px;align-items:center;">
+              <input type="checkbox" id="design-muted-on" />
+              Muted text colour
+            </label>
+            <input type="color" id="design-muted" value="#475569" disabled />
+          </div>
+
+          <div class="field">
+            <label style="display:flex;gap:10px;align-items:center;">
+              <input type="checkbox" id="design-bg-on" />
+              Background colour
+            </label>
+            <input type="color" id="design-bg" value="#f8fafc" disabled />
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="btn danger" id="btn-design-reset" type="button">Reset design</button>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-media">
+        <div class="row">
+          <button class="btn" id="btn-refresh-media" type="button">Refresh</button>
+          <button class="btn" id="btn-open-upload" type="button">Upload</button>
+        </div>
+
+        <div id="upload-box" style="display:none; margin-top:10px;">
+          <form id="upload-form">
+            <input type="file" name="media_files" id="media_files" multiple />
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button class="btn primary" type="submit">Upload</button>
+              <button class="btn" type="button" id="btn-close-upload">Close</button>
+            </div>
+            <div class="hint">Images will go under <code style="font-family:var(--mono)">uploads/media/images/...</code></div>
+          </form>
+        </div>
+
+        <div class="hr"></div>
+
+        <div id="media-list">
+          <div class="media-empty">No media loaded yet. Click “Refresh”.</div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-pixabay">
+        <div class="muted">
+          Search Pixabay → click an image → we import it locally so links never break.
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="field">
+          <label>Search</label>
+          <input id="px-q" placeholder="e.g. modern office teamwork, healthcare clinic, maths tutoring" />
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label>Orientation</label>
+            <select id="px-orientation">
+              <option value="horizontal" selected>Landscape</option>
+              <option value="vertical">Portrait</option>
+              <option value="all">Any</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Type</label>
+            <select id="px-type">
+              <option value="photo" selected>Photo</option>
+              <option value="illustration">Illustration</option>
+              <option value="vector">Vector</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn primary" id="btn-px-search" type="button">Search</button>
+
+        <div class="hr"></div>
+
+        <div id="px-out" class="muted">No results yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CODE EDITOR -->
+  <div class="codewrap">
+    <div class="hd">
+      <b>HTML editor (detached from the builder unless you click “Generate HTML”)</b>
+      <span id="cm-status" class="pill">Initialising…</span>
+    </div>
+
+    <div class="bd">
+      <form id="save-html-form" method="post" action="{{ url_for('edit_page', page_name=page_name) }}">
+        <div class="field">
+          <label>Page key (slug)</label>
+          <input id="page_name" type="text" name="page_name" value="{{ page_name }}" required />
+        </div>
+
+        <div class="field">
+          <label>Page HTML</label>
+          <textarea id="page_content" name="page_content" rows="24">{{ content|e }}</textarea>
+        </div>
+
+        <!-- keep real submit hidden; we trigger it via the topbar button -->
+        <button type="submit" id="real-submit" style="display:none;">Save</button>
+
+        <div class="hint">
+          This is what will be served for the page. The builder saves separately in <code style="font-family:var(--mono)">page_layouts</code>.
+        </div>
+      </form>
+    </div>
+  </div>
+  <input id="quick-img-input" type="file" accept="image/*" style="display:none;" />
+  <script>
+    // ----------------------------
+    // Boot data from server
+    // ----------------------------
+    const PAGE_NAME = {{ page_name|tojson }};
+    const INITIAL_LAYOUT_RAW = {{ layout_json|tojson }}; // string | object | null
+
+    // Ensure `state` exists as a real global (so theme edits persist)
+    var state = window.state || { sections: [] };
+    window.state = state;
+
+    try{
+      if (INITIAL_LAYOUT_RAW){
+        const parsed = (typeof INITIAL_LAYOUT_RAW === "string")
+          ? JSON.parse(INITIAL_LAYOUT_RAW)
+          : INITIAL_LAYOUT_RAW;
+
+        if (parsed && Array.isArray(parsed.sections)) { state = parsed; window.state = state; }
+      }
+    }catch(e){
+      console.warn("Layout JSON parse failed", e);
+    }
+  
+    // default columns
+    const defaultColsSel = document.getElementById("default-cols");
+    function getDefaultCols(){ return parseInt(defaultColsSel.value || "3", 10); }
+
+    // ----------------------------
+    // Helpers
+    // ----------------------------
+    function uid(prefix){
+      return (prefix || "id") + "_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+    }
+    function setStatus(text, ok){
+      const el = document.getElementById("status");
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove("ok","fail");
+      if (ok === true) el.classList.add("ok");
+      if (ok === false) el.classList.add("fail");
+    }
+    function safeText(s){ return (s == null) ? "" : String(s); }
+    function isHeroSectionId(sid){
+      const sec = findSection(sid);
+      return !!sec && String(sec.type || sec.section_type || sec.kind || "").toLowerCase() === "hero";
+    }
+
+    function syncHeroSectionImage(sid, newUrl){
+      const sec = findSection(sid);
+      if (!sec) return;
+      const t = String(sec.type || sec.section_type || sec.kind || "").toLowerCase();
+      if (t === "hero") sec.imageUrl = (newUrl || "").trim();
+    }
+
+
+    function setHeroImageNow(url){
+      url = (url || "").trim();
+      if (!url) return false;
+
+      // If HERO section is selected, commit instantly to state
+      if (selected.kind === "section" && isHeroSectionId(selected.sid)){
+        const sec = findSection(selected.sid);
+        sec.imageUrl = url;
+        inspImg.value = url;          // keep inspector in sync
+        render();                     // refresh UI
+        openInspectorForSelection();
+        setStatus("Hero image set", true);
+        setTimeout(()=>setStatus("Ready"), 800);
+        return true;
+      }
+
+      return false;
+    }
+
+    // ----------------------------
+    // Selection
+    // ----------------------------
+    let selected = { kind:null, sid:null, iid:null };
+
+    function selectSection(sid){
+      selected = { kind:"section", sid, iid:null };
+      render();
+      openInspectorForSelection();
+    }
+    function selectItem(sid, iid){
+      selected = { kind:"item", sid, iid };
+      render();
+      openInspectorForSelection();
+    }
+    function clearSelection(){
+      selected = { kind:null, sid:null, iid:null };
+      render();
+      openInspectorForSelection();
+    }
+
+    function findSection(sid){
+      return state.sections.find(s => s.id === sid);
+    }
+    function findItem(sid, iid){
+      const s = findSection(sid);
+      if (!s || !Array.isArray(s.items)) return null;
+      return s.items.find(x => x.id === iid);
+    }
+
+    function firstSectionIdByType(type){
+      const want = String(type || "").toLowerCase();
+      const sec = (state.sections || []).find(s => String(s.type || "").toLowerCase() === want);
+      return sec ? String(sec.id || "") : "";
+    }
+
+    function isHeroSelection(){
+      try {
+        let sec = null;
+
+        if (selected && selected.kind === "item") {
+          sec = findSection(selected.sid);
+        } else if (selected && selected.kind === "section") {
+          sec = findSection(selected.sid);
+        }
+
+        if (!sec) return false;
+
+        const t = (sec.type || sec.section_type || sec.kind || "");
+        return String(t).toLowerCase() === "hero";
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // ----------------------------
+    // Render
+    // ----------------------------
+    const sectionsEl = document.getElementById("sections");
+
+    function sectionLabel(type){
+      const map = {
+        hero:"Hero", features:"Features", gallery:"Gallery",
+        testimonials:"Testimonials", faq:"FAQ", cta:"CTA block", richtext:"Rich text"
+      };
+      return map[type] || type;
+    }
+
+    // ----------------------------
+    // Quick upload (drop file OR double-click thumb)
+    // ----------------------------
+    let quickPickTarget = null;
+    const quickImgInput = document.getElementById("quick-img-input");
+
+    async function uploadSingleImageFile(file){
+      if (!file) return null;
+      if (!file.type || !file.type.startsWith("image/")){
+        alert("Please choose an image file.");
+        return null;
+      }
+
+      const fd = new FormData();
+      // Backend already uses /admin/upload_media for the upload form :contentReference[oaicite:1]{index=1}
+      fd.append("media_files", file, file.name);
+
+      setStatus("Uploading…");
+      const r = await fetch("/admin/upload_media", { method:"POST", body: fd, credentials:"same-origin" });
+      const j = await r.json().catch(()=> ({}));
+
+      if (!r.ok){
+        throw new Error(j.error || "Upload failed");
+      }
+
+      // Best case: backend returns url(s)
+      let url = null;
+      if (j && Array.isArray(j.items) && j.items.length) url = j.items[0].url || null;
+      if (!url && j && typeof j.url === "string") url = j.url;
+
+      // Fallback: refresh media list and try to match by filename
+      await refreshMedia();
+
+      // Switch to Media tab after upload
+      document.querySelector('[data-tab="media"]')?.click();
+
+      // Highlight newest matching tile
+      setTimeout(() => {
+        const tiles = Array.from(document.querySelectorAll("#media-list .media-tile"));
+        const t = tiles.find(x => (x.getAttribute("title") || "").includes(file.name));
+        if (t){
+          t.scrollIntoView({ block:"nearest", behavior:"smooth" });
+          t.style.outline = "2px solid rgba(34,197,94,.8)";
+          t.style.outlineOffset = "2px";
+          setTimeout(()=>{ t.style.outline = ""; t.style.outlineOffset = ""; }, 1200);
+        }
+      }, 150);
+
+      if (!url){
+        try{
+          const rr = await fetch("/admin/media/list.json", { credentials:"same-origin" });
+          const jj = await rr.json();
+          const items = jj.items || [];
+          const match = items.find(x =>
+            (x.url && x.url.includes(file.name)) ||
+            (x.path && String(x.path).includes(file.name)) ||
+            (x.name && String(x.name) === file.name)
+          );
+          if (match && match.url) url = match.url;
+        }catch(e){}
+      }
+
+      return url;
+    }
+
+    if (quickImgInput){
+      quickImgInput.addEventListener("change", async ()=>{
+        const file = quickImgInput.files && quickImgInput.files[0];
+        if (!file || !quickPickTarget) return;
+
+        try{
+          const url = await uploadSingleImageFile(file);
+          if (!url){
+            setStatus("Upload ok (no URL)", false);
+            return;
+          }
+
+          // Apply to the stored target
+          if (quickPickTarget.kind === "item"){
+            const it = findItem(quickPickTarget.sid, quickPickTarget.iid);
+            if (it){
+              it.imageUrl = url;
+              syncHeroSectionImage(quickPickTarget.sid, url);
+              render();
+              openInspectorForSelection();
+              
+            }
+          } else if (quickPickTarget.kind === "section"){
+            const s = findSection(quickPickTarget.sid);
+            if (s){
+              s.imageUrl = url;
+              render();
+              openInspectorForSelection();
+            }
+          }
+
+          setStatus("Uploaded", true);
+          setTimeout(()=>setStatus("Ready"), 800);
+        }catch(err){
+          console.warn(err);
+          setStatus("Upload failed", false);
+          alert(err.message || "Upload failed");
+        }finally{
+          quickPickTarget = null;
+          quickImgInput.value = "";
+        }
+      });
+    }
+
+    // Prevent dropping a file on the page from navigating away
+    document.addEventListener("dragover", (e)=> e.preventDefault());
+    document.addEventListener("drop", (e)=> {
+      // allow our thumb handler to manage it
+      if (e.target && e.target.closest && e.target.closest(".thumb")) return;
+      e.preventDefault();
+    });
+
+    // ----------------------------
+    // Quick upload (double-click item thumbnail)
+    // ----------------------------
+    let _itemClickTimer = null;
+    let _quickPickTarget = null; // { sid, iid }
+
+    function openQuickImagePickerForItem(sid, iid){
+      _quickPickTarget = { sid, iid };
+      const inp = document.getElementById("quick-img-input");
+      if (!inp) return;
+      inp.value = "";
+      inp.click();
+    }
+
+    async function uploadSingleImageFile(file){
+      const fd = new FormData();
+      fd.append("media_files", file, file.name);
+
+      const r = await fetch("/admin/upload_media", {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin"
+      });
+
+      let j = null;
+      try { j = await r.json(); } catch(e) {}
+
+      if (!r.ok){
+        const msg = (j && (j.error || j.message)) ? (j.error || j.message) : "Upload failed";
+        throw new Error(msg);
+      }
+
+      // Try a few likely response shapes
+      let url = null;
+      if (j){
+        if (typeof j.url === "string") url = j.url;
+        if (!url && Array.isArray(j.items) && j.items[0] && j.items[0].url) url = j.items[0].url;
+        if (!url && Array.isArray(j.uploaded) && j.uploaded[0] && j.uploaded[0].url) url = j.uploaded[0].url;
+        if (!url && Array.isArray(j.files) && j.files[0] && j.files[0].url) url = j.files[0].url;
+      }
+
+      // Refresh media so the new image appears
+      await refreshMedia();
+
+      // If backend didn’t return a URL, try match by filename in refreshed tiles
+      if (!url){
+        const tiles = Array.from(document.querySelectorAll("#media-list .media-tile"));
+        const t = tiles.find(x => (x.getAttribute("title") || "").includes(file.name));
+        if (t) url = t.dataset.url || null;
+      }
+
+      return url;
+    }
+
+    document.getElementById("quick-img-input")?.addEventListener("change", async (e)=>{
+      const inp = e.target;
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+
+      if (!String(file.type || "").startsWith("image/")){
+        alert("Please choose an image file.");
+        return;
+      }
+
+      setStatus("Uploading…");
+      try{
+        const url = await uploadSingleImageFile(file);
+
+        if (_quickPickTarget && url){
+          const it = findItem(_quickPickTarget.sid, _quickPickTarget.iid);
+          if (it){
+            it.imageUrl = url;
+            syncHeroSectionImage(_quickPickTarget.sid, url);
+
+            // ✅ if the parent section is HERO, sync section imageUrl too
+            
+            const sec = findSection(_quickPickTarget.sid);
+            if (sec && String(sec.type || "").toLowerCase() === "hero"){
+              sec.imageUrl = url;
+            }
+            
+            render();
+            openInspectorForSelection();
+          }
+        }
+        setStatus("Uploaded", true);
+      }catch(err){
+        console.warn(err);
+        setStatus("Upload failed", false);
+        alert(err.message || "Upload failed");
+      }finally{
+        _quickPickTarget = null;
+        setTimeout(()=>setStatus("Ready"), 900);
+      }
+    });
+
+    function render(){
+      sectionsEl.innerHTML = "";
+
+      state.sections.forEach((s) => {
+        const wrap = document.createElement("div");
+        wrap.className = "section" + (selected.kind==="section" && selected.sid===s.id ? " selected" : "");
+        wrap.dataset.sid = s.id;
+
+        const shd = document.createElement("div");
+        shd.className = "shd";
+
+        const left = document.createElement("div");
+        left.className = "meta";
+        left.innerHTML = `
+          <span class="handle" title="Drag section">⋮⋮</span>
+          <b>${sectionLabel(s.type)}</b>
+          <span class="chip">${safeText(s.type)}</span>
+          <span class="chip">cols: ${safeText(s.cols || 1)}</span>
+        `;
+
+        const right = document.createElement("div");
+        right.className = "actions";
+
+        const cols = document.createElement("select");
+        cols.className = "btn small";
+        ["1","2","3","4","5"].forEach(v=>{
+          const o=document.createElement("option");
+          o.value=v; o.textContent=v;
+          if (String(s.cols||"")===v) o.selected=true;
+          cols.appendChild(o);
+        });
+        cols.title="Columns";
+        cols.addEventListener("change", ()=>{
+          s.cols = parseInt(cols.value, 10);
+          render();
+        });
+
+        const del = document.createElement("button");
+        del.className = "btn small danger";
+        del.type="button";
+        del.textContent = "Delete";
+        del.addEventListener("click", (ev)=>{
+          ev.stopPropagation();
+          state.sections = state.sections.filter(x => x.id !== s.id);
+          if (selected.sid === s.id) clearSelection();
+          render();
+        });
+
+        right.appendChild(cols);
+        right.appendChild(del);
+
+        shd.appendChild(left);
+        shd.appendChild(right);
+        shd.addEventListener("click", ()=>selectSection(s.id));
+
+        const sbd = document.createElement("div");
+        sbd.className = "sbd";
+
+        const items = document.createElement("div");
+        items.className = "items cols-" + (s.cols || 1);
+        items.id = "items_" + s.id;
+
+        (s.items || []).forEach((it) => {
+          const card = document.createElement("div");
+          card.className = "item" + (selected.kind==="item" && selected.iid===it.id ? " selected" : "");
+          card.dataset.iid = it.id;
+
+          const imgUrl = (it.imageUrl || "").trim();
+          const thumb = document.createElement("div");
+          thumb.className = "thumb";
+          thumb.innerHTML = imgUrl
+            ? `<img src="${imgUrl}" alt=""> <div class="drop">Drop image here</div>`
+            : `<div class="drop">Drop image or double-click to upload</div>`;
+
+          // Drag/drop image onto item
+          thumb.addEventListener("dragover", (e)=>{ e.preventDefault(); });
+          thumb.addEventListener("drop", async (e)=>{
+            e.preventDefault();
+
+            // 1) File dropped from desktop
+            const files = e.dataTransfer?.files;
+            if (files && files.length){
+              const f = files[0];
+              if (String(f.type || "").startsWith("image/")){
+                setStatus("Uploading…");
+                try{
+                  const url = await uploadSingleImageFile(f);
+                  if (url){
+                    it.imageUrl = url;
+                    syncHeroSectionImage(s.id, url);
+                    /*
+                    // ✅ keep HERO section background in sync with the item image
+                    if (String(s.type || "").toLowerCase() === "hero"){
+                      s.imageUrl = url;
+                    }
+                    */
+                    render();
+                    openInspectorForSelection();
+                  }
+                  
+                  setStatus("Uploaded", true);
+                }catch(err){
+                  console.warn(err);
+                  setStatus("Upload failed", false);
+                  alert(err.message || "Upload failed");
+                }finally{
+                  setTimeout(()=>setStatus("Ready"), 900);
+                }
+                return;
+              }
+            }
+
+            // 2) URL dropped from Media tab (existing behaviour)
+            const url = e.dataTransfer.getData("text/plain");
+            if (url){
+              it.imageUrl = url;
+              syncHeroSectionImage(s.id, url);
+              render();
+              openInspectorForSelection();
+            }
+          });
+
+          // Double-click on the thumb opens file picker and uploads
+          thumb.addEventListener("dblclick", (ev)=>{
+            ev.stopPropagation();
+
+            // cancel the single-click selection timer (so dblclick always wins)
+            if (_itemClickTimer){ clearTimeout(_itemClickTimer); _itemClickTimer = null; }
+
+            // set selection without re-rendering first
+            selected = { kind:"item", sid: s.id, iid: it.id };
+            openInspectorForSelection();
+
+            openQuickImagePickerForItem(s.id, it.id);
+          });
+
+          const title = document.createElement("div");
+          title.className = "title";
+          title.textContent = safeText(it.title || it.type || "Item");
+
+          const text = document.createElement("div");
+          text.className = "text";
+          text.textContent = safeText(it.text || "");
+
+          card.appendChild(thumb);
+          card.appendChild(title);
+          card.appendChild(text);
+
+          // Attach a button to a card (only for card/image items)
+          const tLower = String(it.type || "").toLowerCase();
+          if (tLower === "card" || tLower === "image"){
+            const cta = document.createElement("div");
+            const has = String(it.href || "").trim().length > 0;
+
+            cta.className = "cta-drop" + (has ? " has" : "");
+            cta.textContent = has ? "Button attached (click to edit)" : "Drop button here";
+            cta.title = has ? "Click the card then edit link/label in Inspector" : "Drop the Button from Card actions here";
+
+            cta.addEventListener("click", (ev)=>{
+              ev.stopPropagation();
+              selectItem(s.id, it.id);
+            });
+
+            cta.addEventListener("dragover", (e)=>{
+              const a = e.dataTransfer?.getData("text/smx-action");
+              if (a === "card-cta"){
+                e.preventDefault();
+                cta.classList.add("over");
+              }
+            });
+            cta.addEventListener("dragleave", ()=> cta.classList.remove("over"));
+
+            cta.addEventListener("drop", (e)=>{
+              const a = e.dataTransfer?.getData("text/smx-action");
+              if (a !== "card-cta") return;
+              e.preventDefault();
+              cta.classList.remove("over");
+
+              // Attach CTA ONLY on explicit drop
+              if (!String(it.href || "").trim()) it.href = "#";
+              if (!String(it.ctaLabel || "").trim()) it.ctaLabel = "Read more";
+              if (!String(it.ctaAlign || "").trim()) it.ctaAlign = "left";
+
+              selectItem(s.id, it.id);
+              setStatus("Button added — set link/label then Apply", true);
+            });
+
+            card.appendChild(cta);
+          }
+      
+          card.addEventListener("click", (ev)=>{
+            ev.stopPropagation();
+            if (_itemClickTimer) clearTimeout(_itemClickTimer);
+            _itemClickTimer = setTimeout(()=>{
+              selectItem(s.id, it.id);
+              _itemClickTimer = null;
+            }, 230);
+          });
+
+          items.appendChild(card);
+        });
+
+        sbd.appendChild(items);
+        wrap.appendChild(shd);
+        wrap.appendChild(sbd);
+
+        sectionsEl.appendChild(wrap);
+      });
+
+      wireSortables();
+      openInspectorForSelection();
+    }
+
+    // ----------------------------
+    // Sortables
+    // ----------------------------
+    let sortables = [];
+    function killSortables(){
+      sortables.forEach(s => { try{s.destroy();}catch(e){} });
+      sortables = [];
+    }
+
+    function wireSortables(){
+      killSortables();
+
+      // Sections palette: clones into canvas
+      sortables.push(new Sortable(document.getElementById("section-palette"), {
+        group: { name: "sections", pull: "clone", put: false },
+        sort: false,
+        animation: 150,
+        draggable: ".widget"
+      }));
+
+      // Items palette: clones into any items container
+      sortables.push(new Sortable(document.getElementById("item-palette"), {
+        group: { name: "items", pull: "clone", put: false },
+        sort: false,
+        animation: 150,
+        draggable: ".widget"
+      }));
+
+      // Sections container: accepts clones + sorts
+      sortables.push(new Sortable(sectionsEl, {
+        group: { name: "sections", pull: true, put: true },
+        animation: 150,
+        draggable: ".section",
+        // handle: ".handle", // optional (enable if you want drag by the ⋮⋮ only)
+
+        onAdd: (evt) => {
+          // Dropped from palette -> create section in state
+          const src = evt.item;
+          const type = src.getAttribute("data-type") || "section";
+
+          const sec = {
+            id: uid("sec"),
+            type,
+            title: sectionLabel(type),
+            text: "",
+            cols: getDefaultCols(),
+            items: []
+          };
+
+          state.sections.splice(evt.newIndex, 0, sec);
+          render();
+        },
+
+        onEnd: () => {
+          // Reorder state by DOM order
+          const order = Array.from(sectionsEl.querySelectorAll(".section")).map(x => x.dataset.sid);
+          state.sections.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+          render();
+        }
+      }));
+
+      // Items containers per section
+      state.sections.forEach((s) => {
+        const el = document.getElementById("items_" + s.id);
+        if (!el) return;
+
+        sortables.push(new Sortable(el, {
+          group: { name: "items", pull: true, put: true },
+          animation: 150,
+          onAdd: (evt) => {
+            const src = evt.item;
+            const t = src.getAttribute("data-type") || "card";
+            const it = {
+              id: uid("item"),
+              type: t,
+              title: (t === "button") ? "Read more" :
+                    (t === "faq") ? "Question" :
+                    (t === "quote") ? "Name" : "Title",
+              text: (t === "button") ? "" :
+                    (t === "faq") ? "Answer goes here." :
+                    (t === "quote") ? "Quote goes here." : "Description goes here.",
+              imageUrl: (t === "button") ? "" : "",
+              href: (t === "button") ? "#" : ""   // IMPORTANT
+            };
+
+            s.items = s.items || [];
+            s.items.splice(evt.newIndex, 0, it);
+            render();
+          },
+          onEnd: () => {
+            const ids = Array.from(el.querySelectorAll(".item")).map(x => x.dataset.iid);
+            s.items.sort((a,b)=> ids.indexOf(a.id) - ids.indexOf(b.id));
+            render();
+          }
+        }));
+      });
+    }
+
+
+    // Card action palette (plain HTML drag/drop, not Sortable)
+    function wireCardActionPalette(){
+      const pal = document.getElementById("card-action-palette");
+      if (!pal) return;
+      pal.querySelectorAll('.widget[data-action]').forEach(w=>{
+        w.addEventListener("dragstart", (e)=>{
+          e.dataTransfer.setData("text/smx-action", w.dataset.action || "");
+          e.dataTransfer.effectAllowed = "copy";
+        });
+      });
+    }
+
+    
+    // ----------------------------
+    // Inspector
+    // ----------------------------
+    const inspBox = document.getElementById("insp");
+    const inspEmpty = document.getElementById("insp-empty");
+    const inspKind = document.getElementById("insp-kind");
+    const inspTitle = document.getElementById("insp-title");
+    const inspText = document.getElementById("insp-text");
+    const inspCols = document.getElementById("insp-cols");
+    const inspImg  = document.getElementById("insp-img");
+    const inspHref = document.getElementById("insp-href");
+    const fieldHref = document.getElementById("field-href");
+    const fieldCols = document.getElementById("field-cols");
+    const fieldImg  = document.getElementById("field-img");
+    const rowCta = document.getElementById("row-cta");
+    const inspCtaLabel = document.getElementById("insp-cta-label");
+    const btnRemoveCta = document.getElementById("btn-remove-cta");
+    const inspCtaAlign = document.getElementById("insp-cta-align");
+    const fieldCtaAlign = document.getElementById("field-cta-align");
+
+    // Hero CTA controls
+    const heroCtasBox  = document.getElementById("hero-ctas");
+    const heroCta1Label = document.getElementById("hero-cta1-label");
+    const heroCta1Href  = document.getElementById("hero-cta1-href");
+    const heroCta2Label = document.getElementById("hero-cta2-label");
+    const heroCta2Href  = document.getElementById("hero-cta2-href");
+
+    const hrSecStyle = document.getElementById("hr-sec-style");
+    const secStyleBox = document.getElementById("sec-style-box");
+    const secStyleOn = document.getElementById("sec-style-on");
+    const secBg = document.getElementById("sec-bg");
+    const secPad = document.getElementById("sec-pad");
+    const secAlign = document.getElementById("sec-align");
+
+
+    function openInspectorForSelection(){
+      if (heroCtasBox) heroCtasBox.style.display = "none";
+      if (!selected.kind){
+        inspBox.style.display="none";
+        inspEmpty.style.display="block";
+        return;
+      }
+      inspBox.style.display="block";
+      inspEmpty.style.display="none";
+
+      if (selected.kind === "section"){
+        const s = findSection(selected.sid);
+        if (!s) return;
+
+        inspKind.value = "Section · " + sectionLabel(s.type);
+        inspTitle.value = safeText(s.title || "");
+        inspText.value  = safeText(s.text || "");
+        inspCols.value  = String(s.cols || 1);
+        inspImg.value   = safeText(s.imageUrl || "");
+
+        // Section fields
+        fieldCols.style.display = "block";
+        // Only show section image for hero
+        fieldImg.style.display  = (String(s.type||"").toLowerCase() === "hero") ? "block" : "none";
+        fieldHref.style.display = "none";
+
+        // Hero CTA editor (only for hero sections)
+        const isHero = (String(s.type || "").toLowerCase() === "hero");
+        if (heroCtasBox) heroCtasBox.style.display = isHero ? "block" : "none";
+
+        if (isHero){
+          const featId = firstSectionIdByType("features");
+          const ctaId  = firstSectionIdByType("cta");
+          const def1Href = featId ? ("#" + featId) : "";
+          const def2Href = ctaId  ? ("#" + ctaId)  : "";
+
+          // IMPORTANT: preserve blank strings (blank URL = hidden button)
+          const has1 = Object.prototype.hasOwnProperty.call(s, "heroCta1Href");
+          const has2 = Object.prototype.hasOwnProperty.call(s, "heroCta2Href");
+
+          if (heroCta1Label) heroCta1Label.value = Object.prototype.hasOwnProperty.call(s, "heroCta1Label")
+            ? safeText(s.heroCta1Label)
+            : "Explore features";
+
+          if (heroCta1Href) heroCta1Href.value = has1
+            ? safeText(s.heroCta1Href)
+            : def1Href;
+
+          if (heroCta2Label) heroCta2Label.value = Object.prototype.hasOwnProperty.call(s, "heroCta2Label")
+            ? safeText(s.heroCta2Label)
+            : "Talk to us";
+
+          if (heroCta2Href) heroCta2Href.value = has2
+            ? safeText(s.heroCta2Href)
+            : def2Href;
+        }
+
+        inspHref.value = "";
+        if (fieldCtaAlign) fieldCtaAlign.style.display = "none";
+        if (inspCtaAlign) inspCtaAlign.value = "";
+
+        // Sprint 4: per-section style UI
+        if (hrSecStyle) hrSecStyle.style.display = "block";
+        if (secStyleBox) secStyleBox.style.display = "block";
+
+        const st = (s.style && typeof s.style === "object") ? s.style : {};
+        const enabled = !!st.enabled;
+
+        if (secStyleOn) secStyleOn.checked = enabled;
+
+        if (secBg) secBg.disabled = !enabled;
+        if (secPad) secPad.disabled = !enabled;
+        if (secAlign) secAlign.disabled = !enabled;
+
+        if (secBg) secBg.value = (st.bg && String(st.bg).startsWith("#")) ? st.bg : "#ffffff";
+        if (secPad) secPad.value = st.pad || "";
+        if (secAlign) secAlign.value = st.align || "";
+
+      } else {
+        const it = findItem(selected.sid, selected.iid);
+        if (!it) return;
+
+        const t = String(it.type || "").toLowerCase();
+
+        inspKind.value  = "Item · " + safeText(it.type);
+        inspTitle.value = safeText(it.title || "");
+        inspText.value  = safeText(it.text || "");
+        inspCols.value  = "1";
+
+        // image
+        inspImg.value = (t === "button") ? "" : safeText(it.imageUrl || "");
+
+        // CTA visibility rules
+        const isStandaloneButton = (t === "button");
+        const isCardLike = (t === "card" || t === "image");
+
+        const hasCta = isCardLike && (
+          String(it.href || "").trim().length > 0 ||
+          String(it.ctaLabel || "").trim().length > 0
+        );
+
+        // show/hide the controls
+        fieldCols.style.display = "none";
+        fieldImg.style.display  = (t === "button") ? "none" : "block";
+
+        fieldHref.style.display = (isStandaloneButton || hasCta) ? "block" : "none";
+        if (fieldCtaAlign) fieldCtaAlign.style.display = (isCardLike && hasCta) ? "block" : "none";
+        rowCta.style.display    = (isCardLike && hasCta) ? "flex" : "none";
+  
+        // populate values
+        inspHref.value = (isStandaloneButton || hasCta) ? safeText(it.href || "") : "";
+        inspCtaLabel.value = (isCardLike && hasCta) ? safeText(it.ctaLabel || "Read more") : "";
+        if (inspCtaAlign) inspCtaAlign.value = (isCardLike && hasCta) ? safeText(it.ctaAlign || "") : "";
+        inspCtaAlign.value = (isCardLike && hasCta) ? (String(it.ctaAlign || "left").trim() || "left") : "left";
+      }
+    }
+    document.getElementById("btn-apply").addEventListener("click", ()=>{
+      if (!selected.kind) return;
+
+      if (selected.kind === "section"){
+        const s = findSection(selected.sid);
+        if (!s) return;
+
+        s.title = inspTitle.value;
+        s.text  = inspText.value;
+        s.cols  = parseInt(inspCols.value || "1", 10);
+        s.imageUrl = inspImg.value;
+
+        // Save hero CTAs into layout state (blank URL = hide button)
+        if (String(s.type || "").toLowerCase() === "hero"){
+          if (heroCta1Label) s.heroCta1Label = (heroCta1Label.value || "").trim();
+          if (heroCta1Href)  s.heroCta1Href  = (heroCta1Href.value  || "").trim();
+
+          if (heroCta2Label) s.heroCta2Label = (heroCta2Label.value || "").trim();
+          if (heroCta2Href)  s.heroCta2Href  = (heroCta2Href.value  || "").trim();
+        }
+
+      } else {
+        const it = findItem(selected.sid, selected.iid);
+        if (!it) return;
+
+        if (hrSecStyle) hrSecStyle.style.display = "none";
+        if (secStyleBox) secStyleBox.style.display = "none";
+
+        const t = String(it.type || "").toLowerCase();
+
+        it.title = inspTitle.value;
+        it.text  = inspText.value;
+
+        if (t === "button"){
+          it.href = (inspHref.value || "").trim();
+          it.imageUrl = "";
+        } else {
+          it.imageUrl = inspImg.value;
+
+          // Keep hero section background image in sync with the hero item image
+          syncHeroSectionImage(selected.sid, it.imageUrl);
+
+          // Card/image CTA link + label (only if CTA is attached)
+          const isCardLike = (t === "card" || t === "image");
+          const hasCta = isCardLike && (
+            String(it.href || "").trim().length > 0 ||
+            String(it.ctaLabel || "").trim().length > 0
+          );
+
+          if (hasCta) {
+            const newHref = (inspHref.value || "").trim();
+            const newLbl  = (inspCtaLabel.value || "Read more").trim() || "Read more";
+            const newAlign = (inspCtaAlign ? String(inspCtaAlign.value || "").trim().toLowerCase() : "");
+
+            if (!newHref) {
+              it.href = "";
+              delete it.ctaLabel;
+              delete it.ctaAlign;
+            } else {
+              it.href = newHref;
+              it.ctaLabel = newLbl;
+
+              if (!newAlign || newAlign === "left") {
+                delete it.ctaAlign;
+              } else if (newAlign === "center" || newAlign === "right" || newAlign === "full") {
+                it.ctaAlign = newAlign;
+              } else {
+                delete it.ctaAlign;
+              }
+            }
+          }
+        }
+      }
+      render();
+      setStatus("Applied", true);
+      setTimeout(()=>setStatus("Ready"), 800);
+    });
+
+    document.getElementById("btn-delete").addEventListener("click", ()=>{
+      if (!selected.kind) return;
+
+      if (selected.kind === "section"){
+        state.sections = state.sections.filter(s => s.id !== selected.sid);
+      }else{
+        const s = findSection(selected.sid);
+        if (s) s.items = (s.items || []).filter(i => i.id !== selected.iid);
+      }
+      clearSelection();
+      render();
+      setStatus("Deleted", true);
+      setTimeout(()=>setStatus("Ready"), 800);
+    });
+
+    btnRemoveCta?.addEventListener("click", ()=>{
+      if (selected.kind !== "item") return;
+      const it = findItem(selected.sid, selected.iid);
+      if (!it) return;
+
+      it.href = "";
+      delete it.ctaLabel;
+
+      render();
+      openInspectorForSelection();
+      setStatus("Button removed", true);
+      setTimeout(()=>setStatus("Ready"), 900);
+    });
+
+    // ----------------------------
+    // Tabs
+    // ----------------------------
+    document.querySelectorAll(".tabbtn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        document.querySelectorAll(".tabbtn").forEach(b=>b.classList.remove("active"));
+        document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+      });
+    });
+
+    // ----------------------------
+    // Design (theme tokens saved into layout JSON)
+    // ----------------------------
+    const designFontBody = document.getElementById("design-font-body");
+    const designFontHead = document.getElementById("design-font-heading");
+
+    const designAccentOn = document.getElementById("design-accent-on");
+    const designAccent = document.getElementById("design-accent");
+    const designTextOn = document.getElementById("design-text-on");
+    const designText = document.getElementById("design-text");
+    const designMutedOn = document.getElementById("design-muted-on");
+    const designMuted = document.getElementById("design-muted");
+    const designBgOn = document.getElementById("design-bg-on");
+    const designBg = document.getElementById("design-bg");
+
+    const btnDesignReset = document.getElementById("btn-design-reset");
+
+    const DESIGN_DEFAULTS = {
+      accent: "#6366f1",
+      fg: "#0f172a",
+      mut: "#475569",
+      bg: "#f8fafc"
+    };
+
+    function _ensureTheme(){
+      if (!state || typeof state !== "object") return;
+      if (!state.theme || typeof state.theme !== "object") state.theme = {};
+    }
+    function _getTheme(){
+      _ensureTheme();
+      return (state && state.theme && typeof state.theme === "object") ? state.theme : {};
+    }
+
+    function _syncDesignUiFromState(){
+      const t = _getTheme();
+
+      // fonts (empty = default)
+      designFontBody.value = (t.fontBody || t.bodyFont || t.font_body || "") || "";
+      designFontHead.value = (t.fontHeading || t.headingFont || t.font_heading || "") || "";
+
+      // toggles
+      designAccentOn.checked = !!(t.accent);
+      designTextOn.checked   = !!(t.fg);
+      designMutedOn.checked  = !!(t.mut);
+      designBgOn.checked     = !!(t.bg);
+
+      // values (show defaults when off)
+      designAccent.value = (t.accent || DESIGN_DEFAULTS.accent);
+      designText.value   = (t.fg || DESIGN_DEFAULTS.fg);
+      designMuted.value  = (t.mut || DESIGN_DEFAULTS.mut);
+      designBg.value     = (t.bg || DESIGN_DEFAULTS.bg);
+
+      // enable/disable colour pickers
+      designAccent.disabled = !designAccentOn.checked;
+      designText.disabled   = !designTextOn.checked;
+      designMuted.disabled  = !designMutedOn.checked;
+      designBg.disabled     = !designBgOn.checked;
+    }
+
+
+    function _ensureSectionStyle(sec){
+      if (!sec || typeof sec !== "object") return;
+      if (!sec.style || typeof sec.style !== "object") sec.style = {};
+    }
+
+    function _updateSelectedSectionStyle(){
+      if (!selected || selected.kind !== "section") return;
+      const s = findSection(selected.sid);
+      if (!s) return;
+
+      _ensureSectionStyle(s);
+
+      const enabled = !!(secStyleOn && secStyleOn.checked);
+      s.style.enabled = enabled;
+
+      if (!enabled){
+        delete s.style.bg;
+        delete s.style.pad;
+        delete s.style.align;
+        render();
+        return;
+      }
+
+      const bg = (secBg && secBg.value) ? String(secBg.value).trim() : "";
+      const pad = (secPad && secPad.value) ? String(secPad.value).trim() : "";
+      const align = (secAlign && secAlign.value) ? String(secAlign.value).trim() : "";
+
+      if (bg && bg.startsWith("#")) s.style.bg = bg; else delete s.style.bg;
+      if (pad) s.style.pad = pad; else delete s.style.pad;
+      if (align) s.style.align = align; else delete s.style.align;
+
+      render();
+    }
+
+    secStyleOn?.addEventListener("change", ()=>{
+      const on = !!secStyleOn.checked;
+      if (secBg) secBg.disabled = !on;
+      if (secPad) secPad.disabled = !on;
+      if (secAlign) secAlign.disabled = !on;
+      _updateSelectedSectionStyle();
+    });
+
+    secBg?.addEventListener("input", _updateSelectedSectionStyle);
+    secPad?.addEventListener("change", _updateSelectedSectionStyle);
+    secAlign?.addEventListener("change", _updateSelectedSectionStyle);
+
+
+    function _syncStateFromDesignUi(){
+      _ensureTheme();
+      const t = state.theme;
+
+      // fonts
+      const fb = (designFontBody.value || "").trim();
+      const fh = (designFontHead.value || "").trim();
+
+      if (fb) t.fontBody = fb;
+      else { delete t.fontBody; delete t.bodyFont; delete t.font_body; }
+
+      if (fh) t.fontHeading = fh;
+      else { delete t.fontHeading; delete t.headingFont; delete t.font_heading; }
+
+      // colours (only store if toggle is on)
+      if (designAccentOn.checked) t.accent = designAccent.value || DESIGN_DEFAULTS.accent;
+      else delete t.accent;
+
+      if (designTextOn.checked) t.fg = designText.value || DESIGN_DEFAULTS.fg;
+      else delete t.fg;
+
+      if (designMutedOn.checked) t.mut = designMuted.value || DESIGN_DEFAULTS.mut;
+      else delete t.mut;
+
+      if (designBgOn.checked) t.bg = designBg.value || DESIGN_DEFAULTS.bg;
+      else delete t.bg;
+
+      setStatus("Design updated (draft)", true);
+    }
+
+    function _wireToggle(onEl, inputEl){
+      onEl.addEventListener("change", ()=>{
+        inputEl.disabled = !onEl.checked;
+        _syncStateFromDesignUi();
+      });
+      inputEl.addEventListener("input", _syncStateFromDesignUi);
+      inputEl.addEventListener("change", _syncStateFromDesignUi);
+    }
+
+    designFontBody.addEventListener("change", _syncStateFromDesignUi);
+    designFontHead.addEventListener("change", _syncStateFromDesignUi);
+
+    _wireToggle(designAccentOn, designAccent);
+    _wireToggle(designTextOn, designText);
+    _wireToggle(designMutedOn, designMuted);
+    _wireToggle(designBgOn, designBg);
+
+    btnDesignReset.addEventListener("click", ()=>{
+      if (state && typeof state === "object") delete state.theme;
+      _syncDesignUiFromState();
+      setStatus("Design reset (draft)", true);
+    });
+
+    // init once on load
+    _syncDesignUiFromState();
+
+    // ----------------------------
+    // Media
+    // ----------------------------
+    const mediaList = document.getElementById("media-list");
+    const uploadBox = document.getElementById("upload-box");
+
+    function tileHtml(m){
+      const name = safeText(m.path || m.name || "");
+      const url  = safeText(m.url || "");
+      return `
+        <div class="media-tile" draggable="true" data-url="${url}" title="${name}">
+          <img src="${url}" alt="">
+          <div class="cap">${name}</div>
+        </div>
+      `;
+    }
+
+    async function refreshMedia(){
+      mediaList.innerHTML = `<div class="media-empty">Loading…</div>`;
+      try{
+        const r = await fetch("/admin/media/list.json", { credentials: "same-origin" });
+        const j = await r.json();
+        const imgs = (j.items || []).filter(x => x.kind === "image");
+        if (!imgs.length){
+          mediaList.innerHTML = `<div class="media-empty">No images yet.</div>`;
+          return;
+        }
+        mediaList.innerHTML = `<div class="media-grid">${imgs.map(tileHtml).join("")}</div>`;
+
+        // wire dragstart
+        mediaList.querySelectorAll(".media-tile").forEach(el=>{
+          el.addEventListener("dragstart", (e)=>{
+            e.dataTransfer.setData("text/plain", el.dataset.url || "");
+          });
+          el.addEventListener("click", ()=>{
+            const url = (el.dataset.url || "").trim();
+            if (!url) return;
+
+            // If a HERO section is selected, commit immediately to state
+            if (setHeroImageNow(url)) return;
+
+            // Otherwise keep existing behaviour
+            if (selected.kind === "item"){
+              const it = findItem(selected.sid, selected.iid);
+              if (it){
+                it.imageUrl = url;
+                render();
+                openInspectorForSelection();
+              }
+            }else{
+              inspImg.value = url;
+            }
+          });
+
+        });
+
+      }catch(e){
+        console.warn(e);
+        mediaList.innerHTML = `<div class="media-empty">Failed to load media list.</div>`;
+      }
+    }
+
+    document.getElementById("btn-refresh-media").addEventListener("click", refreshMedia);
+    document.getElementById("btn-open-upload").addEventListener("click", ()=>{ uploadBox.style.display="block"; });
+    document.getElementById("btn-close-upload").addEventListener("click", ()=>{ uploadBox.style.display="none"; });
+
+    document.getElementById("upload-form").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      setStatus("Uploading…");
+      try{
+        const r = await fetch("/admin/upload_media", { method:"POST", body: fd, credentials:"same-origin" });
+        const j = await r.json();
+        setStatus("Uploaded", true);
+        uploadBox.style.display="none";
+        await refreshMedia();
+      }catch(err){
+        setStatus("Upload failed", false);
+      }finally{
+        setTimeout(()=>setStatus("Ready"), 800);
+      }
+    });
+    
+    // ----------------------------
+    // Save layout (DB table: page_layouts)
+    // ----------------------------
+    document.getElementById("btn-save-layout").addEventListener("click", async ()=>{
+      setStatus("Saving layout…");
+      try{
+        const r = await fetch(`/admin/page_layouts/${encodeURIComponent(PAGE_NAME)}`, {
+          method:"POST",
+          credentials:"same-origin",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify(state)
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || "save failed");
+        setStatus("Layout saved", true);
+      }catch(e){
+        setStatus("Save failed", false);
+      }finally{
+        setTimeout(()=>setStatus("Ready"), 900);
+      }
+    });
+
+    // ----------------------------
+    // Publish layout (patch-only; keeps existing generated HTML/CSS intact)
+    // ----------------------------
+    document.getElementById("btn-publish-layout").addEventListener("click", async ()=>{
+      setStatus("Publishing…");
+      try{
+        // 1) save layout first (so DB is up-to-date)
+        const r1 = await fetch(`/admin/page_layouts/${encodeURIComponent(PAGE_NAME)}`, {
+          method:"POST",
+          credentials:"same-origin",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify(state)
+        });
+        const j1 = await r1.json();
+        if (!r1.ok) throw new Error(j1.error || "save layout failed");
+
+        // 2) patch-publish (updates the live page HTML without regenerating)
+        const r2 = await fetch(`/admin/page_layouts/${encodeURIComponent(PAGE_NAME)}/publish`, {
+          method:"POST",
+          credentials:"same-origin",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify(state)
+        });
+
+        const t2 = await r2.text();
+        let j2 = {};
+        try { j2 = JSON.parse(t2); } catch {}
+
+        if (!r2.ok) throw new Error(j2.error || t2 || "publish failed");
+
+        setStatus(`Published (${j2.mode})`, true);
+
+        // open the live page
+        window.location.href = `/page/${encodeURIComponent(PAGE_NAME)}?v=${Date.now()}`;
+      }catch(e){
+        console.error(e);
+        setStatus(String(e.message || e), false);
+      }finally{
+        setTimeout(()=>setStatus("Ready"), 900);
+      }
+    });
+
+    // ----------------------------
+    // Generate HTML from layout (client-side baseline generator)
+    // ----------------------------
+    function esc(s){
+      return safeText(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+    }
+    
+    function layoutToHtml(st) {
+      const pageName = (st && st.page) || PAGE_NAME || "";
+      const rawSlug = (pageName || "").toString().toLowerCase().trim();
+      let pageSlug = rawSlug.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      if (!pageSlug) pageSlug = "page";
+
+      const sections = Array.isArray(st.sections) ? st.sections : [];
+
+      // Map first section id for each type (for hero CTAs)
+      const secIdByType = {};
+      sections.forEach((s, idx) => {
+        if (!s) return;
+        const t = (s.type || "").toString().toLowerCase();
+        const baseType = t || "section";
+        const sid = (s.id && String(s.id)) || `sec_${idx}_${baseType}`;
+        if (t && !secIdByType[t]) secIdByType[t] = sid;
+      });
+
+      function sectionDomId(s, idx) {
+        if (!s) return `sec_${idx}_section`;
+        const t = (s.type || "").toString().toLowerCase() || "section";
+        return (s.id && String(s.id)) || `sec_${idx}_${t}`;
+      }
+
+      const blocks = sections.map((s, index) => {
+        const type = (s && s.type ? String(s.type).toLowerCase() : "section");
+        const title = esc((s && s.title) || sectionLabel(type));
+        const text = esc((s && s.text) || "");
+        const colsRaw = (s && s.cols) || 1;
+        const cols = Math.max(1, Math.min(5, parseInt(colsRaw, 10) || 1));
+        const secId = sectionDomId(s, index);
+        const items = Array.isArray(s && s.items) ? s.items : [];
+
+        // --------------------------
+        // HERO = full-width banner
+        // --------------------------
+        if (type === "hero") {
+          let heroImg = ((s && s.imageUrl) || "").toString().trim();
+          if (!heroImg) {
+            const first = items.find(it => it && typeof it.imageUrl === "string" && it.imageUrl.trim());
+            if (first) heroImg = first.imageUrl.trim();
+          }
+          const bgStyle = heroImg
+            ? `background-image:url('${esc(heroImg)}');background-size:cover;background-position:center;background-repeat:no-repeat;`
+            : `background:radial-gradient(circle at 0 0,#1f2937,#020617);`;
+
+          const featuresAnchor = secIdByType["features"] || "sec_features";
+          const ctaAnchor = secIdByType["cta"] || "sec_cta";
+          const heroHeading = title || esc(pageName) || "Untitled page";
+
+          return `
+            <section id="${esc(secId)}" data-section-type="hero" style="position:relative;width:100%;min-height:380px;display:flex;align-items:flex-end;${bgStyle}">
+              <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,23,42,.18) 0%,rgba(15,23,42,.82) 65%,rgba(15,23,42,.98) 100%);"></div>
+              <div style="position:relative;z-index:1;width:100%;padding:72px 18px 48px;box-sizing:border-box;">
+                <div style="max-width:760px;margin:0 auto;border-radius:18px;border:1px solid rgba(148,163,184,.4);background:rgba(15,23,42,.85);backdrop-filter:blur(14px);padding:18px 18px 20px;">
+                  <p style="margin:0 0 6px;font-size:.9rem;color:#a5b4fc;text-transform:uppercase;letter-spacing:.18em;opacity:.95;">${esc(pageName || "")}</p>
+                  <h1 style="margin:0 0 10px;font-size:clamp(2rem,3.4vw,3.1rem);line-height:1.1;color:#e5e7eb;">${heroHeading}</h1>
+                  ${text ? `<p style="margin:0;font-size:1.05rem;line-height:1.65;color:#cbd5e1;">${text}</p>` : ""}
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;">
+                    <a href="#${esc(featuresAnchor)}" style="display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:10px 16px;border:1px solid rgba(129,140,248,.7);background:rgba(79,70,229,.95);color:#e5e7eb;text-decoration:none;font-weight:600;">Explore features</a>
+                    <a href="#${esc(ctaAnchor)}" style="display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:10px 16px;border:1px solid rgba(148,163,184,.6);background:rgba(15,23,42,.8);color:#cbd5e1;text-decoration:none;">Talk to us</a>
+                  </div>
+                </div>
+              </div>
+            </section>
+          `.trim();
+        }
+
+        // --------------------------
+        // FAQ = accordion
+        // --------------------------
+        if (type === "faq") {
+          const qaHtml = items.map(it => {
+            const q = esc((it && it.title) || "");
+            const a = esc((it && it.text) || "");
+            if (!q && !a) return "";
+            return `
+              <details style="border:1px solid rgba(148,163,184,.35);border-radius:14px;padding:12px 14px;background:rgba(15,23,42,.9);">
+                <summary style="cursor:pointer;font-weight:600;color:#e5e7eb;">${q}</summary>
+                ${a ? `<div style="margin-top:8px;color:#cbd5e1;line-height:1.6;">${a}</div>` : ""}
+              </details>
+            `.trim();
+          }).filter(Boolean).join("\n");
+          return `
+            <section id="${esc(secId)}" data-section-type="faq" style="padding:56px 0;">
+              <div style="max-width:1120px;margin:0 auto;padding:0 18px;">
+                ${title ? `<h2 style="margin:0 0 10px;font-size:1.6rem;color:#e5e7eb;">${title}</h2>` : ""}
+                ${text ? `<p style="margin:0 0 16px;color:#9ca3af;line-height:1.6;">${text}</p>` : ""}
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  ${qaHtml}
+                </div>
+              </div>
+            </section>
+          `.trim();
+        }
+
+        // --------------------------
+        // Testimonials = quote cards
+        // --------------------------
+        if (type === "testimonials") {
+          const tCols = Math.min(3, Math.max(1, cols));
+          const cardHtml = items.map(it => {
+            const quote = esc((it && it.text) || "");
+            const who = esc((it && it.title) || "");
+            if (!quote) return "";
+            return `
+              <div style="border:1px solid rgba(148,163,184,.35);border-radius:18px;padding:16px;background:rgba(15,23,42,.9);">
+                <div style="font-style:italic;color:#e5e7eb;line-height:1.7;">“${quote}”</div>
+                ${who ? `<div style="margin-top:10px;font-weight:600;color:#cbd5e1;">${who}</div>` : ""}
+              </div>
+            `.trim();
+          }).filter(Boolean).join("\n");
+          return `
+            <section id="${esc(secId)}" data-section-type="testimonials" style="padding:56px 0;">
+              <div style="max-width:1120px;margin:0 auto;padding:0 18px;">
+                ${title ? `<h2 style="margin:0 0 10px;font-size:1.6rem;color:#e5e7eb;">${title}</h2>` : ""}
+                ${text ? `<p style="margin:0 0 16px;color:#9ca3af;line-height:1.6;">${text}</p>` : ""}
+                <div style="display:grid;gap:12px;grid-template-columns:repeat(${tCols}, minmax(0,1fr));">
+                  ${cardHtml}
+                </div>
+              </div>
+            </section>
+          `.trim();
+        }
+
+        // --------------------------
+        // Default (features, gallery, cta, richtext, etc.)
+        // --------------------------
+        const useCols = type === "richtext" ? 1 : cols;
+        const cards = items.map(it => {
+          const itTitle = esc((it && it.title) || "");
+          const itText = esc((it && it.text) || "");
+          const img = (it && it.imageUrl ? String(it.imageUrl) : "").trim();
+          const imgHtml = img
+            ? `<img src="${esc(img)}" alt="${itTitle}" loading="lazy" decoding="async" style="width:100%;height:auto;border-radius:12px;margin-bottom:10px;">`
+            : "";
+          return `
+            <div style="border:1px solid rgba(148,163,184,.35);border-radius:18px;padding:14px;background:rgba(15,23,42,.9);">
+              ${imgHtml}
+              ${itTitle ? `<h3 style="margin:0 0 6px;font-size:1.05rem;color:#e5e7eb;">${itTitle}</h3>` : ""}
+              ${itText ? `<p style="margin:0;color:#cbd5e1;line-height:1.55;">${itText}</p>` : ""}
+            </div>
+          `.trim();
+        }).join("\n");
+
+        const body = cards || (text ? `<p style="margin:0;color:#cbd5e1;line-height:1.6;">${text}</p>` : "");
+        return `
+          <section id="${esc(secId)}" data-section-type="${esc(type)}" style="padding:56px 0;">
+            <div style="max-width:1120px;margin:0 auto;padding:0 18px;">
+              ${title ? `<h2 style="margin:0 0 10px;font-size:1.6rem;color:#e5e7eb;">${title}</h2>` : ""}
+              ${text && cards ? `<p style="margin:0 0 14px;color:#9ca3af;line-height:1.6;">${text}</p>` : ""}
+              ${cards ? `<div style="display:grid;gap:12px;grid-template-columns:repeat(${useCols}, minmax(0,1fr));">${cards}</div>` : body}
+            </div>
+          </section>
+        `.trim();
+      });
+
+      const inner = blocks.filter(Boolean).join("\n\n");
+      if (!inner) return "";
+      return `<div id="smx-page-${pageSlug}" data-page-name="${esc(pageName || "")}">\n${inner}\n</div>`;
+    }
+
+    document.getElementById("btn-generate-html").addEventListener("click", async ()=>{
+      setStatus("Compiling…");
+      try{
+        const r = await fetch(`/admin/page_layouts/${encodeURIComponent(PAGE_NAME)}/compile`, {
+          method:"POST",
+          credentials:"same-origin",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify(state)
+        });
+        const t = await r.text();
+        let j = {};
+        try { j = JSON.parse(t); } catch {}
+
+        if (!r.ok){
+          const msg = (j && j.error) ? j.error : `HTTP ${r.status}: ${t.slice(0, 200)}`;
+          throw new Error(msg);
+        }
+
+        const html = j.html || "";
+        if (window.__cm){
+          window.__cm.setValue(html);
+          window.__cm.save();
+        }else{
+          document.getElementById("page_content").value = html;
+        }
+        setStatus("HTML generated", true);
+      }catch(err){
+        setStatus(String(err.message || err), false);
+      }finally{
+        setTimeout(()=>setStatus("Ready"), 900);
+      }
+    });
+
+    // Clear canvas
+    document.getElementById("btn-clear").addEventListener("click", ()=>{
+      state.sections = [];
+      clearSelection();
+      render();
+    });
+
+    // ----------------------------
+    // CodeMirror init
+    // ----------------------------
+    document.addEventListener("DOMContentLoaded", function(){
+      const textarea = document.getElementById("page_content");
+      const statusEl = document.getElementById("cm-status");
+      wireCardActionPalette();
+      if (!textarea || typeof CodeMirror === "undefined"){
+        statusEl.textContent = "Plain textarea mode";
+        statusEl.classList.add("fail");
+        render(); // builder must still work
+        return;
+      }
+
+      const cm = CodeMirror.fromTextArea(textarea, {
+        mode: "htmlmixed",
+        theme: "smx-dark",
+        lineNumbers: true,
+        lineWrapping: true,
+        autoCloseTags: true,
+        autoCloseBrackets: true,
+        matchBrackets: true,
+        tabSize: 2,
+        indentUnit: 2,
+        indentWithTabs: false
+      });
+
+      cm.setSize("100%", 520);
+      window.__cm = cm;
+
+      statusEl.textContent = "Code editor active";
+      statusEl.classList.add("ok");
+
+      // initial render
+      render();
+    });
+
+    // Auto-load media list once
+    refreshMedia();
+  </script>
+  <script>
+    async function pxSearch(){
+      const q = (document.getElementById("px-q").value || "").trim();
+      const orientation = document.getElementById("px-orientation").value;
+      const image_type = document.getElementById("px-type").value;
+      const out = document.getElementById("px-out");
+
+      if (!q){
+        out.textContent = "Type a search phrase first.";
+        return;
+      }
+
+      out.textContent = "Searching…";
+      setStatus("Searching…");
+
+      try{
+        const r = await fetch(`/admin/pixabay/search.json?q=${encodeURIComponent(q)}&orientation=${encodeURIComponent(orientation)}&image_type=${encodeURIComponent(image_type)}`, { credentials:"same-origin" });
+        const j = await r.json();
+
+        if (!r.ok){
+          out.textContent = j.error || "Search failed.";
+          setStatus("Search failed", false);
+          return;
+        }
+
+        const items = j.items || [];
+        if (!items.length){
+          out.textContent = "No results found.";
+          setStatus("No results", false);
+          return;
+        }
+
+        out.innerHTML = `
+          <div class="muted">Click an image to import locally. It will appear in your Media tab afterwards.</div>
+          <div class="hr"></div>
+          <div class="media-grid">
+            ${items.map(x => `
+              <div class="media-tile" data-id="${x.id}" title="${(x.tags || '')}">
+                <img src="${x.preview_url}" alt="">
+                <div class="cap">ID: ${x.id}</div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+
+        function isHeroSelection(){
+          try {
+            if (!selected) return false;
+
+            // If an item is selected, inspect its parent section
+            if (selected.kind === "item"){
+              const sec = findSection(selected.sid);
+              return !!sec && String(sec.type).toLowerCase() === "hero";
+            }
+
+            // If a section is selected
+            if (selected.kind === "section"){
+              const sec = findSection(selected.sid);
+              return !!sec && String(sec.type).toLowerCase() === "hero";
+            }
+
+            return false;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        // Keep Hero section.imageUrl in sync with the hero item's imageUrl
+        function syncHeroSectionImage(sid, newUrl){
+          const sec = findSection(sid);
+          if (!sec) return;
+
+          const t = String(sec.type || sec.section_type || sec.kind || "").toLowerCase();
+          if (t === "hero"){
+            sec.imageUrl = newUrl || "";
+          }
+        }
+
+        out.querySelectorAll(".media-tile").forEach(tile=>{
+        tile.addEventListener("click", async ()=>{
+          const id = tile.getAttribute("data-id");
+          if (!id) return;
+
+          const min_width = isHeroSelection() ? 1920 : 0;
+
+          setStatus("Importing…");
+          try{
+            const rr = await fetch("/admin/pixabay/import.json", {
+              method:"POST",
+              credentials:"same-origin",
+              headers:{ "Content-Type":"application/json" },
+              body: JSON.stringify({ id, min_width })
+            });
+            const jj = await rr.json();
+
+              if (!rr.ok){
+                setStatus("Import failed", false);
+                alert(jj.error || "Import failed");
+                return;
+              }
+
+              // If a HERO section is selected, commit immediately to state
+              if (setHeroImageNow(jj.url)) {
+                await refreshMedia();
+                return;
+              }
+
+              if (selected.kind === "item"){
+                const it = findItem(selected.sid, selected.iid);
+                if (it){
+                  it.imageUrl = jj.url;
+                  syncHeroSectionImage(selected.sid, jj.url);
+                  render();
+                  openInspectorForSelection();
+                }
+              } else {
+                inspImg.value = jj.url;
+              }
+
+              setStatus("Imported", true);
+              await refreshMedia();
+              setTimeout(()=>setStatus("Ready"), 900);
+            }catch(e){
+              setStatus("Import failed", false);
+            }
+          });
+        });
+
+        setStatus("Results", true);
+        setTimeout(()=>setStatus("Ready"), 900);
+
+      }catch(e){
+        out.textContent = "Search failed.";
+        setStatus("Search failed", false);
+      }
+    }
+
+    document.getElementById("btn-px-search")?.addEventListener("click", pxSearch);
+  </script>
+</body>
+</html>
