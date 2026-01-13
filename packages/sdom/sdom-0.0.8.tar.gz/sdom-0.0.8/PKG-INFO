@@ -1,0 +1,186 @@
+Metadata-Version: 2.4
+Name: sdom
+Version: 0.0.8
+Summary: A Python package for NREL open-source SDOM (Storage Deployment Optimization Model)
+Project-URL: Homepage, https://github.com/Omar0902/SDOM
+Project-URL: Repository, https://github.com/Omar0902/SDOM
+Project-URL: Issues, https://github.com/Omar0902/SDOM/issues
+Author-email: Omar Jose Guerra Fernandez <OmarJose.GuerraFernandez@nrel.gov>, Mariya Koleva <Mariya.Koleva@nrel.gov>, Sebastian de Jesus Manrique Machado <SebastiandeJesus.Machado@nrel.gov>
+Maintainer-email: Omar Jose Guerra Fernandez <OmarJose.GuerraFernandez@nrel.gov>, Mariya Koleva <Mariya.Koleva@nrel.gov>, Sebastian de Jesus Manrique Machado <SebastiandeJesus.Machado@nrel.gov>, Pedro Andres Sanchez Perez <pedroandres.sanchezperez@nrel.gov>
+License: MIT
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.10
+Requires-Dist: numpy>2.2
+Requires-Dist: pandas>2.2
+Requires-Dist: pyomo>6.9
+Description-Content-Type: text/markdown
+
+# Storage Deployment Optimization Model (SDOM)
+[![Tests](https://github.com/Omar0902/SDOM/workflows/Run%20Python%20Tests/badge.svg)](https://github.com/Omar0902/SDOM/actions/workflows/test.yaml)
+[![Documentation](https://github.com/Omar0902/SDOM/workflows/Build%20and%20Deploy%20Documentation/badge.svg)](https://omar0902.github.io/SDOM/)
+[![DOI](https://img.shields.io/badge/DOI-OSTI%20Code--111266-blue)](https://www.osti.gov/biblio/code-111266)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/sdom)](https://pypistats.org/packages/sdom)
+
+SDOM (Storage Deployment Optimization Model) is an open-source, high-resolution grid capacity-expansion framework developed by the National Lab of the Rockies (NLR). It’s purpose-built to optimize the deployment and operation of energy storage technologies, leveraging hourly temporal resolution and granular spatial representation of Variable Renewable Energy (VRE) sources such as solar and wind.
+
+SDOM is particularly well-suited for figure out the required capacity to meet a carbon-free generation mix target by:
+- 📆 Evaluating long-duration and seasonal storage technologies
+- 🌦 Analyzing complementarity and synergies among diverse VRE resources
+- 📉 Assessing curtailment and operational strategies under various grid scenarios
+
+## Table of contents
+- [How SDOM Works](#how-sdom-works)
+- [Key Features](#key-features)
+- [Optimization Scope](#optimization-scope)
+- [Notes on Model Expansion](#notes-on-model-expansion)
+- [Getting Started with SDOM](#getting-started-with-sdom)
+  - [System Setup and Prerequisites](#system-setup-and-prerequisites)
+  - [Install SDOM](#install-sdom)
+  - [SDOM Input Files](#sdom-input-files)
+  - [SDOM simple script example](#sdom-simple-script-example)
+- [Publications and Use Cases of SDOM](#publications-and-use-cases-of-sdom)
+- [SDOM Demonstration/Example](#sdom-demonstrationexample)
+- [Contributing Guidelines](#contributing-guidelines)
+
+
+# How SDOM Works?
+🔍 At its core, SDOM models the gap between electricity demand and fixed generation:
+
+Inputs include time series data for:
+- Load profiles
+- Fixed generation (e.g., large hydropower, nuclear, and other must-run renewables)
+
+Outputs include:
+- The optimal technology portfolio capacity (PV solar, wind, storage types, thermal capacity) to reliably meet demand.
+- Dispatch profiles for each technology, highlighting how resources are operated hour-by-hour
+- Insights on operational metrics like VRE curtailment, storage cycling, and thermal usage
+
+An illustrative figure below shows the flow from inputs to optimization results, enabling exploration of storage needs under varying renewable integration levels.
+
+![Illustration about how SDOM works](Docs\source\user_guide\sdom_illustration.png)
+
+# Key Features
+⚙️
+
+- **Accurate Representation of Storage Technologies Diversity:** SDOM is strongly focused in providing a framework able to represent different storage technologies by:
+  - Representation of short, long an seassonal storage technologies,
+  -  Including charging/discharging capacity decoupling,
+  -  Optimization of both energy and power capacity,
+  -  Full temporal cronology.
+
+- **Temporal Resolution:** Hourly simulations over a full year enable precise modeling of storage dynamics and renewable generation variability.
+
+- **Spatial Resolution:** Fine-grained representation of VRE sources (e.g., solar, wind) captures geographic diversity and enhances system fidelity.
+
+- **Copper Plate Modeling:** SDOM Model neglects transmission constraints to keep the model tractable from the computational standpoint. Future SDOM releases should include inter-regional transmission constraints.
+
+- **Fixed Generation Profiles:** Nuclear, hydropower, and other non-variable renewables (e.g., biomass, geothermal) are treated as fixed inputs using year-long time series data.
+  - Currently its beeing developed a modeling approach to include a Hydro modeling considering Monthly energy budgets in order to be able to represent the hydro flexibility.
+
+- **System Optimization Objective:** Minimizes total system cost—including capital, fixed/variable O&M, and fuel costs—while satisfying user-defined carbon-free or renewable energy targets.
+
+- **Modeling approach:** Formulated as a Mixed-Integer Linear Programming (MILP) model to allow rigorous optimization of investment and capacity decisions.
+
+- **Platforms:** 
+  - SDOM was originally developed in GAMS (https://github.com/NREL/SDOM). 
+  
+  - In order offer a full open-source solution also was developed this python package. This version requires python 3.10+.
+
+- **Solver Compatibility:** Currently the SDOM python version has been tested using [open-source CBC solver](https://www.coin-or.org/Cbc/cbcuserguide.html) and [HiGHS open-source solver](https://highs.dev/) through highspy module. In this repo the [windows executable for cbc](./cbc.exe) is provided. You will need to provide the path of cbc solver to run SDOM as illustrated in our [script demonstration](#sdom-example-(demonstration-script))
+
+## Optimization Scope
+📉
+SDOM performs cost minimization across a 1-year operation window using a copper plate assumption—i.e., no internal transmission constraints—making it computationally efficient while capturing major cost drivers. Conventional generators are used as balancing resources, and storage technologies serve to meet carbon or renewable penetration goals.
+
+## Notes on Model Expansion
+While SDOM currently supports a 1-year horizon, multiyear analyses could provide deeper insights into how interannual variability affects storage needs. Chronological, simulation-based approaches are better suited for this but present significant computational challenges—especially at hourly resolution. Extending SDOM to support multiyear optimization is left as future work.
+
+# GETTING STARTED WITH SDOM
+## System Setup and Prerequisites 
+
+- a. You'll need to install [python](https://www.python.org/downloads/)
+  - After the installation make sure the [python enviroment variable is set](https://realpython.com/add-python-to-path/).
+- b. Also, You'll need an IDE (Integrated Development Environment), we recommend to install [MS VS code](https://code.visualstudio.com/)
+- d. We alse recommend to install extensions such as:
+  - [edit CSV](https://marketplace.visualstudio.com/items?itemName=janisdd.vscode-edit-csv): To edit and interact with input csv files for SDOM directly in vs code.
+  - [vscode-pdf](https://marketplace.visualstudio.com/items?itemName=tomoki1207.pdf): to read and see pdf files directly in vscode.
+
+
+## Install SDOM
+
+It is recommended to load the packages in a virtual enviroment. 
+
+We recommend to use `uv`, a Python manager for virtual environments and packages.  
+
+- a. Install `uv` following the instructions at [uv on PyPI](https://pypi.org/project/uv/).
+
+- b. Create a new virtual environment named `.venv`:
+
+  ```bash
+  uv venv .venv
+  ```
+        This command creates a Python virtual environment in the `.venv` directory.
+
+
+- c. Activate your virtual environment and install the SDOM package:
+
+  ```bash
+  uv pip install sdom
+  ```
+        
+- d. Install the python module according to your solver. We'll use here [HiGHS open-source solver](https://highs.dev/)
+
+  ```bash
+  uv pip install highspy
+  ```
+
+- e. Install the Logging package to be able to see sdom info, warning and error messages and log those:
+
+  ```bash
+  uv pip install logging
+  ```
+
+- f. Verify your environment by listing installed packages:
+
+  In your terminal or powershell run:
+
+  ```bash
+  uv pip list
+  ```
+
+  You should see output similar to:
+            
+            
+  ```bash
+  Package         Version
+  --------------- -----------
+  highspy         1.11.0
+  logging         0.4.9.6
+  numpy           2.3.3
+  pandas          2.3.3
+  ply             3.11
+  pyomo           6.9.4
+  pytz            2025.2
+  sdom            0.0.7
+  six             1.17.0
+  tzdata          2025.2
+  ```
+
+## SDOM Input Files
+For detailed information about SDOM input files, please refer to the [SDOM Input Documentation](Docs/sdom_Inputs.md).
+
+## SDOM simple script example
+For an script about how to run SDOM, please refer to the [SDOM simple script example](Docs/sdom_example_simple.md).
+
+# PUBLICATIONS AND USE CASES OF SDOM
+📄
+For a comprehensive list of publications and use cases, please refer to the [SDOM Publications Documentation](Docs/sdom_publications.md).
+
+# SDOM DEMONSTRATION/EXAMPLE
+Please see an [SDOM demo script on this github repo.](https://github.com/SebastianManriqueM/pySDOM_demo)
+
+# CONTRIBUTING GUIDELINES
+💻
+[Developers Guide](Docs/sdom_Developers_guide.md) 
