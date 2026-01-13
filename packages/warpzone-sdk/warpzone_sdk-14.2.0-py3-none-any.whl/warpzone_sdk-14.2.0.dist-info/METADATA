@@ -1,0 +1,230 @@
+Metadata-Version: 2.4
+Name: warpzone-sdk
+Version: 14.2.0
+Summary: The main objective of this package is to centralize logic used to interact with Azure Functions, Azure Service Bus and Azure Table Storage
+Author: Team Enigma
+Author-email: enigma@energinet.dk
+Requires-Python: >=3.10
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: aiohttp (>=3.8.3)
+Requires-Dist: azure-core (>=1.26.3)
+Requires-Dist: azure-core-tracing-opentelemetry (>=1.0.0b12)
+Requires-Dist: azure-data-tables (>=12.4.0)
+Requires-Dist: azure-functions (>=1.12.0)
+Requires-Dist: azure-identity (>=1.15.0)
+Requires-Dist: azure-monitor-opentelemetry-exporter (>=1.0.0b36)
+Requires-Dist: azure-servicebus (>=7.8.0,<7.9.0)
+Requires-Dist: azure-storage-blob (>=12.14.1)
+Requires-Dist: cryptography (==43.0.3)
+Requires-Dist: datamazing (>=5.1.6)
+Requires-Dist: deltalake (==1.2.1)
+Requires-Dist: numpy (>=1.26.4)
+Requires-Dist: obstore (>=0.8.2)
+Requires-Dist: opentelemetry-sdk (>=1.32.0)
+Requires-Dist: pandas (>=2.0.3)
+Requires-Dist: polars (>=1.33.1)
+Requires-Dist: pyarrow (>=19.0.0)
+Requires-Dist: typeguard (>=4.0.1)
+Description-Content-Type: text/markdown
+
+# WarpZone SDK
+
+This package contains tools used in the WarpZone project.
+These tool include:
+
+- [Client for Storage](#client-for-storage)
+- [Client for Servicebus](#client-for-servicebus)
+- [Function wrapper](#function-wrapper)
+
+---
+
+## Client for Storage
+
+### Table storage
+`WarpzoneTableClient` (sync) and `WarpzoneTableClientAsync` (async) clients are used for reading from and writing to Azure Storage Table Service.
+
+![tableclient](docs/tableclient.png)
+
+--
+
+### Blob storage
+`WarpzoneBlobClient` client is used for uploading to and downloading from Azure Storage Blob Service.
+
+![storage](docs/storageclient.png)
+
+--
+
+### Database
+
+ `WarpzoneDatabaseClient` (sync) is an umbrella client used in warpZone, which consists of both `WarpzoneTableClient` and `WarpzoneBlobClient`
+
+
+ ---
+
+## Client for Servicebus
+Due to limitations on message sizes, we use different methods for sending *events* and *data* using Azure Service Bus.
+
+### Events
+
+We use the Service Bus for transmitting event messages. By an *event*, we mean a JSON formatted message, containing information about an event occuring in one part of the system, which needs to trigger another part of the system (such as an Azure Function trigger).
+
+
+`WarpzoneEventClient` client is used for sending and receiving events.
+
+![eventclient](docs/eventclient.png)
+
+--
+
+### Data
+
+We **do not** use the Service Bus for transmitting data directly. Instead, we use a claim-check pattern, were we store the data using Storage Blob, and transmit an event about the details of this stored data.
+
+`WarpzoneDataClient` client is used for sending and receiving data in this way. The following diagram shows how the process works:
+
+1. Data is uploaded
+2. Event containing the blob location is send
+3. Event is received
+4. Data is downloaded using the blob location contained in the event
+
+![dataclient](docs/dataclient.png)
+
+The transmitted event has the following format:
+```json
+{
+    "container_name": "<container-name>",
+    "blob_name": "<blob-name>",
+    "timestamp": "<%Y-%m-%dT%H:%M:%S%z>"
+}
+```
+The data will be stored with
+- `<container-name>` = `<topic-name>`
+- `<blob-name>` = `<subject>/year=<%Y>/month=<%m>/day=<%d>/hour=<%H>/<message-id>.<extension>`
+
+
+---
+
+## Function Wrapper
+
+For executing logic, we use a framework built on top of Azure Functions. The following diagram shows how the framework works:
+
+1. The function is triggered by a **trigger** object (e.g. a timer or a message being received)
+2. Possible **dependency** objects are initialized (potentially using information from the trigger). These are used to integrate with external systems (e.g. a database client).
+3. Using the trigger and dependencies as inputs, the function outputs and an **output** object (e.g. a message being sent).
+
+![function](./docs/function.png)
+
+
+The reason we have used our own framework instead of Azure Functions directly, is that we want to use our own objects as triggers, dependencies and outputs, instead of the built-in bindings. For example, as explained [above](#data), we have created our own abstraction of a message for transmitting data (`warpzone.DataMessage`); so we would like to use this, instead of the built-in binding `azure.function.ServiceBusMessage`.
+
+Since it is not yet possible to define [custom bindings](https://github.com/Azure/azure-webjobs-sdk/wiki/Creating-custom-input-and-output-bindings) in Python, we have defined our own wrapping logic, to handle the conversion between our own objects and the built-in bindings. The following diagram shows how the wrapping logic works:
+
+
+1. Azure trigger binding is converted to trigger object
+2. Either
+    - (a) Output object is converted to Azure output binding.
+    - (b) Use custom output logic, when no suitable output binding exists (e.g. we use the Azure Service Bus SDK instead of the Service Bus output binding, since this is [recommended](https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-service-bus-output?tabs=python-v1%2Cin-process%2Cextensionv5&pivots=programming-language-python#usage))
+3. All logs and traces are sent to App Insights automatically.
+
+
+![function-wrap](./docs/wrapping-logic.png)
+
+--
+
+### Examples
+
+Azure Function with data messages as trigger and output:
+
+```json
+# function.json
+{
+  "scriptFile": "__init__.py",
+  "entryPoint": "main",
+  "bindings": [
+    {
+      "name": "msg",
+      "type": "serviceBusTrigger",
+      "direction": "in",
+      "connection": "...",
+      "topicName": "...",
+      "subscriptionName": "..."
+    }
+  ]
+}
+
+```
+
+```python
+import warpzone as wz
+
+def do_nothing(data_msg: wz.DataMessage) -> wz.DataMessage:
+    return data_msg
+
+main = wz.functionize(
+    f=do_nothing,
+    trigger=wz.triggers.DataMessageTrigger(binding_name="msg"),
+    output=wz.outputs.DataMessageOutput(wz.Topic.UNIFORM)
+)
+```
+
+Azure Function with HTTP messages as trigger and output:
+
+```json
+# function.json
+{
+    "scriptFile": "__init__.py",
+    "entryPoint": "main",
+    "bindings": [
+      {
+        "authLevel": "anonymous",
+        "name": "req",
+        "type": "httpTrigger",
+        "direction": "in"
+      },
+      {
+        "type": "http",
+        "direction": "out",
+        "name": "$return"
+      }
+    ]
+  }
+```
+
+```python
+# __init__.py
+import warpzone as wz
+import azure.functions as func
+
+def return_ok(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("OK")
+
+main = wz.functionize(
+    f=return_ok,
+    trigger=wz.triggers.HttpTrigger(binding_name="req"),
+    output=wz.outputs.HttpOutput()
+)
+```
+
+Azure Function using dependencies:
+
+```python
+import warpzone as wz
+
+def do_nothing(
+  data_msg: wz.DataMessage,
+  db: wz.WarpzoneDatabaseClient,
+) -> wz.DataMessage:
+    return data_msg
+
+main = wz.functionize(
+    f=do_nothing,
+    trigger=wz.triggers.DataMessageTrigger(binding_name="msg"),
+    output=wz.outputs.DataMessageOutput(wz.Topic.UNIFORM),
+    dependencies=[wz.dependencies.TableDatabaseDependency()],
+)
+```
+
