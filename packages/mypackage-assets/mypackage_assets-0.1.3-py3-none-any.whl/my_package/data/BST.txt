@@ -1,0 +1,95 @@
+#include<stdio.h>
+#include<stdlib.h>
+struct Node
+{
+    int data;
+    struct Node *left;
+    struct Node *right;
+}*root = NULL;
+void insert(int x)
+{
+    struct Node *temp,*par, *newnode; 
+    newnode = (struct Node *)malloc(sizeof(struct Node));
+    newnode->data = val;
+    if(!root)
+        root = newnode
+    else
+    {
+        temp = root;
+        while(temp)
+        {
+            par = temp;
+            if( x < temp->data)
+                temp = temp->left;
+            else
+                temp = temp->right;
+        }
+        if ( x > par->data)
+            par -> right = newnode;
+        else
+            par -> left = newnode;
+    }
+}
+void del(int x)
+{
+    struct Node *temp = root, *par, *succ, *pre;
+    while(temp && temp->data != x)
+    {
+        par = temp;
+        if ( x > temp->data)
+            temp = temp->right;
+        else 
+            temp = temp->left;
+    }
+    if(!temp)
+        printf("Value not found");
+    else if(temp->left == NULL && temp->right == NULL)
+    {
+        if(temp == par->left)
+            par->left = NULL;
+        else
+            par->right = NULL;
+        free(temp);
+    }
+    else if(temp->right == NULL)
+    {
+        if(temp == par->left)
+            par->left = temp->left;
+        else
+            par->right = temp->left;
+        free(temp);
+    }
+    else if(temp->left == NULL)
+    {
+        if(temp == par->left)
+            par->left = temp->right;
+        else
+            par->right = temp->right;
+        free(temp);
+    }
+    else
+    {
+        succ = temp->left;
+        while(succ->right != NULL)
+        {
+            pre = succ;
+            succ = succ->right;
+        }
+        temp->data = succ->data;
+        pre->right = succ->left;
+        free(succ);
+    }
+}
+void inorder(struct Node *root)
+{
+    if(root)
+    {
+        inorder(root->left);
+        printf("%d", root->data);
+        inorder(root->right);
+    }
+}
+int main()
+{
+    return 0;
+}

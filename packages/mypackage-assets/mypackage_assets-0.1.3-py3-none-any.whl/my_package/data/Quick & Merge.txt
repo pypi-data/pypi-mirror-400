@@ -1,0 +1,82 @@
+#include<stdio.h>
+#include<stdlib.h>
+int a[] = {1,0,4,3,2};
+int n = 5;
+int Partition(int low, int high)
+{
+    int i = low, j = low, pivot = a[high];
+    int temp = 0;
+    while(i < high)
+    {
+        if(a[j] < pivot)
+        {
+            temp = a[j];
+            a[j] = a[i];
+            a[i] = temp;
+            j++;
+        }
+        i++;
+    }
+    temp = a[j];
+    a[j] = a[high];
+    a[high] = temp;
+    
+    return j;
+}
+void QuickSort(int low, int high)
+{
+    int p = 0;
+    if(low < high)
+    {
+        p = Partition(low, high);
+        QuickSort(low, p-1);
+        QuickSort(p+1, high);
+    }
+}
+
+
+void Merge(int low, int mid, int high)
+{
+    int i = low, j = mid + 1, k = low;
+    int b[n];
+    while(i <= mid && j <= high)
+    {
+        if(a[i] < a[j])
+            b[k++] = a[i++];
+        else
+            b[k++] = a[j++];
+    }
+    if(i > mid)
+    {
+        while (j <= high)
+            b[k++] = a[j++];
+    }
+    if(j > high)
+    {
+        while (i <= mid)
+            b[k++] = a[i++];
+    }
+    for(int i = low; i <= high; i++)
+        a[i] = b[i];
+}
+
+void MergeSort(int low, int high)
+{
+    int mid = 0;
+    if(low < high)
+    {
+        mid = (low+high) / 2;
+        MergeSort(low, mid);
+        MergeSort(mid+1, high);
+        Merge(low, mid, high);
+    }
+}
+
+
+int main()
+{
+    MergeSort(0, n);
+    for(int i = 0; i < n; i++)
+        printf("%d ", a[i]);
+    return 0;
+}

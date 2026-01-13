@@ -1,0 +1,84 @@
+#include<stdio.h>
+#include<stdlib.h>
+struct Node
+{
+    int data;
+    struct Node *left;
+    struct Node *right;
+}*root = NULL;
+void insert(int x)
+{
+    struct Node *temp,*par, *newnode; 
+    newnode = (struct Node *)malloc(sizeof(struct Node));
+    newnode->data = x;
+    if(!root)
+        root = newnode;
+    else
+    {
+        temp = root;
+        while(temp)
+        {
+            par = temp;
+            if( x < temp->data)
+                temp = temp->left;
+            else
+                temp = temp->right;
+        }
+        if ( x > par->data)
+            par -> right = newnode;
+        else
+            par -> left = newnode;
+    }
+}
+struct Node *copy_tree(struct Node *root)
+{
+    struct Node *newnode;
+
+    if(root == NULL)
+        return NULL;
+
+    newnode = (struct Node*)malloc(sizeof(struct Node));
+    newnode->data = root->data;
+
+    newnode->left = copy_tree(root->left);
+    newnode->right = copy_tree(root->right);
+
+    return newnode;
+}
+void mirror(struct Node *root)
+{
+    struct Node *temp;
+
+    if(root == NULL)
+        return;
+
+    temp = root->left;
+    root->left = root->right;
+    root->right = temp;
+
+    mirror(root->left);
+    mirror(root->right);
+}
+int count_nodes(struct Node *root)
+{
+    if(root == NULL)
+        return 0;
+
+    return 1 + count_nodes(root->left) + count_nodes(root->right);
+}
+int count_leaf(struct Node *root)
+{
+    if(root == NULL)
+        return 0;
+
+    if(root->left == NULL && root->right == NULL)
+        return 1;
+
+    return count_leaf(root->left) + count_leaf(root->right);
+}
+
+
+int main()
+{
+    return 0;
+}

@@ -1,0 +1,141 @@
+#include<stdio.h>
+#include<stdlib.h>
+struct Node
+{
+    int co;
+    int po;
+    struct Node *next;
+}*start1 = NULL, *start2 = NULL, *start3 = NULL;
+struct Node *createLL(struct Node *start)
+{
+    int n=0, coeff=0, i=0, power = 0;
+    struct Node *temp, *newnode;
+    printf("Enter the number of nodes:\n");
+    scanf("%d", &n);
+    for(i = 0; i < n ; i++)
+    {
+        newnode = (struct Node *)malloc(sizeof(struct Node));
+        printf("Enter the coefficient and power of the newnode: \n");
+        scanf("%d %d", &coeff, &power);
+        newnode->co = coeff;
+        newnode->po = power;
+        newnode->next = NULL;
+        if(!start)
+            start = newnode;
+        else
+        {
+            temp = start;
+            while(temp->next != NULL)
+                temp = temp->next;
+            temp->next = newnode;
+        }
+    }
+    return start;
+}
+void result(int coeff, int power)
+{
+    struct Node *newnode, *temp;
+    newnode = (struct Node *)malloc(sizeof(struct Node));
+    newnode->co = coeff;
+    newnode->po = power;
+    newnode->next = NULL;
+    if(!start3)
+        start3 = newnode;
+    else
+    {
+        temp = start3;
+        while(temp->next != NULL)
+            temp = temp->next;
+        temp->next = newnode;
+    }
+}
+void pol_sub()
+{
+    struct Node *t1, *t2;
+    t1 = start1;
+    t2 = start2;
+    while(t1 && t2)
+    {
+        if(t1->po == t2->po)
+        {
+            result(t1->co - t2->co, t1->po);
+            t1 = t1->next;
+            t2 = t2->next;
+        }
+        else if(t1->po > t2->po)
+        {
+            result(t1->co, t1->po);
+            t1 = t1->next;
+        }
+        else
+        {
+            result(-t2->co, t2->po);
+            t2 = t2->next;
+        }
+    }
+    if(!t1)
+    {
+        while(t2)
+        {
+            result(-t2->co, t2->po);
+            t2 = t2->next;
+        }
+    }
+    if(!t2)
+    {
+        while(t1)
+        {
+            result(t1->co, t1->po);
+            t1 = t1->next;
+        }
+    }
+}
+void displayPoly(struct Node *start)
+{
+    struct Node *temp = start;
+
+    if(start == NULL)
+    {
+        printf("0\n");
+        return;
+    }
+
+    while(temp)
+    {
+        if(temp->co > 0 && temp != start)
+            printf(" + ");
+
+        if(temp->po == 0)
+            printf("%d", temp->co);
+        else if(temp->po == 1)
+            printf("%dx", temp->co);
+        else
+            printf("%dx^%d", temp->co, temp->po);
+
+        temp = temp->next;
+    }
+    printf("\n");
+}
+int main()
+{
+    printf("Create Polynomial 1:\n");
+    start1 = createLL(start1);
+
+    printf("Create Polynomial 2:\n");
+    start2 = createLL(start2);
+
+    printf("\nPolynomial 1: ");
+    displayPoly(start1);
+
+    printf("Polynomial 2: ");
+    displayPoly(start2);
+
+    pol_sub();
+
+    printf("Resultant Polynomial after subtraction: ");
+    displayPoly(start3);
+
+    return 0;
+}
+
+
