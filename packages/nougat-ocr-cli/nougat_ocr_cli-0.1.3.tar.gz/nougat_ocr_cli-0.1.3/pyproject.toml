@@ -1,0 +1,73 @@
+[project]
+name = "nougat-ocr-cli"
+version = "0.1.3"
+description = "Simple CLI wrapper for Nougat OCR with GPU acceleration support"
+authors = [
+    {name = "Ruben Fernandez-Fuertes", email = "fernandezfuertesruben@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = {text = "MIT"}
+keywords = ["ocr", "pdf", "nougat", "document", "extraction", "cli", "gpu"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: General",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "nougat-ocr>=0.1.17",
+    "transformers>=4.35.0,<4.36.0",  # Pin to 4.35.x - tested working version
+    "pypdfium2>=4.30.0,<5.0.0",      # Pin to avoid .render() API breakage
+    "albumentations==1.3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+nougat-ocr-cli = "nougat_wrapper.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/rubenffuertes/nougat-ocr-cli"
+Repository = "https://github.com/rubenffuertes/nougat-ocr-cli"
+Issues = "https://github.com/rubenffuertes/nougat-ocr-cli/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nougat_wrapper"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
