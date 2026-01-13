@@ -1,0 +1,84 @@
+Metadata-Version: 2.4
+Name: docker-prune-plan
+Version: 0.2.0
+Summary: Dry-run view of what docker prune commands would delete
+Author-email: Abdul Wahab <abdulwahabmangat@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/wahabmangat/docker-prune-plan
+Project-URL: Repository, https://github.com/wahabmangat/docker-prune-plan
+Project-URL: Issues, https://github.com/wahabmangat/docker-prune-plan/issues
+Project-URL: Changelog, https://github.com/wahabmangat/docker-prune-plan/blob/main/CHANGELOG.md
+Keywords: docker,prune,cleanup,cli,dry-run
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: System :: Systems Administration
+Classifier: Topic :: Utilities
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: docker>=7.0.0
+
+# docker-prune-plan
+
+[![PyPI version](https://badge.fury.io/py/docker-prune-plan.svg)](https://badge.fury.io/py/docker-prune-plan)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**See exactly what Docker’s prune commands are about to wipe before you hit the big red button and regret it.**
+
+Dry-run view of what Docker prune commands would delete (`system`, `image`, `container`, `volume`, `network`). Implemented as a Python CLI.
+
+## Install
+
+### Option 1: PyPI (Recommended)
+The easiest way to install the latest stable version:
+
+```bash
+pip install docker-prune-plan
+```
+### Option 2: Github releases
+Install the latest release directly:
+```bash
+pip install https://github.com/wahabmangat/docker-prune-plan/releases/download/v0.1.3/docker_prune_plan-0.1.3-py3-none-any.whl
+```
+
+After installation the command `docker-prune-plan` will be available on your PATH.
+
+## Usage
+
+```bash
+# Preview docker system prune
+docker-prune-plan system
+
+# Preview docker system prune -a (unused images, not just dangling)
+docker-prune-plan system --all/-a
+
+# Preview docker system prune --volumes (unused anonymous volumes)
+docker-prune-plan system --volumes
+
+# Preview docker image prune (dangling images)
+docker-prune-plan image
+
+# Preview docker image prune -a (all unused images)
+docker-prune-plan image --all/-a
+
+# Preview docker volume prune (unused anonymous volumes)
+docker-prune-plan volume
+
+# Preview docker volume prune -a (all unused volumes)
+docker-prune-plan volume --all/-a
+
+# Preview docker container prune (stopped containers)
+docker-prune-plan container
+
+# Preview docker network prune (unused custom networks)
+docker-prune-plan network
+
+# JSON output
+docker-prune-plan system --json
+
+```
+## Notes
+- --all is supported for system and image (affects images only), and for volume (includes named volumes).
+- Label/Filter support is not implemented yet.
+- The tool prints a **Plan Reclaimable Space** total based on the listed items. Differences from other Docker disk usage reports can occur due to shared image layers and build cache internals.
