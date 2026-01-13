@@ -1,0 +1,1556 @@
+Metadata-Version: 2.4
+Name: chpy-orm
+Version: 0.2.1
+Summary: A Python wrapper for ClickHouse database operations
+Home-page: https://github.com/Javad-Alipanah/chpy
+Author: Javad Alipanah
+Author-email: javadalipanah@gmail.com
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: clickhouse-connect>=0.6.0
+Requires-Dist: pandas>=1.5.0
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: pyarrow>=10.0.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# chpy-orm - ClickHouse Python Wrapper
+
+A comprehensive Python library for programmatically querying and managing ClickHouse databases. `chpy-orm` provides a fluent, ORM-style interface with type safety, autocomplete support, and extensive ClickHouse function coverage.
+
+## Acknowledgments
+
+This project is developed mainly using [Cursor](https://cursor.sh), an AI-powered code editor, but all code is thoroughly tested and verified by the maintainer to ensure quality and reliability.
+
+## Features
+
+- 🚀 **Fluent Query Builder** - Method chaining for building complex queries
+- 🔒 **Type-Safe Columns** - ORM-style column objects with autocomplete support
+- ➕ **Arithmetic Operators** - Use native Python operators (`+`, `-`, `*`, `/`, `%`, `-`) for arithmetic operations
+- 📊 **Multiple Output Formats** - DataFrame, NumPy, JSON, CSV, Parquet, and more
+- 🛠️ **DDL Operations** - High-level table and database management
+- 🎯 **Comprehensive Functions** - Full coverage of ClickHouse functions
+- 🔄 **Window Functions** - Advanced window function support with OVER clauses
+- 🔗 **JOIN Support** - INNER, LEFT, RIGHT, FULL, and CROSS joins
+- 📦 **Type System** - Support for all ClickHouse data types (Arrays, Maps, Tuples, Nested, etc.)
+- 🎨 **Generic Table Wrapper** - Works with any ClickHouse table, not just crypto_quotes
+
+## Table of Contents
+
+- [Acknowledgments](#acknowledgments)
+- [Features](#features)
+- [Installation](#installation)
+  - [Requirements](#requirements)
+- [Quick Start](#quick-start)
+  - [Basic Connection](#basic-connection)
+  - [Using Context Manager](#using-context-manager)
+- [API Reference](#api-reference)
+  - [ClickHouseClient](#clickhouseclient)
+  - [TableWrapper](#tablewrapper)
+  - [CryptoQuotesTable](#cryptoquotestable)
+  - [QueryBuilder](#querybuilder)
+  - [ORM Classes](#orm-classes)
+  - [DDL](#ddl)
+  - [Functions](#functions)
+  - [WindowSpec](#windowspec)
+- [Best Practices](#best-practices)
+- [Table Schema](#table-schema)
+- [License](#license)
+- [Contributing](#contributing)
+- [Support](#support)
+- [Basic Examples](#basic-examples)
+- [Intermediate Examples](#intermediate-examples)
+- [Advanced Examples](#advanced-examples)
+
+## Installation
+
+```bash
+pip install chpy-orm
+```
+
+Or install in development mode:
+
+```bash
+pip install -e .
+```
+
+### Requirements
+
+- Python 3.9+
+- clickhouse-connect
+- pandas (optional, for DataFrame support)
+- numpy (optional, for NumPy array support)
+
+## Quick Start
+
+### Basic Connection
+
+```python
+from chpy import ClickHouseClient
+from chpy.tables import CryptoQuotesTable
+
+# Initialize the client
+client = ClickHouseClient(
+    host="localhost",
+    port=8123,
+    username="default",
+    password="",
+    database="stockhouse"
+)
+
+# Create a table instance (CryptoQuotesTable already has columns defined)
+table = CryptoQuotesTable(client)
+
+# Simple query with direct column access (Django-style)
+df = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .limit(10)
+    .to_dataframe())
+
+print(df)
+```
+
+### Defining Custom Tables
+
+```python
+from chpy import ClickHouseClient
+from chpy.tables import Table
+from chpy.orm import Column
+from chpy.types import String, UInt64, Float64
+
+# Define a custom table with Django-style column definitions
+class MyTable(Table):
+    id = Column("id", UInt64)
+    name = Column("name", String)
+    value = Column("value", Float64)
+
+# Initialize the client
+client = ClickHouseClient(host="localhost", database="my_db")
+
+# Create table instance
+table = MyTable(client, "my_table", "my_db")
+
+# Query with direct column access
+df = (table.query()
+    .where(table.id > 100)
+    .where(table.name == "test")
+    .to_dataframe())
+```
+
+### Using Context Manager
+
+```python
+with ClickHouseClient(host="localhost", database="stockhouse") as client:
+    table = CryptoQuotesTable(client)
+    results = table.query().where(table.pair == "BTC-USDT").to_list()
+    # Connection automatically closed
+```
+
+---
+
+## API Reference
+
+### ClickHouseClient
+
+Base client for ClickHouse operations.
+
+#### Initialization
+
+```python
+client = ClickHouseClient(
+    host="localhost",
+    port=8123,
+    username="default",
+    password="",
+    database="default",
+    **kwargs  # Additional connection parameters
+)
+```
+
+#### Methods
+
+- `execute(query, parameters=None)` - Execute a SELECT query, returns list of dicts
+- `query_df(query, parameters=None)` - Execute query, returns pandas DataFrame
+- `query_np(query, parameters=None)` - Execute query, returns numpy array
+- `query_arrow(query, parameters=None)` - Execute query, returns PyArrow Table
+- `execute_command(query, parameters=None)` - Execute non-SELECT command (INSERT, CREATE, etc.)
+- `insert(table, data)` - Insert data into a table
+- `close()` - Close the connection
+
+#### Context Manager
+
+```python
+with ClickHouseClient(...) as client:
+    # Use client
+    pass  # Connection automatically closed
+```
+
+### TableWrapper / Table
+
+Generic wrapper for any ClickHouse table. Columns are defined as class attributes (Django-style).
+
+#### Initialization
+
+```python
+# Define table with Django-style columns
+class MyTable(Table):
+    id = Column("id", UInt64)
+    name = Column("name", String)
+
+# Create instance
+table = MyTable(client, "my_table", "my_db")
+
+# Or use explicit columns parameter
+from chpy.tables import TableWrapper
+from chpy.orm import Column
+
+columns = [Column("id", UInt64), Column("name", String)]
+table = TableWrapper(client, "my_table", "my_db", columns=columns)
+```
+
+#### Methods
+
+- `query()` - Start building a query, returns QueryBuilder
+- `insert(data)` - Insert data into the table
+- Direct column access - Access columns directly as attributes (e.g., `table.id`, `table.name`)
+
+### CryptoQuotesTable
+
+Specialized wrapper for the `crypto_quotes` table, extends `TableWrapper`.
+
+#### Initialization
+
+```python
+table = CryptoQuotesTable(client, database="stockhouse")
+```
+
+#### Helper Methods
+
+- `get_valid_exchanges()` - Get list of valid exchange names
+- `get_exchange_base_currencies(exchange)` - Get base currencies for exchange
+- `get_exchange_currencies(exchange)` - Get supported currencies for exchange
+- `get_exchange_pairs(exchange)` - Get all valid trading pairs for exchange
+- `is_valid_pair(pair, exchange=None)` - Check if trading pair is valid
+- `get_all_valid_pairs()` - Get all valid trading pairs across all exchanges
+
+### QueryBuilder
+
+Fluent query builder returned by `table.query()`.
+
+#### Filtering Methods
+
+- `where(condition)` - Add WHERE condition (chainable)
+  - Accepts: ColumnExpression, CombinedExpression, SubqueryExpression, or raw SQL string
+- `having(condition)` - Add HAVING clause for GROUP BY queries (chainable)
+
+#### Query Building Methods
+
+- `select(*columns)` - Specify columns to select (chainable)
+  - Accepts: Column objects, Function objects, AggregateFunction objects, Subquery objects, or raw SQL strings
+- `join(table, condition=None, join_type="INNER", alias=None)` - Add JOIN clause (chainable)
+  - `table`: Table object or table name string
+  - `condition`: ColumnExpression, CombinedExpression, or raw SQL string (required except for CROSS JOIN)
+  - `join_type`: "INNER", "LEFT", "RIGHT", "FULL", or "CROSS"
+  - `alias`: Optional table alias
+- `from_subquery(subquery, alias)` - Use subquery as FROM clause (chainable)
+- `order_by(column, desc=True)` - Specify ordering (chainable)
+- `limit(n)` - Limit number of results (chainable)
+- `group_by(*columns)` - Group by columns (chainable)
+
+#### Execution Methods
+
+- `to_list()` - Execute and return as list of Row objects (if schema) or dictionaries
+- `to_dict(key_column, value_column=None)` - Execute and return as dictionary
+- `to_dataframe()` - Execute and return as pandas DataFrame
+- `to_numpy(columns=None, dtype=None)` - Execute and return as numpy array
+- `to_json(indent=None)` - Execute and return as JSON string
+- `to_csv(path=None, **kwargs)` - Execute and return/write CSV
+- `to_parquet(path, **kwargs)` - Execute and write Parquet file
+- `count()` - Count rows matching filters
+- `first()` - Get first result (or None)
+- `exists()` - Check if any rows match (returns bool)
+- `__iter__()` - Make query builder iterable
+
+### ORM Classes
+
+#### Table
+
+Represents a database table with columns.
+
+```python
+table = Table(name="my_table", database="my_db", columns=[...])
+```
+
+#### Column
+
+Represents a database column.
+
+```python
+column = Column(name="pair", type_="String", table=optional_table)
+```
+
+Column objects support:
+- **Comparison operators**: `==`, `!=`, `<`, `<=`, `>`, `>=`
+- **Arithmetic operators**: `+`, `-`, `*`, `/`, `%` (modulo), and unary `-` (negation)
+- `in_(values)` - IN operator
+- `not_in(values)` - NOT IN operator
+- `like(pattern)` - LIKE operator
+- Can be combined with `&` (AND) and `|` (OR)
+
+**Arithmetic Operators Example:**
+```python
+# Use native Python operators for arithmetic operations
+results = (table.query()
+    .select(
+        table.price,
+        (table.price + 10).alias("price_plus_10"),
+        (table.price * table.quantity).alias("total"),
+        (table.price / 2).alias("half_price"),
+        (table.price % 100).alias("remainder"),
+        (-table.price).alias("negated_price"),
+        # Works with aggregate functions too
+        (avg(table.price) - avg(table.cost)).alias("avg_profit")
+    )
+    .where((table.price * table.quantity) > 1000)
+    .to_list())
+```
+
+#### Row
+
+Represents a row from a query result.
+
+- Attribute access: `row.column_name`
+- Dictionary access: `row['column_name']`
+- `get(key, default)` - Get with default
+- `to_dict()` - Convert to dictionary
+
+### DDL
+
+High-level DDL operations for table and database management.
+
+#### Methods
+
+- `create_table(table, columns=None, database=None, engine="MergeTree", order_by=None, ...)`
+- `drop_table(table, database=None, if_exists=True)`
+- `add_column(table, column, database=None, after=None, if_not_exists=True)`
+- `drop_column(table, column_name, database=None, if_exists=True)`
+- `modify_column(table, column, database=None)`
+- `rename_table(old_table, new_name, database=None)`
+- `create_database(database, if_not_exists=True, engine=None, settings=None)`
+- `drop_database(database, if_exists=True)`
+- `create_materialized_view(view, to_table, select_query, ...)`
+- `drop_materialized_view(view, database=None, if_exists=True)`
+- `create_distributed_table(table, cluster, local_table, ...)`
+
+### Functions
+
+The library provides comprehensive ClickHouse function coverage. Import from `chpy.functions`:
+
+```python
+from chpy.functions import (
+    # Aggregate
+    count, sum, avg, min, max, quantile, stddevPop, stddevSamp,
+    # String
+    length, upper, lower, substring, concat, startsWith, endsWith,
+    # Date/Time
+    toYear, toMonth, toDayOfMonth, toHour, addDays, subtractDays,
+    # Math
+    abs, sqrt, round, floor, ceil,
+    # Type conversion
+    toString, toInt64, toFloat64, toDateTime,
+    # Conditional
+    if_ as if_func, coalesce,
+    # Array
+    array, arraySum, arrayAvg, arrayMax, arrayMin,
+    # And many more...
+)
+```
+
+All functions support:
+- `.alias(name)` - Set column alias
+- `.over(window_spec)` - Add OVER clause for window functions
+
+### WindowSpec
+
+Window specification for OVER clauses.
+
+```python
+from chpy.functions.base import WindowSpec
+
+WindowSpec()
+    .partition_by(column1, column2)
+    .order_by(column3, desc=True)
+    .rows_between("UNBOUNDED PRECEDING", "CURRENT ROW")
+```
+
+#### Methods
+
+- `partition_by(*columns)` - Add PARTITION BY clause
+- `order_by(*columns, desc=False)` - Add ORDER BY clause
+- `rows_between(start, end)` - Add ROWS BETWEEN frame
+- `range_between(start, end)` - Add RANGE BETWEEN frame
+- `to_sql()` - Convert to SQL OVER clause
+
+---
+
+## Best Practices
+
+### 1. Use Direct Column Access for Type Safety
+
+```python
+# Good: Type-safe with autocomplete (Django-style)
+df = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .to_dataframe())
+
+# Avoid: Raw strings (no type checking)
+df = (table.query()
+    .where("pair = 'BTC-USDT'")
+    .to_dataframe())
+```
+
+### 2. Use Method Chaining
+
+```python
+# Good: Fluent interface
+results = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .where(table.exchange == "BINANCE")
+    .order_by(table.timestamp_ms, desc=True)
+    .limit(100)
+    .to_list())
+
+# Avoid: Multiple variables
+builder = table.query()
+builder = builder.where(table.pair == "BTC-USDT")
+builder = builder.where(table.exchange == "BINANCE")
+results = builder.to_list()
+```
+
+### 3. Use Context Managers
+
+```python
+# Good: Automatic connection management
+with ClickHouseClient(...) as client:
+    table = CryptoQuotesTable(client)
+    results = table.query().to_list()
+
+# Avoid: Manual connection management
+client = ClickHouseClient(...)
+try:
+    table = CryptoQuotesTable(client)
+    results = table.query().to_list()
+finally:
+    client.close()
+```
+
+### 4. Select Only Needed Columns
+
+```python
+# Good: Select specific columns
+df = (table.query()
+    .select(table.pair, table.best_bid_price)
+    .to_dataframe())
+
+# Avoid: Selecting all columns when you only need a few
+df = (table.query()
+    .to_dataframe())  # Selects all columns
+```
+
+### 5. Use Appropriate Output Formats
+
+```python
+# For data analysis: DataFrame
+df = table.query().to_dataframe()
+
+# For numerical computation: NumPy
+arr = table.query().select(...).to_numpy()
+
+# For iteration: List
+results = table.query().to_list()
+
+# For export: CSV/Parquet
+table.query().to_csv("output.csv")
+table.query().to_parquet("output.parquet")
+```
+
+### 6. Use Functions for Transformations
+
+```python
+# Good: Use library functions
+results = (table.query()
+    .select(
+        upper(table.pair).alias("pair_upper"),
+        round(table.best_bid_price, 2).alias("rounded_price")
+    )
+    .to_list())
+
+# Avoid: Raw SQL when functions are available
+results = (table.query()
+    .select("upper(pair) as pair_upper, round(best_bid_price, 2) as rounded_price")
+    .to_list())
+```
+
+### 7. Use Window Functions for Advanced Analytics
+
+```python
+# Good: Window functions for running calculations
+result = (table.query()
+    .select(
+        table.pair,
+        table.best_bid_price,
+        avg(table.best_bid_price).over(
+            WindowSpec().partition_by(table.pair)
+        ).alias("avg_price")
+    )
+    .to_dataframe())
+```
+
+---
+
+## Table Schema
+
+The `crypto_quotes` table has the following columns:
+
+- `pair` (String): Trading pair (e.g., "BTC-USDT")
+- `best_bid_price` (Float64): Best bid price
+- `best_bid_size` (Float64): Best bid size
+- `best_ask_price` (Float64): Best ask price
+- `best_ask_size` (Float64): Best ask size
+- `bid_prices` (Array(Float64)): Array of bid prices
+- `bid_sizes` (Array(Float64)): Array of bid sizes
+- `ask_prices` (Array(Float64)): Array of ask prices
+- `ask_sizes` (Array(Float64)): Array of ask sizes
+- `timestamp_ms` (UInt64): Timestamp in milliseconds
+- `exchange` (LowCardinality(String)): Exchange name
+- `sequence_number` (UInt64): Sequence number
+- `inserted_at` (UInt64): Insert timestamp
+
+---
+
+## License
+
+MIT
+
+---
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+## Support
+
+For issues, questions, or contributions, please open an issue on GitHub.
+## Basic Examples
+
+### Example 1: Simple Query with Direct Column Access
+
+```python
+from chpy import ClickHouseClient
+from chpy.tables import CryptoQuotesTable
+from datetime import datetime, timedelta
+
+client = ClickHouseClient(host="localhost", database="stockhouse")
+table = CryptoQuotesTable(client)
+
+# Query using direct column access (Django-style, type-safe with autocomplete)
+df = (table.query()
+    .select(
+        table.pair,
+        table.best_bid_price,
+        table.best_ask_price,
+        table.timestamp_ms
+    )
+    .where(table.pair == "BTC-USDT")
+    .where(table.exchange == "BINANCE")
+    .where(table.timestamp_ms >= datetime.now() - timedelta(days=1))
+    .order_by(table.timestamp_ms, desc=True)
+    .limit(100)
+    .to_dataframe())
+
+print(df.head())
+```
+
+### Example 2: Direct Column Access (Django-style)
+
+```python
+# Access columns directly as attributes
+results = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .where(table.best_bid_price > 50000)
+    .order_by(table.timestamp_ms, desc=True)
+    .limit(5)
+    .to_list())
+
+for row in results:
+    print(f"Pair: {row.pair}, Bid: {row.best_bid_price}")
+```
+
+### Example 3: Comparison Operators
+
+```python
+# All comparison operators are supported
+results = (table.query()
+    .where(table.best_bid_price > 50000)
+    .where(table.best_bid_price < 60000)
+    .where(table.best_bid_price >= 51000)
+    .where(table.best_bid_price <= 59000)
+    .where(table.pair != "ETH-USDT")
+    .limit(10)
+    .to_list())
+```
+
+### Example 4: Arithmetic Operators
+
+```python
+# Use native Python operators for arithmetic operations
+results = (table.query()
+    .select(
+        table.best_bid_price,
+        table.best_ask_price,
+        # Addition
+        (table.best_bid_price + 10).alias("bid_plus_10"),
+        # Subtraction
+        (table.best_ask_price - table.best_bid_price).alias("spread"),
+        # Multiplication
+        (table.best_bid_price * 1.1).alias("price_with_margin"),
+        # Division
+        (table.best_ask_price / table.best_bid_price).alias("ask_bid_ratio"),
+        # Modulo
+        (table.best_bid_price % 1000).alias("remainder"),
+        # Negation
+        (-table.best_bid_price).alias("negated_price"),
+        # Complex expressions
+        ((table.best_ask_price - table.best_bid_price) / table.best_bid_price * 100).alias("spread_percentage")
+    )
+    .where((table.best_bid_price * table.best_bid_size) > 1000)
+    .limit(5)
+    .to_list())
+
+# Works with aggregate functions too
+results = (table.query()
+    .select(
+        table.pair,
+        avg(table.best_bid_price).alias("avg_bid"),
+        avg(table.best_ask_price).alias("avg_ask"),
+        (avg(table.best_ask_price) - avg(table.best_bid_price)).alias("avg_spread")
+    )
+    .group_by(table.pair)
+    .to_list())
+```
+
+### Example 5: IN and NOT IN Operators
+
+```python
+# IN operator for multiple values
+results = (table.query()
+    .where(table.pair.in_(["BTC-USDT", "ETH-USDT", "BNB-USDT"]))
+    .where(table.exchange == "BINANCE")
+    .to_list())
+
+# NOT IN operator
+results = (table.query()
+    .where(table.exchange.not_in(["BINANCE", "KUCOIN"]))
+    .limit(10)
+    .to_list())
+```
+
+### Example 6: LIKE Operator
+
+```python
+# Pattern matching with LIKE
+results = (table.query()
+    .where(table.pair.like("BTC-%"))
+    .limit(10)
+    .to_list())
+```
+
+### Example 7: Complex Expressions with AND/OR
+
+```python
+# Combine conditions with & (AND) and | (OR)
+results = (table.query()
+    .where(
+        (table.pair == "BTC-USDT") & 
+        (table.exchange.in_(["BINANCE", "KUCOIN"])) &
+        (table.timestamp_ms >= datetime.now() - timedelta(days=1))
+    )
+    .limit(10)
+    .to_list())
+
+# OR expression
+results = (table.query()
+    .where(
+        (table.pair == "BTC-USDT") | 
+        (table.pair == "ETH-USDT")
+    )
+    .where(table.exchange == "BINANCE")
+    .limit(10)
+    .to_list())
+```
+
+### Example 8: Multiple WHERE Clauses
+
+```python
+# Multiple where() calls are combined with AND
+results = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .where(table.exchange == "BINANCE")
+    .where(table.best_bid_price > 50000)
+    .where(table.best_ask_price < 60000)
+    .limit(5)
+    .to_list())
+```
+
+### Example 9: Selecting Specific Columns
+
+```python
+# Select only the columns you need
+df = (table.query()
+    .select(
+        table.pair,
+        table.best_bid_price,
+        table.best_ask_price,
+        table.exchange,
+        table.timestamp_ms
+    )
+    .where(table.pair == "BTC-USDT")
+    .limit(10)
+    .to_dataframe())
+
+print(df.columns)  # Only selected columns
+```
+
+### Example 10: Ordering Results
+
+```python
+# Order by one or more columns
+results = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .order_by(table.exchange, desc=False)  # ASC
+    .order_by(table.timestamp_ms, desc=True)  # DESC
+    .limit(10)
+    .to_list())
+```
+
+### Example 11: Counting Rows
+
+```python
+# Count rows matching conditions
+count = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .where(table.exchange == "BINANCE")
+    .where(table.timestamp_ms >= datetime.now() - timedelta(days=1))
+    .count())
+
+print(f"Found {count} rows")
+```
+
+### Example 12: Getting First Result
+
+```python
+# Get the first matching row
+first = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .order_by(table.timestamp_ms, desc=True)
+    .first())
+
+if first:
+    print(f"Latest quote: {first.pair} @ {first.best_bid_price}")
+```
+
+### Example 13: Checking Existence
+
+```python
+# Check if any rows match
+exists = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .where(table.exchange == "BINANCE")
+    .exists())
+
+print(f"Data exists: {exists}")
+```
+
+### Example 14: Iterating Over Results
+
+```python
+# Iterate over results (lazy evaluation)
+for row in table.query().where(table.pair == "BTC-USDT").limit(10):
+    print(f"Pair: {row.pair}, Bid: {row.best_bid_price}")
+```
+
+### Example 15: Output Formats
+
+```python
+# List of dictionaries
+results = table.query().where(table.pair == "BTC-USDT").to_list()
+
+# Pandas DataFrame
+df = table.query().where(table.pair == "BTC-USDT").to_dataframe()
+
+# NumPy array
+arr = table.query().select(
+    table.best_bid_price,
+    table.best_ask_price
+).to_numpy()
+
+# JSON string
+json_str = table.query().limit(10).to_json(indent=2)
+
+# CSV string
+csv_str = table.query().limit(100).to_csv()
+
+# Write to file
+table.query().limit(10000).to_csv("quotes.csv")
+table.query().limit(10000).to_parquet("quotes.parquet")
+
+# Dictionary (key-value mapping)
+pair_dict = (table.query()
+    .select(table.pair, table.best_bid_price)
+    .to_dict(table.pair, table.best_bid_price))
+```
+
+---
+
+## Intermediate Examples
+
+### Example 16: Grouping and Aggregation
+
+```python
+from chpy.functions import avg, count, min, max, sum
+
+# Group by columns and aggregate
+results = (table.query()
+    .select(
+        table.pair,
+        table.exchange,
+        avg(table.best_bid_price).alias("avg_bid"),
+        min(table.best_bid_price).alias("min_bid"),
+        max(table.best_bid_price).alias("max_bid"),
+        count().alias("cnt")
+    )
+    .where(table.timestamp_ms >= datetime.now() - timedelta(days=7))
+    .group_by(table.pair, table.exchange)
+    .having("avg_bid > 0")
+    .order_by("avg_bid", desc=True)
+    .limit(10)
+    .to_list())
+
+for row in results:
+    print(f"{row['pair']} on {row['exchange']}: "
+          f"avg={row['avg_bid']:.2f}, count={row['cnt']}")
+```
+
+### Example 17: String Functions
+
+```python
+from chpy.functions import length, upper, lower, substring, concat, startsWith, endsWith
+
+# Use string functions in SELECT
+results = (table.query()
+    .select(
+        table.pair,
+        length(table.pair).alias("pair_length"),
+        upper(table.pair).alias("pair_upper"),
+        lower(table.exchange).alias("exchange_lower"),
+        substring(table.pair, 1, 3).alias("pair_prefix"),
+        concat(table.pair, " on ", table.exchange).alias("description")
+    )
+    .where(table.pair.in_(["BTC-USDT", "ETH-USDT"]))
+    .limit(5)
+    .to_list())
+```
+
+### Example 18: Date and Time Functions
+
+```python
+from chpy.functions import toYear, toMonth, toDayOfMonth, toHour, toDateTime
+
+# Extract date/time components
+results = (table.query()
+    .select(
+        table.timestamp_ms,
+        toYear(toDateTime(table.timestamp_ms / 1000)).alias("year"),
+        toMonth(toDateTime(table.timestamp_ms / 1000)).alias("month"),
+        toDayOfMonth(toDateTime(table.timestamp_ms / 1000)).alias("day"),
+        toHour(toDateTime(table.timestamp_ms / 1000)).alias("hour")
+    )
+    .where(table.pair == "BTC-USDT")
+    .limit(5)
+    .to_list())
+```
+
+### Example 19: Mathematical Functions
+
+```python
+from chpy.functions import abs, sqrt, round, floor, ceil
+
+# Mathematical transformations
+results = (table.query()
+    .select(
+        table.best_bid_price,
+        table.best_ask_price,
+        abs(table.best_bid_price).alias("abs_bid"),
+        sqrt(table.best_bid_price).alias("sqrt_bid"),
+        round(table.best_bid_price, 2).alias("rounded_bid"),
+        floor(table.best_bid_price).alias("floor_bid"),
+        ceil(table.best_ask_price).alias("ceil_ask")
+    )
+    .where(table.pair == "BTC-USDT")
+    .where(table.best_bid_price > 0)
+    .limit(5)
+    .to_list())
+```
+
+### Example 20: Conditional Functions
+
+```python
+from chpy.functions import if_ as if_func, coalesce
+
+# Conditional logic
+results = (table.query()
+    .select(
+        table.pair,
+        table.best_bid_price,
+        table.best_ask_price,
+        if_func(
+            table.best_bid_price > 50000,
+            "high",
+            "normal"
+        ).alias("price_category"),
+        coalesce(table.best_bid_price, 0).alias("safe_bid")
+    )
+    .where(table.pair == "BTC-USDT")
+    .limit(5)
+    .to_list())
+```
+
+### Example 21: Type Conversion Functions
+
+```python
+from chpy.functions import toString, toInt64, toFloat64
+
+# Convert types
+results = (table.query()
+    .select(
+        table.pair,
+        toString(table.best_bid_price).alias("bid_as_string"),
+        toInt64(table.best_bid_price).alias("bid_as_int"),
+        toFloat64(table.best_bid_price).alias("bid_as_float")
+    )
+    .where(table.pair == "BTC-USDT")
+    .limit(3)
+    .to_list())
+```
+
+### Example 22: Combining Multiple Functions
+
+```python
+# Combine different function types in one query
+results = (table.query()
+    .select(
+        upper(table.pair).alias("pair_upper"),
+        length(table.pair).alias("pair_length"),
+        round(table.best_bid_price, 2).alias("rounded_price"),
+        toYear(toDateTime(table.timestamp_ms / 1000)).alias("year"),
+        if_func(
+            table.best_bid_price > 50000,
+            "premium",
+            "standard"
+        ).alias("tier")
+    )
+    .where(table.pair == "BTC-USDT")
+    .limit(3)
+    .to_list())
+```
+
+### Example 23: Raw SQL Conditions
+
+```python
+# Use raw SQL for complex conditions
+results = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .where("best_bid_price > 50000 AND best_ask_price < 60000")
+    .where("timestamp_ms >= toUnixTimestamp(now()) * 1000 - 86400000")
+    .limit(10)
+    .to_list())
+```
+
+### Example 24: Working with Generic Tables
+
+```python
+from chpy import ClickHouseClient
+from chpy.tables import Table
+from chpy.orm import Column
+from chpy.types import UInt64, String, Float64, DateTime
+
+# Define a custom table with Django-style columns
+class MyTable(Table):
+    id = Column("id", UInt64)
+    name = Column("name", String)
+    value = Column("value", Float64)
+    created_at = Column("created_at", DateTime)
+
+# Create wrapper
+client = ClickHouseClient(host="localhost", database="my_db")
+table = MyTable(client, "my_table", "my_db")
+
+# Query with direct column access (type-safe)
+df = (table.query()
+    .where(table.id > 100)
+    .where(table.name == "test")
+    .to_dataframe())
+
+# Or query with raw strings
+df = (table.query()
+    .where("id > 100")
+    .where("name = 'test'")
+    .to_dataframe())
+
+# Insert data
+table.insert([
+    {"id": 1, "name": "test", "value": 1.5, "created_at": datetime.now()}
+])
+```
+
+---
+
+## Advanced Examples
+
+### Example 25: JOIN Operations
+
+```python
+from chpy.orm import Table, Column
+
+# Define another table schema
+other_table_columns = [
+    Column("symbol", "String"),
+    Column("name", "String"),
+    Column("market_cap", "Float64"),
+]
+other_table = Table("market_data", "stockhouse", other_table_columns)
+
+# INNER JOIN with column expressions
+result = (table.query()
+    .select(
+        table.pair,
+        table.best_bid_price,
+        other_table.name,
+        other_table.market_cap
+    )
+    .join(
+        other_table,
+        condition=(table.pair == other_table.symbol),
+        join_type="INNER"
+    )
+    .where(table.exchange == "BINANCE")
+    .to_dataframe())
+
+# LEFT JOIN with alias
+result = (table.query()
+    .select(
+        table.pair,
+        other_table.market_cap
+    )
+    .join(
+        other_table,
+        condition=(table.pair == other_table.symbol),
+        join_type="LEFT",
+        alias="md"
+    )
+    .to_list())
+
+# Multiple JOINs
+result = (table.query()
+    .join(other_table, condition=(table.pair == other_table.symbol))
+    .join(
+        "stockhouse.exchanges",
+        condition="table.exchange = exchanges.code",
+        join_type="LEFT"
+    )
+    .to_dataframe())
+
+# CROSS JOIN (no condition needed)
+result = (table.query()
+    .join("stockhouse.reference_table", join_type="CROSS")
+    .limit(100)
+    .to_list())
+```
+
+### Example 26: Window Functions
+
+```python
+from chpy.functions.base import WindowSpec
+from chpy.functions.window import rowNumber, rank, denseRank
+from chpy.functions.aggregate import avg, sum
+
+# Basic window function with PARTITION BY
+result = (table.query()
+    .select(
+        table.pair,
+        table.best_bid_price,
+        avg(table.best_bid_price).over(
+            WindowSpec().partition_by(table.pair)
+        ).alias("avg_by_pair")
+    )
+    .to_dataframe())
+
+# Window function with ORDER BY
+result = (table.query()
+    .select(
+        table.pair,
+        table.best_bid_price,
+        rank().over(
+            WindowSpec()
+                .partition_by(table.pair)
+                .order_by(table.best_bid_price, desc=True)
+        ).alias("price_rank")
+    )
+    .to_dataframe())
+
+# Running average with frame specification
+result = (table.query()
+    .select(
+        table.pair,
+        table.timestamp_ms,
+        table.best_bid_price,
+        avg(table.best_bid_price).over(
+            WindowSpec()
+                .partition_by(table.pair)
+                .order_by(table.timestamp_ms)
+                .rows_between("UNBOUNDED PRECEDING", "CURRENT ROW")
+        ).alias("running_avg")
+    )
+    .where(table.exchange == "BINANCE")
+    .to_dataframe())
+
+# Multiple window functions in same query
+result = (table.query()
+    .select(
+        table.pair,
+        table.exchange,
+        avg(table.best_bid_price).over(
+            WindowSpec().partition_by(table.pair)
+        ).alias("avg_by_pair"),
+        rowNumber().over(
+            WindowSpec()
+                .partition_by(table.exchange)
+                .order_by(table.timestamp_ms)
+        ).alias("row_num")
+    )
+    .to_dataframe())
+
+# Window functions with GROUP BY
+result = (table.query()
+    .select(
+        table.pair,
+        table.exchange,
+        avg(table.best_bid_price).over(
+            WindowSpec().partition_by(table.pair)
+        ).alias("window_avg"),
+        avg(table.best_bid_price).alias("group_avg")
+    )
+    .where(table.exchange == "BINANCE")
+    .group_by(table.pair, table.exchange)
+    .to_dataframe())
+```
+
+### Example 27: Subqueries
+
+```python
+from chpy.orm import Subquery
+
+# Scalar subquery in SELECT
+subquery_builder = (table.query()
+    .select(avg(table.best_bid_price))
+    .where(table.pair == "BTC-USDT"))
+
+result = (table.query()
+    .select(
+        table.pair,
+        table.best_bid_price,
+        Subquery(subquery_builder).alias("avg_btc_price")
+    )
+    .where(table.pair == "ETH-USDT")
+    .to_list())
+
+# Subquery in WHERE with IN
+subquery_builder = (table.query()
+    .select(table.pair)
+    .where(table.exchange == "BINANCE")
+    .group_by(table.pair)
+    .having("count() > 100"))
+
+result = (table.query()
+    .where(table.pair.in_(Subquery(subquery_builder)))
+    .to_list())
+
+# EXISTS subquery
+subquery_builder = (table.query()
+    .where(table.exchange == "BINANCE"))
+
+result = (table.query()
+    .where(Subquery.exists(subquery_builder))
+    .to_list())
+
+# Derived table (subquery in FROM)
+subquery_builder = (table.query()
+    .select(
+        table.pair,
+        avg(table.best_bid_price).alias("avg_price")
+    )
+    .group_by(table.pair))
+
+result = (table.query()
+    .from_subquery(Subquery(subquery_builder), alias="avg_prices")
+    .where("avg_price > 50000")
+    .to_list())
+```
+
+### Example 28: DDL Operations - Creating Tables
+
+```python
+from chpy import ClickHouseClient, DDL
+from chpy.orm import Table, Column
+from chpy import LowCardinality, Nullable, Array, Map, DateTime
+
+client = ClickHouseClient(host="localhost", database="my_db")
+ddl = DDL(client)
+
+# Create table from schema
+columns = [
+    Column("id", "UInt64"),
+    Column("name", LowCardinality("String")),
+    Column("value", "Float64"),
+    Column("tags", Array("String")),
+    Column("metadata", Map("String", "String")),
+    Column("created_at", DateTime("UTC")),
+    Column("description", Nullable("String"))
+]
+schema = Table("my_table", "my_db", columns)
+
+ddl.create_table(
+    schema,
+    engine="MergeTree",
+    order_by="id",
+    partition_by="toYYYYMM(created_at)",
+    primary_key="id"
+)
+
+# Or create table with string name
+ddl.create_table(
+    "users",
+    columns=columns,
+    database="my_db",
+    order_by="id"
+)
+
+# Create table with advanced options
+ddl.create_table(
+    schema,
+    engine="MergeTree",
+    order_by=["created_at", "id"],
+    partition_by="toYYYYMM(created_at)",
+    primary_key=["id"],
+    settings={"index_granularity": 8192}
+)
+```
+
+### Example 29: DDL Operations - Altering Tables
+
+```python
+# Add column
+ddl.add_column(
+    "my_db.my_table",
+    Column("new_col", "String"),
+    after="id"
+)
+
+# Drop column
+ddl.drop_column("my_db.my_table", "old_col")
+
+# Modify column
+ddl.modify_column(
+    "my_db.my_table",
+    Column("name", "FixedString(100)")
+)
+
+# Rename table
+ddl.rename_table("my_db.old_table", "new_table")
+```
+
+### Example 30: DDL Operations - Databases and Views
+
+```python
+# Create database
+ddl.create_database("my_database", engine="Atomic")
+
+# Drop database
+ddl.drop_database("my_database")
+
+# Create materialized view
+target_columns = [
+    Column("pair", "String"),
+    Column("avg_price", "Float64"),
+]
+target_table = Table("mv_target", "my_db", target_columns)
+
+ddl.create_materialized_view(
+    "my_view",
+    target_table,
+    "SELECT pair, avg(price) as avg_price FROM source_table GROUP BY pair",
+    database="my_db",
+    order_by="pair"
+)
+
+# Drop materialized view
+ddl.drop_materialized_view("my_db.my_view")
+
+# Create distributed table
+columns = [Column("id", "UInt64"), Column("name", "String")]
+schema = Table("dist_table", "my_db", columns)
+
+ddl.create_distributed_table(
+    schema,
+    cluster="my_cluster",
+    local_table="my_db.local_table",
+    sharding_key="rand()"
+)
+```
+
+### Example 31: ClickHouse Type System
+
+```python
+from chpy import (
+    # Type modifiers
+    LowCardinality, Nullable, Array, Tuple, Map, Nested,
+    FixedString, Enum,
+    # Special types
+    IPv4, IPv6, UUID, Date, DateTime, DateTime64,
+    # Primitive types
+    String, Bool, UInt8, UInt16, UInt32, UInt64, UInt128, UInt256,
+    Int8, Int16, Int32, Int64, Int128, Int256,
+    Float32, Float64,
+    Decimal32, Decimal64, Decimal128, Decimal256,
+    # Convenience functions
+    LowCardinalityNullable, NullableArray, ArrayNullable
+)
+from chpy.orm import Column, Table
+
+# Primitive types
+Column("name", String)
+Column("age", Int64)
+Column("price", Float64)
+Column("count", UInt64)
+Column("is_active", Bool)
+
+# LowCardinality for string optimization
+Column("exchange", LowCardinality(String))
+Column("name", LowCardinality(Nullable(String)))  # Nested types
+
+# Nullable types
+Column("description", Nullable(String))
+Column("tags", Nullable(Array(String)))
+
+# Array types
+Column("tags", Array(String))
+Column("prices", Array(Float64))
+Column("nested_tags", Array(Nullable(String)))
+
+# Tuple types
+Column("coordinates", Tuple(Float64, Float64))
+Column("metadata", Tuple(String, Int64, Float64))
+
+# Map types
+Column("settings", Map(String, String))
+Column("counts", Map(String, Int64))
+
+# Nested types
+Column("user", Nested("name", String, "age", Int64))
+# Or with tuples:
+Column("user", Nested(("name", String), ("age", Int64)))
+
+# FixedString
+Column("code", FixedString(10))
+
+# Enum types
+Column("status", Enum("active", 1, "inactive", 0))
+# Or with dict:
+Column("status", Enum({"active": 1, "inactive": 0}))
+
+# Special types
+Column("ip_address", IPv4)
+Column("ipv6_address", IPv6)
+Column("user_id", UUID)
+Column("created", Date)
+Column("timestamp", DateTime("UTC"))
+Column("precise_time", DateTime64(3, "UTC"))  # 3 decimal places
+
+# Decimal types
+Column("amount", Decimal64(2))  # Decimal64 with 2 decimal places
+Column("precise_amount", Decimal128(4))  # Decimal128 with 4 decimal places
+
+# Convenience functions
+Column("name", LowCardinalityNullable(String))  # LowCardinality(Nullable(String))
+Column("tags", NullableArray(String))  # Nullable(Array(String))
+Column("items", ArrayNullable(String))  # Array(Nullable(String))
+
+# Use in table definitions
+columns = [
+    Column("id", UInt64),
+    Column("name", LowCardinality(String)),
+    Column("tags", Array(String)),
+    Column("metadata", Map(String, String)),
+    Column("created_at", DateTime("UTC")),
+]
+table = Table("my_table", "my_db", columns)
+```
+
+### Example 32: Row Objects with Schema
+
+```python
+# When using a schema, results are returned as Row objects
+# Row objects support both attribute and dictionary access
+
+results = (table.query()
+    .where(table.pair == "BTC-USDT")
+    .limit(5)
+    .to_list())
+
+for row in results:
+    # Attribute-style access (when schema is available)
+    print(row.pair)  # or row['pair']
+    print(row.best_bid_price)  # or row['best_bid_price']
+    
+    # Dictionary-style access
+    print(row['pair'])
+    print(row.get('pair', 'default'))
+    
+    # Convert to dict
+    row_dict = row.to_dict()
+```
+
+### Example 33: Complex Aggregations
+
+```python
+from chpy.functions import (
+    quantile, quantileExact, stddevPop, stddevSamp,
+    argMin, argMax, topK, uniq
+)
+
+# Advanced aggregations
+results = (table.query()
+    .select(
+        table.pair,
+        avg(table.best_bid_price).alias("avg_price"),
+        quantile(0.5)(table.best_bid_price).alias("median_price"),
+        quantile(0.95)(table.best_bid_price).alias("p95_price"),
+        stddevPop(table.best_bid_price).alias("stddev"),
+        argMin(table.timestamp_ms, table.best_bid_price).alias("min_price_time"),
+        topK(5)(table.exchange).alias("top_exchanges"),
+        uniq(table.exchange).alias("unique_exchanges")
+    )
+    .where(table.timestamp_ms >= datetime.now() - timedelta(days=7))
+    .group_by(table.pair)
+    .to_list())
+```
+
+### Example 34: Array Functions
+
+```python
+from chpy.functions import (
+    array, arraySum, arrayAvg, arrayMax, arrayMin,
+    arrayElement, has, hasAll, hasAny, indexOf
+)
+
+# Working with array columns
+results = (table.query()
+    .select(
+        table.pair,
+        table.bid_prices,
+        arraySum(table.bid_prices).alias("total_bids"),
+        arrayAvg(table.bid_prices).alias("avg_bid"),
+        arrayMax(table.bid_prices).alias("max_bid"),
+        arrayMin(table.bid_prices).alias("min_bid"),
+        arrayElement(table.bid_prices, 1).alias("first_bid"),
+        has(table.bid_prices, 50000).alias("has_50k")
+    )
+    .where(table.pair == "BTC-USDT")
+    .limit(5)
+    .to_list())
+```
+
+### Example 35: Time Series Analysis
+
+```python
+from chpy.functions import (
+    toStartOfHour, toStartOfDay, toStartOfWeek,
+    addDays, subtractDays, dateDiff
+)
+
+# Time-based aggregations
+results = (table.query()
+    .select(
+        toStartOfHour(toDateTime(table.timestamp_ms / 1000)).alias("hour"),
+        table.pair,
+        avg(table.best_bid_price).alias("avg_price"),
+        min(table.best_bid_price).alias("min_price"),
+        max(table.best_bid_price).alias("max_price"),
+        count().alias("quote_count")
+    )
+    .where(table.pair == "BTC-USDT")
+    .where(table.timestamp_ms >= datetime.now() - timedelta(days=7))
+    .group_by(
+        toStartOfHour(toDateTime(table.timestamp_ms / 1000)),
+        table.pair
+    )
+    .order_by("hour", desc=True)
+    .to_dataframe())
+```
+
+### Example 36: Inserting Data
+
+```python
+# Insert data into table
+data = [
+    {
+        "pair": "BTC-USDT",
+        "best_bid_price": 50000.0,
+        "best_bid_size": 1.5,
+        "best_ask_price": 50001.0,
+        "best_ask_size": 2.0,
+        "timestamp_ms": int(datetime.now().timestamp() * 1000),
+        "exchange": "BINANCE",
+        "sequence_number": 1,
+        "inserted_at": int(datetime.now().timestamp() * 1000)
+    },
+    # ... more rows
+]
+
+table.insert(data)
+
+# Or use the client directly
+client.insert("stockhouse.crypto_quotes", data)
+```
+
+---
+
