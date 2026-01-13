@@ -1,0 +1,1 @@
+from basil_core.astro.relations.SMBH_mass_of_GSM.SMBH_mass_of_GSM import SchrammSilvermanSMBH_mass_of_GSM
