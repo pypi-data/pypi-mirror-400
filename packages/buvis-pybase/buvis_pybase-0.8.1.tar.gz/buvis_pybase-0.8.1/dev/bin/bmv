@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Wrapper for bump-my-version with pre_patch/pre_minor/pre_major support
+set -e
+
+_bmv() {
+  uv run bump-my-version "$@"
+}
+
+_tag_exists() {
+  git tag -l "$1" | grep -q .
+}
+
+# Check if this is a pre_* bump command
+if [[ "$1" == "bump" ]]; then
+  shift
+  args=()
+  part=""
+
+  # Parse args, looking for pre_patch/pre_minor/pre_major
+  for arg in "$@"; do
+    if [[ "$arg" =~ ^pre_(patch|minor|major)$ ]]; then
+      part="${arg#pre_}"
+    else
+      args+=("$arg")
+    fi
+  done
+
+  if [[ -n "$part" ]]; then
+    current=$(_bmv show current_version)
+    base=${current%%.dev*}
+    base=${base%%rc*}
+
+    IFS='.' read -r major minor patch <<<"$base"
+
+    case "$part" in
+    patch) new="$major.$minor.$((patch + 1)).dev0" ;;
+    minor) new="$major.$((minor + 1)).0.dev0" ;;
+    major) new="$((major + 1)).0.0.dev0" ;;
+    esac
+
+    _bmv bump --new-version "$new" "${args[@]}"
+  else
+    # For regular bumps, check tag conflicts and skip tags for pre-releases
+    for arg in "$@"; do
+      if [[ "$arg" =~ ^(patch|minor|major|pre_l|pre_n)$ ]]; then
+        new=$(_bmv show -i "$arg" new_version 2>/dev/null) || true
+        if [[ -n "$new" ]]; then
+          if _tag_exists "v$new"; then
+            echo "Error: Tag v$new already exists" >&2
+            echo "To fix:" >&2
+            echo "  git tag -d v$new  # delete local tag, then rerun" >&2
+            exit 1
+          fi
+        fi
+        break
+      fi
+    done
+    _bmv bump "$@"
+  fi
+else
+  _bmv "$@"
+fi
