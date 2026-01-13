@@ -1,0 +1,151 @@
+[project]
+name = "pyrelukko"
+authors = [
+    {name = "Reto Zingg", email = "g.d0b3rm4n@gmail.com"},
+]
+readme = "README.md"
+
+# https://pypi.org/pypi?%3Aaction=list_classifiers
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+requires-python = ">=3.11"
+dynamic = ["version", "description"]
+dependencies = [
+    "requests >=2.32.5",
+    "websockets >= 15.0",
+]
+
+[dependency-groups]
+test = [
+   "httpx",
+   "pytest >= 8",
+   "pyenv-inspect",
+   "requests-mock >= 1.12",
+   "testcontainers",
+   "tox",
+   "virtualenv-pyenv",
+]
+# Pin pylint < 4.0.0
+# https://github.com/pylint-dev/pylint/issues/10669
+lint = [
+    "pylint < 4.0.0",
+    "pylint-json2html"
+]
+coverage = [
+    "pytest-cov"
+]
+publish = [
+    "flit >=3.2,<4",
+    "id"
+]
+docs = [
+    "myst-parser >=4.0.1",
+    "sphinx >=8.2.3",
+    "furo >=2025.9.25"
+]
+
+[tool.flit.sdist]
+exclude = [".gitignore", "demo.py", "utils"]
+
+[project.urls]
+Homepage = "https://gitlab.com/relukko/pyrelukko"
+Issues = "https://gitlab.com/relukko/pyrelukko/-/issues"
+
+[build-system]
+requires = ["flit_core >=3.2,<4", "semantic-version >= 2.10"]
+build-backend = "flit_core.buildapi"
+
+[tool.pylint.main]
+# Files or directories to be skipped. They should be base names, not paths.
+ignore = ["LICENSE", "pyproject.toml", "version.py",
+          "README.md", "demo.py", "conftest.py", ".tox", ".git", "conf.py"]
+
+# Files or directories matching the regular expression patterns are skipped. The
+# regex matches against base names, not paths. The default value ignores Emacs
+# file locks
+ignore-patterns = ["^\\.#", "^test_"]
+
+[tool.pylint.format]
+# Regexp for a line that is allowed to be longer than the limit.
+ignore-long-lines = "^\\s*(# )?`?[\\w\\W]*?<?https?://\\S+>?`?_?_?$"
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    "src",
+]
+log_cli = "True"
+
+[tool.tox]
+requires = ["tox>=4.23"]
+env_list = [
+    "3.11",
+    "3.12",
+    "3.13",
+    "3.14",
+    "docs",
+    "publish",
+    "pylint",
+    "shellcheck"
+]
+
+[tool.tox.env_run_base]
+description = "Run test under {base_python}"
+commands = [["pytest", "--junit-xml", "pytest-junit-{env_name}.xml", "--junit-prefix", "{env_name}"]]
+pass_env = [
+    "CI",
+    "CI_HAS_RELUKKO",
+    "CI_RELUKKO_*",
+    "DOCKER_HOST",
+    "GITLAB_CI",
+    "PYPI_ID_TOKEN",
+    "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"
+]
+dependency_groups = [ "test" ]
+
+[tool.tox.env.publish]
+description = "Publish PyRelukko to PyPi"
+dependency_groups = [ "publish" ]
+allowlist_externals = ["curl", "jq", "{tox_root}/cicd/tox_publish.sh"]
+commands = [[ "{tox_root}/cicd/tox_publish.sh" ]]
+
+[tool.tox.env.pylint]
+description = "Run PyLint with {base_python}"
+dependency_groups = [ "lint" ]
+commands = [[
+        "pylint",
+        "--verbose",
+        "--rcfile",
+        "./pyproject.toml",
+        "--output-format=json:{tox_root}/pylint.out.json,parseable:{tox_root}/pylint.out.txt,text",
+        ".",
+    ]
+]
+commands_post = [
+    [
+        "pylint-json2html",
+        "-o",
+        "{tox_root}/pylint.out.html",
+        "{tox_root}/pylint.out.json",
+    ]
+]
+
+[tool.tox.env.shellcheck]
+allowlist_externals = ["shellcheck", "{tox_root}/cicd/tox_shellcheck.sh"]
+commands = [[ "{tox_root}/cicd/tox_shellcheck.sh" ]]
+
+[tool.tox.env.docs]
+allowlist_externals = ["{tox_root}/cicd/tox_docs_pages.sh"]
+commands = [[ "{tox_root}/cicd/tox_docs_pages.sh" ]]
+dependency_groups = [ "docs", "test" ]
