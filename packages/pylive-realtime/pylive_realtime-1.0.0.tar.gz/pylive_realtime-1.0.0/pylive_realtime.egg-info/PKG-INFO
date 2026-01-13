@@ -1,0 +1,228 @@
+Metadata-Version: 2.4
+Name: pylive-realtime
+Version: 1.0.0
+Summary: PyLive: Python Realtime Streaming Platform with WebSocket, SSE, Chat, DM
+Home-page: https://github.com/Web3-League/pylive
+Author: nano3
+Author-email: 
+License: MIT
+Project-URL: Homepage, https://github.com/Web3-League/pylive
+Project-URL: Documentation, https://github.com/Web3-League/pylive#readme
+Project-URL: Repository, https://github.com/Web3-League/pylive
+Project-URL: Issues, https://github.com/Web3-League/pylive/issues
+Keywords: realtime,websocket,sse,chat,streaming,fastapi
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Environment :: Web Environment
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Communications :: Chat
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: uvicorn>=0.23.0
+Requires-Dist: websockets>=11.0
+Requires-Dist: pyjwt>=2.8.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: httpx>=0.24.0
+Provides-Extra: ui
+Requires-Dist: streamlit>=1.28.0; extra == "ui"
+Requires-Dist: streamlit-shadcn-ui>=0.1.0; extra == "ui"
+Requires-Dist: requests>=2.31.0; extra == "ui"
+Requires-Dist: websocket-client>=1.6.0; extra == "ui"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Dynamic: home-page
+Dynamic: requires-python
+
+# PyLive
+
+**Python Realtime Streaming Platform** - A complete realtime platform with WebSocket, SSE, Chat, DM, Groups, and Presence.
+
+Inspired by GoLive architecture, ported to Python with FastAPI and Streamlit.
+
+## Features
+
+- **WebSocket Support** - Real-time bidirectional communication
+- **SSE (Server-Sent Events)** - Lightweight unidirectional streaming
+- **Channel System** - Subscribe/publish to named channels
+- **Chat Rooms** - Full-featured chat with history
+- **Direct Messages** - Private conversations between users
+- **Presence Tracking** - Know who's online in channels
+- **JWT Authentication** - Secure token-based auth
+- **Moderation** - Ban/timeout users from channels
+- **Streamlit UI** - Web interface included
+
+## Installation
+
+```bash
+pip install pylive
+
+# With Streamlit UI
+pip install pylive[ui]
+```
+
+## Quick Start
+
+### Start the Server
+
+```bash
+# Start API server
+pylive serve
+
+# With custom port
+pylive serve --port 8080
+
+# Development mode with auto-reload
+pylive serve --reload
+```
+
+### Start the UI
+
+```bash
+# Start Streamlit UI (requires pylive[ui])
+pylive ui
+```
+
+### Generate a Token
+
+```bash
+pylive token myusername
+```
+
+## API Endpoints
+
+### REST API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login` | Login and get JWT token |
+| GET | `/api/auth/me` | Get current user info |
+| GET | `/api/realtime/stats` | Get server statistics |
+| POST | `/api/realtime/publish` | Publish message to channel |
+| GET | `/api/dm/conversations` | Get user's conversations |
+| POST | `/api/dm/send` | Send direct message |
+
+### WebSocket
+
+Connect to `/ws?token=YOUR_JWT_TOKEN`
+
+**Actions:**
+```json
+{"action": "subscribe", "channel": "chat:general"}
+{"action": "unsubscribe", "channel": "chat:general"}
+{"action": "publish", "channel": "chat:general", "data": {"content": "Hello!"}}
+{"action": "ping"}
+```
+
+### SSE
+
+- `/api/sse/channel/{channel_id}?token=TOKEN` - Subscribe to channel events
+- `/api/dm/notifications?token=TOKEN` - Subscribe to DM notifications
+
+## Python Usage
+
+```python
+from pylive import PyLiveServer, Config
+
+# Create server with custom config
+config = Config()
+config.server.port = 8080
+config.jwt.secret = "your-secret-key"
+
+server = PyLiveServer(config)
+server.run()
+```
+
+### Using the Realtime Server Directly
+
+```python
+from pylive.realtime import RealtimeServer, Message, MessageType, UserInfo
+
+server = RealtimeServer()
+
+# Register RPC handler
+@server.register_rpc_handler("echo")
+def echo_handler(ctx, user, params):
+    return {"echo": params.get("message")}
+
+# Publish a message
+message = Message(
+    id="msg_123",
+    type=MessageType.CHAT,
+    channel="chat:general",
+    data={"content": "Hello!"},
+    user=UserInfo(id="user_1", username="alice"),
+)
+await server.publish(message)
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PYLIVE_HOST` | Server host | `0.0.0.0` |
+| `PYLIVE_PORT` | Server port | `8080` |
+| `DATABASE_URL` | Database URL | `sqlite:///pylive.db` |
+| `JWT_SECRET` | JWT signing secret | `change-me-in-production` |
+| `JWT_TTL_HOURS` | Token TTL in hours | `24` |
+| `LOG_LEVEL` | Log level | `INFO` |
+
+### Config File
+
+```json
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080
+  },
+  "jwt": {
+    "secret": "your-secret-key",
+    "ttl_hours": 24
+  },
+  "namespaces": {
+    "chat": {
+      "max_clients": 1000,
+      "allow_publish": true,
+      "allow_presence": true
+    }
+  }
+}
+```
+
+## Architecture
+
+```
+pylive/
+├── api/           # FastAPI routes and handlers
+├── auth/          # JWT authentication
+├── chat/          # Chat hub and DM manager
+├── cli/           # CLI entry points
+├── core/          # Server and configuration
+├── realtime/      # WebSocket/SSE server
+└── ui/            # Streamlit web interface
+```
+
+## License
+
+MIT License
+
+## Credits
+
+- Inspired by [GoLive](https://github.com/Web3-League/golive) architecture
+- Built with [FastAPI](https://fastapi.tiangolo.com/)
+- UI powered by [Streamlit](https://streamlit.io/)
