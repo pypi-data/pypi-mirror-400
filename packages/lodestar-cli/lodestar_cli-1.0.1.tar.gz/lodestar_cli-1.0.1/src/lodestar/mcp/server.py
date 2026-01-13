@@ -1,0 +1,210 @@
+"""FastMCP server setup for Lodestar."""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
+
+from lodestar.mcp.utils import find_repo_root, validate_repo_root
+from lodestar.runtime.database import RuntimeDatabase
+from lodestar.spec.loader import load_spec, save_spec
+from lodestar.util.paths import cleanup_stale_temp_files, get_runtime_db_path
+
+logger = logging.getLogger("lodestar.mcp")
+
+
+class LodestarContext:
+    """Runtime context for the Lodestar MCP server.
+
+    Holds the repository root, runtime database, and spec
+    for use by tools and resources.
+    """
+
+    def __init__(self, repo_root: Path, use_pool: bool = False):
+        """Initialize the Lodestar context.
+
+        Args:
+            repo_root: Path to the repository root.
+            use_pool: Whether to use connection pooling (for HTTP transport).
+        """
+        self.repo_root = repo_root
+        self.db_path = get_runtime_db_path(repo_root)
+        self.db = RuntimeDatabase(self.db_path, use_pool=use_pool)
+
+        # Clean up any stale temp files from previous crashed/interrupted operations
+        cleanup_stale_temp_files(repo_root)
+
+        # Clean up orphaned leases from unregistered agents
+        cleaned = self.db.cleanup_orphaned_leases()
+        if cleaned > 0:
+            logger.info(f"Cleaned up {cleaned} orphaned lease(s) from unregistered agents")
+
+        self.spec = load_spec(repo_root)
+        logger.info(f"Initialized context for repository: {repo_root}")
+
+    def dispose(self) -> None:
+        """Clean up resources on shutdown."""
+        if self.db:
+            self.db.dispose()
+            logger.info("Database connections closed")
+
+    def reload_spec(self) -> None:
+        """Reload the spec from disk."""
+        self.spec = load_spec(self.repo_root)
+        logger.debug("Reloaded spec from disk")
+
+    def save_spec(self) -> None:
+        """Save the current spec to disk."""
+        save_spec(self.spec, self.repo_root)
+        logger.debug("Saved spec to disk")
+
+    def emit_event(
+        self,
+        event_type: str,
+        agent_id: str | None = None,
+        task_id: str | None = None,
+        target_agent_id: str | None = None,
+        correlation_id: str | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> None:
+        """Emit an event to the event log.
+
+        Args:
+            event_type: Type of event (e.g., 'message.send', 'task.claim')
+            agent_id: ID of the agent performing the action (optional)
+            task_id: ID of the task involved (optional)
+            target_agent_id: ID of the target agent (optional)
+            correlation_id: Correlation ID for related events (optional)
+            data: Additional event data as JSON (optional)
+        """
+        from lodestar.runtime.engine import get_session
+        from lodestar.runtime.repositories.event_repo import log_event
+
+        with get_session(self.db._session_factory) as session:
+            log_event(
+                session=session,
+                event_type=event_type,
+                agent_id=agent_id,
+                task_id=task_id,
+                target_agent_id=target_agent_id,
+                correlation_id=correlation_id,
+                data=data,
+            )
+
+
+def _create_lifespan(
+    context: LodestarContext,
+) -> Any:
+    """Create a lifespan context manager for the MCP server.
+
+    This wraps an already-created LodestarContext to provide proper
+    shutdown cleanup when the server exits.
+
+    Args:
+        context: The LodestarContext to manage.
+
+    Returns:
+        An async context manager for FastMCP's lifespan.
+    """
+
+    @asynccontextmanager
+    async def lifespan(server: FastMCP) -> AsyncIterator[LodestarContext]:
+        """Manage MCP server lifecycle - startup and shutdown.
+
+        On startup:
+        - Yields the pre-initialized LodestarContext
+
+        On shutdown:
+        - Disposes database connections cleanly
+        """
+        logger.info("MCP server ready")
+        try:
+            yield context
+        finally:
+            logger.info("MCP server shutting down")
+            context.dispose()
+
+    return lifespan
+
+
+def create_server(repo_root: Path | None = None, use_pool: bool = False) -> FastMCP:
+    """
+    Create and configure the FastMCP server for Lodestar.
+
+    Args:
+        repo_root: Path to the repository root. If None, will be discovered.
+        use_pool: Whether to use connection pooling (recommended for HTTP transport).
+
+    Returns:
+        Configured FastMCP server instance.
+
+    Raises:
+        FileNotFoundError: If repo_root is None and no Lodestar repository is found.
+        ValueError: If the provided repo_root is not a valid Lodestar repository.
+    """
+    from mcp.server.fastmcp import FastMCP
+
+    # Resolve repository root
+    if repo_root is None:
+        repo_root = find_repo_root()
+        if repo_root is None:
+            raise FileNotFoundError(
+                "Could not find Lodestar repository. "
+                "Run from within a repository or use --repo to specify path."
+            )
+    else:
+        # Verify the provided path is a valid Lodestar repository
+        is_valid, error_msg = validate_repo_root(repo_root)
+        if not is_valid:
+            raise ValueError(error_msg)
+
+    # Initialize context (handles orphaned lease cleanup and temp file cleanup)
+    context = LodestarContext(repo_root, use_pool=use_pool)
+
+    # Create FastMCP server with lifespan for proper shutdown cleanup
+    lifespan = _create_lifespan(context)
+    mcp = FastMCP("lodestar", lifespan=lifespan)
+
+    # Store context in server dependencies for tools/resources to access
+    # FastMCP uses dependency injection, so we can add the context as a dependency
+    mcp.dependencies = {"context": context}
+
+    logger.info(f"Created FastMCP server for repository: {repo_root}")
+    logger.info(f"Runtime database: {context.db_path}")
+    logger.info(f"Project: {context.spec.project.name}")
+
+    # Register tools
+    from lodestar.mcp.tools.agent import register_agent_tools
+    from lodestar.mcp.tools.events import register_event_tools
+    from lodestar.mcp.tools.message import register_message_tools
+    from lodestar.mcp.tools.repo import register_repo_tools
+    from lodestar.mcp.tools.task import register_task_tools
+    from lodestar.mcp.tools.task_mutations import register_task_mutation_tools
+
+    register_repo_tools(mcp, context)
+    register_agent_tools(mcp, context)
+    register_task_tools(mcp, context)
+    register_task_mutation_tools(mcp, context)
+    register_message_tools(mcp, context)
+    register_event_tools(mcp, context)
+    logger.info("Registered repository, agent, task, task mutation, message, and event tools")
+
+    # Register resources
+    from lodestar.mcp.resources import register_resources
+
+    register_resources(mcp, context)
+    logger.info("Registered resources")
+
+    # Register prompts
+    from lodestar.mcp.prompts import register_prompts
+
+    register_prompts(mcp, context)
+    logger.info("Registered prompts")
+
+    return mcp
