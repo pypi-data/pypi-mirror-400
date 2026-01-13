@@ -1,0 +1,60 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+    branches: [main]  # Only trigger for releases from main
+
+env:
+  UV_VERSION: "0.6.0" # Pin uv version to avoid breaking changes
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/supabase-mcp-server/
+    permissions:
+      id-token: write  # Required for trusted publishing
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for proper version detection
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build package
+        run: uv build --no-sources
+
+      - name: Verify package installation and entry points
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          # Create a new venv for testing
+          uv venv
+          source .venv/bin/activate
+
+          # Install the built wheel
+          uv pip install dist/*.whl
+
+          echo "Testing supabase-mcp-server entry point..."
+          # Run with --help to test basic functionality without needing actual connection
+          if ! uv run supabase-mcp-server --help; then
+            echo "❌ supabase-mcp-server --help failed"
+            exit 1
+          fi
+          echo "✅ supabase-mcp-server --help succeeded"
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
