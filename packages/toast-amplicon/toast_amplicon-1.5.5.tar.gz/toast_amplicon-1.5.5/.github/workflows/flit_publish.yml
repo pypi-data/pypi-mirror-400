@@ -1,0 +1,29 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"   # triggers on v1.0.0, v1.5.2, etc.
+
+jobs:
+  publish:
+    name: Build and Publish with Flit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install flit
+        run: pip install flit
+
+      - name: Publish to PyPI
+        env:
+          FLIT_USERNAME: __token__
+          FLIT_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: flit publish
