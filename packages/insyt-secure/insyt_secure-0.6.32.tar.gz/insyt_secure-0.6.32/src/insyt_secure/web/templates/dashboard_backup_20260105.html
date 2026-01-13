@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Dashboard - Insyt Secure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        /* Ensure project selector dropdown is wide enough to show full text */
+        #projectSelector {
+            min-width: 200px;
+            max-width: 450px;
+            width: auto;
+        }
+        
+        /* Make dropdown options readable and prevent text cutoff */
+        #projectSelector option {
+            padding: 8px 12px;
+            white-space: normal;
+            overflow: visible;
+        }
+    </style>
+</head>
+<body class="bg-gray-50" x-data="dashboardApp()">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-gray-800">Insyt Secure</h1>
+                    <span class="ml-3 text-sm text-gray-500">Audit Dashboard</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <!-- Project Selector -->
+                    <div class="relative">
+                        <label class="text-sm text-gray-600 mr-2">Project:</label>
+                        <select id="projectSelector"
+                                x-model="selectedProject" @change="onProjectChange()" 
+                                class="border rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-purple-500"
+                                :disabled="!availableFilters.project_ids || availableFilters.project_ids.length === 0">
+                            <option value="">All Projects</option>
+                            <template x-for="projectId in availableFilters.project_ids" :key="projectId">
+                                <option :value="projectId" x-text="getProjectDisplayName(projectId)"></option>
+                            </template>
+                        </select>
+                        <!-- Show badge with project count -->
+                        <span x-show="availableFilters.project_ids && availableFilters.project_ids.length > 0" 
+                              class="ml-2 text-xs text-gray-500">
+                            (<span x-text="availableFilters.project_ids.length"></span>)
+                        </span>
+                    </div>
+                    <a href="/settings" class="text-gray-600 hover:text-gray-900">Settings</a>
+                    <span class="text-gray-600">{{ username }}</span>
+                    <a href="/logout" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Analytics Cards -->
+        <div class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">Analytics</h2>
+                <div class="flex gap-2">
+                    <button @click="setAnalyticsPeriod('today')" 
+                        :class="analyticsPeriod === 'today' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700'"
+                        class="px-4 py-2 rounded-lg border hover:bg-purple-100">Today</button>
+                    <button @click="setAnalyticsPeriod('week')"
+                        :class="analyticsPeriod === 'week' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700'"
+                        class="px-4 py-2 rounded-lg border hover:bg-purple-100">This Week</button>
+                    <button @click="setAnalyticsPeriod('month')"
+                        :class="analyticsPeriod === 'month' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700'"
+                        class="px-4 py-2 rounded-lg border hover:bg-purple-100">This Month</button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-gray-500 text-sm mb-2">Total Executions</div>
+                    <div class="text-3xl font-bold text-gray-800" x-text="analytics.total_executions || 0"></div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-gray-500 text-sm mb-2">Success Rate</div>
+                    <div class="text-3xl font-bold text-green-600" x-text="(analytics.success_rate || 0).toFixed(1) + '%'"></div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-gray-500 text-sm mb-2">Successful</div>
+                    <div class="text-3xl font-bold text-green-600" x-text="analytics.success_count || 0"></div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-gray-500 text-sm mb-2">Failed</div>
+                    <div class="text-3xl font-bold text-red-600" x-text="analytics.failed_count || 0"></div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Execution Trends</h3>
+                    <div class="h-64">
+                        <template x-if="analytics.execution_trends && analytics.execution_trends.length > 0">
+                            <div class="w-full h-full flex flex-col">
+                                <!-- Simple bar chart using divs -->
+                                <div class="flex-1 flex items-end justify-around gap-1 px-2 relative" style="min-height: 200px;">
+                                    <template x-for="trend in analytics.execution_trends" :key="trend.date">
+                                        <div class="flex-1 flex flex-col items-center gap-1 max-w-[60px]">
+                                            <div class="text-xs font-semibold text-purple-600" x-text="trend.count"></div>
+                                            <div 
+                                                class="w-full bg-purple-500 hover:bg-purple-600 rounded-t transition-all duration-300 cursor-pointer"
+                                                :style="`height: ${Math.max((trend.count / Math.max(...analytics.execution_trends.map(t => t.count))) * 180, 20)}px`"
+                                                :title="`${trend.date}: ${trend.count} executions`">
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                                <!-- X-axis labels -->
+                                <div class="flex justify-around gap-1 px-2 pt-2 border-t mt-2">
+                                    <template x-for="trend in analytics.execution_trends" :key="trend.date">
+                                        <div class="flex-1 text-xs text-gray-600 text-center truncate max-w-[60px]" :title="trend.date" x-text="trend.date.slice(5)"></div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="!analytics.execution_trends || analytics.execution_trends.length === 0" class="text-gray-500 text-sm text-center py-8">
+                            No data available
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Top Users</h3>
+                    <div class="h-64 overflow-y-auto space-y-2">
+                        <template x-for="user in analytics.top_users?.slice(0, 5)" :key="user.user">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-700" x-text="user.user"></span>
+                                <span class="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm" x-text="user.count"></span>
+                            </div>
+                        </template>
+                        <div x-show="!analytics.top_users || analytics.top_users.length === 0" class="text-gray-500 text-sm text-center py-8">
+                            No data available
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Top Groups</h3>
+                    <div class="h-64 overflow-y-auto space-y-2">
+                        <template x-for="group in analytics.top_groups?.slice(0, 5)" :key="group.group">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-700" x-text="group.group"></span>
+                                <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm" x-text="group.count"></span>
+                            </div>
+                        </template>
+                        <div x-show="!analytics.top_groups || analytics.top_groups.length === 0" class="text-gray-500 text-sm text-center py-8">
+                            No data available
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Filters</h2>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Users</label>
+                    <select multiple x-model="filters.users" class="w-full border rounded-lg p-2 text-sm">
+                        <template x-for="user in availableFilters.users" :key="user">
+                            <option :value="user" x-text="user"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Groups</label>
+                    <select multiple x-model="filters.groups" class="w-full border rounded-lg p-2 text-sm">
+                        <template x-for="group in availableFilters.groups" :key="group">
+                            <option :value="group" x-text="group"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <select multiple x-model="filters.statuses" class="w-full border rounded-lg p-2 text-sm">
+                        <template x-for="status in availableFilters.statuses" :key="status">
+                            <option :value="status" x-text="status"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Date From</label>
+                    <input type="date" x-model="filters.date_from" class="w-full border rounded-lg p-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Date To</label>
+                    <input type="date" x-model="filters.date_to" class="w-full border rounded-lg p-2 text-sm">
+                </div>
+            </div>
+            <div class="mt-3 text-xs text-gray-500 flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>Times displayed in your timezone: <span x-text="Intl.DateTimeFormat().resolvedOptions().timeZone"></span></span>
+            </div>
+            <div class="mt-4 flex gap-2">
+                <button @click="applyFilters()" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
+                    Apply Filters
+                </button>
+                <button @click="clearFilters()" class="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400">
+                    Clear
+                </button>
+            </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b">
+                <h2 class="text-lg font-semibold text-gray-800">Execution Logs</h2>
+                <p class="text-sm text-gray-500 mt-1">Total: <span x-text="pagination.total"></span> logs</p>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Group</th>
+                            <th x-show="!selectedProject" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Query</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="log in logs" :key="log.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" x-text="formatTimestamp(log.timestamp)"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700" x-text="log.user"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="log.group"></td>
+                                <td x-show="!selectedProject" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="getProjectDisplayName(log.project_id)"></td>
+                                <td class="px-6 py-4 text-sm text-gray-700 max-w-md truncate" x-text="log.query_preview"></td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="log.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                        class="px-3 py-1 rounded-full text-xs font-semibold uppercase" x-text="log.status"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <button @click="viewDetails(log.id)" class="text-purple-600 hover:text-purple-800 text-sm font-medium">
+                                        👁 View Details
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="px-6 py-4 border-t flex justify-between items-center">
+                <div class="text-sm text-gray-600">
+                    Showing <span x-text="((pagination.page - 1) * pagination.per_page) + 1"></span> 
+                    to <span x-text="Math.min(pagination.page * pagination.per_page, pagination.total)"></span>
+                    of <span x-text="pagination.total"></span>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="prevPage()" :disabled="pagination.page === 1"
+                        :class="pagination.page === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300'"
+                        class="px-4 py-2 bg-gray-200 rounded-lg">Previous</button>
+                    <span class="px-4 py-2" x-text="'Page ' + pagination.page + ' of ' + pagination.total_pages"></span>
+                    <button @click="nextPage()" :disabled="pagination.page >= pagination.total_pages"
+                        :class="pagination.page >= pagination.total_pages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300'"
+                        class="px-4 py-2 bg-gray-200 rounded-lg">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div x-show="detailModal.show" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" style="display: none;">
+        <div class="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            <div class="bg-white border-b p-6 flex justify-between items-center rounded-t-lg">
+                <h2 class="text-2xl font-bold text-gray-800">Execution Details</h2>
+                <button @click="detailModal.show = false" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            
+            <div class="p-6 flex-1 overflow-y-auto">
+                <!-- Request Details -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">Timestamp</label>
+                        <div class="text-gray-800 mt-1" x-text="formatTimestamp(detailModal.data?.timestamp)"></div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">Status</label>
+                        <span :class="detailModal.data?.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                            class="inline-block px-3 py-1 rounded-full text-sm font-semibold uppercase mt-1" x-text="detailModal.data?.status"></span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">User</label>
+                        <div class="text-gray-800 mt-1" x-text="detailModal.data?.user"></div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">Group</label>
+                        <div class="text-gray-800 mt-1" x-text="detailModal.data?.group || '—'"></div>
+                    </div>
+                </div>
+                
+                <!-- Query -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-500 mb-2">Query</label>
+                    <div class="bg-gray-50 rounded-lg p-4 text-gray-800 whitespace-pre-wrap" x-text="detailModal.data?.query"></div>
+                </div>
+                
+                <!-- Error Message (if any) -->
+                <div x-show="detailModal.data?.error_message" class="mb-6">
+                    <label class="block text-sm font-medium text-red-500 mb-2">Error Message</label>
+                    <div class="bg-red-50 text-red-800 rounded-lg p-4" x-text="detailModal.data?.error_message"></div>
+                </div>
+                
+                <!-- Tabbed Content for Python Code and Extracted Data -->
+                <div>
+                    <!-- Tab Buttons -->
+                    <div class="flex border-b mb-0">
+                        <button @click="detailModal.activeTab = 'code'" 
+                            :class="detailModal.activeTab === 'code' ? 'border-purple-600 text-purple-600 bg-gray-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="px-6 py-3 font-medium text-sm border-b-2 transition-colors">
+                            Python Code
+                        </button>
+                        <button @click="detailModal.activeTab = 'data'" 
+                            :class="detailModal.activeTab === 'data' ? 'border-purple-600 text-purple-600 bg-gray-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="px-6 py-3 font-medium text-sm border-b-2 transition-colors">
+                            Extracted Data
+                            <span x-show="!detailModal.data?.extracted_data" class="ml-1 text-gray-400">(empty)</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Tab Content -->
+                    <div class="bg-gray-50 rounded-b-lg" style="min-height: 300px; max-height: 400px; overflow-y: auto;">
+                        <!-- Python Code Tab -->
+                        <div x-show="detailModal.activeTab === 'code'">
+                            <pre class="bg-gray-900 text-green-400 p-4 overflow-x-auto text-sm rounded-b-lg m-0" style="min-height: 300px;"><code x-text="detailModal.data?.python_code"></code></pre>
+                        </div>
+                        
+                        <!-- Extracted Data Tab -->
+                        <div x-show="detailModal.activeTab === 'data'">
+                            <pre x-show="detailModal.data?.extracted_data" class="bg-blue-50 text-blue-900 p-4 overflow-x-auto text-sm rounded-b-lg m-0" style="min-height: 300px;"><code x-text="detailModal.data?.extracted_data"></code></pre>
+                            <div x-show="!detailModal.data?.extracted_data" class="p-8 text-center text-gray-500">
+                                No extracted data available for this execution.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function dashboardApp() {
+            return {
+                logs: [],
+                analytics: {},
+                availableFilters: { users: [], groups: [], project_ids: [], statuses: [] },
+                projectAliases: {},  // Map of project_id -> alias
+                filters: { users: [], groups: [], statuses: [], date_from: '', date_to: '' },
+                selectedProject: '',  // For top-level project selector
+                pagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
+                analyticsPeriod: 'month',
+                detailModal: { show: false, data: null, activeTab: 'code' },
+                
+                async init() {
+                    await this.loadFilters();
+                    await this.loadProjectAliases();
+                    await this.loadAnalytics();
+                    await this.loadLogs();
+                },
+                
+                // Called when project selector changes
+                onProjectChange() {
+                    this.pagination.page = 1;  // Reset to first page
+                    this.loadAnalytics();
+                    this.loadLogs();
+                },
+                
+                async loadFilters() {
+                    try {
+                        const response = await fetch('/api/filters');
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        this.availableFilters = await response.json();
+                    } catch (error) {
+                        console.error('Failed to load filters:', error);
+                    }
+                },
+                
+                async loadProjectAliases() {
+                    try {
+                        // Only fetch if we have project IDs
+                        if (!this.availableFilters.project_ids || this.availableFilters.project_ids.length === 0) {
+                            return;
+                        }
+                        
+                        const response = await fetch('/api/project-aliases', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ project_ids: this.availableFilters.project_ids })
+                        });
+                        
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const data = await response.json();
+                        this.projectAliases = data.aliases || {};
+                    } catch (error) {
+                        console.error('Failed to load project aliases:', error);
+                        this.projectAliases = {};
+                    }
+                },
+                
+                // Format project display name as "Alias (Project-ID)" or just "Project-ID"
+                getProjectDisplayName(projectId) {
+                    if (!projectId) return 'Unknown';
+                    const alias = this.projectAliases[projectId];
+                    return alias ? `${alias} (${projectId})` : projectId;
+                },
+                
+                async loadAnalytics() {
+                    try {
+                        const params = new URLSearchParams();
+                        const { date_from, date_to } = this.getAnalyticsDates();
+                        if (date_from) params.append('date_from', date_from);
+                        if (date_to) params.append('date_to', date_to);
+                        
+                        // Add project filter if selected
+                        if (this.selectedProject) {
+                            params.append('project_ids[]', this.selectedProject);
+                        }
+                        
+                        const response = await fetch(`/api/analytics?${params}`);
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        this.analytics = await response.json();
+                    } catch (error) {
+                        console.error('Failed to load analytics:', error);
+                    }
+                },
+                
+                async loadLogs() {
+                    try {
+                        const params = new URLSearchParams({
+                            page: this.pagination.page,
+                            per_page: this.pagination.per_page
+                        });
+                        
+                        // Add project filter if selected (takes precedence over filter panel)
+                        if (this.selectedProject) {
+                            params.append('project_ids[]', this.selectedProject);
+                        }
+                        
+                        this.filters.users.forEach(u => params.append('users[]', u));
+                        this.filters.groups.forEach(g => params.append('groups[]', g));
+                        this.filters.statuses.forEach(s => params.append('statuses[]', s));
+                        if (this.filters.date_from) params.append('date_from', this.filters.date_from + 'T00:00:00');
+                        if (this.filters.date_to) params.append('date_to', this.filters.date_to + 'T23:59:59');
+                        
+                        const response = await fetch(`/api/logs?${params}`);
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const data = await response.json();
+                        
+                        this.logs = data.logs;
+                        this.pagination = { ...this.pagination, ...data };
+                    } catch (error) {
+                        console.error('Failed to load logs:', error);
+                        alert('Failed to load logs. Please try again.');
+                    }
+                },
+                
+                async viewDetails(logId) {
+                    try {
+                        const response = await fetch(`/api/logs/${logId}`);
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        this.detailModal.data = await response.json();
+                        this.detailModal.activeTab = 'code';  // Reset to code tab when opening
+                        this.detailModal.show = true;
+                    } catch (error) {
+                        console.error('Failed to load log details:', error);
+                        alert('Failed to load log details. Please try again.');
+                    }
+                },
+                
+                applyFilters() {
+                    this.pagination.page = 1;
+                    this.loadLogs();
+                },
+                
+                clearFilters() {
+                    this.filters = { users: [], groups: [], statuses: [], date_from: '', date_to: '' };
+                    this.pagination.page = 1;
+                    this.loadLogs();
+                },
+                
+                nextPage() {
+                    if (this.pagination.page < this.pagination.total_pages) {
+                        this.pagination.page++;
+                        this.loadLogs();
+                    }
+                },
+                
+                prevPage() {
+                    if (this.pagination.page > 1) {
+                        this.pagination.page--;
+                        this.loadLogs();
+                    }
+                },
+                
+                setAnalyticsPeriod(period) {
+                    this.analyticsPeriod = period;
+                    this.loadAnalytics();
+                },
+                
+                getAnalyticsDates() {
+                    const now = new Date();
+                    let date_from = null;
+                    
+                    if (this.analyticsPeriod === 'today') {
+                        // Create a new date for today at midnight
+                        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+                        date_from = today.toISOString();
+                    } else if (this.analyticsPeriod === 'week') {
+                        // 7 days ago from now
+                        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                        date_from = weekAgo.toISOString();
+                    } else if (this.analyticsPeriod === 'month') {
+                        // 30 days ago from now
+                        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                        date_from = monthAgo.toISOString();
+                    }
+                    
+                    return { date_from, date_to: new Date().toISOString() };
+                },
+                
+                formatTimestamp(timestamp) {
+                    if (!timestamp) return '';
+                    return new Date(timestamp).toLocaleString();
+                }
+            };
+        }
+    </script>
+</body>
+</html>
