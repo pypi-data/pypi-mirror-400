@@ -1,0 +1,273 @@
+# apaai-client
+
+[![PyPI version](https://img.shields.io/pypi/v/apaai.svg)](https://pypi.org/project/apaai/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+**Python SDK for APAAI Protocol**
+
+Open, vendor-neutral SDK for the APAAI Protocol's **Action → Policy → Evidence** loop.
+
+- 📦 **Package**: `apaai`
+- 🔌 **Protocol**: HTTP/JSON (`/actions`, `/evidence`, `/policy`)
+- 🧪 **Minimal & testable**: Class-based API
+- 🧱 **License**: Apache-2.0
+
+---
+
+## Install
+
+```bash
+pip install apaai
+```
+
+> **Reference server** (for local development):
+>
+> ```bash
+> cd server
+> npm i && npm run dev    # → http://localhost:8787
+> ```
+
+---
+
+## Authentication
+
+The SDK authenticates using an API key passed via the `x-api-key` HTTP header.
+
+```py
+from apaai import AccountabilityLayer, AccountabilityLayerOptions
+
+apaai = AccountabilityLayer(AccountabilityLayerOptions(
+    endpoint="https://api.apaai.ai",  # or your self-hosted endpoint
+    api_key="sk_live_...",            # your API key
+))
+```
+
+Get your API key from the [APAAI Dashboard](https://app.apaai.ai/settings/api-keys).
+
+You can also pass custom headers if needed:
+
+```py
+apaai = AccountabilityLayer(AccountabilityLayerOptions(
+    endpoint="https://api.apaai.ai",
+    api_key="sk_live_...",
+    headers={"X-Custom-Header": "value"},
+))
+```
+
+---
+
+## Quickstart
+
+```py
+from apaai import AccountabilityLayer, AccountabilityLayerOptions
+import os
+
+# Initialize the accountability layer
+apaai = AccountabilityLayer(AccountabilityLayerOptions(
+    endpoint="http://localhost:8787",
+    api_key=os.getenv("APAAI_API_KEY")
+))
+
+# 1) Propose an action
+decision = apaai.propose(
+    type="send_email",
+    actor={"kind": "agent", "name": "mail-bot"},
+    target="mailto:client@acme.com",
+    params={"subject": "Proposal"}
+)
+
+# 2) Add evidence
+apaai.evidence(decision["actionId"], [
+    {"name": "email_sent", "pass": True, "note": "msgId=123"}
+])
+```
+
+---
+
+## API Reference
+
+### AccountabilityLayer Class
+
+```py
+apaai = AccountabilityLayer(
+    endpoint: Optional[str] = None, 
+    api_key: Optional[str] = None
+)
+```
+
+### Core Methods
+
+- **`propose(action)`** - Propose an action and get a decision
+- **`evidence(action_id, checks)`** - Submit evidence for an action
+- **`policy(action_type?)`** - Get policy for an action type
+- **`approve(action_id, approver?)`** - Approve an action
+- **`reject(action_id, reason?)`** - Reject an action
+- **`get_action(action_id)`** - Get action details
+- **`list_actions(filters?)`** - List actions with filters
+- **`get_evidence(action_id)`** - Get evidence for an action
+- **`set_policy(policy)`** - Set a policy
+
+### Manager Interfaces
+
+- **`apaai.policies.evaluate(action_id)`** - Evaluate policy for an action
+- **`apaai.policies.enforce(action_type)`** - Enforce policy for an action type
+- **`apaai.policies.set(policy)`** - Set a policy
+- **`apaai.human.approve(action_id, approver?)`** - Approve an action
+- **`apaai.human.reject(action_id, reason?)`** - Reject an action
+- **`apaai.evidence.add(action_id, checks)`** - Add evidence for an action
+- **`apaai.evidence.get(action_id)`** - Get evidence for an action
+- **`apaai.actions.get(action_id)`** - Get action details
+- **`apaai.actions.list(filters?)`** - List actions with filters
+
+---
+
+## Examples
+
+### Basic Flow
+
+```py
+from apaai import AccountabilityLayer
+
+apaai = AccountabilityLayer(endpoint="http://localhost:8787")
+
+# Propose action
+decision = apaai.propose(
+    type="send_email",
+    actor={"kind": "agent", "name": "mail-bot"},
+    target="mailto:client@acme.com",
+    params={"subject": "Proposal"}
+)
+
+# Handle approval if required
+if decision["status"] == "requires_approval":
+    apaai.approve(decision["actionId"], "@reviewer")
+
+# Submit evidence
+apaai.evidence.add(decision["actionId"], [
+    {"name": "email_sent", "pass": True, "note": "msgId=123"}
+])
+```
+
+### Human-in-the-Loop with Webhooks
+
+Configure webhooks at the organization level in your APAAI dashboard to receive callbacks when actions are approved or rejected:
+
+```py
+from apaai import propose
+
+# Propose an action that requires approval
+decision = propose(
+    type="send_payment",
+    actor={"kind": "agent", "name": "payment-bot"},
+    params={"amount": 5000, "recipient": "vendor@company.com"}
+)
+
+if decision["status"] == "requires_approval":
+    print("Awaiting approval:", decision["actionId"])
+    # Your org webhook will be notified when approved/rejected
+
+# Your org webhook endpoint will receive:
+# POST /webhooks/apaai
+# {
+#   "event": "action.approved",  # or "action.rejected"
+#   "timestamp": "2024-01-01T00:00:00Z",
+#   "data": {
+#     "actionId": "...",
+#     "agentName": "payment-bot",
+#     "actionType": "send_payment",
+#     "status": "approved",
+#     "reviewNote": "Approved by manager",
+#     "metadata": {"amount": 5000, ...}
+#   }
+# }
+```
+
+### Using Manager Interfaces
+
+```py
+# Policy management
+policy = apaai.policies.enforce("send_email")
+apaai.policies.set({"rules": [...]})
+
+# Human-in-the-loop
+apaai.human.approve(action_id, "@reviewer")
+apaai.human.reject(action_id, "Invalid recipient")
+
+# Evidence management
+apaai.evidence.add(action_id, [
+    {"name": "email_sent", "pass": True, "note": "msgId=123"}
+])
+evidence = apaai.evidence.get(action_id)
+
+# Action management
+action = apaai.actions.get(action_id)
+actions = apaai.actions.list({"type": "send_email"})
+```
+
+---
+
+## Types
+
+```py
+from typing import Dict, List, Optional, Any
+
+Actor = Dict[str, Any]  # {"kind": "agent", "name": "mail-bot", "provider": "openai"}
+
+Action = Dict[str, Any]  # {
+    "id": str,
+    "timestamp": str,
+    "type": str,
+    "actor": Actor,
+    "target": Optional[str],
+    "params": Optional[Dict[str, Any]],
+    "status": Optional[str],
+    "checks": Optional[List[str]]
+}
+
+Check = Dict[str, Any]  # {"name": str, "pass": bool, "note": Optional[str]}
+
+Evidence = Dict[str, Any]  # {"actionId": str, "checks": List[Check]}
+
+Decision = Dict[str, Any]  # {"status": str, "checks": Optional[List[str]]}
+
+PolicyRule = Dict[str, Any]  # {
+    "when": Optional[Dict[str, str]],  # {"action": str} or {"actionType": str}
+    "require": Optional[List[str]],
+    "mode": Optional[str]  # "enforce" | "observe"
+}
+
+Policy = Dict[str, Any]  # {"rules": List[PolicyRule]}
+```
+
+---
+
+## Testing
+
+```bash
+# Run tests
+python -m pytest tests/
+
+# Run tests with coverage
+python -m pytest tests/ --cov=apaai_client
+
+# Run specific test file
+python -m pytest tests/test_client.py
+```
+
+---
+
+## Build & Publish
+
+```bash
+# Build the package
+python -m build
+
+# Publish to PyPI
+python -m twine upload dist/*
+```
+
+---
+
+## License
+
+Apache-2.0
