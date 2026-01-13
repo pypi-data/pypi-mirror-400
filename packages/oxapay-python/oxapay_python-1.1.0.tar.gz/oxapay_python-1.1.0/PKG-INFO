@@ -1,0 +1,223 @@
+Metadata-Version: 2.4
+Name: oxapay-python
+Version: 1.1.0
+Summary: Official Python SDK for OxaPay — accept crypto payments, exchanges, and payouts.
+Project-URL: Homepage, https://oxapay.com
+Project-URL: Documentation, https://docs.oxapay.com
+Project-URL: Source, https://github.com/OxaPay/oxapay-python
+Project-URL: Issues, https://github.com/OxaPay/oxapay-python/issues
+Author: OxaPay
+License: Apache License 2.0
+        
+        Copyright (c) 2025 OxaPay
+        
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+        
+            http://www.apache.org/licenses/LICENSE-2.0
+        
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+License-File: LICENSE
+Keywords: crypto,exchange,oxapay,payment,payout,sdk
+Requires-Python: >=3.8
+Requires-Dist: requests>=2.31.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == 'dev'
+Requires-Dist: responses>=0.25.0; extra == 'dev'
+Requires-Dist: ruff>=0.6.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# OxaPay Python SDK
+
+Official Python SDK for [OxaPay](https://oxapay.com) — accept crypto payments, exchanges, and payouts.
+
+> **Python:** 3.8+  
+> **Docs:** https://docs.oxapay.com
+
+## Installation
+
+```bash
+pip install oxapay-python
+```
+
+## Quick start
+
+```python
+from oxapay_python import OxaPayManager
+
+oxapay = OxaPayManager(timeout=10)
+res = (
+    oxapay
+    .payment("XXXXXX-XXXXXX-XXXXXX-XXXXXX")
+    .generate_invoice({
+        "amount": 10.5,
+        "currency": "USDT",
+    })
+)
+
+print(res)
+```
+
+## Handling Webhooks (Payments & Payouts)
+
+> OxaPay sends `HMAC` header (sha512 over raw request body).
+
+```python
+from oxapay_python import OxaPayManager
+from oxapay_python.exceptions import WebhookSignatureException
+
+raw_body = request.get_data(as_text=True)  # Flask example
+headers = dict(request.headers)            # Flask example
+
+oxapay = OxaPayManager()
+
+# Merchant webhook
+try:
+    data = oxapay.webhook(merchant_api_key="XXXXXX-XXXXXX-XXXXXX-XXXXXX", raw_body=raw_body, headers=headers).get_data()
+except WebhookSignatureException:
+    pass
+
+# Payout webhook
+try:
+    data = oxapay.webhook(payout_api_key="XXXXXX-XXXXXX-XXXXXX-XXXXXX", raw_body=raw_body, headers=headers).get_data()
+except WebhookSignatureException:
+    pass
+
+# Both
+try:
+    data = oxapay.webhook(
+        merchant_api_key="XXXXXX-XXXXXX-XXXXXX-XXXXXX",
+        payout_api_key="XXXXXX-XXXXXX-XXXXXX-XXXXXX",
+        raw_body=raw_body,
+        headers=headers,
+    ).get_data()
+except WebhookSignatureException:
+    pass
+
+# Or skip verification
+data = oxapay.webhook(raw_body=raw_body, headers=headers).get_data(verify=False)
+```
+
+---
+## Available methods
+### 🔹payment
+- `generate_invoice` – Create invoice & get payment URL. [More details](https://docs.oxapay.com/api-reference/payment/generate-invoice)
+- `generate_white_label` – White-label payment. [More details](https://docs.oxapay.com/api-reference/payment/generate-white-label)
+- `generate_static_address` – Create static deposit address. [More details](https://docs.oxapay.com/api-reference/payment/generate-static-address)
+- `revoke_static_address` – Revoke static address. [More details](https://docs.oxapay.com/api-reference/payment/revoking-static-address)
+- `static_address_list` – List static addresses. [More details](https://docs.oxapay.com/api-reference/payment/static-address-list)
+- `information` – Single payment information. [More details](https://docs.oxapay.com/api-reference/payment/payment-information)
+- `history` – Payment history list. [More details](https://docs.oxapay.com/api-reference/payment/payment-history)
+- `accepted_currencies` – Accepted currencies. [More details](https://docs.oxapay.com/api-reference/payment/accepted-currencies)
+
+### 🔹account
+- `balance` – Account balance. [More details](https://docs.oxapay.com/api-reference/common/account-balance)
+
+### 🔹payout
+- `generate` – Request payout. [More details](https://docs.oxapay.com/api-reference/payout/generate-payout)
+- `information` – Single payout information. [More details](https://docs.oxapay.com/api-reference/payout/payout-information)
+- `history` – Payout history list. [More details](https://docs.oxapay.com/api-reference/payout/payout-history)
+
+### 🔹exchange
+- `swap_request` – Swap request. [More details](https://docs.oxapay.com/api-reference/swap/swap-request)
+- `swap_history` – Swap history. [More details](https://docs.oxapay.com/api-reference/swap/swap-history)
+- `swap_pairs` – Swap pairs. [More details](https://docs.oxapay.com/api-reference/swap/swap-pairs)
+- `swap_calculate` – Swap pre-calc. [More details](https://docs.oxapay.com/api-reference/swap/swap-calculate)
+- `swap_rate` – Swap Quote rate. [More details](https://docs.oxapay.com/api-reference/swap/swap-rate)
+
+### 🔹common
+- `prices` – Market prices. [More details](https://docs.oxapay.com/api-reference/common/prices)
+- `currencies` – Supported crypto. [More details](https://docs.oxapay.com/api-reference/common/supported-currencies)
+- `fiats` – Supported fiats. [More details](https://docs.oxapay.com/api-reference/common/supported-fiat-currencies)
+- `networks` – Supported networks. [More details](https://docs.oxapay.com/api-reference/common/supported-networks)
+- `monitor` – System status. [More details](https://docs.oxapay.com/api-reference/common/system-status)
+
+### 🔹webhook
+- `verify` – Validates `HMAC` header (sha512 of raw body).
+- `get_data` – Validates `HMAC` header and return webhook data. [More details](https://docs.oxapay.com/webhook)
+
+---
+
+## Raw responses
+
+By default, endpoints return the unwrapped `data` field.
+To receive the full API response (`data`, `status`, `message`, `error`, `version`), enable raw mode:
+
+```python
+from oxapay_python import OxaPayManager
+
+sdk = OxaPayManager(timeout=20, raw=True)
+res = sdk.payment("MERCHANT_API_KEY").generate_invoice({"amount": 1, "currency": "USDT"})
+print(res["data"])  # unwrap manually
+```
+
+## Exceptions
+All SDK exceptions extend `oxapay.exceptions.OxaPayException`:
+- `ValidationRequestException` (HTTP 400)
+- `InvalidApiKeyException` (HTTP 401)
+- `NotFoundException` (HTTP 404)
+- `RateLimitException` (HTTP 429)
+- `ServerErrorException` (HTTP 500)
+- `ServiceUnavailableException` (HTTP 503)
+- `HttpException` (network/unknown)
+- `MissingApiKeyException` (missing api key)
+- `MissingTrackIdException` (missing track id)
+- `MissingAddressException` (missing address)
+- `WebhookSignatureException` (bad/missing HMAC)
+- `WebhookNotReceivedException` (webhook request was not received)
+
+### Security Notes
+- Verify webhook HMAC before use input data.
+- Whitelist OxaPay IPs on your firewall (ask support).
+- Use HTTPS everywhere.
+- Store keys in `.env`, not code.
+- Rotate keys regularly.
+
+---
+
+## Testing (safe & offline)
+
+This package uses **pytest** and **responses** for testing.
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+---
+## Compatibility
+
+- Python 3.8+
+
+## Security
+
+If you discover a security vulnerability, please email [contact@oxapay.com](mailto:contact@oxapay.com).
+Do not disclose publicly until it has been fixed.
+
+## Contributing
+
+Pull requests are welcome. For major changes, open an issue first.
+
+```bash
+pip install -e ".[dev]"
+ruff check .
+pytest
+```
+
+## License
+
+Apache-2.0 — see [LICENSE](https://github.com/OxaPay/oxapay-python/LICENSE).
+
+## Changelog
+
+See [CHANGELOG.md](https://github.com/OxaPay/oxapay-python/CHANGELOG.md) for version history.
+
+---
+OxaPay Made with ♥ for Python.
+
+
