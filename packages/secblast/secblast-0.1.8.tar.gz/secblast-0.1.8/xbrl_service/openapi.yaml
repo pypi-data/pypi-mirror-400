@@ -1,0 +1,812 @@
+openapi: 3.1.0
+info:
+  title: SecBlast XBRL Financial Service API
+  description: |
+    API for retrieving structured financial statement data from SEC XBRL filings.
+
+    This service parses XBRL filings and provides easy access to:
+    - Balance sheets
+    - Income statements
+    - Cash flow statements
+    - Historical financial metrics
+
+    All data is sourced from SEC EDGAR filings and processed using the XBRL standard.
+
+    ## Response Formats
+
+    Financial statement endpoints support two formats via the `format` parameter:
+    - `default`: Nested structure with line_items containing period values
+    - `table`: Flat structure optimized for table rendering with columns and rows
+  version: 2.0.0
+  contact:
+    name: SecBlast API Support
+    url: https://secblastapi.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.secblastapi.com
+    description: Production server
+  - url: http://localhost:3008
+    description: Local development
+
+tags:
+  - name: financials
+    description: Financial statement endpoints
+
+paths:
+  /v2/financials:
+    get:
+      tags:
+        - financials
+      summary: Get all financial statements
+      description: |
+        Returns the most recent balance sheet, income statement, and cash flow
+        statement for a company. Optionally specify an accession number to get
+        statements from a specific filing.
+      operationId: getFinancials
+      parameters:
+        - $ref: '#/components/parameters/cik'
+        - $ref: '#/components/parameters/accession_number'
+      responses:
+        '200':
+          description: Successful response with all financial statements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllFinancialsResponse'
+        '404':
+          description: No financial data found for the specified CIK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v2/financials/balance-sheet:
+    get:
+      tags:
+        - financials
+      summary: Get balance sheet
+      description: |
+        Returns the balance sheet for a company. By default returns the most
+        recent 10-K or 10-Q filing. Use accession_number to get a specific filing.
+
+        Use `format=table` for easy table rendering with pre-aligned columns and rows.
+        Rows are returned in **presentation order** matching the SEC filing.
+      operationId: getBalanceSheet
+      parameters:
+        - $ref: '#/components/parameters/cik'
+        - $ref: '#/components/parameters/accession_number'
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Successful response with balance sheet data
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/FinancialStatement'
+                  - $ref: '#/components/schemas/FinancialStatementTable'
+              examples:
+                default:
+                  summary: Default format (nested)
+                  value:
+                    cik: "2488"
+                    accession_number: "0000002488-25-000166"
+                    filing_date: "2025-11-05"
+                    form_type: "10-Q"
+                    statement_type: "balance_sheet"
+                    short_name: "Condensed Consolidated Balance Sheets"
+                    periods:
+                      - period_end: "2025-09-27"
+                        period_start: null
+                        period_type: "instant"
+                    line_items:
+                      - concept: "CashAndCashEquivalentsAtCarryingValue"
+                        label: "Cash And Cash Equivalents At Carrying Value"
+                        values:
+                          - period_end: "2025-09-27"
+                            period_start: null
+                            value: 4808000000
+                            unit: "usd"
+                table:
+                  summary: Table format (flat)
+                  value:
+                    cik: "2488"
+                    accession_number: "0000002488-25-000166"
+                    filing_date: "2025-11-05"
+                    form_type: "10-Q"
+                    statement_type: "balance_sheet"
+                    short_name: "Condensed Consolidated Balance Sheets"
+                    columns: ["2025-09-27", "2024-12-28"]
+                    rows:
+                      - concept: "CashAndCashEquivalentsAtCarryingValue"
+                        label: "Cash And Cash Equivalents At Carrying Value"
+                        values: [4808000000, 3787000000]
+                        unit: "usd"
+                      - concept: "Assets"
+                        label: "Assets"
+                        values: [76891000000, 69226000000]
+                        unit: "usd"
+        '404':
+          description: Balance sheet not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v2/financials/income-statement:
+    get:
+      tags:
+        - financials
+      summary: Get income statement
+      description: |
+        Returns the income statement (statement of operations) for a company.
+        May include comprehensive income data when available.
+
+        Use `format=table` for easy table rendering with pre-aligned columns and rows.
+        Rows are returned in **presentation order** matching the SEC filing.
+      operationId: getIncomeStatement
+      parameters:
+        - $ref: '#/components/parameters/cik'
+        - $ref: '#/components/parameters/accession_number'
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Successful response with income statement data
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/FinancialStatement'
+                  - $ref: '#/components/schemas/FinancialStatementTable'
+        '404':
+          description: Income statement not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v2/financials/cash-flow:
+    get:
+      tags:
+        - financials
+      summary: Get cash flow statement
+      description: |
+        Returns the statement of cash flows for a company.
+
+        Use `format=table` for easy table rendering with pre-aligned columns and rows.
+        Rows are returned in **presentation order** matching the SEC filing.
+      operationId: getCashFlow
+      parameters:
+        - $ref: '#/components/parameters/cik'
+        - $ref: '#/components/parameters/accession_number'
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Successful response with cash flow statement data
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/FinancialStatement'
+                  - $ref: '#/components/schemas/FinancialStatementTable'
+        '404':
+          description: Cash flow statement not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v2/financials/raw:
+    get:
+      tags:
+        - financials
+      summary: Get raw XBRL data
+      description: |
+        Returns complete raw XBRL data for a filing, organized by statement type.
+        This endpoint provides access to all facts with their original XBRL
+        concept names, useful for advanced analysis or when you need data not
+        included in the structured statement endpoints.
+      operationId: getRawXbrl
+      parameters:
+        - $ref: '#/components/parameters/cik'
+        - $ref: '#/components/parameters/accession_number'
+      responses:
+        '200':
+          description: Successful response with raw XBRL data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawXbrlResponse'
+        '404':
+          description: XBRL data not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v2/financials/filings:
+    get:
+      tags:
+        - financials
+      summary: Get available filings
+      description: |
+        Returns a list of all available filings with processed XBRL data for a company.
+        Use this to discover which filings are available before requesting specific statements.
+      operationId: getFilings
+      parameters:
+        - $ref: '#/components/parameters/cik'
+      responses:
+        '200':
+          description: Successful response with list of filings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilingsResponse'
+              example:
+                cik: "320193"
+                filings:
+                  - accession_number: "0000320193-24-000123"
+                    filing_date: "2024-11-01"
+                    form_type: "10-K"
+                  - accession_number: "0000320193-24-000089"
+                    filing_date: "2024-08-02"
+                    form_type: "10-Q"
+                total_count: 2
+
+  /v2/financials/history:
+    get:
+      tags:
+        - financials
+      summary: Get historical values for concepts
+      description: |
+        Returns historical values for specific XBRL concepts across all available filings.
+        Use this endpoint to chart financial metrics over time.
+
+        Common concepts include:
+        - `Assets` - Total assets
+        - `Liabilities` - Total liabilities
+        - `StockholdersEquity` - Total stockholders' equity
+        - `RevenueFromContractWithCustomerExcludingAssessedTax` - Revenue
+        - `NetIncomeLoss` - Net income
+        - `EarningsPerShareBasic` - Basic EPS
+        - `EarningsPerShareDiluted` - Diluted EPS
+      operationId: getHistory
+      parameters:
+        - $ref: '#/components/parameters/cik'
+        - name: concepts
+          in: query
+          required: true
+          description: Comma-separated list of XBRL concept names
+          schema:
+            type: string
+          example: "Assets,NetIncomeLoss,RevenueFromContractWithCustomerExcludingAssessedTax"
+      responses:
+        '200':
+          description: Successful response with historical data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryResponse'
+              example:
+                cik: "320193"
+                concepts:
+                  Assets:
+                    - period_end: "2024-09-28"
+                      value: 364980000000
+                      filing_date: "2024-11-01"
+                      accession_number: "0000320193-24-000123"
+                      form_type: "10-K"
+                    - period_end: "2023-09-30"
+                      value: 352583000000
+                      filing_date: "2023-11-03"
+                      accession_number: "0000320193-23-000106"
+                      form_type: "10-K"
+                  NetIncomeLoss:
+                    - period_end: "2024-09-28"
+                      value: 93736000000
+                      filing_date: "2024-11-01"
+                      accession_number: "0000320193-24-000123"
+                      form_type: "10-K"
+        '400':
+          description: Invalid request - no concepts provided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      tags:
+        - system
+      summary: Health check
+      description: Returns the health status of the service
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "xbrl-financial"
+
+components:
+  parameters:
+    cik:
+      name: cik
+      in: query
+      required: true
+      description: |
+        The Central Index Key (CIK) number that uniquely identifies the company
+        with the SEC. Can be provided with or without leading zeros.
+      schema:
+        type: integer
+      example: 320193
+
+    accession_number:
+      name: accession_number
+      in: query
+      required: false
+      description: |
+        The SEC accession number for a specific filing. Format: XXXXXXXXXX-XX-XXXXXX.
+        If not provided, returns data from the most recent 10-K or 10-Q filing.
+      schema:
+        type: string
+      example: "0000320193-24-000123"
+
+    format:
+      name: format
+      in: query
+      required: false
+      description: |
+        Response format:
+        - `default`: Nested structure with line_items containing period values (default)
+        - `table`: Flat structure with columns (periods) and rows (line items) for easy table rendering
+      schema:
+        type: string
+        enum: [default, table]
+        default: default
+      example: "table"
+
+  schemas:
+    Period:
+      type: object
+      description: A reporting period from the XBRL filing
+      properties:
+        period_end:
+          type: string
+          format: date
+          description: End date of the period (ISO 8601 format)
+          example: "2024-09-28"
+        period_start:
+          type: string
+          format: date
+          nullable: true
+          description: Start date of the period (null for instant/point-in-time values)
+          example: "2024-01-01"
+        period_type:
+          type: string
+          enum: [instant, duration]
+          description: |
+            Type of period:
+            - `instant`: Point-in-time value (e.g., balance sheet items)
+            - `duration`: Value over a period (e.g., income statement items)
+          example: "instant"
+      required:
+        - period_end
+        - period_type
+
+    FactValue:
+      type: object
+      description: A single value for a financial concept at a specific period
+      properties:
+        period_end:
+          type: string
+          format: date
+          description: End date of the period
+          example: "2024-09-28"
+        period_start:
+          type: string
+          format: date
+          nullable: true
+          description: Start date of the period (null for instant values)
+        value:
+          type: number
+          description: The numeric value
+          example: 364980000000
+        unit:
+          type: string
+          description: Unit of measurement (e.g., "usd", "shares", "pure")
+          example: "usd"
+      required:
+        - period_end
+        - value
+        - unit
+
+    LineItem:
+      type: object
+      description: A financial line item with its values across periods
+      properties:
+        concept:
+          type: string
+          description: The XBRL concept name (US GAAP taxonomy)
+          example: "Assets"
+        label:
+          type: string
+          description: Human-readable label derived from the concept name
+          example: "Assets"
+        values:
+          type: array
+          description: Values for this concept across different periods
+          items:
+            $ref: '#/components/schemas/FactValue'
+      required:
+        - concept
+        - label
+        - values
+
+    TableRow:
+      type: object
+      description: A row in the table format response
+      properties:
+        concept:
+          type: string
+          description: The XBRL concept name (US GAAP taxonomy)
+          example: "Assets"
+        label:
+          type: string
+          description: Human-readable label derived from the concept name
+          example: "Assets"
+        values:
+          type: array
+          description: |
+            Values aligned to the columns array. Each position corresponds to
+            the same position in the columns array. Null indicates the value
+            was not reported for that period.
+          items:
+            type: number
+            nullable: true
+          example: [76891000000, 69226000000]
+        unit:
+          type: string
+          description: Unit of measurement (e.g., "usd", "shares", "pure")
+          example: "usd"
+      required:
+        - concept
+        - label
+        - values
+        - unit
+
+    FinancialStatement:
+      type: object
+      description: |
+        A complete financial statement with all line items (default format).
+        Line items are ordered by presentation order from the SEC filing.
+      properties:
+        cik:
+          type: string
+          description: Company CIK number
+          example: "320193"
+        accession_number:
+          type: string
+          description: SEC accession number of the filing
+          example: "0000320193-24-000123"
+        filing_date:
+          type: string
+          format: date
+          description: Date the filing was submitted to the SEC
+          example: "2024-11-01"
+        form_type:
+          type: string
+          description: SEC form type (10-K, 10-Q, etc.)
+          example: "10-K"
+        statement_type:
+          type: string
+          enum: [balance_sheet, income_statement, cash_flow]
+          description: Type of financial statement
+          example: "balance_sheet"
+        short_name:
+          type: string
+          description: Short name of the statement from the filing
+          example: "Consolidated Balance Sheets"
+        periods:
+          type: array
+          description: All reporting periods included in this statement
+          items:
+            $ref: '#/components/schemas/Period'
+        line_items:
+          type: array
+          description: |
+            All line items (financial metrics) in presentation order.
+            Order matches how items appear in the SEC filing.
+          items:
+            $ref: '#/components/schemas/LineItem'
+      required:
+        - cik
+        - accession_number
+        - filing_date
+        - form_type
+        - statement_type
+        - periods
+        - line_items
+
+    FinancialStatementTable:
+      type: object
+      description: |
+        A financial statement in table format for easy rendering.
+        Columns are period dates, rows are line items with values aligned to columns.
+        Rows are ordered by presentation order from the SEC filing.
+
+        Use this format when building HTML/React tables - no pivoting required.
+      properties:
+        cik:
+          type: string
+          description: Company CIK number
+          example: "2488"
+        accession_number:
+          type: string
+          description: SEC accession number of the filing
+          example: "0000002488-25-000166"
+        filing_date:
+          type: string
+          format: date
+          description: Date the filing was submitted to the SEC
+          example: "2025-11-05"
+        form_type:
+          type: string
+          description: SEC form type (10-K, 10-Q, etc.)
+          example: "10-Q"
+        statement_type:
+          type: string
+          enum: [balance_sheet, income_statement, cash_flow]
+          description: Type of financial statement
+          example: "balance_sheet"
+        short_name:
+          type: string
+          description: Short name of the statement from the filing
+          example: "Condensed Consolidated Balance Sheets"
+        columns:
+          type: array
+          description: |
+            Period end dates for table columns, sorted most recent first.
+            Use these as table header values.
+          items:
+            type: string
+            format: date
+          example: ["2025-09-27", "2024-12-28"]
+        rows:
+          type: array
+          description: |
+            Line items in presentation order (matching SEC filing).
+            Each row's values array aligns with the columns array.
+
+            **Bolding totals**: Rows where concept matches total patterns
+            (e.g., "Assets", "LiabilitiesAndStockholdersEquity", "NetIncomeLoss")
+            should be rendered in bold.
+          items:
+            $ref: '#/components/schemas/TableRow'
+      required:
+        - cik
+        - accession_number
+        - filing_date
+        - form_type
+        - statement_type
+        - columns
+        - rows
+
+    AllFinancialsResponse:
+      type: object
+      description: Combined response with all three financial statements
+      properties:
+        cik:
+          type: string
+          description: Company CIK number
+          example: "320193"
+        balance_sheet:
+          $ref: '#/components/schemas/FinancialStatement'
+        income_statement:
+          $ref: '#/components/schemas/FinancialStatement'
+        cash_flow:
+          $ref: '#/components/schemas/FinancialStatement'
+        filings:
+          type: array
+          description: List of available filings for this company
+          items:
+            $ref: '#/components/schemas/Filing'
+      required:
+        - cik
+
+    Filing:
+      type: object
+      description: Information about an SEC filing
+      properties:
+        accession_number:
+          type: string
+          description: SEC accession number
+          example: "0000320193-24-000123"
+        filing_date:
+          type: string
+          format: date
+          description: Date filed with SEC
+          example: "2024-11-01"
+        form_type:
+          type: string
+          description: SEC form type
+          example: "10-K"
+      required:
+        - accession_number
+        - filing_date
+        - form_type
+
+    FilingsResponse:
+      type: object
+      description: Response containing list of available filings
+      properties:
+        cik:
+          type: string
+          description: Company CIK number
+          example: "320193"
+        filings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Filing'
+        total_count:
+          type: integer
+          description: Total number of filings available
+          example: 12
+      required:
+        - cik
+        - filings
+        - total_count
+
+    RawFact:
+      type: object
+      description: A raw XBRL fact value
+      properties:
+        value:
+          type: number
+          nullable: true
+          description: The numeric value
+        unit:
+          type: string
+          description: Unit of measurement
+        period_end:
+          type: string
+          format: date
+        period_start:
+          type: string
+          format: date
+          nullable: true
+        decimals:
+          type: integer
+          nullable: true
+          description: Decimal precision specified in the XBRL
+
+    RawStatement:
+      type: object
+      description: A statement with raw XBRL facts
+      properties:
+        role_uri:
+          type: string
+          description: XBRL role URI identifying the statement
+          example: "http://www.apple.com/role/ConsolidatedBalanceSheets"
+        short_name:
+          type: string
+          description: Short name of the statement
+          example: "Consolidated Balance Sheets"
+        long_name:
+          type: string
+          description: Full name of the statement from XBRL
+        facts:
+          type: object
+          description: Map of concept names to their fact values
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/RawFact'
+
+    RawXbrlResponse:
+      type: object
+      description: Complete raw XBRL data for a filing
+      properties:
+        cik:
+          type: string
+          description: Company CIK number
+        accession_number:
+          type: string
+          description: SEC accession number
+        filing_date:
+          type: string
+          format: date
+        form_type:
+          type: string
+        statements:
+          type: object
+          properties:
+            balance_sheet:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawStatement'
+            income_statement:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawStatement'
+            cash_flow:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawStatement'
+            other:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawStatement'
+      required:
+        - cik
+        - accession_number
+        - filing_date
+        - form_type
+        - statements
+
+    HistoricalValue:
+      type: object
+      description: A historical value for a concept
+      properties:
+        period_end:
+          type: string
+          format: date
+          description: End of the reporting period
+        value:
+          type: number
+          description: The value for this period
+        filing_date:
+          type: string
+          format: date
+          description: Date the value was filed
+        accession_number:
+          type: string
+          description: Filing accession number
+        form_type:
+          type: string
+          description: Form type (10-K, 10-Q)
+      required:
+        - period_end
+        - value
+        - filing_date
+        - accession_number
+        - form_type
+
+    HistoryResponse:
+      type: object
+      description: Historical values for requested concepts
+      properties:
+        cik:
+          type: string
+          description: Company CIK number
+        concepts:
+          type: object
+          description: Map of concept names to their historical values
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/HistoricalValue'
+      required:
+        - cik
+        - concepts
+
+    ErrorResponse:
+      type: object
+      description: Error response
+      properties:
+        detail:
+          type: string
+          description: Human-readable error message
+          example: "Balance sheet not found for CIK 123456. Ensure XBRL data has been processed."
+      required:
+        - detail
