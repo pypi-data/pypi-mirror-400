@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: pypi
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      !contains(github.event.workflow_run.head_commit.message, '[skip ci]')
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Check out the codebase
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Verify commit matches CI trigger
+        run: |
+          EXPECTED_SHA="${{ github.event.workflow_run.head_sha }}"
+          CURRENT_SHA=$(git rev-parse HEAD)
+          if [ "$CURRENT_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::Master has moved. Expected $EXPECTED_SHA but got $CURRENT_SHA"
+            exit 1
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Prepare release
+        id: release
+        run: uv run python scripts/release.py
+
+      - name: Commit version bump
+        if: steps.release.outputs.should_release == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add pyproject.toml CHANGELOG.md
+          git commit -m "[RELEASE] v${{ steps.release.outputs.version }} [skip ci]"
+          git push
+
+      - name: Create and push tag
+        if: steps.release.outputs.should_release == 'true'
+        run: |
+          git tag ${{ steps.release.outputs.tag }}
+          git push origin ${{ steps.release.outputs.tag }}
+
+      - name: Build package
+        if: steps.release.outputs.should_release == 'true'
+        run: uv build
+
+      - name: Publish to PyPI
+        if: steps.release.outputs.should_release == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        if: steps.release.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: Release ${{ steps.release.outputs.version }}
+          body: ${{ steps.release.outputs.changelog }}
+          files: dist/*
