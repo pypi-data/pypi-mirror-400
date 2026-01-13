@@ -1,0 +1,301 @@
+"""Layout analysis for PDFs to detect text regions, images, and mixed content."""
+
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+from .exceptions import LayoutAnalysisError
+from .logger import get_logger
+
+logger = get_logger(__name__)
+
+try:
+    import pdfplumber
+except ImportError:
+    pdfplumber = None  # type: ignore[assignment]
+
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    fitz = None
+
+
+def analyze_pdf_layout(file_path: str, page_level: bool = False) -> Dict[str, Any]:
+    """
+    Analyze PDF layout to detect text regions, images, and mixed content.
+
+    Args:
+        file_path: Path to the PDF file
+        page_level: If True, return per-page layout analysis
+
+    Returns:
+        Dictionary with keys:
+            - text_coverage: Percentage of page covered by text (0-100)
+            - image_coverage: Percentage of page covered by images (0-100)
+            - has_images: Boolean indicating if PDF contains images
+            - text_density: Average text density (chars per page area)
+            - layout_type: "text_only", "image_only", "mixed", or "unknown"
+            - is_mixed_content: Boolean indicating mixed text and images
+            - pages: (if page_level=True) List of page-level layout data
+    """
+    path = Path(file_path)
+
+    # Try pdfplumber first (better layout detection)
+    if pdfplumber:
+        try:
+            return _analyze_with_pdfplumber(path, page_level)
+        except (IOError, OSError, PermissionError) as e:
+            logger.warning(f"Failed to read PDF file for layout analysis with pdfplumber: {e}")
+        except Exception as e:
+            logger.warning(f"Layout analysis failed with pdfplumber: {e}")
+
+    # Fallback to PyMuPDF
+    if fitz:
+        try:
+            return _analyze_with_pymupdf(path, page_level)
+        except (IOError, OSError, PermissionError) as e:
+            logger.warning(f"Failed to read PDF file for layout analysis with PyMuPDF: {e}")
+        except Exception as e:
+            logger.warning(f"Layout analysis failed with PyMuPDF: {e}")
+
+    # No analyzers available or both failed
+    result = {
+        "text_coverage": 0.0,
+        "image_coverage": 0.0,
+        "has_images": False,
+        "text_density": 0.0,
+        "layout_type": "unknown",
+        "is_mixed_content": False,
+    }
+    if page_level:
+        result["pages"] = []
+    return result
+
+
+def _analyze_with_pdfplumber(path: Path, page_level: bool = False) -> Dict[str, Any]:
+    """Analyze layout using pdfplumber (better layout detection)."""
+    pages_data = []
+    total_text_area = 0.0
+    total_image_area = 0.0
+    total_page_area = 0.0
+    total_text_chars = 0
+    has_images = False
+    page_count = 0
+
+    with pdfplumber.open(path) as pdf:
+        page_count = len(pdf.pages)
+
+        for page_num, page in enumerate(pdf.pages, start=1):
+            page_width = page.width
+            page_height = page.height
+            page_area = page_width * page_height
+
+            # Extract text and calculate text area
+            chars = page.chars if hasattr(page, 'chars') else []
+
+            # Calculate text bounding boxes
+            text_area = 0.0
+            text_chars = len(chars)
+
+            if chars:
+                # Calculate bounding box of all text
+                min_x = min(char['x0'] for char in chars)
+                max_x = max(char['x1'] for char in chars)
+                min_y = min(char['top'] for char in chars)
+                max_y = max(char['bottom'] for char in chars)
+
+                text_width = max_x - min_x
+                text_height = max_y - min_y
+                text_area = text_width * text_height
+
+                # Clamp to page area
+                text_area = min(text_area, page_area)
+
+            # Check for images
+            images = page.images if hasattr(page, 'images') else []
+            image_area = 0.0
+
+            if images:
+                has_images = True
+                for img in images:
+                    img_width = img.get('width', 0)
+                    img_height = img.get('height', 0)
+                    image_area += img_width * img_height
+
+                # Clamp to page area
+                image_area = min(image_area, page_area)
+
+            # Calculate coverage percentages
+            text_coverage = (text_area / page_area * 100) if page_area > 0 else 0.0
+            image_coverage = (image_area / page_area * 100) if page_area > 0 else 0.0
+
+            # Determine layout type for this page
+            layout_type = _determine_layout_type(text_coverage, image_coverage, text_chars)
+            is_mixed = text_coverage > 5 and image_coverage > 5
+
+            # Calculate text density (chars per unit area)
+            text_density = (text_chars / page_area * 1000) if page_area > 0 else 0.0
+
+            total_text_area += text_area
+            total_image_area += image_area
+            total_page_area += page_area
+            total_text_chars += text_chars
+
+            if page_level:
+                pages_data.append({
+                    "page_number": page_num,
+                    "text_coverage": round(text_coverage, 2),
+                    "image_coverage": round(image_coverage, 2),
+                    "text_chars": text_chars,
+                    "text_density": round(text_density, 2),
+                    "layout_type": layout_type,
+                    "is_mixed_content": is_mixed,
+                    "has_images": len(images) > 0,
+                })
+
+    # Calculate overall metrics
+    overall_text_coverage = (total_text_area / total_page_area * 100) if total_page_area > 0 else 0.0
+    overall_image_coverage = (total_image_area / total_page_area * 100) if total_page_area > 0 else 0.0
+    overall_text_density = (total_text_chars / total_page_area * 1000) if total_page_area > 0 else 0.0
+    overall_layout_type = _determine_layout_type(overall_text_coverage, overall_image_coverage, total_text_chars)
+    is_mixed_content = overall_text_coverage > 5 and overall_image_coverage > 5
+
+    result = {
+        "text_coverage": round(overall_text_coverage, 2),
+        "image_coverage": round(overall_image_coverage, 2),
+        "has_images": has_images,
+        "text_density": round(overall_text_density, 2),
+        "layout_type": overall_layout_type,
+        "is_mixed_content": is_mixed_content,
+        "page_count": page_count,
+    }
+
+    if page_level:
+        result["pages"] = pages_data
+
+    return result
+
+
+def _analyze_with_pymupdf(path: Path, page_level: bool = False) -> Dict[str, Any]:
+    """Analyze layout using PyMuPDF (fallback, less detailed)."""
+    doc = fitz.open(path)
+    pages_data = []
+    total_text_area = 0.0
+    total_image_area = 0.0
+    total_page_area = 0.0
+    total_text_chars = 0
+    has_images = False
+    page_count = len(doc)
+
+    for page_num in range(page_count):
+        page = doc[page_num]
+        page_rect = page.rect
+        page_width = page_rect.width
+        page_height = page_rect.height
+        page_area = page_width * page_height
+
+        # Extract text
+        text_dict = page.get_text("dict")
+        text_chars = len(page.get_text())
+
+        # Calculate text area from text blocks
+        text_area = 0.0
+        if "blocks" in text_dict:
+            for block in text_dict["blocks"]:
+                if block.get("type") == 0:  # Text block
+                    bbox = block.get("bbox", [0, 0, 0, 0])
+                    block_width = bbox[2] - bbox[0]
+                    block_height = bbox[3] - bbox[1]
+                    text_area += block_width * block_height
+
+        # Check for images
+        image_list = page.get_images()
+        image_area = 0.0
+
+        if image_list:
+            has_images = True
+            for img_index, img in enumerate(image_list):
+                try:
+                    xref = img[0]
+                    base_image = doc.extract_image(xref)
+                    image_area += base_image.get("width", 0) * base_image.get("height", 0)
+                except Exception:
+                    pass
+
+        # Clamp areas to page area
+        text_area = min(text_area, page_area)
+        image_area = min(image_area, page_area)
+
+        # Calculate coverage
+        text_coverage = (text_area / page_area * 100) if page_area > 0 else 0.0
+        image_coverage = (image_area / page_area * 100) if page_area > 0 else 0.0
+
+        # Determine layout type
+        layout_type = _determine_layout_type(text_coverage, image_coverage, text_chars)
+        is_mixed = text_coverage > 5 and image_coverage > 5
+        text_density = (text_chars / page_area * 1000) if page_area > 0 else 0.0
+
+        total_text_area += text_area
+        total_image_area += image_area
+        total_page_area += page_area
+        total_text_chars += text_chars
+
+        if page_level:
+            pages_data.append({
+                "page_number": page_num + 1,
+                "text_coverage": round(text_coverage, 2),
+                "image_coverage": round(image_coverage, 2),
+                "text_chars": text_chars,
+                "text_density": round(text_density, 2),
+                "layout_type": layout_type,
+                "is_mixed_content": is_mixed,
+                "has_images": len(image_list) > 0,
+            })
+
+    doc.close()
+
+    # Calculate overall metrics
+    overall_text_coverage = (total_text_area / total_page_area * 100) if total_page_area > 0 else 0.0
+    overall_image_coverage = (total_image_area / total_page_area * 100) if total_page_area > 0 else 0.0
+    overall_text_density = (total_text_chars / total_page_area * 1000) if total_page_area > 0 else 0.0
+    overall_layout_type = _determine_layout_type(overall_text_coverage, overall_image_coverage, total_text_chars)
+    is_mixed_content = overall_text_coverage > 5 and overall_image_coverage > 5
+
+    result = {
+        "text_coverage": round(overall_text_coverage, 2),
+        "image_coverage": round(overall_image_coverage, 2),
+        "has_images": has_images,
+        "text_density": round(overall_text_density, 2),
+        "layout_type": overall_layout_type,
+        "is_mixed_content": is_mixed_content,
+        "page_count": page_count,
+    }
+
+    if page_level:
+        result["pages"] = pages_data
+
+    return result
+
+
+def _determine_layout_type(text_coverage: float, image_coverage: float, text_chars: int) -> str:
+    """
+    Determine layout type based on coverage and text content.
+
+    Args:
+        text_coverage: Percentage of page covered by text
+        image_coverage: Percentage of page covered by images
+        text_chars: Number of text characters
+
+    Returns:
+        Layout type: "text_only", "image_only", "mixed", or "unknown"
+    """
+    if text_coverage > 10 and image_coverage < 5:
+        return "text_only"
+    elif image_coverage > 10 and text_coverage < 5 and text_chars < 50:
+        return "image_only"
+    elif text_coverage > 5 and image_coverage > 5:
+        return "mixed"
+    elif text_chars >= 50:
+        return "text_only"  # Has text even if coverage is low
+    else:
+        return "unknown"
+
