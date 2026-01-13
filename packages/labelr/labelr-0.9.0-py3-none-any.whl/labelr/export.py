@@ -1,0 +1,520 @@
+import functools
+import logging
+import pickle
+import random
+import tempfile
+from collections.abc import Iterator
+from pathlib import Path
+
+import datasets
+import tqdm
+from label_studio_sdk.client import LabelStudio
+from openfoodfacts.images import download_image, generate_image_url
+from openfoodfacts.types import Flavor
+from PIL import Image, ImageOps
+
+from labelr.sample import (
+    HF_DS_CLASSIFICATION_FEATURES,
+    HF_DS_LLM_IMAGE_EXTRACTION_FEATURES,
+    HF_DS_OBJECT_DETECTION_FEATURES,
+    LLMImageExtractionSample,
+    format_object_detection_sample_to_hf,
+)
+from labelr.types import TaskType
+from labelr.utils import PathWithContext
+
+logger = logging.getLogger(__name__)
+
+
+def _pickle_sample_generator(dir: Path):
+    """Generator that yields samples from pickles in a directory."""
+    for pkl in dir.glob("*.pkl"):
+        with open(pkl, "rb") as f:
+            yield pickle.load(f)
+
+
+def export_from_ls_to_hf_object_detection(
+    ls: LabelStudio,
+    repo_id: str,
+    label_names: list[str],
+    project_id: int,
+    merge_labels: bool = False,
+    use_aws_cache: bool = True,
+    revision: str = "main",
+):
+    if merge_labels:
+        label_names = ["object"]
+
+    logger.info(
+        "Project ID: %d, label names: %s, repo_id: %s, revision: %s",
+        project_id,
+        label_names,
+        repo_id,
+        revision,
+    )
+
+    for split in ["train", "val"]:
+        logger.info("Processing split: %s", split)
+
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            logger.info("Saving samples to temporary directory: %s", tmp_dir)
+            for i, task in tqdm.tqdm(
+                enumerate(ls.tasks.list(project=project_id, fields="all")),
+                desc="tasks",
+            ):
+                if task.data["split"] != split:
+                    continue
+                sample = format_object_detection_sample_to_hf(
+                    task_data=task.data,
+                    annotations=task.annotations,
+                    label_names=label_names,
+                    merge_labels=merge_labels,
+                    use_aws_cache=use_aws_cache,
+                )
+                if sample is not None:
+                    # Save output as pickle
+                    with open(tmp_dir / f"{split}_{i:05}.pkl", "wb") as f:
+                        pickle.dump(sample, f)
+
+            hf_ds = datasets.Dataset.from_generator(
+                functools.partial(_pickle_sample_generator, tmp_dir),
+                features=HF_DS_OBJECT_DETECTION_FEATURES,
+            )
+            hf_ds.push_to_hub(repo_id, split=split, revision=revision)
+
+
+def export_from_ls_to_ultralytics_object_detection(
+    ls: LabelStudio,
+    output_dir: Path,
+    label_names: list[str],
+    project_id: int,
+    train_ratio: float = 0.8,
+    error_raise: bool = True,
+    merge_labels: bool = False,
+    use_aws_cache: bool = True,
+):
+    """Export annotations from a Label Studio project to the Ultralytics
+    format.
+
+    The Label Studio project should be an object detection project with a
+    single rectanglelabels annotation result per task.
+    """
+    if merge_labels:
+        label_names = ["object"]
+    logger.info("Project ID: %d, label names: %s", project_id, label_names)
+
+    data_dir = output_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    split_warning_displayed = False
+
+    # NOTE: before, all images were sent to val, the last split
+    label_dir = data_dir / "labels"
+    images_dir = data_dir / "images"
+    for split in ["train", "val"]:
+        (label_dir / split).mkdir(parents=True, exist_ok=True)
+        (images_dir / split).mkdir(parents=True, exist_ok=True)
+
+    for task in tqdm.tqdm(
+        ls.tasks.list(project=project_id, fields="all"),
+        desc="tasks",
+    ):
+        split = task.data.get("split")
+
+        if split is None:
+            if not split_warning_displayed:
+                logger.warning(
+                    "Split information not found, assigning randomly. "
+                    "To avoid this, set the `split` field in the task data."
+                )
+                split_warning_displayed = True
+            split = "train" if random.random() < train_ratio else "val"
+
+        elif split not in ["train", "val"]:
+            raise ValueError("Invalid split name: %s", split)
+
+        if len(task.annotations) > 1:
+            logger.warning("More than one annotation found, skipping")
+            continue
+        elif len(task.annotations) == 0:
+            logger.debug("No annotation found, skipping")
+            continue
+
+        annotation = task.annotations[0]
+        if annotation["was_cancelled"] is True:
+            logger.debug("Annotation was cancelled, skipping")
+            continue
+
+        if "image_id" not in task.data:
+            raise ValueError(
+                "`image_id` field not found in task data. "
+                "Make sure the task data contains the `image_id` "
+                "field, which should be a unique identifier for the image."
+            )
+        if "image_url" not in task.data:
+            raise ValueError(
+                "`image_url` field not found in task data. "
+                "Make sure the task data contains the `image_url` "
+                "field, which should be the URL of the image."
+            )
+        image_id = task.data["image_id"]
+        image_url = task.data["image_url"]
+
+        has_valid_annotation = False
+        with (label_dir / split / f"{image_id}.txt").open("w") as f:
+            if not any(
+                annotation_result["type"] == "rectanglelabels"
+                for annotation_result in annotation["result"]
+            ):
+                continue
+
+            for annotation_result in annotation["result"]:
+                if annotation_result["type"] == "rectanglelabels":
+                    value = annotation_result["value"]
+                    x_min = value["x"] / 100
+                    y_min = value["y"] / 100
+                    width = value["width"] / 100
+                    height = value["height"] / 100
+                    label_name = (
+                        label_names[0] if merge_labels else value["rectanglelabels"][0]
+                    )
+                    label_id = label_names.index(label_name)
+
+                    # Save the labels in the Ultralytics format:
+                    # - one label per line
+                    # - each line is a list of 5 elements:
+                    #   - label_id
+                    #   - x_center
+                    #   - y_center
+                    #   - width
+                    #   - height
+                    x_center = x_min + width / 2
+                    y_center = y_min + height / 2
+                    f.write(f"{label_id} {x_center} {y_center} {width} {height}\n")
+                    has_valid_annotation = True
+
+        if has_valid_annotation:
+            download_output = download_image(
+                image_url,
+                return_struct=True,
+                error_raise=error_raise,
+                use_cache=use_aws_cache,
+            )
+            if download_output is None:
+                logger.error("Failed to download image: %s", image_url)
+                continue
+
+            with (images_dir / split / f"{image_id}.jpg").open("wb") as f:
+                f.write(download_output.image_bytes)
+
+    with (output_dir / "data.yaml").open("w") as f:
+        f.write("path: data\n")
+        f.write("train: images/train\n")
+        f.write("val: images/val\n")
+        f.write("test:\n")
+        f.write("names:\n")
+        for i, label_name in enumerate(label_names):
+            f.write(f"  {i}: {label_name}\n")
+
+
+def export_from_hf_to_ultralytics_object_detection(
+    repo_id: str,
+    output_dir: Path,
+    download_images: bool = True,
+    error_raise: bool = True,
+    use_aws_cache: bool = True,
+    revision: str = "main",
+):
+    """Export annotations from a Hugging Face dataset project to the
+    Ultralytics format.
+
+    The Label Studio project should be an object detection project with a
+    single rectanglelabels annotation result per task.
+
+    Args:
+        repo_id (str): Hugging Face repository ID to load the dataset from.
+        output_dir (Path): Path to the output directory.
+        download_images (bool): Whether to download images from URLs in the
+            dataset. If False, the dataset is expected to contain an `image`
+            field with the image data.
+        error_raise (bool): Whether to raise an error if an image fails to
+            download. If False, the image will be skipped. This option is only
+            used if `download_images` is True. Defaults to True.
+        use_aws_cache (bool): Whether to use the AWS image cache when
+            downloading images. This option is only used if `download_images`
+            is True. Defaults to True.
+        revision (str): The dataset revision to load. Defaults to 'main'.
+    """
+    logger.info("Repo ID: %s, revision: %s", repo_id, revision)
+    ds = datasets.load_dataset(repo_id, revision=revision)
+    data_dir = output_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    category_id_to_name = {}
+
+    split_map = {
+        "train": "train",
+        "val": "val",
+    }
+    if "val" not in ds and "test" in ds:
+        logger.info("val split not found, using test split instead as val")
+        split_map["val"] = "test"
+
+    for split in ["train", "val"]:
+        split_target = split_map[split]
+        split_labels_dir = data_dir / "labels" / split
+        split_labels_dir.mkdir(parents=True, exist_ok=True)
+        split_images_dir = data_dir / "images" / split
+        split_images_dir.mkdir(parents=True, exist_ok=True)
+
+        for sample in tqdm.tqdm(ds[split_target], desc="samples"):
+            image_id = sample["image_id"]
+
+            if download_images:
+                if "meta" not in sample or "image_url" not in sample["meta"]:
+                    raise ValueError(
+                        "`meta.image_url` field not found in sample. "
+                        "Make sure the dataset contains the `meta.image_url` "
+                        "field, which should be the URL of the image, or set "
+                        "`download_images` to False."
+                    )
+                image_url = sample["meta"]["image_url"]
+                download_output = download_image(
+                    image_url,
+                    return_struct=True,
+                    error_raise=error_raise,
+                    use_cache=use_aws_cache,
+                )
+                if download_output is None:
+                    logger.error("Failed to download image: %s", image_url)
+                    continue
+
+                with (split_images_dir / f"{image_id}.jpg").open("wb") as f:
+                    f.write(download_output.image_bytes)
+            else:
+                image = sample["image"]
+                image.save(split_images_dir / f"{image_id}.jpg")
+
+            objects = sample["objects"]
+            bboxes = objects["bbox"]
+            category_ids = objects["category_id"]
+            category_names = objects["category_name"]
+
+            with (split_labels_dir / f"{image_id}.txt").open("w") as f:
+                for bbox, category_id, category_name in zip(
+                    bboxes, category_ids, category_names
+                ):
+                    if category_id not in category_id_to_name:
+                        category_id_to_name[category_id] = category_name
+                    y_min, x_min, y_max, x_max = bbox
+                    y_min = min(max(y_min, 0.0), 1.0)
+                    x_min = min(max(x_min, 0.0), 1.0)
+                    y_max = min(max(y_max, 0.0), 1.0)
+                    x_max = min(max(x_max, 0.0), 1.0)
+                    width = x_max - x_min
+                    height = y_max - y_min
+                    # Save the labels in the Ultralytics format:
+                    # - one label per line
+                    # - each line is a list of 5 elements:
+                    #   - category_id
+                    #   - x_center
+                    #   - y_center
+                    #   - width
+                    #   - height
+                    x_center = x_min + width / 2
+                    y_center = y_min + height / 2
+                    f.write(f"{category_id} {x_center} {y_center} {width} {height}\n")
+
+    category_names = [
+        x[1] for x in sorted(category_id_to_name.items(), key=lambda x: x[0])
+    ]
+    with (output_dir / "data.yaml").open("w") as f:
+        f.write("path: data\n")
+        f.write("train: images/train\n")
+        f.write("val: images/val\n")
+        f.write("test:\n")
+        f.write("names:\n")
+        for i, category_name in enumerate(category_names):
+            f.write(f"  {i}: {category_name}\n")
+
+
+def export_from_ultralytics_to_hf(
+    task_type: TaskType,
+    dataset_dir: Path,
+    repo_id: str,
+    label_names: list[str],
+    merge_labels: bool = False,
+    is_openfoodfacts_dataset: bool = False,
+    openfoodfacts_flavor: Flavor = Flavor.off,
+) -> None:
+    if task_type != TaskType.classification:
+        raise NotImplementedError(
+            "Only classification task is currently supported for Ultralytics to HF export"
+        )
+
+    if task_type == TaskType.classification:
+        export_from_ultralytics_to_hf_classification(
+            dataset_dir=dataset_dir,
+            repo_id=repo_id,
+            label_names=label_names,
+            merge_labels=merge_labels,
+            is_openfoodfacts_dataset=is_openfoodfacts_dataset,
+            openfoodfacts_flavor=openfoodfacts_flavor,
+        )
+
+
+def export_from_ultralytics_to_hf_classification(
+    dataset_dir: Path,
+    repo_id: str,
+    label_names: list[str],
+    merge_labels: bool = False,
+    is_openfoodfacts_dataset: bool = False,
+    openfoodfacts_flavor: Flavor = Flavor.off,
+) -> None:
+    """Export an Ultralytics classification dataset to a Hugging Face dataset.
+
+    The Ultralytics dataset directory should contain 'train', 'val' and/or
+    'test' subdirectories, each containing subdirectories for each label.
+
+    Args:
+        dataset_dir (Path): Path to the Ultralytics dataset directory.
+        repo_id (str): Hugging Face repository ID to push the dataset to.
+        label_names (list[str]): List of label names.
+        merge_labels (bool): Whether to merge all labels into a single label
+            named 'object'.
+        is_openfoodfacts_dataset (bool): Whether the dataset is from
+            Open Food Facts. If True, the `off_image_id` and `image_url` will
+            be generated automatically. `off_image_id` is extracted from the
+            image filename.
+        openfoodfacts_flavor (Flavor): Flavor of Open Food Facts dataset. This
+            is ignored if `is_openfoodfacts_dataset` is False.
+    """
+    logger.info("Repo ID: %s, dataset_dir: %s", repo_id, dataset_dir)
+
+    if not any((dataset_dir / split).is_dir() for split in ["train", "val", "test"]):
+        raise ValueError(
+            f"Dataset directory {dataset_dir} does not contain 'train', 'val' or 'test' subdirectories"
+        )
+
+    # Save output as pickle
+    for split in ["train", "val", "test"]:
+        split_dir = dataset_dir / split
+
+        if not split_dir.is_dir():
+            logger.info("Skipping missing split directory: %s", split_dir)
+            continue
+
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            for label_dir in (d for d in split_dir.iterdir() if d.is_dir()):
+                label_name = label_dir.name
+                if merge_labels:
+                    label_name = "object"
+                if label_name not in label_names:
+                    raise ValueError(
+                        "Label name %s not in provided label names (label names: %s)"
+                        % (label_name, label_names),
+                    )
+                label_id = label_names.index(label_name)
+
+                for image_path in label_dir.glob("*"):
+                    if is_openfoodfacts_dataset:
+                        image_stem_parts = image_path.stem.split("_")
+                        barcode = image_stem_parts[0]
+                        off_image_id = image_stem_parts[1]
+                        image_id = f"{barcode}_{off_image_id}"
+                        image_url = generate_image_url(
+                            barcode, off_image_id, flavor=openfoodfacts_flavor
+                        )
+                    else:
+                        image_id = image_path.stem
+                        barcode = ""
+                        off_image_id = ""
+                        image_url = ""
+                    image = Image.open(image_path)
+                    image.load()
+
+                    if image.mode != "RGB":
+                        image = image.convert("RGB")
+
+                    # Rotate image according to exif orientation using Pillow
+                    ImageOps.exif_transpose(image, in_place=True)
+                    sample = {
+                        "image_id": image_id,
+                        "image": image,
+                        "width": image.width,
+                        "height": image.height,
+                        "meta": {
+                            "barcode": barcode,
+                            "off_image_id": off_image_id,
+                            "image_url": image_url,
+                        },
+                        "category_id": label_id,
+                        "category_name": label_name,
+                    }
+                    with open(tmp_dir / f"{split}_{image_id}.pkl", "wb") as f:
+                        pickle.dump(sample, f)
+
+            hf_ds = datasets.Dataset.from_generator(
+                functools.partial(_pickle_sample_generator, tmp_dir),
+                features=HF_DS_CLASSIFICATION_FEATURES,
+            )
+            hf_ds.push_to_hub(repo_id, split=split)
+
+
+def export_to_hf_llm_image_extraction(
+    sample_iter: Iterator[LLMImageExtractionSample],
+    split: str,
+    repo_id: str,
+    revision: str = "main",
+    tmp_dir: Path | None = None,
+) -> None:
+    """Export LLM image extraction samples to a Hugging Face dataset.
+
+    Args:
+        sample_iter (Iterator[LLMImageExtractionSample]): Iterator of samples
+            to export.
+        split (str): Name of the dataset split (e.g., 'train', 'val').
+        repo_id (str): Hugging Face repository ID to push the dataset to.
+        revision (str): Revision (branch, tag or commit) to use for the
+            Hugging Face Datasets repository.
+        tmp_dir (Path | None): Temporary directory to use for intermediate
+            files. If None, a temporary directory will be created
+            automatically.
+    """
+    logger.info(
+        "Repo ID: %s, revision: %s, split: %s, tmp_dir: %s",
+        repo_id,
+        revision,
+        split,
+        tmp_dir,
+    )
+
+    tmp_dir_with_context: PathWithContext | tempfile.TemporaryDirectory
+    if tmp_dir:
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_dir_with_context = PathWithContext(tmp_dir)
+    else:
+        tmp_dir_with_context = tempfile.TemporaryDirectory()
+
+    with tmp_dir_with_context as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        for sample in tqdm.tqdm(sample_iter, desc="samples"):
+            image = sample.image
+            # Rotate image according to exif orientation using Pillow
+            image = ImageOps.exif_transpose(image)
+            image_id = sample.image_id
+            sample = {
+                "image_id": image_id,
+                "image": image,
+                "meta": sample.meta.model_dump(),
+                "output": sample.output,
+            }
+            # Save output as pickle
+            with open(tmp_dir / f"{split}_{image_id}.pkl", "wb") as f:
+                pickle.dump(sample, f)
+
+        hf_ds = datasets.Dataset.from_generator(
+            functools.partial(_pickle_sample_generator, tmp_dir),
+            features=HF_DS_LLM_IMAGE_EXTRACTION_FEATURES,
+        )
+        hf_ds.push_to_hub(repo_id, split=split, revision=revision)
