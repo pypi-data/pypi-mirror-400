@@ -1,0 +1,99 @@
+
+
+# GraphBench: Next-generation graph learning benchmarking
+
+This is the package associated with the paper [GraphBench: Next generation graph learning benchmarking](https://arxiv.org/abs/2512.04475). 
+
+It contains the code and tools needed to load the benchmark's datasets. 
+GraphBench is a collection of benchmarking datasets across domains and tasks obtained from real-world and synthetic applications. 
+
+## Features
+
+GraphBench comes as a Python package with the following features: 
+|        |           |                             
+| :------- | :------ |
+| Data Loading           | Efficiently loads graph datasets for benchmarking and experimentation across all domains and tasks.       |
+| Metric Evaluation      | Supports a wide range of evaluation metrics for graph learning tasks.        |
+| Automated Model Tuning | Integrates SMAC3 for automatic hyperparameter optimization of user models.   |
+
+## Installation
+
+We recommend using Anaconda/Miniconda during setup. The installation process is done in two steps:
+
+1. Install [swig](https://github.com/swig/swig) via Anaconda/Miniconda (if using the optimization module): 
+```conda install swig```
+
+2. GraphBench can then be easily installed using the Python package manager pip:
+```pip install graphbench-lib```
+
+For using the optimization module ```graphbench-lib[tuning]```, it needs to be installed instead. 
+
+Please make sure to install GraphBench before running the benchmark for the best results. 
+Alternatively, one can also install from source:
+
+```
+git clone https://github.com/graphbench/package
+cd package
+pip install -e . 
+```
+
+## Dependencies
+
+GraphBench uses several Python packages to load and process datasets. An overview of the required packages can be found in the list below:
+
+- torch
+- torch_geometric
+- networkx
+- torchmetrics
+- numpy
+- pandas
+- requests
+- tqdm
+- scikit-learn
+
+Optionally, SMAC3 is used for the optimization module. 
+
+## Usage
+
+The package can be easily used to get selected datasets from the GraphBench tasks:
+
+```
+import graphbench
+Loader = graphbench.Loader(root, dataset_name)
+datasets = Loader.load()
+```
+
+Furthermore, standardized evaluation metrics can be obtained using the following methods:
+
+```
+Evaluator = graphbench.Evaluator(metric_name)
+metric_results = Evaluator.evaluate()
+```
+
+In order to use all datasets of a domain easily, each domain corresponds to one ```dataset_name``` variable:
+
+| Domain   | Dataset_name           |                             
+| :------- | :------ |
+| Social media | socialnetwork |
+| Combinatorial optimization | co |
+| SAT solving | sat |
+| Algorithmic reasoning | algorithmic_reasoning_easy, algorithmic_reasoning_medium, algorithmic_reasoning_hard |
+| Electronic circuits | electronic_circuits |
+| Chip design | chipdesign |
+| Weather forecasting | weather |
+
+Note that for algorithmic reasoning, the download always includes all datasets for a given task. We plan to change this in the future. 
+
+For a complete list of the datasets, see the accompanying [website](https://graphbench.io) or the ```datasets.csv``` file. The corresponding metrics are in the ```master.csv``` file.
+
+## Citing GraphBench:
+
+If you use GraphBench or GraphBench datasets in your work, please cite our paper:
+```
+@article{GraphBench,
+title={GraphBench: Next-generation graph learning benchmarking}, 
+author={Timo Stoll and Chendi Qian and Ben Finkelshtein and Ali Parviz and Darius Weber and Fabrizio Frasca and Hadar Shavit and Antoine Siraudin and Arman Mielke and Marie Anastacio and Erik Müller and Maya Bechler-Speicher and Michael Bronstein and Mikhail Galkin and Holger Hoos and Mathias Niepert and Bryan Perozzi and Jan Tönshoff and Christopher Morris},
+year={2025},
+journal={arXiv preprint arXiv:2512.04475}
+}
+```
