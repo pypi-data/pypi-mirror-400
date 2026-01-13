@@ -1,0 +1,262 @@
+===================
+Group Accumulators
+===================
+
+Tests for the MongoDB aggregation group accumulators.
+
+$Id$
+
+Setup
+-----
+
+  >>> from m01.fake.accumulators import create_accumulator
+  >>> from m01.fake.accumulators import SumAccumulator
+  >>> from m01.fake.accumulators import AvgAccumulator
+  >>> from m01.fake.accumulators import MinAccumulator
+  >>> from m01.fake.accumulators import MaxAccumulator
+  >>> from m01.fake.accumulators import FirstAccumulator
+  >>> from m01.fake.accumulators import LastAccumulator
+  >>> from m01.fake.accumulators import PushAccumulator
+  >>> from m01.fake.accumulators import AddToSetAccumulator
+  >>> from m01.fake.accumulators import CountAccumulator
+
+
+$sum Accumulator
+----------------
+
+Sum numeric values:
+
+  >>> acc = SumAccumulator('$amount')
+  >>> state = acc.initialize()
+  >>> state
+  0
+
+  >>> state = acc.accumulate(state, {'amount': 100}, {})
+  >>> state = acc.accumulate(state, {'amount': 200}, {})
+  >>> state = acc.accumulate(state, {'amount': 50}, {})
+  >>> acc.finalize(state)
+  350
+
+Sum with count (sum: 1):
+
+  >>> acc = SumAccumulator(1)
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'a': 1}, {})
+  >>> state = acc.accumulate(state, {'a': 2}, {})
+  >>> state = acc.accumulate(state, {'a': 3}, {})
+  >>> acc.finalize(state)
+  3
+
+
+$avg Accumulator
+----------------
+
+Average of numeric values:
+
+  >>> acc = AvgAccumulator('$score')
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'score': 80}, {})
+  >>> state = acc.accumulate(state, {'score': 90}, {})
+  >>> state = acc.accumulate(state, {'score': 100}, {})
+  >>> acc.finalize(state)
+  90.0
+
+Average with no values:
+
+  >>> acc = AvgAccumulator('$score')
+  >>> state = acc.initialize()
+  >>> acc.finalize(state) is None
+  True
+
+
+$min Accumulator
+----------------
+
+Minimum value:
+
+  >>> acc = MinAccumulator('$price')
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'price': 50}, {})
+  >>> state = acc.accumulate(state, {'price': 30}, {})
+  >>> state = acc.accumulate(state, {'price': 80}, {})
+  >>> acc.finalize(state)
+  30
+
+
+$max Accumulator
+----------------
+
+Maximum value:
+
+  >>> acc = MaxAccumulator('$price')
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'price': 50}, {})
+  >>> state = acc.accumulate(state, {'price': 30}, {})
+  >>> state = acc.accumulate(state, {'price': 80}, {})
+  >>> acc.finalize(state)
+  80
+
+
+$first Accumulator
+------------------
+
+First value in group:
+
+  >>> acc = FirstAccumulator('$name')
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'name': 'Alice'}, {})
+  >>> state = acc.accumulate(state, {'name': 'Bob'}, {})
+  >>> state = acc.accumulate(state, {'name': 'Charlie'}, {})
+  >>> acc.finalize(state)
+  'Alice'
+
+
+$last Accumulator
+-----------------
+
+Last value in group:
+
+  >>> acc = LastAccumulator('$name')
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'name': 'Alice'}, {})
+  >>> state = acc.accumulate(state, {'name': 'Bob'}, {})
+  >>> state = acc.accumulate(state, {'name': 'Charlie'}, {})
+  >>> acc.finalize(state)
+  'Charlie'
+
+
+$push Accumulator
+-----------------
+
+Array of all values:
+
+  >>> acc = PushAccumulator('$item')
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'item': 'apple'}, {})
+  >>> state = acc.accumulate(state, {'item': 'banana'}, {})
+  >>> state = acc.accumulate(state, {'item': 'apple'}, {})
+  >>> acc.finalize(state)
+  ['apple', 'banana', 'apple']
+
+
+$addToSet Accumulator
+---------------------
+
+Array of unique values:
+
+  >>> acc = AddToSetAccumulator('$item')
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'item': 'apple'}, {})
+  >>> state = acc.accumulate(state, {'item': 'banana'}, {})
+  >>> state = acc.accumulate(state, {'item': 'apple'}, {})
+  >>> sorted(acc.finalize(state))
+  ['apple', 'banana']
+
+
+$count Accumulator
+------------------
+
+Count documents:
+
+  >>> acc = CountAccumulator(None)
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'a': 1}, {})
+  >>> state = acc.accumulate(state, {'b': 2}, {})
+  >>> state = acc.accumulate(state, {'c': 3}, {})
+  >>> acc.finalize(state)
+  3
+
+
+Factory Function
+----------------
+
+Create accumulators via factory:
+
+  >>> acc = create_accumulator('$sum', '$amount')
+  >>> isinstance(acc, SumAccumulator)
+  True
+
+  >>> acc = create_accumulator('$avg', '$score')
+  >>> isinstance(acc, AvgAccumulator)
+  True
+
+  >>> acc = create_accumulator('$push', '$item')
+  >>> isinstance(acc, PushAccumulator)
+  True
+
+
+Extended Accumulators
+---------------------
+
+$stdDevPop - Population standard deviation:
+
+  >>> from m01.fake.accumulators import StdDevPopAccumulator
+  >>> acc = StdDevPopAccumulator('$val')
+  >>> state = acc.initialize()
+  >>> for v in [2, 4, 4, 4, 5, 5, 7, 9]:
+  ...     state = acc.accumulate(state, {'val': v}, {})
+  >>> result = acc.finalize(state)
+  >>> round(result, 2)
+  2.0
+
+$stdDevSamp - Sample standard deviation:
+
+  >>> from m01.fake.accumulators import StdDevSampAccumulator
+  >>> acc = StdDevSampAccumulator('$val')
+  >>> state = acc.initialize()
+  >>> for v in [2, 4, 4, 4, 5, 5, 7, 9]:
+  ...     state = acc.accumulate(state, {'val': v}, {})
+  >>> result = acc.finalize(state)
+  >>> round(result, 2)
+  2.14
+
+$mergeObjects:
+
+  >>> from m01.fake.accumulators import MergeObjectsAccumulator
+  >>> acc = MergeObjectsAccumulator('$data')
+  >>> state = acc.initialize()
+  >>> state = acc.accumulate(state, {'data': {'a': 1}}, {})
+  >>> state = acc.accumulate(state, {'data': {'b': 2}}, {})
+  >>> state = acc.accumulate(state, {'data': {'a': 3, 'c': 3}}, {})
+  >>> sorted(acc.finalize(state).items())
+  [('a', 3), ('b', 2), ('c', 3)]
+
+$firstN:
+
+  >>> from m01.fake.accumulators import FirstNAccumulator
+  >>> acc = FirstNAccumulator('$val', 3)
+  >>> state = acc.initialize()
+  >>> for v in [1, 2, 3, 4, 5]:
+  ...     state = acc.accumulate(state, {'val': v}, {})
+  >>> acc.finalize(state)
+  [1, 2, 3]
+
+$lastN:
+
+  >>> from m01.fake.accumulators import LastNAccumulator
+  >>> acc = LastNAccumulator('$val', 3)
+  >>> state = acc.initialize()
+  >>> for v in [1, 2, 3, 4, 5]:
+  ...     state = acc.accumulate(state, {'val': v}, {})
+  >>> acc.finalize(state)
+  [3, 4, 5]
+
+$maxN:
+
+  >>> from m01.fake.accumulators import MaxNAccumulator
+  >>> acc = MaxNAccumulator('$val', 3)
+  >>> state = acc.initialize()
+  >>> for v in [5, 2, 8, 1, 9, 3]:
+  ...     state = acc.accumulate(state, {'val': v}, {})
+  >>> acc.finalize(state)
+  [9, 8, 5]
+
+$minN:
+
+  >>> from m01.fake.accumulators import MinNAccumulator
+  >>> acc = MinNAccumulator('$val', 3)
+  >>> state = acc.initialize()
+  >>> for v in [5, 2, 8, 1, 9, 3]:
+  ...     state = acc.accumulate(state, {'val': v}, {})
+  >>> acc.finalize(state)
+  [1, 2, 3]
