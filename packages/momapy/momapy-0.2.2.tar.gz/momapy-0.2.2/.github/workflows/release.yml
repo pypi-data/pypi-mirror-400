@@ -1,0 +1,154 @@
+name: Publish package to TestPyPI and PyPI
+
+on:
+  push:
+    tags:
+      - "v[0-9].*"
+
+jobs:
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+    - name: Install pypa/build
+      run: >-
+        python3 -m
+        pip install
+        build
+        --user
+    - name: Build a binary wheel and a source tarball
+      run: python3 -m build
+    - name: Store the packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  testpypi:
+    name: Publish package to TestPyPI
+    needs:
+    - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/momapy
+
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish package to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    name: >-
+      Publish package to PyPI
+    needs:
+    - testpypi
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/momapy
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish package to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub Release
+    needs:
+    - pypi
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+    - name: Extract version from tag
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*
+        generate_release_notes: true
+        body: |
+          ## Installation
+
+          Install from PyPI:
+          ```bash
+          pip install momapy==${{ env.VERSION }}
+          ```
+
+          ## Documentation
+
+          [View Documentation](https://adrienrougny.github.io/momapy/)
+
+          ## Package Links
+
+          - [PyPI Release](https://pypi.org/project/momapy/${{ env.VERSION }}/)
+          - [TestPyPI Release](https://test.pypi.org/project/momapy/${{ env.VERSION }}/)
+
+          ---
+
+  deploy-docs:
+    name: Deploy documentation
+    needs:
+    - pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Extract version from tag
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+    - name: Configure Git Credentials
+      run: |
+        git config user.name github-actions[bot]
+        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+    - uses: actions/setup-python@v5
+      with:
+        python-version: 3.x
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        key: mkdocs-material-${{ github.run_id }}
+        path: ~/.cache
+        restore-keys: |
+          mkdocs-material-
+    - name: Install MkDocs and dependencies
+      run: pip install mkdocs-material griffe-fieldz mkdocstrings-python griffe-inherited-docstrings mkdocs-jupyter mkdocs-pygments
+    - name: Deploy documentation
+      run: mkdocs gh-deploy --force
