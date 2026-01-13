@@ -1,0 +1,1 @@
+import{a0 as i,q as e,j as p}from"./index-4cf586ed.js";import{N as m}from"./NewScanButton-3ccc3031.js";import"./ConnectUtils-bd734a4a.js";function l(o){const{providers:n,yamlNode:t,tags:s,...a}=o;i(t,"tags",s),e(t,a);const r={tags:s};return p.jsx(m,{providers:n,options:r})}export{l as default};

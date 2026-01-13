@@ -1,0 +1,1 @@
+import{a1 as o,aw as u,U as p,q as l,j as x,S as c}from"./index-4cf586ed.js";function S(n){const{providers:i,yamlNode:s,schema:r,url:a,requireOperator:t,submitText:e,...m}=n;return o(s,"schema",r),o(s,"url",a),u(s,"requireOperator",t),p(s,"submitText",e),l(s,m),x.jsx(c,{providers:i,options:{schema:r,url:a,requireOperator:t,submitText:e}})}export{S as default};

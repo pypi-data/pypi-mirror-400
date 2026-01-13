@@ -1,0 +1,1 @@
+import{Z as n,U as i,q as r,j as l,_ as m}from"./index-4cf586ed.js";function p(t){const{providers:d,yamlNode:a,datacollectionid:e,fileName:s,...o}=t;return n(a,"datacollectionid",e),i(a,"fileName",s),r(a,o),l.jsx(m,{datacollectionid:e,fileName:s})}export{p as default};
