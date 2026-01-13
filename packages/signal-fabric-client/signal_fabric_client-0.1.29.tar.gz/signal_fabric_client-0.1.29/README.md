@@ -1,0 +1,234 @@
+# Signal Fabric Client
+
+Official Python client library for [Signal Fabric](https://github.com/phasequant/signal-fabric) - a lightweight handler-based framework for generating market signals on demand.
+
+## Installation
+
+```bash
+pip install signal-fabric-client
+```
+
+## Quick Start
+
+### Live Signal Request
+
+```python
+from signal_fabric import GrpcClient
+
+with GrpcClient(host='localhost', port=9090, use_tls=False) as client:
+    outcome = client.process_signal(
+        target='BTCUSDT',
+        signal_name='rsi_binance_spot',
+        signal_op='compute_rsi',
+        handler_request={'period': 14, 'timeframe': '1h'}
+    )
+
+    if outcome.has_errors():
+        print(f"Error: {outcome.errors}")
+    else:
+        print(f"RSI: {outcome.result['latest_rsi']}, Regime: {outcome.result['regime']}")
+```
+
+### Backtest Replay Mode
+
+```python
+from signal_fabric import GrpcClient
+
+with GrpcClient(host='localhost', port=9090, use_tls=False) as client:
+    # Get dataset metadata
+    metadata = client.get_backtest_metadata(
+        signal_name='rsi_binance_mf',
+        target='BTCUSDT',
+        timeframe='1h'
+    )
+
+    if metadata.has_errors():
+        print(f"Error: {metadata.errors}")
+    else:
+        print(f"Total positions: {metadata.total_positions}")
+        print(f"Start position: {metadata.start_position} (after {metadata.required_lookback} lookback)")
+
+        # Iterate through positions for walk-forward backtest
+        for position, timestamp in metadata.iter_positions():
+            outcome = client.process_signal(
+                target='BTCUSDT',
+                signal_name='rsi_binance_mf',
+                signal_op='compute_rsi',
+                handler_request={
+                    '_position': position,
+                    'timeframe': '1h',
+                    'period': 14
+                }
+            )
+
+            # Response includes both signal and candle data
+            if outcome._backtest_candle:
+                candle = outcome._backtest_candle
+                print(f"Position {position}: RSI={outcome.result['latest_rsi']}, "
+                      f"Close={candle.close}, Volume={candle.volume}")
+
+            # Evaluate outcome against known historical data...
+```
+
+## API Reference
+
+### GrpcClient
+
+#### Constructor
+
+```python
+GrpcClient(host: str = 'localhost', port: int = 50051, timeout: int = 30, ca_cert_path: str = None)
+```
+
+**Parameters:**
+- `host` (str): Server hostname or IP address (default: 'localhost')
+- `port` (int): Server port number (default: 50051)
+- `timeout` (int): Request timeout in seconds (default: 30)
+- `ca_cert_path` (str): Path to CA certificate for server verification (PEM format)
+
+#### Methods
+
+**`connect()`**
+
+Establish connection to the server.
+
+**`disconnect()`**
+
+Close the connection to the server.
+
+**`is_connected() -> bool`**
+
+Check if client is currently connected.
+
+**`process_signal(target, signal_name, signal_op, handler_request=None) -> SignalOutcome`**
+
+Process a signal request.
+
+**Parameters:**
+- `target` (str): Target for signal computation (e.g., 'BTC', 'ETH', 'AAPL')
+- `signal_name` (str): Signal handler name or profile name
+- `signal_op` (str): Operation to perform (e.g., 'analyze', 'greet')
+- `handler_request` (dict, optional): Request parameters as dictionary
+
+**Returns:** `SignalOutcome` object
+
+**`get_backtest_metadata(signal_name, target, timeframe) -> BacktestMetadata`**
+
+Get metadata for backtest dataset (positions, timestamps, lookback).
+
+**Parameters:**
+- `signal_name` (str): Signal profile name (e.g., 'rsi_binance_mf')
+- `target` (str): Target symbol (e.g., 'BTCUSDT')
+- `timeframe` (str): Timeframe string (e.g., '1h', '5m')
+
+**Returns:** `BacktestMetadata` object
+
+### SignalOutcome
+
+Result object containing the signal computation outcome.
+
+#### Attributes
+
+- `result` (str): Signal result value
+- `computation` (str): Description of computation performed
+- `computed_at` (float): Unix timestamp when computed
+- `errors` (Dict[str, str]): Error codes and messages (or empty)
+- `details` (Dict[str, str]): Additional computation details (or empty)
+- `_backtest_candle` (BacktestCandle, optional): OHLCV candle at `_position` (only present when `_position` in request)
+
+#### Methods
+
+**`has_errors() -> bool`**
+
+Returns `True` if the outcome contains errors.
+
+**`is_detailed() -> bool`**
+
+Returns `True` if the outcome has errors or additional details.
+
+### BacktestCandle
+
+OHLCV candle data returned in backtest replay mode.
+
+#### Attributes
+
+- `timestamp` (int): Unix timestamp in milliseconds
+- `open` (float): Opening price
+- `high` (float): Highest price
+- `low` (float): Lowest price
+- `close` (float): Closing price
+- `volume` (float): Trading volume
+
+### BacktestMetadata
+
+Metadata for backtest dataset, used for walk-forward backtesting.
+
+#### Attributes
+
+- `total_positions` (int): Total number of candles in dataset
+- `start_position` (int): First valid position (after handler lookback)
+- `required_lookback` (int): Handler's required lookback period
+- `timeframe_ms` (int): Timeframe interval in milliseconds
+- `first_timestamp` (int): First candle timestamp (ms since epoch)
+- `last_timestamp` (int): Last candle timestamp (ms since epoch)
+- `symbol` (str): Confirmed symbol from dataset
+- `timeframe_str` (str): Confirmed timeframe string
+- `errors` (Dict[str, str]): Error messages (or empty)
+
+#### Methods
+
+**`has_errors() -> bool`**
+
+Returns `True` if metadata request returned errors.
+
+**`get_timestamp(position: int) -> int`**
+
+Calculate timestamp for a given position using formula: `first_timestamp + (position * timeframe_ms)`
+
+**`iter_positions() -> Iterator[Tuple[int, int]]`**
+
+Iterate through valid backtest positions. Yields `(position, timestamp)` tuples.
+
+## Requirements
+
+- Python 3.8+
+- grpcio >= 1.76.0
+- protobuf >= 4.0.0
+
+## Server Setup
+
+This client requires a running Signal Fabric server. To set up the server:
+
+1. Clone the Signal Fabric repository:
+   ```bash
+   git clone https://github.com/phasequant/signal-fabric.git
+   cd signal-fabric
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Start the server:
+   ```bash
+   python src/server/main.py --config config.yaml
+   ```
+
+## Version
+
+Current version: **0.1.29**
+
+## License
+
+See LICENSE file for details.
+
+## Links
+
+- [Signal Fabric Repository](https://github.com/phasequant/signal-fabric)
+- [Documentation](https://github.com/phasequant/signal-fabric/docs)
+- [Issue Tracker](https://github.com/phasequant/signal-fabric/issues)
+
+## Support
+
+For questions, issues, or contributions, please visit the [GitHub repository](https://github.com/phasequant/signal-fabric).
