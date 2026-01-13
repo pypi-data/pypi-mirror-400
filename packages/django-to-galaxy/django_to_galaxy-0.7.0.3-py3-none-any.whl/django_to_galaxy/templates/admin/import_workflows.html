@@ -1,0 +1,89 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}Import workflows{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="/admin/">Home</a>
+    >
+    <a href="/admin/django_to_galaxy/">Django to Galaxy</a>
+    >
+    <a href="/admin/django_to_galaxy/galaxyuser/">Galaxy users</a>
+    > Import workflows
+</div>
+{% endblock %}
+
+{% block content %}
+
+<h1>Import workflows</h1>
+<div>
+    <ul>
+        <li><b>User:</b> {{ galaxy_user.email }}</li>
+        <li><b>Galaxy Instance:</b> {{ galaxy_user.galaxy_instance.url }}</li>
+    </ul>
+</div>
+{% if existing_workflows %}
+<div>
+    <h2>
+        Already present on the application:
+    </h2>
+    <table>
+        <tr>
+            <th>Name</th>
+            <th>Galaxy ID</th>
+            <th>Annotation</th>
+            <th>Published</th>
+            <th>Tags</th>
+        </tr>
+        {% for wf in existing_workflows %}
+        <tr>
+            <td> {{ wf.name }}</td>
+            <td> {{ wf.galaxy_id }}</td>
+            <td> {{ wf.annotation }}</td>
+            <td> {{ wf.published }}</td>
+            <td>
+                {% for tag in wf.tags.all %}
+                {{ tag.label }}
+                {% endfor %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+<div>
+    <h2>List of available workflow(s):</h2>
+
+    <p>Please select the workflow(s) you would like to add to the application from the following list:</p>
+
+    <form method="post">
+        {% csrf_token %}
+        <table>
+            <tr>
+                <th>Import</th>
+                <th>Name</th>
+                <th>Galaxy ID</th>
+                <th>Annotation</th>
+                <th>Published</th>
+                <th>Tags</th>
+            </tr>
+            {% for wf, tags in new_workflows %}
+            <tr>
+                <td> <input type="checkbox" name="save_to_app" value="{{wf.galaxy_id}}" /></td>
+                <td> {{ wf.name }}</td>
+                <td> {{ wf.galaxy_id }}</td>
+                <td> {{ wf.annotation }}</td>
+                <td> {{ wf.published }}</td>
+                <td>
+                    {% for tag in tags %}
+                    {{ tag }}
+                    {% endfor %}
+                </td>
+
+            </tr>
+            {% endfor %}
+        </table>
+        <input type="submit" name="apply" value="Import selected workflow(s)" />
+    </form>
+</div>
+{% endblock %}
