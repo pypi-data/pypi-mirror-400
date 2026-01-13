@@ -1,0 +1,39 @@
+# pyintelliclima
+
+<div align="center">
+
+[![Python versions](https://img.shields.io/pypi/pyversions/pyintelliclima)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/pyintelliclima.svg)](https://pypi.org/project/pyintelliclima/)
+[![Status](https://img.shields.io/pypi/status/pyintelliclima.svg)](https://pypi.org/project/pyintelliclima/)
+[![License](https://img.shields.io/pypi/l/pyintelliclima)](https://github.com/dvdinth/pyintelliclima/blob/main/LICENSE)
+
+</div>
+
+* * *
+
+This is a python module for communicating with the IntelliClima ECOCOMFORT 2.0 devices. 
+Its main use is for my corresponding WIP HomeAssistant integration which I hope to release soon.
+
+It can be extended to include other devices from IntelliClima in the future, but I only own the 
+ECOCOMFORT, so I cannot add any others. Feel free to submit a PR for additional devices.
+
+This API was made by reverse engineering the cloud API, through the use of an android emulator and proxy to catch the Intelliclima+ app traffic. As such, no public API exists and the functionality of this module breaks if the API changes.
+
+## Credits
+
+This was highly inspired by: https://github.com/ruizmarc/homebridge-intelliclima
+
+Partial credit for the reverse engineering process of the API goes to them.
+
+* * *
+
+## Project Docs
+
+For how to install uv and Python, see [installation.md](installation.md).
+
+For development workflows, see [development.md](development.md).
+
+* * *
+
+*This project was built from
+[simple-modern-uv](https://github.com/jlevy/simple-modern-uv).*
