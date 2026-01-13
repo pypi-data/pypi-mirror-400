@@ -1,0 +1,61 @@
+import argparse
+
+from enapter import cli
+
+from .device_assign_blueprint_command import DeviceAssignBlueprintCommand
+from .device_create_lua_command import DeviceCreateLuaCommand
+from .device_create_standalone_command import DeviceCreateStandaloneCommand
+from .device_create_vucm_command import DeviceCreateVUCMCommand
+from .device_delete_command import DeviceDeleteCommand
+from .device_generate_communication_config_command import (
+    DeviceGenerateCommunicationConfigCommand,
+)
+from .device_get_command import DeviceGetCommand
+from .device_list_command import DeviceListCommand
+from .device_update_command import DeviceUpdateCommand
+
+
+class DeviceCommand(cli.Command):
+
+    @staticmethod
+    def register(parent: cli.Subparsers) -> None:
+        parser = parent.add_parser(
+            "device", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
+        subparsers = parser.add_subparsers(dest="device_command", required=True)
+        for command in [
+            DeviceAssignBlueprintCommand,
+            DeviceCreateStandaloneCommand,
+            DeviceCreateVUCMCommand,
+            DeviceDeleteCommand,
+            DeviceCreateLuaCommand,
+            DeviceGenerateCommunicationConfigCommand,
+            DeviceGetCommand,
+            DeviceListCommand,
+            DeviceUpdateCommand,
+        ]:
+            command.register(subparsers)
+
+    @staticmethod
+    async def run(args: argparse.Namespace) -> None:
+        match args.device_command:
+            case "create-lua":
+                await DeviceCreateLuaCommand.run(args)
+            case "assign-blueprint":
+                await DeviceAssignBlueprintCommand.run(args)
+            case "create-standalone":
+                await DeviceCreateStandaloneCommand.run(args)
+            case "delete":
+                await DeviceDeleteCommand.run(args)
+            case "generate-communication-config":
+                await DeviceGenerateCommunicationConfigCommand.run(args)
+            case "get":
+                await DeviceGetCommand.run(args)
+            case "list":
+                await DeviceListCommand.run(args)
+            case "update":
+                await DeviceUpdateCommand.run(args)
+            case "create-vucm":
+                await DeviceCreateVUCMCommand.run(args)
+            case _:
+                raise NotImplementedError(args.device_command)
