@@ -1,0 +1,940 @@
+============================================================
+DOGS VS CATS: Multi-Model Layer & Classifier Experiment
+============================================================
+Started at: 2026-01-05 06:57:18
+
+Models to compare:
+  - Llama-3.1-405B: meta-llama/Llama-3.1-405B (remote (NDIF))
+
+────────────────────────────────────────────────────────────
+Loading Data:
+────────────────────────────────────────────────────────────
+  Source: /home/toast/projects/mech_interp/lmprobe/prompts
+  Train: 99 dogs, 98 cats
+  Test:  27 dogs, 26 cats
+  Base output: /home/toast/projects/mech_interp/lmprobe/experiments/experiment_results
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+MEMORY-SAFE MODE for Llama-3.1-405B
+  Using 8 layers instead of 16
+  Batch size: 4
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+============================================================
+RUNNING EXPERIMENT: Llama-3.1-405B
+============================================================
+  Model ID: meta-llama/Llama-3.1-405B
+  Remote:   True
+  Device:   auto
+
+────────────────────────────────────────────────────────────
+Resolving layer configuration...
+────────────────────────────────────────────────────────────
+  Fetching model config to determine layer count...
+  Model has 126 layers
+  Fractional positions: ['0.00', '0.14', '0.29', '0.43', '0.57', '0.71', '0.86', '1.00']
+  Resolved to layers:   [0, 17, 35, 53, 71, 89, 107, 125]
+
+────────────────────────────────────────────────────────────
+Configuration:
+────────────────────────────────────────────────────────────
+  Model:         meta-llama/Llama-3.1-405B
+  Num layers:    126
+  Candidates:    [0, 17, 35, 53, 71, 89, 107, 125]
+  Classifiers:   ('mass_mean', 'lda', 'logistic_regression', 'ridge')
+  Normalization: ('per_neuron', 'per_layer')
+  Fast Auto k:   3
+  Remote:        True
+
+  Planned work:
+    - Phase 1 (multi-layer): 16 trainings (warms cache)
+    - Phase 2 (single-layer): 32 trainings (cache hits)
+    - Total: 48 trainings
+  Output: /home/toast/projects/mech_interp/lmprobe/experiments/experiment_results/llama-3.1-405b
+
+────────────────────────────────────────────────────────────
+Starting Experiments for Llama-3.1-405B...
+────────────────────────────────────────────────────────────
+  Initial Memory: 8.2GB used / 31.2GB (26%) [OK]
+
+============================================================
+BASELINES (Text-Only)
+============================================================
+Testing 4 methods: ('bow', 'tfidf', 'random', 'majority')
+
+  bow              67.9% [▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░] (0.01s)
+    Top positive: barking, park, for
+    Top negative: hiding, grooming, box
+
+  tfidf            75.5% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░] (0.02s)
+    Top positive: barking, park, for
+    Top negative: box, hiding, grooming
+
+  random           45.3% [▓▓▓▓▓▓▓▓▓░░░░░░░░░░░] (0.00s)
+
+  majority         50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (0.00s)
+
+────────────────────────────────────────────────────────────
+  Best baseline: tfidf @ 75.5%
+────────────────────────────────────────────────────────────
+
+============================================================
+PHASE 1: Multi-Layer Strategies (warms cache)
+============================================================
+Extracting all 8 candidate layers: [0, 17, 35, 53, 71, 89, 107, 125]
+Testing 2 strategies x 2 normalizations x 4 classifiers
+
+────────────────────────────────────────────────────────────
+Classifier: mass_mean (1/4)
+────────────────────────────────────────────────────────────
+  [per_neuron]   All Layers (8 layers) (extracting & caching)... Extracting activations:   0%|          | 0/14 [00:00<?, ?batch/s][2026-01-05 06:57:46] [fc9f1380-bfdd-448b-9dba-eb5cb27e6e06] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:57:46] [fc9f1380-bfdd-448b-9dba-eb5cb27e6e06] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:57:46] [fc9f1380-bfdd-448b-9dba-eb5cb27e6e06] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:57:47] [fc9f1380-bfdd-448b-9dba-eb5cb27e6e06] RUNNING    : Your job has started running.
+[2026-01-05 06:57:48] [fc9f1380-bfdd-448b-9dba-eb5cb27e6e06] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/15.7M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/15.7M [00:00<01:37, 160kB/s][A
+Downloading result:   2%|▏         | 262k/15.7M [00:01<01:19, 194kB/s][A
+Downloading result:   4%|▍         | 655k/15.7M [00:01<00:27, 542kB/s][A
+Downloading result:   5%|▍         | 786k/15.7M [00:01<00:30, 485kB/s][A
+Downloading result:   9%|▉         | 1.44M/15.7M [00:02<00:12, 1.18MB/s][A
+Downloading result:  11%|█         | 1.70M/15.7M [00:02<00:11, 1.24MB/s][A
+Downloading result:  13%|█▎        | 2.10M/15.7M [00:02<00:08, 1.64MB/s][A
+Downloading result:  16%|█▌        | 2.49M/15.7M [00:02<00:06, 2.01MB/s][A
+Downloading result:  18%|█▊        | 2.88M/15.7M [00:02<00:06, 2.10MB/s][A
+Downloading result:  21%|██        | 3.28M/15.7M [00:02<00:05, 2.42MB/s][A
+Downloading result:  24%|██▍       | 3.80M/15.7M [00:02<00:03, 3.02MB/s][A
+Downloading result:  27%|██▋       | 4.33M/15.7M [00:02<00:03, 3.33MB/s][A
+Downloading result:  31%|███       | 4.85M/15.7M [00:03<00:05, 1.83MB/s][A
+Downloading result:  36%|███▌      | 5.64M/15.7M [00:03<00:05, 1.91MB/s][A
+Downloading result:  52%|█████▏    | 8.26M/15.7M [00:04<00:01, 3.98MB/s][A
+Downloading result:  56%|█████▌    | 8.78M/15.7M [00:04<00:02, 2.43MB/s][A
+Downloading result:  58%|█████▊    | 9.18M/15.7M [00:04<00:02, 2.54MB/s][A
+Downloading result:  61%|██████    | 9.57M/15.7M [00:05<00:02, 2.38MB/s][A
+Downloading result:  63%|██████▎   | 9.96M/15.7M [00:05<00:02, 2.37MB/s][A
+Downloading result:  74%|███████▍  | 11.7M/15.7M [00:05<00:00, 4.33MB/s][A
+Downloading result:  78%|███████▊  | 12.3M/15.7M [00:05<00:00, 3.54MB/s][A
+Downloading result:  82%|████████▏ | 12.8M/15.7M [00:06<00:00, 3.20MB/s][A
+Downloading result:  85%|████████▍ | 13.4M/15.7M [00:06<00:00, 3.25MB/s][A
+Downloading result:  87%|████████▋ | 13.8M/15.7M [00:06<00:00, 3.35MB/s][A
+Downloading result:  90%|████████▉ | 14.2M/15.7M [00:06<00:00, 3.41MB/s][A
+Downloading result:  92%|█████████▏| 14.5M/15.7M [00:06<00:00, 1.84MB/s][A
+Downloading result: 100%|█████████▉| 15.7M/15.7M [00:07<00:00, 2.82MB/s][ADownloading result: 100%|██████████| 15.7M/15.7M [00:07<00:00, 2.21MB/s]
+Extracting activations:   7%|▋         | 1/14 [00:13<02:58, 13.69s/batch][2026-01-05 06:58:00] [bdfb1b49-b6e8-476a-9171-87eba5ad6cc1] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:58:00] [bdfb1b49-b6e8-476a-9171-87eba5ad6cc1] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:58:00] [bdfb1b49-b6e8-476a-9171-87eba5ad6cc1] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:58:01] [bdfb1b49-b6e8-476a-9171-87eba5ad6cc1] RUNNING    : Your job has started running.
+[2026-01-05 06:58:02] [bdfb1b49-b6e8-476a-9171-87eba5ad6cc1] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/14.7M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/14.7M [00:02<04:15, 56.9kB/s][A
+Downloading result:   2%|▏         | 262k/14.7M [00:03<02:54, 82.6kB/s][A
+Downloading result:   3%|▎         | 393k/14.7M [00:04<02:20, 102kB/s] [A
+Downloading result:   4%|▎         | 524k/14.7M [00:05<01:55, 122kB/s][A
+Downloading result:   4%|▍         | 655k/14.7M [00:05<01:31, 154kB/s][A
+Downloading result:   5%|▌         | 786k/14.7M [00:05<01:14, 186kB/s][A
+Downloading result:   6%|▌         | 918k/14.7M [00:06<00:59, 230kB/s][A
+Downloading result:   7%|▋         | 1.05M/14.7M [00:06<00:49, 273kB/s][A
+Downloading result:   8%|▊         | 1.18M/14.7M [00:06<00:40, 330kB/s][A
+Downloading result:   9%|▉         | 1.31M/14.7M [00:06<00:34, 383kB/s][A
+Downloading result:  10%|▉         | 1.44M/14.7M [00:07<00:29, 454kB/s][A
+Downloading result:  11%|█         | 1.57M/14.7M [00:07<00:25, 518kB/s][A
+Downloading result:  12%|█▏        | 1.70M/14.7M [00:07<00:22, 589kB/s][A
+Downloading result:  12%|█▏        | 1.84M/14.7M [00:07<00:19, 668kB/s][A
+Downloading result:  13%|█▎        | 1.97M/14.7M [00:07<00:17, 727kB/s][A
+Downloading result:  14%|█▍        | 2.10M/14.7M [00:07<00:15, 830kB/s][A
+Downloading result:  15%|█▌        | 2.23M/14.7M [00:07<00:13, 902kB/s][A
+Downloading result:  16%|█▌        | 2.36M/14.7M [00:08<00:12, 990kB/s][A
+Downloading result:  17%|█▋        | 2.49M/14.7M [00:08<00:12, 982kB/s][A
+Downloading result:  18%|█▊        | 2.62M/14.7M [00:08<00:11, 1.02MB/s][A
+Downloading result:  19%|█▊        | 2.75M/14.7M [00:08<00:11, 1.04MB/s][A
+Downloading result:  20%|█▉        | 2.88M/14.7M [00:08<00:10, 1.09MB/s][A
+Downloading result:  21%|██        | 3.01M/14.7M [00:08<00:10, 1.14MB/s][A
+Downloading result:  21%|██▏       | 3.15M/14.7M [00:08<00:09, 1.16MB/s][A
+Downloading result:  22%|██▏       | 3.28M/14.7M [00:08<00:09, 1.16MB/s][A
+Downloading result:  23%|██▎       | 3.41M/14.7M [00:08<00:09, 1.17MB/s][A
+Downloading result:  24%|██▍       | 3.54M/14.7M [00:09<00:09, 1.17MB/s][A
+Downloading result:  25%|██▍       | 3.67M/14.7M [00:09<00:09, 1.18MB/s][A
+Downloading result:  26%|██▌       | 3.80M/14.7M [00:09<00:09, 1.18MB/s][A
+Downloading result:  27%|██▋       | 3.93M/14.7M [00:09<00:09, 1.18MB/s][A
+Downloading result:  28%|██▊       | 4.06M/14.7M [00:09<00:09, 1.17MB/s][A
+Downloading result:  29%|██▉       | 4.33M/14.7M [00:09<00:08, 1.23MB/s][A
+Downloading result:  31%|███       | 4.59M/14.7M [00:09<00:07, 1.28MB/s][A
+Downloading result:  33%|███▎      | 4.85M/14.7M [00:10<00:07, 1.32MB/s][A
+Downloading result:  35%|███▍      | 5.11M/14.7M [00:10<00:06, 1.38MB/s][A
+Downloading result:  37%|███▋      | 5.37M/14.7M [00:10<00:06, 1.40MB/s][A
+Downloading result:  38%|███▊      | 5.64M/14.7M [00:10<00:06, 1.42MB/s][A
+Downloading result:  40%|████      | 5.90M/14.7M [00:10<00:06, 1.43MB/s][A
+Downloading result:  42%|████▏     | 6.16M/14.7M [00:10<00:05, 1.45MB/s][A
+Downloading result:  44%|████▎     | 6.42M/14.7M [00:11<00:05, 1.44MB/s][A
+Downloading result:  46%|████▌     | 6.68M/14.7M [00:11<00:05, 1.46MB/s][A
+Downloading result:  47%|████▋     | 6.95M/14.7M [00:11<00:05, 1.55MB/s][A
+Downloading result:  49%|████▉     | 7.21M/14.7M [00:11<00:04, 1.57MB/s][A
+Downloading result:  51%|█████     | 7.47M/14.7M [00:11<00:04, 1.58MB/s][A
+Downloading result:  53%|█████▎    | 7.73M/14.7M [00:11<00:04, 1.63MB/s][A
+Downloading result:  54%|█████▍    | 8.00M/14.7M [00:12<00:03, 1.69MB/s][A
+Downloading result:  56%|█████▌    | 8.26M/14.7M [00:12<00:03, 1.73MB/s][A
+Downloading result:  58%|█████▊    | 8.52M/14.7M [00:12<00:03, 1.76MB/s][A
+Downloading result:  60%|█████▉    | 8.78M/14.7M [00:12<00:03, 1.77MB/s][A
+Downloading result:  62%|██████▏   | 9.04M/14.7M [00:12<00:03, 1.76MB/s][A
+Downloading result:  63%|██████▎   | 9.31M/14.7M [00:12<00:02, 1.80MB/s][A
+Downloading result:  65%|██████▌   | 9.57M/14.7M [00:12<00:02, 1.81MB/s][A
+Downloading result:  67%|██████▋   | 9.83M/14.7M [00:13<00:02, 1.78MB/s][A
+Downloading result:  69%|██████▊   | 10.1M/14.7M [00:13<00:02, 1.89MB/s][A
+Downloading result:  71%|███████   | 10.4M/14.7M [00:13<00:02, 2.05MB/s][A
+Downloading result:  72%|███████▏  | 10.6M/14.7M [00:13<00:02, 1.90MB/s][A
+Downloading result:  74%|███████▍  | 10.9M/14.7M [00:13<00:01, 1.96MB/s][A
+Downloading result:  76%|███████▌  | 11.1M/14.7M [00:13<00:01, 2.04MB/s][A
+Downloading result:  78%|███████▊  | 11.4M/14.7M [00:13<00:01, 2.12MB/s][A
+Downloading result:  79%|███████▉  | 11.7M/14.7M [00:13<00:01, 2.17MB/s][A
+Downloading result:  81%|████████  | 11.9M/14.7M [00:14<00:01, 2.19MB/s][A
+Downloading result:  83%|████████▎ | 12.2M/14.7M [00:14<00:01, 2.21MB/s][A
+Downloading result:  85%|████████▍ | 12.5M/14.7M [00:14<00:01, 2.23MB/s][A
+Downloading result:  87%|████████▋ | 12.7M/14.7M [00:14<00:00, 2.20MB/s][A
+Downloading result:  88%|████████▊ | 13.0M/14.7M [00:14<00:00, 2.24MB/s][A
+Downloading result:  90%|█████████ | 13.2M/14.7M [00:14<00:00, 2.25MB/s][A
+Downloading result:  92%|█████████▏| 13.5M/14.7M [00:14<00:00, 2.25MB/s][A
+Downloading result:  94%|█████████▎| 13.8M/14.7M [00:14<00:00, 2.24MB/s][A
+Downloading result:  96%|█████████▌| 14.0M/14.7M [00:15<00:00, 2.30MB/s][A
+Downloading result:  98%|█████████▊| 14.4M/14.7M [00:15<00:00, 2.51MB/s][A
+Downloading result: 100%|█████████▉| 14.7M/14.7M [00:15<00:00, 2.45MB/s][ADownloading result: 100%|██████████| 14.7M/14.7M [00:15<00:00, 962kB/s] 
+Extracting activations:  14%|█▍        | 2/14 [00:36<03:49, 19.17s/batch][2026-01-05 06:58:23] [89ce2bff-a31f-42cc-b134-ba0ac4c36e5f] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:58:23] [89ce2bff-a31f-42cc-b134-ba0ac4c36e5f] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:58:23] [89ce2bff-a31f-42cc-b134-ba0ac4c36e5f] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:58:24] [89ce2bff-a31f-42cc-b134-ba0ac4c36e5f] RUNNING    : Your job has started running.
+[2026-01-05 06:58:25] [89ce2bff-a31f-42cc-b134-ba0ac4c36e5f] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/12.6M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/12.6M [00:00<01:09, 179kB/s][A
+Downloading result:   2%|▏         | 262k/12.6M [00:00<00:40, 303kB/s][A
+Downloading result:   3%|▎         | 393k/12.6M [00:01<00:27, 448kB/s][A
+Downloading result:   5%|▌         | 655k/12.6M [00:01<00:16, 741kB/s][A
+Downloading result:   7%|▋         | 918k/12.6M [00:01<00:10, 1.07MB/s][A
+Downloading result:  10%|█         | 1.31M/12.6M [00:01<00:07, 1.56MB/s][A
+Downloading result:  15%|█▍        | 1.84M/12.6M [00:01<00:05, 2.14MB/s][A
+Downloading result:  19%|█▊        | 2.36M/12.6M [00:01<00:03, 2.76MB/s][A
+Downloading result:  24%|██▍       | 3.01M/12.6M [00:01<00:02, 3.63MB/s][A
+Downloading result:  29%|██▉       | 3.67M/12.6M [00:01<00:02, 4.33MB/s][A
+Downloading result:  34%|███▍      | 4.33M/12.6M [00:02<00:01, 4.85MB/s][A
+Downloading result:  40%|███▉      | 4.98M/12.6M [00:02<00:01, 4.74MB/s][A
+Downloading result:  44%|████▎     | 5.51M/12.6M [00:02<00:02, 2.39MB/s][A
+Downloading result:  54%|█████▍    | 6.82M/12.6M [00:02<00:01, 4.01MB/s][A
+Downloading result:  72%|███████▏  | 9.04M/12.6M [00:03<00:00, 4.94MB/s][A
+Downloading result:  77%|███████▋  | 9.70M/12.6M [00:03<00:00, 5.15MB/s][A
+Downloading result:  82%|████████▏ | 10.4M/12.6M [00:03<00:00, 5.33MB/s][A
+Downloading result:  87%|████████▋ | 11.0M/12.6M [00:03<00:00, 3.38MB/s][A
+Downloading result:  95%|█████████▍| 11.9M/12.6M [00:03<00:00, 4.21MB/s][A
+Downloading result: 100%|█████████▉| 12.6M/12.6M [00:04<00:00, 3.57MB/s][ADownloading result: 100%|██████████| 12.6M/12.6M [00:04<00:00, 3.00MB/s]
+Extracting activations:  21%|██▏       | 3/14 [00:47<02:48, 15.30s/batch][2026-01-05 06:58:34] [d60b27aa-0c78-4771-833e-765f3eb0916a] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:58:34] [d60b27aa-0c78-4771-833e-765f3eb0916a] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:58:34] [d60b27aa-0c78-4771-833e-765f3eb0916a] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:58:34] [d60b27aa-0c78-4771-833e-765f3eb0916a] RUNNING    : Your job has started running.
+[2026-01-05 06:58:35] [d60b27aa-0c78-4771-833e-765f3eb0916a] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/13.6M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/13.6M [00:00<01:13, 184kB/s][A
+Downloading result:   2%|▏         | 262k/13.6M [00:00<00:42, 315kB/s][A
+Downloading result:   3%|▎         | 393k/13.6M [00:01<00:29, 444kB/s][A
+Downloading result:   4%|▍         | 524k/13.6M [00:01<00:21, 598kB/s][A
+Downloading result:   6%|▌         | 786k/13.6M [00:01<00:13, 956kB/s][A
+Downloading result:   8%|▊         | 1.05M/13.6M [00:01<00:09, 1.31MB/s][A
+Downloading result:  11%|█         | 1.44M/13.6M [00:01<00:06, 1.80MB/s][A
+Downloading result:  13%|█▎        | 1.84M/13.6M [00:01<00:05, 2.31MB/s][A
+Downloading result:  17%|█▋        | 2.36M/13.6M [00:01<00:03, 2.92MB/s][A
+Downloading result:  20%|██        | 2.75M/13.6M [00:01<00:03, 2.99MB/s][A
+Downloading result:  24%|██▍       | 3.28M/13.6M [00:02<00:03, 3.22MB/s][A
+Downloading result:  28%|██▊       | 3.80M/13.6M [00:02<00:02, 3.59MB/s][A
+Downloading result:  31%|███       | 4.19M/13.6M [00:02<00:02, 3.55MB/s][A
+Downloading result:  34%|███▎      | 4.59M/13.6M [00:02<00:02, 3.29MB/s][A
+Downloading result:  37%|███▋      | 4.98M/13.6M [00:02<00:04, 1.87MB/s][A
+Downloading result:  42%|████▏     | 5.77M/13.6M [00:02<00:02, 2.78MB/s][A
+Downloading result:  49%|████▉     | 6.68M/13.6M [00:03<00:01, 3.92MB/s][A
+Downloading result:  54%|█████▍    | 7.34M/13.6M [00:03<00:01, 4.04MB/s][A
+Downloading result:  61%|██████    | 8.26M/13.6M [00:03<00:01, 5.07MB/s][A
+Downloading result:  65%|██████▌   | 8.91M/13.6M [00:03<00:00, 4.96MB/s][A
+Downloading result:  70%|███████   | 9.57M/13.6M [00:03<00:00, 5.13MB/s][A
+Downloading result:  75%|███████▍  | 10.2M/13.6M [00:03<00:00, 5.28MB/s][A
+Downloading result:  80%|███████▉  | 10.9M/13.6M [00:04<00:00, 2.81MB/s][A
+Downloading result:  92%|█████████▏| 12.6M/13.6M [00:04<00:00, 4.95MB/s][A
+Downloading result:  99%|█████████▉| 13.5M/13.6M [00:04<00:00, 4.43MB/s][ADownloading result: 100%|██████████| 13.6M/13.6M [00:04<00:00, 2.97MB/s]
+Extracting activations:  29%|██▊       | 4/14 [00:58<02:17, 13.79s/batch][2026-01-05 06:58:45] [497d820c-61e3-462a-be06-45243c6752d9] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:58:45] [497d820c-61e3-462a-be06-45243c6752d9] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:58:45] [497d820c-61e3-462a-be06-45243c6752d9] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:58:46] [497d820c-61e3-462a-be06-45243c6752d9] RUNNING    : Your job has started running.
+[2026-01-05 06:58:47] [497d820c-61e3-462a-be06-45243c6752d9] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/14.7M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/14.7M [00:00<01:22, 176kB/s][A
+Downloading result:   2%|▏         | 262k/14.7M [00:00<00:48, 297kB/s][A
+Downloading result:   3%|▎         | 393k/14.7M [00:01<00:32, 436kB/s][A
+Downloading result:   4%|▍         | 655k/14.7M [00:01<00:19, 724kB/s][A
+Downloading result:   6%|▌         | 918k/14.7M [00:01<00:13, 1.06MB/s][A
+Downloading result:   8%|▊         | 1.18M/14.7M [00:01<00:09, 1.36MB/s][A
+Downloading result:  11%|█         | 1.57M/14.7M [00:01<00:06, 1.91MB/s][A
+Downloading result:  15%|█▌        | 2.23M/14.7M [00:01<00:04, 2.94MB/s][A
+Downloading result:  19%|█▊        | 2.75M/14.7M [00:01<00:03, 3.41MB/s][A
+Downloading result:  24%|██▍       | 3.54M/14.7M [00:01<00:02, 3.96MB/s][A
+Downloading result:  28%|██▊       | 4.06M/14.7M [00:02<00:02, 4.10MB/s][A
+Downloading result:  31%|███       | 4.59M/14.7M [00:02<00:02, 4.15MB/s][A
+Downloading result:  35%|███▍      | 5.11M/14.7M [00:02<00:04, 2.26MB/s][A
+Downloading result:  46%|████▌     | 6.68M/14.7M [00:02<00:01, 4.27MB/s][A
+Downloading result:  56%|█████▌    | 8.26M/14.7M [00:03<00:01, 5.27MB/s][A
+Downloading result:  62%|██████▏   | 9.04M/14.7M [00:03<00:01, 5.17MB/s][A
+Downloading result:  66%|██████▌   | 9.70M/14.7M [00:03<00:00, 5.15MB/s][A
+Downloading result:  71%|███████   | 10.4M/14.7M [00:03<00:00, 5.15MB/s][A
+Downloading result:  75%|███████▍  | 11.0M/14.7M [00:03<00:01, 3.14MB/s][A
+Downloading result:  81%|████████  | 11.9M/14.7M [00:04<00:00, 3.91MB/s][A
+Downloading result:  90%|█████████ | 13.2M/14.7M [00:04<00:00, 5.39MB/s][A
+Downloading result:  96%|█████████▌| 14.0M/14.7M [00:04<00:00, 5.17MB/s][A
+Downloading result: 100%|█████████▉| 14.7M/14.7M [00:04<00:00, 5.07MB/s][ADownloading result: 100%|██████████| 14.7M/14.7M [00:04<00:00, 3.31MB/s]
+Extracting activations:  36%|███▌      | 5/14 [01:09<01:54, 12.75s/batch][2026-01-05 06:58:56] [df89dcd5-f5cd-4698-90d3-4f813d35fe08] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:58:56] [df89dcd5-f5cd-4698-90d3-4f813d35fe08] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:58:56] [df89dcd5-f5cd-4698-90d3-4f813d35fe08] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:58:57] [df89dcd5-f5cd-4698-90d3-4f813d35fe08] RUNNING    : Your job has started running.
+[2026-01-05 06:58:58] [df89dcd5-f5cd-4698-90d3-4f813d35fe08] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/12.6M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/12.6M [00:00<01:12, 173kB/s][A
+Downloading result:   2%|▏         | 262k/12.6M [00:00<00:42, 293kB/s][A
+Downloading result:   3%|▎         | 393k/12.6M [00:01<00:28, 435kB/s][A
+Downloading result:   4%|▍         | 524k/12.6M [00:01<00:21, 560kB/s][A
+Downloading result:   6%|▌         | 786k/12.6M [00:01<00:13, 886kB/s][A
+Downloading result:   8%|▊         | 1.05M/12.6M [00:01<00:09, 1.21MB/s][A
+Downloading result:  11%|█▏        | 1.44M/12.6M [00:01<00:06, 1.77MB/s][A
+Downloading result:  16%|█▌        | 1.97M/12.6M [00:01<00:04, 2.51MB/s][A
+Downloading result:  21%|██        | 2.62M/12.6M [00:01<00:03, 3.29MB/s][A
+Downloading result:  25%|██▍       | 3.15M/12.6M [00:01<00:02, 3.71MB/s][A
+Downloading result:  30%|███       | 3.80M/12.6M [00:02<00:02, 4.27MB/s][A
+Downloading result:  34%|███▍      | 4.33M/12.6M [00:02<00:01, 4.52MB/s][A
+Downloading result:  39%|███▊      | 4.85M/12.6M [00:02<00:02, 2.87MB/s][A
+Downloading result:  44%|████▎     | 5.51M/12.6M [00:02<00:02, 3.47MB/s][A
+Downloading result:  49%|████▉     | 6.16M/12.6M [00:02<00:01, 4.08MB/s][A
+Downloading result:  53%|█████▎    | 6.68M/12.6M [00:03<00:02, 2.16MB/s][A
+Downloading result:  61%|██████▏   | 7.73M/12.6M [00:03<00:01, 3.28MB/s][A
+Downloading result:  78%|███████▊  | 9.83M/12.6M [00:03<00:00, 4.63MB/s][A
+Downloading result:  83%|████████▎ | 10.5M/12.6M [00:03<00:00, 4.58MB/s][A
+Downloading result:  89%|████████▊ | 11.1M/12.6M [00:03<00:00, 4.81MB/s][A
+Downloading result:  94%|█████████▎| 11.8M/12.6M [00:04<00:00, 3.40MB/s][A
+Downloading result:  98%|█████████▊| 12.3M/12.6M [00:04<00:00, 3.22MB/s][ADownloading result: 100%|██████████| 12.6M/12.6M [00:04<00:00, 2.78MB/s]
+Extracting activations:  43%|████▎     | 6/14 [01:20<01:37, 12.20s/batch][2026-01-05 06:59:07] [764c089f-36b9-4354-99fb-d5587de5a5ad] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:59:07] [764c089f-36b9-4354-99fb-d5587de5a5ad] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:59:08] [764c089f-36b9-4354-99fb-d5587de5a5ad] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:59:08] [764c089f-36b9-4354-99fb-d5587de5a5ad] RUNNING    : Your job has started running.
+[2026-01-05 06:59:09] [764c089f-36b9-4354-99fb-d5587de5a5ad] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/13.6M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/13.6M [00:00<01:19, 170kB/s][A
+Downloading result:   2%|▏         | 262k/13.6M [00:01<00:46, 286kB/s][A
+Downloading result:   3%|▎         | 393k/13.6M [00:01<00:30, 430kB/s][A
+Downloading result:   4%|▍         | 524k/13.6M [00:01<00:22, 574kB/s][A
+Downloading result:   6%|▌         | 786k/13.6M [00:01<00:14, 913kB/s][A
+Downloading result:   9%|▊         | 1.18M/13.6M [00:01<00:08, 1.45MB/s][A
+Downloading result:  12%|█▏        | 1.57M/13.6M [00:01<00:06, 1.97MB/s][A
+Downloading result:  15%|█▌        | 2.10M/13.6M [00:01<00:04, 2.61MB/s][A
+Downloading result:  20%|██        | 2.75M/13.6M [00:01<00:03, 3.55MB/s][A
+Downloading result:  25%|██▍       | 3.41M/13.6M [00:01<00:02, 4.21MB/s][A
+Downloading result:  30%|██▉       | 4.06M/13.6M [00:02<00:01, 4.79MB/s][A
+Downloading result:  36%|███▌      | 4.85M/13.6M [00:02<00:01, 5.38MB/s][A
+Downloading result:  40%|████      | 5.51M/13.6M [00:02<00:02, 2.80MB/s][A
+Downloading result:  49%|████▉     | 6.68M/13.6M [00:02<00:01, 4.16MB/s][A
+Downloading result:  66%|██████▋   | 9.04M/13.6M [00:03<00:00, 5.81MB/s][A
+Downloading result:  72%|███████▏  | 9.83M/13.6M [00:03<00:00, 5.86MB/s][A
+Downloading result:  78%|███████▊  | 10.6M/13.6M [00:03<00:00, 3.82MB/s][A
+Downloading result:  85%|████████▍ | 11.5M/13.6M [00:03<00:00, 4.47MB/s][A
+Downloading result:  90%|█████████ | 12.3M/13.6M [00:03<00:00, 4.91MB/s][ADownloading result: 100%|██████████| 13.6M/13.6M [00:03<00:00, 3.49MB/s]
+Extracting activations:  50%|█████     | 7/14 [01:31<01:21, 11.64s/batch][2026-01-05 06:59:18] [fb4ef604-4c37-4262-91ff-41f4b3403580] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:59:18] [fb4ef604-4c37-4262-91ff-41f4b3403580] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:59:18] [fb4ef604-4c37-4262-91ff-41f4b3403580] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:59:18] [fb4ef604-4c37-4262-91ff-41f4b3403580] RUNNING    : Your job has started running.
+[2026-01-05 06:59:19] [fb4ef604-4c37-4262-91ff-41f4b3403580] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/14.7M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/14.7M [00:00<01:19, 184kB/s][A
+Downloading result:   2%|▏         | 262k/14.7M [00:00<00:45, 317kB/s][A
+Downloading result:   3%|▎         | 393k/14.7M [00:01<00:31, 451kB/s][A
+Downloading result:   4%|▎         | 524k/14.7M [00:01<00:23, 608kB/s][A
+Downloading result:   5%|▌         | 786k/14.7M [00:01<00:14, 959kB/s][A
+Downloading result:   7%|▋         | 1.05M/14.7M [00:01<00:10, 1.30MB/s][A
+Downloading result:  10%|▉         | 1.44M/14.7M [00:01<00:07, 1.88MB/s][A
+Downloading result:  12%|█▏        | 1.84M/14.7M [00:01<00:05, 2.34MB/s][A
+Downloading result:  17%|█▋        | 2.49M/14.7M [00:01<00:03, 3.21MB/s][A
+Downloading result:  21%|██▏       | 3.15M/14.7M [00:01<00:02, 4.04MB/s][A
+Downloading result:  26%|██▌       | 3.80M/14.7M [00:01<00:02, 4.66MB/s][A
+Downloading result:  31%|███       | 4.59M/14.7M [00:02<00:01, 5.41MB/s][A
+Downloading result:  36%|███▌      | 5.24M/14.7M [00:02<00:01, 5.68MB/s][A
+Downloading result:  40%|████      | 5.90M/14.7M [00:02<00:02, 3.16MB/s][A
+Downloading result:  58%|█████▊    | 8.52M/14.7M [00:02<00:01, 5.19MB/s][A
+Downloading result:  63%|██████▎   | 9.31M/14.7M [00:03<00:00, 5.53MB/s][A
+Downloading result:  69%|██████▊   | 10.1M/14.7M [00:03<00:01, 3.76MB/s][A
+Downloading result:  72%|███████▏  | 10.6M/14.7M [00:03<00:01, 3.27MB/s][A
+Downloading result:  76%|███████▌  | 11.1M/14.7M [00:04<00:01, 2.71MB/s][A
+Downloading result:  93%|█████████▎| 13.6M/14.7M [00:04<00:00, 4.47MB/s][A
+Downloading result:  97%|█████████▋| 14.3M/14.7M [00:04<00:00, 4.62MB/s][ADownloading result: 100%|██████████| 14.7M/14.7M [00:04<00:00, 3.27MB/s]
+Extracting activations:  57%|█████▋    | 8/14 [01:42<01:08, 11.46s/batch][2026-01-05 06:59:29] [9967e73c-972d-42a0-96fc-775304ab2df3] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:59:29] [9967e73c-972d-42a0-96fc-775304ab2df3] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:59:29] [9967e73c-972d-42a0-96fc-775304ab2df3] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:59:29] [9967e73c-972d-42a0-96fc-775304ab2df3] RUNNING    : Your job has started running.
+[2026-01-05 06:59:31] [9967e73c-972d-42a0-96fc-775304ab2df3] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/14.7M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/14.7M [00:00<01:18, 186kB/s][A
+Downloading result:   2%|▏         | 262k/14.7M [00:00<00:46, 313kB/s][A
+Downloading result:   3%|▎         | 393k/14.7M [00:01<00:33, 432kB/s][A
+Downloading result:   4%|▍         | 655k/14.7M [00:01<00:18, 753kB/s][A
+Downloading result:   6%|▌         | 918k/14.7M [00:01<00:13, 1.03MB/s][A
+Downloading result:   9%|▉         | 1.31M/14.7M [00:01<00:08, 1.54MB/s][A
+Downloading result:  12%|█▏        | 1.70M/14.7M [00:01<00:06, 2.04MB/s][A
+Downloading result:  15%|█▌        | 2.23M/14.7M [00:01<00:04, 2.78MB/s][A
+Downloading result:  20%|█▉        | 2.88M/14.7M [00:01<00:03, 3.65MB/s][A
+Downloading result:  24%|██▍       | 3.54M/14.7M [00:01<00:02, 4.32MB/s][A
+Downloading result:  29%|██▉       | 4.33M/14.7M [00:02<00:02, 5.17MB/s][A
+Downloading result:  35%|███▍      | 5.11M/14.7M [00:02<00:01, 5.66MB/s][A
+Downloading result:  39%|███▉      | 5.77M/14.7M [00:02<00:01, 5.54MB/s][A
+Downloading result:  44%|████▎     | 6.42M/14.7M [00:02<00:01, 5.44MB/s][A
+Downloading result:  48%|████▊     | 7.08M/14.7M [00:02<00:01, 5.71MB/s][A
+Downloading result:  53%|█████▎    | 7.73M/14.7M [00:03<00:03, 1.95MB/s][A
+Downloading result:  59%|█████▉    | 8.65M/14.7M [00:03<00:02, 2.48MB/s][A
+Downloading result:  71%|███████▏  | 10.5M/14.7M [00:03<00:01, 3.95MB/s][A
+Downloading result:  76%|███████▌  | 11.1M/14.7M [00:03<00:00, 4.24MB/s][A
+Downloading result:  81%|████████  | 11.9M/14.7M [00:03<00:00, 4.72MB/s][A
+Downloading result:  87%|████████▋ | 12.7M/14.7M [00:04<00:00, 5.15MB/s][A
+Downloading result:  91%|█████████ | 13.4M/14.7M [00:04<00:00, 5.42MB/s][A
+Downloading result:  96%|█████████▋| 14.2M/14.7M [00:04<00:00, 5.88MB/s][ADownloading result: 100%|██████████| 14.7M/14.7M [00:04<00:00, 3.33MB/s]
+Extracting activations:  64%|██████▍   | 9/14 [01:53<00:56, 11.35s/batch][2026-01-05 06:59:40] [b6dc63b2-6db4-43a2-93cd-83cadc5766ce] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:59:40] [b6dc63b2-6db4-43a2-93cd-83cadc5766ce] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:59:40] [b6dc63b2-6db4-43a2-93cd-83cadc5766ce] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:59:41] [b6dc63b2-6db4-43a2-93cd-83cadc5766ce] RUNNING    : Your job has started running.
+[2026-01-05 06:59:42] [b6dc63b2-6db4-43a2-93cd-83cadc5766ce] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/12.6M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/12.6M [00:00<01:14, 168kB/s][A
+Downloading result:   2%|▏         | 262k/12.6M [00:01<00:43, 281kB/s][A
+Downloading result:   3%|▎         | 393k/12.6M [00:01<00:29, 420kB/s][A
+Downloading result:   4%|▍         | 524k/12.6M [00:01<00:21, 572kB/s][A
+Downloading result:   6%|▌         | 786k/12.6M [00:01<00:12, 915kB/s][A
+Downloading result:   9%|▉         | 1.18M/12.6M [00:01<00:08, 1.39MB/s][A
+Downloading result:  12%|█▏        | 1.57M/12.6M [00:01<00:05, 1.91MB/s][A
+Downloading result:  18%|█▊        | 2.23M/12.6M [00:01<00:03, 2.94MB/s][A
+Downloading result:  23%|██▎       | 2.88M/12.6M [00:01<00:02, 3.55MB/s][A
+Downloading result:  29%|██▉       | 3.67M/12.6M [00:02<00:02, 4.34MB/s][A
+Downloading result:  35%|███▌      | 4.46M/12.6M [00:02<00:01, 5.13MB/s][A
+Downloading result:  42%|████▏     | 5.24M/12.6M [00:02<00:01, 5.69MB/s][A
+Downloading result:  47%|████▋     | 5.90M/12.6M [00:02<00:02, 3.01MB/s][A
+Downloading result:  52%|█████▏    | 6.55M/12.6M [00:02<00:01, 3.56MB/s][A
+Downloading result:  65%|██████▍   | 8.13M/12.6M [00:02<00:00, 5.67MB/s][A
+Downloading result:  74%|███████▍  | 9.31M/12.6M [00:03<00:00, 5.16MB/s][A
+Downloading result:  81%|████████  | 10.2M/12.6M [00:03<00:00, 5.69MB/s][A
+Downloading result:  87%|████████▋ | 11.0M/12.6M [00:03<00:00, 3.87MB/s][A
+Downloading result:  95%|█████████▍| 11.9M/12.6M [00:03<00:00, 3.77MB/s][ADownloading result: 100%|██████████| 12.6M/12.6M [00:04<00:00, 3.12MB/s]
+Extracting activations:  71%|███████▏  | 10/14 [02:04<00:44, 11.13s/batch][2026-01-05 06:59:51] [5ef6f782-9be5-4bc3-b72d-a16d8d523089] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 06:59:51] [5ef6f782-9be5-4bc3-b72d-a16d8d523089] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 06:59:51] [5ef6f782-9be5-4bc3-b72d-a16d8d523089] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 06:59:51] [5ef6f782-9be5-4bc3-b72d-a16d8d523089] RUNNING    : Your job has started running.
+[2026-01-05 06:59:52] [5ef6f782-9be5-4bc3-b72d-a16d8d523089] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/13.6M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/13.6M [00:00<01:15, 179kB/s][A
+Downloading result:   2%|▏         | 262k/13.6M [00:01<00:54, 246kB/s][A
+Downloading result:   4%|▍         | 524k/13.6M [00:01<00:27, 477kB/s][A
+Downloading result:   6%|▌         | 786k/13.6M [00:01<00:18, 711kB/s][A
+Downloading result:   8%|▊         | 1.05M/13.6M [00:01<00:13, 949kB/s][A
+Downloading result:  11%|█         | 1.44M/13.6M [00:01<00:08, 1.40MB/s][A
+Downloading result:  14%|█▍        | 1.97M/13.6M [00:01<00:05, 2.04MB/s][A
+Downloading result:  18%|█▊        | 2.49M/13.6M [00:02<00:04, 2.66MB/s][A
+Downloading result:  24%|██▍       | 3.28M/13.6M [00:02<00:02, 3.68MB/s][A
+Downloading result:  29%|██▉       | 3.93M/13.6M [00:02<00:02, 4.33MB/s][A
+Downloading result:  34%|███▎      | 4.59M/13.6M [00:02<00:01, 4.72MB/s][A
+Downloading result:  38%|███▊      | 5.24M/13.6M [00:02<00:01, 5.09MB/s][A
+Downloading result:  43%|████▎     | 5.90M/13.6M [00:02<00:02, 2.76MB/s][A
+Downloading result:  54%|█████▍    | 7.34M/13.6M [00:03<00:01, 4.56MB/s][A
+Downloading result:  60%|█████▉    | 8.13M/13.6M [00:03<00:01, 4.96MB/s][A
+Downloading result:  67%|██████▋   | 9.18M/13.6M [00:03<00:00, 5.98MB/s][A
+Downloading result:  73%|███████▎  | 9.96M/13.6M [00:03<00:00, 5.49MB/s][A
+Downloading result:  79%|███████▉  | 10.7M/13.6M [00:03<00:00, 5.68MB/s][A
+Downloading result:  85%|████████▍ | 11.5M/13.6M [00:03<00:00, 3.83MB/s][A
+Downloading result:  90%|█████████ | 12.3M/13.6M [00:04<00:00, 4.49MB/s][ADownloading result: 100%|██████████| 13.6M/13.6M [00:04<00:00, 3.30MB/s]
+Extracting activations:  79%|███████▊  | 11/14 [02:15<00:33, 11.03s/batch][2026-01-05 07:00:01] [ffef00a4-370c-4a6e-9ea9-d62a1cab0c75] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 07:00:01] [ffef00a4-370c-4a6e-9ea9-d62a1cab0c75] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 07:00:02] [ffef00a4-370c-4a6e-9ea9-d62a1cab0c75] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 07:00:02] [ffef00a4-370c-4a6e-9ea9-d62a1cab0c75] RUNNING    : Your job has started running.
+[2026-01-05 07:00:03] [ffef00a4-370c-4a6e-9ea9-d62a1cab0c75] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/15.7M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/15.7M [00:01<02:02, 128kB/s][A
+Downloading result:   2%|▏         | 262k/15.7M [00:01<01:20, 193kB/s][A
+Downloading result:   2%|▏         | 393k/15.7M [00:01<00:51, 300kB/s][A
+Downloading result:   3%|▎         | 524k/15.7M [00:01<00:40, 378kB/s][A
+Downloading result:   5%|▍         | 786k/15.7M [00:01<00:23, 638kB/s][A
+Downloading result:   7%|▋         | 1.05M/15.7M [00:02<00:16, 903kB/s][A
+Downloading result:   9%|▉         | 1.44M/15.7M [00:02<00:10, 1.39MB/s][A
+Downloading result:  12%|█▏        | 1.97M/15.7M [00:02<00:06, 2.05MB/s][A
+Downloading result:  17%|█▋        | 2.62M/15.7M [00:02<00:04, 2.83MB/s][A
+Downloading result:  22%|██▏       | 3.41M/15.7M [00:02<00:03, 3.67MB/s][A
+Downloading result:  26%|██▌       | 4.06M/15.7M [00:02<00:02, 4.09MB/s][A
+Downloading result:  30%|██▉       | 4.72M/15.7M [00:02<00:02, 4.60MB/s][A
+Downloading result:  34%|███▍      | 5.37M/15.7M [00:02<00:02, 5.07MB/s][A
+Downloading result:  38%|███▊      | 6.03M/15.7M [00:03<00:03, 2.97MB/s][A
+Downloading result:  58%|█████▊    | 9.18M/15.7M [00:03<00:01, 5.19MB/s][A
+Downloading result:  63%|██████▎   | 9.96M/15.7M [00:03<00:01, 5.53MB/s][A
+Downloading result:  68%|██████▊   | 10.7M/15.7M [00:04<00:01, 3.79MB/s][A
+Downloading result:  77%|███████▋  | 12.1M/15.7M [00:04<00:00, 4.81MB/s][A
+Downloading result:  91%|█████████ | 14.3M/15.7M [00:04<00:00, 6.55MB/s][A
+Downloading result:  97%|█████████▋| 15.2M/15.7M [00:04<00:00, 5.49MB/s][ADownloading result: 100%|██████████| 15.7M/15.7M [00:04<00:00, 3.15MB/s]
+Extracting activations:  86%|████████▌ | 12/14 [02:26<00:22, 11.21s/batch][2026-01-05 07:00:13] [2d640a58-f778-4a0e-83b8-51571e18a780] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 07:00:13] [2d640a58-f778-4a0e-83b8-51571e18a780] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 07:00:13] [2d640a58-f778-4a0e-83b8-51571e18a780] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 07:00:14] [2d640a58-f778-4a0e-83b8-51571e18a780] RUNNING    : Your job has started running.
+[2026-01-05 07:00:15] [2d640a58-f778-4a0e-83b8-51571e18a780] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/15.7M [00:00<?, ?B/s][A
+Downloading result:   1%|          | 131k/15.7M [00:00<01:29, 174kB/s][A
+Downloading result:   2%|▏         | 262k/15.7M [00:00<00:52, 295kB/s][A
+Downloading result:   2%|▏         | 393k/15.7M [00:01<00:34, 440kB/s][A
+Downloading result:   3%|▎         | 524k/15.7M [00:01<00:25, 593kB/s][A
+Downloading result:   5%|▍         | 786k/15.7M [00:01<00:16, 930kB/s][A
+Downloading result:   7%|▋         | 1.18M/15.7M [00:01<00:10, 1.44MB/s][A
+Downloading result:  10%|▉         | 1.57M/15.7M [00:01<00:07, 1.93MB/s][A
+Downloading result:  13%|█▎        | 2.10M/15.7M [00:01<00:05, 2.64MB/s][A
+Downloading result:  17%|█▋        | 2.62M/15.7M [00:01<00:04, 3.26MB/s][A
+Downloading result:  21%|██        | 3.28M/15.7M [00:01<00:03, 4.08MB/s][A
+Downloading result:  25%|██▍       | 3.93M/15.7M [00:02<00:02, 4.46MB/s][A
+Downloading result:  28%|██▊       | 4.46M/15.7M [00:02<00:02, 4.53MB/s][A
+Downloading result:  32%|███▏      | 5.11M/15.7M [00:02<00:02, 4.92MB/s][A
+Downloading result:  36%|███▌      | 5.64M/15.7M [00:02<00:03, 2.55MB/s][A
+Downloading result:  42%|████▏     | 6.68M/15.7M [00:02<00:02, 3.86MB/s][A
+Downloading result:  57%|█████▋    | 9.04M/15.7M [00:03<00:01, 5.06MB/s][A
+Downloading result:  62%|██████▏   | 9.70M/15.7M [00:03<00:01, 5.15MB/s][A
+Downloading result:  66%|██████▌   | 10.4M/15.7M [00:03<00:00, 5.40MB/s][A
+Downloading result:  70%|██████▉   | 11.0M/15.7M [00:03<00:01, 2.94MB/s][A
+Downloading result:  75%|███████▍  | 11.8M/15.7M [00:04<00:01, 3.48MB/s][A
+Downloading result:  87%|████████▋ | 13.6M/15.7M [00:04<00:00, 5.75MB/s][A
+Downloading result:  92%|█████████▏| 14.5M/15.7M [00:04<00:00, 4.96MB/s][A
+Downloading result:  97%|█████████▋| 15.3M/15.7M [00:04<00:00, 5.16MB/s][ADownloading result: 100%|██████████| 15.7M/15.7M [00:04<00:00, 3.40MB/s]
+Extracting activations:  93%|█████████▎| 13/14 [02:37<00:11, 11.23s/batch][2026-01-05 07:00:24] [aea47708-7f47-4dfd-aba0-0c7637189643] RECEIVED   : Your job has been received and is waiting to be queued.
+[2026-01-05 07:00:24] [aea47708-7f47-4dfd-aba0-0c7637189643] QUEUED     : Moved to position 1 in Queue.
+[2026-01-05 07:00:25] [aea47708-7f47-4dfd-aba0-0c7637189643] DISPATCHED : Your job has been sent to the model deployment.
+[2026-01-05 07:00:25] [aea47708-7f47-4dfd-aba0-0c7637189643] RUNNING    : Your job has started running.
+[2026-01-05 07:00:26] [aea47708-7f47-4dfd-aba0-0c7637189643] COMPLETED  : Your job has been completed.
+
+Downloading result:   0%|          | 0.00/2.89M [00:00<?, ?B/s][A
+Downloading result:   5%|▍         | 131k/2.89M [00:00<00:15, 175kB/s][A
+Downloading result:   9%|▉         | 262k/2.89M [00:00<00:08, 299kB/s][A
+Downloading result:  14%|█▎        | 393k/2.89M [00:01<00:05, 443kB/s][A
+Downloading result:  18%|█▊        | 524k/2.89M [00:01<00:03, 599kB/s][A
+Downloading result:  27%|██▋       | 786k/2.89M [00:01<00:02, 929kB/s][A
+Downloading result:  41%|████      | 1.18M/2.89M [00:01<00:01, 1.45MB/s][A
+Downloading result:  54%|█████▍    | 1.57M/2.89M [00:01<00:00, 1.89MB/s][A
+Downloading result:  77%|███████▋  | 2.23M/2.89M [00:01<00:00, 2.93MB/s][A
+Downloading result:  95%|█████████▌| 2.75M/2.89M [00:01<00:00, 3.49MB/s][ADownloading result: 100%|██████████| 2.89M/2.89M [00:01<00:00, 1.57MB/s]
+Extracting activations: 100%|██████████| 14/14 [02:46<00:00, 10.30s/batch]Extracting activations: 100%|██████████| 14/14 [02:46<00:00, 11.86s/batch]
+ 83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (194.6s)
+  [per_neuron]   Fast Auto (top 3)...  81.1% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (26.2s)
+                 Selected layers: [53, 71, 89]
+  [per_layer]    All Layers (8 layers) (cache hit)...  50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (28.4s)
+  [per_layer]    Fast Auto (top 3)...  50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (25.5s)
+                 Selected layers: [0, 17, 35]
+
+  Summary for mass_mean:
+    per_neuron  : All=83.0%, Fast=81.1% → All Layers
+    per_layer   : All=50.9%, Fast=50.9% → All Layers
+  Progress: 4/16 | Elapsed: 4.6m
+
+────────────────────────────────────────────────────────────
+Classifier: lda (2/4)
+────────────────────────────────────────────────────────────
+  [per_neuron]   All Layers (8 layers) (cache hit)...  83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (40.4s)
+  [per_neuron]   Fast Auto (top 3)...  83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (42.3s)
+                 Selected layers: [53, 89, 125]
+  [per_layer]    All Layers (8 layers) (cache hit)...  83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (39.7s)
+  [per_layer]    Fast Auto (top 3)...  49.1% [▓▓▓▓▓▓▓▓▓░░░░░░░░░░░] (42.8s)
+                 Selected layers: [17, 35, 53]
+
+  Summary for lda:
+    per_neuron  : All=83.0%, Fast=83.0% → All Layers
+    per_layer   : All=83.0%, Fast=49.1% → All Layers
+  Progress: 8/16 | Elapsed: 7.3m
+
+────────────────────────────────────────────────────────────
+Classifier: logistic_regression (3/4)
+────────────────────────────────────────────────────────────
+  [per_neuron]   All Layers (8 layers) (cache hit)...  83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (34.4s)
+  [per_neuron]   Fast Auto (top 3)...  84.9% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (40.2s)
+                 Selected layers: [71, 89, 125]
+  [per_layer]    All Layers (8 layers) (cache hit)...  77.4% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░] (129.4s)
+  [per_layer]    Fast Auto (top 3)...  83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (173.2s)
+                 Selected layers: [89, 107, 125]
+
+  Summary for logistic_regression:
+    per_neuron  : All=83.0%, Fast=84.9% → Fast Auto
+    per_layer   : All=77.4%, Fast=83.0% → Fast Auto
+  Progress: 12/16 | Elapsed: 13.6m
+
+────────────────────────────────────────────────────────────
+Classifier: ridge (4/4)
+────────────────────────────────────────────────────────────
+  [per_neuron]   All Layers (8 layers) (cache hit)... /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/scipy/_lib/_util.py:1233: LinAlgWarning: Ill-conditioned matrix (rcond=5.46052e-08): result may not be accurate.
+  return f(*arrays, *other_args, **kwargs)
+ 83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (28.6s)
+  [per_neuron]   Fast Auto (top 3)... /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/scipy/_lib/_util.py:1233: LinAlgWarning: Ill-conditioned matrix (rcond=5.46052e-08): result may not be accurate.
+  return f(*arrays, *other_args, **kwargs)
+ 81.1% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (26.2s)
+                 Selected layers: [53, 71, 125]
+  [per_layer]    All Layers (8 layers) (cache hit)... /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 77.4% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░] (29.1s)
+  [per_layer]    Fast Auto (top 3)... /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (27.0s)
+                 Selected layers: [89, 107, 125]
+
+  Summary for ridge:
+    per_neuron  : All=83.0%, Fast=81.1% → All Layers
+    per_layer   : All=77.4%, Fast=83.0% → Fast Auto
+  Progress: 16/16 | Elapsed: 15.5m
+
+============================================================
+Phase 1 Complete! Cache warmed with all 8 layers.
+Total time: 15.5m
+============================================================
+  After Phase 1: Memory: 5.1GB used / 31.2GB (16%) [OK]
+
+============================================================
+PHASE 2: Single Layer Sweep (all cache hits)
+============================================================
+Testing 8 layers x 4 classifiers
+
+────────────────────────────────────────────────────────────
+Layer 0 (1/8)
+────────────────────────────────────────────────────────────
+  mass_mean                  50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (3.4s)
+  lda                        39.6% [▓▓▓▓▓▓▓░░░░░░░░░░░░░] (3.6s)
+  logistic_regression        50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (4.8s)
+  ridge                     /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+ 54.7% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (2.2s)
+  Layer 0 best: ridge @ 54.7% (layer took 14.0s)
+  Progress: 4/32 | Elapsed: 14.0s | ETA: 1.6m
+
+Results so far (best: ridge @ layer 0 = 54.7%)
+----------------------------------------------------------------------------------------------
+ Layer |           mass_mean |                 lda | logistic_regression |               ridge
+----------------------------------------------------------------------------------------------
+     0 |               50.9% |               39.6% |               50.9% |               54.7%
+----------------------------------------------------------------------------------------------
+  Best |               50.9% |               39.6% |               50.9% |               54.7% | 
+  Memory: 7.0GB used / 31.2GB (23%) [OK]
+
+────────────────────────────────────────────────────────────
+Layer 17 (2/8)
+────────────────────────────────────────────────────────────
+  mass_mean                 /home/toast/projects/mech_interp/lmprobe/src/lmprobe/classifiers.py:300: RuntimeWarning: overflow encountered in exp
+  prob_positive = 1 / (1 + np.exp(-scores))
+ 50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (3.8s)
+  lda                        49.1% [▓▓▓▓▓▓▓▓▓░░░░░░░░░░░] (3.8s)
+  logistic_regression        71.7% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░] (85.2s)
+  ridge                     /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 69.8% [▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░] (2.3s)
+  Layer 17 best: logistic_regression @ 71.7% (layer took 1.6m)
+  Progress: 8/32 | Elapsed: 1.8m | ETA: 5.5m
+
+Results so far (best: logistic_regression @ layer 17 = 71.7%)
+----------------------------------------------------------------------------------------------
+ Layer |           mass_mean |                 lda | logistic_regression |               ridge
+----------------------------------------------------------------------------------------------
+     0 |               50.9% |               39.6% |               50.9% |               54.7%
+    17 |               50.9% |               49.1% |               71.7% |               69.8%
+----------------------------------------------------------------------------------------------
+  Best |               50.9% |               49.1% |               71.7% |               69.8% | 
+  Memory: 5.3GB used / 31.2GB (17%) [OK]
+
+────────────────────────────────────────────────────────────
+Layer 35 (3/8)
+────────────────────────────────────────────────────────────
+  mass_mean                 /home/toast/projects/mech_interp/lmprobe/src/lmprobe/classifiers.py:300: RuntimeWarning: overflow encountered in exp
+  prob_positive = 1 / (1 + np.exp(-scores))
+ 50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (3.4s)
+  lda                        60.4% [▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░] (3.7s)
+  logistic_regression        71.7% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░] (109.0s)
+  ridge                     /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 64.2% [▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░] (2.2s)
+  Layer 35 best: logistic_regression @ 71.7% (layer took 2.0m)
+  Progress: 12/32 | Elapsed: 3.8m | ETA: 6.3m
+
+Results so far (best: logistic_regression @ layer 17 = 71.7%)
+----------------------------------------------------------------------------------------------
+ Layer |           mass_mean |                 lda | logistic_regression |               ridge
+----------------------------------------------------------------------------------------------
+     0 |               50.9% |               39.6% |               50.9% |               54.7%
+    17 |               50.9% |               49.1% |               71.7% |               69.8%
+    35 |               50.9% |               60.4% |               71.7% |               64.2%
+----------------------------------------------------------------------------------------------
+  Best |               50.9% |               60.4% |               71.7% |               69.8% | 
+  Memory: 5.7GB used / 31.2GB (18%) [OK]
+
+────────────────────────────────────────────────────────────
+Layer 53 (4/8)
+────────────────────────────────────────────────────────────
+  mass_mean                 /home/toast/projects/mech_interp/lmprobe/src/lmprobe/classifiers.py:300: RuntimeWarning: overflow encountered in exp
+  prob_positive = 1 / (1 + np.exp(-scores))
+ 50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (3.6s)
+  lda                        54.7% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (3.9s)
+  logistic_regression        79.2% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░] (59.5s)
+  ridge                     /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 79.2% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░] (2.3s)
+  Layer 53 best: logistic_regression @ 79.2% (layer took 1.2m)
+  Progress: 16/32 | Elapsed: 5.0m | ETA: 4.9m
+
+Results so far (best: logistic_regression @ layer 53 = 79.2%)
+----------------------------------------------------------------------------------------------
+ Layer |           mass_mean |                 lda | logistic_regression |               ridge
+----------------------------------------------------------------------------------------------
+     0 |               50.9% |               39.6% |               50.9% |               54.7%
+    17 |               50.9% |               49.1% |               71.7% |               69.8%
+    35 |               50.9% |               60.4% |               71.7% |               64.2%
+    53 |               50.9% |               54.7% |               79.2% |               79.2%
+----------------------------------------------------------------------------------------------
+  Best |               50.9% |               60.4% |               79.2% |               79.2% | 
+  Memory: 5.8GB used / 31.2GB (19%) [OK]
+
+────────────────────────────────────────────────────────────
+Layer 71 (5/8)
+────────────────────────────────────────────────────────────
+  mass_mean                 /home/toast/projects/mech_interp/lmprobe/src/lmprobe/classifiers.py:300: RuntimeWarning: overflow encountered in exp
+  prob_positive = 1 / (1 + np.exp(-scores))
+ 50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (3.6s)
+  lda                        58.5% [▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░] (3.6s)
+  logistic_regression        79.2% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░] (46.4s)
+  ridge                     /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 86.8% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░] (2.4s)
+  Layer 71 best: ridge @ 86.8% (layer took 55.9s)
+  Progress: 20/32 | Elapsed: 5.9m | ETA: 3.5m
+
+Results so far (best: ridge @ layer 71 = 86.8%)
+----------------------------------------------------------------------------------------------
+ Layer |           mass_mean |                 lda | logistic_regression |               ridge
+----------------------------------------------------------------------------------------------
+     0 |               50.9% |               39.6% |               50.9% |               54.7%
+    17 |               50.9% |               49.1% |               71.7% |               69.8%
+    35 |               50.9% |               60.4% |               71.7% |               64.2%
+    53 |               50.9% |               54.7% |               79.2% |               79.2%
+    71 |               50.9% |               58.5% |               79.2% |               86.8%
+----------------------------------------------------------------------------------------------
+  Best |               50.9% |               60.4% |               79.2% |               86.8% | 
+  Memory: 6.0GB used / 31.2GB (19%) [OK]
+
+────────────────────────────────────────────────────────────
+Layer 89 (6/8)
+────────────────────────────────────────────────────────────
+  mass_mean                 /home/toast/projects/mech_interp/lmprobe/src/lmprobe/classifiers.py:300: RuntimeWarning: overflow encountered in exp
+  prob_positive = 1 / (1 + np.exp(-scores))
+ 50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (2.8s)
+  lda                        62.3% [▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░] (3.9s)
+  logistic_regression        84.9% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (60.4s)
+  ridge                     /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (2.2s)
+  Layer 89 best: logistic_regression @ 84.9% (layer took 1.2m)
+  Progress: 24/32 | Elapsed: 7.1m | ETA: 2.3m
+
+Results so far (best: ridge @ layer 71 = 86.8%)
+----------------------------------------------------------------------------------------------
+ Layer |           mass_mean |                 lda | logistic_regression |               ridge
+----------------------------------------------------------------------------------------------
+     0 |               50.9% |               39.6% |               50.9% |               54.7%
+    17 |               50.9% |               49.1% |               71.7% |               69.8%
+    35 |               50.9% |               60.4% |               71.7% |               64.2%
+    53 |               50.9% |               54.7% |               79.2% |               79.2%
+    71 |               50.9% |               58.5% |               79.2% |               86.8%
+    89 |               50.9% |               62.3% |               84.9% |               83.0%
+----------------------------------------------------------------------------------------------
+  Best |               50.9% |               62.3% |               84.9% |               86.8% | 
+  Memory: 5.5GB used / 31.2GB (18%) [OK]
+
+────────────────────────────────────────────────────────────
+Layer 107 (7/8)
+────────────────────────────────────────────────────────────
+  mass_mean                 /home/toast/projects/mech_interp/lmprobe/src/lmprobe/classifiers.py:300: RuntimeWarning: overflow encountered in exp
+  prob_positive = 1 / (1 + np.exp(-scores))
+ 50.9% [▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░] (2.7s)
+  lda                        58.5% [▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░] (3.8s)
+  logistic_regression        84.9% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (74.4s)
+  ridge                     /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 84.9% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (2.2s)
+  Layer 107 best: logistic_regression @ 84.9% (layer took 1.4m)
+  Progress: 28/32 | Elapsed: 8.5m | ETA: 1.2m
+
+Results so far (best: ridge @ layer 71 = 86.8%)
+----------------------------------------------------------------------------------------------
+ Layer |           mass_mean |                 lda | logistic_regression |               ridge
+----------------------------------------------------------------------------------------------
+     0 |               50.9% |               39.6% |               50.9% |               54.7%
+    17 |               50.9% |               49.1% |               71.7% |               69.8%
+    35 |               50.9% |               60.4% |               71.7% |               64.2%
+    53 |               50.9% |               54.7% |               79.2% |               79.2%
+    71 |               50.9% |               58.5% |               79.2% |               86.8%
+    89 |               50.9% |               62.3% |               84.9% |               83.0%
+   107 |               50.9% |               58.5% |               84.9% |               84.9%
+----------------------------------------------------------------------------------------------
+  Best |               50.9% |               62.3% |               84.9% |               86.8% | 
+  Memory: 5.5GB used / 31.2GB (18%) [OK]
+
+────────────────────────────────────────────────────────────
+Layer 125 (8/8)
+────────────────────────────────────────────────────────────
+  mass_mean                 /home/toast/projects/mech_interp/lmprobe/src/lmprobe/classifiers.py:300: RuntimeWarning: overflow encountered in exp
+  prob_positive = 1 / (1 + np.exp(-scores))
+ 49.1% [▓▓▓▓▓▓▓▓▓░░░░░░░░░░░] (2.0s)
+  lda                        81.1% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (3.9s)
+  logistic_regression       /home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:406: ConvergenceWarning: lbfgs failed to converge after 1000 iteration(s) (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT
+
+Increase the number of iterations to improve the convergence (max_iter=1000).
+You might also want to scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+ 83.0% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] (175.5s)
+  ridge                     /home/toast/projects/mech_interp/lmprobe/src/lmprobe/probe.py:159: UserWarning: RidgeClassifier does not support predict_proba(). probe.predict_proba() will raise an error.
+  self._classifier_template = resolve_classifier(classifier, random_state)
+/home/toast/projects/mech_interp/lmprobe/.venv/lib/python3.12/site-packages/sklearn/linear_model/_ridge.py:267: UserWarning: Singular matrix in solving dual problem. Using least-squares solution instead.
+  warnings.warn(
+ 86.8% [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░] (2.3s)
+  Layer 125 best: ridge @ 86.8% (layer took 3.1m)
+  Progress: 32/32 | Elapsed: 11.5m | ETA: 0.0s
+
+Results so far (best: ridge @ layer 71 = 86.8%)
+----------------------------------------------------------------------------------------------
+ Layer |           mass_mean |                 lda | logistic_regression |               ridge
+----------------------------------------------------------------------------------------------
+     0 |               50.9% |               39.6% |               50.9% |               54.7%
+    17 |               50.9% |               49.1% |               71.7% |               69.8%
+    35 |               50.9% |               60.4% |               71.7% |               64.2%
+    53 |               50.9% |               54.7% |               79.2% |               79.2%
+    71 |               50.9% |               58.5% |               79.2% |               86.8%
+    89 |               50.9% |               62.3% |               84.9% |               83.0%
+   107 |               50.9% |               58.5% |               84.9% |               84.9%
+   125 |               49.1% |               81.1% |               83.0% |               86.8%
+----------------------------------------------------------------------------------------------
+  Best |               50.9% |               81.1% |               84.9% |               86.8% | 
+  Memory: 5.5GB used / 31.2GB (18%) [OK]
+
+============================================================
+Single Layer Sweep Complete!
+Total time: 11.5m
+Best result: ridge @ layer 71 = 86.8%
+============================================================
+
+============================================================
+GENERATING VISUALIZATIONS - Llama-3.1-405B
+============================================================
+
+  Creating layer accuracy heatmap...
+  Creating layer importance plot...
+  Creating classifier comparison chart...
+  Creating accuracy by layer line plot...
+  Creating normalization comparison chart...
+
+  Plots saved to: /home/toast/projects/mech_interp/lmprobe/experiments/experiment_results/llama-3.1-405b/
+
+============================================================
+RESULTS SUMMARY
+============================================================
+
+--- Text-Only Baselines ---
+  tfidf          : 75.47%
+  bow            : 67.92%
+  majority       : 50.94%
+  random         : 45.28%
+  Best baseline  : tfidf (75.47%)
+
+--- Best Single Layer per Classifier ---
+  mass_mean                : Layer  0 (50.94%, -24.5% vs baseline)
+  lda                      : Layer 125 (81.13%, +5.7% vs baseline)
+  logistic_regression      : Layer 89 (84.91%, +9.4% vs baseline)
+  ridge                    : Layer 71 (86.79%, +11.3% vs baseline)
+
+--- Multi-Layer Strategies (per_neuron) ---
+Classifier                  All Layers    Fast Auto Selected Layers
+--------------------------------------------------------------------------------
+mass_mean                      83.02%       81.13%  [53, 71, 89]
+lda                            83.02%       83.02%  [53, 89, 125]
+logistic_regression            83.02%       84.91%  [71, 89, 125]
+ridge                          83.02%       81.13%  [53, 71, 125]
+
+--- Multi-Layer Strategies (per_layer) ---
+Classifier                  All Layers    Fast Auto Selected Layers
+--------------------------------------------------------------------------------
+mass_mean                      50.94%       50.94%  [0, 17, 35]
+lda                            83.02%       49.06%  [17, 35, 53]
+logistic_regression            77.36%       83.02%  [89, 107, 125]
+ridge                          77.36%       83.02%  [89, 107, 125]
+
+--- Normalization Strategy Comparison ---
+Classifier                  per_neuron    per_layer  Better
+----------------------------------------------------------------------
+mass_mean                      83.02%      50.94%  per_neuron (+32.1%)
+lda                            83.02%      83.02%  per_neuron (+0.0%)
+logistic_regression            83.02%      77.36%  per_neuron (+5.7%)
+ridge                          83.02%      77.36%  per_neuron (+5.7%)
+
+--- Overall Best ---
+  Top 5:
+    ridge (best single): 86.79%
+    logistic_regression (best single): 84.91%
+    logistic_regression (fast, per_neuron): 84.91%
+    mass_mean (all, per_neuron): 83.02%
+    lda (all, per_neuron): 83.02%
+
+--- Key Insights ---
+  Fast Auto >= All layers (per_neuron): 2/4 classifiers
+  Fast Auto >= All layers (per_layer): 3/4 classifiers
+  All layers > Best single: 2/4 classifiers
+  per_neuron vs per_layer: 3 wins vs 0 wins
+
+Results saved to: /home/toast/projects/mech_interp/lmprobe/experiments/experiment_results/llama-3.1-405b/results.json
+
+────────────────────────────────────────────────────────────
+Llama-3.1-405B completed in 27.1m
+────────────────────────────────────────────────────────────
+
+  Clearing model cache for Llama-3.1-405B...
+
+  Skipping cross-model comparison (only 1 model succeeded)
+
+============================================================
+EXPERIMENT COMPLETE
+============================================================
+  Finished at: 2026-01-05 07:24:23
+  Total time:  27.1m
+  Models completed: 1/1
+    - Llama-3.1-405B: /home/toast/projects/mech_interp/lmprobe/experiments/experiment_results/llama-3.1-405b/
+============================================================
