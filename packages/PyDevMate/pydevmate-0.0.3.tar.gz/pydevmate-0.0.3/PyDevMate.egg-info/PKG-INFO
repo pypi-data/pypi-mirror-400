@@ -1,0 +1,453 @@
+Metadata-Version: 2.4
+Name: PyDevMate
+Version: 0.0.3
+Summary: A library of utilities for python.
+Home-page: https://github.com/lounisbou/PyDevMate
+Author: LounisBou
+Author-email: LounisBou <lounis.bou@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/lounisbou/PyDevMate
+Project-URL: Repository, https://github.com/lounisbou/PyDevMate
+Project-URL: Issues, https://github.com/lounisbou/PyDevMate/issues
+Keywords: utilities,decorators,caching,logging,monitoring,debugging
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: diskcache>=5.6.3
+Requires-Dist: psutil>=6.1.0
+Requires-Dist: redis>=5.2.0
+Requires-Dist: termcolor>=2.5.0
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# PyDevMate
+
+A comprehensive Python utilities library providing decorator-based tools for caching, logging, debugging, monitoring, and more. Simplify your development workflow with easy-to-use, production-ready decorators.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Features & Usage](#features--usage)
+  - [Caching & Storage](#caching--storage)
+  - [Monitoring & Performance](#monitoring--performance)
+  - [Logging & Debugging](#logging--debugging)
+  - [Utilities](#utilities)
+- [Testing](#testing)
+- [Requirements](#requirements)
+- [License](#license)
+
+## Installation
+
+### Install directly from GitHub
+
+```bash
+# Install latest version from main branch
+pip install git+https://github.com/lounisbou/PyDevMate.git
+
+# Install specific branch
+pip install git+https://github.com/lounisbou/PyDevMate.git@branch-name
+
+# Install specific tag/release
+pip install git+https://github.com/lounisbou/PyDevMate.git@v0.0.1
+```
+
+### Install from source (development)
+
+```bash
+# Clone the repository
+git clone https://github.com/lounisbou/PyDevMate.git
+cd PyDevMate
+
+# Install in editable mode
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from pydevmate import CacheIt, TimeIt, LogIt, MemIt
+
+# Cache expensive function results
+@CacheIt()
+def expensive_computation(n):
+    return sum(i ** 2 for i in range(n))
+
+# Measure execution time
+@TimeIt
+def process_data(data):
+    return [x * 2 for x in data]
+
+# Track memory usage
+@MemIt
+def memory_intensive_task():
+    return [i for i in range(1000000)]
+
+# Enhanced logging with colors
+logger = LogIt(__name__)
+logger.success("Operation completed successfully!")
+logger.warning("This is a warning")
+logger.error("An error occurred")
+```
+
+## Features & Usage
+
+### Caching & Storage
+
+#### CacheIt - Function Result Caching
+
+Cache function results to avoid redundant computation. Supports multiple backends: **diskcache** (default), **Redis**, and **SQLite**.
+
+**Basic Usage (diskcache):**
+
+```python
+from pydevmate import CacheIt
+
+@CacheIt(max_duration=3600)  # Cache for 1 hour
+def fetch_data(user_id):
+    # Expensive database query or API call
+    return {"user_id": user_id, "data": "..."}
+
+result = fetch_data(123)  # Cache miss - executes function
+result = fetch_data(123)  # Cache hit - returns cached result
+
+# Cache management
+fetch_data.get_cache()      # View cached keys
+fetch_data.clear_cache()    # Clear all cached data
+```
+
+**Redis Backend:**
+
+```python
+@CacheIt(
+    max_duration=600,
+    backend='redis',
+    redis_config={'host': 'localhost', 'port': 6379, 'db': 0}
+)
+def get_user_profile(user_id):
+    return {"id": user_id, "name": "John Doe"}
+```
+
+**SQLite Backend:**
+
+```python
+@CacheIt(
+    max_duration=1800,
+    backend='sqlite',
+    sqlite_db_name='my_cache'
+)
+def compute_stats(dataset_id):
+    return {"mean": 42, "median": 40}
+```
+
+#### SaveIt - Persistent Storage Abstraction
+
+Low-level storage backend for saving Python objects with Redis or SQLite.
+
+```python
+from pydevmate import SaveIt
+
+# Using Redis
+storage = SaveIt(
+    backend='redis',
+    redis_config={'host': 'localhost', 'port': 6379, 'db': 0}
+)
+
+# Store data
+storage.set('user:123', {'name': 'Alice', 'age': 30}, expiry_seconds=3600)
+
+# Retrieve data
+user = storage.get('user:123')
+
+# Check existence
+if storage.exists('user:123'):
+    print("User exists")
+
+# Get all keys
+all_keys = storage.get_all_keys()
+
+# Using SQLite
+storage = SaveIt(backend='sqlite', sqlite_db_name='my_database')
+storage.set('config', {'theme': 'dark', 'lang': 'en'})
+config = storage.get('config')
+```
+
+### Monitoring & Performance
+
+#### TimeIt - Execution Time Measurement
+
+Measure function execution time with a simple decorator.
+
+```python
+from pydevmate import TimeIt
+
+@TimeIt
+def process_large_file(filepath):
+    with open(filepath, 'r') as f:
+        return f.read()
+
+@TimeIt
+def complex_calculation(n):
+    return sum(i ** 2 for i in range(n))
+
+result = complex_calculation(1000000)
+# Output: Function complex_calculation(1000000,) Took 0.0523 seconds
+```
+
+#### MemIt - Memory Usage Tracking
+
+Track memory consumption of functions using process-level measurements.
+
+```python
+from pydevmate import MemIt
+
+@MemIt
+def create_large_list():
+    return [i for i in range(10000000)]
+
+@MemIt
+def process_data(data):
+    return [x * 2 for x in data]
+
+result = create_large_list()
+# Output: Memory usage: 381MB, 469KB, 888B
+```
+
+### Logging & Debugging
+
+#### LogIt - Enhanced Logger
+
+Extended Python logger with color support and additional convenience methods.
+
+**Basic Usage:**
+
+```python
+from pydevmate import LogIt
+import logging
+
+# Create logger with console and file output
+logger = LogIt(
+    name="MyApp",
+    level=logging.DEBUG,
+    console=True,
+    file=True  # Creates __logit__/logit.log
+)
+
+# Standard logging methods (with color support)
+logger.debug("Debugging information")
+logger.info("General information")
+logger.warning("Warning message")
+logger.error("Error occurred")
+logger.critical("Critical issue")
+
+# Enhanced methods
+logger.success("Operation completed!")  # Green text
+logger.show("Important highlight")     # Bold blue text
+
+# Visual formatting
+logger.separator(50)      # Prints 50 dashes
+logger.line_break(2)      # Prints 2 blank lines
+```
+
+**Custom Colors:**
+
+```python
+from pydevmate import LogIt, Colors
+
+logger = LogIt(__name__)
+logger.info("Custom color", color=Colors.MAGENTA)
+logger.warning("Bold warning", attrs=[Colors.BOLD])
+logger.error("Important error", color=Colors.RED, attrs=[Colors.BOLD])
+```
+
+#### DebugIt - Function Call Debugger
+
+Print colored debug information about function calls, arguments, and return values.
+
+```python
+from pydevmate import DebugIt
+
+@DebugIt()
+def add(a, b):
+    return a + b
+
+@DebugIt()
+def fetch_user(user_id, include_posts=False):
+    return {"id": user_id, "posts": [] if include_posts else None}
+
+result = add(3, 5)
+# Output: DebugIt : add((3, 5), kwargs={}) -> 8
+
+user = fetch_user(123, include_posts=True)
+# Output: DebugIt : fetch_user((123,), kwargs={'include_posts': True}) -> {'id': 123, 'posts': []}
+```
+
+### Utilities
+
+#### LazyIt - Lazy Evaluation
+
+Defer function execution until the result is first accessed, then cache it.
+
+```python
+from pydevmate import LazyIt
+
+@LazyIt
+def expensive_initialization():
+    print("Computing expensive result...")
+    return sum(range(10000000))
+
+# Function not executed yet
+result = expensive_initialization
+
+# First call executes the function
+value = expensive_initialization()
+# Output: Computing expensive result...
+# Returns: 49999995000000
+
+# Subsequent calls return cached result (no re-computation)
+value = expensive_initialization()
+# Returns: 49999995000000 (no output)
+```
+
+#### ConvertIt - Size & Time Conversions
+
+Static utility methods for converting between size/time units and human-readable formats.
+
+**Size Conversions:**
+
+```python
+from pydevmate import ConvertIt
+
+# Automatic unit selection
+size, unit = ConvertIt.size(2048, current_unit='MB')
+print(f"{size} {unit}")  # 2.0 GB
+
+# Specific target unit
+size, unit = ConvertIt.size(1024, current_unit='KB', target_unit='MB')
+print(f"{size} {unit}")  # 1.0 MB
+
+# Human-readable format
+readable = ConvertIt.size_human_readable(5497558138881, current_unit='B')
+print(readable)  # 5TB, 4GB, 3MB, 2KB, 1B
+```
+
+**Time Conversions:**
+
+```python
+from pydevmate import ConvertIt
+
+# Automatic unit selection
+time_val, unit = ConvertIt.time(120000, current_unit='ms')
+print(f"{time_val} {unit}")  # 2.0 m
+
+# Specific target unit
+time_val, unit = ConvertIt.time(3600, current_unit='s', target_unit='h')
+print(f"{time_val} {unit}")  # 1.0 h
+
+# Human-readable format
+readable = ConvertIt.time_human_readable(172800000, current_unit='ms')
+print(readable)  # 2d
+```
+
+#### Infos - Runtime Information
+
+Static methods for retrieving runtime and environment information.
+
+```python
+from pydevmate import Infos
+
+# Script information
+print(Infos.get_script_name())          # script.py
+print(Infos.get_script_path())          # /full/path/to/script.py
+print(Infos.get_script_package_name())  # package_name
+print(Infos.get_script_package_path())  # /full/path/to/package
+
+# Python environment
+print(Infos.get_python_version())       # 3.10.0 (default, ...)
+print(Infos.get_python_executable())    # /usr/bin/python3
+print(Infos.get_python_path())          # ['/path1', '/path2', ...]
+
+# Process information
+print(Infos.get_script_args())          # ['arg1', 'arg2']
+print(Infos.get_script_pid())           # 12345
+```
+
+#### Colors - Terminal Color Constants
+
+Enum for termcolor color constants used by LogIt and other utilities.
+
+```python
+from pydevmate import Colors
+
+# Available colors
+Colors.RED
+Colors.GREEN
+Colors.YELLOW
+Colors.BLUE
+Colors.MAGENTA
+Colors.CYAN
+Colors.WHITE
+Colors.LIGHT_BLUE
+Colors.BOLD  # Text attribute
+```
+
+## Testing
+
+```bash
+# Run all utility tests
+python main.py
+
+# Test a specific utility
+python main.py cacheit
+python main.py logit
+
+# Test individual module directly
+python pydevmate/cacheit.py
+python pydevmate/timeit.py
+```
+
+## Building the Package
+
+```bash
+# Install build tools
+pip install build
+
+# Build wheel
+python -m build --wheel
+
+# Built wheel will be in dist/ directory
+```
+
+## Requirements
+
+- Python >= 3.6
+- diskcache >= 5.6.3
+- psutil >= 6.1.0
+- redis >= 5.2.0
+- termcolor >= 2.5.0
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author
+
+LounisBou (lounis.bou@gmail.com)
+
+## Repository
+
+https://github.com/lounisbou/PyDevMate
