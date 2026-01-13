@@ -1,0 +1,31 @@
+include "py_object.fbs";
+include "stackref.fbs";
+include "code_unit.fbs";
+include "py_frame.fbs";
+include "py_code_object.fbs";
+namespace pyframe_buffer;
+
+
+table PyInterpreterFrame {
+  f_executable:PyCodeObject;
+  // SKIPPED: struct _PyInterpreterFrame *previous;
+  f_funcobj:PyObject;
+  f_globals:PyObject;
+  f_builtins:PyObject;
+  f_locals:PyObject;
+  // instead of instruction pointer, store the offset from base
+  instr_offset:uint64;
+  // SKIPPED: _PyStackRef *stackpointer;
+  return_offset:uint16;
+  owner:uint8;
+  // NOTE: this is not the entirety localsplus object,
+  // which contains both localsplus AND the evaluation stack.
+  // Here, we will only store the localsplus part.
+  // When deserializing, you must correctly allocate data
+  // for the locals plus AND the evaluation stack
+  locals_plus:[PyObject];
+  locals_exclusion_bitmask:[uint8];
+  stack:[PyObject]; // this is not in the Python definition, but we need to capture the stack.
+}
+
+root_type PyInterpreterFrame;
