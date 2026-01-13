@@ -1,0 +1,503 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>htrdrPy.helperFunctions &mdash; htrdrPy 0.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            htrdrPy
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../Examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../htrdrPy.html">htrdrPy package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">htrdrPy</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">htrdrPy.helperFunctions</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for htrdrPy.helperFunctions</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">scipy.constants</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cst</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">scipy.interpolate</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">interp</span>
+
+
+<span class="n">keysLMDZtitan_vi</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;tsurf&#39;</span><span class="p">:</span> <span class="s1">&#39;tsurf&#39;</span><span class="p">,</span>               <span class="c1"># surface temperature</span>
+    <span class="s1">&#39;temp&#39;</span><span class="p">:</span> <span class="s1">&#39;temp&#39;</span><span class="p">,</span>                 <span class="c1"># temperature</span>
+    <span class="s1">&#39;wavelength&#39;</span><span class="p">:</span> <span class="s1">&#39;wavelength_vi&#39;</span><span class="p">,</span>  <span class="c1"># visible wavelengths</span>
+    <span class="s1">&#39;ssa&#39;</span><span class="p">:</span> <span class="s1">&#39;wv&#39;</span><span class="p">,</span>                    <span class="c1"># single scatering albedo</span>
+    <span class="s1">&#39;extinction&#39;</span><span class="p">:</span> <span class="s1">&#39;kv&#39;</span><span class="p">,</span>             <span class="c1"># extinction coefficeint</span>
+    <span class="s1">&#39;assym&#39;</span><span class="p">:</span> <span class="s1">&#39;gv&#39;</span><span class="p">,</span>                  <span class="c1"># assymetry factor</span>
+    <span class="s1">&#39;geopotential&#39;</span><span class="p">:</span> <span class="s1">&#39;pphi&#39;</span><span class="p">,</span>         <span class="c1"># geopotential</span>
+    <span class="s1">&#39;geopotentialSurf&#39;</span><span class="p">:</span> <span class="s1">&#39;pphis&#39;</span><span class="p">,</span>    <span class="c1"># surface geopotential</span>
+    <span class="s1">&#39;altitude&#39;</span><span class="p">:</span> <span class="s1">&#39;altitude&#39;</span><span class="p">,</span>         <span class="c1"># altitude</span>
+    <span class="s1">&#39;latitude&#39;</span><span class="p">:</span> <span class="s1">&#39;lat&#39;</span><span class="p">,</span>              <span class="c1"># latitude</span>
+    <span class="s1">&#39;longitude&#39;</span><span class="p">:</span> <span class="s1">&#39;lon&#39;</span><span class="p">,</span>             <span class="c1"># longitude</span>
+    <span class="s1">&#39;pressure&#39;</span><span class="p">:</span> <span class="s1">&#39;p&#39;</span><span class="p">,</span>                <span class="c1"># pressure</span>
+<span class="p">}</span>
+
+<span class="n">keysLMDZtitan_ir</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;tsurf&#39;</span><span class="p">:</span> <span class="s1">&#39;tsurf&#39;</span><span class="p">,</span>               <span class="c1"># surface temperature</span>
+    <span class="s1">&#39;temp&#39;</span><span class="p">:</span> <span class="s1">&#39;temp&#39;</span><span class="p">,</span>                 <span class="c1"># temperature</span>
+    <span class="s1">&#39;wavelength&#39;</span><span class="p">:</span> <span class="s1">&#39;wavelength_ir&#39;</span><span class="p">,</span>  <span class="c1"># visible wavelengths</span>
+    <span class="s1">&#39;ssa&#39;</span><span class="p">:</span> <span class="s1">&#39;wi&#39;</span><span class="p">,</span>                    <span class="c1"># single scatering albedo</span>
+    <span class="s1">&#39;extinction&#39;</span><span class="p">:</span> <span class="s1">&#39;ki&#39;</span><span class="p">,</span>             <span class="c1"># extinction coefficeint</span>
+    <span class="s1">&#39;assym&#39;</span><span class="p">:</span> <span class="s1">&#39;gi&#39;</span><span class="p">,</span>                  <span class="c1"># assymetry factor</span>
+    <span class="s1">&#39;geopotential&#39;</span><span class="p">:</span> <span class="s1">&#39;pphi&#39;</span><span class="p">,</span>         <span class="c1"># geopotential</span>
+    <span class="s1">&#39;geopotentialSurf&#39;</span><span class="p">:</span> <span class="s1">&#39;pphis&#39;</span><span class="p">,</span>    <span class="c1"># surface geopotential</span>
+    <span class="s1">&#39;altitude&#39;</span><span class="p">:</span> <span class="s1">&#39;altitude&#39;</span><span class="p">,</span>         <span class="c1"># altitude</span>
+    <span class="s1">&#39;latitude&#39;</span><span class="p">:</span> <span class="s1">&#39;lat&#39;</span><span class="p">,</span>              <span class="c1"># latitude</span>
+    <span class="s1">&#39;longitude&#39;</span><span class="p">:</span> <span class="s1">&#39;lon&#39;</span><span class="p">,</span>             <span class="c1"># longitude</span>
+    <span class="s1">&#39;pressure&#39;</span><span class="p">:</span> <span class="s1">&#39;p&#39;</span><span class="p">,</span>                <span class="c1"># pressure</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="sphere2cart">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.sphere2cart">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">sphere2cart</span><span class="p">(</span><span class="n">vec</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Convert spherical to cartesian coordinates.</span>
+<span class="sd">    # Input:</span>
+<span class="sd">    - vec (1-D array (shape=(3), float [m,°,°])): [altitude, latitude, longitude]</span>
+<span class="sd">    # Output:</span>
+<span class="sd">    - 1-D array (shape=(3), float [m,m,m]): [x, y, z]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">alt</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon</span> <span class="o">=</span> <span class="n">vec</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">vec</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">cst</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">vec</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">cst</span><span class="o">.</span><span class="n">degree</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon</span><span class="p">),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon</span><span class="p">),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+    <span class="p">])</span> <span class="o">*</span> <span class="n">alt</span></div>
+
+
+<div class="viewcode-block" id="cart2sphere">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.cart2sphere">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cart2sphere</span><span class="p">(</span><span class="n">vec</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Convert cartesian to spherical coordinates.</span>
+<span class="sd">    # Input:</span>
+<span class="sd">    - vec (1-D array (shape=(3), float [m,m,m])): [x, y, z]</span>
+<span class="sd">    # Output:</span>
+<span class="sd">    - 1-D array (shape=(3), float [m,°,°]): [altitude, latitude, longitude]</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">vec</span>
+    <span class="n">XsqPlusYsq</span> <span class="o">=</span> <span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">y</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">XsqPlusYsq</span> <span class="o">+</span> <span class="n">z</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>            <span class="c1"># alt</span>
+    <span class="n">elev</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">z</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">XsqPlusYsq</span><span class="p">))</span>     <span class="c1"># lat</span>
+    <span class="n">az</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">y</span><span class="p">,</span><span class="n">x</span><span class="p">)</span>                        <span class="c1"># lon</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">r</span><span class="p">,</span> <span class="n">elev</span><span class="o">/</span><span class="n">cst</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">az</span><span class="o">/</span><span class="n">cst</span><span class="o">.</span><span class="n">degree</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="interpolate">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.interpolate">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">interpolate</span><span class="p">(</span><span class="n">dataPoints</span><span class="p">,</span> <span class="n">dataValues</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">flagNearest</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">flagNearest</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">interp</span><span class="o">.</span><span class="n">griddata</span><span class="p">(</span><span class="n">dataPoints</span><span class="p">,</span> <span class="n">dataValues</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">rescale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">dataInterp</span> <span class="o">=</span> <span class="n">interp</span><span class="o">.</span><span class="n">griddata</span><span class="p">(</span><span class="n">dataPoints</span><span class="p">,</span> <span class="n">dataValues</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">,</span> <span class="n">rescale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">dataInterpNearest</span> <span class="o">=</span> <span class="n">interp</span><span class="o">.</span><span class="n">griddata</span><span class="p">(</span><span class="n">dataPoints</span><span class="p">,</span> <span class="n">dataValues</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">rescale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">dataInterp</span><span class="p">)</span>
+    <span class="n">dataInterp</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="n">dataInterpNearest</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">dataInterp</span> </div>
+
+
+<div class="viewcode-block" id="integral">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.integral">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">integral</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">low</span><span class="p">,</span> <span class="n">up</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span> <span class="n">Y</span> <span class="o">=</span> <span class="n">Y</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">X</span><span class="o">&gt;=</span><span class="n">low</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">X</span><span class="o">&lt;=</span><span class="n">up</span><span class="p">)</span>
+    <span class="n">Xm</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+    <span class="n">Ym</span> <span class="o">=</span> <span class="n">Y</span><span class="p">[</span><span class="n">mask</span><span class="p">,:]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">Xm</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">low</span><span class="o">+</span><span class="n">up</span><span class="p">)</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">X</span><span class="o">-</span><span class="n">low</span><span class="p">))</span>
+        <span class="n">Xm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">X</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">X</span><span class="p">[</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="n">Ym</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">Y</span><span class="p">[</span><span class="n">index</span><span class="p">,:],</span> <span class="n">Y</span><span class="p">[</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span><span class="p">,:]])</span>
+
+    <span class="n">ilow</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">Xm</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="n">X</span><span class="p">))</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">iup</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">Xm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">X</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="n">sm</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">Xm</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">!=</span><span class="n">low</span><span class="p">:</span>
+        <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">ilow</span><span class="p">],</span> <span class="n">Y</span><span class="p">[</span><span class="n">ilow</span><span class="p">,:]</span>
+        <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span> <span class="o">=</span> <span class="n">Xm</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Ym</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">low</span>
+
+        <span class="n">a</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">x0</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">x1</span> <span class="o">-</span> <span class="n">x0</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">a</span><span class="o">*</span><span class="n">y1</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">a</span><span class="p">)</span><span class="o">*</span><span class="n">y0</span>
+        <span class="n">sm</span> <span class="o">+=</span> <span class="mf">0.5</span><span class="o">*</span><span class="p">(</span><span class="n">y</span> <span class="o">+</span> <span class="n">y1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">x1</span><span class="o">-</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="n">dx</span> <span class="o">=</span> <span class="n">Xm</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">Xm</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">yy</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">Ym</span><span class="p">[</span><span class="mi">1</span><span class="p">:,:]</span> <span class="o">+</span> <span class="n">Ym</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,:])</span>
+    <span class="n">sm</span> <span class="o">+=</span> <span class="p">(</span><span class="n">yy</span><span class="o">*</span><span class="n">dx</span><span class="p">[:,</span><span class="kc">None</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">Xm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">!=</span><span class="n">up</span><span class="p">:</span>
+        <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span> <span class="o">=</span> <span class="n">Xm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Ym</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,:]</span>
+        <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">iup</span><span class="p">],</span> <span class="n">Y</span><span class="p">[</span><span class="n">iup</span><span class="p">,:]</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">up</span>
+
+        <span class="n">a</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">x0</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">x1</span> <span class="o">-</span> <span class="n">x0</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">a</span><span class="o">*</span><span class="n">y1</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">a</span><span class="p">)</span><span class="o">*</span><span class="n">y0</span>
+        <span class="n">sm</span> <span class="o">+=</span> <span class="mf">0.5</span><span class="o">*</span><span class="p">(</span><span class="n">y</span> <span class="o">+</span> <span class="n">y0</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">x0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">sm</span></div>
+
+
+<div class="viewcode-block" id="toSI">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.toSI">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">toSI</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Return the given metric in SI unit</span>
+<span class="sd">    Input:</span>
+<span class="sd">    - value: value of the metric in the original units</span>
+<span class="sd">    - unit: original units of value. \</span>
+<span class="sd">    Must follow the form: &lt;unit&gt;int.&lt;unit&gt;int....&lt;unit&gt;int/&lt;unit&gt;int.&lt;unit&gt;int....&lt;unit&gt;int \</span>
+<span class="sd">    The unit are separated by a space. The exposant of the unit is given right after the unit and must be positive. \</span>
+<span class="sd">    All units with positive exposant are proviede before &quot;/&quot; and all negatives after (omiting the &quot;-&quot;) \</span>
+<span class="sd">    The character &quot;/&quot; must not be repeated. \</span>
+<span class="sd">    Angstrom is given as A°.</span>
+<span class="sd">    Output:</span>
+<span class="sd">    - value in SI units </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">parser</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">SIkeys</span><span class="p">,</span> <span class="n">nonSIkeys</span><span class="p">):</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">u</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">u</span><span class="p">))])</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">isdigit</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">mask</span><span class="p">):</span>
+            <span class="n">power</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">mask</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">power</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="o">~</span><span class="n">mask</span><span class="p">])</span>
+
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">unit</span> <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">nonSIkeys</span> <span class="k">if</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">u</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span> <span class="k">return</span> <span class="n">u</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;&quot;</span><span class="p">),</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">power</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;too many non SI units&quot;</span><span class="p">)</span>
+
+        
+        <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">un</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="k">if</span> <span class="n">un</span><span class="o">==</span><span class="s2">&quot;m&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">pass</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">rest</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">rest</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">:</span> <span class="k">return</span> <span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="n">rest</span><span class="p">,</span> <span class="n">power</span>
+            <span class="k">else</span><span class="p">:</span> <span class="k">return</span> <span class="n">rest</span><span class="p">,</span> <span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="n">power</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="k">return</span> <span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="n">power</span>
+        <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;too many &#39;m&#39; in unit&quot;</span><span class="p">)</span>
+
+
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">unit</span> <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">SIkeys</span> <span class="k">if</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">u</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span> <span class="k">return</span> <span class="n">u</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;&quot;</span><span class="p">),</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">power</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;no units found&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;too many SI units&quot;</span><span class="p">)</span>
+
+
+    <span class="n">siUnits</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="s1">&#39;K&#39;</span><span class="p">,</span> <span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="s1">&#39;cd&#39;</span><span class="p">,</span> <span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="s1">&#39;J&#39;</span><span class="p">,</span> <span class="s1">&#39;Pa&#39;</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">,</span> <span class="s1">&#39;V&#39;</span><span class="p">]</span>
+    <span class="n">prefixes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;Z&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">zetta</span><span class="p">,</span>
+        <span class="s1">&#39;E&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">exa</span><span class="p">,</span>
+        <span class="s1">&#39;P&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">peta</span><span class="p">,</span>
+        <span class="s1">&#39;T&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">tera</span><span class="p">,</span>
+        <span class="s1">&#39;G&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">giga</span><span class="p">,</span>
+        <span class="s1">&#39;M&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">mega</span><span class="p">,</span>
+        <span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">kilo</span><span class="p">,</span>
+        <span class="s1">&#39;h&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">hecto</span><span class="p">,</span>
+        <span class="s1">&#39;da&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">deka</span><span class="p">,</span>
+        <span class="s1">&#39;d&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">deci</span><span class="p">,</span>
+        <span class="s1">&#39;c&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">centi</span><span class="p">,</span>
+        <span class="s1">&#39;m&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">milli</span><span class="p">,</span>
+        <span class="s1">&#39;µ&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">micro</span><span class="p">,</span>
+        <span class="s1">&#39;n&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">nano</span><span class="p">,</span>
+        <span class="s1">&#39;p&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">pico</span><span class="p">,</span>
+        <span class="s1">&#39;f&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">femto</span><span class="p">,</span>
+        <span class="s1">&#39;a&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">atto</span>
+    <span class="p">}</span>
+    <span class="n">otherUnits</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="c1"># distance</span>
+        <span class="s1">&#39;A°&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">angstrom</span><span class="p">,</span>
+        <span class="s1">&#39;au&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">au</span><span class="p">,</span>
+        <span class="s1">&#39;pc&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">parsec</span><span class="p">,</span>
+        <span class="s1">&#39;ly&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">light_year</span><span class="p">,</span>
+        <span class="c1"># mass</span>
+        <span class="s1">&#39;T&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">metric_ton</span><span class="p">,</span>
+        <span class="s1">&#39;amu&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">atomic_mass</span><span class="p">,</span>
+        <span class="c1"># pressure</span>
+        <span class="s1">&#39;bar&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">bar</span><span class="p">,</span>
+        <span class="s1">&#39;atm&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">atm</span><span class="p">,</span>
+        <span class="s1">&#39;psi&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">psi</span><span class="p">,</span>
+        <span class="s1">&#39;mmHg&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">mmHg</span><span class="p">,</span>
+        <span class="c1"># volume</span>
+        <span class="s1">&#39;L&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">liter</span><span class="p">,</span>
+        <span class="c1"># energy</span>
+        <span class="s1">&#39;eV&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">electron_volt</span><span class="p">,</span>
+        <span class="s1">&#39;cal&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">calorie</span><span class="p">,</span>
+        <span class="s1">&#39;erg&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">erg</span><span class="p">,</span>
+        <span class="c1"># force</span>
+        <span class="s1">&#39;dyn&#39;</span><span class="p">:</span> <span class="n">cst</span><span class="o">.</span><span class="n">dyne</span>
+    <span class="p">}</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">unitsUp</span><span class="p">,</span> <span class="n">unitsLow</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+        <span class="n">unitsUp</span><span class="p">,</span> <span class="n">unitsLow</span> <span class="o">=</span> <span class="n">unitsUp</span><span class="o">.</span><span class="n">split</span><span class="p">(),</span> <span class="n">unitsLow</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="n">unitsUp</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+        <span class="n">unitsLow</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="n">unitsUp</span><span class="p">,</span> <span class="n">unitsLow</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">unitsUp</span><span class="p">:</span>
+        <span class="n">prefix</span><span class="p">,</span> <span class="n">un</span><span class="p">,</span> <span class="n">power</span> <span class="o">=</span> <span class="n">parser</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">siUnits</span><span class="p">,</span> <span class="n">otherUnits</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">un</span> <span class="o">==</span> <span class="s2">&quot;g&quot;</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">*=</span> <span class="p">(</span><span class="n">prefixes</span><span class="p">[</span><span class="n">prefix</span><span class="p">]</span> <span class="o">/</span> <span class="n">cst</span><span class="o">.</span><span class="n">kilo</span><span class="p">)</span> <span class="o">**</span> <span class="n">power</span>
+        <span class="k">elif</span> <span class="n">un</span> <span class="ow">in</span> <span class="n">otherUnits</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">*=</span> <span class="p">(</span><span class="n">prefixes</span><span class="p">[</span><span class="n">prefix</span><span class="p">]</span> <span class="o">*</span> <span class="n">otherUnits</span><span class="p">[</span><span class="n">un</span><span class="p">])</span> <span class="o">**</span> <span class="n">power</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">*=</span> <span class="p">(</span><span class="n">prefixes</span><span class="p">[</span><span class="n">prefix</span><span class="p">])</span> <span class="o">**</span> <span class="n">power</span>
+
+    <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">unitsLow</span><span class="p">:</span>
+        <span class="n">prefix</span><span class="p">,</span> <span class="n">un</span><span class="p">,</span> <span class="n">power</span> <span class="o">=</span> <span class="n">parser</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">siUnits</span><span class="p">,</span> <span class="n">otherUnits</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">un</span> <span class="o">==</span> <span class="s2">&quot;g&quot;</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">*=</span> <span class="p">(</span><span class="n">prefixes</span><span class="p">[</span><span class="n">prefix</span><span class="p">]</span> <span class="o">/</span> <span class="n">cst</span><span class="o">.</span><span class="n">kilo</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span> <span class="o">-</span> <span class="n">power</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">un</span> <span class="ow">in</span> <span class="n">otherUnits</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">*=</span> <span class="p">(</span><span class="n">prefixes</span><span class="p">[</span><span class="n">prefix</span><span class="p">]</span> <span class="o">*</span> <span class="n">otherUnits</span><span class="p">[</span><span class="n">un</span><span class="p">])</span> <span class="o">**</span> <span class="p">(</span> <span class="o">-</span> <span class="n">power</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">*=</span> <span class="p">(</span><span class="n">prefixes</span><span class="p">[</span><span class="n">prefix</span><span class="p">])</span> <span class="o">**</span> <span class="p">(</span> <span class="o">-</span> <span class="n">power</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">value</span></div>
+
+
+<div class="viewcode-block" id="planck">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.planck">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">planck</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">wvl</span><span class="p">,</span> <span class="n">r_d</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Calculate planck emission in W/m2/sr/m for a surface T at wavelengths wvl</span>
+<span class="sd">    # Input</span>
+<span class="sd">    - T (float or N-D array of float [K]): temperature of the surface</span>
+<span class="sd">    - wvl (float or 1-D array (shape=(nWavelength), float [m])): wavelengths</span>
+<span class="sd">    - r_d (optional, 1-D array (shape=(2), float [m])): the source radius and distance, respectively. \</span>
+<span class="sd">        If not given, returns the surface radiance, if given, returns the radiance received at that distance from the source</span>
+<span class="sd">    # Output</span>
+<span class="sd">    float of 1-D array (shape=(nWavelength), float [W/m2/sr/m])) according to the shape of wvl</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># if both T and wvl are arrays, we must add dimensions to both tables for</span>
+    <span class="c1"># the following calculation to work</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">wvl</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">shp</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">nWvl</span> <span class="o">=</span> <span class="n">wvl</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">nDim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span>
+
+        <span class="c1"># we add an axis at the end for the wavelength</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># we add as many axes as dimensions in T at the beginning of wvl</span>
+        <span class="n">axes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">nDim</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">wvl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">wvl</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">axes</span><span class="p">))</span>
+
+    <span class="n">c1</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">cst</span><span class="o">.</span><span class="n">h</span><span class="o">*</span><span class="n">cst</span><span class="o">.</span><span class="n">c</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="p">(</span><span class="n">wvl</span><span class="o">**</span><span class="mi">5</span><span class="p">)</span>
+    <span class="n">c2</span> <span class="o">=</span> <span class="n">cst</span><span class="o">.</span><span class="n">h</span><span class="o">*</span><span class="n">cst</span><span class="o">.</span><span class="n">c</span><span class="o">/</span><span class="p">(</span><span class="n">wvl</span><span class="o">*</span><span class="n">cst</span><span class="o">.</span><span class="n">k</span><span class="o">*</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="n">c1</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">c2</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="c1"># W/m2/sr/m</span>
+
+    <span class="k">if</span> <span class="n">r_d</span><span class="p">:</span>
+        <span class="n">radius</span><span class="p">,</span> <span class="n">distance</span> <span class="o">=</span> <span class="n">r_d</span>
+        <span class="k">return</span> <span class="n">L</span> <span class="o">*</span> <span class="p">(</span><span class="n">radius</span><span class="o">/</span><span class="n">distance</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">L</span></div>
+
+
+<div class="viewcode-block" id="dplanck_dT">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.dplanck_dT">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">dplanck_dT</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">wvl</span><span class="p">,</span> <span class="n">r_d</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span> 
+<span class="w">    </span><span class="sd">&#39;&#39;&#39; Calculate derivative of the planck emission regarding the temperature in</span>
+<span class="sd">    W/m2/sr/m/K for a surface T at wavelengths wvl</span>
+<span class="sd">    # Input</span>
+<span class="sd">    - T (float or N-D array of float [K]): temperature of the surface</span>
+<span class="sd">    - wvl (float or 1-D array (shape=(nWavelength), float [m])): wavelengths</span>
+<span class="sd">    - r_d (optional, 1-D array (shape=(2), float [m])): the source radius and</span>
+<span class="sd">      distance, respectively. \n If not given, returns the surface radiance, if</span>
+<span class="sd">      given, returns the radiance received at that distance from the source</span>
+<span class="sd">    # Output</span>
+<span class="sd">    float of 1-D array (shape=(nWavelength), float [W/m2/sr/m])) according to</span>
+<span class="sd">    the shape of wvl &#39;&#39;&#39;</span>
+
+    <span class="c1"># if both T and wvl are arrays, we must add dimensions to both tables for</span>
+    <span class="c1"># the following calculation to work</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">wvl</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">shp</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">nWvl</span> <span class="o">=</span> <span class="n">wvl</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">nDim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span>
+
+        <span class="c1"># we add an axis at the end for the wavelength</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># we add as many axes as dimensions in T at the beginning of wvl</span>
+        <span class="n">axes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">nDim</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">wvl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">wvl</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">axes</span><span class="p">))</span>
+
+    <span class="n">c1</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">cst</span><span class="o">.</span><span class="n">h</span><span class="o">*</span><span class="n">cst</span><span class="o">.</span><span class="n">c</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="p">(</span><span class="n">wvl</span><span class="o">**</span><span class="mi">5</span><span class="p">)</span>
+    <span class="n">c2</span> <span class="o">=</span> <span class="n">cst</span><span class="o">.</span><span class="n">h</span><span class="o">*</span><span class="n">cst</span><span class="o">.</span><span class="n">c</span><span class="o">/</span><span class="p">(</span><span class="n">wvl</span><span class="o">*</span><span class="n">cst</span><span class="o">.</span><span class="n">k</span><span class="o">*</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="p">(</span> <span class="p">(</span><span class="n">c1</span> <span class="o">*</span> <span class="n">c2</span> <span class="p">)</span> <span class="o">/</span> <span class="n">T</span> <span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">c2</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="c1"># W/m2/sr/m</span>
+
+    <span class="k">if</span> <span class="n">r_d</span><span class="p">:</span>
+        <span class="n">radius</span><span class="p">,</span> <span class="n">distance</span> <span class="o">=</span> <span class="n">r_d</span>
+        <span class="k">return</span> <span class="n">L</span> <span class="o">*</span> <span class="p">(</span><span class="n">radius</span><span class="o">/</span><span class="n">distance</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">L</span></div>
+
+
+<div class="viewcode-block" id="plotVector">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.plotVector">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">plotVector</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">vector</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">arrow_length_ratio</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">quiver</span><span class="p">(</span><span class="n">origin</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">origin</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">vector</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">vector</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">vector</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">arrow_length_ratio</span><span class="o">=</span><span class="n">arrow_length_ratio</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="n">zorder</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="set_axes_equal">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.set_axes_equal">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_axes_equal</span><span class="p">(</span><span class="n">ax</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Make axes of 3D plot have equal scale so that spheres appear as spheres,</span>
+<span class="sd">    cubes as cubes, etc.</span>
+
+<span class="sd">    Input</span>
+<span class="sd">        ax: a matplotlib axis, e.g., as output from plt.gca().</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">x_limits</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_xlim3d</span><span class="p">()</span>
+    <span class="n">y_limits</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_ylim3d</span><span class="p">()</span>
+    <span class="n">z_limits</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_zlim3d</span><span class="p">()</span>
+
+    <span class="n">x_range</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">x_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">x_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">x_middle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">x_limits</span><span class="p">)</span>
+    <span class="n">y_range</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">y_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">y_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">y_middle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">y_limits</span><span class="p">)</span>
+    <span class="n">z_range</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">z_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">z_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">z_middle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">z_limits</span><span class="p">)</span>
+
+    <span class="c1"># The plot bounding box is a sphere in the sense of the infinity</span>
+    <span class="c1"># norm, hence I call half the max range the plot radius.</span>
+    <span class="n">plot_radius</span> <span class="o">=</span> <span class="mf">0.5</span><span class="o">*</span><span class="nb">max</span><span class="p">([</span><span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">,</span> <span class="n">z_range</span><span class="p">])</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim3d</span><span class="p">([</span><span class="n">x_middle</span> <span class="o">-</span> <span class="n">plot_radius</span><span class="p">,</span> <span class="n">x_middle</span> <span class="o">+</span> <span class="n">plot_radius</span><span class="p">])</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim3d</span><span class="p">([</span><span class="n">y_middle</span> <span class="o">-</span> <span class="n">plot_radius</span><span class="p">,</span> <span class="n">y_middle</span> <span class="o">+</span> <span class="n">plot_radius</span><span class="p">])</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_zlim3d</span><span class="p">([</span><span class="n">z_middle</span> <span class="o">-</span> <span class="n">plot_radius</span><span class="p">,</span> <span class="n">z_middle</span> <span class="o">+</span> <span class="n">plot_radius</span><span class="p">])</span>
+    <span class="k">return</span></div>
+
+
+<div class="viewcode-block" id="readRadianceKurucz">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.readRadianceKurucz">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">readRadianceKurucz</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">radius</span><span class="p">):</span>
+    <span class="n">wavelength</span><span class="p">,</span> <span class="n">spectrum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span> <span class="n">unpack</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">spectrum</span> <span class="o">*=</span> <span class="n">cst</span><span class="o">.</span><span class="n">milli</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">cst</span><span class="o">.</span><span class="n">nano</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">wavelength</span><span class="p">,</span> <span class="n">spectrum</span> <span class="o">*</span> <span class="p">((</span><span class="n">cst</span><span class="o">.</span><span class="n">au</span><span class="o">/</span><span class="n">radius</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span></div>
+
+
+<div class="viewcode-block" id="combineEstimates">
+<a class="viewcode-back" href="../../htrdrPy.helperFunctions.html#htrdrPy.helperFunctions.combineEstimates">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">combineEstimates</span><span class="p">(</span><span class="n">sumX</span><span class="p">,</span> <span class="n">sumXsquare</span><span class="p">,</span> <span class="n">numbers</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Calculate the mean, the variance and the standard deviation of a set of values</span>
+<span class="sd">    # Input:</span>
+<span class="sd">    - sumX (1-D array, shape=(N), float): sum of the values</span>
+<span class="sd">    - sumXsquare (1-D array, shape=(N), float): sum of the square of the values</span>
+<span class="sd">    - numbers (int): number of realizations for each estimate</span>
+<span class="sd">    # Output:</span>
+<span class="sd">    - mean (float): mean of the values</span>
+<span class="sd">    - variance (float): variance of the values</span>
+<span class="sd">    - std (float): standard deviation of the values</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">numbers</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">sumX</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">N</span>
+    <span class="n">variance</span> <span class="o">=</span> <span class="p">((</span><span class="n">sumXsquare</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">N</span><span class="p">)</span> <span class="o">-</span> <span class="n">mean</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">N</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">deviation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variance</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mean</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">deviation</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">300</span><span class="p">)</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">10</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">10</span><span class="p">))</span>
+    <span class="n">wvl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">1e-7</span><span class="p">,</span> <span class="mf">8e-7</span><span class="p">,</span> <span class="mi">16</span><span class="p">)</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="n">planck</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">wvl</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Anthony Arfaux.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
