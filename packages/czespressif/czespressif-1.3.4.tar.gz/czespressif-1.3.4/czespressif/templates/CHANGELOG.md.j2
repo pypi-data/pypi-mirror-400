@@ -1,0 +1,57 @@
+{# Release version == e.g. "v4.7.0 (2023-12-13)" #}
+{# Sections == e.g. "New features" block, "Bug fixes" block #}
+{# Section Title == e.g. "New Features" header, "Bug Fixes" header #}
+{# Commit record == e.g. "- **stub**: Add ESP32-S3 octal flash support *(Roland Dobai - b746aa7) #}
+{# IF-Unreleased section == enable/disable whole block "Unreleased" #}
+{# IF-Section line == enable/disable horizontal line between sections #}
+
+{% import 'macros.md.j2' as macros %}
+
+{# ---TEMPLATE START #}
+{# Render the changelog title and header only for full changelog, not for cz bump #}
+{% if not config.incremental %}
+{{ config.changelog_title }}{# ---CHANGELOG TITLE--- #}
+{{ config.changelog_header }}{# ---CHANGELOG HEADER--- #}
+{% endif %}
+
+{# keep empty line above this comment #}
+{% for release in tree %}{# ---Release version #}
+{% if not (release.version == 'Unreleased' and not config.changelog_unreleased) %}{# ---IF-Unreleased section #}
+## {{ release.version }}{% if release.date %} ({{ release.date }}){% endif %}
+
+{# keep empty line above this comment #}
+{% for change_key, changes in release.changes.items() %}{# ---Sections #}
+
+{# keep empty line above this comment #}
+{% if change_key %}{# ---Section Title #}
+### {{ change_key }}
+{% endif %}{# Section Title--- #}
+
+{# keep empty line above this comment #}
+{% for change in changes %}{# ---Commit record with scope #}
+{% if change.scope %}
+{{ macros.render_commit_record_scope(change, config) }}
+{% endif %}
+{% endfor %}{# Commit record with scope--- #}
+{% for change in changes%}{# ---Commit record no scope#}
+{% if not change.scope %}
+{{ macros.render_commit_record_no_scope(change, config) }}
+{% endif %}
+{% endfor %}{# Commit record no scope--- #}
+{% endfor %}{# Sections--- #}
+
+{# keep empty line above this comment #}
+{% if not loop.last and config.changelog_section_line %}{# ---IF-Section line, only if not the last release #}
+---
+
+{% endif %}{# IF-Section line--- #}
+{# keep empty line above this comment #}
+{% endif %}{# IF-Unreleased section--- #}
+{% endfor %}{# Release version--- #}
+{# Render the footer only for full changelog, not for cz bump #}
+{% if not config.incremental %}{# ---CHANGELOG FOOTER #}
+---{# Add horizontal line before the footer #}
+
+{{ config.changelog_footer }}
+{% endif %}{# CHANGELOG FOOTER--- #}
+{#    TEMPLATE END--- #}
