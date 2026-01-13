@@ -1,0 +1,46 @@
+Metadata-Version: 2.4
+Name: pyixx
+Version: 0.1.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: 3.13
+Classifier: License :: OSI Approved :: MIT License
+Classifier: License :: OSI Approved :: Apache Software License
+Summary: Python bindings for libixx - NüschtOS search index
+Keywords: nix,nixos,search,index,nuschtos
+Author-email: Félix Dorn <dorn@xfe.li>
+License-Expression: MIT OR Apache-2.0
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://github.com/NuschtOS/ixx
+Project-URL: Repository, https://github.com/felixdorn/mcp-nix
+
+# pyixx
+
+Python bindings for [libixx](https://github.com/NuschtOS/ixx) - NüschtOS search index.
+
+## Usage
+
+```python
+import pyixx
+
+# Load an index from bytes
+with open("index.ixx", "rb") as f:
+    index = pyixx.Index.read(f.read())
+
+# Search for options
+results = index.search("colorscheme", max_results=10)
+for r in results:
+    print(f"{r.name} (idx={r.idx}, scope={r.scope_id})")
+
+# Get metadata
+meta = index.meta()
+print(f"Chunk size: {meta.chunk_size}")
+print(f"Scopes: {meta.scopes}")
+
+# Calculate chunk for fetching full option details
+chunk, pos = index.get_chunk_for_idx(results[0].idx)
+# Fetch meta/{chunk}.json and get item at position `pos`
+```
+
