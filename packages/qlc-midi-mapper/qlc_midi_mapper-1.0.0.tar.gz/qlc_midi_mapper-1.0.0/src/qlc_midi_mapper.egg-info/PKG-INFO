@@ -1,0 +1,227 @@
+Metadata-Version: 2.4
+Name: qlc_midi_mapper
+Version: 1.0.0
+Summary: A python tool to easily map qlc buttons and midi.
+Author-email: Rémi Giorno <remi.giorno@gmail.com>
+Project-URL: Homepage, https://gitlab.com/remi.giorno/qlc_midi_mapper
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: defusedxml
+Requires-Dist: tkinterdnd2
+Provides-Extra: test
+Requires-Dist: pytest>=9.0.1; extra == "test"
+
+# QLC+ MIDI Mapper
+
+A Python tool to **inspect, edit, and manage MIDI mappings** in **QLC+ Virtual Console workspaces** (`.qxw` files).
+
+It is designed to make large MIDI setups **readable, exportable, and portable** across DAWs and controllers, without manually editing XML.
+
+---
+
+## ✨ Features
+
+- Load and parse QLC+ `.qxw` workspace files
+- Discover **Virtual Console Buttons and Sliders**
+- Inspect and edit **MIDI input mappings**
+  - **Buttons → MIDI Notes (0–127)**
+  - **Sliders → MIDI CC (0–127)**
+- Decode and edit **QLC+ Input Channels** (raw values stored in XML)
+- Group widgets into **logical rows** (by function or caption)
+- Import / export mappings as **CSV**
+- Export MIDI maps for:
+  - **Studio One** (`.pitchlist`, notes only)
+  - **Reaper** (note-name map, notes only)
+
+---
+
+## 📦 Installation
+
+### From PyPI (recommended)
+
+```bash
+pip install qlc-midi-mapper
+```
+
+This installs:
+
+- the backend
+- the Tkinter-based GUI
+- the CLI entry point
+
+### From source (development)
+
+```bash
+git clone https://gitlab.com/remi.giorno/qlc_midi_mapper.git
+cd qlc_midi_mapper
+pip install -e ".[test]"
+```
+
+---
+
+## 🚀 Usage
+
+### GUI
+
+Run the application with:
+
+```bash
+qlc_midi_mapper
+```
+
+The GUI allows you to:
+
+- Open a `.qxw` workspace
+- View and edit MIDI mappings
+- Clearly distinguish **Buttons (NOTE)** from **Sliders (CC)**
+- Import/export CSV mappings
+- Export DAW-compatible MIDI maps
+
+---
+
+## 🧠 QLC+ MIDI encoding (important)
+
+QLC+ stores MIDI input mappings in the XML as:
+
+```xml
+<Input Universe="0" Channel="..."/>
+```
+
+That `Channel` value is **not** the MIDI CC or Note number.
+
+QLC+ uses a single integer **Input Channel space**, where different MIDI message
+types occupy distinct numeric blocks:
+
+| Message type | MIDI # | QLC+ Input Channel |
+|-------------|--------|--------------------|
+| CC          | 0–127  | 128–255            |
+| NOTE        | 0–127  | 129–256            |
+
+QLC+ may additionally add multiples of **4096** internally for MIDI channel /
+OMNI encoding. These upper blocks must be preserved when remapping inputs.
+
+This application always exposes mappings as:
+- **Type**: `CC` or `NOTE`
+- **MIDI#**: the real MIDI number (0–127)
+- **QLC_InputChannel**: the raw integer stored in the `.qxw` file
+
+---
+
+## 📤 CSV format
+
+Exported CSV files contain:
+
+| Column           | Description                            |
+|------------------|----------------------------------------|
+| Name             | Logical row name (function or caption) |
+| Type             | `CC` or `NOTE`                         |
+| MIDI#            | Real MIDI number (0–127)               |
+| QLC_InputChannel | Raw value stored in QLC+               |
+| Caption          | Widget caption                         |
+| Function         | QLC+ function name (if any)            |
+| Path             | Virtual Console path                   |
+
+### CSV import rules
+
+- `Name` is required
+- Either `MIDI#` **or** `QLC_InputChannel` must be provided
+- If `MIDI#` is used, the correct QLC+ Input Channel is computed automatically based on `Type`
+
+---
+
+## 🎹 DAW Export
+
+### Studio One
+
+Exports a `.pitchlist` file compatible with **Studio One** (NOTE widgets only):
+
+```xml
+<Music.PitchNameList>
+    <Music.PitchName pitch="42" name="[FX] Left→Right"/>
+</Music.PitchNameList>
+```
+
+Arrow symbols are sanitized to avoid XML-escaped artifacts.
+
+### Reaper
+
+Exports a tab-separated MIDI note-name file (NOTE widgets only):
+
+```text
+42    [FX] Left→Right
+```
+
+CC / fader mappings are intentionally excluded from DAW exports, as DAWs do not use note-name maps for CC.
+
+---
+
+## 🧠 Project Structure
+
+```text
+qlc_midi_mapper/
+├── src/qlc_midi_mapper/
+│   ├── workspace.py   # Core backend logic (XML, MIDI, CSV)
+│   ├── models.py      # Data models (widgets, rows)
+│   ├── gui/           # Tkinter GUI
+│   └── __main__.py    # CLI entry point
+└── tests/             # Pytest test suite
+```
+
+The backend (`MidiWorkspace`) is **GUI-agnostic** and fully unit-tested.
+
+---
+
+## 🧪 Tests
+
+Run tests locally with:
+
+```bash
+pytest
+```
+
+The test suite covers:
+
+- XML parsing
+- Widget discovery
+- Logical grouping
+- CSV import/export
+- DAW export formats
+- XML round-tripping
+
+---
+
+## 🛠 Development Tools
+
+- **ruff** — linting
+- **black** — formatting
+- **pytest** — testing
+- **GitLab CI** — automated lint / test / build / publish
+
+All configuration lives in `pyproject.toml`.
+
+---
+
+## 📄 License
+
+MIT License
+
+---
+
+## 🙌 Contributing
+
+Contributions are welcome!
+
+- Bug reports
+- Feature requests
+- DAW export improvements
+- Controller-specific workflows
+
+Open an issue or merge request on GitLab.
+
+---
+
+## 🎛 Why this exists
+
+QLC+ workspaces scale fast.
+
+This tool exists to **bring structure, portability, and sanity** to complex MIDI-driven lighting rigs.
