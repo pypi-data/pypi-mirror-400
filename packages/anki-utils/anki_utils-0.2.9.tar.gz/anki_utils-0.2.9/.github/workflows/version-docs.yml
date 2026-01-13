@@ -1,0 +1,128 @@
+name: Version Docs on Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  version-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Strip 'v' prefix if present (v0.2.4 → 0.2.4)
+          VERSION="${GITHUB_REF_NAME#v}"
+          DATE=$(date +%Y-%m-%d)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "Versioning docs for $VERSION ($DATE)"
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DATE="${{ steps.version.outputs.date }}"
+          FILE="anki_utils/CHANGELOG.md"
+
+          # Check if there's content under [Unreleased] (not just the header)
+          if grep -q "^## \[Unreleased\]" "$FILE"; then
+            # Get line number of [Unreleased] header
+            UNRELEASED_LINE=$(grep -n "^## \[Unreleased\]" "$FILE" | cut -d: -f1)
+
+            # Get line number of next version header (if any)
+            NEXT_VERSION_LINE=$(tail -n +$((UNRELEASED_LINE + 1)) "$FILE" | grep -n "^## \[" | head -1 | cut -d: -f1)
+
+            if [ -n "$NEXT_VERSION_LINE" ]; then
+              # Calculate actual line number in file
+              NEXT_VERSION_LINE=$((UNRELEASED_LINE + NEXT_VERSION_LINE))
+
+              # Check if there's content between headers (more than just blank lines/---)
+              CONTENT_BETWEEN=$(sed -n "$((UNRELEASED_LINE + 1)),$((NEXT_VERSION_LINE - 1))p" "$FILE" | grep -v "^$" | grep -v "^---$" | head -1)
+
+              if [ -n "$CONTENT_BETWEEN" ]; then
+                echo "Found unreleased content in CHANGELOG.md, versioning..."
+                # Replace [Unreleased] with version, keeping a fresh [Unreleased] section
+                sed -i "s/^## \[Unreleased\]$/## [Unreleased]\n\n---\n\n## [$VERSION] - $DATE/" "$FILE"
+              else
+                echo "No content under [Unreleased] in CHANGELOG.md, skipping"
+              fi
+            else
+              # No next version header, check for any content after [Unreleased]
+              CONTENT_AFTER=$(tail -n +$((UNRELEASED_LINE + 1)) "$FILE" | grep -v "^$" | grep -v "^---$" | head -1)
+
+              if [ -n "$CONTENT_AFTER" ]; then
+                echo "Found unreleased content in CHANGELOG.md, versioning..."
+                sed -i "s/^## \[Unreleased\]$/## [Unreleased]\n\n---\n\n## [$VERSION] - $DATE/" "$FILE"
+              else
+                echo "No content under [Unreleased] in CHANGELOG.md, skipping"
+              fi
+            fi
+          else
+            echo "No [Unreleased] section found in CHANGELOG.md"
+          fi
+
+      - name: Update MIGRATIONS.md
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DATE="${{ steps.version.outputs.date }}"
+          FILE="anki_utils/MIGRATIONS.md"
+
+          # Check if there's content under [Unreleased] (not just the header)
+          if grep -q "^## \[Unreleased\]" "$FILE"; then
+            # Get line number of [Unreleased] header
+            UNRELEASED_LINE=$(grep -n "^## \[Unreleased\]" "$FILE" | cut -d: -f1)
+
+            # Get line number of next version header (if any)
+            NEXT_VERSION_LINE=$(tail -n +$((UNRELEASED_LINE + 1)) "$FILE" | grep -n "^## \[" | head -1 | cut -d: -f1)
+
+            if [ -n "$NEXT_VERSION_LINE" ]; then
+              # Calculate actual line number in file
+              NEXT_VERSION_LINE=$((UNRELEASED_LINE + NEXT_VERSION_LINE))
+
+              # Check if there's content between headers (more than just blank lines/---)
+              CONTENT_BETWEEN=$(sed -n "$((UNRELEASED_LINE + 1)),$((NEXT_VERSION_LINE - 1))p" "$FILE" | grep -v "^$" | grep -v "^---$" | head -1)
+
+              if [ -n "$CONTENT_BETWEEN" ]; then
+                echo "Found unreleased content in MIGRATIONS.md, versioning..."
+                sed -i "s/^## \[Unreleased\]$/## [Unreleased]\n\n---\n\n## [$VERSION] - $DATE/" "$FILE"
+              else
+                echo "No content under [Unreleased] in MIGRATIONS.md, skipping"
+              fi
+            else
+              # No next version header, check for any content after [Unreleased]
+              CONTENT_AFTER=$(tail -n +$((UNRELEASED_LINE + 1)) "$FILE" | grep -v "^$" | grep -v "^---$" | head -1)
+
+              if [ -n "$CONTENT_AFTER" ]; then
+                echo "Found unreleased content in MIGRATIONS.md, versioning..."
+                sed -i "s/^## \[Unreleased\]$/## [Unreleased]\n\n---\n\n## [$VERSION] - $DATE/" "$FILE"
+              else
+                echo "No content under [Unreleased] in MIGRATIONS.md, skipping"
+              fi
+            fi
+          else
+            echo "No [Unreleased] section found in MIGRATIONS.md"
+          fi
+
+      - name: Commit and push updates
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add anki_utils/CHANGELOG.md anki_utils/MIGRATIONS.md
+          git commit -m "chore: version docs for $VERSION"
+          git push
