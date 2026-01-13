@@ -1,0 +1,209 @@
+Metadata-Version: 2.4
+Name: forgejo-ntfy
+Version: 0.1.0
+Summary: feed Forgejo notifications to ntfy.sh
+Project-URL: Homepage, https://codeberg.org/mih/forgejo-ntfy
+Project-URL: Documentation, https://codeberg.org/mih/forgejo-ntfy#readme
+Project-URL: Issues, https://codeberg.org/mih/forgejo-ntfy/issues
+Project-URL: Source, https://codeberg.org/mih/forgejo-ntfy
+Project-URL: Changelog, https://codeberg.org/mih/forgejo-ntfy/src/branch/main/CHANGELOG.md
+Author-email: Michael Hanke <mih@ngln.eu>
+Maintainer-email: Michael Hanke <mih@ngln.eu>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: forgejo,notifications,ntfy
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Topic :: Software Development
+Requires-Python: >=3.11
+Requires-Dist: httpx
+Requires-Dist: humanize
+Description-Content-Type: text/markdown
+
+# forgejo-ntfy
+
+[![PyPI version fury.io](https://badge.fury.io/py/forgejo-ntfy.svg)](https://pypi.python.org/pypi/forgejo-ntfy/)
+[![Hatch project](https://img.shields.io/badge/%F0%9F%A5%9A-Hatch-4051b5.svg)](https://github.com/pypa/hatch)
+
+Feed [Forgejo](https://forgejo.org) notifications to [ntfy.sh](https://ntfy.sh).
+
+Forgejo can send notifications by email, but (presently) does not support other
+types of "push" notifications. This tool fetches notifications from Forgejo's
+API (with an access token that grants read-permissions for notifications), and
+posts them to a ntfy service -- including self-hosted ones.
+
+`forgejo-ntfy` is meant to be set up on a "server", and to be executed repeatedly
+(think "cronjob").
+
+Notification can be received via a variety of ntfy clients, including [mobile
+apps](https://docs.ntfy.sh/subscribe/phone/).
+
+
+## Installation
+
+### Install the development version
+
+Using [uv](https://docs.astral.sh/uv) it is trivial to install straight from the
+source code repository.
+
+```
+uv tool install https://codeberg.org/mih/forgejo-ntfy.git
+```
+
+Afterwards, the `forgejo-ntfy` executable can be used.
+
+
+## Configuration
+
+Configuration is done in a [TOML](https://toml.io) file at
+`${XGD_CONFIG_HOME}/.config/forgejo-ntfy.toml`
+(where `XDG_CONFIG_HOME` is defined by the [XDG Base Directory Specification][xdgspec],
+and will typically be `${HOME}`).
+
+A minimal configuration can look like this
+
+```toml
+[defaults.ntfy]
+topic = "<long-unguessable-topic-name>"
+
+[monitors.<name>.forgejo]
+api-url = "https://<forgejo-site-url>/api"
+token = "<forgejo-access-token-notification-read-permissions>"
+```
+
+When executing `forgejo-ntfy` without any parameters, the setup above will
+publish the notifications of the user associated with the given `token`, at the
+Forgejo site accessible at `api-url`, and will publish it at the given `topic`
+on the public `ntfy.sh` instance at https://ntfy.sh.
+
+To receive these notifications on a mobile device, install the `ntfy` app from
+[F-Droid](https://f-droid.org/en/packages/io.heckel.ntfy/), or the big
+commercial app stores, and subscribe to the topic by its name.
+
+### Configuration defaults
+
+Common monitor settings can be given in a global `defaults` configuration
+section. The following listing documents all available configuration items,
+and their "factory default" values.
+
+```toml
+[defaults.ntfy]
+# this is the main free-to-use ntfy deployment
+url = "https://ntfy.sh"
+# a token to be used with any ntfy service (no default)
+token =
+
+# notification priority, see
+# https://docs.ntfy.sh/publish/#message-priority
+priority = "default"
+
+# template string for notification titles (see below for placeholders)
+title-template = "{title}"
+# template string for notification bodies (see below for placeholders)
+body-template = "{loc} [{humantime}]"
+
+# (comma-separated) tags for notifications of particular types and states,
+# see: https://docs.ntfy.sh/emojis/
+issue-open-tag = "warning"
+issue-closed-tag = "heavy_check_mark"
+pull-open-tag = "adhesive_bandage"
+pull-closed-tag = "x"
+pull-merged-tag = "heavy_check_mark"
+repo-tag = "hut"
+
+[defaults.forgejo]
+# maximum number of notifications to post on first query
+max-on-init = 3
+# maximum number of notification to fetch from Forgejo per request
+# (multiple requests will be made until all notifications have bee
+# fetched)
+request-limit = 50
+# limit queries to notifications of a particular type (default is any),
+# give as TOML array, e.g.: `["issue", "pull"]
+subject-type =
+```
+
+Any of these defaults can be overwritten for a particular monitor declaration.
+To set a particular notification priority for monitor `mymonitor` set
+
+```toml
+[monitors.mymonitor.ntfy]
+priority = "high"
+```
+
+### Using private/access-protected ntfy services
+
+The use an access-protected, custom ntfy deployment, simply configure
+its `url` and an access `token`. See https://docs.ntfy.sh/config/#access-tokens
+on setting up access tokens for ntfy.
+
+```
+[defaults.ntfy]
+url = "https://ntfy.example.org"
+token = "tk_<another-29-chars>"
+```
+
+### Running repeately
+
+Typically, `forgejo-ntfy` is executed repeatedly to poll notifications.  One of
+the best ways to achieve that continues to be a
+[cronjob](https://en.wikipedia.org/wiki/Cron). On the machine that shall run
+`forgejo-ntfy`, use `crontab -e` to add a line like the following:
+
+```
+*/15 7-21 * * * /home/<username>/.local/bin/forgejo-ntfy > /dev/null
+```
+
+This calls `forgejo-ntfy`, where `uv tool install` would place it. It is called
+every 15 minutes, every day between 7:00 and 21:00 (suppressing any non-error
+output).
+
+### Template placeholders
+
+The templates for notification titles and bodies can use any of the following
+placeholders:
+
+- `title`: Title of the Forgejo notification
+- `url`: Full `html_url` of the Forgejo notification
+- `loc`: Shortened `html_url` with the protocol stripped
+- `humantime`: Notification timestamp processed by `humanize` to create descriptions
+   like "15min ago"
+
+### Localization
+
+Language in notifications is passed on unmodified (or as given in the
+documentation).
+
+For localization of timing information it is possible to set the `locale`
+configuration flag to any value supported by
+[humanize](https://pypi.org/project/humanize).
+
+
+## Behavior
+
+For every configured *monitor* (watching a particular user's notifications at a
+particular Forgejo site), `forgejo-ntfy` queries the Forgejo API for current
+notifications. For each notification a ntfy post is assembled, using configurable
+templates and tags, and is posted to a configurable ntfy service and topic.
+
+When no notifications have been fetched for a monitor yet, a configurable
+maximum (`defaults.forgejo.max-on-init`) of "old" notifications are fetched.
+The timestamp of the most recent notification for a monitor is stored
+at `${XDG_STATE_HOME/forgejo-ntfy.json`. Subsequent queries will only query
+for notifications more recent than this timestamp.
+
+For each posted notification a line starting with `POST` is written to `STDOUT`.
+
+[xdgspec]: https://specifications.freedesktop.org/basedir-spec/latest/
