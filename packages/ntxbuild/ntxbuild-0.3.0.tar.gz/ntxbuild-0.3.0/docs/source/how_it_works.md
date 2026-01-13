@@ -1,0 +1,52 @@
+# How It Works
+This page describes how the main functionalities of this tool work.
+
+## Environment Setup
+`ntxbuild` usage starts with setting up the NuttX environment.
+When `start` option is called, the "environment" is prepared. This means things:
+- An environment file is created which is used to store some information
+- The path to the NuttX repository is added to the env file
+- The path to the NuttX Application repository is also added to the env file
+- The build tool is added to the env file (Make or CMake)
+
+Also, the `start` option supports CMake based build. By passing `--use-cmake`, the user
+will configure the environment to use CMake instead of Make.
+
+This env file will be used by the tool to locate the repositories.
+In the future (as a TO-DO task), the same file could be used to store other information,
+such as out-of-tree repositories and path to toolchains.
+
+### Makefile based builds
+The default build tool is Make.
+
+Once the environment file is setup, a `MakeBuilder` instance is created and
+it sets up the NuttX environment by checking if the repository is valid
+and finally, executes the `nuttx/tools/configure.sh` script (remember, this tool
+is a wrapper around NuttX).
+
+### CMakeLists based builds
+If the `--use-cmake` option is passed, a `CMakeBuilder` instance is created
+and used instead. Internally, it initializes CMake and uses the `build` directory
+as output and defaults to using the Ninja generator. The operation replicates the
+following command for `sim:nsh`:
+
+```
+cmake -B build -DBOARD_CONFIG=sim:nsh -GNinja
+```
+
+## Setting KConfig Options
+KConfig options are set through the `ConfigManager` class. When instantiated,
+it only requires the path to the NuttX workspace and it defaults to accessing
+NuttX on the `nuttx` directory.
+
+The methods are wrappers around the `kconfig-tweak` program. Menuconfig is
+available as well but it does require some tweaks to make it work underneath.
+
+## Building
+Building is still done by the `NuttXBuilder` class. The method `build` triggers
+a `make` command and optionally supports passing the parallel jobs.
+TO-DO: it should support extra options.
+
+## Cleaning Environment
+Also done by the `NuttXBuilder` class, it wraps the `make` and `make distclean`
+on NuttX.
