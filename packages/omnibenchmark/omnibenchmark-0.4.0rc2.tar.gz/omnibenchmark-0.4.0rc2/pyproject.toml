@@ -1,0 +1,186 @@
+[project]
+name = "omnibenchmark"
+description = "A tool for automated scientific benchmarking"
+authors = [
+    { name = "Almut Lütge", email = "almut.lue@gmail.com" },
+    { name = "Izaskun Mallona", email = "izaskun.mallona@gmail.com" },
+    { name = "Daniel Incicau", email = "daniel.incicau@gmail.com" },
+    { name = "Reto Gerber" },
+    { name = "Ben Carrillo" },
+]
+readme = "README.md"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+]
+requires-python = ">=3.12.0, <3.14"
+
+dynamic = ["version"]
+
+dependencies = [
+    "click>=8.1.7",
+    "python-dateutil>=2.9.0.post0",
+    "filelock>=3.4.0",
+    "spdx-license-list>=3.19",
+    "PyYAML",
+    "humanfriendly",
+    "pydantic",
+    "python-dotenv>=1.0.0",
+
+    # Cloning modules
+    "GitPython>=3.1.0",
+
+    # Workflow
+    # TODO: Pinned to <9.10 because Snakemake 9.10+ has stricter rule name validation
+    # that detects duplicate rule names. See
+    # https://github.com/omnibenchmark/omnibenchmark/issues/269
+    "snakemake>=9.0,<9.10", # Require 9.0+ for proper storage plugin support
+    "pandas",  # TODO: Remove when all modules stop depending on it (see #232)
+
+    # Templating
+    "copier>=9.0.0",
+
+    # graph visualization (can be made optional)
+    "matplotlib==3.8.0",
+    "pydot>=3.0.2",
+
+    # can probably move to optional deps
+    "tqdm>=4.66.4",
+]
+
+[project.urls]
+Homepage = "https://omnibenchmark.org"
+Repository = "https://github.com/omnibenchmark/omnibenchmark"
+
+[project.optional-dependencies]
+s3 = ["minio==7.2.18", "boto3>=1.34.102", "snakemake-storage-plugin-s3>=0.2.12"]  # Pin to 7.2.18, 7.2.19 has breaking API changes
+slurm = [
+    "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
+    "pandas",  # Required by snakemake-executor-plugin-slurm
+]
+export = ["pandas"]
+dev = ["ipython", "pre-commit", "ruff", "typing-extensions", "isort", "pyright"]
+test = [
+    "pytest-cov>=4.1.0",
+    "pytest-split>=0.9.0",
+    "pytest-xdist>=3.6.1",
+    "testcontainers>=4.5.1",
+    "pytest-timeout==2.3.1",
+    "s3fs>=2023.12.0",
+    "minio==7.2.18",  # Pin to 7.2.18, 7.2.19 has breaking API changes
+]
+
+[project.scripts]
+ob = 'omnibenchmark.cli.main:cli'
+
+[build-system]
+requires = ["setuptools>=61", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["omnibenchmark*"]
+
+[tool.setuptools.package-data]
+omnibenchmark = ["templates/**/*"]
+
+[tool.setuptools_scm]
+# Optional settings (or leave empty for default)
+version_scheme = "post-release"
+local_scheme = "dirty-tag"
+
+[tool.isort]
+profile = "black"
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+
+# Strict type checking for new modules
+include = ["omnibenchmark"]
+ignore = ["omnibenchmark/io/**"]  # TODO: Fix type errors in io module before re-enabling strict checking
+strict = [
+    "omnibenchmark/dag/**",
+    "omnibenchmark/model/**",
+]
+
+# Type checking rules
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportGeneralTypeIssues = "error"
+reportPropertyTypeMismatch = "error"
+reportFunctionMemberAccess = "error"
+reportMissingParameterType = "error"
+reportUnknownParameterType = "error"
+reportUnknownVariableType = "error"
+reportUnknownMemberType = "error"
+reportUnknownArgumentType = "error"
+reportUnknownLambdaType = "error"
+reportIncompatibleMethodOverride = "error"
+reportUntypedFunctionDecorator = "error"
+reportUntypedClassDecorator = "error"
+reportUnboundVariable = "error"
+reportInvalidStringEscapeSequence = "error"
+reportMissingTypeArgument = "error"
+reportCallInDefaultInitializer = "error"
+reportUnnecessaryIsInstance = "warning"
+reportUnnecessaryCast = "warning"
+reportUnnecessaryComparison = "warning"
+reportUnnecessaryContains = "warning"
+reportImplicitStringConcatenation = "warning"
+reportInvalidStubStatement = "error"
+reportIncompleteStub = "warning"
+reportUnsupportedDunderAll = "warning"
+reportUnusedExpression = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportMatchNotExhaustive = "error"
+reportArgumentType = "error"
+reportAssignmentType = "error"
+reportReturnType = "error"
+reportOptionalSubscript = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalCall = "error"
+reportOptionalIterable = "error"
+reportOptionalContextManager = "error"
+reportOptionalOperand = "error"
+
+# Strict mode settings for new modules
+[tool.pyright.strictListInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model"]
+
+[tool.pyright.strictDictionaryInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model"]
+
+[tool.pyright.strictSetInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model"]
+
+
+[tool.ruff]
+line-length = 88 # Match Black's default line length
+
+[tool.ruff.lint]
+ignore = ["E203"] # Ignore E203
+
+[tool.coverage.run]
+source = ["omnibenchmark"]
+omit = ["*/tests/*", "*/test_*", "*/__pycache__/*", "*/venv/*", "*/.venv/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+skip_covered = false
