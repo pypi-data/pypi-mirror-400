@@ -1,0 +1,24 @@
+version: 1
+topology:
+  networks-autonumber: true
+  networks:
+    - name: net0
+  nodes:
+    - name: r1
+      connections: ["net0", "r2"]
+      cmd: |
+        ip addr show
+    - name: r2
+      # image: ubuntu
+      image: docker.io/labn/docker-ci-test:20.04
+      connections: ["net0", "r1"]
+      cmd: |
+        ip addr show
+        tail -f /dev/null
+      mounts:
+        - type: tmpfs
+          tmpfs-size: 512M
+          destination: /mytmp
+        - type: bind
+          src: "%RUNDIR%/mybind"
+          destination: /mybind

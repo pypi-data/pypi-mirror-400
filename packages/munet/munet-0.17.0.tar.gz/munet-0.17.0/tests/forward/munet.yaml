@@ -1,0 +1,32 @@
+#
+#   +------+                   +------+                   +------+
+#   |      |    10.0.1.0/24    |      |    10.0.2.0/24    |      |
+#   |  r1  | ----------------- |  r2  | ----------------- |  r3  |
+#   |      |.1     net1      .2|      |.2     net2      .3|      |
+#   +------+                   +------+                   +------+
+#
+version: 1
+kinds:
+  - name: frr
+topology:
+  ipv6-enable: true
+  networks-autonumber: true
+  networks:
+    - name: net1
+    - name: net2
+  nodes:
+    - name: r1
+      kind: frr
+      connections: ["net1"]
+      cmd: |
+        ip route add 10.0.2.0/24 via 10.0.1.2
+        ip -6 route add fc00:0:0:2::/64 via fc00:0:0:1::2
+    - name: r2
+      kind: frr
+      connections: ["net1", "net2"]
+    - name: r3
+      kind: frr
+      connections: ["net2"]
+      cmd: |
+        ip route add 10.0.1.0/24 via 10.0.2.2
+        ip -6 route add fc00:0:0:1::/64 via fc00:0:0:2::2

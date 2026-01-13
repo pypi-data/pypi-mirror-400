@@ -1,0 +1,28 @@
+topology:
+  networks-autonumber: false
+  dns-network: "mgmt0"
+  networks:
+    - name: mgmt0
+      ip: 10.0.1.254/24
+      nat: true
+    - name: hostnet
+      external: true
+  nodes:
+    - name: host1
+      connections:
+        - to: mgmt0
+          ip: 10.0.1.1/24
+        - to: hostnet
+          ip: 192.168.111.1/24
+          hostintf: "vlan.111"
+    - name: hn
+      hostnet: true
+    # - name: exthost
+    #   # Must be reachable either from the host or inside the topology
+    #   server: 192.168.2.90
+    #   ssh-user: root
+    #   server-port: 22
+    #   # The public key should be in ~root/.ssh/authorized_keys on exthost
+    #   # The identify file should be locally readable by SUDO_USER or root
+    #   # depending on how munet was run
+    #   ssh-identity-file: "/tmp/exthost-id_rsa"

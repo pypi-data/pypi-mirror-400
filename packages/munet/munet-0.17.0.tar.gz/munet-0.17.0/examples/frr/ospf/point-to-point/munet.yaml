@@ -1,0 +1,54 @@
+version: 1
+kinds:
+  - name: frr
+    cmd: |
+      chown frr:frr -R /var/run/frr
+      chown frr:frr -R /var/log/frr
+      /usr/lib/frr/frrinit.sh start
+      tail -F /var/log/frr/frr.log
+    cleanup-cmd: |
+      /usr/lib/frr/frrinit.sh stop
+    volumes:
+      - "./%NAME%/etc.frr:/etc/frr"
+      - "%RUNDIR%/var.log.frr:/var/log/frr"
+      - "%RUNDIR%/var.run.frr:/var/run/frr"
+    cap-add:
+      - SYS_ADMIN
+      - AUDIT_WRITE
+    merge: ["volumes"]
+topology:
+  networks-autonumber: true
+  nodes:
+    - name: r1
+      kind: frr
+      connections:
+        - to: "r2"
+          name: r1r2
+        - to: "r3"
+          name: r1r3
+    - name: r2
+      kind: frr
+      connections:
+        - to: "r1"
+          name: r2r1
+        - to: "r3"
+          name: r2r3
+    - name: r3
+      kind: frr
+      connections:
+        - to: "r1"
+          name: r3r1
+        - to: "r2"
+          name: r3r2
+cli:
+  commands:
+    - name: ""
+      exec: "vtysh -c '{}'"
+      format: "[ROUTER ...] COMMAND"
+      help: "execute vtysh COMMAND on the router[s]"
+      kinds: ["frr"]
+    - name: "vtysh"
+      exec: "/usr/bin/vtysh"
+      format: "vtysh ROUTER [ROUTER ...]"
+      new-window: true
+      kinds: ["frr"]

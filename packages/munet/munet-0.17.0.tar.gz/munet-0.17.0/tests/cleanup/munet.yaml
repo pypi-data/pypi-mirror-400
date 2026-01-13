@@ -1,0 +1,45 @@
+version: 1
+topology:
+  networks:
+    - name: net0
+  nodes:
+    - name: hs1
+      connections: ["net0"]
+      cmd: "/usr/bin/ip addr show"
+      cleanup-cmd: "/usr/bin/touch cleanup-test"
+      volumes:
+        - "%RUNDIR%/sock:/tmp/sock"
+
+    - name: hs2
+      connections: ["net0"]
+      cmd: "/usr/bin/tail -f /dev/null"
+      cleanup-cmd: "/usr/bin/touch cleanup-test"
+
+    - name: hs3
+      connections: ["net0"]
+      shell: false
+      cmd: "/usr/bin/ip addr show"
+      cleanup-cmd: "/usr/bin/touch cleanup-test"
+
+    - name: hs4
+      connections: ["net0"]
+      shell: false
+      cmd: "/usr/bin/tail -f /dev/null"
+      cleanup-cmd: "/usr/bin/touch cleanup-test"
+
+    - name: hc1
+      connections: ["net0"]
+      image: docker.io/labn/docker-ci-test:20.04
+      cmd: "/usr/bin/tail -f /dev/null"
+      cleanup-cmd: "/usr/bin/touch /tmp/rundir/cleanup-test"
+      volumes:
+        - "%RUNDIR%:/tmp/rundir"
+
+    - name: hc2
+      connections: ["net0"]
+      image: docker.io/labn/docker-ci-test:20.04
+      shell: false
+      cmd: "/usr/bin/tail -f /dev/null"
+      cleanup-cmd: "/usr/bin/touch /tmp/rundir/cleanup-test"
+      volumes:
+        - "%RUNDIR%:/tmp/rundir"

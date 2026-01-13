@@ -1,0 +1,1217 @@
+#+STARTUP: indent
+* μNET (munet)
+#+html: <a href="https://github.com/LabNConsulting/munet/actions"><img src="https://github.com/LabNConsulting/munet/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+#+html: <a href="https://codecov.io/gh/LabNConsulting/munet" ><img src="https://codecov.io/gh/LabNConsulting/munet/branch/main/graph/badge.svg?token=FD2O4YGDTT"></a>
+#+html: <a href="https://munet.readthedocs.io/en/latest/"><img src="https://readthedocs.org/projects/munet/badge?version=latest"></a>
+#+html: <p></p>
+
+For better documentation see: https://munet.readthedocs.io/en/latest/
+
+A package for creating network topologies and running programs and containers
+within them using linux namepsaces, podman containers and qemu virtual machines.
+
+Munet can be run in a standalone mode with a configuration file for launching
+linux shell and container based topologies, as well as be used as a library from
+within another application to provide the same functionality.
+
+** Standalone Config
+
+The standalone config can be provided in a number of formats, limited by the
+available encode/decode libraries withing the python environment. As JSON is
+built in to python that format is always supported. Additionally YAML and TOML
+are supported if the corresponding packages are available (i.e., ~PyYAML~ and
+~toml~).
+
+The config itself is defined with a YANG model which is fully defined at the end
+of this document. Below is an tree diagram of the overal format of a config file:
+
+#+NAME: Munet standalone config YANG tree diagram
+#+CALL: generate-tree(module=labn-munet-config)
+# Remove the #+RESULTS: before pushing to git, github is broken and
+# won't render it
+
+#+begin_example
+module: labn-munet-config
+  +--rw cli
+  |  +--rw commands* [name]
+  |     +--rw exec?          string
+  |     +--rw exec-kind* [kind]
+  |     |  +--rw kind    string
+  |     |  +--rw exec?   string
+  |     +--rw format?        string
+  |     +--rw help?          string
+  |     +--rw interactive?   boolean
+  |     +--rw kinds*         -> ../../../kinds/name
+  |     +--rw name           string
+  |     +--rw new-window?    boolean
+  |     +--rw top-level?     boolean
+  +--rw kinds* [name]
+  |  +--rw ip*                  string
+  |  +--rw ipv6*                string
+  |  +--rw merge*               string
+  |  +--rw cap-add*             string
+  |  +--rw cap-remove*          string
+  |  +--rw cmd?                 string
+  |  +--rw cmd-file?            string
+  |  +--rw cleanup-cmd?         string
+  |  +--rw ready-cmd?           string
+  |  +--rw image?               string
+  |  +--rw hostnet?             boolean
+  |  +--rw server?              string
+  |  +--rw server-port?         uint16
+  |  +--rw ssh-identity-file?   string
+  |  +--rw ssh-user?            string
+  |  +--rw ssh-password?        string
+  |  +--rw qemu
+  |  |  +--rw bios?              string
+  |  |  +--rw cloud-init?        boolean
+  |  |  +--rw cloud-init-disk?   string
+  |  |  +--rw disk?              string
+  |  |  +--rw disk-driver?       string
+  |  |  +--rw disk-template?     string
+  |  |  +--rw initial-cmd?       string
+  |  |  +--rw initial-cmd-file?  string
+  |  |  +--rw kernel?            string
+  |  |  +--rw initrd?            string
+  |  |  +--rw kvm?               boolean
+  |  |  +--rw ncpu?              uint32
+  |  |  +--rw memory?            string
+  |  |  +--rw root?              string
+  |  |  +--rw cmdline-extra?     string
+  |  |  +--rw extra-args?        string
+  |  |  +--rw console
+  |  |     +--rw user?               string
+  |  |     +--rw password?           string
+  |  |     +--rw initial-password?   string
+  |  |     +--rw expects*            string
+  |  |     +--rw sends*              string
+  |  |     +--rw timeout?            uint32
+  |  +--rw connections* [to]
+  |  |  +--rw to                    string
+  |  |  +--rw ip?                   string
+  |  |  +--rw ipv6?                 string
+  |  |  +--rw name?                 string
+  |  |  +--rw hostintf?             string
+  |  |  +--rw physical?             string
+  |  |  +--rw remote-name?          string
+  |  |  +--rw driver?               string
+  |  |  +--rw delay?                uint64
+  |  |  +--rw jitter?               uint64
+  |  |  +--rw jitter-correlation?   decimal64
+  |  |  +--rw loss?                 uint64
+  |  |  +--rw loss-correlation?     decimal64
+  |  |  +--rw rate
+  |  |     +--rw rate?    number64
+  |  |     +--rw limit?   number64
+  |  |     +--rw burst?   number64
+  |  +--rw env* [name]
+  |  |  +--rw name     string
+  |  |  +--rw value?   string
+  |  +--rw gdb-cmd?             string
+  |  +--rw gdb-target-cmds*     string
+  |  +--rw gdb-run-cmds*        string
+  |  +--rw init?                union
+  |  +--rw mounts* [destination]
+  |  |  +--rw destination    string
+  |  |  +--rw source?        string
+  |  |  +--rw size?    string
+  |  |  +--rw type?          string
+  |  +--rw name                 string
+  |  +--rw podman
+  |  |  +--rw extra-args*   string
+  |  +--rw privileged?          boolean
+  |  +--rw shell?               union
+  |  +--rw volumes*             string
+  +--rw topology
+  |  +--rw dns-network?              -> ../networks/name
+  |  +--rw ipv6-enable?              boolean
+  |  +--rw networks-autonumber?      boolean
+  |  +--rw initial-setup-cmd?        string
+  |  +--rw initial-setup-host-cmd?   string
+  |  +--rw networks* [name]
+  |  |  +--rw name                  string
+  |  |  +--rw ip?                   string
+  |  |  +--rw ipv6?                 string
+  |  |  +--rw external?             boolean
+  |  |  +--rw delay?                uint64
+  |  |  +--rw jitter?               uint64
+  |  |  +--rw jitter-correlation?   decimal64
+  |  |  +--rw loss?                 uint64
+  |  |  +--rw loss-correlation?     decimal64
+  |  |  +--rw rate
+  |  |  |  +--rw rate?    number64
+  |  |  |  +--rw limit?   number64
+  |  |  |  +--rw burst?   number64
+  |  |  +--rw connections* [to]
+  |  |     +--rw to                    string
+  |  |     +--rw name?                 string
+  |  |     +--rw remote-name?          string
+  |  |     +--rw delay?                uint64
+  |  |     +--rw jitter?               uint64
+  |  |     +--rw jitter-correlation?   decimal64
+  |  |     +--rw loss?                 uint64
+  |  |     +--rw loss-correlation?     decimal64
+  |  |     +--rw rate
+  |  |        +--rw rate?    number64
+  |  |        +--rw limit?   number64
+  |  |        +--rw burst?   number64
+  |  +--rw nodes* [name]
+  |     +--rw id?                  uint32
+  |     +--rw kind?                -> ../../../kinds/name
+  |     +--rw ip*                  string
+  |     +--rw ipv6*                string
+  |     +--rw cap-add*             string
+  |     +--rw cap-remove*          string
+  |     +--rw cmd?                 string
+  |     +--rw cmd-file?            string
+  |     +--rw cleanup-cmd?         string
+  |     +--rw ready-cmd?           string
+  |     +--rw image?               string
+  |     +--rw hostnet?             boolean
+  |     +--rw server?              string
+  |     +--rw server-port?         uint16
+  |     +--rw ssh-identity-file?   string
+  |     +--rw ssh-user?            string
+  |     +--rw ssh-password?        string
+  |     +--rw qemu
+  |     |  +--rw bios?              string
+  |     |  +--rw cloud-init?        boolean
+  |     |  +--rw cloud-init-disk?   string
+  |     |  +--rw disk?              string
+  |     |  +--rw disk-driver?       string
+  |     |  +--rw disk-template?     string
+  |     |  +--rw initial-cmd?       string
+  |     |  +--rw initial-cmd-file?  string
+  |     |  +--rw kernel?            string
+  |     |  +--rw initrd?            string
+  |     |  +--rw kvm?               boolean
+  |     |  +--rw ncpu?              uint32
+  |     |  +--rw memory?            string
+  |     |  +--rw root?              string
+  |     |  +--rw cmdline-extra?     string
+  |     |  +--rw extra-args?        string
+  |     |  +--rw console
+  |     |     +--rw user?               string
+  |     |     +--rw password?           string
+  |     |     +--rw initial-password?   string
+  |     |     +--rw prompt?             string
+  |     |     +--rw expects*            string
+  |     |     +--rw sends*              string
+  |     |     +--rw timeout?            uint32
+  |     +--rw connections* [to]
+  |     |  +--rw to                    string
+  |     |  +--rw ip?                   string
+  |     |  +--rw ipv6?                 string
+  |     |  +--rw name?                 string
+  |     |  +--rw hostintf?             string
+  |     |  +--rw physical?             string
+  |     |  +--rw remote-name?          string
+  |     |  +--rw driver?               string
+  |     |  +--rw delay?                uint64
+  |     |  +--rw jitter?               uint64
+  |     |  +--rw jitter-correlation?   decimal64
+  |     |  +--rw loss?                 uint64
+  |     |  +--rw loss-correlation?     decimal64
+  |     |  +--rw rate
+  |     |     +--rw rate?    number64
+  |     |     +--rw limit?   number64
+  |     |     +--rw burst?   number64
+  |     +--rw env* [name]
+  |     |  +--rw name     string
+  |     |  +--rw value?   string
+  |     +--rw gdb-cmd?             string
+  |     +--rw gdb-target-cmds*     string
+  |     +--rw gdb-run-cmds*        string
+  |     +--rw init?                union
+  |     +--rw mounts* [destination]
+  |     |  +--rw destination    string
+  |     |  +--rw source?        string
+  |     |  +--rw size?    string
+  |     |  +--rw type?          string
+  |     +--rw name                 string
+  |     +--rw podman
+  |     |  +--rw extra-args*   string
+  |     +--rw privileged?          boolean
+  |     +--rw shell?               union
+  |     +--rw volumes*             string
+  +--rw version?    uint32
+#+end_example
+
+** Examples
+*** Two Hosts Topology
+
+A very simple config with 2 hosts connected to a mgmt network.
+
+In this config the networks are autonumbered which starts with
+~10.0.0.0/24~. So, ~h1~ will have an ~eth0~ interface with IP
+~10.0.0.1~ and ~h2~ will likewise have an ~eth0~ interface, and an IP
+of ~10.0.0.2~.
+
+#+begin_src yaml
+  topology:
+    networks-autonumber: true
+    networks:
+      - name: net0
+    nodes:
+      - name: h1
+        connections:
+          - to: net0
+      - name: h2
+        connections:
+          - to: net0
+#+end_src
+
+*** Router VM
+
+NOTE: This example is testing the boundaries of what munet can do
+with a node. Its really here to document how to do this very complex
+thing. Beginners should probably skip it.
+
+Router VMs are very different from standard unix-like OSs. Munet does a lot of
+automatic configuration assuming a unix-like (and mostly Linux) OS. Various
+configuration parameters need to be set to tune the automatic configuration and
+assumptions down. Here's an example munet config fragment that shows booting a
+cisco VM using a nexos file system image.
+
+#+begin_src yaml
+  topology:
+    networks-autonumber: true
+    dns-network: "mgmt0"
+    networks:
+      - name: mgmt0
+        ip: 192.168.0.254/24
+        nat: true
+      - name: net0
+    nodes:
+      # ...
+      - name: r1
+        kind: cisco
+        connections:
+          - to: "mgmt0"
+            name: "eth1"
+            driver: "e1000"
+          - to: "net0"
+            name: "eth2"
+            driver: "e1000"
+  kinds:
+    - name: cisco
+      shell: false
+      cmd: |
+        terminal terminal-type dumb
+        terminal length 0
+        terminal width 511
+        terminal session 0
+        conf t
+        line console
+        exec-timeout 0
+        line vty
+        exec-timeout 0
+        int mgmt0
+          ip address 192.168.0.2/24
+        exit
+        feature ssh
+        feature telnet
+        end
+      qemu:
+        unix-os: false
+        disk-template: "%CONFIGDIR%/nexus9300v64.10.2.3.F.qcow2"
+        disk-driver: "sata"
+        bios: "open-firmware"
+        memory: "8192M"
+        smp: 2
+        kvm: true
+        console:
+          stdio: false
+          user: "admin"
+          password: ""
+          prompt: "(^|\r?\n\r?)switch(\\([^\\)]+\\))?#"
+          expects:
+            - "skip - bypass.*yes/skip/no\\)\\[no\\]:"
+            - "loader > "
+          sends:
+            - "skip\n"
+            - "boot nxos64-cs.10.2.3.F.bin\n"
+          timeout: 900
+
+  cli:
+    commands:
+      - name: ssh
+        exec: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null admin@%IPADDR%"
+        kinds: ["cisco"]
+        format: "ssh NODE [NODE ...]"
+        top-level: true
+        new-window: true
+#+end_src
+
+
+** Development
+
+For most users, it is recommended to install munet through pip (see:
+https://munet.readthedocs.io/en/latest/usage.html). However, if you want to run
+the unit tests, then you will need to set up your local enviornment:
+
+*** `sudo -E` configuration
+
+To allow munet to be found when running with `sudo -E` the `secure_path` config
+should be disabled in /etc/sudoers:
+
+#+begin_src shell
+   $ sudo sed -i -e '/secure_path/s/^/# /' /etc/sudoers
+#+end_src
+
+*** Dependencies
+
+Install the [[https://docs.astral.sh/uv/][uv]] python project
+manager (either through your system's package manager or directly via the
+official installer):
+
+#+begin_src shell
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+#+end_src
+
+Some of the munet unit tests will require the following system packages which
+you should install according to your OS procedures:
+
+  podman
+
+Install μNET with dependencies:
+
+#+begin_src shell
+  make install
+#+end_src
+
+*** Check your install
+
+ make
+
+*** Run an example
+
+The following uses FRR (see https://frrouting.org)
+
+   uv run sudo -E munet -c examples/frr/ospf/ospf/munet.yaml
+
+For example:
+#+begin_src shell
+munet$ uv run sudo -E munet -c examples/frr/ospf/ospf/munet.yaml
+2022-09-16 13:37:05,603: INFO: Loaded logging config /home/lberger/Code/github/labn/munet/munet/logconf.yaml
+2022-09-16 13:37:05,609: INFO: Loaded config from /home/lberger/Code/github/labn/munet/examples/frr/ospf/ospf/munet.yaml
+2022-09-16 13:37:05,623: INFO: Loaded kinds config /home/lberger/Code/github/labn/munet/munet/kinds.yaml
+2022-09-16 13:37:05,745: INFO: Munet(munet): created
+2022-09-16 13:37:05,926: INFO: L3NamespaceNode(r1): created
+2022-09-16 13:37:06,086: INFO: L3NamespaceNode(r2): created
+2022-09-16 13:37:06,247: INFO: L3NamespaceNode(r3): created
+2022-09-16 13:37:06,778: INFO: Topology up: rundir: /tmp/unet-root
+
+--- Munet CLI Starting ---
+
+
+munet>
+munet> help
+
+Basic Commands:
+  cli   :: open a secondary CLI window
+  help  :: this help
+  hosts :: list hosts
+  quit  :: quit the cli
+
+  HOST can be a host or one of the following:
+    - '*' for all hosts
+    - '.' for the parent munet
+    - a regex specified between '/' (e.g., '/rtr.*/')
+
+New Window Commands:
+  hterm HOST [HOST ...] :: open terminal[s] on HOST[S] (outside containers), * for all
+  pcap NETWORK  :: capture packets from NETWORK into file capture-NETWORK.pcap the command is run within a new window which also shows packet summaries
+  stdout HOST [HOST ...]        :: tail -f on the stdout of the cmd for this node
+  stdout HOST [HOST ...]        :: tail -f on the stdout of the cmd for this node
+  term HOST [HOST ...]  :: open terminal[s] (TMUX or XTerm) on HOST[S], * for all
+  vtysh ROUTER [ROUTER ...]     ::
+  xterm HOST [HOST ...] :: open XTerm[s] on HOST[S], * for all
+Inline Commands:
+  [ROUTER ...] COMMAND  :: execute vtysh COMMAND on the router[s]
+  [HOST ...] sh <SHELL-COMMAND> :: execute <SHELL-COMMAND> on hosts
+  [HOST ...] shi <INTERACTIVE-COMMAND>  :: execute <INTERACTIVE-COMMAND> on HOST[s]
+munet> show ip ospf neighbor
+2022-09-16 13:43:13,172: INFO: Filtering hosts to kinds: ['frr']
+2022-09-16 13:43:13,172: INFO: Filtered hosts: ['r1', 'r2', 'r3']
+------ Host: r1 ------
+
+Neighbor ID     Pri State           Up Time         Dead Time Address         Interface                        RXmtL RqstL DBsmL
+172.16.0.2        1 Full/DR         5m21s             33.727s 10.0.1.2        eth0:10.0.1.1                        0     0     0
+172.16.0.3        1 Full/DR         5m26s             33.735s 10.0.2.3        eth1:10.0.2.1                        0     0     0
+
+------- End: r1 ------
+------ Host: r2 ------
+
+Neighbor ID     Pri State           Up Time         Dead Time Address         Interface                        RXmtL RqstL DBsmL
+172.16.0.1        1 Full/Backup     5m21s             33.707s 10.0.1.1        eth0:10.0.1.2                        0     0     0
+172.16.0.3        1 Full/DR         5m26s             33.715s 10.0.3.3        eth1:10.0.3.2                        0     0     0
+
+------- End: r2 ------
+------ Host: r3 ------
+
+Neighbor ID     Pri State           Up Time         Dead Time Address         Interface                        RXmtL RqstL DBsmL
+172.16.0.1        1 Full/Backup     5m26s             33.707s 10.0.2.1        eth0:10.0.2.3                        0     0     0
+172.16.0.2        1 Full/Backup     5m26s             33.706s 10.0.3.2        eth1:10.0.3.3                        0     0     0
+
+------- End: r3 ------
+munet> r1 show ip ospf neighbor
+2022-09-16 13:43:18,073: INFO: Filtering hosts to kinds: ['frr']
+2022-09-16 13:43:18,075: INFO: Filtered hosts: ['r1']
+
+Neighbor ID     Pri State           Up Time         Dead Time Address         Interface                        RXmtL RqstL DBsmL
+172.16.0.2        1 Full/DR         5m26s             38.788s 10.0.1.2        eth0:10.0.1.1                        0     0     0
+172.16.0.3        1 Full/DR         5m31s             38.795s 10.0.2.3        eth1:10.0.2.1                        0     0     0
+
+munet>
+
+#+end_src
+
+
+** Config Model
+#+NAME: test-validate-module
+#+CALL: validate-module(module=labn-munet-config)
+
+#+NAME: labn-munet-config
+#+HEADER: :var dep1=dep-babel
+#+HEADER: :file labn-munet-config.yang :results output file silent :cache yes
+#+begin_src yang :exports code
+  module labn-munet-config {
+    yang-version 1.1;
+    namespace "urn:labn:yang:labn-munet-config";
+    prefix c;
+
+    organization
+      "LabN Consulting, L.L.C.";
+
+    contact
+      "Author: Christian Hopps
+               <mailto:chopps@labn.net>";
+
+    description
+      "This module defines the configuration state for munet.";
+
+    revision 2021-12-18 {
+      description "Initial Revision";
+      reference "https://github.com/LabNConsulting/munet/blob/main/README.md";
+    }
+
+    typedef number64 {
+      type union {
+        type uint64;
+        type string {
+          pattern '[0-9]+([KMGTPE]i?)?';
+        }
+      }
+      description
+        "A number with optional suffix, where suffix means:
+           K -> value*10^3, Ki -> value*2^10,
+           M -> value*10^6, Mi -> value*2^20,
+           G -> value*10^9, Gi -> value*2^30,
+           T -> value*10^12, Gi -> value*2^40,
+           P -> value*10^15, Gi -> value*2^50,
+           E -> value*10^18, Gi -> value*2^60";
+    }
+
+    grouping intf-constraints {
+      description "traffic control based interface constraints";
+      leaf delay {
+        type uint64;
+        description "number of microseconds of delay";
+      }
+      leaf jitter {
+        type uint64;
+        must "../delay";
+        description "number of microseconds of possible jitter";
+      }
+      leaf jitter-correlation {
+        type decimal64 {
+          fraction-digits 16;
+          range "0..100";
+        }
+        must "../jitter";
+        description "percent correlation between consecutive jitter values";
+      }
+      leaf loss {
+        type uint64;
+        must "../delay";
+        description "number of microseconds of possible jitter";
+      }
+      leaf loss-correlation {
+        type decimal64 {
+          fraction-digits 16;
+          range "0..100";
+        }
+        must "../loss";
+        description "percent correlation between consecutive loss values";
+      }
+      container rate {
+        description "bits per second maximum rate with possible limit and burst";
+        leaf rate {
+          type number64;
+          description "bits per second maximum rate";
+        }
+        leaf limit {
+          type number64;
+          must "../rate";
+          description "bits per second maximum rate";
+        }
+        leaf burst {
+          type number64;
+          must "../rate";
+          description "bits per second maximum rate";
+        }
+      }
+    }
+
+    grouping common-node {
+      description "Common node properties";
+      leaf-list ip {
+          type string;
+          description "IPv4 prefixes to set as loopback addresses.";
+      }
+      leaf-list ipv6 {
+          type string;
+          description "IPv6 prefixes to set as loopback addresses.";
+      }
+      leaf-list cap-add {
+        type string;
+        description "Capabilities to add to a container.";
+        reference "https://man7.org/linux/man-pages/man7/capabilities.7.html";
+      }
+      leaf-list cap-remove {
+        type string;
+        description "Capabilities to remove from a container.";
+        reference "https://man7.org/linux/man-pages/man7/capabilities.7.html";
+      }
+      leaf cmd {
+        type string;
+        description "Shell command[s] to execute when creating the node.";
+      }
+      leaf cmd-file {
+        type string;
+        description
+          "Shell command[s] to execute when creating the node, loaded
+           from the specified file. Takes precedence over `cmd` when
+           both are configured.";
+      }
+      leaf cleanup-cmd {
+        type string;
+        description
+          "Shell command[s] to execute when deleting the node.
+
+           NOTE: With container nodes, the cleanup-cmd will be run
+           prior to the `cmd` being killed, so that the container is
+           present. For Qemu/VM nodes the cleanup command is run prior
+           to the VM being brought down.";
+      }
+      leaf ready-cmd {
+        type string;
+        description
+          "Shell command[s] to execute to determine if the node is ready";
+      }
+      leaf image {
+        type string;
+        must "not(../hostnet) and not(../qemu) and not(../server)" {
+          error-message "Can only have one of hostnet, image, server or qemu";
+        }
+        description "Container image specification.";
+      }
+      leaf hostnet {
+        type boolean;
+        must "not(../image) and not(../qemu) and not(../server)" {
+          error-message "Can only have one of hostnet, image, server or qemu";
+        }
+        description
+          "Node that runs commands in the host network namespace. For this
+           to work correclty the munet object should not be created with
+           unshare inline.";
+      }
+      leaf server {
+        type string;
+        must "not(../hostnet) and not(../image) and not(../qemu)" {
+          error-message "Can only have one of hostnet, image, server or qemu";
+        }
+        description
+          "Name of server for SSHRemote node functionality. If using
+           within pytest make sure you utilize the `unet_share` fixture
+           instead of the normal `unet` one, otherwise ssh may not
+           work as it is executing inside the munet namespace.";
+      }
+      leaf server-port {
+        type uint16;
+        must "../server" {
+          error-message "server-port requires a server";
+        }
+        default 22;
+        description
+          "SSH port to connect to server on";
+      }
+      leaf ssh-identity-file {
+        type string;
+        description
+          "Path to an SSH private key file for logging into either a remote ssh
+           `server` or a qemu node with a running ssh server.";
+      }
+      leaf ssh-user {
+        type string;
+        description
+          "The user to use when logging into either a remote ssh `server` or a
+           qemu node with a running ssh server.";
+      }
+      leaf ssh-password {
+        type string;
+        description
+          "The password to use when creating a 'console' to a remote ssh
+           `server` node.";
+      }
+      container qemu {
+        must "not(../hostnet) and not(../image) and not(../server)" {
+          error-message "Can only have one of hostnet, image, server or qemu";
+        }
+        description "Specify parameters for Qemu VM node";
+        leaf bios {
+          type string;
+          description
+            "'open-firmare' to use open firmware bios, or a path to
+             bios image file";
+        }
+        leaf cloud-init {
+          type boolean;
+          default false;
+          description
+            "Use a cloud-init disk to initialize image. Normally a
+             ./cloud-init-disk is not specified, so one will be generated";
+        }
+        leaf cloud-init-disk {
+          type string;
+          must "./cloud-init";
+          description
+            "Path to a custom cloud-init disk image to configure the VM";
+        }
+        leaf disk {
+          type string;
+          description
+            "Path to disk image possibly to boot from. If this is a relative path
+             it will be relative to the configuration directory";
+        }
+        leaf disk-driver {
+          type string;
+          default "virtio";
+          description
+            "Disk driver to use, either 'sata' or 'virtio'. Some router images
+             only work with 'sata', normally this should not be specified so that
+             the default 'virtio' is used";
+        }
+        leaf disk-template {
+          type string;
+          description
+            "Path to disk image template. If a ./disk image is not specified, or
+             does not yet exist. Then this template is used to create a new disk
+             image. If ./disk is not specified then the disk image path will be
+             %RUNDIR%/%NAME%-<disk-template-basename>";
+        }
+        leaf initial-cmd {
+          type string;
+          description
+            "Shell command[s] to execute when creating the node from a disk
+             template. These commands are run prior to the standard ../../cmd
+             when a disk is first created from a disk template";
+        }
+        leaf initial-cmd-file {
+          type string;
+          description
+            "Shell command[s] to execute when creating the node from a disk
+             template. These commands are run prior to the standard ../../cmd
+             when a disk is first created from a disk template and are loaded
+             from the specified file. Takes precedence over `initial-cmd` when
+             both are configured.";
+        }
+        leaf kernel {
+          type string;
+          description "path to kernel image (e.g,. bzImage) to boot";
+        }
+        leaf initrd {
+          type string;
+          description "path to initrd image (e.g,. rootfs.ext2) to boot";
+        }
+        leaf kvm {
+          type boolean;
+          default true;
+          description "Run with HW acceleration";
+        }
+        leaf ncpu {
+          type uint32;
+          default 1;
+          description "Number of cores";
+        }
+        leaf memory {
+          type string;
+          default "512M";
+          description "ammount of memory for VM.";
+        }
+        leaf root {
+          type string;
+          default "/dev/ram0";
+          description "root file system passed in cmdline as root=<value>";
+        }
+        leaf cmdline-extra {
+          type string;
+          description "string to add to the kernel cmdline (qemu -append)";
+        }
+        leaf extra-args {
+          type string;
+          description "extra qemu args passed when launching";
+        }
+        container console {
+          description "Configuration for console handling";
+          leaf user {
+            type string;
+            default "root";
+            description "User to login to console with";
+          }
+          leaf password {
+            type string;
+            default "admin";
+            description "Password to login to console with";
+          }
+          leaf initial-password {
+            type string;
+            description
+              "The initial password. If the VM disk is newly created from a
+               template, this value can be used to specify an initial password
+               for the user. Often part of the bring-up process will set a new
+               password and that should then be stored in the ../password leaf.";
+          }
+          leaf prompt {
+            type string;
+            description
+              "String of expected prompt within the console.
+
+               CONFIG: Only expands %NAME%.";
+          }
+          leaf-list expects {
+            type string;
+            description
+              "Strings to expect for logging into the console.
+
+               CONFIG: Only expands %NAME%.";
+          }
+          leaf-list sends {
+            type string;
+            description
+              "Strings paired to `expects` for logging into the
+               console. These are sent to the console when the
+               corresponding expect is seen, zero length strings are
+               allowed which indicate send nothing. An Expect with a
+               send nothing could be used to reset the timeout timer on
+               long boots.
+
+               CONFIG: Only expands %NAME%.";
+          }
+          leaf timeout {
+            type uint32;
+            description "Timeout for logging into the console";
+          }
+        }
+      }
+      list connections {
+        must "not(../hostnet) and not(../server)" {
+          error-message "SSHRemote and hostnet nodes have no munet connections.";
+        }
+        key to;
+        description "Connections to other networks or nodes from this node";
+
+        leaf to {
+          type string;
+          description "The target of this connection.";
+        }
+        leaf ip {
+          type string;
+          description "IPv4 address and mask for the connection (interface).";
+        }
+        leaf ipv6 {
+          type string;
+          description "IPv6 address and mask for the connection (interface).";
+        }
+        leaf name {
+          type string;
+          description "Name for the connection (interface name).";
+        }
+        leaf hostintf {
+          type string;
+          description
+            "Host interface for wired connections. This will move the given host
+             interface into the namespace. The value is the name of the
+             interface on the host (e.g., 'enp216s0f0v0') it will be renamed
+             inside the namespace accordingly (either using automatic naming
+             (e.g., 'eth1') or the name specified in ../name leaf.";
+        }
+        leaf physical {
+          type string;
+          description
+            "Physical PCI interface address for wired connections. This is the
+             PCI address of the form xxxx:xx:xx.x (e.g., 0000:1b:02.0) this will
+             detach the given PCI device from it's native driver and reattach it
+             to the vfio-dev PCI driver. This is used primarily by Qemu nodes;
+             however, it can also be used by user processes that directly
+             control physical devices such as DPDK, TREX, or VPP";
+        }
+        leaf remote-name {
+          type string;
+          description
+            "The remote name of a p2p connection. This is used for disambiguation
+             when there are multiple point-to-point connections to the same
+             remote node.";
+        }
+        leaf driver {
+          type string;
+          default "virtio-net-pc";
+          description "driver name for qemu based interfaces";
+        }
+        uses intf-constraints;
+      }
+      list env {
+        key name;
+        description
+          "List of environment variable to add to the `cmd` execution
+           environment";
+        leaf name {
+          type string;
+          description "Environment variable name.";
+        }
+        leaf value {
+          type string;
+          description "Environment variable value.";
+        }
+      }
+      leaf gdb-cmd {
+        type string;
+        description "Command to execute when --gdb option specified" ;
+      }
+      leaf-list gdb-target-cmds {
+        type string;
+        description
+          "GDB commands to execute to prior to setting breakpoints" ;
+      }
+      leaf-list gdb-run-cmds {
+        type string;
+        description
+          "GDB commands to send to gdb (e.g., to start the process running)" ;
+      }
+      leaf init {
+        type union {
+          type boolean;
+          type string;
+        }
+        description "Controls use of an init process.";
+      }
+      list mounts {
+        key destination;
+        description
+          "Mounts to be made inside the namespace. Currently only supported for
+           container and qemu based nodes.";
+
+        leaf destination {
+          type string;
+          description
+            "The inner mount point. If no source is given this will be a tmpfs
+             mount, otherwise the it is a bind mount from the `source`.";
+        }
+        leaf source {
+          type string;
+          description "The source of the bind mount.";
+        }
+        leaf size {
+          type string;
+          description "The size of the tmpfs.";
+        }
+        leaf type {
+          type string;
+          description
+            "The type of the mount. Includes:
+             `bind`: Mount source into node
+              - Note: Qemu bind mount is facilitated by 9p network file system
+             `tmpfs`: Mount tmpfs into node
+             `usb`: Mount source into node (alternative)
+              - Note: Qemu-only. Do not write to the source while munet is running!";
+        }
+      }
+      leaf name {
+        type string;
+        description "Name of this node or kind.";
+      }
+      container podman {
+        description "Configuration related to podman containers.";
+        leaf-list extra-args {
+          type string;
+          description "list of CLI arguments to add to the podman run command.";
+        }
+      }
+      leaf privileged {
+        type boolean;
+        description "Controls running the container in privileged mode.";
+      }
+      leaf shell {
+        type union {
+          type boolean;
+          type string;
+        }
+        description
+          "Controls use of an shell process for `cmd` execution. If 'false' then
+           `cmd` will be run directly with exec(1), otherwise a shell will be
+           used. If this value is `true` then the default shell will be used,
+           otherwise it is a string which specifies the path to the shell to
+           use.";
+      }
+      leaf-list volumes {
+        type string;
+        description
+          "Bind or tmpfs mounts. For bind mounts the format of the string is
+           <outer>:<inner>, for tmpfs it's simply the inner mount path.";
+      }
+    }
+
+    container cli {
+      description "CLI additions.";
+      list commands {
+        key name;
+        description "A command to add to the CLI.";
+
+        leaf exec {
+          type string;
+          description
+            "Command to execute when the CLI command is given. The string is
+             evaluated as a python f-string with `{host}` set to the current
+             host object (or None) `{unet}` set to the Munet object, and
+             `{user_input}` to any user input that follows the command (or '' if
+             none specified).";
+        }
+        list exec-kind {
+          key kind;
+          description "A kind specific execution formats.";
+
+          leaf kind {
+            type string;
+            description "Kind for which this command format should be used.";
+          }
+          leaf exec {
+            type string;
+            description
+              "Command to execute when the CLI command is given. The string is
+               evaluated as a python f-string with `{host}` set to the current
+               host object (or None) `{unet}` set to the Munet object, and
+               `{user_input}` to any user input that follows the command (or ''
+               if none specified).";
+          }
+        }
+        leaf format {
+          type string;
+          description
+            "The format of the command. Used to print help string for user.";
+        }
+        leaf help {
+          type string;
+          description
+            "The description of the command. Used to print help string for
+             user.";
+        }
+        leaf interactive {
+          type boolean;
+          description
+            "Run the command in interactive pty.";
+        }
+        leaf-list kinds {
+          type leafref {
+            path "../../../kinds/name";
+          }
+          description
+            "List of kinds for which this command should be restricted to
+             running on.";
+        }
+        leaf name {
+          type string;
+          description "CLI command name.";
+        }
+        leaf new-window {
+          type boolean;
+          description
+            "Controls if the command runs in the CLI window or opens a new
+             terminal window to run the command in.";
+        }
+        leaf top-level {
+          type boolean;
+          default false;
+          description
+            "If true the command is run in the top-level containing namespace.
+             This is the namespace from which each of the hosts allocated
+             sub-namespaces from. Multple hosts are still allowed and their
+             variables will be substituted accordingly.";
+        }
+      }
+    }
+
+    list kinds {
+      key name;
+      description
+        "List of kinds used to group and share common node properities.";
+
+      leaf-list merge {
+        type string;
+        description
+          "List of properties which should be merged with their node specific
+           values, rather than being replaced by the node specific version.";
+      }
+      uses common-node;
+    }
+
+    container topology {
+      description "The topology munet should create.";
+
+      leaf dns-network {
+        type leafref {
+          path "../networks/name";
+        }
+        description "network used for DNS addresses of hosts in hosts files.";
+      }
+
+      leaf ipv6-enable {
+        type boolean;
+        default false;
+        description
+          "Controls if IPv6 is enabled or disabled.";
+      }
+
+      leaf networks-autonumber {
+        type boolean;
+        description
+          "Controls if networks and node connections are given IP addresses if
+           not explicitly configured.";
+      }
+
+      leaf initial-setup-cmd {
+        type string;
+        description
+          "Shell command[s] to execute in the new namespace prior to bringing up
+           the topology. These are run after any ./initial-setup-host-cmd
+           commands.";
+      }
+
+      leaf initial-setup-host-cmd {
+        type string;
+        description
+          "Shell command[s] to execute on the host prior to bringing up the
+           topology. These are run prior to ./initial-setup-cmd commands.";
+      }
+
+      list networks {
+        key name;
+        description "List of networks to create.";
+
+        leaf name {
+          type string {
+            length "1..11";
+            pattern "[-a-zA-Z0-9_]+";
+          }
+          description "Name of the network";
+        }
+        leaf ip {
+          type string;
+          must "not (../external)";
+          description
+            "IPv4 prefix for the network. If host bit's are set then the linux
+             bridge will be assigned that IP.";
+        }
+        leaf ipv6 {
+          type string;
+          must "not (../external)";
+          description
+            "IPv6 prefix for the network. If host bit's are set then the linux
+             bridge will be assigned that IP.";
+        }
+        leaf external {
+          type boolean;
+          default false;
+          description
+            "This is a placeholder network for an externally defined network.
+             This is most useful when adding host interfaces to nodes as the
+             connection point.";
+        }
+
+        /* default network tc parameters */
+        uses intf-constraints;
+
+        list connections {
+          key to;
+          description
+            "Overriding network side configuration for connections to nodes from
+             this network. If the default network tc parameters are not being
+             overriden for a specific node connection then this configuration is
+             not required.";
+
+          leaf to {
+            type string;
+            description "The target of this connection.";
+          }
+          leaf name {
+            type string;
+            description "Name for the connection (interface name).";
+          }
+          leaf remote-name {
+            type string;
+            description
+              "The remote name of the connection. This is used for disambiguation
+               when there are multiple connections to the same remote node.";
+          }
+          uses intf-constraints;
+        }
+      }
+
+      list nodes {
+        key name;
+        description "Nodes in the topology.";
+
+        leaf id {
+          type uint32;
+          description "Explicitly set the ID for the node.";
+        }
+        leaf kind {
+          type leafref {
+            path "../../../kinds/name";
+          }
+          description
+            "Indicate the kind of this node, which pulls in the properies of that
+             `kind` for this node.";
+        }
+        uses common-node;
+      }
+    }
+    leaf version {
+      type uint32;
+      description "version of this config";
+    }
+  }
+#+end_src
+
+* Appendix: Org Babel Functions
+
+#+name: dep-babel
+#+begin_src emacs-lisp :results none :exports none
+    (org-babel-do-load-languages 'org-babel-load-languages '((shell . t)))
+    (setq fill-column 69)
+    (setq org-confirm-babel-evaluate nil)
+#+end_src
+
+#+NAME: generate-tree
+#+HEADER: :var dep1=dep-babel
+#+begin_src shell :results output verbatim replace :wrap example :exports results
+  [ -d /yang ] || DOCKER="sudo podman run --net=host -v $(pwd):/work docker.io/labn/org-rfc" #
+  $DOCKER pyang --tree-line-length=69 -f tree ${module} 2> err.out;
+#+end_src
+
+#+NAME: validate-module
+#+HEADER: :var dep1=dep-babel
+#+begin_src bash :results output verbatim replace :wrap comment :exports none
+  [ -d /yang ] || DOCKER="sudo podman run --net=host -v $(pwd):/work docker.io/labn/org-rfc"
+  if ! $DOCKER pyang -P build --lax-quote-checks -Werror --lint $module 2>&1; then echo FAIL; fi
+#+end_src
