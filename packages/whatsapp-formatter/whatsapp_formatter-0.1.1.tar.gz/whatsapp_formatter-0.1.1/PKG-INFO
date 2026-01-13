@@ -1,0 +1,285 @@
+Metadata-Version: 2.4
+Name: whatsapp-formatter
+Version: 0.1.1
+Summary: Transform LLM output to WhatsApp Business API JSON format
+Project-URL: Homepage, https://github.com/dnivra26/whatsapp-formatter
+Project-URL: Repository, https://github.com/dnivra26/whatsapp-formatter
+Project-URL: Issues, https://github.com/dnivra26/whatsapp-formatter/issues
+Author-email: Arvind Thangamani <dnivra26@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: chatbot,formatter,llm,messaging,whatsapp,whatsapp-api,whatsapp-business
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Communications :: Chat
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Requires-Dist: openai>=1.0.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: build; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: twine; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# WhatsApp Formatter
+
+Transform LLM output to WhatsApp Business API JSON format.
+
+This library uses an LLM to parse free-form text (with options, headers, footers) and automatically converts it to valid WhatsApp message formats (plain text, quick reply buttons, or interactive lists).
+
+## Installation
+
+```bash
+pip install whatsapp-formatter
+```
+
+## Quick Start
+
+```python
+import os
+from whatsapp_formatter import format_for_whatsapp
+
+# Set your API key (OpenRouter or OpenAI)
+os.environ["OPENROUTER_API_KEY"] = "your-api-key"
+os.environ["OPENROUTER_BASE_URL"] = "https://openrouter.ai/api/v1"
+
+# Format LLM output for WhatsApp
+raw_text = """
+I can help with your account. What would you like to do?
+
+1. Check your balance
+2. Transfer funds
+3. View recent transactions
+"""
+
+result = format_for_whatsapp(raw_text)
+print(result.whatsapp_json)
+```
+
+Output:
+```json
+{
+  "type": "interactive",
+  "interactive": {
+    "type": "button",
+    "body": { "text": "I can help with your account. What would you like to do?" },
+    "action": {
+      "buttons": [
+        { "type": "reply", "reply": { "id": "check_your_balance", "title": "Check your balance" } },
+        { "type": "reply", "reply": { "id": "transfer_funds", "title": "Transfer funds" } },
+        { "type": "reply", "reply": { "id": "view_recent_transac", "title": "View Transactions" } }
+      ]
+    }
+  }
+}
+```
+
+## Features
+
+- **Automatic format selection** based on option count:
+  - 0 options → Plain text message
+  - 1-3 options → Quick reply buttons
+  - 4-10 options → Interactive list
+  - 11+ options → Plain text fallback with numbered list
+
+- **Smart truncation** to fit WhatsApp constraints:
+  - Button titles: max 20 characters
+  - List row titles: max 24 characters
+  - Body text: max 1024 characters (interactive) or 1600 (plain text)
+
+- **Automatic deduplication** of option titles with suffixes
+
+- **Header/footer extraction** from structured messages
+
+- **Multiple option formats** supported:
+  - Numbered lists (`1. Option`)
+  - Bullet points (`- Option`, `• Option`)
+  - Inline choices (`Yes, No, or Cancel`)
+
+## API Reference
+
+### `format_for_whatsapp(text: str) -> TransformResult`
+
+The main entry point. Parses text and returns WhatsApp-ready JSON.
+
+```python
+from whatsapp_formatter import format_for_whatsapp
+
+result = format_for_whatsapp("Your balance is $500.")
+print(result.format_used)      # FormatType.PLAIN_TEXT
+print(result.whatsapp_json)    # {"type": "text", "text": {"body": "..."}}
+print(result.fallback_used)    # False
+print(result.modifications)    # List of any truncations applied
+```
+
+### `transform(llm_output: LLMOutput) -> TransformResult`
+
+Transform pre-parsed data to WhatsApp format (skip LLM parsing step).
+
+```python
+from whatsapp_formatter import transform, LLMOutput, Option
+
+llm_output = LLMOutput(
+    body="Choose an option:",
+    options=[
+        Option(title="Yes"),
+        Option(title="No"),
+    ]
+)
+result = transform(llm_output)
+```
+
+### `parse(text: str) -> LLMOutput`
+
+Parse text using LLM (requires API key).
+
+```python
+from whatsapp_formatter import parse
+
+llm_output = parse("Select: 1. Apple 2. Banana 3. Cherry")
+print(llm_output.body)     # "Select:"
+print(llm_output.options)  # [Option(title="Apple"), ...]
+```
+
+## Data Types
+
+### `LLMOutput`
+```python
+class LLMOutput:
+    body: str                    # Main message text (required)
+    options: list[Option] | None # Flat list of options
+    sections: list[Section] | None # Grouped options (for list format)
+    header: str | None           # Optional header text
+    footer: str | None           # Optional footer text
+```
+
+### `TransformResult`
+```python
+class TransformResult:
+    success: bool                # Always True unless error
+    whatsapp_json: dict          # Ready-to-send WhatsApp payload
+    format_used: FormatType      # PLAIN_TEXT, QUICK_REPLY, or LIST
+    fallback_used: bool          # True if format was downgraded
+    fallback_reason: str | None  # Reason for fallback
+    modifications: list[str]     # Truncations/deduplications applied
+```
+
+### `FormatType`
+```python
+class FormatType(Enum):
+    PLAIN_TEXT = "plain_text"
+    QUICK_REPLY = "quick_reply"
+    LIST = "list"
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OPENROUTER_API_KEY` | OpenRouter API key | Yes* |
+| `OPENAI_API_KEY` | OpenAI API key | Yes* |
+| `OPENROUTER_BASE_URL` | API base URL (e.g., `https://openrouter.ai/api/v1`) | No |
+| `OPENAI_BASE_URL` | OpenAI-compatible API base URL | No |
+| `OPENROUTER_MODEL` | Model to use for extraction | No |
+| `OPENAI_MODEL` | Model to use (default: `openai/gpt-4o-mini`) | No |
+
+*One of `OPENROUTER_API_KEY` or `OPENAI_API_KEY` is required.
+
+### Recommended Models
+
+For best results with structured extraction:
+- `qwen/qwen3-30b-a3b-instruct-2507` (91%+ accuracy)
+- `openai/gpt-4o-mini` (with JSON mode)
+
+## WhatsApp Constraints
+
+The library automatically handles these WhatsApp Business API limits:
+
+| Element | Max Length |
+|---------|------------|
+| Quick reply button title | 20 chars |
+| Quick reply buttons | 3 max |
+| List row title | 24 chars |
+| List row description | 72 chars |
+| List sections | 10 max |
+| List rows total | 10 max |
+| Interactive body | 1024 chars |
+| Plain text body | 1600 chars |
+| Header | 60 chars |
+| Footer | 60 chars |
+
+## Examples
+
+### Plain Text (no options)
+```python
+result = format_for_whatsapp("Your balance is $500.")
+# → {"type": "text", "text": {"body": "Your balance is $500."}}
+```
+
+### Quick Reply (1-3 options)
+```python
+result = format_for_whatsapp("""
+Was this transaction authorized?
+1. Yes
+2. No
+""")
+# → {"type": "interactive", "interactive": {"type": "button", ...}}
+```
+
+### List (4-10 options)
+```python
+result = format_for_whatsapp("""
+Select a service:
+1. Balance
+2. Transfer
+3. Cards
+4. Loans
+5. Support
+""")
+# → {"type": "interactive", "interactive": {"type": "list", ...}}
+```
+
+### With Header and Footer
+```python
+result = format_for_whatsapp("""
+⚠️ Security Alert
+
+We detected a login from a new device. Was this you?
+
+1. Yes, it was me
+2. No, secure my account
+
+Reply within 24 hours.
+""")
+# Extracts header: "Security Alert"
+# Extracts footer: "Reply within 24 hours."
+```
+
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/dnivra26/whatsapp-formatter.git
+cd whatsapp-formatter
+
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+```
+
+## License
+
+MIT License
