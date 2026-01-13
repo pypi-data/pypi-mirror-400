@@ -1,0 +1,74 @@
+Metadata-Version: 2.1
+Name: sosfilt
+Version: 1.4.1
+Summary: Second-order section filtering with multiple filters
+Author-Email: Angus Gibson <angus@agibson.me>
+License: MIT License
+         
+         Copyright (c) 2020 Angus Gibson
+         
+         Permission is hereby granted, free of charge, to any person obtaining a copy
+         of this software and associated documentation files (the "Software"), to deal
+         in the Software without restriction, including without limitation the rights
+         to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+         copies of the Software, and to permit persons to whom the Software is
+         furnished to do so, subject to the following conditions:
+         
+         The above copyright notice and this permission notice shall be included in all
+         copies or substantial portions of the Software.
+         
+         THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+         IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+         FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+         AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+         LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+         SOFTWARE.
+         
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX
+Project-URL: homepage, https://github.com/angus-g/sosfilt
+Requires-Python: >=3.9
+Requires-Dist: scipy
+Description-Content-Type: text/markdown
+
+# sosfilt
+
+Second-order section filtering with multiple filters.
+
+This library just extracts scipy's `sosfiltfilt` (and related)
+method. Instead of taking a single SOS filter, with shape
+`(n_sections, 6)`, it takes one filter for each core slice of the
+input array. That is, the SOS filter has shape `(n_filters,
+n_sections, 6)`, and the input array has shape `(..., n, ...`), where
+the product of the shape of all the elided dimensions is
+`n_filters`. Notably, it will not do any broadcasting along the
+non-core dimensions.
+
+The actual filtering algorithm employed within this library is exactly
+the same as that within scipy. In that sense, results should be
+identical. However, in order to vectorise the creation of the initial
+conditions with `sosfilt_zi`, a direct calculation is employed, rather
+than deferring to a linear solve. The result should be practically
+identical, but it is possible that they aren't reproducible to machine
+precision due to this adjustment.
+
+## Installation
+
+Install directly from the git repository, install from pypi with `pip
+install sosfilt`, or install from conda with `conda install -c angus-g
+sosfilt`.
+
+## Example
+
+```python
+import sosfilt
+import numpy as np
+
+x = np.random.randn(5, 20, 5)
+# 25 random lowpass filters
+f = sosfilt.butter(3, np.random.rand(25))
+
+sosfilt.sosfiltfilt(f, x, axis=1)
+```
