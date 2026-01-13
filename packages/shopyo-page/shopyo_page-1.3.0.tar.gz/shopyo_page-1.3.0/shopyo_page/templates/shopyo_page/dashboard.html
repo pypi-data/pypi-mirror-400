@@ -1,0 +1,101 @@
+{% extends "shopyo_base/module_base.html" %}
+{% set active_page ='page' %}
+{% block pagehead %}
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<title>{{active_page.capitalize()}}</title>
+<style>
+    .hidden{
+    display: none;
+  }
+  .show{
+    display: inline-block;
+  }
+</style>
+{% endblock %}
+{% block sidebar %}
+{%include 'shopyo_page/blocks/sidebar.html'%}
+{%endblock%}
+{% block content %}
+<br>
+<div class="container">
+    <div class="card">
+        <div class="card-body">
+            <h3>New page</h3>
+            <form action="{{url_for('{}.check_pagecontent'.format(module_name))}}" method="POST">
+                {{ form.title.label }}
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fa fa-calendar-day"></i></span>
+                    </div>
+                    {{ form.title }}
+                    <span id="error" type="text" vissiblity='hidden'></span>
+                </div>
+                {{ form.slug.label }}
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fa fa-calendar-day"></i></span>
+                    </div>
+                    {{ form.slug }}
+                    <span id="error" type="text" vissiblity='hidden'></span>
+                </div>
+                {{ form.meta_description.label }}
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fa fa-calendar-day"></i></span>
+                    </div>
+                    {{ form.meta_description }}
+                    <span id="error" type="text" vissiblity='hidden'></span>
+                </div>
+                {{ form.meta_keywords.label }}
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fa fa-calendar-day"></i></span>
+                    </div>
+                    {{ form.meta_keywords }}
+                    <span id="error" type="text" viss_iblity='hidden'></span>
+                </div>
+                <div class="field">
+                    {{ form.lang.label }} <br>
+                    <div class="input-group mb-3">
+                        {{ form.lang }}
+                    </div>
+                </div>
+                <div class="field">
+                    {{ form.content.label }} <br>
+                    <div id="editor" style="height: 300px;"></div>
+                    <div class="input-group mb-3" style="display:none;">
+                        {{ form.content }}
+                    </div>
+                </div>
+
+
+                <input type="hidden" name="csrf_token" value="{{csrf_token()}}">
+                <input type="submit" class="btn btn-info" value="submit">
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Include the Quill library -->
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+
+<!-- Initialize Quill editor -->
+<script>
+  const quill = new Quill('#editor', {
+    theme: 'snow'
+  });
+  quill.on('text-change', function() {
+    document.querySelector('textarea[name="content"]').value = quill.root.innerHTML;
+  });
+</script>
+<script type="text/javascript">
+$(document).ready(function() {
+    $("#title").change(function() {
+        var title = $('#title').val();
+        title = title.trim();
+        title = title.replace(/[\W_]+/g, " ");
+        title = title.replaceAll(" ", "-");
+        $('#slug').val(title);
+    });
+});
+</script>
+{% endblock %}
