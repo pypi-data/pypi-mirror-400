@@ -1,0 +1,762 @@
+# SPDX-FileCopyrightText: 2025 adamws <adamws@users.noreply.github.com>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import logging
+import os
+from collections import defaultdict
+from typing import Dict, List, Tuple, Union
+
+from .board_modifier import KICAD_VERSION
+from .footprint_loader import (
+    FootprintIdentifier,
+    SwitchFootprintLoader,
+    is_valid_template,
+)
+from .kle_serial import (
+    MatrixAnnotatedKeyboard,
+    get_annotated_keyboard_from_file,
+)
+
+try:
+    from skip import Schematic
+except ImportError:
+    _has_schematic = False
+else:
+    _has_schematic = True
+
+
+logger = logging.getLogger(__name__)
+
+ORIGIN = (18, 18)
+UNIT = 1.27
+
+COLUMN_DISTANCE = 10
+ROW_DISTANCE = 16
+
+TEMPLATE = """\
+(kicad_sch
+    (version 20250114)
+    (generator "eeschema")
+    (generator_version "9.0")
+    (uuid "9e45a776-7007-48ff-b543-dc98423173b7")
+    (paper "{page_size}")
+    (lib_symbols
+        (symbol "Device:D_Small"
+            (pin_numbers
+                (hide yes)
+            )
+            (pin_names
+                (offset 0.254)
+                (hide yes)
+            )
+            (exclude_from_sim no)
+            (in_bom yes)
+            (on_board yes)
+            (property "Reference" "D"
+                (at -1.27 2.032 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (justify left)
+                )
+            )
+            (property "Value" "D_Small"
+                (at -3.81 -2.032 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (justify left)
+                )
+            )
+            (property "Footprint" ""
+                (at 0 0 90)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "Datasheet" "~"
+                (at 0 0 90)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "Description" "Diode, small symbol"
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "Sim.Device" "D"
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "Sim.Pins" "1=K 2=A"
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "ki_keywords" "diode"
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "ki_fp_filters" "TO-???* *_Diode_* *SingleDiode* D_*"
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (symbol "D_Small_0_1"
+                (polyline
+                    (pts
+                        (xy -0.762 0) (xy 0.762 0)
+                    )
+                    (stroke
+                        (width 0)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+                (polyline
+                    (pts
+                        (xy -0.762 -1.016) (xy -0.762 1.016)
+                    )
+                    (stroke
+                        (width 0.254)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+                (polyline
+                    (pts
+                        (xy 0.762 -1.016) (xy -0.762 0) (xy 0.762 1.016) (xy 0.762 -1.016)
+                    )
+                    (stroke
+                        (width 0.254)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+            )
+            (symbol "D_Small_1_1"
+                (pin passive line
+                    (at -2.54 0 0)
+                    (length 1.778)
+                    (name "K"
+                        (effects
+                            (font
+                                (size 1.27 1.27)
+                            )
+                        )
+                    )
+                    (number "1"
+                        (effects
+                            (font
+                                (size 1.27 1.27)
+                            )
+                        )
+                    )
+                )
+                (pin passive line
+                    (at 2.54 0 180)
+                    (length 1.778)
+                    (name "A"
+                        (effects
+                            (font
+                                (size 1.27 1.27)
+                            )
+                        )
+                    )
+                    (number "2"
+                        (effects
+                            (font
+                                (size 1.27 1.27)
+                            )
+                        )
+                    )
+                )
+            )
+            (embedded_fonts no)
+        )
+        (symbol "Switch:SW_Push_45deg"
+            (pin_numbers
+                (hide yes)
+            )
+            (pin_names
+                (offset 1.016)
+                (hide yes)
+            )
+            (exclude_from_sim no)
+            (in_bom yes)
+            (on_board yes)
+            (property "Reference" "SW"
+                (at 3.048 1.016 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (justify left)
+                )
+            )
+            (property "Value" "SW_Push_45deg"
+                (at 0 -3.81 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                )
+            )
+            (property "Footprint" ""
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "Datasheet" "~"
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "Description" "Push button switch, normally open, two pins, 45° tilted"
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (property "ki_keywords" "switch normally-open pushbutton push-button"
+                (at 0 0 0)
+                (effects
+                    (font
+                        (size 1.27 1.27)
+                    )
+                    (hide yes)
+                )
+            )
+            (symbol "SW_Push_45deg_0_1"
+                (polyline
+                    (pts
+                        (xy -2.54 2.54) (xy -1.524 1.524) (xy -1.524 1.524)
+                    )
+                    (stroke
+                        (width 0)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+                (circle
+                    (center -1.1684 1.1684)
+                    (radius 0.508)
+                    (stroke
+                        (width 0)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+                (polyline
+                    (pts
+                        (xy -0.508 2.54) (xy 2.54 -0.508)
+                    )
+                    (stroke
+                        (width 0)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+                (polyline
+                    (pts
+                        (xy 1.016 1.016) (xy 2.032 2.032)
+                    )
+                    (stroke
+                        (width 0)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+                (circle
+                    (center 1.143 -1.1938)
+                    (radius 0.508)
+                    (stroke
+                        (width 0)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+                (polyline
+                    (pts
+                        (xy 1.524 -1.524) (xy 2.54 -2.54) (xy 2.54 -2.54) (xy 2.54 -2.54)
+                    )
+                    (stroke
+                        (width 0)
+                        (type default)
+                    )
+                    (fill
+                        (type none)
+                    )
+                )
+                (pin passive line
+                    (at -2.54 2.54 0)
+                    (length 0)
+                    (name "1"
+                        (effects
+                            (font
+                                (size 1.27 1.27)
+                            )
+                        )
+                    )
+                    (number "1"
+                        (effects
+                            (font
+                                (size 1.27 1.27)
+                            )
+                        )
+                    )
+                )
+                (pin passive line
+                    (at 2.54 -2.54 180)
+                    (length 0)
+                    (name "2"
+                        (effects
+                            (font
+                                (size 1.27 1.27)
+                            )
+                        )
+                    )
+                    (number "2"
+                        (effects
+                            (font
+                                (size 1.27 1.27)
+                            )
+                        )
+                    )
+                )
+            )
+            (embedded_fonts no)
+        )
+    )
+    (symbol
+        (lib_id "Switch:SW_Push_45deg")
+        (at 0 0 0)
+        (unit 1)
+        (exclude_from_sim no)
+        (in_bom yes)
+        (on_board yes)
+        (dnp no)
+        (uuid "19751ded-3cc5-4b31-aeeb-fd1357dc1d55")
+        (property "Reference" "SW1"
+            (at 0 -5.08 0)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+            )
+        )
+        (property "Value" "SW_Push"
+            (at 0 -3.81 0)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (hide yes)
+            )
+        )
+        (property "Footprint" ""
+            (at 0 0 0)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (hide yes)
+            )
+        )
+        (property "Datasheet" "~"
+            (at 0 0 0)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (hide yes)
+            )
+        )
+        (property "Description" ""
+            (at 0 0 0)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+            )
+        )
+        (pin "1"
+            (uuid "94c53fa6-dd8d-4e6d-9c1a-277431558d0a")
+        )
+        (pin "2"
+            (uuid "ef827767-19b4-4ee5-b4b6-65189b88f8ee")
+        )
+        (instances
+            (project "template"
+                (path "/9e45a776-7007-48ff-b543-dc98423173b7"
+                    (reference "SW1")
+                    (unit 1)
+                )
+            )
+        )
+    )
+    (symbol
+        (lib_id "Device:D_Small")
+        (at 2.54 6.35 90)
+        (unit 1)
+        (exclude_from_sim no)
+        (in_bom yes)
+        (on_board yes)
+        (dnp no)
+        (uuid "feb0fa1f-f7ed-4393-bef6-632a7fa048d6")
+        (property "Reference" "D1"
+            (at 3.81 5.08 90)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (justify right)
+            )
+        )
+        (property "Value" "D"
+            (at 3.81 7.62 90)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (justify right)
+                (hide yes)
+            )
+        )
+        (property "Footprint" ""
+            (at 2.54 6.35 90)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (hide yes)
+            )
+        )
+        (property "Datasheet" "~"
+            (at 2.54 6.35 90)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (hide yes)
+            )
+        )
+        (property "Description" ""
+            (at 2.54 6.35 0)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+            )
+        )
+        (property "Sim.Device" "D"
+            (at 2.54 6.35 0)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (hide yes)
+            )
+        )
+        (property "Sim.Pins" "1=K 2=A"
+            (at 2.54 6.35 0)
+            (effects
+                (font
+                    (size 1.27 1.27)
+                )
+                (hide yes)
+            )
+        )
+        (pin "1"
+            (uuid "004cc590-2791-46a0-9480-7962783605a4")
+        )
+        (pin "2"
+            (uuid "428af732-f843-4705-863e-a0095a5fb80a")
+        )
+        (instances
+            (project "template"
+                (path "/9e45a776-7007-48ff-b543-dc98423173b7"
+                    (reference "D1")
+                    (unit 1)
+                )
+            )
+        )
+    )
+    (sheet_instances
+        (path "/"
+            (page "1")
+        )
+    )
+    (embedded_fonts no)
+)
+"""
+
+
+def _x(x: int) -> float:
+    return (ORIGIN[0] * UNIT) + (x * UNIT)
+
+
+def _y(y: int) -> float:
+    return (ORIGIN[1] * UNIT) + (y * UNIT)
+
+
+def get_lowest_paper_size(size):
+    matrix_size_to_paper = {(8, 19): "A4", (11, 30): "A3", (17, 44): "A2"}
+    smallest_size = None
+    for key in sorted(matrix_size_to_paper):
+        if size[0] <= key[0] and size[1] <= key[1]:
+            smallest_size = matrix_size_to_paper[key]
+            break
+    if smallest_size is None:
+        smallest_size = "A1"
+    return smallest_size
+
+
+def can_create_schematic() -> bool:
+    return _has_schematic
+
+
+def create_schematic(
+    keyboard: Union[str, os.PathLike, MatrixAnnotatedKeyboard],
+    output_path,
+    switch_footprint="",
+    diode_footprint="",
+) -> None:
+    if not can_create_schematic():
+        msg = "Requires optional schematic dependencies"
+        raise ImportError(msg)
+    if KICAD_VERSION < (9, 0, 0):
+        msg = "Requires KiCad 9.0 or higher"
+        raise RuntimeError(msg)
+
+    if isinstance(keyboard, str) or isinstance(keyboard, os.PathLike):
+        _keyboard = get_annotated_keyboard_from_file(keyboard)
+    else:
+        _keyboard: MatrixAnnotatedKeyboard = keyboard
+
+    _keyboard.collapse()
+
+    row_prefix = _keyboard.row_prefix or ""
+    column_prefix = _keyboard.column_prefix or ""
+    row_label_prefix = row_prefix if row_prefix != "" else "ROW"
+    column_label_prefix = column_prefix if column_prefix != "" else "COL"
+
+    logger.debug(
+        f"Labels prefixes: for rows: '{row_label_prefix}', "
+        f"for columns: '{column_label_prefix}'"
+    )
+
+    keys = [k for k in _keyboard.keys_in_matrix_order()]
+    matrix = [
+        (int(pos[0][len(row_prefix) :]), int(pos[1][len(column_prefix) :]))
+        for pos in (MatrixAnnotatedKeyboard.get_matrix_position(k) for k in keys)
+    ]
+    logger.debug(f"Matrix: {matrix}")
+
+    # rows and columns does not necessarily contain each value from min to max,
+    # i.e. matrix can have columns numbers: 1, 2, 4, 5. Because whole
+    # element placing and wiring logic depends on fixed positions calculated
+    # from row/column values, the following `rows` and `columns` variables
+    # represents maximum size (using mentioned example, columns = 5 (and not 4).
+    # Even though the whole column 3 will be empty, it is easier to draw that.
+    # We also assume that both rows and columns starts from 0 and can't be negative.
+    rows = max(set([x[0] for x in matrix]))
+    columns = max(set([x[1] for x in matrix]))
+    logger.debug(f"Matrix size: {rows}x{columns}")
+
+    with open(output_path, "w") as f:
+        size = (rows, columns)
+        f.write(TEMPLATE.format(page_size=get_lowest_paper_size(size)))
+
+    sch = Schematic(output_path)
+    base_switch = sch.symbol.reference_startswith("SW")[0]
+    switch_footprint_format = False
+    switch_loader = None
+    if switch_footprint:
+        switch_footprint_format = is_valid_template(switch_footprint)
+        if switch_footprint_format:
+            # Create loader for switch template footprints
+            switch_loader = SwitchFootprintLoader(switch_footprint)
+            # Format for schematic: LibraryName:FootprintName
+            base_switch.property.Footprint.value = (
+                switch_loader.get_footprint_for_schematic()
+            )
+        else:
+            # Non-template footprint, format for schematic
+            identifier = FootprintIdentifier.from_str(switch_footprint)
+            base_switch.property.Footprint.value = identifier.format_for_schematic()
+    base_diode = sch.symbol.reference_startswith("D")[0]
+    if diode_footprint:
+        # Format diode footprint for schematic: LibraryName:FootprintName
+        diode_identifier = FootprintIdentifier.from_str(diode_footprint)
+        base_diode.property.Footprint.value = diode_identifier.format_for_schematic()
+
+    progress: Dict[Tuple[int, int], List[str]] = defaultdict(list)
+    diode_connection_positions = dict()
+
+    current_ref = 1
+    labels = set()
+    labels_positions = dict()
+
+    for key, (row, column) in zip(keys, matrix):
+        position = (row, column)
+        logger.debug(f"row: {row} column: {column}")
+        row_label = f"{row_label_prefix}{row}"
+        column_label = f"{column_label_prefix}{column}"
+
+        used_slots = len(progress[position])
+        # clamp to maximum value (use same slot for all 3+ alternative keys)
+        # schematic readability will suffer but such layouts are uncommon anyway
+        used_slots = min(used_slots, 3)
+
+        switch = base_switch.clone()
+        if switch_footprint_format and switch_loader:
+            # Use SwitchFootprintLoader for automatic width discovery and fallback
+            # Format for schematic: LibraryName:FootprintName
+            footprint_for_schematic = switch_loader.get_footprint_for_schematic(key=key)
+            switch.property.Footprint.value = footprint_for_schematic
+        if used_slots == 0:
+            switch_reference = f"SW{current_ref}"
+        else:
+            default_switch = progress[position][0]
+            switch_reference = f"{default_switch}_{used_slots}"
+        switch.setAllReferences(switch_reference)
+        switch_x = _x(COLUMN_DISTANCE * int(column) + 5)
+        switch_y = _y(ROW_DISTANCE * int(row) + used_slots)
+        switch.move(switch_x, switch_y)
+        if used_slots != 0:
+            junc = sch.junction.new()
+            junc.move(switch.pin.n2.location.x, switch.pin.n2.location.y)
+            # must add explicit wire from junction to diode connection point
+            # kicad would be able to open and fix the schematic automatically
+            # if we don't do it, but we want to avoid using eeschema in our workflow
+            wire = sch.wire.new()
+            wire.start_at(junc.at)
+            wire.end_at(diode_connection_positions[position])
+        wire = sch.wire.new()
+        wire.start_at(switch.pin.n1)
+        wire.delta_x = -1 * UNIT
+        wire.delta_y = 0
+        if column_label not in labels and used_slots == 0:
+            column_wire = sch.wire.new()
+            column_wire.start_at(wire.end)
+            column_wire.delta_x = 0
+            column_wire.delta_y = (ROW_DISTANCE * (rows - row) + 15) * UNIT
+
+            label = sch.global_label.new()
+            label.move(column_wire.end.value[0], column_wire.end.value[1], 270)
+            label.value = column_label
+            labels.add(column_label)
+            labels_positions[column_label] = label.at
+        else:
+            junc = sch.junction.new()
+            junc.move(wire.end)
+            # must add explicit wire from junction back to label
+            # kicad would be able to open and fix the schematic automatically
+            # if we don't do it, but we want to avoid using eeschema in our workflow
+            wire = sch.wire.new()
+            wire.start_at(junc.at)
+            wire.end_at(labels_positions[column_label])
+
+        if used_slots == 0:
+            diode = base_diode.clone()
+            diode.setAllReferences(f"D{current_ref}")
+            diode_x = switch_x + 2 * UNIT
+            diode_y = switch_y + 7 * UNIT
+            diode.move(diode_x, diode_y)
+            wire = sch.wire.new()
+            wire.start_at(switch.pin.n2)
+            wire.end_at(diode.pin.K)
+            # store the diode cathode pin location for alternative keys to connect
+            diode_connection_positions[position] = diode.pin.K.location
+            wire = sch.wire.new()
+            wire.start_at(diode.pin.A)
+            wire.delta_x = 0
+            wire.delta_y = 1 * UNIT
+            if row_label not in labels:
+                row_wire = sch.wire.new()
+                row_wire.start_at(wire.end)
+                row_wire.delta_x = (COLUMN_DISTANCE * (columns - column) + 5) * UNIT
+                row_wire.delta_y = 0
+
+                label = sch.global_label.new()
+                label.move(row_wire.end.value[0], row_wire.end.value[1], 0)
+                label.effects.justify.value = "left"
+                label.value = row_label
+                labels.add(row_label)
+                labels_positions[row_label] = label.at
+            else:
+                junc = sch.junction.new()
+                junc.move(wire.end)
+                # explicit wire from junction to label (same as for columns)
+                wire = sch.wire.new()
+                wire.start_at(junc.at)
+                wire.end_at(labels_positions[row_label])
+
+            current_ref += 1
+
+        progress[position].append(switch_reference)
+
+    base_switch.delete()
+    base_diode.delete()
+
+    sch.write(output_path)
