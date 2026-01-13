@@ -1,0 +1,37 @@
+#include <cstdint>
+#include <optional>
+
+#include "pybind11/pybind11.h"
+#include "pybind11/stl.h"
+#include "scran_variances/scran_variances.hpp"
+
+#include "utils.h"
+
+pybind11::array choose_highly_variable_genes(
+    DoubleArray stats,
+    int top,
+    bool larger,
+    bool keep_ties,
+    std::optional<double> bound
+) {
+    scran_variances::ChooseHighlyVariableGenesOptions opt;
+    opt.top = top;
+    opt.larger = larger;
+    opt.keep_ties = keep_ties;
+
+    opt.use_bound = bound.has_value();
+    if (opt.use_bound) {
+        opt.bound = *bound;
+    }
+
+    auto res = scran_variances::choose_highly_variable_genes_index<std::uint32_t>(
+        stats.size(),
+        get_numpy_array_data<double>(stats),
+        opt
+    );
+    return create_numpy_vector<std::uint32_t>(res.size(), res.data());
+}
+
+void init_choose_highly_variable_genes(pybind11::module& m) {
+    m.def("choose_highly_variable_genes", &choose_highly_variable_genes);
+}
