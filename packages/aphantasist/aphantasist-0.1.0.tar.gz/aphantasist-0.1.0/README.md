@@ -1,0 +1,31 @@
+# 💭 Aphantasist v0.1.0
+
+Aphantasist is an simple OCR that uses EasyOCR to read images from a folder and paste the texts in another.
+
+## Installation
+```shell
+uv add aphantasist
+```
+or
+```shell
+pip install aphantasist
+```
+
+But you can use everything as a tool, for example:
+```shell
+uvx aphantasist --version
+```
+## How to use
+
+Put your images to be readed in the folder `/input` and use the command `start, like this.
+```shell
+aphantasist start
+```
+
+## See Also
+
+- Github: https://github.com/bouli/aphantasist
+- PyPI: https://pypi.org/project/aphantasist/
+
+## License
+This package is distributed under the [MIT license](https://opensource.org/license/MIT).
