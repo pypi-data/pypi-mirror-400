@@ -1,0 +1,345 @@
+# jps-effort-tracker-utils
+
+A command-line task and effort tracking utility for managing daily tasks with priorities, effort estimates, and status tracking.
+
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+  - [Add Task](#add-task)
+  - [View Tasks](#view-tasks)
+  - [Delete Task](#delete-task)
+  - [Update Task](#update-task)
+- [Task Properties](#task-properties)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+**jps-effort-tracker-utils** is a Python package that provides command-line tools for tracking tasks and effort. It helps you organize your daily work by managing tasks with detailed attributes including priority levels, effort estimates, due dates, status tracking, and integration with issue trackers.
+
+Tasks are stored in YAML files organized by date, making it easy to track your work history and transfer incomplete tasks between days automatically.
+
+## Features
+
+✅ **Task Management**: Add, view, delete, and update tasks via simple CLI commands
+
+✅ **Rich Task Attributes**:
+- Task ID (auto-generated timestamps)
+- Title and description
+- Priority levels (1-5)
+- Due dates
+- Status tracking (pending, in-progress, completed, deleted, not started)
+- Effort estimates (in minutes)
+- Level of effort categories (Easy, Medium, Hard, Complex)
+- Issue tracker integration
+- Issue types (enhancement, bugfix, documentation, etc.)
+
+✅ **Smart Features**:
+- Automatic transfer of incomplete tasks to the next day
+- Date-based task file organization
+- Beautiful Rich tables for task viewing with configurable columns
+- Interactive task selection and detailed views
+- Generate shareable text reports with configurable fields
+- Colored console output for better readability
+- YAML-based storage for easy inspection and editing
+- Configurable task storage directory
+
+✅ **Developer-Friendly**:
+- Comprehensive test suite with pytest
+- Type hints throughout
+- Rich console output with Typer CLI framework
+- Detailed logging
+
+## Installation
+
+For detailed installation instructions, see [INSTALL.md](docs/INSTALL.md).
+
+### Quick Install
+
+```bash
+pip install jps-effort-tracker-utils
+```
+
+### From Source
+
+```bash
+git clone https://github.com/jai-python3/effort-tracker-utils.git
+cd effort-tracker-utils
+pip install -e .
+```
+
+## Quick Start
+
+```bash
+# View all available commands
+jps-effort-tracker --help
+
+# Add a new task
+jps-effort-tracker add-task
+
+# View tasks for today
+jps-effort-tracker view-tasks
+
+# Update an existing task
+jps-effort-tracker update-task
+
+# Delete a task
+jps-effort-tracker delete-task
+
+# Generate a text report
+jps-effort-tracker generate-report
+
+# Show version
+jps-effort-tracker version
+```
+
+## Usage
+
+All commands are accessed through the main `jps-effort-tracker` CLI tool.
+
+### Add Task
+
+Interactively add a new task with all properties:
+
+```bash
+jps-effort-tracker add-task
+```
+
+With options:
+
+```bash
+jps-effort-tracker add-task --config-file /path/to/config.yaml --verbose
+```
+
+**Options:**
+- `--config-file`, `-c`: Configuration file path (default: built-in config)
+- `--task-file`, `-t`: Specific task file to use (default: today's file)
+- `--logfile`, `-l`: Log file path
+- `--outdir`, `-o`: Output directory for logs
+- `--verbose`, `-v`: Enable verbose output
+
+### View Tasks
+
+View and browse your tasks in a beautiful Rich table:
+
+```bash
+jps-effort-tracker view-tasks
+```
+
+This will:
+1. Display all tasks in a formatted table with configurable columns
+2. Allow you to select a task by number to view full details
+3. Show detailed task information in a formatted table
+4. Press Enter to return or quit
+
+**Table Configuration:**
+
+The columns displayed in the tasks table are configured in your `config.yaml`:
+
+```yaml
+view_tasks:
+  fields:
+    - title
+    - status
+    - priority
+    - level_of_effort
+    - effort_estimate
+    - due_date
+```
+
+You can customize which fields appear and their order by editing this configuration.
+
+### Delete Task
+
+Remove a task from the list:
+
+```bash
+jps-effort-tracker delete-task
+```
+
+Select the task number you want to delete.
+
+### Update Task
+
+Modify an existing task:
+
+```bash
+jps-effort-tracker update-task
+```
+
+This will:
+1. Display all current tasks
+2. Prompt you to select a task by number
+3. Allow you to update any field (press Enter to keep current value)
+4. Save the changes to the task file
+
+You can update all task properties including title, description, priority, status, effort estimate, level of effort, issue tracker details, and due date. Current values are shown in brackets for reference.
+
+### Generate Report
+
+Create a shareable text report of your tasks:
+
+```bash
+jps-effort-tracker generate-report
+```
+
+This will:
+1. Load tasks from the current date (or specified task file)
+2. Generate a formatted text report with tasks organized vertically
+3. Save the report to a `.txt` file in your tasks directory
+4. Include only the fields configured in `config.yaml`
+
+**Specify custom files:**
+
+```bash
+# Generate report for a specific date
+jps-effort-tracker generate-report --task-file ~/effort-tracker-utils/tasks/2026-01-01.yaml
+
+# Specify custom output location
+jps-effort-tracker generate-report --output-file ~/reports/weekly-report.txt
+```
+
+**Report Configuration:**
+
+Customize which fields appear in reports via [config.yaml](src/jps_effort_tracker_utils/conf/config.yaml):
+
+```yaml
+report:
+  fields:
+    - title
+    - issue_tracker_id
+    - issue_type
+    - status
+    - priority
+    - level_of_effort
+    - effort_estimate
+    - due_date
+    - description
+```
+
+The report format is plain text with tasks displayed vertically, making it easy to share via email or chat.
+
+### Version
+
+Show version information:
+
+```bash
+jps-effort-tracker version
+```
+
+## Task Properties
+
+Each task includes:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `task_id` | string | Auto-generated timestamp ID (YYYY.MM.DD.HH.MM.SS) |
+| `title` | string | Short task title |
+| `description` | string | Detailed task description |
+| `priority` | int | Priority level (1-5) |
+| `due_date` | datetime | When the task is due |
+| `date_created` | datetime | When the task was created |
+| `status` | string | Current status (pending, in-progress, completed, etc.) |
+| `completed` | bool | Whether the task is completed |
+| `issue_tracker_id` | string | External issue tracker reference |
+| `issue_type` | string | Type of work (enhancement, bugfix, etc.) |
+| `effort_estimate` | int | Estimated duration in minutes |
+| `level_of_effort` | string | Complexity category (Easy, Medium, Hard, Complex) |
+
+## Configuration
+
+Default configuration is stored at `src/jps_effort_tracker_utils/conf/config.yaml`. You can provide a custom configuration:
+
+```yaml
+tasks_dir: /path/to/your/tasks
+```
+
+By default, tasks are stored in: `~/effort-tracker-utils/tasks/`
+
+Each day gets its own YAML file: `YYYY-MM-DD.yaml`
+
+## Development
+
+### Setup Development Environment
+
+```bash
+git clone https://github.com/jai-python3/effort-tracker-utils.git
+cd effort-tracker-utils
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+### Code Quality Tools
+
+The project uses:
+- **Typer** for CLI framework
+- **Rich** for beautiful terminal output
+- **Black** for code formatting
+- **isort** for import sorting
+- **flake8** for linting
+- **mypy** for type checking
+- **pylint** for additional linting
+- **pytest** for testing
+
+```bash
+# Format code
+black src tests
+
+# Sort imports
+isort src tests
+
+# Run linters
+flake8 src
+mypy src
+
+# Run tests
+pytest tests/
+```
+
+## Testing
+
+The project has a comprehensive test suite covering:
+- Constants and configuration
+- Task manager and Task model
+- Package metadata
+- CLI functionality
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=src/jps_effort_tracker_utils --cov-report=term-missing
+
+# Run specific test file
+pytest tests/test_manager.py -v
+```
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests and linters
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+For major changes, please open an issue first to discuss what you would like to change.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
