@@ -1,0 +1,109 @@
+[build-system]
+requires = [
+    "setuptools>=77",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ewokstomo"
+version = "0.6.0"
+keywords = [
+    'ewoks'
+]
+
+authors = [{name = "ESRF", email = "dau-pydev@esrf.fr"}]
+description = "Data processing workflows for Tomography"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    'Intended Audience :: Science/Research',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+]
+requires-python = ">=3.10"
+dependencies = [
+    'blissdata',
+    'ewokscore',
+    'nxtomomill',
+    'pyicat_plus',
+    'tomoscan',
+    'nabu',
+    'pyopencl[pocl]',
+    'esrf-pathlib==0.6.0',
+    'esrf_ontologies',
+    'xraylib',
+    'xoppylib'
+]
+
+[project.urls]
+Homepage = "https://gitlab.esrf.fr/workflow/ewoksapps/ewokstomo/"
+Documentation = "https://ewokstomo.readthedocs.io/"
+Repository = "https://gitlab.esrf.fr/workflow/ewoksapps/ewokstomo/"
+Issues = "https://gitlab.esrf.fr/workflow/ewoksapps/ewokstomo/issues"
+Changelog = "https://gitlab.esrf.fr/workflow/ewoksapps/ewokstomo/-/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+test = [
+    'pytest >=7',
+    'nabu[full_nocuda]',
+    'ewoks',
+    'pytest-order',
+]
+no_cuda = [
+    'ewokstomo',
+    'nabu[full_nocuda]',
+]
+cuda = [
+    'ewokstomo',
+    'nabu[full]',
+]
+dev = [
+    'ewokstomo[test]',
+    'black >=25',
+    'flake8 >=4',
+    'ruff >=0.4',
+    'bandit >=1.7',
+]
+doc = [
+    'ewokstomo',
+    'ewoks',
+    'sphinx>=4.5',
+    'ewokssphinx >= 1.0.0',
+    'sphinx-autodoc-typehints >=1.16',
+    'pydata-sphinx-theme',
+    "sphinx-copybutton",
+    "myst-parser",
+]
+
+[tool.setuptools]
+package-dir = {''= 'src'}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.package-data]
+"ewokstomo.workflows" = ["*.json"]
+"ewokstomo.tests"     = ["data/**/*"]
+
+[project.entry-points."ewoks.tasks.class"]
+"ewokstomo.tasks.*" = "ewokstomo"
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*"
+]
+
+[tool.bandit.assert_used]
+skips = ["*/test_*.py"]
+
+[tool.mypy]
+python_version = "3.12"
+files = "src"
+ignore_missing_imports = true
+explicit_package_bases = true
