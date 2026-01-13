@@ -1,0 +1,64 @@
+[package]
+name = "lattice"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Parsing
+pest = "2.7"
+pest_derive = "2.7"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# HTTP client for LLM
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# JSON handling
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+
+# YAML handling (for markdown LLM frontmatter)
+serde_yml = "0.0.12"
+
+# Template rendering (for LLM prompts)
+minijinja = "2.0"
+
+# DuckDB (optional, for sql feature)
+duckdb = { version = "1.0", features = ["bundled"], optional = true }
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Regex for string matching
+regex = "1"
+
+# Features
+[features]
+default = ["sql"]
+sql = ["duckdb"]
+python = ["pyo3"]
+elixir = ["rustler"]
+node = ["neon"]
+
+[dependencies.pyo3]
+version = "0.27"
+optional = true
+
+[dependencies.rustler]
+version = "0.34"
+optional = true
+
+[dependencies.neon]
+version = "1"
+optional = true
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3"
+
+[[bench]]
+name = "vm_benchmarks"
+harness = false
