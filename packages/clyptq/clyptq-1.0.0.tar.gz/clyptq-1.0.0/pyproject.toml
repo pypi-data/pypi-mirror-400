@@ -1,0 +1,93 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clyptq"
+version = "1.0.0"
+description = "Quantitative cryptocurrency trading engine"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Jaden - Clypt", email = "jaden@clypt.ai"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+
+dependencies = [
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "ccxt>=4.0.0",
+    "python-dotenv>=1.0.0",
+    "matplotlib>=3.7.0",
+    "scipy>=1.11.0",
+    "scikit-learn>=1.3.0",
+]
+
+[project.scripts]
+clyptq = "clyptq.cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "mypy>=1.5.0",
+    "black>=23.7.0",
+    "flake8>=6.1.0",
+    "isort>=5.12.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["clyptq*"]
+exclude = ["tests*", "examples*"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["TODO.md", "CLAUDE.md", ".git*", "*.pyc", "__pycache__"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=clyptq --cov-report=term-missing"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "performance: Performance and load tests",
+    "security: Security audit tests",
+]
+
+[tool.coverage.run]
+source = ["clyptq"]
+omit = ["tests/*", "**/__pycache__/*"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
