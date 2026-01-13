@@ -1,0 +1,33 @@
+<p align="center">
+  <img alt="golangci-lint logo" src="https://avatars.githubusercontent.com/u/252895549?s=400&u=6c747c431c2844620af7772fcd716ef423a6ab1d&v=4" height="150" />
+  <h3 align="center">netcorelink/microhttpx</h3>
+  <p align="center">Lightweight HTTP server library for microcontrollers</p>
+</p>
+
+---
+
+`netcorelink/microhttpx` is a lightweight HTTP server library for microcontrollers.
+
+## Install `microhttpx`
+
+```bash
+pip install microhttpx
+```
+
+For MicroPython, installation is performed by copying the library files to the device's file system.
+
+## A quick example
+
+```python
+from microhttpx import HttpServer
+
+server = HttpServer()
+
+@server.route("/", methods=["GET"])
+def index(request):
+    return "Hello, microhttpx!"
+
+server.start(port=8080)
+```
+
+`microhttpx is not a complete replacement for full-fledged server frameworks (Flask, FastAPI, etc.)`
