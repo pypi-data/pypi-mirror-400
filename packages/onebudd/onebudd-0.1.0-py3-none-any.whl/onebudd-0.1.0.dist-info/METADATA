@@ -1,0 +1,195 @@
+Metadata-Version: 2.4
+Name: onebudd
+Version: 0.1.0
+Summary: OneBudd STS SDK - Real-time voice AI conversations
+Author: OneBudd
+License: MIT
+Keywords: ai,onebudd,real-time,speech-to-text,text-to-speech,voice,websocket
+Requires-Python: >=3.9
+Requires-Dist: websockets>=12.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.21; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# onebudd
+
+> Python SDK for OneBudd real-time voice AI.
+
+[![PyPI](https://img.shields.io/pypi/v/onebudd)]()
+[![Python](https://img.shields.io/badge/python-3.9+-blue)]()
+
+## Installation
+
+```bash
+pip install onebudd
+```
+
+---
+
+## Quick Start
+
+```python
+import asyncio
+from onebudd import OneBuddClient
+
+async def main():
+    client = OneBuddClient("pk_test_xxx")
+    
+    # Set up callbacks
+    client.on_audio(lambda audio: play(audio))
+    client.on_transcript(lambda t: print(f"{t.role}: {t.text}"))
+    
+    # Connect
+    session = await client.start_session()
+    print(f"Connected: {session.id}")
+    
+    # Run message loop in background
+    asyncio.create_task(client.run())
+    
+    # Send text (skips speech recognition)
+    await client.send_message("Hello!")
+    
+    # Or send audio (PCM 16kHz mono 16-bit)
+    await client.send_audio(audio_bytes)
+    
+    # End session
+    await client.end_session()
+
+asyncio.run(main())
+```
+
+---
+
+## Configuration
+
+```python
+client = OneBuddClient(
+    api_key="pk_xxx",
+    base_url="wss://api.onebudd.com",  # WebSocket URL
+    auto_reconnect=True,                # Auto-reconnect on disconnect
+    max_reconnect_attempts=5,           # Max attempts
+    reconnect_delay_ms=1000,            # Base delay (exponential backoff)
+)
+```
+
+---
+
+## API Reference
+
+### Methods
+
+| Method | Description |
+|--------|-------------|
+| `start_session()` | Connect and start a new session |
+| `run()` | Run the message loop (call after start_session) |
+| `end_session()` | End the current session |
+| `send_audio(chunk)` | Send raw PCM audio bytes |
+| `send_audio_with_meta(chunk, seq?)` | Send audio with metadata |
+| `send_message(text)` | Send text (bypasses STT) |
+| `cancel(target?)` | Cancel active operations |
+
+### Callbacks
+
+```python
+client.on_audio(handler: Callable[[bytes], None])
+client.on_transcript(handler: Callable[[Transcript], None])
+client.on_state_change(handler: Callable[[StateChange], None])
+client.on_error(handler: Callable[[Error], None])
+client.on_connected(handler: Callable[[SessionCapabilities], None])
+client.on_disconnected(handler: Callable[[str], None])
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `is_connected` | `bool` | Connection status |
+| `session_id` | `str \| None` | Current session ID |
+| `capabilities` | `SessionCapabilities \| None` | Server capabilities |
+
+---
+
+## Types
+
+```python
+from onebudd import (
+    OneBuddClient,
+    Session,
+    SessionCapabilities,
+    Transcript,
+    StateChange,
+    Error,
+)
+
+# Transcript
+@dataclass
+class Transcript:
+    role: str  # 'user' | 'assistant'
+    text: str
+    is_final: bool
+
+# StateChange
+@dataclass
+class StateChange:
+    from_state: str
+    to_state: str
+    trigger: str
+```
+
+---
+
+## Streaming Audio from Microphone
+
+```python
+import pyaudio
+import asyncio
+from onebudd import OneBuddClient
+
+async def stream_microphone():
+    client = OneBuddClient("pk_xxx")
+    await client.start_session()
+    asyncio.create_task(client.run())
+    
+    # Set up PyAudio
+    p = pyaudio.PyAudio()
+    stream = p.open(
+        format=pyaudio.paInt16,
+        channels=1,
+        rate=16000,
+        input=True,
+        frames_per_buffer=3200,  # 200ms at 16kHz
+    )
+    
+    try:
+        while True:
+            audio_chunk = stream.read(3200)
+            await client.send_audio(audio_chunk)
+            await asyncio.sleep(0.01)
+    finally:
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+        await client.end_session()
+
+asyncio.run(stream_microphone())
+```
+
+---
+
+## Error Handling
+
+```python
+def handle_error(error: Error):
+    print(f"Error [{error.code}]: {error.message}")
+    if error.fatal:
+        print("Connection will be closed")
+
+client.on_error(handle_error)
+```
+
+---
+
+## License
+
+MIT
