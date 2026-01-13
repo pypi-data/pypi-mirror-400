@@ -1,0 +1,69 @@
+[tool.poetry]
+name = "orca-python"
+version = "0.12.0"
+description = "Python SDK for the Predixus Orca product"
+authors = [
+  "Frederick Mannings <fred@orc-a.io>"
+  ]
+readme = "README.md"
+packages = [
+    {include = "orca_python"},
+    {include = "*", from = "./orca/protobufs/python" },
+]
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+grpcio-tools = "^1.71.0"
+grpcio = "^1.71.0"
+grpcio-reflection = "^1.74.0"
+
+[tool.poetry.group.dev.dependencies]
+poethepoet = "^0.34.0"
+pytest = "^8.3.5"
+ruff = "^0.11.7"
+schedule = "^1.2.2"
+numpy = "^2.2.6"
+pyright = "^1.1.407"
+
+[tool.ruff]
+exclude = ["*_pb2.py", "*.pyi"]
+extend-include = ["*.ipynb"]
+line-length=88
+
+[tool.ruff.lint.isort]
+known-first-party = ["orca_client", "tests" ]
+length-sort = true
+
+[tool.ruff.lint]
+extend-select = [
+        "F401", # unused imports 
+        "F841"  # unused variables
+    ]
+select=["I"]
+
+[tool.pytest.ini_options]
+markers = [
+  "live: marks tests as requireing access to live services"
+]
+
+[tool.poe.env]
+ORCA_CORE="<dummy_grpc_url>"
+PROCESSOR_PORT="5051"
+PROCESSOR_ADDRESS="[::]:8080"
+
+[tool.poe.tasks]
+_lint_check = "ruff check orca_python tests examples"
+_lint_fix = "ruff check orca_python tests examples --fix "
+_type = "pyright orca_python examples"
+_format = "ruff format orca_python tests examples"
+
+format = ["_format", "_lint_fix"]
+lint = ["_format", "_lint_fix", "_type"]
+lint_ci = ["_lint_check", "_type"]
+
+# Testing
+test = "pytest tests -vv -m 'not live'"
+test_live ="pytest tests -vv -m 'live'"
