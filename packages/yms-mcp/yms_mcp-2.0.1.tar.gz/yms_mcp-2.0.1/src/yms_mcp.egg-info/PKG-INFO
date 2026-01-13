@@ -1,0 +1,304 @@
+Metadata-Version: 2.4
+Name: yms-mcp
+Version: 2.0.1
+Summary: YMS MCP Server - ONVIF camera control and YMS query tools for Model Context Protocol
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: onvif-zeep>=0.2.12
+Requires-Dist: wsdiscovery
+Requires-Dist: requests
+Requires-Dist: minio>=7.2.0
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: mcp[cli]>=1.6.0
+Requires-Dist: openai>=1.70.0
+Requires-Dist: pytz>=2025.2
+Requires-Dist: uvicorn>=0.34.0
+Requires-Dist: starlette>=0.46.1
+Requires-Dist: pyyaml>=6.0.1
+Requires-Dist: pydantic-settings>=2.6.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: loguru>=0.7.2
+Dynamic: license-file
+
+# YMS MCP Server
+
+**YMS MCP** 是一个集成了 ONVIF 摄像头控制和 YMS 后端查询功能的 MCP (Model Context Protocol) 服务器。该项目为 AI 助手提供标准化的工具接口，支持摄像头控制和物流管理系统查询。
+
+## 功能特性
+
+### ONVIF 摄像头控制
+- **设备发现**：自动扫描局域网内符合 ONVIF 标准的设备
+- **PTZ 控制**：云台旋转、镜头变焦等操作
+- **媒体流管理**：获取 RTSP 视频流 URL
+- **设备信息**：查询设备型号、固件版本等信息
+- **图像抓拍**：远程抓拍并上传到 MinIO
+- **焦距控制**：调整摄像头焦距
+
+### YMS 后端查询
+- **Entry Tickets 查询**：查询工作空间入场记录，支持多种过滤条件
+- **Appointments 查询**：查询预约记录，支持分页和过滤
+
+## 安装
+
+### 环境要求
+- Python 3.11+
+- pip 或 uv 包管理器
+
+### 安装依赖
+
+使用 pip:
+```bash
+pip install -r requirements.txt
+```
+
+使用 uv:
+```bash
+uv pip install -e .
+```
+
+## 配置
+
+### 1. 创建配置文件
+
+复制示例配置文件：
+```bash
+cp .env.example .env
+```
+
+### 2. 配置 YMS 后端
+
+编辑 `src/config/config.yaml` 文件，配置 YMS 后端连接信息：
+
+```yaml
+yms_backend:
+  url: https://yms-staging.item.com/api/yms
+  login_path: /auth/yms/login-by-password
+  headers:
+    tenant_id: LT
+    yard_id: LT_F3
+    timezone: America/Los_Angeles
+    token_expire_seconds: 3000
+
+server:
+  host: 0.0.0.0
+  port: 8020
+```
+
+### 3. 配置环境变量
+
+在 `.env` 文件中设置 YMS 认证信息：
+
+```bash
+# YMS Backend Configuration
+YMS_USERNAME=your_username
+YMS_PASSWORD=your_password
+
+# MinIO Configuration (optional)
+MINIO_ENDPOINT=your_minio_endpoint
+MINIO_ACCESS_KEY=your_access_key
+MINIO_SECRET_KEY=your_secret_key
+```
+
+## 使用
+
+### 启动服务器
+
+```bash
+python main.py --host 0.0.0.0 --port 8020
+```
+
+服务器将在 `http://0.0.0.0:8020` 启动，提供 SSE 传输的 MCP 服务。
+
+### 使用 MCP CLI
+
+```bash
+mcp dev main.py
+```
+
+## MCP 客户端配置
+
+### 配置 Claude Desktop
+
+#### 方式一：SSE 传输（推荐用于远程访问）
+
+1. 首先启动 YMS MCP 服务器：
+```bash
+python main.py --host 0.0.0.0 --port 8020
+```
+
+2. 编辑 Claude Desktop 配置文件：
+
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+3. 添加以下配置：
+```json
+{
+  "mcpServers": {
+    "yms-mcp": {
+      "url": "http://localhost:8020/sse"
+    }
+  }
+}
+```
+
+#### 方式二：stdio 传输（推荐用于本地开发）
+
+编辑 Claude Desktop 配置文件，添加以下配置：
+
+```json
+{
+  "mcpServers": {
+    "yms-mcp": {
+      "command": "python",
+      "args": [
+        "C:/Users/YourUsername/PycharmProjects/yms-mcp/main_stdio.py"
+      ]
+    }
+  }
+}
+```
+
+**注意**：
+- 将路径替换为你的实际项目路径
+- Windows 路径使用正斜杠 `/` 或双反斜杠 `\\`
+- 确保 Python 在系统 PATH 中，或使用完整的 Python 路径
+
+### 配置其他 MCP 客户端
+
+对于其他支持 MCP 的客户端，可以使用以下连接信息：
+
+- **SSE 端点**: `http://localhost:8020/sse`
+- **消息端点**: `http://localhost:8020/messages/`
+- **传输协议**: Server-Sent Events (SSE)
+
+### 验证配置
+
+1. 重启 Claude Desktop
+2. 在对话中输入类似 "查询预约记录" 或 "控制摄像头" 的请求
+3. Claude 应该能够调用 YMS MCP 提供的工具
+
+## 可用工具
+
+### ONVIF 摄像头工具
+
+1. **handle_discover_devices** - 发现网络中的 ONVIF 设备
+2. **handle_ptz_control** - 控制摄像头 PTZ 移动
+3. **get_rtsp** - 获取摄像头 RTSP 地址
+4. **get_deviceInfo** - 获取摄像头设备信息
+5. **snap_image_to_minio** - 抓拍图像并上传到 MinIO
+6. **focus_move** - 控制摄像头焦距
+7. **get_camera_list** - 获取摄像头列表
+8. **get_camera_live** - 获取摄像头直播流地址
+
+### YMS 查询工具
+
+9. **search_entry_tickets** - 查询工作空间入场记录
+   - 支持分页 (page_num, page_size)
+   - 支持多种过滤条件 (entry_id, keyword, driver_id, vehicle_id, appointment_id, tractor_no, trailer_no, container_no, load_no, entry_status, appointment_status)
+
+10. **search_appointments** - 查询预约记录
+    - 支持分页 (page_num, page_size)
+    - 支持多种过滤条件 (appointment_id, appointment_type, carrier_id, driver_id, appointment_status, customer_id, entry_id, reference_code, keyword, load_id, receipt_id)
+
+## 使用示例
+
+### 查询预约记录
+
+```python
+# 查询第1页，每页20条记录
+result = await search_appointments(page_num=1, page_size=20)
+
+# 根据预约ID查询
+result = await search_appointments(appointment_id="APT-12345")
+
+# 根据司机ID查询
+result = await search_appointments(driver_id="DRV-001")
+```
+
+### 查询入场记录
+
+```python
+# 查询第1页，每页20条记录
+result = await search_entry_tickets(page_num=1, page_size=20)
+
+# 根据车牌号查询
+result = await search_entry_tickets(tractor_no="ABC123")
+
+# 根据预约ID查询
+result = await search_entry_tickets(appointment_id="APT-12345")
+```
+
+### 控制摄像头
+
+```python
+# PTZ 控制
+result = await handle_ptz_control(
+    host="192.168.1.100",
+    port=80,
+    usr="admin",
+    pwd="admin123",
+    direction="Up",
+    speed=50
+)
+
+# 抓拍图像
+result = await snap_image_to_minio(
+    host="192.168.1.100",
+    port=80,
+    usr="admin",
+    pwd="admin123"
+)
+```
+
+## 项目结构
+
+```
+yms-mcp/
+├── src/
+│   ├── config/          # 配置模块
+│   │   ├── settings.py  # 配置加载器
+│   │   └── config.yaml  # YAML 配置文件
+│   ├── managers/        # 管理器模块
+│   │   └── token.py     # YMS Token 管理器
+│   ├── services/        # 服务层
+│   │   └── yms_query.py # YMS 查询服务
+│   └── onvif_device_manage.py  # ONVIF 设备管理
+├── main.py              # 主程序入口
+├── pyproject.toml       # 项目配置
+└── README.md            # 项目文档
+```
+
+## 技术栈
+
+- **FastMCP** - MCP 服务器框架
+- **Starlette** - ASGI Web 框架
+- **ONVIF-zeep** - ONVIF 协议客户端
+- **httpx** - 异步 HTTP 客户端
+- **loguru** - 日志记录
+- **pydantic-settings** - 配置管理
+- **MinIO** - 对象存储
+
+## 开发
+
+### 运行测试
+
+```bash
+pytest tests/
+```
+
+### 代码格式化
+
+```bash
+black src/ main.py
+```
+
+## 许可证
+
+MIT License
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
