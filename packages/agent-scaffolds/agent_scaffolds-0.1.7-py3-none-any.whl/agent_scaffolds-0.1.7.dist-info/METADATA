@@ -1,0 +1,191 @@
+Metadata-Version: 2.3
+Name: agent-scaffolds
+Version: 0.1.7
+Summary: agent-scaffolds
+Author: Zahcoder34
+Author-email: Zakhriw@gmail.com
+Requires-Python: >=3.11,<3.14
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Dist: ascender-framework (>=2.0.4,<3.0.0)
+Requires-Dist: attp-client (==0.0.19b6)
+Requires-Dist: prompt-toolkit (>=3.0.45,<4.0.0)
+Description-Content-Type: text/markdown
+
+# Ascender Framework Project
+
+## Overview
+
+This project is built using the **Ascender Framework**, a structured FastAPI-based framework designed for modular and scalable applications.
+
+---
+
+# Ascender — AgentHub SDK
+
+Small scaffolding project and tooling for building AgentHub agents on top of the
+Ascender framework. It includes a command-line copilot TUI, ATTP protocol SDK, MCP server provider
+helpers, and a scaffold template for creating agent manifests.
+
+This README covers quick setup, development, how to run the copilot TUI, and
+notes about packaging the project as a library.
+
+## Prerequisites
+
+- Python 3.11 (recommended)
+- Poetry (for dependency and packaging)
+
+Using a dedicated virtual environment for development is recommended:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+poetry install
+```
+
+If you prefer Poetry's own virtualenv handling, run:
+
+```bash
+poetry config virtualenvs.create true
+poetry install
+```
+
+## Development / Running the app
+
+- To run the web server (development):
+
+```bash
+# (example; your project may expose a different entrypoint)
+poetry run ascender run serve
+```
+
+- To run the Copilot TUI:
+
+```bash
+poetry run ascender run copilot run            # reuse latest chat session
+poetry run ascender run copilot run --subject "My Session"  # start named session
+```
+
+TUI commands inside the copilot:
+- `/new <name>` — create and switch to a new chat
+- `/select <n>` — switch to chat number n
+- `/refresh` — reload chat list from the server
+- `/exit` or `/quit` — quit the TUI
+
+The copilot supports streaming responses; it will show token-by-token updates
+when the ATTP client provides a streaming response.
+
+## Install & use as a library
+
+You can install the published package directly:
+
+```bash
+pip install agent-scaffolds
+# or with poetry
+poetry add agent-scaffolds
+```
+
+### Wiring into an Ascender app (example)
+
+In your `bootstrap.py`, provide the MCP server and copilot CLI so they register
+with your Ascender application:
+
+```python
+from ascender.core.cli_engine import useCLI
+from agenthub.cli.copilot import CopilotCLI
+from agenthub.mcp.server import provideMCP
+
+appBootstrap = {
+   "providers": [
+      # ... your other providers ...
+      useCLI(CopilotCLI),
+      provideMCP("agenthub"),  # mounts MCP at /agenthub
+   ]
+}
+```
+
+Then run your app (e.g. `poetry run ascender run serve`) and access the MCP
+endpoint at `/agenthub`.
+
+## Packaging as a library
+
+This repository is a normal Python package layout under `src/agenthub`.
+If you want to publish the project as a reusable library (PyPI or private index):
+
+1. Ensure `pyproject.toml` exposes the package by setting `packages`/`include` or
+    by using Poetry's default `packages = [{ include = "agenthub" }]` with
+    `package-dir = { "" = "src" }` if needed.
+2. Build and publish with Poetry:
+
+```bash
+poetry build
+poetry publish --build
+```
+
+After publishing you can install it via `pip` or `poetry add` in other projects.
+
+### Quick local install for testing
+
+```bash
+pip install -e src
+# or with poetry in another project
+poetry add ../path/to/agent-scaffolds
+```
+
+## Environment variables
+
+The AgentHub config loader reads these variables (with the shown defaults):
+
+- `AGENTHUB__BASE_URL` (default `http://localhost:8000`)
+- `AGENTHUB__ATTP_URL` (default `attp://localhost:6563`)
+- `AGENTHUB__AGT_KEY` (default demo token)
+- `AGENTHUB__ORGANIZATION_ID` (default `1`)
+
+Set them in your shell or `.env` before running the server or copilot, e.g.:
+
+```bash
+export AGENTHUB__BASE_URL="https://your-agenthub"
+export AGENTHUB__ATTP_URL="attp://your-attp-host:6563"
+export AGENTHUB__AGT_KEY="your_agent_token"
+export AGENTHUB__ORGANIZATION_ID=123
+```
+
+## Notes about using this project as a library
+
+Pros:
+- Encapsulates Copilot UI, tools, and MCP wiring so other apps can reuse them.
+- Packaged code is easy to install and import (e.g. `import agenthub`).
+
+Potential drawbacks / gotchas:
+- Side-effects on import: some modules register providers or mount ASGI apps
+   (e.g. lifecycle hooks). Avoid importing top-level modules that perform
+   runtime startup actions; prefer importing explicit factory functions.
+- Event loop / ASGI lifecycle: the MCP provider starts a task group on
+   application startup. When used inside another ASGI app you must ensure the
+   host application calls the startup/shutdown handlers (FastAPI/Starlette do
+   this automatically) so the MCP run context can initialize.
+- Dependency conflicts: publishing a library exposes its declared dependencies
+   to downstream projects. Keep dependency ranges conservative and document any
+   optional extras.
+- CLI vs library split: the package contains CLI entrypoints that assume a
+   full Ascender application. If consumers only want a library API, provide a
+   small public surface (`agenthub.sdk`, `agenthub.tools`) and keep CLI wiring
+   isolated.
+
+Recommendations:
+- Avoid side-effectful code at import time. Provide explicit `init`/`provide`
+   functions (factories) that host apps call during startup.
+- Document required runtime steps (e.g. call `provideMCP(...)` from your
+   Ascender bootstrap or mount the MCP app at `/agenthub`).
+- Use extras in `pyproject.toml` for optional features (e.g. `[tool.poetry.extras]`) to
+   separate heavy optional dependencies like certain ATTP client versions.
+
+## Contributing
+
+Contributions welcome. Please open PRs against the `main` branch. Include
+tests and update the changelog/README for non-trivial changes.
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
