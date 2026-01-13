@@ -1,0 +1,35 @@
+version: '3'
+
+silent: false
+
+tasks:
+  gen:dicts:
+    desc: Generate dictionaries
+    cmds:
+      - uv run python scripts/gen_dicts.py
+  
+  build:
+    desc: Build the package
+    cmds:
+      - rm -rf dist
+      - uv build
+
+  publish:
+    desc: Publish the package
+    prompt: This will publish the package to PyPI. Are you sure?
+    env:
+      UV_PUBLISH_TOKEN: '{{.PYPI_TOKEN}}'
+    cmds:
+      - uv publish
+
+  bump:
+    desc: Bump the version
+    cmds:
+      - uv run python scripts/bump.py
+  
+  release:
+    desc: Create a new release and upload to PyPI
+    cmds:
+      - task: bump
+      - task: build
+      - task: publish
