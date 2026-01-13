@@ -1,0 +1,198 @@
+GENERAL INSTRUCTIONS
+-----------------
+In our system, the behavior of a conversational AI agent is structured around predefined "journeys" - structured workflows that guide customer interactions toward specific outcomes.
+
+## Journey Structure
+Each journey consists of:
+- **Steps**: Individual actions that the agent must execute (e.g., ask a question, provide information, perform a task)
+- **Transitions**: Rules that determine which step comes next based on customer responses or completion status
+
+
+
+TASK DESCRIPTION
+-----------------
+You will be given a journey step and information about each of it's outgoing directed steps (children), and your task is to write the condition that describes the transition to each child.
+The information you will have for each of the children steps is:
+1. The condition of the transition from current step to each child (if exists).
+2. The conditions that describe the transitions from them onward. 
+
+The rule for creating the conditions for the given node is as follows:
+
+1. **condition_to_child_and_stop**: The transition condition to reach the child is satisfied AND the child's action (child_action) has NOT been completed yet
+
+2. **condition_to_child_then_to_path**: For each possible path forward from the child, combine:
+   - child_action - The child's action was completed 
+   - condition_to_child - The transition condition to reach the child (if doesn't exist, see "Condition to child" to more details)
+   - path_condition - The path condition from the child onward  
+* Do not include that current step condition was completed.
+* Note that condition_to_child_then_to_path may be long, it's ok! It's important to include all condition parts to get well defined transitions.
+
+If the current node has no children:
+    - **step_action_completed ** - The condition that the current step action was completed
+    - No children_conditions array is needed
+
+Condition to child:
+If a node has one child and the condition_to_child is unspecified, there is no condition to include.
+If a node has a child whose condition_to_child is unspecified, while other children do have specific conditions, then in the field "condition_to_child" of the unspecified child you must 
+state the complementary condition.
+
+So eventually we will get all possible options to continue from the current node.
+
+**Action completion:**
+You will be asked to phrase conditions stating whether an action was or wasn't completed. Pay close attention to the following rules based on action type:
+
+CUSTOMER DEPENDENT ACTION:
+For actions requiring customer responses (e.g., "Ask the customer which type of pizza they want"), the action is completed when the customer provided the requested information - whether the agent explicitly requested it OR the customer volunteered it unprompted.
+
+Always phrase completion from the CUSTOMER'S perspective, not the agent's.
+- CORRECT: "The customer chose which type of pizza they want"
+- WRONG: "The agent asked the customer which type of pizza they want"
+
+The action is complete when the INFORMATION EXISTS, regardless of whether the agent asked for it.
+
+REQUIRES AGENT ACTION:
+For actions requiring the agent to communicate something, describe completion based on whether the agent fulfilled their responsibility.
+- CORRECT: "The agent informed the customer that..."
+- WRONG: "The customer was informed that..."
+
+
+**IMPORTANT: Specify the options and details**
+Conditions must be self-contained and understandable without additional context. Anyone reading the condition should be able to evaluate it against a conversation transcript without needing to reference the action or step definitions.
+Therefor, when actions present specific options (e.g., "Ask if they want Margherita, Pepperoni, or Vegan"), conditions MUST specify all those options:
+- CORRECT: "The customer chose which type of pizza they want - Margherita, Pepperoni, or Vegan", or "The customer hasn't chose the type of pizza they want yet (Margherita, Pepperoni, or Vegan)"
+- WRONG: "The customer chose which type of pizza they want". Or  "The customer hasn't chose the type of pizza they want yet" - Without listing the option.
+That's important so it will be clear that if customer said "I want 3 margarita", they completed the step. 
+
+Notes:
+- If condition contains multiple statements where one implies the other, include only the more specific one. For example "The customer specified the type of pizza they want and it is Vegan" could become "The customer wants Vegan pizza".
+
+
+
+Examples of Journey Step Selections:
+-------------------
+Example #1
+
+Current node action:
+    Ask the customer for their desired pick up location 
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete. Mark it as complete if the customer answered the question in the action, if there is one.
+- The action is completed if: the customer responded regarding their preference between exploring cities and scenic landscapes
+    Child id: 3
+        Action of child (3): 
+        Ask where their destination is
+        Condition of the transition to child (3):
+        The desired pick up location is in NYC
+            The conditions that describe the possible paths from child onward:
+                - Condition (1) : The customer provided their destination location but hasn't provided the pickup time yet
+                - Condition (2) : they provided their destination location and pickup time but the agent hasn't booked the taxi ride yet
+    Child id: 4
+        Action of child (4): 
+        Inform the customer that we do not operate outside of NYC
+        Condition of the transition to child (4):
+        The desired pick up location is outside of NYC
+            The conditions that describe the possible paths from child onward:
+                - Condition (1) : The agent informed the customer that we do not operate outside of NYC
+- **Expected Result**:
+```json
+{
+  "step_action": "Ask the customer for their desired pick up location",
+  "step_action_completed": "The customer provided their destination location",
+  "children_conditions": [
+    {
+      "child_id": "3",
+      "child_action": "Ask where their destination is",
+      "condition_to_child": "The desired pick up location is in NYC",
+      "condition_to_child_and_stop": "The customer's desired pick up location is in NYC and customer hasn't provided their destination location yet",
+      "conditions_to_child_and_forward": [
+        {
+          "id": "1",
+          "path_condition": "The customer provided their destination location but hasn't provided the pickup time yet",
+          "condition_to_child_then_to_path": "The customer's desired pick up location is in NYC and they provided their destination location but hasn't provided the pickup time yet"
+        },
+        {
+          "id": "2",
+          "path_condition": "they provided their destination location and pickup time but the agent hasn't booked the taxi ride yet",
+          "condition_to_child_then_to_path": "The customer's desired pick up location is in NYC and they provided their destination location and pickup time but the agent hasn't booked the taxi ride yets"
+        }
+      ]
+    },
+    {
+      "child_id": "4",
+      "child_action": "Inform the customer that we do not operate outside of NYC",
+      "condition_to_child": "The desired pick up location is outside of NYC",
+      "condition_to_child_and_stop": "The agent informed the customer that we do not operate outside of NYC",
+      "conditions_to_child_and_forward": [
+        {
+          "id": "1",
+          "path_condition": "The agent informed the customer that we do not operate outside of NYC",
+          "condition_to_child_then_to_path": "The customer's desired pick up location is outside of NYC and the agent hasn't informed the customer that we do not operate outside of NYC"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Example #2
+
+Current node action:
+    Ask the customer what's their shipping address 
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete. Mark it as complete if the customer answered the question in the action, if there is one.
+- The action is completed if: The customer responded regarding their delivery speed preference
+    Child id: 6
+        Action of child (6): 
+        Ask the customer which delivery speed they prefer: Standard (5-7 days), Express (2-3 days), or Overnight
+            The conditions that describe the possible paths from child onward:
+                - Condition (1) : The customer hasn't chosen their payment method - cash or credit
+                - Condition (2) : The customer chose their payment method - cash or credit, and the agent hasn't confirmed the order yet
+- **Expected Result**:
+```json
+{
+  "step_action": "Ask the customer what's their shipping address",
+  "step_action_completed": "The customer provided the shipping address",
+  "children_conditions": [
+    {
+      "child_id": "6",
+      "child_action": "Ask the customer which delivery speed they prefer: Standard (5-7 days), Express (2-3 days), or Overnight",
+      "condition_to_child": "",
+      "condition_to_child_and_stop": "The customer hasn't chosen the delivery speed they prefer: Standard (5-7 days), Express (2-3 days), or Overnight",
+      "conditions_to_child_and_forward": [
+        {
+          "id": "1",
+          "path_condition": "The customer hasn't chosen their payment method - cash or credit",
+          "condition_to_child_then_to_path": "The customer chose the delivery speed (Standard, Express or Overnight) but hasn't provided the payment method (cash or credit)"
+        },
+        {
+          "id": "2",
+          "path_condition": "The customer chose their payment method - cash or credit, and the agent hasn't confirmed the order yet",
+          "condition_to_child_then_to_path": "The customer chose the delivery speed (Standard, Express or Overnight) and provided the payment method (cash or credit) but the agent hasn't confirmed the order yet"
+        }
+      ]
+    }
+  ]
+}
+```
+
+
+###
+Example section is over. The following is the real data you need to use for your decision.
+
+
+
+Current node action:
+    offer discount if balance is low 
+- REQUIRES AGENT ACTION: This step requires from the agent to say something for it to be completed.
+                This step has no children
+
+
+IMPORTANT: Please provide your answer in the following JSON format.
+
+OUTPUT FORMAT
+-----------------
+- Fill in the following fields as instructed. Each field is required unless otherwise specified.
+
+```json
+{
+    "step_action": "offer discount if balance is low",
+    "step_action_completed": "<str, condition that says that step_action completed, if exists. Reminder: when stating whether step_action has been completed, consider the rules for CUSTOMER DEPENDENT ACTION - CUSTOMER'S perspective or REQUIRES AGENT ACTION - AGENT'S perspective. Reminder: when stating an action completion consider Condition Clarity and Specificity, include all options in conditions>",
+}
+```

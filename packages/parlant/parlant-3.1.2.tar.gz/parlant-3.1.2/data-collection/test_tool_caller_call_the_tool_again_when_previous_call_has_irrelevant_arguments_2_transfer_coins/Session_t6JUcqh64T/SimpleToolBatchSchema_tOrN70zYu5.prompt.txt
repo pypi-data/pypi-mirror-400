@@ -1,0 +1,93 @@
+GENERAL INSTRUCTIONS
+-----------------
+You are part of a system of AI agents which interact with a customer on the behalf of a business.
+The behavior of the system is determined by a list of behavioral guidelines provided by the business.
+Some of these guidelines are equipped with external tools—functions that enable the AI to access crucial information and execute specific actions.
+Your responsibility in this system is to evaluate when and how these tools should be employed, based on the current state of interaction, which will be detailed later in this prompt.
+
+This evaluation and execution process occurs iteratively, preceding each response generated to the customer.
+Consequently, some tool calls may have already been initiated and executed following the customer's most recent message.
+Any such completed tool call will be detailed later in this prompt along with its result.
+These calls do not require to be re-run at this time, unless you identify a valid reason for their reevaluation.
+
+Guidelines:
+- Only call the tool if it's clearly relevant to the customer's current request
+- Extract parameter values directly from the conversation or context variables
+- If a required parameter value cannot be determined, do not call the tool
+- Do not call the tool if the same call is already staged
+
+
+
+The following is a list of events describing a back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "I want to transfer $1500 from Mark Jackobs account to Gal Gadot. The pincode is 1234"}}', '{"event_kind": "tool", "event_source": "ai_agent", "data": {"tool_calls": [{"tool_id": "local:transfer_coins", "arguments": [{"amount": 1500, "from_account": "Mark Jackobs", "to_account": "Gal Gadot", "pincode": "1234"}], "result": "Transaction successful: Transaction number: 83933"}]}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "The transaction was successful. Can I help with anything else"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "I want to transfer $1500 from my account to Sophie Chapman"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "I need your name and your pin code please"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "My name is Mark Corrigan, The pincode is 1234"}}']
+###
+
+
+
+TOOL TO EVALUATE:
+-----------------
+Name: local:transfer_coins
+Description: Transfer coins from one account to another
+Parameters: {
+  "amount": {
+    "type": "integer",
+    "description": "the number of coins to transfer"
+  },
+  "from_account": {
+    "type": "string",
+    "description": "The name of the person whose account the coins will be transferred from"
+  },
+  "to_account": {
+    "type": "string",
+    "description": "The name of the person whose account the coins will be transferred to"
+  },
+  "pincode": {
+    "type": "string",
+    "description": "the pincode for the account the coins are transferred from"
+  }
+}
+Required parameters: ['amount', 'from_account', 'to_account', 'pincode']
+
+
+
+ALREADY STAGED CALLS:
+["{\"event_kind\": \"tool\", \"event_source\": \"system-provided\", \"data\": {\"tool_calls\": [{\"tool_id\": \"local:transfer_coins\", \"arguments\": {\"amount\": \"1500\", \"from_account\": \"Mark Corrigan\", \"to_account\": \"Sophie Chapman\", \"pincode\": \"1234\"}, \"result\": \"Transaction successful: Transaction number: 83933\"}]}}"]
+Do not call the tool again with the same arguments.
+
+
+
+EXAMPLES:
+
+Example 1 - Tool should be called:
+Conversation: "What's the weather in Paris?"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "Paris"}]}]}
+
+Example 2 - Tool should not be called:
+Conversation: "Hello, how are you?"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": false, "same_call_is_already_staged": false, "parameters": null}]}
+
+Example 3 - Multiple calls needed:
+Conversation: "Compare weather in Paris and London"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "Paris"}]}, {"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "London"}]}]}
+
+
+
+OUTPUT FORMAT:
+```json
+{
+    "name": "local:transfer_coins",
+    "tool_calls": [
+        {
+            "should_call": <true if tool should be called, false otherwise>,
+            "same_call_is_already_staged": <true if identical call is already staged>,
+            "parameters": [
+                {"parameter_name": "<name>", "value_as_string": "<extracted value or null>"}
+            ]
+        }
+    ]
+}
+```

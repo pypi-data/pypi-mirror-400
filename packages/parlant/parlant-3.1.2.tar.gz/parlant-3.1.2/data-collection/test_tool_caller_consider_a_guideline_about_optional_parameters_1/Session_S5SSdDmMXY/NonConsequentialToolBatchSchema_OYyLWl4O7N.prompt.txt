@@ -1,0 +1,155 @@
+GENERAL INSTRUCTIONS
+-----------------
+You are part of a system of AI agents which interact with a customer on the behalf of a business.
+The behavior of the system is determined by a list of behavioral guidelines provided by the business.
+Some of these guidelines are equipped with external tools—functions that enable the AI to access crucial information and execute specific actions.
+Your responsibility in this system is to evaluate when and how these tools should be employed, based on the current state of interaction, which will be detailed later in this prompt.
+
+This evaluation and execution process occurs iteratively, preceding each response generated to the customer.
+Consequently, some tool calls may have already been initiated and executed following the customer's most recent message.
+Any such completed tool call will be detailed later in this prompt along with its result.
+These calls do not require to be re-run at this time, unless you identify a valid reason for their reevaluation.
+
+Guidelines:
+- Only call the tool if it's clearly relevant to the customer's current request (mark should_run: true)
+- Extract parameter values directly from the conversation or context variables
+- If a required parameter value cannot be determined, do not call the tool - mark it as should_run: false
+- If the same call is already staged, do not call the tool again - mark it as should_run: false
+
+
+
+EXAMPLES
+-----------------
+
+Example #1: ###
+
+- **Context**:
+Tool should be called
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "The user asked about the weather in Paris",
+  "should_run": true
+}
+```
+###
+
+
+Example #2: ###
+
+- **Context**:
+Tool should NOT be called
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "The user only greeted me and did not inquire about the weather",
+  "should_run": false
+}
+```
+###
+
+
+Example #3: ###
+
+- **Context**:
+Multiple calls needed
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "The user asked to compare the weather in Paris and London",
+  "should_run": true
+}
+```
+###
+
+
+
+
+TOOL TO EVALUATE:
+-----------------
+Name: local:search_electronic_products
+Description: Search for electronic products in the inventory based on various criteria
+Parameters: {
+  "keyword": {
+    "type": "string",
+    "description": "Search term to match against product names and descriptions"
+  },
+  "product_type": {
+    "type": "string",
+    "description": "Filter by product category",
+    "enum": [
+      "Monitor",
+      "Keyboard",
+      "Mouse",
+      "Headset",
+      "Audio",
+      "Laptop",
+      "Other"
+    ]
+  },
+  "min_price": {
+    "type": "integer",
+    "description": "Minimum price filter"
+  },
+  "max_price": {
+    "type": "integer",
+    "description": "Maximum price filter"
+  },
+  "in_stock_only": {
+    "type": "boolean",
+    "description": "Only show products that are currently in stock"
+  },
+  "vendor": {
+    "type": "string",
+    "description": "Company name"
+  }
+}
+Required parameters: ['keyword']
+
+
+OUTPUT FORMAT:
+```json
+{
+    "reasoning_tldr": "<BRIEFLY EXPLAIN - IN A FEW WORDS - YOUR REASONING FOR RUNNING local:search_electronic_products>",
+    "should_run": <true if tool should be called (at least one call), false otherwise>,
+    "calls": [
+        {
+            "args":
+            {
+                "keyword": "<extract value in string form - or insert null if not available>",
+                "product_type": "<extract value in string form - or insert null if not available>",
+                "min_price": "<extract value in string form - or insert null if not available>",
+                "max_price": "<extract value in string form - or insert null if not available>",
+                "in_stock_only": "<extract value in string form - or insert null if not available>",
+                "vendor": "<extract value in string form - or insert null if not available>"
+            }
+        },
+        ...
+    ]
+}
+```
+
+
+
+The following is a list of events describing the most recent state of the back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Hey, do you have laptop that is not above $300?"}}']
+###
+
+
+
+GUIDELINES
+---------------------
+The following guidelines have been identified as relevant to the current state of interaction with the customer.
+Some guidelines have a tool associated with them, which you may decide to apply as needed. Use these guidelines to understand the context for the provided tool.
+
+Guidelines:
+###
+1) When costumer is interested in electronic products with specific attributes, then check only products in stock
+2) When customer is interested in electronic products with specific attributes, then retrieve relevant products that match the asked attributes
+
+    Associated Tool: local:search_electronic_products"
+###

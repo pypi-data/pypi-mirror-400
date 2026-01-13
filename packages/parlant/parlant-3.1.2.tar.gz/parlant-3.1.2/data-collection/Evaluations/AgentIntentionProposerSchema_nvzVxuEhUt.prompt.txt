@@ -1,0 +1,116 @@
+GENERAL INSTRUCTIONS
+-----------------
+In our system, the behavior of a conversational AI agent is guided by "guidelines". You make use of these guidelines whenever it interacts with a user (also referred to as the customer).
+Each guideline is composed of two parts: 
+- "condition": This is a natural-language condition that specifies when a guideline should apply. We test against this condition to determine whether this guideline should be applied when generating your next reply.
+- "action": This is a natural-language instruction that should be followed by you whenever the "condition" part of the guideline applies to the conversation in its particular state.
+Any instruction described here applies only to you, and not to the user.
+
+
+
+
+TASK DESCRIPTION
+-----------------
+Your task is to determine whether a guideline condition reflects your intention. That is, whether it describes something you are doing or is about to do (e.g., "You discusses a patient's 
+medical record" or "You explain the conditions and terms"). Note: If the condition refers to something you have already done, it should not be considered an agent intention.
+
+If the condition reflects agent intention, rephrase it to describe what you are likely to do next, using the following format:
+"You are likely to (do something)."
+
+For example:
+Original: "You discusses a patient's medical record"
+Rewritten: "You are likely to discuss a patient's medical record"
+
+Why this matters:
+Although the original condition can be written in present tense, guideline matching happens before you reply. So we need the condition to reflect your probable upcoming behavior, based on the customer's latest message.
+
+
+
+
+
+
+
+EXAMPLES
+-----------
+Example 1: 
+Guideline:
+    Condition: You discuss a patient's medical record
+    Action: Do not send any personal information
+
+Expected Response:
+{
+  "condition": "You discuss a patient's medical record",
+  "is_agent_intention": true,
+  "rewritten_condition": "You are likely to discuss a patient's medical record"
+}
+###
+
+Example 2: 
+Guideline:
+    Condition: You intend to interpret a contract or legal term
+    Action: Add a disclaimer clarifying that the response is not legal advice
+
+Expected Response:
+{
+  "condition": "You intend to interpret a contract or legal term",
+  "is_agent_intention": true,
+  "rewritten_condition": "You are likely to interpret a contract or legal term"
+}
+###
+
+Example 3: 
+Guideline:
+    Condition: You just confirmed that the order will be shipped to the customer
+    Action: provide the package's tracking information
+
+Expected Response:
+{
+  "condition": "You just confirmed that the order will be shipped to the customer",
+  "is_agent_intention": false
+}
+###
+
+Example 4: 
+Guideline:
+    Condition: You are likely to interpret a contract or legal term
+    Action: Add a disclaimer clarifying that the response is not legal advice
+
+Expected Response:
+{
+  "condition": "You are likely to interpret a contract or legal term",
+  "is_agent_intention": true,
+  "rewritten_condition": "You are likely to interpret a contract or legal term"
+}
+###
+
+Example 5: 
+Guideline:
+    Condition: The customer is asking about the opening hours
+    Action: Provide our opening hours as described on out website
+
+Expected Response:
+{
+  "condition": "The customer is asking about the opening hours",
+  "is_agent_intention": false
+}
+###
+
+
+
+GUIDELINE
+-----------
+condition: Always say hello
+action: Say hello to the user
+
+
+OUTPUT FORMAT
+-----------
+Use the following format to evaluate whether the guideline has a customer dependent action:
+Expected output (JSON):
+```json
+{
+  "condition": "Always say hello",
+  "is_agent_intention": "<BOOL>",
+  "rewritten_condition": "<STR, include it is_agent_intention is True. Rewrite the condition in the format of "You are likely to (do something)" >",
+}
+```

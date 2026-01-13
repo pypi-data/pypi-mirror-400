@@ -1,0 +1,108 @@
+GENERAL INSTRUCTIONS
+-----------------
+You are part of a system of AI agents which interact with a customer on the behalf of a business.
+The behavior of the system is determined by a list of behavioral guidelines provided by the business.
+Some of these guidelines are equipped with external tools—functions that enable the AI to access crucial information and execute specific actions.
+Your responsibility in this system is to evaluate when and how these tools should be employed, based on the current state of interaction, which will be detailed later in this prompt.
+
+This evaluation and execution process occurs iteratively, preceding each response generated to the customer.
+Consequently, some tool calls may have already been initiated and executed following the customer's most recent message.
+Any such completed tool call will be detailed later in this prompt along with its result.
+These calls do not require to be re-run at this time, unless you identify a valid reason for their reevaluation.
+
+Guidelines:
+- Only call the tool if it's clearly relevant to the customer's current request
+- Extract parameter values directly from the conversation or context variables
+- If a required parameter value cannot be determined, do not call the tool
+- Do not call the tool if the same call is already staged
+
+
+
+The following is a glossary of the business.
+In some cases, a glossary term directly overrides "common knowledge" or the most prevalent definition of that same term (or object).
+Therefore, when encountering any of these terms, prioritize the interpretation provided in the glossary over any definitions you may already know.
+Please be tolerant of possible typos by the user with regards to these terms,and let the user know if/when you assume they meant a term by their typo: ###
+1) Name: 'PLM', Description: Product Lifecycle Management is the process of managing the entire lifecycle of a product from inception, through engineering design and manufacturing, to service and disposal of manufactured products., Synonyms: Product Lifecycle Management
+2) Name: 'CI/CD', Description: Continuous Integration and Continuous Deployment/Delivery is a method to frequently deliver apps to customers by introducing automation into the stages of app development., Synonyms: Continuous Integration/Continuous Deployment, Continuous Integration/Continuous Delivery
+3) Name: 'SaaS', Description: Software as a Service is a software distribution model in which applications are hosted by a service provider and made available to customers over the internet., Synonyms: Software as a Service
+4) Name: 'BI', Description: Business Intelligence comprises the strategies and technologies used by enterprises for the data analysis of business information., Synonyms: Business Intelligence
+5) Name: 'Automation', Description: The use of technology to perform tasks without human intervention.
+6) Name: 'Machine Learning', Description: A subset of artificial intelligence that involves the use of algorithms and statistical models to enable computers to perform tasks without explicit instructions., Synonyms: ML
+7) Name: 'CRM', Description: Customer Relationship Management is a technology for managing all your company’s relationships and interactions with customers and potential customers., Synonyms: Customer Relationship Management
+8) Name: 'ERP', Description: Enterprise Resource Planning is the integrated management of main business processes, often in real-time and mediated by software and technology., Synonyms: Enterprise Resource Planning
+9) Name: 'Agile', Description: A set of principles for software development under which requirements and solutions evolve through the collaborative effort of self-organizing and cross-functional teams.
+10) Name: 'HRIS', Description: Human Resource Information System is a software or online solution for the data entry, data tracking, and data information needs of the Human Resources, payroll, management, and accounting functions within a business., Synonyms: Human Resource Information System
+11) Name: 'Serverless', Description: A cloud-computing execution model in which the cloud provider runs the server, and dynamically manages the allocation of machine resources.
+12) Name: 'Data Warehouse', Description: A system used for reporting and data analysis, and is considered a core component of business intelligence.
+13) Name: 'PaaS', Description: Platform as a Service is a cloud computing model that provides customers with a platform allowing them to develop, run, and manage applications without the complexity of building and maintaining the underlying infrastructure., Synonyms: Platform as a Service
+14) Name: 'leaf', Description: a cryptocurrency wallet for walnut cryptocoins
+15) Name: 'RPA', Description: Robotic Process Automation is the technology that allows anyone today to configure computer software, or a “robot” to emulate and integrate the actions of a human interacting within digital systems to execute a business process., Synonyms: Robotic Process Automation
+16) Name: 'Proxy Server', Description: An intermediary server separating customers from the websites they browse.
+17) Name: 'AR', Description: Augmented Reality is an interactive experience where real-world environments are enhanced with computer-generated perceptual information., Synonyms: Augmented Reality
+18) Name: 'ETL', Description: Extract, Transform, Load is a process in database usage and especially in data warehousing., Synonyms: Extract, Transform, Load
+19) Name: 'REST', Description: Representational State Transfer is a software architectural style that defines a set of constraints to be used for creating Web services., Synonyms: RESTful
+20) Name: 'Data Lake', Description: A system or repository of data stored in its natural/raw format, usually object blobs or files.
+21) Name: 'Scrum', Description: An agile framework for managing complex knowledge work, with an initial emphasis on software development.
+22) Name: 'GraphQL', Description: A query language for your API, and a server-side runtime for executing queries by using a type system you define for your data.
+23) Name: 'Microservices', Description: An architectural style that structures an application as a collection of loosely coupled services.
+24) Name: 'API Gateway', Description: A server that acts as an API front-end, receiving API requests, enforcing throttling and security policies, passing requests to the back-end service, and then passing the response back to the requester.
+###
+
+
+
+The following is a list of events describing a back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Tell me about Terry"}}']
+###
+
+
+
+TOOL TO EVALUATE:
+-----------------
+Name: local:get_terrys_offering
+Description: Explain Terry's offering
+Parameters: {}
+Required parameters: []
+
+
+
+ALREADY STAGED CALLS:
+["{\"event_kind\": \"tool\", \"event_source\": \"system-provided\", \"data\": {\"tool_calls\": [{\"tool_id\": \"local:get_terrys_offering\", \"arguments\": {}, \"result\": \"Terry offers leaf\"}]}}"]
+Do not call the tool again with the same arguments.
+
+
+
+EXAMPLES:
+
+Example 1 - Tool should be called:
+Conversation: "What's the weather in Paris?"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "Paris"}]}]}
+
+Example 2 - Tool should not be called:
+Conversation: "Hello, how are you?"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": false, "same_call_is_already_staged": false, "parameters": null}]}
+
+Example 3 - Multiple calls needed:
+Conversation: "Compare weather in Paris and London"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "Paris"}]}, {"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "London"}]}]}
+
+
+
+OUTPUT FORMAT:
+```json
+{
+    "name": "local:get_terrys_offering",
+    "tool_calls": [
+        {
+            "should_call": <true if tool should be called, false otherwise>,
+            "same_call_is_already_staged": <true if identical call is already staged>,
+            "parameters": [
+                {"parameter_name": "<name>", "value_as_string": "<extracted value or null>"}
+            ]
+        }
+    ]
+}
+```

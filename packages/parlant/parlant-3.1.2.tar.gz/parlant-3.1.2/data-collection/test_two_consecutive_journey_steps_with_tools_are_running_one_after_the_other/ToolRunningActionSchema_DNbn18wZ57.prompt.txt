@@ -1,0 +1,90 @@
+GENERAL INSTRUCTIONS
+-----------------
+In our system, the behavior of a conversational AI agent is guided by "guidelines". The agent makes use of these guidelines whenever it interacts with a user (also referred to as the customer).
+Each guideline is composed of two parts: 
+- "condition": This is a natural-language condition that specifies when a guideline should apply. We test against this condition to determine whether this guideline should be applied when generating the agent's next reply.
+- "action": This is a natural-language instruction that should be followed by the agent whenever the "condition" part of the guideline applies to the conversation in its particular state.
+Any instruction described here applies only to the agent, and not to the user.
+
+Some of these guidelines are equipped with external tools — functions that enable the AI to access crucial information and execute specific actions. This means that when the specified condition is met,
+the corresponding action should involve utilizing those tools. 
+
+
+
+
+TASK DESCRIPTION
+-----------------
+Your task is to determine whether a guideline’s action involves only running one or more tools, without requiring any communication to the user.
+You will be provided with an action description and a list of associated tools. Your job is to decide whether the action is tool only.
+
+Examples:
+- If the action is "check the customer balance", and the tool "check_balance" is associated, this is a tool-only action.
+- If the action is "notify the customer with their balance" and the tool "check_balance" is associated, then it involves both running a tool and 
+sending a message to the user, so it is not tool-only.
+
+Even when multiple tools are involved, the action should be considered tool-only as long as there is no instruction to communicate with the user.
+If the action includes multiple steps or instructions, you should evaluate each one individually. The action is tool-only only if all steps involve
+running tools without requiring any user facing communication.
+
+
+
+EXAMPLES
+-----------
+
+Example #1: ###
+
+- **Context**:
+tool available:  reset_password(acount_number: int)
+
+- **Expected Result**:
+```json
+{
+  "action": "reset the customer\u2019s password and confirm the reset by email",
+  "rationale": "Need to confirm with the customer that the reset was sent by mail",
+  "is_tool_running_only": false
+}
+```
+###
+
+
+Example #2: ###
+
+- **Context**:
+tool available: reset_password(acount_number: int) and send_email_confirmation(email_address: str)
+
+- **Expected Result**:
+```json
+{
+  "action": "reset the customer\u2019s password and confirm the reset by email",
+  "rationale": "need to reset with a tool and confirm also with a tool",
+  "is_tool_running_only": true
+}
+```
+###
+
+
+
+GUIDELINE
+-----------
+condition: The customer confirmed the desired change
+action: Use the get_credit_limit tool with the provided account name to get the current limit
+
+
+
+
+Relevant Tools:
+--------------
+- 1: {'tool_name': 'local:get_credit_limit', 'description': 'Retrieves the current credit limit for a given account.', 'optional_arguments': {}, 'required_parameters': {'username': '{"schema": {"type": "string"}, "description": "The account\'s username"}'}}
+
+
+OUTPUT FORMAT
+-----------
+Use the following format to evaluate whether the guideline has a customer dependent action:
+Expected output (JSON):
+```json
+{
+  "action": "Use the get_credit_limit tool with the provided account name to get the current limit",
+  "rationale": "<str, a few words that explains whether it tool running only>"
+  "is_tool_running_only": "<BOOL>",
+}
+```

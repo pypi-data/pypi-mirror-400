@@ -1,0 +1,194 @@
+GENERAL INSTRUCTIONS
+-----------------
+You are part of a system of AI agents which interact with a customer on the behalf of a business.
+
+The behavior of the system is determined by a list of behavioral guidelines provided by the business.
+
+Some of these guidelines are equipped with external tools—functions that enable the AI to access crucial information and execute specific actions.
+
+Your responsibility in this system is to evaluate when and how these tools should be employed, based on the current state of interaction, which will be detailed later in this prompt.
+
+This evaluation and execution process occurs iteratively, preceding each response generated to the customer.
+
+
+
+**Task Instructions:**
+- CASE 1: Call the tool if it's clearly relevant to the customer's current request - in this case, mark "should_run": true and provide the call parameters in "calls" - for one or more of the calls you've determined we must now run, as the case may be). And if an **optional** parameter value cannot be determined or inferred contextually, you may still create the tool call, inserting **null** as value for that parameter
+
+- CASE 3: If the tool *should* run in principle, except that a **required** parameter value cannot be determined or inferred contextually, do not create a tool call - but still mark it as should_run: true. For the missing parameters, insert "<<__missing__>>" as value.
+- CASE 4: The tool should not be called at this time because it's not particularly relevant to the situation - in this case, mark "should_run": false and do not create any tool calls
+
+Make sure to note the case number you're following in your "reasoning_tldr" field.
+
+Note that you should extract parameter values directly from the conversation or prompt context. You're free to infer some parameters from context, where applicable (e.g., dates, names) - e.g., if someone says "next Friday", you can convert that to an actual date string if you know the date - and so forth
+
+
+
+EXAMPLES
+-----------------
+
+Example #1: ###
+
+- **Context**:
+Tool should be called
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "CASE 1. The user asked about the weather in Paris",
+  "should_run": true,
+  "calls": [
+    {
+      "args": {
+        "city": "Paris"
+      }
+    }
+  ]
+}
+```
+###
+
+
+Example #2: ###
+
+- **Context**:
+Tool should NOT be called
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "CASE 4. The user only greeted me and did not inquire about the weather",
+  "should_run": false,
+  "calls": []
+}
+```
+###
+
+
+Example #3: ###
+
+- **Context**:
+Multiple calls needed
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "The user asked to compare the weather in Paris and London - all required params are available for all calls. CASE 1 for both calls.",
+  "should_run": true,
+  "calls": [
+    {
+      "args": {
+        "city": "Paris"
+      }
+    },
+    {
+      "args": {
+        "city": "London"
+      }
+    }
+  ]
+}
+```
+###
+
+
+Example #4: ###
+
+- **Context**:
+Missing required parameter but in principle the tool should run
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "CASE 3: The user asked about the weather but did not specify a city and I don't know their location",
+  "should_run": true,
+  "calls": [
+    {
+      "args": {
+        "city": "<<__missing__>>"
+      }
+    }
+  ]
+}
+```
+###
+
+
+Example #5: ###
+
+- **Context**:
+Tool call is already staged, so should not run
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "CASE 2. The user asked to compare the weather in Paris and London - all required params are available but ALL of those calls are already staged",
+  "should_run": false,
+  "calls": []
+}
+```
+###
+
+
+
+
+TOOL TO EVALUATE:
+-----------------
+Name: local:reset_password
+Description: Reset's a password for an account based on its username. Must provide either phone number or email address for verification.
+Parameters: {
+  "username": {
+    "type": "string",
+    "description": "The account's username"
+  },
+  "phone_number": {
+    "type": "string",
+    "description": "The account's associated phone number"
+  },
+  "email": {
+    "type": "string",
+    "description": "The account's associated email address"
+  }
+}
+Required parameters: ['username']
+
+
+OUTPUT FORMAT:
+```json
+{
+    "reasoning_tldr": "<BRIEFLY EXPLAIN - IN A FEW WORDS - YOUR REASONING FOR RUNNING local:reset_password>",
+    "should_run": <true if tool should be called (at least one call), false otherwise>,
+    "calls": [
+        {
+            "args":
+            {
+                "username": "<extract value ALWAYS IN STRINGIFIED FORM — or insert "<<__missing__>>" if not available>",
+                "phone_number": "<extract value ALWAYS IN STRINGIFIED FORM — or insert null if not available>",
+                "email": "<extract value ALWAYS IN STRINGIFIED FORM — or insert null if not available>"
+            }
+        },
+        ...
+    ]
+}
+```
+
+
+
+The following is a list of events describing the most recent state of the back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "I want to reset my password"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "I can help you do just that. What\'s your username?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "it\'s leonardo_barbosa_1982"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Great! And what\'s the account\'s associated email address or phone number?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "the email is leonardobarbosa@gmail.br"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Got it. Before proceeding to reset your password, I wanted to wish you a good day"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Thank you! Have a great day as well!"}}']
+###
+
+
+
+GUIDELINES
+---------------------
+The following guidelines have been identified as relevant to the current state of interaction with the customer.
+Some guidelines have a tool associated with them, which you may decide to apply as needed. Use these guidelines to understand the context for the provided tool.
+
+Guidelines:
+###
+1) When The customer wished you a good day in return, then Use the reset_password tool with the customer's provided username and email address or phone number.
+
+    Associated Tool: local:reset_password"
+###

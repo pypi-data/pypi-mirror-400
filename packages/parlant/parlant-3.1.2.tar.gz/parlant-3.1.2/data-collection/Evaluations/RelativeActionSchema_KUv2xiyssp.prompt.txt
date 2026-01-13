@@ -1,0 +1,284 @@
+GENERAL INSTRUCTIONS
+-----------------
+In our system, the behavior of a conversational AI agent is structured around predefined "journeys" - structured workflows that guide customer interactions toward specific outcomes.
+
+## Journey Structure
+Each journey consists of:
+- **Steps**: Individual actions that the agent must execute (e.g., ask a question, provide information, perform a task)
+- **Transitions**: Rules that determine which step comes next based on customer responses or completion status
+
+A pre-run evaluator analyzes journeys and outputs two key components:
+
+Condition: The rule / circumstance that triggers the action
+Action: What the agent should do
+
+These condition-action pairs are then sent to an agent for execution. However, many actions are written with implicit dependencies on earlier journey context, making them unclear when viewed in isolation.
+
+
+
+
+TASK DESCRIPTION
+-----------------
+Your task is to evaluate whether actions are self-contained and comprehensible without additional context.
+
+You will be asked to:
+1. Determine if the action description is sufficiently clear on its own:
+    - Can an agent understand exactly what to do based solely on the condition and action?
+    - Does the action rely on unstated context from previous journey steps?
+    - Are there ambiguous references like "it", "that", that are unclear given only the condition?
+
+2. Rewriting (when needed): If an action lacks clarity, rewrite it to be completely self-contained
+    - Include all necessary context within the action description
+    - Replace ambiguous pronouns and references with specific nouns from the journey context
+    - Ensure the agent can execute the action without referring to the broader journey
+    - Maintain the original intent without elaborating beyond what is explicitly provided
+
+Common issues requiring clarification: Pronouns like "it", "that" when their referent is unclear from the condition alone
+Standard, unambiguous pronouns (don't need clarification): We are in the context of customer service. In this context "they/them" referring to "the customer" and is completely standard and unambiguous.
+No need to rewrite such actions (needs_rewrite is False)
+
+
+
+
+EXAMPLES
+-----------
+
+Example #1: ###
+
+- **Context**:
+ 
+
+- **Journey**:
+    
+Journey: 
+
+
+Steps:
+
+STEP 1: Ask the customer which hotel they would like to book.
+Step Flags:
+- BEGIN HERE: Begin the journey advancement at this step. Advance onward if this step was already completed.
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete. Mark it as complete if the customer answered the question in the action, if there is one.
+
+TRANSITIONS:
+↳ If "The customer has specified the hotel name" → Go to step 2
+
+STEP 2: Ask them how many guests will be staying.
+Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete. Mark it as complete if the customer answered the question in the action, if there is one.
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "The customer has specified the number of guests." → Go to step 3
+
+STEP 3: Ask the customer for the check-in and check-out dates.
+Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete. Mark it as complete if the customer answered the question in the action, if there is one.
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "The customer has provided check-in and check-out dates." → Go to step 4
+
+STEP 4: Make sure it's available
+Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete. Mark it as complete if the customer answered the question in the action, if there is one.
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "The availability check passed" → Go to step 5
+↳ If "The availability check failed" → Go to step 6
+
+STEP 5: Book it.
+Step Flags:
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "The hotel booking was successful" → Go to step 7
+
+STEP 6: Explain it to the user
+Step Flags:
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "this step is completed",  → RETURN 'NONE'
+
+STEP 7: Ask the customer to provide their email address to send the booking confirmation.
+Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete. Mark it as complete if the customer answered the question in the action, if there is one.
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "The customer has provided a valid email address" → Go to step 8
+↳ If "The customer has provided an invalid email address" → Go to step 9
+
+STEP 8: send it to them
+Step Flags:
+- REQUIRES TOOL CALLS: Do not advance past this step! If you got here, stop.
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "The booking confirmation was sent successfully" → Go to step 10
+
+STEP 9: Inform them that the email address is invalid and ask for a valid one.
+Step Flags:
+- REQUIRES TOOL CALLS: Do not advance past this step! If you got here, stop.
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "The customer has provided an invalid email address" → Go to step 9
+↳ If "The customer has provided a valid email address" → Go to step 8
+
+STEP 10: Ask the customer if there is anything else you can help with.
+Step Flags:
+- REQUIRES TOOL CALLS: Do not advance past this step! If you got here, stop.
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. You may not backtrack to this step.
+
+TRANSITIONS:
+↳ If "this step is completed",  → RETURN 'NONE'
+
+
+
+- **Expected Result**:
+```json
+{
+  "actions": [
+    {
+      "index": "1",
+      "conditions": [],
+      "action": "Ask the customer which hotel they would like to book.",
+      "needs_rewrite_rationale": "The action is self-contained and clearly specifies what to ask the customer.",
+      "needs_rewrite": false
+    },
+    {
+      "index": "2",
+      "conditions": [
+        "The customer has specified the hotel name"
+      ],
+      "action": "Ask them how many guests will be staying.",
+      "needs_rewrite_rationale": "The action is self-contained. 'them' refers to the customer so it's not ambiguous and no need to rewrite.",
+      "needs_rewrite": false
+    },
+    {
+      "index": "3",
+      "conditions": [
+        "The customer has specified the number of guests."
+      ],
+      "action": "Ask the customer for the check-in and check-out dates.",
+      "needs_rewrite_rationale": "The action is self-contained and clearly specifies what to ask the customer.",
+      "needs_rewrite": false
+    },
+    {
+      "index": "4",
+      "conditions": [
+        "The customer has provided check-in and check-out dates."
+      ],
+      "action": "Make sure it's available",
+      "needs_rewrite_rationale": "The action does not specify what availability to check based on the condition alone.",
+      "needs_rewrite": true,
+      "former_reference": "The availability refers to hotel rooms matching the specified hotel, dates, and number of guests from previous steps.",
+      "rewritten_action": "Make sure there is an available room in the specified hotel for the provided dates and number of guests."
+    },
+    {
+      "index": "5",
+      "conditions": [
+        "The availability check passed"
+      ],
+      "action": "Book it.",
+      "needs_rewrite_rationale": "The action does not specify what to book based on the condition alone.",
+      "needs_rewrite": true,
+      "former_reference": "The booking refers to the hotel reservation with the specified details from previous steps.",
+      "rewritten_action": "Book the hotel for the specified dates and number of guests."
+    },
+    {
+      "index": "6",
+      "conditions": [
+        "The availability check failed"
+      ],
+      "action": "Explain it to the user",
+      "needs_rewrite_rationale": "'it' refers to the fact that the availability check failed. I'ts clear that need to explain that the availability check failed, given the condition",
+      "needs_rewrite": false
+    },
+    {
+      "index": "7",
+      "conditions": [
+        "The hotel booking was successful"
+      ],
+      "action": "Ask the customer to provide their email address to send the booking confirmation.",
+      "needs_rewrite_rationale": "The action is self-contained and clearly specifies what to ask the customer and why.",
+      "needs_rewrite": false
+    },
+    {
+      "index": "8",
+      "conditions": [
+        "The customer has provided a valid email address",
+        "The customer has provided a valid email address"
+      ],
+      "action": "send it to them",
+      "needs_rewrite_rationale": "The action does not specify what to send based on the condition alone.",
+      "needs_rewrite": true,
+      "former_reference": "Previous step mentions asking for email address to send booking confirmation.",
+      "rewritten_action": "Send them the booking confirmation."
+    },
+    {
+      "index": "9",
+      "conditions": [
+        "The customer has provided an invalid email address",
+        "The customer has provided an invalid email address"
+      ],
+      "action": "Inform them that the email address is invalid and ask for a valid one.",
+      "needs_rewrite_rationale": "The action is self-contained. 'them' refers to the customer so it's not ambiguous and no need to rewrite",
+      "needs_rewrite": false
+    },
+    {
+      "index": "10",
+      "conditions": [
+        "The booking confirmation was sent successfully"
+      ],
+      "action": "Ask the customer if there is anything else you can help with.",
+      "needs_rewrite_rationale": "The action is self-contained and clearly specifies what to ask the customer.",
+      "needs_rewrite": false
+    }
+  ]
+}
+```
+###
+
+
+
+
+Journey: State Journey
+
+
+Steps:
+
+STEP 2: check available upgrades
+Step Flags:
+- REQUIRES TOOL CALLS: Do not advance past this step! If you got here, stop.
+- BEGIN HERE: Begin the journey advancement at this step. Advance onward if this step was already completed.
+TRANSITIONS:
+↳ If "this step is completed",  → RETURN 'NONE'
+
+
+
+
+OUTPUT FORMAT
+-----------
+Use the following format to evaluate whether the action is relative and need rewriting:
+Expected output (JSON):
+```json
+{
+    {
+    "actions": [
+        {
+            "index": "2",
+            "conditions": [],
+            "action": "check available upgrades",
+            "needs_rewrite_rationale": "<Brief explanation of is it refer to something that is not mentioned in the current step>",
+            "needs_rewrite": "<BOOL>",
+            "former_reference": "<information from previous steps that the definition is referring to>",
+            "rewritten_action": "<str. Full, self-contained version of the action - include only if requires_rewrite is True>"
+        }
+    ]
+}
+}
+```

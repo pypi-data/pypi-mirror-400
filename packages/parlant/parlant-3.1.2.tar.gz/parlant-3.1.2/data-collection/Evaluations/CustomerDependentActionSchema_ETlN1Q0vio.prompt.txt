@@ -1,0 +1,85 @@
+GENERAL INSTRUCTIONS
+-----------------
+In our system, the behavior of a conversational AI agent is guided by "guidelines". The agent makes use of these guidelines whenever it interacts with a user (also referred to as the customer).
+Each guideline is composed of two parts: 
+- "condition": This is a natural-language condition that specifies when a guideline should apply. We test against this condition to determine whether this guideline should be applied when generating the agent's next reply.
+- "action": This is a natural-language instruction that should be followed by the agent whenever the "condition" part of the guideline applies to the conversation in its particular state.
+Any instruction described here applies only to the agent, and not to the user.
+
+While an action can only instruct the agent to do something, it may require something from the customer to be considered completed.
+For example, the action "get the customer's account number" requires the customer to provide their account number for it to be considered completed.
+
+
+
+TASK DESCRIPTION
+-----------------
+Your task is to determine whether a given guideline’s action requires something from the customer in order for the action to be considered complete.
+
+Actions that require input or behavior from the customer are called customer-dependent actions.
+
+Later in this prompt, you will be provided with a single guideline. The guideline’s condition is included for context, but your decision should be based only on the action.
+
+Ask yourself: what must happen for this action to be considered complete? Is it something the agent alone must do, or does it also rely on a response or action from the customer?
+
+Edge Cases to Consider:
+ - If the action includes multiple steps (e.g., “offer assistance to the customer and ask them for their account number”), then the entire action is considered customer dependent if any part of it depends on the customer.
+ - If the action tells the agent to ask the customer a question, it is generally considered customer dependent, since the question expects an answer in order to complete the action. Exception: If the question is clearly a pleasantry or rhetorical (e.g., “what’s up with you?” in a casual exchange), and not meant to gather meaningful information, the action is not considered customer dependent.
+
+
+If you determine the action is customer dependent, you must also split it into:
+ - the portion that depends solely on the agent (agent_action)
+ - the portion that depends on the customer (customer_action). 
+
+Your decision will be used to asses whether this guideline was completed at different stages of the conversation. You should split the action such that it is considered complete if and only if both the agent and customer portions were completed.
+For example, the customer dependent action "ask the customer for their age" should be split into the agent_action "the agent asked the customer for their age" and the customer_action "the customer provided their age"
+
+
+
+EXAMPLES
+-----------
+Example 1: A guideline with a customer dependent action
+Guideline:
+    Condition: the customer wishes to submit an order
+    Action: ask for their account number and shipping address. Inform them that it would take 3-5 business days.
+
+Expected Response:
+{
+  "action": "ask for their account number and shipping address. Inform them that it would take 3-5 business days.",
+  "is_customer_dependent": true,
+  "customer_action": "The customer provided both their account number and shipping address",
+  "agent_action": "The agent asks for the customer's account number and shipping address, and informs them that it would take 3-5 business days."
+}
+###
+
+Example 2: A guideline whose action involves a question, but is not customer dependent
+Guideline:
+    Condition: asked "whats up dog"
+    Action: reply with "nothing much, what's up with you?"
+
+Expected Response:
+{
+  "action": "reply with \"nothing much, what's up with you?\"",
+  "is_customer_dependent": false
+}
+###
+
+
+
+GUIDELINE
+-----------
+condition: Customer asks about shipping
+action: Explain standard shipping policy
+
+
+OUTPUT FORMAT
+-----------
+Use the following format to evaluate whether the guideline has a customer dependent action:
+Expected output (JSON):
+```json
+{
+  "action": "Explain standard shipping policy",
+  "is_customer_dependent": "<BOOL>",
+  "customer_action": "<STR, the portion of the action that applies to the customer. Can be omitted if is_customer_dependent is false>",
+  "agent_action": "<STR, the portion of the action that applies to the agent. Can be omitted necessary if is_customer_dependent is false>"
+}
+```
