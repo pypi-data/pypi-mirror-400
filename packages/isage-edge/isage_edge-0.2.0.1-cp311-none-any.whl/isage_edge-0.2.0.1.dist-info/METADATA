@@ -1,0 +1,58 @@
+Metadata-Version: 2.4
+Name: isage-edge
+Version: 0.2.0.1
+Summary: SAGE Edge aggregator shell - mounts LLM gateway under an optional prefix
+Author-email: IntelliStream Team <intellistream@github.com>
+License: MIT
+Project-URL: Homepage, https://github.com/intellistream/SAGE
+Project-URL: Documentation, https://intellistream.github.io/SAGE-Pub/
+Project-URL: Repository, https://github.com/intellistream/SAGE
+Project-URL: Issues, https://github.com/intellistream/SAGE/issues
+Keywords: sage,edge,gateway,llm,openai
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: isage-llm-core>=0.2.0
+Requires-Dist: isage-llm-gateway>=0.1.0
+Requires-Dist: isage-common>=0.2.0
+Requires-Dist: fastapi<1.0.0,>=0.115.0
+Requires-Dist: uvicorn[standard]<1.0.0,>=0.34.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: ruff==0.14.6; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+Provides-Extra: all
+
+# SAGE Edge (L6 Aggregator)
+
+Minimal FastAPI shell for mounting the LLM gateway with optional prefixing.
+
+- Default behavior mounts the LLM gateway at `/`, keeping `/v1/*` endpoints stable.
+- Optional `llm_prefix` (env/CLI) mounts the gateway under a custom path while preserving `/healthz`
+  and `/readyz` at the edge level.
+- Edge health endpoints live at `/healthz` and `/readyz` regardless of mount path.
+- Uses `SagePorts.EDGE_DEFAULT` as the default port and respects XDG user paths for logs/PID files.
+
+## Quickstart
+
+```bash
+# Start in foreground (mount gateway at /)
+python -m sage.edge.server --port 8899
+
+# Start with prefix
+python -m sage.edge.server --port 8899 --llm-prefix /llm
+```
+
+## Design Notes
+
+- No backward-compat shims: imports should use `sage.llm.gateway` directly.
+- Uses `get_user_paths()` for runtime state and logs (no `~/.sage` usage).
+- Intended as an opt-in shell; runtime behavior only changes when the edge server is started.
