@@ -1,0 +1,156 @@
+# YGG Python Client
+
+High-performance cache client with automatic authentication and multi-tenancy support for Python.
+
+Visit [ygg.kluglabs.net](https://ygg.kluglabs.net) for more information about the YGG platform.
+
+## Installation
+
+```bash
+pip install ygglib
+```
+
+## Import
+
+Import the functions you need:
+
+```python
+from ygglib import cache, init, set, get, delete, exists, expire, ttl, pipeline, close
+```
+
+Or import specific functions:
+
+```python
+from ygglib import cache  # For cache operations
+from ygglib import init   # For initialization
+```
+
+## Quick Start
+
+```python
+import os
+from ygglib import cache, init, set, get, delete, exists, expire, ttl, pipeline, close
+
+# Initialize with your API key
+init(os.environ.get("YGG_API_KEY"))
+
+# Basic operations
+set("greeting", "Hello, World!")
+set("user:123:name", "John Doe")
+set("session:abc", "active", 3600)  # 1 hour expiration
+
+# Retrieve values
+greeting = get("greeting")
+user_name = get("user:123:name")
+session = get("session:abc")
+
+print(f"Greeting: {greeting}")
+print(f"User name: {user_name}")
+print(f"Session: {session}")
+
+# Check if keys exist
+exists_greeting = exists("greeting")
+print(f"Greeting exists: {exists_greeting}")
+
+# Get TTL
+ttl_value = ttl("session:abc")
+print(f"Session TTL: {ttl_value} seconds")
+
+# Cleanup
+delete("greeting")
+delete("user:123:name")
+delete("session:abc")
+
+# Close connection
+close()
+```
+
+## Advanced Operations
+
+### Custom Cache Commands
+
+```python
+from ygglib import cache
+
+# Hash operations
+cache("HMSET", "user:123:profile", "age", "30", "city", "New York")
+profile = cache("HMGET", "user:123:profile", "age", "city")
+print(f"User profile: {profile}")
+
+# List operations
+cache("LPUSH", "notifications:123", "Welcome message")
+cache("LPUSH", "notifications:123", "System update")
+notifications = cache("LRANGE", "notifications:123", 0, -1)
+print(f"Notifications: {notifications}")
+```
+
+### Pipeline Operations
+
+```python
+from ygglib import pipeline
+
+# Batch operations for better performance
+with pipeline() as pipe:
+    pipe.set("batch:1", "value1")
+    pipe.set("batch:2", "value2")
+    pipe.set("batch:3", "value3")
+    results = pipe.execute()
+
+print(f"Pipeline results: {results}")
+```
+
+## Configuration
+
+Configure the client using environment variables:
+
+- `YGG_API_KEY`: Your authentication API key (required)
+- `YGG_TIMEOUT`: Request timeout in seconds (default: 30)
+- `YGG_MAX_RETRIES`: Maximum retry attempts (default: 3)
+- `YGG_RETRY_DELAY`: Delay between retries in seconds (default: 1.0)
+- `YGG_POOL_SIZE`: Connection pool size (default: 10)
+
+**Note:** The API base URL is always `https://ygg-api.kluglabs.net` and cannot be changed.
+
+## API Reference
+
+| Operation | Method | Description |
+|-----------|--------|-------------|
+| `set` | `set(key, value, ex?)` | Set key-value pair with optional expiration |
+| `get` | `get(key)` | Get value by key |
+| `delete` | `delete(key)` | Delete a key |
+| `exists` | `exists(key)` | Check if key exists |
+| `expire` | `expire(key, seconds)` | Set expiration for key |
+| `ttl` | `ttl(key)` | Get time to live for key |
+| `cache` | `cache(command, *args)` | Execute any cache command |
+| `pipeline` | `pipeline()` | Create pipeline for batch operations |
+
+Import with: `from ygglib import cache, set, get, delete, exists, expire, ttl, pipeline, init`
+
+## Requirements
+
+- Python 3.7+
+- requests >= 2.25.0
+
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/Klug-Labs/ygg.git
+cd ygg/clients/python
+
+# Install in development mode
+pip install -e .
+
+# Run tests
+python -m pytest tests/
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Support
+
+- **Documentation**: https://docs.ygg.com
+- **API Status**: https://status.ygg.com
+- **Support Email**: support@ygg.com
