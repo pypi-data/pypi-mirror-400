@@ -1,0 +1,38 @@
+name: Publish Package
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - uses: astral-sh/setup-uv@v3
+      
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install Python dependencies
+        run: uv sync
+      
+      - name: Generate protobuf files
+        run: uv run protoc -Iproto --python_out=placebrain_contracts --mypy_out=placebrain_contracts proto/*.proto
+      
+      - name: Build distribution
+        run: uv build
+      
+      - name: Publish to PyPI
+        run: uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
