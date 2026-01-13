@@ -1,0 +1,40 @@
+﻿# zeushell
+
+A simple interactive action-shell framework.  
+Write functions — run them as shell commands.
+
+## Features
+
+- Function-based command system
+- Interactive shell runtime
+- Customizable shell prompt
+- Safe function registry
+## Install
+
+```bash
+pip install zeushell
+```
+
+## Quick Start
+
+```python
+import zeushell
+zeushell.start()
+@zeushell.function()
+def hi(user):
+    return "Hello "+user
+
+zeushell.name("zeushell")
+zeushell.run()
+```
+
+Shell:
+
+```
+zeushell: hi Tom
+hi Tom
+```
+
+## License
+
+MIT
