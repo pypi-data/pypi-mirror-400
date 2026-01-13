@@ -1,0 +1,154 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [ "setuptools>=77.0.3" ]
+
+[project]
+name = "django-codemod"
+version = "2.4.5"
+description = "A command line tool to automatically fix Django deprecations."
+readme = "README.md"
+keywords = [
+  "codemod",
+  "django",
+  "libCST",
+]
+license = "MIT"
+authors = [
+  { name = "Bruno Alla", email = "alla.brunoo@gmail.com" },
+]
+requires-python = ">=3.10"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries",
+]
+
+dependencies = [
+  "click<8.4",
+  "libcst==1.8.6",
+  "pathspec>=0.6,<2",
+  "rich>=10",
+  "rich-click>=1",
+]
+urls."Bug Tracker" = "https://github.com/browniebroke/django-codemod/issues"
+urls.Changelog = "https://django-codemod.readthedocs.io/en/stable/changelog.html"
+urls.documentation = "https://django-codemod.readthedocs.io"
+urls.Mastodon = "https://fosstodon.org/@browniebroke"
+urls.repository = "https://github.com/browniebroke/django-codemod"
+urls.Twitter = "https://twitter.com/_BrunoAlla"
+scripts.djcodemod = "django_codemod.cli:djcodemod"
+
+[dependency-groups]
+dev = [
+  "parameterized>=0.9,<1",
+  "pytest>=9,<10",
+  "pytest-cov>=7,<8",
+  "pytest-mock>=3.3,<4",
+]
+docs = [
+  "furo>=2023.5.20; python_version>='3.11'",
+  "myst-parser>=0.16; python_version>='3.11'",
+  "sphinx>=4; python_version>='3.11'",
+]
+
+[tool.ruff]
+line-length = 88
+
+lint.select = [
+  "B",   # flake8-bugbear
+  "C4",  # flake8-comprehensions
+  "D",   # flake8-docstrings
+  "E",   # pycodestyle
+  "F",   # pyflake
+  "I",   # isort
+  "RUF", # ruff specific
+  "S",   # flake8-bandit
+  "UP",  # pyupgrade
+  "W",   # pycodestyle
+]
+lint.ignore = [
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D102", # Missing docstring in public method
+  "D104", # Missing docstring in public package
+  "D107", # Missing docstring in `__init__`
+  "D203", # 1 blank line required before class docstring
+  "D212", # Multi-line docstring summary should start at the first line
+  "D401", # First line of docstring should be in imperative mood
+]
+lint.per-file-ignores."conftest.py" = [ "D100" ]
+lint.per-file-ignores."docs/conf.py" = [ "D100" ]
+lint.per-file-ignores."tests/**/*" = [
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "S101",
+]
+lint.isort.known-first-party = [ "django_codemod", "tests" ]
+
+[tool.pyproject-fmt]
+max_supported_python = "3.14"
+
+[tool.pytest.ini_options]
+addopts = "-v -Wdefault --cov=django_codemod --cov-report=term-missing:skip-covered"
+pythonpath = [ "src" ]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "raise AssertionError",
+  "raise NotImplementedError",
+]
+
+[tool.mypy]
+# suppress errors about unsatisfied imports
+ignore_missing_imports = true
+
+no_implicit_optional = true
+
+# ensure all execution paths are returning
+warn_no_return = true
+
+show_error_codes = true
+
+[tool.semantic_release]
+version_toml = [ "pyproject.toml:project.version" ]
+version_variables = [
+  "src/django_codemod/__init__.py:__version__",
+]
+build_command = """
+pip install uv
+uv lock
+git add uv.lock
+uv build
+"""
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+  "chore.*",
+  "ci.*",
+  "Merge pull request .*",
+]
+
+[tool.semantic_release.changelog.environment]
+keep_trailing_newline = true
+
+[tool.semantic_release.branches.main]
+match = "main"
+
+[tool.semantic_release.branches.noop]
+match = "(?!main$)"
+prerelease = true
