@@ -1,0 +1,21 @@
+# configs/semantic_config.yaml
+outlier_methods:
+  spend_amount: IQR  # or 'zscore'
+  age: zscore
+  threshold: 3.0     # For zscore
+
+valid_references:
+  cities: ["Delhi", "Mumbai", "Pune", "Bangalore", "Kolkata", "Chennai", "Hyderabad", "Ahmedabad"]
+  statuses: ["Active", "Inactive", "Pending"]  # Example if you add a status col
+
+business_rules:
+  - column: spend_amount
+    condition: "> 0"  # No negative spends
+    action: "set_to_zero"
+  - columns: [signup_date, some_end_date]  # Example cross-col check
+    condition: "end_date > signup_date"
+    action: "flag_invalid"
+
+domain_ranges:
+  age: {min: 18, max: 100}
+  spend_amount: {min: 0, max: 50000}  # Cap outliers  
