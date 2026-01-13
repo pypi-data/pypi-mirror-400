@@ -1,0 +1,129 @@
+Metadata-Version: 2.4
+Name: veto-sdk
+Version: 0.1.0
+Summary: A guardrail system for AI agent tool calls - Python SDK
+Project-URL: Homepage, https://veto.run
+Project-URL: Repository, https://github.com/VulnZap/veto
+Project-URL: Documentation, https://github.com/VulnZap/veto/tree/master/packages/sdk-python
+Author: Plaw, Inc.
+License-Expression: Apache-2.0
+Keywords: agent,ai,anthropic,guardrail,langchain,llm,openai,safety,tool-calls
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: anthropic
+Requires-Dist: anthropic>=0.18; extra == 'anthropic'
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: langchain
+Requires-Dist: langchain>=0.1; extra == 'langchain'
+Provides-Extra: openai
+Requires-Dist: openai>=1.0; extra == 'openai'
+Description-Content-Type: text/markdown
+
+# veto-sdk (Python)
+
+A guardrail system for AI agent tool calls. Veto intercepts and validates tool calls made by AI models before execution.
+
+## Installation
+
+```bash
+pip install veto-sdk
+```
+
+With provider integrations:
+
+```bash
+pip install veto-sdk[openai]      # OpenAI support
+pip install veto-sdk[anthropic]   # Anthropic support
+pip install veto-sdk[langchain]   # LangChain support
+```
+
+## Quick Start
+
+```python
+from veto_sdk import Veto, ToolCallDeniedError, ToolDefinition
+
+# Define tools
+tools = [
+    ToolDefinition(
+        name="read_file",
+        description="Read a file",
+        input_schema={
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"]
+        },
+        handler=lambda args: open(args["path"]).read()
+    )
+]
+
+# Initialize Veto and wrap tools
+veto = await Veto.init()
+definitions, implementations = veto.wrap_tools(tools)
+
+# Use implementations - validation happens automatically
+try:
+    content = await implementations["read_file"]({"path": "/home/user/file.txt"})
+except ToolCallDeniedError as e:
+    print(f"Blocked: {e.validation_result.reason}")
+```
+
+## Configuration
+
+Create `veto/rules/defaults.yaml`:
+
+```yaml
+rules:
+  - id: block-system-paths
+    name: Block system path access
+    enabled: true
+    severity: critical
+    action: block
+    tools:
+      - read_file
+    conditions:
+      - field: arguments.path
+        operator: starts_with
+        value: /etc
+```
+
+## API Reference
+
+### `Veto.init(config_dir="./veto", mode=None)`
+
+Initialize Veto asynchronously. Loads config and rules from the specified directory.
+
+### `veto.wrap_tools(tools)`
+
+Wrap tools and return `(definitions, implementations)`.
+
+### `veto.validate_tool_call(call)`
+
+Manually validate a tool call.
+
+### `veto.get_mode()`
+
+Get current operating mode (`"strict"` or `"log"`).
+
+### `veto.get_loaded_rules()`
+
+Get all loaded rules.
+
+## License
+
+Apache-2.0
