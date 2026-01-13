@@ -1,0 +1,31 @@
+name: lint
+
+on:
+  push:
+    branches:
+      - '**'        # matches every branch
+  pull_request:
+    branches:
+      - '**'        # matches every branch
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' # Matches your dev environment
+          cache: 'pip' # Speeds up future runs
+
+      - name: Install Dependencies
+        run: make dev
+
+      - name: Run Tests
+        run: make lint

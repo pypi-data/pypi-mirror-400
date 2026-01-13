@@ -1,0 +1,38 @@
+name: test
+
+on:
+  push:
+    branches:
+      - '**'        # matches every branch
+  pull_request:
+    branches:
+      - '**'        # matches every branch
+
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Matches your dev environment
+          cache: 'pip' # Speeds up future runs
+
+      - name: Install Dependencies
+        run: make dev
+
+      - name: Configure BMDE logging
+        run: |
+          echo "[logging]" > bmde.toml
+          echo 'level = "trace"' >> bmde.toml
+
+      - name: Run Tests
+        run: |
+              XDG_RUNTIME_DIR=/tmp make test
