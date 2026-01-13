@@ -1,0 +1,336 @@
+# AltiusOne AI SDK
+
+Python SDK for AltiusOne AI Service - OCR, Embeddings, Chat, and Extraction.
+
+## Installation
+
+```bash
+pip install altiusone-ai
+```
+
+Or install from source:
+
+```bash
+pip install git+https://github.com/akouni/altiusoneai.git#subdirectory=sdk/python
+```
+
+## Quick Start
+
+```python
+from altiusone_ai import AltiusOneAI
+
+# Initialize client
+client = AltiusOneAI(
+    api_url="https://ai.altiusone.ch",
+    api_key="your-api-key"
+)
+
+# Generate embeddings (768 dimensions, compatible with pgvector)
+embeddings = client.embed("Mon texte à vectoriser")
+
+# Chat with AI
+response = client.chat("Bonjour, comment allez-vous?")
+
+# OCR on image or PDF
+text = client.ocr(image_path="document.pdf")
+
+# Extract structured data
+data = client.extract(
+    text="Facture N° 2024-001\nMontant: CHF 1'500.00",
+    schema={
+        "numero_facture": "string",
+        "montant": "number",
+        "devise": "string"
+    }
+)
+```
+
+## Features
+
+### Embeddings
+
+Generate 768-dimensional vectors compatible with pgvector:
+
+```python
+# Single text
+embedding = client.embed("Mon texte")[0]
+
+# Batch
+embeddings = client.embed(texts=["Texte 1", "Texte 2", "Texte 3"])
+
+# Store in PostgreSQL with pgvector
+cursor.execute(
+    "INSERT INTO documents (content, embedding) VALUES (%s, %s)",
+    (text, embedding)
+)
+```
+
+### Chat
+
+Conversational AI with system prompts:
+
+```python
+# Simple message
+response = client.chat("Bonjour!")
+
+# With system prompt
+response = client.chat(
+    "Comment déclarer la TVA?",
+    system="Tu es un expert comptable suisse."
+)
+
+# Full conversation
+response = client.chat(messages=[
+    {"role": "system", "content": "Tu es un assistant pour une fiduciaire."},
+    {"role": "user", "content": "Bonjour"},
+    {"role": "assistant", "content": "Bonjour! Comment puis-je vous aider?"},
+    {"role": "user", "content": "Explique-moi la TVA suisse"}
+])
+```
+
+### OCR
+
+Extract text from images and PDFs:
+
+```python
+# From file
+text = client.ocr(image_path="document.pdf")
+
+# From bytes
+with open("image.png", "rb") as f:
+    text = client.ocr(image_data=f.read())
+
+# From URL
+text = client.ocr(image_url="https://example.com/doc.png")
+
+# With language hint
+text = client.ocr(image_path="document.pdf", language="fr")
+```
+
+### Extraction
+
+Extract structured data from text using predefined or custom schemas.
+
+#### Using Predefined Schemas
+
+```python
+from altiusone_ai.schemas import InvoiceSchema, ContractSchema, ResumeSchema
+
+# Extract invoice data with predefined schema
+invoice = client.extract(
+    text=invoice_text,
+    schema=InvoiceSchema.schema()
+)
+
+# Use minimal schema (essential fields only)
+invoice = client.extract(
+    text=invoice_text,
+    schema=InvoiceSchema.minimal()
+)
+
+# Employment contract extraction
+contract = client.extract(
+    text=employment_contract,
+    schema=ContractSchema.employment()
+)
+```
+
+Available predefined schemas:
+- `InvoiceSchema` - Invoices (full, minimal, with custom fields)
+- `ContractSchema` - Contracts (general, employment, rental)
+- `ResumeSchema` - CV/Resume (full, minimal, for recruitment)
+- `IdentitySchema` - ID documents (passport, national ID, driving license, residence permit)
+- `QuoteSchema` - Quotes/Estimates (general, construction, services)
+- `ExpenseSchema` - Expense reports (full, travel, receipt)
+
+#### Using Custom Schemas
+
+```python
+# Custom schema extraction
+invoice_data = client.extract(
+    text="""
+    Facture N° 2024-001
+    Date: 15.01.2024
+    Client: Entreprise XYZ SA
+    Montant HT: CHF 1'200.00
+    TVA (7.7%): CHF 92.40
+    Montant TTC: CHF 1'292.40
+    """,
+    schema={
+        "invoice_number": "string",
+        "date": "string",
+        "client": "string",
+        "subtotal": "number",
+        "vat": "number",
+        "total": "number"
+    }
+)
+```
+
+#### Multilingual Extraction
+
+Extract from documents in any language and get results in your preferred language:
+
+```python
+# Extract from German document, output in French
+data = client.extract(
+    text=german_invoice,
+    schema=InvoiceSchema.schema(),
+    source_language="de",
+    output_language="fr"
+)
+
+# Auto-detect source language
+data = client.extract(
+    text=unknown_language_doc,
+    schema=ContractSchema.schema(),
+    source_language="auto",
+    output_language="en"
+)
+```
+
+Supported languages: `auto`, `en`, `fr`, `de`, `it`, `pt`
+
+### Schema Nomenclature
+
+When creating custom schemas, follow these conventions:
+
+#### Field Names
+- Use `snake_case` for all field names
+- Use English for technical consistency
+- Be descriptive: `invoice_number` not `num`
+
+#### Types
+| Type | Description | Example |
+|------|-------------|---------|
+| `string` | Text value | `"invoice_number": "string"` |
+| `number` | Numeric value (int/float) | `"amount": "number"` |
+| `boolean` | True/False | `"is_paid": "boolean"` |
+| `string[]` | List of strings | `"tags": "string[]"` |
+| `{...}` | Nested object | `"address": {"street": "string", "city": "string"}` |
+| `[{...}]` | List of objects | `"items": [{"name": "string", "qty": "number"}]` |
+
+#### Optional Fields
+Add `?` suffix to mark optional fields:
+```python
+schema = {
+    "name": "string",           # Required
+    "email": "string?",         # Optional
+    "notes": "string?",         # Optional
+}
+```
+
+#### Complete Example
+```python
+custom_schema = {
+    "company_name": "string",
+    "registration_number": "string?",
+    "founded_year": "number?",
+    "is_active": "boolean",
+    "industry_tags": "string[]",
+    "headquarters": {
+        "street": "string",
+        "city": "string",
+        "postal_code": "string",
+        "country": "string"
+    },
+    "directors": [{
+        "name": "string",
+        "title": "string",
+        "email": "string?"
+    }]
+}
+```
+
+## Async Support
+
+```python
+from altiusone_ai import AsyncAltiusOneAI
+
+async def main():
+    async with AsyncAltiusOneAI(api_url, api_key) as client:
+        embeddings = await client.embed("Mon texte")
+        response = await client.chat("Bonjour!")
+```
+
+## Error Handling
+
+```python
+from altiusone_ai import (
+    AltiusOneAI,
+    AuthenticationError,
+    RateLimitError,
+    APIError,
+)
+
+try:
+    response = client.chat("Hello")
+except AuthenticationError:
+    print("Invalid API key")
+except RateLimitError:
+    print("Too many requests, please wait")
+except APIError as e:
+    print(f"API error: {e}")
+```
+
+## Django Integration
+
+```python
+# settings.py
+ALTIUSONE_AI_URL = "https://ai.altiusone.ch"
+ALTIUSONE_AI_KEY = os.environ["ALTIUSONE_API_KEY"]
+
+# services.py
+from django.conf import settings
+from altiusone_ai import AltiusOneAI
+
+def get_ai_client():
+    return AltiusOneAI(
+        api_url=settings.ALTIUSONE_AI_URL,
+        api_key=settings.ALTIUSONE_AI_KEY,
+    )
+
+# views.py
+def search_documents(request):
+    query = request.GET.get("q")
+    client = get_ai_client()
+
+    # Generate query embedding
+    query_embedding = client.embed(query)[0]
+
+    # Search with pgvector
+    documents = Document.objects.raw("""
+        SELECT *, embedding <=> %s AS distance
+        FROM documents
+        ORDER BY distance
+        LIMIT 10
+    """, [query_embedding])
+
+    return JsonResponse({"results": list(documents)})
+```
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check (public) |
+| `/embeddings` | POST | Generate embeddings (768D) |
+| `/chat` | POST | Chat with AI |
+| `/ocr` | POST | OCR on images/PDFs |
+| `/extract` | POST | Structured data extraction |
+
+## API Documentation
+
+Interactive API documentation is available at:
+- **Swagger UI**: https://ai.altiusone.ch/docs
+- **ReDoc**: https://ai.altiusone.ch/redoc
+
+## Support
+
+For support and questions:
+- Email: support@altiusone.ch
+- Website: https://altiusone.ch
+
+## License
+
+Proprietary - Altius Academy SNC
