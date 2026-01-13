@@ -1,0 +1,135 @@
+from typing import Dict, Any
+
+import torch
+from torch import nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+try:
+    import xformers
+
+    xformers_available = True
+except:
+    xformers_available = False
+
+def remove_all_hooks(model: nn.Module) -> None:
+    for name, child in model.named_modules():
+        child._forward_hooks.clear()
+        child._forward_pre_hooks.clear()
+        child._backward_hooks.clear()
+
+def remove_layers(model: nn.Module, layer_class):
+    named_modules = {k:v for k, v in model.named_modules()}
+    for k, v in named_modules.items():
+        if isinstance(v, layer_class):
+            parent, name = named_modules[k.rsplit('.', 1)]
+            delattr(parent, name)
+            del v
+
+def hook_compile(model):
+    named_modules = {k:v for k, v in model.named_modules()}
+
+    for name, block in named_modules.items():
+        if len(block._forward_hooks)>0:
+            for hook in block._forward_hooks.values():  # 从前往后执行
+                old_forward = block.forward
+
+                def new_forward(*args, **kwargs):
+                    result = old_forward(*args, **kwargs)
+                    hook_result = hook(block, args, result)
+                    if hook_result is not None:
+                        result = hook_result
+                    return result
+
+                block.forward = new_forward
+
+        if len(block._forward_pre_hooks)>0:
+            for hook in list(block._forward_pre_hooks.values())[::-1]:  # 从前往后执行
+                old_forward = block.forward
+
+                def new_forward(*args, **kwargs):
+                    result = hook(block, args)
+                    if result is not None:
+                        if not isinstance(result, tuple):
+                            result = (result,)
+                    else:
+                        result = args
+                    return old_forward(*result, **kwargs)
+
+                block.forward = new_forward
+    remove_all_hooks(model)
+
+def _convert_cpu(t):
+    return t.to('cpu') if t.device.type == 'cuda' else t
+
+def _convert_cuda(t):
+    return t.to('cuda') if t.device.type == 'cpu' else t
+
+def to_cpu(model):
+    model._apply(_convert_cpu)
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
+
+def to_cuda(model):
+    model._apply(_convert_cuda)
+
+def split_module_name(layer_name):
+    name_split = layer_name.rsplit('.', 1)
+    if len(name_split) == 1:
+        parent_name, host_name = '', name_split[0]
+    else:
+        parent_name, host_name = name_split
+    return parent_name, host_name
+
+def maybe_DDP(model):
+    if isinstance(model, DDP):
+        return model.module
+    else:
+        return model
+
+def zero_module(module):
+    """
+    Zero out the parameters of a module and return it.
+    """
+    for p in module.parameters():
+        p.data.zero_()
+        p._skip_init = True
+    return module
+
+def add_dims(t, num_dims, end=True):
+    if end:
+        return t.view(*t.shape, *([1] * num_dims))
+    else:
+        return t.view(*([1] * num_dims), *t.shape)
+
+
+class BatchableDict:
+    """
+    A dictionary that can be batched.
+    It is used to store the batch data in the dataset.
+    """
+    def __init__(self, data: Dict):
+        self.data = data
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            data = super().__getattribute__('data')
+            return getattr(data, name)
+        except AttributeError:
+            return super().__getattribute__(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == 'data':
+            super().__setattr__(name, value)
+        elif hasattr(dict, name):
+            raise AttributeError(f"Cannot set attribute '{name}' - it conflicts with dict methods")
+        else:
+            super().__setattr__(name, value)
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self.data})"
