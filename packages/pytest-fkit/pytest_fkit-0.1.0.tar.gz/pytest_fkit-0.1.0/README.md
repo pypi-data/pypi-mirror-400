@@ -1,0 +1,144 @@
+# pytest-fkit
+
+**F**ix **K**rashes **I**n **T**ests - A pytest plugin that prevents crashes from killing your entire test suite.
+
+When a test crashes Python (SIGABRT, SIGSEGV, etc.), it catches the crash and converts it to a normal pytest ERROR instead of killing your entire test run.
+
+## The Problem
+
+When running large test suites (like HuggingFace Transformers), sometimes a test causes Python to crash with a signal like SIGABRT:
+
+```
+Fatal Python error: Aborted
+Thread 0x0000799e2ea00640 (most recent call first):
+  File "/transformers/src/transformers/models/dots1/modeling_dots1.py", line 331 in forward
+  ...
+```
+
+This kills pytest entirely, and all remaining tests in your suite never run.
+
+## The Solution
+
+pytest-fkit runs each test in an isolated subprocess. If a test crashes:
+- ✅ The crash is caught and reported as a pytest ERROR
+- ✅ The remaining tests continue running
+- ✅ You get a full report with all test results, including which ones crashed
+
+## Installation
+
+```bash
+cd pytest-fkit
+pip install -e .
+```
+
+Or install from your test requirements:
+```bash
+pip install pytest-fkit
+```
+
+## Usage
+
+### Basic Usage
+
+Just add the `--fkit` flag to your pytest command:
+
+```bash
+pytest --fkit
+```
+
+### With Timeout
+
+Set a timeout per test (default is 600 seconds / 10 minutes):
+
+```bash
+pytest --fkit --fkit-timeout=300  # 5 minute timeout per test
+```
+
+```bash
+# In transformers_ut.sh
+pytest --fkit --fkit-timeout=600 tests/
+```
+
+### Skip Crash Isolation for Specific Tests
+
+If you have tests that don't play well with subprocess isolation, mark them:
+
+```python
+import pytest
+
+@pytest.mark.fkit_skip
+def test_something_special():
+    # This test will run normally without subprocess isolation
+    pass
+```
+
+## How It Works
+
+1. **Subprocess Isolation**: Each test runs in its own Python subprocess
+2. **Signal Detection**: When a subprocess is killed by a signal (negative return code), we detect it
+3. **Error Conversion**: Crashes are converted to pytest ERROR results with full output
+4. **Continuation**: The main pytest process continues with remaining tests
+
+## Example Output
+
+```
+tests/models/dots1/test_modeling_dots1.py::Dots1ModelTest::test_forward PASSED
+tests/models/dots1/test_modeling_dots1.py::Dots1ModelTest::test_model_15b_a2b_generation 💥
+
+======================================================================
+💥 TEST CRASHED: SIGABRT (Aborted)
+======================================================================
+
+This test caused Python to crash with SIGABRT (Aborted).
+pytest-fkit caught it and converted it to an ERROR.
+
+--- STDOUT ---
+...test output...
+
+--- STDERR ---
+Fatal Python error: Aborted
+...crash traceback...
+======================================================================
+
+tests/models/dots1/test_modeling_dots1.py::Dots1ModelTest::test_backward PASSED
+
+=============== pytest-fkit summary ===============
+💥 1 test(s) CRASHED (converted to ERROR by pytest-fkit):
+  - tests/models/dots1/test_modeling_dots1.py::Dots1ModelTest::test_model_15b_a2b_generation
+
+✅ pytest-fkit prevented 1 crashes from killing your test suite!
+```
+
+## Performance Considerations
+
+- **Overhead**: Running each test in a subprocess adds overhead (~100-500ms per test)
+- **Best For**: Large test suites where crashes are occasional but catastrophic
+- **Not Recommended**: Tiny test suites with < 100 tests where crashes are rare
+
+For the HuggingFace Transformers test suite with 100,000+ tests, the overhead is worth it to ensure all tests run to completion.
+
+## Configuration
+
+You can also enable pytest-fkit in `pytest.ini` or `pyproject.toml`:
+
+```ini
+# pytest.ini
+[pytest]
+addopts = --fkit --fkit-timeout=600
+```
+
+```toml
+# pyproject.toml
+[tool.pytest.ini_options]
+addopts = ["--fkit", "--fkit-timeout=600"]
+```
+
+## Compatibility
+
+- Python 3.8+
+- pytest 6.0+
+- Linux, macOS (Windows support TBD)
+
+## License
+
+MIT
