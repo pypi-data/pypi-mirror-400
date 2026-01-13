@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kube-authkit"
+version = "0.1.0"
+description = "Unified Kubernetes authentication toolkit - supports KubeConfig, In-Cluster, OIDC, and OpenShift OAuth authentication"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Kube AuthKit Contributors"}
+]
+keywords = ["kubernetes", "authentication", "oidc", "oauth", "k8s", "kubeconfig", "openshift"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration :: Authentication/Directory",
+]
+
+dependencies = [
+    "kubernetes>=27.2.0",
+    "requests>=2.31.0",
+    "PyJWT>=2.8.0",
+    "urllib3>=2.6.0",
+]
+
+[project.optional-dependencies]
+keyring = ["keyring>=24.0.0"]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/kube-authkit/kube-authkit"
+Documentation = "https://github.com/kube-authkit/kube-authkit#readme"
+Repository = "https://github.com/kube-authkit/kube-authkit"
+Issues = "https://github.com/kube-authkit/kube-authkit/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kube_authkit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=kube_authkit",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=70",
+    "--strict-markers",
+    "-ra",  # Show summary of all test outcomes
+]
+markers = [
+    "unit: Unit tests that don't require external services",
+    "integration: Integration tests that use mock servers",
+    "e2e: End-to-end tests that require real external services",
+    "slow: Tests that take longer to run",
+]
+# Filter warnings
+filterwarnings = [
+    "error",  # Treat warnings as errors
+    "ignore::DeprecationWarning",  # Ignore deprecation warnings
+    "ignore::pytest.PytestUnraisableExceptionWarning",  # Ignore unraisable exceptions
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501", # line too long (handled by ruff format)
+]

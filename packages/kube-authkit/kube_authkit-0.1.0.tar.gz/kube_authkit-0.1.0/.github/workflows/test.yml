@@ -1,0 +1,96 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, feat/*, fix/* ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.6
+
+      - name: Install dependencies
+        run: uv pip install -e ".[dev]" --system
+
+      - name: Run unit tests
+        run: pytest tests/ -m "not integration" --cov=src/kube_authkit --cov-report=xml --cov-report=term
+
+      - name: Run integration tests
+        run: pytest tests/ -m integration --cov=src/kube_authkit --cov-append --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  test-minimum-versions:
+    name: Test with minimum supported versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.6
+
+      - name: Install with minimum versions
+        run: |
+          uv pip install -e . --system
+          uv pip install "kubernetes==27.2.0" "requests==2.31.0" "PyJWT==2.8.0" --system
+          uv pip install "pytest>=7.4.0" "pytest-cov>=4.1.0" "pytest-mock>=3.11.1" --system
+
+      - name: Run tests
+        run: pytest tests/ --cov=src/kube_authkit --cov-report=term
+
+  coverage-check:
+    name: Ensure test coverage meets threshold
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.6
+
+      - name: Install dependencies
+        run: uv pip install -e ".[dev]" --system
+
+      - name: Run tests with coverage
+        run: pytest tests/ --cov=src/kube_authkit --cov-report=term --cov-fail-under=70
+
+      - name: Generate coverage badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//' > coverage.txt
+          echo "Coverage: $(cat coverage.txt)%"
