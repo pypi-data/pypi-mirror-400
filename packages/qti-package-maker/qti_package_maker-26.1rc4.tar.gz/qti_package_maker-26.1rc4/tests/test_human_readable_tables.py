@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+
+# Standard Library
+
+# Pip3 Library
+import pytest
+
+# QTI Package Maker
+from qti_package_maker import package_interface
+
+
+def test_human_readable_tables(tmp_path):
+	qti_packer = package_interface.QTIPackageInterface("human-table", verbose=False, allow_mixed=True)
+	question_text = (
+		"<p>Use the table below.</p>"
+		"<table>"
+		"<tr><th>Col A</th><th>Col B</th></tr>"
+		"<tr><td>1</td><td>2</td></tr>"
+		"</table>"
+		"<p>Done.</p>"
+	)
+	choices_list = ["Option 1", "Option 2"]
+	qti_packer.add_item("MC", (question_text, choices_list, "Option 1"))
+
+	outfile = tmp_path / "human-table.html"
+	qti_packer.save_package("human", str(outfile))
+
+	with open(outfile, "r", encoding="utf-8") as f:
+		contents = f.read()
+
+	assert "[TABLE]" not in contents
+	for required in ("Col A", "Col B", "1", "2"):
+		assert required in contents
