@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abstractassistant"
+version = "0.3.5"
+description = "A sleek (macOS) system tray application providing instant access to LLMs"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    {name = "Laurent-Philippe Albou", email = "contact@abstractcore.ai"}
+]
+keywords = ["ai", "llm", "macos", "system-tray", "assistant"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Desktop Environment",
+]
+
+dependencies = [
+    # AbstractAssistant is a macOS app; avoid GPU-only stacks (e.g. vLLM) that can pull
+    # heavy/incompatible transitive deps (datasets/pyarrow) and even break CLI `--help`.
+    # Users who want additional providers can install extra AbstractCore provider groups separately.
+    "abstractcore[openai,anthropic,ollama,lmstudio,tools]>=2.9.1",
+    "pystray>=0.19.4",
+    "Pillow>=10.0.0",
+    "PyQt5>=5.15.0",
+    "markdown>=3.5.0",
+    "pygments>=2.16.0",
+    "pymdown-extensions>=10.0",
+    "abstractvoice>=0.5.2",
+    "pyperclip>=1.8.2",
+    "plyer>=2.1.0",
+    "tomli>=2.0.0; python_version<'3.11'",
+    "tomli-w>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+]
+
+[project.scripts]
+assistant = "abstractassistant.cli:main"
+create-app-bundle = "abstractassistant.create_app_bundle:main"
+
+[project.urls]
+Homepage = "https://github.com/lpalbou/abstractassistant"
+Repository = "https://github.com/lpalbou/abstractassistant"
+Issues = "https://github.com/lpalbou/abstractassistant/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["abstractassistant*"]
+exclude = ["tests*", "docs*", "AbstractAssistant.app*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
