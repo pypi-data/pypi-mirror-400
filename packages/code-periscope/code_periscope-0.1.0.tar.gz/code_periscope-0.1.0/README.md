@@ -1,0 +1,97 @@
+<p align="center">
+	<img src="assets/logo.png" alt="Code Periscope" width="180" />
+</p>
+
+# Code Periscope
+
+Code Periscope analyzes a Git repository’s history, produces a set of CSV datasets, and generates a **risk-focused report** that highlights “hot files/modules” (high churn, low ownership, fix-heavy change patterns, etc.).
+
+It’s designed for quick, local exploration during engineering planning:
+
+- “What parts of this repo look risky right now?”
+- “Where is change volume accelerating?”
+- “Which files/modules behave like hot spots vs stable areas?”
+
+For the technical deep dive (pipeline, datasets, metrics, report model), see: **[`how-it-works.md`](./how-it-works.md)**.
+
+## Repository layout
+
+This repository is a **single-package** project:
+
+- `src/code_periscope/core` — analytics engine (ingest, metrics, clustering, scoring) **and repository cloning/caching**
+- `src/code_periscope/renderers` — Markdown/HTML renderers for the stable report model
+- `src/code_periscope/cli.py` — CLI adapter (Typer/Rich)
+
+## Quickstart
+
+### Requirements
+
+- Python 3.11+ is the target (the codebase uses modern typing/syntax). If you use another version locally, your mileage may vary.
+
+### Install (editable)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+
+make install
+```
+
+### Run
+
+Analyze a local repo:
+
+```bash
+# Installed CLI
+code-periscope --repo /path/to/repo --out out/
+
+# If you're running from source without installing (e.g. CI), use the module entrypoint:
+python3 -m code_periscope --repo /path/to/repo --out out/
+```
+
+Analyze a remote repo URL (it will clone into a local cache directory):
+
+```bash
+# Installed CLI
+code-periscope --git-url https://github.com/OWNER/REPO.git --out out/
+
+# From source without installing
+python3 -m code_periscope --git-url https://github.com/OWNER/REPO.git --out out/
+```
+
+### Test
+
+```bash
+make test
+```
+
+### Build wheels
+
+```bash
+python3 -m pip install -U build
+make build
+```
+
+## Versioning
+
+This project currently uses a single version for the `code-periscope` package.
+
+## Releasing (PyPI)
+
+Publishing is handled by `.github/workflows/publish.yml`.
+
+1) Bump `version = "..."` in `pyproject.toml`.
+2) Commit the version bump.
+3) Create and push a tag:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+The workflow will build and publish the distribution.
+
+### Required GitHub secrets
+
+- `PYPI_API_TOKEN`: PyPI API token for the `code-periscope` project.
+- (Optional) `TEST_PYPI_API_TOKEN`: token for TestPyPI, used when manually dispatching the workflow for `testpypi`.
