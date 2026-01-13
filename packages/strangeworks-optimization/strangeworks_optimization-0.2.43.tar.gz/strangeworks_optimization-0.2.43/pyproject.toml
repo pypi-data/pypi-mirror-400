@@ -1,0 +1,114 @@
+[project]
+name = "strangeworks-optimization"
+version = "0.2.43"
+description = "This SDK extends the Strangeworks SDK to provide access to the Strangeworks Optimization API."
+authors = [{ name = "Strange Devs", email = "hello@strangeworks.com" }]
+requires-python = ">=3.11"
+readme = "README.md"
+license = "Apache-2.0"
+dependencies = [
+    "strangeworks>=0.7.6,<0.8.0",
+    "strangeworks-optimization-models>=0.1.68",
+]
+
+[dependency-groups]
+dev = [
+    "bpython>=0.24,<0.25",
+    "dwave-hybrid>=0.6.13,<0.7",
+    "ipykernel>=6.23.2,<7",
+    "mypy>=1.4.1,<2",
+    "pre-commit>=3.3.3,<4",
+    "pytest>=7.3.1,<8",
+    "pytest-cov>=4.1.0,<5",
+    "python-dotenv>=1.0.0,<2",
+    "rich>=13.4.2,<14",
+    "ruff>=0.6.2,<0.7",
+    "types-pyyaml>=6.0.12.20240311,<7",
+    "types-requests>=2.32.0.20240523,<3",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["strangeworks_optimization"]
+
+[tool.hatch.build.targets.wheel]
+include = ["strangeworks_optimization"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 120
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "dill",
+    "strangeworks.*",
+    "strangeworks_core.*"
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "frontend",
+    "fe-react",
+    "fe-svelte",
+    "example",
+]
+per-file-ignores = {}
+
+# Same as Black.
+line-length = 120
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+target-version = "py312"
+
+[tool.ruff.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+[tool.pytest.ini_options]
+markers = [
+    "integration_could_cost_money: marks tests as creating a job that could cost some money (deselect with '-m \"not integration_could_cost_money\"')",
+    "hardware: marks tests as creating a hardware job that will cost money (deselect with '-m \"not hardware\"')",
+    "leap_hybrid: marks tests as creating a hybrid job that will cost money (deselect with '-m \"not leap_hybrid\"')",
+]
+addopts = '-m "not leap_hybrid"'
+testpaths = [
+    "tests"
+]
