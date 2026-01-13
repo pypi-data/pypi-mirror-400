@@ -1,0 +1,261 @@
+# Agent Observability for LangChain
+
+[![PyPI version](https://badge.fury.io/py/agent-observability-langchain.svg)](https://pypi.org/project/agent-observability-langchain/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![LangChain](https://img.shields.io/badge/LangChain-Tool-green.svg)](https://python.langchain.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+LangChain integration for the **Agent Observability** platform — structured logging, cost tracking, and compliance audit trails for production AI agents.
+
+## Installation
+
+```bash
+pip install agent-observability-langchain
+```
+
+## Quick Start
+
+### Step 1: Get Your Free API Key (One-Time)
+
+```python
+import requests
+
+response = requests.post(
+    "https://api-production-0c55.up.railway.app/v1/register",
+    json={"agent_id": "my-langchain-agent"}
+)
+api_key = response.json()["api_key"]
+print(f"Your API key: {api_key}")
+# Save this! Example: ao_live_abc123...
+```
+
+Or via curl:
+
+```bash
+curl -X POST https://api-production-0c55.up.railway.app/v1/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "my-langchain-agent"}'
+```
+
+### Step 2: Set Environment Variable
+
+```bash
+export AGENT_OBS_API_KEY=ao_live_your_key_here
+```
+
+### Step 3: Add to Your Agent
+
+```python
+from langchain.agents import initialize_agent, AgentType
+from langchain_openai import ChatOpenAI
+from agent_observability_langchain import AgentObservabilityTool
+
+# Create observability tool
+obs_tool = AgentObservabilityTool()
+
+# Create agent with observability
+agent = initialize_agent(
+    tools=[obs_tool],
+    llm=ChatOpenAI(model="gpt-4"),
+    agent=AgentType.OPENAI_FUNCTIONS,
+    verbose=True
+)
+
+# Use your agent — it can now log events for compliance
+result = agent.run(
+    "Log an API call to OpenAI with cost $0.05 and latency 1200ms"
+)
+```
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Structured Logging** | Track all agent decisions and API calls with metadata |
+| **Cost Tracking** | Monitor spending per agent, task, and LLM provider |
+| **Performance Analytics** | Latency percentiles, error rates, throughput |
+| **Compliance Ready** | SOC 2, GDPR, HIPAA audit trail requirements |
+| **Queryable History** | Search logs by agent, time, event type, severity |
+| **LangChain Native** | Works with agents, chains, and LangGraph |
+
+## Use Cases
+
+### 1. Cost Analysis
+
+Track spending across all your agents and LLM providers:
+
+```python
+from agent_observability_langchain import AgentObservabilityTool
+
+tool = AgentObservabilityTool(agent_id="research-bot-v2")
+
+# Log each API call with cost
+tool.invoke({
+    "event_type": "api_call",
+    "metadata": {
+        "provider": "openai",
+        "model": "gpt-4",
+        "cost_usd": 0.03,
+        "latency_ms": 1250,
+        "tokens": 1500
+    }
+})
+```
+
+### 2. Decision Auditing
+
+For regulated industries (finance, healthcare, legal):
+
+```python
+tool.invoke({
+    "event_type": "decision",
+    "metadata": {
+        "decision": "approve_loan",
+        "confidence": 0.92,
+        "factors": ["credit_score", "income", "debt_ratio"],
+        "customer_id": "cust_12345"
+    },
+    "severity": "info"
+})
+```
+
+### 3. Error Tracking
+
+```python
+tool.invoke({
+    "event_type": "error",
+    "metadata": {
+        "error_type": "RateLimitError",
+        "provider": "openai",
+        "retry_count": 3,
+        "resolved": False
+    },
+    "severity": "error"
+})
+```
+
+### 4. With LangGraph
+
+```python
+from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
+from agent_observability_langchain import AgentObservabilityTool
+
+# Create agent with observability
+agent = create_react_agent(
+    ChatOpenAI(model="gpt-4"),
+    tools=[AgentObservabilityTool()]
+)
+
+result = agent.invoke({
+    "messages": [("user", "Research AI trends and log the costs")]
+})
+```
+
+### 5. Custom Agent ID per Task
+
+```python
+# Different agent IDs for different workflows
+research_tool = AgentObservabilityTool(agent_id="research-agent")
+writer_tool = AgentObservabilityTool(agent_id="writer-agent")
+reviewer_tool = AgentObservabilityTool(agent_id="reviewer-agent")
+```
+
+## API Reference
+
+### AgentObservabilityTool
+
+```python
+AgentObservabilityTool(
+    api_key: str = None,        # Or set AGENT_OBS_API_KEY env var
+    agent_id: str = "langchain-agent",  # Your agent identifier
+    api_base: str = None        # Override API URL (for self-hosted)
+)
+```
+
+### Input Schema
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `event_type` | str | Yes | `api_call`, `decision`, `transaction`, `error`, `state_change` |
+| `metadata` | dict | No | Event data (provider, cost_usd, latency_ms, etc.) |
+| `severity` | str | No | `debug`, `info`, `warning`, `error`, `critical` (default: `info`) |
+
+### Common Metadata Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | str | LLM provider (openai, anthropic, cohere, etc.) |
+| `model` | str | Model name (gpt-4, claude-3-opus, etc.) |
+| `cost_usd` | float | Cost in USD |
+| `latency_ms` | int | Response time in milliseconds |
+| `tokens` | int | Total token count |
+| `input_tokens` | int | Input/prompt tokens |
+| `output_tokens` | int | Output/completion tokens |
+| `error_message` | str | Error details (for error events) |
+| `decision` | str | Decision made (for decision events) |
+| `confidence` | float | Confidence score (0-1) |
+
+## Pricing
+
+| Tier | Logs/Month | Price | Best For |
+|------|------------|-------|----------|
+| **Free** | 100,000 | $0 | Development, small projects |
+| **Starter** | 1,000,000 | $29/month | Production agents |
+| **Professional** | 10,000,000 | $199/month | Enterprise, high-volume |
+
+Full pricing: https://api-production-0c55.up.railway.app/pricing.json
+
+## Convenience Function
+
+```python
+from agent_observability_langchain import create_observability_tool
+
+# Quick creation
+tool = create_observability_tool(agent_id="my-agent")
+```
+
+## Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `AGENT_OBS_API_KEY` | Your API key | Yes (or pass to constructor) |
+| `AGENT_OBS_BASE_URL` | Override API URL | No |
+
+## Error Handling
+
+The tool handles errors gracefully and returns error messages instead of raising exceptions:
+
+```python
+result = tool.invoke({
+    "event_type": "api_call",
+    "metadata": {"provider": "openai"}
+})
+
+if "Failed" in result:
+    print(f"Logging failed: {result}")
+else:
+    print(f"Success: {result}")
+```
+
+## Related Packages
+
+- **[agent-observability](https://pypi.org/project/agent-observability/)** — Core Python SDK
+- **[agent-observability-mcp](https://www.npmjs.com/package/agent-observability-mcp)** — Claude Desktop MCP integration
+- **[agent-observability-autogpt](https://pypi.org/project/agent-observability-autogpt/)** — AutoGPT plugin
+- **[agent-observability-crewai](https://pypi.org/project/agent-observability-crewai/)** — CrewAI integration
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+## Links
+
+- [API Documentation](https://api-production-0c55.up.railway.app/docs)
+- [OpenAPI Spec](https://api-production-0c55.up.railway.app/openapi.json)
+- [Pricing](https://api-production-0c55.up.railway.app/pricing.json)
+
+## Contributing
+
+Contributions welcome! Please open an issue or submit a pull request.
+
