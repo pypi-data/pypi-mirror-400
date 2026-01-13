@@ -1,0 +1,130 @@
+import copy
+import inspect
+from typing import Optional, Type, Union, Any
+
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
+from fastapi.types import DecoratedCallable
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from tortoise import Model
+from tortoise.expressions import Q
+from tortoise.transactions import atomic
+
+from fastgenerateapi.api_view.base_view import BaseView
+from fastgenerateapi.api_view.mixin.save_mixin import SaveMixin
+from fastgenerateapi.data_type.data_type import DEPENDENCIES, CALLABLE
+from fastgenerateapi.data_type.tortoise_type import T_Model
+from fastgenerateapi.pydantic_utils.base_model import BaseModel
+from fastgenerateapi.schemas_factory import update_schema_factory, get_one_schema_factory, response_factory
+from fastgenerateapi.settings.all_settings import settings
+from fastgenerateapi.utils.exception import NOT_FOUND
+
+
+class UpdateView(BaseView, SaveMixin):
+
+    update_schema: Optional[Type[BaseModel]] = None
+    update_response_schema: Optional[Type[BaseModel]] = None
+    update_summary: Optional[str] = None
+    update_route: Union[bool, DEPENDENCIES] = True
+    """
+    update_schema: 修改请求模型
+    update_route: 修改路由开关，可以放依赖函数列表
+    """
+
+    @atomic()
+    async def update(self, pk: str, request_data, *args, **kwargs):
+        model = await self.get_object(pk, self.model_class, self.is_with_prefetch)
+        data_dict = await self.set_update_fields(model=model, request_data=request_data, *args, **kwargs)
+        data_dict = await self.set_save_fields(data_dict, model=model, request_data=request_data, *args, **kwargs)
+
+        await self.check_unique_field(data_dict, model_class=self.model_class, model=model)
+        old_model = copy.deepcopy(model)
+        model = await self.set_update_model(model, data_dict, request_data=request_data, *args, **kwargs)
+        await model.save()
+
+        await self.set_save_func(model, request_data, old_model,*args, **kwargs)
+
+        return model
+
+    async def set_update_fields(self, model, request_data, *args, **kwargs) -> dict:
+        """
+        修改属性:
+            data_dict = request_data.dict(exclude_unset=True)
+            data_dict.update({
+                "user_id": request.user.id,
+            })
+            return data_dict
+        """
+
+        return request_data.dict(exclude_unset=True)
+
+    async def set_update_model(self, model: T_Model, data_dict: dict, *args, **kwargs) -> T_Model:
+        """
+        在数据模型校验前后修改值:
+        - 这里修改将不做唯一字段校验
+        - 可用于例如租户id等全局修改，或者字段变更记录等
+        data_dict.update({
+            "user_id": request.user.id,
+        })
+        """
+
+        return model.update_from_dict(data_dict)
+
+    def _update_decorator(self, *args: Any, **kwargs: Any) -> DecoratedCallable:
+        async def route(
+                pk: str,
+                request_data: self.update_schema,  # type: ignore
+                request: Request,
+                token: Optional[str] = Depends(OAuth2PasswordBearer(tokenUrl="token", auto_error=False)),
+        ) -> JSONResponse:
+            data = await self.update(
+                pk=pk,
+                request_data=request_data,
+                request=request,
+                token=token,
+                *args, **kwargs
+            )
+            if isinstance(data, Model):
+                if settings.app_settings.WHETHER_UPDATE_RESPONSE_DATA:
+                    if self.is_with_prefetch:
+                        await self.setattr_model(data, prefetch_related_fields=self.prefetch_related_fields, *args,
+                                                 **kwargs)
+
+                    return self.success(data=self.update_response_schema.model_validate(data))
+                return self.success()
+            if isinstance(data, JSONResponse):
+                return data
+            return self.success(data=data)
+
+        return route
+
+    def _handler_update_settings(self):
+        if not self.update_route:
+            return
+        self.update_schema = self.update_schema or update_schema_factory(self.model_class)
+
+        func_type = inspect.signature(self.update).return_annotation
+        if func_type != inspect._empty and func_type is not None:
+            self.update_response_schema = func_type
+        if self.update_response_schema:
+            self.update_response_schema_factory = response_factory(self.update_response_schema, name="Update")
+        else:
+            self.update_response_schema_factory = self.get_response_schema_factory()
+            self.update_response_schema = self.response_schema
+        if not self.update_summary:
+            doc = self.update.__doc__
+            self.update_summary = doc.strip().split("\n")[0] if doc else f"Update"
+        path = f"/{settings.app_settings.ROUTER_UPDATE_SUFFIX_FIELD}/{'{pk}'}" if settings.app_settings.ROUTER_WHETHER_ADD_SUFFIX else "/{pk}"
+        self._add_api_route(
+            path=path,
+            endpoint=self._update_decorator(),
+            methods=["PUT"],
+            response_model=self.update_response_schema_factory,
+            summary=self.update_summary,
+            dependencies=self.update_route,
+            error_responses=[NOT_FOUND],
+        )
+
+
+
