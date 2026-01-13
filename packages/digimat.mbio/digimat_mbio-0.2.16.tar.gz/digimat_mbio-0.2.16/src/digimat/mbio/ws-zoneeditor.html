@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digimat MBIO - Éditeur de Zones</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        body { overflow: hidden; background-color: rgb(20, 20, 20); user-select: none; }
+        canvas { display: block; touch-action: none; background-image: radial-gradient(rgb(64, 64, 64) 1px, transparent 1px); background-size: 10px 10px; }
+        
+        .overlay-panel {
+            backdrop-filter: blur(12px);
+            background-color: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .tool-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .tool-btn:active { transform: scale(0.92); }
+        .tool-btn.active { background-color: #2563eb; color: white; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.4); }
+        
+        .mode-badge {
+            font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+            color: #64748b; text-align: center; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 0.5rem;
+        }
+
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #2563eb; margin-top: -6px; cursor: pointer; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #cbd5e1; border-radius: 2px; }
+        input[type=number] { -moz-appearance: textfield; }
+        input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        .zone-tag-btn {
+            background-color: rgba(17, 198, 62, 0.8); color: white; padding: 6px 12px; border-radius: 6px;
+            font-size: 0.85rem; font-weight: 600; border: 0px solid rgba(255,255,255,0.2); cursor: pointer;
+            transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.3); animation: fadeIn 0.3s ease-out;
+        }
+        .zone-tag-btn:hover { background-color: #3b82f6; transform: translateY(-2px); }
+
+        .device-tag-btn {
+            background-color: rgba(224, 145, 9, 0.8); color: rgb(255, 255, 255); padding: 6px 12px; border-radius: 6px;
+            font-size: 0.85rem; font-weight: 600; border: 0px solid rgba(255,255,255,0.2); cursor: pointer;
+            transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.3); animation: fadeIn 0.3s ease-out;
+        }
+        .device-tag-btn:hover { background-color: #3b82f6; transform: translateY(-2px); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .floor-select {
+            background-color: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; font-size: 0.85rem; font-weight: 600;
+            padding: 4px 24px 4px 10px; border-radius: 6px; cursor: pointer; appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat; background-position: right 6px center; background-size: 14px;
+        }
+        .floor-select:focus { outline: none; border-color: #2563eb; }
+
+        .pro-table { width: 100%; }
+        .pro-table thead th {
+            position: sticky; top: 0; background-color: #f8fafc; z-index: 10;
+            text-transform: uppercase; font-size: 0.7rem; color: #64748b; font-weight: 700; padding: 0.75rem 1rem;
+            border-bottom: 2px solid #e2e8f0; letter-spacing: 0.05em;
+        }
+        .pro-table tbody tr { transition: background-color 0.1s; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+        .pro-table tbody tr:hover { background-color: #eff6ff; }
+        .pro-table td { padding: 0.5rem 1rem; font-size: 0.85rem; color: #334155; }
+    </style>
+
+    <style>
+        .vd-wrapper {
+            font-family: 'Inter', sans-serif;
+            pointer-events: none;
+            position: absolute; inset: 0; overflow: hidden; z-index: 50;
+        }
+
+        .vd-panel {
+            position: absolute; right: 0; top: 0; bottom: 0;
+            width: 600px;
+            display: flex; flex-direction: column;
+            pointer-events: none;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s;
+            transform: translateX(120%);
+            opacity: 0;
+            z-index: 50;
+        }
+
+        .vd-panel.vd-visible { transform: translateX(0); opacity: 1; }
+        .vd-panel.vd-hidden-drag { transform: translateX(100%); opacity: 0; }
+
+        .vd-scroll-viewport {
+            flex: 1; position: relative; overflow: hidden; pointer-events: auto;
+            background: rgba(15, 23, 42, 0);
+        }
+
+        .vd-focus-line {
+            position: absolute; top: 50%; right: 0; width: 100%; height: 1px;
+            background: linear-gradient(to right, transparent 20%, #38bdf8 100%);
+            opacity: 0.3; pointer-events: none; z-index: 0;
+            transform: translateY(-50%);
+        }
+
+        .vd-list-content {
+            position: absolute; top: 0; right: 0; width: 100%;
+            display: flex; flex-direction: column; align-items: flex-end; /* Colle à droite */
+            will-change: transform;
+        }
+
+        /* --- ITEM VARIABLE --- */
+        .vd-item {
+            /* Hauteur fixe pour 2 lignes */
+            height: 70px; 
+            width: 340px; /* Largeur de base */
+            background: #1e293b;
+            margin-bottom: 1px;
+            padding: 6px 12px 6px 16px;
+            display: flex; flex-direction: column; justify-content: center;
+            
+            /* Alignement et transformation */
+            transform-origin: right center; /* S'étend vers la gauche */
+            position: relative; cursor: grab; overflow: hidden;
+            
+            /* Bordure */
+            border-right-width: 4px; border-right-style: solid;
+            
+            transition: background-color 0.1s;
+        }
+        
+        .vd-item:hover { background: #334155; }
+        .vd-item:active { cursor: grabbing; }
+
+        .vd-item.vd-marked {
+            background: #6a0259;
+        }
+
+        /* État SÉLECTIONNÉ (Multiselect) */
+        .vd-item.vd-selected {
+            background: #334155;
+            box-shadow: inset 3px 0 0 white; 
+        }
+
+        .vd-item.vd-selected .vd-item-key .vd-item-tag { color: white; }
+
+        /* État ACTIF (Centre - Focus Visuel) */
+        .vd-item.vd-active {
+            background: #28364d; z-index: 10;
+        }
+        .vd-item.vd-active .vd-item-key .vd-item-tag { 
+            color: white; 
+        }
+        .vd-item.vd-active .vd-line-secondary .vd-line-ext { 
+            color: #cbd5e1; opacity: 1; 
+        }
+        .vd-line-primary {
+            display: flex; align-items: center; width: 100%; pointer-events: none;
+            margin-bottom: 0px;
+        }
+        .vd-item-key { 
+            font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13px; color: #94a3b8; 
+            letter-spacing: -0.5px; margin-right: 8px; transition: color 0.1s;
+        }
+        .vd-item-tag { 
+            font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13px; color: #94a3b8; 
+            letter-spacing: -0.5px; margin-right: 8px; transition: color 0.1s;
+        }
+        .vd-item-zone {
+            font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13px; color: #94a3b8; 
+            letter-spacing: -0.5px; margin-right: 8px; transition: color 0.1s;
+        }
+        .vd-item-value { 
+            font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e2e8f0; margin-right: 8px; 
+        }
+        .vd-status-dot { 
+            width: 6px; height: 6px; border-radius: 50%; background-color: #475569; flex-shrink: 0; 
+        }
+
+        .vd-status-dot.vd-error { 
+            background-color: #ef4444; box-shadow: 0 0 5px #ef4444;
+         }
+
+        .vd-line-secondary {
+            font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e8e80d; margin-right: 8px; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            text-align: left; pointer-events: none;
+            width: 100%;
+            max-width: 300px;
+            opacity: 1;
+        }
+
+        .vd-line-ext {
+            font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e2e8f0; margin-right: 8px; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            text-align: left; pointer-events: none;
+            width: 100%;
+            max-width: 300px;
+            opacity: 1;
+        }
+
+        /* --- DRAG ELEMENTS --- */
+        .vd-drag-ghost {
+            position: fixed; pointer-events: none; z-index: 9999;
+            background: #1e293b; color: white; padding: 6px 12px; border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: bold;
+            border: 1px solid #475569; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            display: none; transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+        
+        .vd-svg-layer { position: absolute; inset: 0; pointer-events: none; z-index: 55; }
+    </style>
+
+    <script src='/script/zoneeditor.js'></script>
+</head>
+<body class="h-screen w-screen relative font-sans text-slate-800">
+
+    <canvas id="mainCanvas"></canvas>
+//
+    <div id="global-app-viewname" class="absolute top-4 right-4 px-4 py-2 text-white text-sm font-bold rounded-lg shadow-lg z-40 pointer-events-none backdrop-blur-sm no-border border-slate-600 flex items-center gap-2">
+        <i class="fa-solid fa-cube text-blue-400"></i> Digimat MBIO Zone Editor
+    </div>
+
+    <!-- BARRE DE RECHERCHE GLOBALE -->
+<div id="global-search-container" class="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 hidden transition-all duration-200">
+    <div class="overlay-panel flex items-center gap-3 px-4 py-2.5 rounded-xl w-96 shadow-lg">
+        <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+        <input 
+            type="text" 
+            id="global-search-input" 
+            class="bg-transparent border-none outline-none text-sm text-slate-700 w-full placeholder-slate-400" 
+            placeholder="Rechercher... (Appuyez sur /)"
+            oninput="app.handleGlobalSearch(this.value)"
+        >
+        <!-- Petit indicateur visuel du raccourci -->
+        <kbd class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-mono font-bold text-slate-500 bg-slate-100 border border-slate-300 rounded shadow-sm">/</kbd>
+        
+        <!-- Bouton pour effacer -->
+        <button onclick="app.clearGlobalSearch()" class="text-slate-400 hover:text-red-500 transition">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
+</div>
+
+    <!-- MODAL SELECTEUR -->
+    <div id="value-selector-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white w-full max-w-6xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in border border-slate-200">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div class="flex items-center gap-4 w-full">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 min-w-max">
+                        <i class="fa-solid fa-tags text-purple-500"></i> Sélectionner une variable MBIO
+                    </h2>
+                    <div class="relative w-full max-w-2xl">
+                        <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="value-search-input" 
+                            class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm transition shadow-sm"
+                            placeholder="Rechercher par clé, description, tag, zone..."
+                            oninput="app.filterValuesList(this.value)">
+                    </div>
+                </div>
+                <button onclick="app.closeValueSelector()" class="ml-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div class="flex-grow overflow-auto bg-white">
+                <table class="w-full text-left border-collapse pro-table">
+                    <thead>
+                        <tr>
+                            <th class="w-1/4">Clé (Key)</th>
+                            <th class="w-1/6 text-right">Valeur Actuelle</th>
+                            <th class="w-1/4">Description</th>
+                            <th class="w-1/6">Tag</th>
+                            <th class="w-1/6">Zone</th>
+                        </tr>
+                    </thead>
+                    <tbody id="values-table-body"></tbody>
+                </table>
+            </div>
+            <div class="p-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-500 flex justify-between items-center">
+                <span id="values-count-info">0 valeurs trouvées</span>
+                <span class="italic">Mise à jour auto 5s</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="absolute top-4 left-4 flex flex-col gap-3 z-10">
+        <div class="overlay-panel p-2 rounded-xl flex flex-col gap-2 w-16">
+            <div class="mode-badge">Modes</div>
+            <button onclick="app.setMode('view')" id="btn-view" class="tool-btn active w-12 h-12 rounded-lg hover:bg-slate-100 flex items-center justify-center" title="Vue (F7)"><i class="fa-solid fa-eye text-lg"></i></button>
+            <button onclick="app.setMode('edit-zones')" id="btn-edit-zones" class="tool-btn w-12 h-12 rounded-lg hover:bg-slate-100 flex items-center justify-center" title="Edition Zones (F6)"><i class="fa-solid fa-pen-ruler text-lg"></i></button>
+            <button onclick="app.setMode('edit-devices')" id="btn-edit-devices" class="tool-btn w-12 h-12 rounded-lg hover:bg-slate-100 flex items-center justify-center" title="Édition Devices"><i class="fa-solid fa-server text-lg"></i></button>
+            <button onclick="app.setMode('background')" id="btn-bg" class="tool-btn w-12 h-12 rounded-lg hover:bg-slate-100 flex items-center justify-center" title="Mode Plan"><i class="fa-regular fa-image text-lg"></i></button>
+        </div>
+
+        <div id="edit-tools" class="overlay-panel p-2 rounded-xl flex flex-col gap-2 w-16 hidden">
+            <div class="mode-badge">Outils</div>
+            <button onclick="app.activateZoneTool()" id="btn-add-zone" class="tool-btn w-12 h-12 rounded-lg hover:bg-slate-100 flex items-center justify-center text-blue-600" title="Ajouter Zone (Z)"><i class="fa-solid fa-vector-square text-xl"></i></button>
+            <button onclick="app.activateValueTool()" id="btn-add-value" class="tool-btn w-12 h-12 rounded-lg hover:bg-slate-100 flex items-center justify-center text-blue-600" title="Ajouter Valeur (V)"><i class="fa-solid fa-gauge text-xl"></i></button>
+            <div class="border-t pt-2 mt-1 flex flex-col gap-2">
+                <button onclick="app.undo()" class="tool-btn p-2 rounded text-slate-600 hover:bg-slate-100" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                <button onclick="app.redo()" class="tool-btn p-2 rounded text-slate-600 hover:bg-slate-100" title="Redo (Ctrl+R)"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>
+        </div>
+        
+        <div class="overlay-panel p-2 rounded-xl flex flex-col gap-2 w-16">
+            <button onclick="app.saveData()" id="btn-save" class="tool-btn w-12 h-10 rounded-lg hover:bg-slate-100 flex items-center justify-center text-blue-600" title="Sauver (Ctrl+S)"><i class="fa-solid fa-cloud-arrow-up"></i></button>
+        </div>
+    </div>
+
+    <!-- PROPRIÉTÉS -->
+    <div id="prop-panel" class="absolute top-16 right-4 w-72 overlay-panel rounded-xl hidden z-30 shadow-2xl">
+        <div id="prop-header" class="p-4 border-b border-slate-100 cursor-move bg-slate-50 rounded-t-xl select-none flex items-center justify-between">
+            <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <i id="prop-icon" class="fa-solid fa-layer-group text-blue-500"></i> <span id="prop-title">Propriétés</span>
+            </h2>
+            <i class="fa-solid fa-grip-lines text-slate-300"></i>
+        </div>
+        
+        <div class="p-5">
+            <!-- BACKGROUND -->
+            <div id="bg-props" class="hidden space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Nom du Plan</label>
+                    <input type="text" id="floor-name" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" oninput="app.updateCurrentFloorName(this.value)">
+                </div>
+
+                <div class="border-t border-slate-100 pt-3">
+                    <input type="file" id="img-upload" accept="image/*" class="hidden" onchange="app.handleImageUpload(this)">
+                    <button onclick="document.getElementById('img-upload').click()" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium py-2 px-4 rounded-lg text-sm border border-blue-200 border-dashed">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Charger l'image
+                    </button>
+                </div>
+
+                <div class="bg-slate-100 p-3 rounded-lg border border-slate-200 space-y-3 mt-3">
+                    <label class="block text-xs font-bold text-slate-500 uppercase">Traitement Image</label>
+                    <div class="flex items-center justify-between"><span class="text-sm text-slate-600">Négatif</span> <input type="checkbox" id="img-invert" class="w-4 h-4" onchange="app.updateFloorImageProcessing()"></div>
+                    <div class="flex items-center justify-between"><span class="text-sm text-slate-600">Transp.</span> <input type="checkbox" id="img-transparent" class="w-4 h-4" onchange="app.updateFloorImageProcessing()"></div>
+                    <div>
+                        <div class="flex justify-between text-sm text-slate-600 mb-2"><span>Rognage (px)</span></div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="number" id="crop-top" min="0" class="p-1 border rounded text-xs" onchange="app.updateFloorImageProcessing()" placeholder="Haut">
+                            <input type="number" id="crop-bottom" min="0" class="p-1 border rounded text-xs" onchange="app.updateFloorImageProcessing()" placeholder="Bas">
+                            <input type="number" id="crop-left" min="0" class="p-1 border rounded text-xs" onchange="app.updateFloorImageProcessing()" placeholder="Gauche">
+                            <input type="number" id="crop-right" min="0" class="p-1 border rounded text-xs" onchange="app.updateFloorImageProcessing()" placeholder="Droite">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Transparence</label>
+                    <div class="flex items-center gap-3"><i class="fa-regular fa-sun text-slate-400"></i><input type="range" id="bg-opacity" min="0" max="1" step="0.05" value="0.5" oninput="app.updateBgOpacity(this.value)" class="flex-grow"></div>
+                </div>
+                <div class="border-t border-slate-100 pt-3"><label class="block text-xs font-bold text-slate-400 uppercase mb-2">Orientation</label><div class="flex gap-2"><button onclick="app.rotateBg(-90)" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2 rounded-lg text-sm">-90°</button><button onclick="app.rotateBg(90)" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2 rounded-lg text-sm">+90°</button></div></div>
+                <div class="border-t border-slate-100 pt-3 flex gap-2">
+                     <button onclick="app.addFloor()" class="flex-1 bg-green-50 hover:bg-green-100 text-green-600 py-2 rounded-lg text-sm font-bold border border-green-200">Nouveau</button>
+                     <button onclick="app.deleteCurrentFloor()" class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 py-2 rounded-lg text-sm font-bold border border-red-200">Supprimer</button>
+                </div>
+            </div>
+
+            <!-- EDIT -->
+            <div id="zone-props" class="hidden space-y-4">
+                <div id="single-zone-inputs" class="hidden">
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Nom de la zone</label>
+                    <div class="flex items-center gap-2"><input type="text" id="zone-name" list="zone-suggestions" class="flex-grow p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" placeholder="Ex: bureau01" onfocus="this.select()" oninput="app.updateSelectedZoneName(this.value)"><button onclick="app.clearZoneNameInput()" class="bg-slate-100 hover:bg-slate-200 text-slate-500 p-2.5 rounded-lg" title="Effacer"><i class="fa-solid fa-xmark"></i></button></div><datalist id="zone-suggestions"></datalist>
+                </div>
+                <div id="single-value-inputs" class="hidden">
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1 text-purple-600">Variable MBIO</label>
+                    <div class="flex items-center gap-2 mb-3">
+                        <input type="text" id="value-key" list="value-key-suggestions" class="flex-grow p-2.5 bg-purple-50 border border-purple-200 rounded-lg text-sm" placeholder="Ex: temp_salon" onfocus="this.select()" oninput="app.updateSelectedValueKey(this.value)">
+                        <button onclick="app.openValueSelector()" class="bg-purple-100 text-purple-600 p-2.5 rounded-lg hover:bg-purple-200"><i class="fa-solid fa-magnifying-glass"></i></button>
+                    </div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Label (Optionnel)</label>
+                    <div class="flex items-center gap-2"><input type="text" id="value-identifier" class="flex-grow p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" placeholder="Ex: Temp. Salon" oninput="app.updateSelectedValueIdentifier(this.value)"></div>
+                    <p class="text-xs text-slate-400 mt-2 italic">Entrez la clé API.</p>
+                    <datalist id="value-key-suggestions"></datalist>
+                </div>
+                <div id="multi-zone-info" class="hidden"><div class="bg-indigo-50 text-indigo-700 p-3 rounded-lg text-xs border border-indigo-100"><i class="fa-solid fa-users-viewfinder mr-1"></i> Sélection multiple.</div></div>
+                <div class="pt-2 border-t border-slate-100 flex justify-end"><button id="btn-delete" onclick="app.deleteSelection()" class="bg-red-50 text-red-600 px-4 py-2.5 rounded-lg hover:bg-red-100 text-sm font-bold w-full justify-center"><i class="fa-regular fa-trash-can"></i> Supprimer (DEL)</button></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- INFO -->
+    <div id="missing-zones-container" class="absolute bottom-20 left-0 w-full flex flex-wrap justify-center gap-2 px-8 py-2 pointer-events-none z-20"></div>
+    <div id="missing-devices-container" class="absolute bottom-20 left-0 w-full flex flex-wrap justify-center gap-2 px-8 py-2 pointer-events-none z-20"></div>
+    <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 overlay-panel px-4 py-2 rounded-full text-sm font-medium text-slate-600 shadow-lg pointer-events-auto flex items-center gap-3 z-20 whitespace-nowrap overflow-hidden max-w-[90vw]">
+        <div class="flex items-center gap-2 shrink-0"><div id="status-dot" class="w-2 h-2 rounded-full bg-slate-400"></div><span id="status-text">Init...</span></div>
+        <div class="h-5 w-px bg-slate-300 mx-1 shrink-0"></div>
+        <div class="flex items-center gap-2 shrink-0"><i class="fa-solid fa-layer-group text-slate-400"></i><select id="floor-selector" onchange="app.switchFloor(this.value)" class="floor-select outline-none focus:ring-2 focus:ring-blue-500"></select></div>
+        <div class="h-5 w-px bg-slate-300 mx-1 shrink-0"></div>
+        <div class="flex gap-2 text-xs text-slate-500 font-mono shrink-0"><span>F6: Edit</span> <span>F7: View</span> <span>PgUp/Dn: Plans</span></div>
+    </div>
+
+</body>
+</html>
