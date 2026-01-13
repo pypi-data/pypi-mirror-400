@@ -1,0 +1,470 @@
+Metadata-Version: 2.4
+Name: elemental-rhodium
+Version: 0.9.0
+Summary: Circular arithmetic for geographic coordinates — bearings, longitudes, and bounding boxes
+Project-URL: Homepage, https://github.com/marszdf/rhodium
+Project-URL: Documentation, https://github.com/marszdf/rhodium
+Project-URL: Repository, https://github.com/marszdf/rhodium
+Project-URL: Bug Tracker, https://github.com/marszdf/rhodium/issues
+Project-URL: Issues, https://github.com/marszdf/rhodium/issues
+Author-email: Marco Zaccaria Di Fraia <marco.z.difraia@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: antimeridian,arithmetic,aviation,bbox,bearing,circular,coordinates,geo,geospatial,gis,latitude,longitude,maritime,navigation
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Provides-Extra: test
+Requires-Dist: hypothesis>=6.0; extra == 'test'
+Requires-Dist: pytest-cov>=4.0; extra == 'test'
+Requires-Dist: pytest>=7.0; extra == 'test'
+Description-Content-Type: text/markdown
+
+# Rhodium
+
+Circular arithmetic for geographic coordinates — bearings, longitudes, latitudes, and bounding boxes.
+
+[![PyPI version](https://badge.fury.io/py/elemental-rhodium.svg)](https://badge.fury.io/py/elemental-rhodium)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/marszdf/rhodium/blob/main/rhodium_demo.ipynb)
+
+## The Problem
+
+Geographic math breaks at the seams. Bearings wrap at 360°. Longitudes wrap at ±180°. Naive arithmetic fails:
+
+```python
+# Bug: bearing difference
+naive_diff = 10 - 350  # Returns -340°, should be +20°
+
+# Bug: bounding box from Tokyo to San Francisco
+west, east = 139.7, -122.4
+naive_width = east - west  # Returns -262°, should be ~98° crossing the antimeridian
+```
+
+Rhodium handles the wraparound correctly:
+
+```python
+from rhodium import bearing, lng, bbox
+
+bearing.diff(350, 10)  # → 20.0 (clockwise)
+lng.diff(139.7, -122.4)  # → 97.9 (eastward across Pacific)
+
+box = bbox.create(
+    Point(lng=139.7, lat=35.7),   # Tokyo
+    Point(lng=-122.4, lat=37.8),  # San Francisco
+)
+bbox.width(box)  # → 97.9 degrees
+bbox.crosses_antimeridian(box)  # → True
+```
+
+## Installation
+
+```bash
+pip install elemental-rhodium
+```
+
+**Zero dependencies** — uses only the Python standard library.
+
+## When to Use Rhodium
+
+**Use rhodium when:**
+- You need correct bearing arithmetic (compass headings, turn angles)
+- You're working with coordinates near the antimeridian (±180° longitude)
+- You need bounding boxes that cross the date line (Fiji, Alaska, Russia)
+- You want simple coordinate math without pulling in heavy geo libraries
+- You're building map UI, tiling systems, or geofencing logic
+
+**Don't use rhodium when:**
+- You need geodesic (Great Circle) distances in meters — use `pyproj` or `geographiclib`
+- You need complex geometric operations — use `shapely`
+- You need map projections — use `pyproj`
+- You need routing or pathfinding — use specialized routing libraries
+
+## API Reference
+
+### `rhodium.bearing`
+
+Circular arithmetic for compass bearings (0° to 360°).
+
+| Function | Description |
+|----------|-------------|
+| `normalize(degrees)` | Normalize to [0, 360) |
+| `diff(from_, to)` | Signed shortest arc [-180, +180] |
+| `mean(angles)` | Circular mean, or None if undefined |
+| `interpolate(a, b, t)` | Shortest arc linear interpolation |
+| `within(angle, target, tolerance)` | True if within ±tolerance |
+| `opposite(bearing)` | Opposite bearing (+180°) |
+| `reciprocal(bearing)` | Alias for opposite |
+| `normalize_many(list)` | Batch normalize |
+| `diff_many(pairs)` | Batch diff |
+
+```python
+from rhodium import bearing
+
+bearing.normalize(710)        # → 350.0
+bearing.normalize(-10)        # → 350.0
+
+bearing.diff(350, 10)         # → 20.0 (clockwise)
+bearing.diff(10, 350)         # → -20.0 (counterclockwise)
+
+bearing.mean([350, 10])       # → 0.0 (north)
+bearing.mean([0, 180])        # → None (undefined)
+
+bearing.interpolate(350, 20, 0.5)  # → 5.0
+bearing.within(355, 0, 10)         # → True
+
+bearing.opposite(45)          # → 225.0
+bearing.opposite(270)         # → 90.0
+
+# Batch operations
+bearing.normalize_many([710, -10, 360])  # → [350.0, 350.0, 0.0]
+```
+
+### `rhodium.lng`
+
+Circular arithmetic for longitudes (-180° to +180°).
+
+| Function | Description |
+|----------|-------------|
+| `normalize(degrees)` | Normalize to (-180, +180] |
+| `diff(from_, to)` | Signed shortest arc (+ = east) |
+| `mean(longitudes)` | Circular mean, or None if undefined |
+| `interpolate(a, b, t)` | Shortest path interpolation |
+
+```python
+from rhodium import lng
+
+lng.normalize(190)            # → -170.0
+lng.normalize(-180)           # → 180.0
+
+lng.diff(170, -170)           # → 20.0 (eastward)
+lng.diff(-170, 170)           # → -20.0 (westward)
+
+lng.mean([170, -170])         # → 180.0
+lng.interpolate(170, -170, 0.5)  # → 180.0
+```
+
+### `rhodium.lat`
+
+Latitude operations (-90° to +90°). Unlike longitude, latitude clamps instead of wrapping.
+
+| Function | Description |
+|----------|-------------|
+| `clamp(degrees)` | Clamp to [-90, 90] |
+| `is_valid(degrees)` | True if finite and within range |
+| `validate(degrees)` | Raise InvalidLatitudeError if invalid |
+| `midpoint(a, b)` | Simple arithmetic midpoint |
+| `within(lat, target, tolerance)` | True if within ±tolerance |
+| `hemisphere(degrees)` | Return 'N' or 'S' |
+| `clamp_many(list)` | Batch clamp |
+
+```python
+from rhodium import lat
+
+lat.clamp(95)                 # → 90.0
+lat.clamp(-100)               # → -90.0
+lat.is_valid(45)              # → True
+lat.is_valid(91)              # → False
+lat.hemisphere(45)            # → 'N'
+lat.hemisphere(-45)           # → 'S'
+```
+
+### `rhodium.bbox`
+
+Bounding box operations with antimeridian support.
+
+#### Types
+
+```python
+from rhodium.bbox import Point, BBox
+
+point = Point(lng=-122.4, lat=37.8)
+box = BBox(west=170, east=-170, south=-10, north=10)
+
+# Both Point and BBox support __geo_interface__ for ecosystem compatibility
+point.__geo_interface__  # → {"type": "Point", "coordinates": [-122.4, 37.8]}
+box.__geo_interface__    # → {"type": "Polygon", "coordinates": [...]}
+```
+
+#### Pythonic Property Access
+
+`BBox` provides convenient property access alongside module functions:
+
+```python
+box = BBox(west=0, east=100, south=-50, north=50)
+
+# Property style (Pythonic)
+box.width                 # → 100.0
+box.height                # → 100.0
+box.center_point          # → Point(lng=50.0, lat=0.0)
+box.crosses_antimeridian  # → False
+
+# Functional style (also available)
+from rhodium import bbox
+bbox.width(box)           # → 100.0
+```
+
+#### Functions
+
+| Function | Description |
+|----------|-------------|
+| `create(sw, ne)` | Create bbox from corners |
+| `from_points(points)` | Smallest bbox containing all points |
+| `width(box)` | Width in degrees (antimeridian-aware) |
+| `height(box)` | Height in degrees |
+| `contains(box, point)` | Point containment test |
+| `intersects(a, b)` | Intersection test |
+| `intersection(a, b)` | Compute intersection, or None |
+| `union(a, b)` | Smallest box containing both |
+| `expand(box, point)` | Expand box to include point |
+| `crosses_antimeridian(box)` | True if box crosses ±180° |
+| `center(box)` | Center point of box |
+
+```python
+from rhodium import bbox
+from rhodium.bbox import Point
+
+# Pacific Ocean bounding box
+pacific = bbox.create(
+    Point(lng=140, lat=-50),
+    Point(lng=-100, lat=60),
+)
+
+bbox.width(pacific)                # → 120.0
+bbox.crosses_antimeridian(pacific) # → True
+bbox.contains(pacific, Point(lng=180, lat=0))   # → True
+bbox.contains(pacific, Point(lng=0, lat=0))     # → False
+
+# Find bbox from points
+points = [
+    Point(lng=170, lat=10),
+    Point(lng=-170, lat=20),
+]
+box = bbox.from_points(points)
+bbox.width(box)  # → 20.0 (not 340°)
+
+# Expand box to include new point
+expanded = bbox.expand(box, Point(lng=-160, lat=15))
+```
+
+### Exceptions
+
+Rhodium provides a hierarchy of exceptions for precise error handling:
+
+```python
+from rhodium import (
+    RhodiumError,           # Base class for all rhodium errors
+    InvalidCoordinateError, # Base for coordinate errors
+    InvalidLatitudeError,   # Latitude out of range or invalid
+    InvalidLongitudeError,  # NaN or infinite longitude
+    InvalidBearingError,    # NaN or infinite bearing
+    InvalidBBoxError,       # Invalid bounding box
+    EmptyInputError,        # Empty input where not allowed
+)
+
+# Catch specific errors
+try:
+    lat.validate(91)
+except InvalidLatitudeError as e:
+    print(f"Bad latitude: {e.value}")  # → Bad latitude: 91
+
+# Or catch all rhodium errors
+try:
+    bbox.from_points([])
+except RhodiumError:
+    print("Something went wrong")
+```
+
+## Cookbook
+
+### Filter points in an antimeridian-crossing bbox
+
+```python
+from rhodium import bbox
+from rhodium.bbox import Point, BBox
+
+# Fiji region (crosses antimeridian)
+fiji_box = BBox(west=177, east=-178, south=-21, north=-12)
+
+all_points = [
+    Point(lng=178, lat=-18),   # Suva
+    Point(lng=-179, lat=-16),  # Eastern Fiji
+    Point(lng=0, lat=0),       # Not in Fiji
+]
+
+fiji_points = [p for p in all_points if bbox.contains(fiji_box, p)]
+# → [Point(lng=178, lat=-18), Point(lng=-179, lat=-16)]
+```
+
+### Calculate mean heading from GPS track
+
+```python
+from rhodium import bearing
+
+# Headings recorded every second
+headings = [355, 358, 2, 5, 8, 3, 359]
+
+avg_heading = bearing.mean(headings)
+# → ~2.4° (correctly averages around north)
+
+# Compare to naive average:
+naive_avg = sum(headings) / len(headings)
+# → 147° (completely wrong!)
+```
+
+### Check if two ship routes might intersect
+
+```python
+from rhodium import bbox
+from rhodium.bbox import Point
+
+# Route A: Tokyo to San Francisco
+route_a = bbox.from_points([
+    Point(lng=139.7, lat=35.7),
+    Point(lng=-122.4, lat=37.8),
+])
+
+# Route B: Sydney to Vancouver
+route_b = bbox.from_points([
+    Point(lng=151.2, lat=-33.9),
+    Point(lng=-123.1, lat=49.3),
+])
+
+if bbox.intersects(route_a, route_b):
+    print("Routes may intersect - check more carefully")
+```
+
+### Normalize user-entered coordinates
+
+```python
+from rhodium import lng, lat
+
+def normalize_coordinate(user_lng: float, user_lat: float) -> tuple[float, float]:
+    """Normalize and validate user input."""
+    # Longitude wraps (user might enter 190 meaning -170)
+    normalized_lng = lng.normalize(user_lng)
+
+    # Latitude clamps (user might enter 95 meaning 90)
+    normalized_lat = lat.clamp(user_lat)
+
+    return normalized_lng, normalized_lat
+
+normalize_coordinate(190, 95)  # → (-170.0, 90.0)
+```
+
+### Find the back-bearing for navigation
+
+```python
+from rhodium import bearing
+
+# You're heading 45° (northeast)
+current_heading = 45
+
+# What bearing to look behind you?
+back_bearing = bearing.opposite(current_heading)
+# → 225° (southwest)
+
+# Verify it's 180° different
+bearing.diff(current_heading, back_bearing)
+# → 180.0 (or -180.0)
+```
+
+## Why rhodium?
+
+Bearings wrap at 360°. Longitudes wrap at ±180°. These are the same problem, but everyone solves them separately, partially, or with heavy dependencies.
+
+```python
+# The bug everyone ships
+>>> (10 - 350)  # "How far do I turn from 350° to 10°?"
+-340  # Wrong. Should be +20°.
+
+>>> bbox = {"west": 170, "east": -170}
+>>> bbox["east"] - bbox["west"]  # "How wide is this box?"
+-340  # Wrong. Should be 20°.
+```
+
+### What rhodium does differently
+
+- **Zero dependencies** — stdlib only
+- **Pure functions** — no state, easy to test
+- **Unified model** — bearings and longitudes are both circular; one abstraction handles both
+- **Bbox that works** — `contains()`, `intersects()`, `width()` all handle antimeridian correctly
+- **Small** — you can read the whole thing
+
+### Math Model
+
+Rhodium uses **spherical circular arithmetic** (topology), not ellipsoidal geodesy (shape).
+
+- **Bearings & Longitudes:** Treated as angles on a circle. Arithmetic handles the modular wrap-around (360° for bearings, ±180° for longitudes).
+- **Interpolation:** Uses linear interpolation in the coordinate space (Equirectangular approximation). This follows the shortest path on the *circle of longitude* or *compass rose*, but it is **not** a Great Circle path on a sphere.
+- **Distance:** Rhodium does not calculate surface distances (meters). It calculates angular differences (degrees).
+
+For high-precision Great Circle calculations (e.g., flight paths, missile trajectories), use `pyproj` or `geographiclib`. Use Rhodium for logic, UI, and map tiling where coordinate wrapping is the primary complexity.
+
+rhodium sits underneath your geo stack — handling the wrap-around math before you pass data to heavier libraries.
+
+### Use cases
+
+- Bearing arithmetic: turn angles, circular mean, interpolation
+- Longitude arithmetic: normalize, diff, interpolate across ±180°
+- Latitude handling: clamping, validation, hemisphere detection
+- Bounding boxes that work for Fiji, Alaska, or Russia
+
+## Performance
+
+Rhodium is designed for low-latency coordinate operations (benchmarked on Python 3.12, M1 Mac):
+
+- **`bearing.normalize()`**: 0.22µs (~4.5M ops/sec)
+- **`bearing.diff()`**: 0.28µs (~3.6M ops/sec)
+- **`lng.normalize()`**: 0.27µs (~3.7M ops/sec)
+- **`bbox.contains()`**: 5µs (~200k ops/sec)
+- **`lat.clamp()`**: 0.13µs (~7.5M ops/sec)
+
+Batch operations (`normalize_many()`, `diff_many()`) provide ~100x overhead reduction for processing lists of 100+ values.
+
+**Not optimized for:** Bulk processing of 1M+ coordinates. For large-scale vectorized operations, consider numpy-based alternatives. See [benchmarks/](https://github.com/marszdf/rhodium/tree/main/benchmarks) for detailed results.
+
+## Numerical Precision
+
+Rhodium uses standard Python `float` (IEEE 754 double precision):
+
+- **Precision:** ~15-17 significant decimal digits
+- **Angular precision:** ~1e-10 degrees (~0.01mm on Earth's surface)
+- **Accumulation:** Multiple operations may accumulate floating-point error
+
+**Edge cases:**
+- `NaN` and `Infinity` inputs raise `InvalidCoordinateError`
+- Very small differences near wrap boundaries (e.g., 179.9999° vs -180°) are handled correctly
+- Antipodal points (exactly opposite on sphere) may produce undefined circular means (`None`)
+
+**Not suitable for:** High-precision geodesy requiring millimeter accuracy. Use `pyproj` or `geographiclib` for that.
+
+## What Rhodium Does NOT Do
+
+To set clear expectations:
+
+- ❌ **Geodesic distances** (Great Circle, meters/km) — use `pyproj` or `geographiclib`
+- ❌ **Map projections** — use `pyproj`
+- ❌ **Geometric operations** (polygon intersection, buffering) — use `shapely`
+- ❌ **Routing** — use specialized routing libraries
+- ❌ **Point-in-polygon** (except bounding boxes)
+- ❌ **Coordinate transformations** (WGS84 ↔ UTM, etc.) — use `pyproj`
+
+Rhodium handles **circular arithmetic** for coordinates. For geometry, use Shapely. For distances, use pyproj.
+
+## License
+
+MIT
