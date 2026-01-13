@@ -1,0 +1,221 @@
+Metadata-Version: 2.4
+Name: fastrobots
+Version: 0.3.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Text Processing :: Markup :: HTML
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: click>=8.1.0
+License-File: LICENSE
+Summary: Blazingly fast robots.txt parser written in Rust - 6x faster than reppy
+Keywords: robots.txt,robots,crawler,scraper,web-crawler,seo,parser,rust,fast,reppy
+Author-email: Sekinal <business@irvingernesto.com>
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://github.com/sekinal/fastrobots
+Project-URL: Repository, https://github.com/sekinal/fastrobots
+Project-URL: Issues, https://github.com/sekinal/fastrobots/issues
+
+# fastrobots
+
+A blazingly fast robots.txt parser written in Rust with Python bindings. A modern replacement for `reppy` with extended features.
+
+## Features
+
+- **Blazingly Fast**: Written in Rust, 1M+ parses/sec, 8M+ URL checks/sec
+- **Modern API**: Python 3.10+ with full type hints
+- **Async Support**: Native async/await for HTTP fetching
+- **Caching**: LRU caching with TTL support
+- **CLI**: Command-line tool for quick checks
+- **RFC Compliant**: Supports Allow, Disallow, Crawl-delay, Sitemap, wildcards
+
+## Installation
+
+```bash
+pip install fastrobots
+```
+
+Or with uv:
+
+```bash
+uv add fastrobots
+```
+
+## Quick Start
+
+```python
+from fastrobots import Robots
+
+# Parse robots.txt content
+robots = Robots.parse("""
+User-agent: *
+Disallow: /private/
+Allow: /public/
+Crawl-delay: 1
+
+Sitemap: https://example.com/sitemap.xml
+""")
+
+# Check if a path is allowed
+robots.allowed("/public/page", "MyBot")  # True
+robots.allowed("/private/secret", "MyBot")  # False
+
+# Get crawl delay
+robots.crawl_delay("MyBot")  # 1.0
+
+# Get sitemaps
+robots.sitemaps  # ["https://example.com/sitemap.xml"]
+```
+
+## Fetching from URLs
+
+```python
+from fastrobots import fetch, fetch_async
+
+# Sync fetching
+robots = fetch("https://example.com")
+robots.allowed("/path", "MyBot")
+
+# Async fetching
+robots = await fetch_async("https://example.com")
+```
+
+## Caching
+
+```python
+from fastrobots import RobotsCache, AgentCache
+
+# Cache multiple domains
+cache = RobotsCache(capacity=100, default_ttl=3600)
+allowed = cache.allowed("https://example.com/path", "MyBot")
+
+# Or async
+allowed = await cache.allowed_async("https://example.com/path", "MyBot")
+
+# Single-agent cache (more memory efficient)
+cache = AgentCache(agent="MyBot", capacity=100)
+allowed = cache.allowed("https://example.com/path")
+```
+
+## Agent API
+
+```python
+from fastrobots import Robots
+
+robots = Robots.parse(content)
+agent = robots.agent("Googlebot")
+
+agent.allowed("/path")  # True/False
+agent.delay  # Crawl delay in seconds or None
+agent.name  # "Googlebot"
+```
+
+## CLI Usage
+
+```bash
+# Check if a URL is allowed
+fastrobots check https://example.com/path --agent MyBot
+
+# Parse and display robots.txt
+fastrobots parse https://example.com
+
+# Output as JSON
+fastrobots parse https://example.com --json
+
+# Benchmark performance
+fastrobots benchmark
+fastrobots benchmark /path/to/robots.txt
+```
+
+## Wildcard Support
+
+Supports `*` and `$` wildcards as per Google's robots.txt specification:
+
+```python
+robots = Robots.parse("""
+User-agent: *
+Disallow: /*.pdf$
+Disallow: /search?*q=
+""")
+
+robots.allowed("/doc.pdf", "*")  # False
+robots.allowed("/doc.pdf.bak", "*")  # True ($ means end)
+robots.allowed("/search?q=test", "*")  # False
+```
+
+## Performance
+
+fastrobots is designed for high-performance web crawling. Benchmarked against reppy in Docker (Ubuntu 20.04):
+
+| Library | Parse Speed | Check Speed |
+|---------|-------------|-------------|
+| **fastrobots v0.3.0** | **1,022,875 /sec** | **8,025,846 /sec** |
+| reppy | 159,968 /sec | 2,609,011 /sec |
+| **Speedup** | **6.4x faster** | **3.1x faster** |
+
+### Why fastrobots is faster
+
+- **Arena allocation**: All path data stored in a single contiguous memory block
+- **Packed structs**: 8-byte rule structs (8 rules per CPU cache line)
+- **Zero-allocation hot path**: No heap allocations during URL checking
+- **Lock-free design**: Immutable after parsing, no synchronization overhead
+- **Custom SIMD matcher**: Uses `memchr` for fast wildcard matching, no regex engine
+
+### Additional advantages over reppy
+
+- **Actually installs**: reppy fails to compile on modern systems (g++ incompatibility)
+- **Pure Rust**: No C++ dependencies, just `cargo build`
+- **Thread-safe**: Safe to share across threads without locks
+
+## API Reference
+
+### `Robots`
+
+- `Robots.parse(content: str) -> Robots` - Parse robots.txt content
+- `robots.allowed(path: str, user_agent: str) -> bool` - Check if path is allowed
+- `robots.crawl_delay(user_agent: str) -> float | None` - Get crawl delay
+- `robots.agent(user_agent: str) -> Agent` - Get Agent object
+- `robots.sitemaps: list[str]` - List of sitemap URLs
+- `robots.user_agents: list[str]` - List of user-agents
+
+### `Agent`
+
+- `agent.allowed(path: str) -> bool` - Check if path is allowed
+- `agent.delay: float | None` - Crawl delay
+- `agent.name: str` - User-agent name
+
+### `RobotsCache`
+
+- `RobotsCache(capacity=100, default_ttl=3600)` - Create cache
+- `cache.allowed(url, user_agent) -> bool` - Check with caching
+- `cache.allowed_async(url, user_agent) -> bool` - Async check
+- `cache.clear()` - Clear cache
+
+### `fetch` / `fetch_async`
+
+- `fetch(url, user_agent=..., timeout=10.0) -> Robots` - Fetch robots.txt
+- `fetch_async(url, ...) -> Robots` - Async fetch
+
+### Utility Functions
+
+- `robots_url(url: str) -> str` - Get robots.txt URL for any URL
+- `url_path(url: str) -> str` - Extract path from URL
+
+## License
+
+MIT License
+
