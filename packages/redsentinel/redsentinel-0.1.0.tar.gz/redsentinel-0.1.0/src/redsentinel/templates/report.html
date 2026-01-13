@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RedSentinel Security Assessment Report</title>
+
+<style>
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 40px;
+    color: #222;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.header img {
+    height: 80px;
+}
+
+h1 {
+    color: #8b0000;
+    font-size: 38px;
+    margin: 0;
+}
+
+h2 {
+    color: #8b0000;
+    border-bottom: 2px solid #ddd;
+    padding-bottom: 6px;
+    margin-top: 50px;
+}
+
+h3 {
+    margin-top: 30px;
+}
+
+p {
+    line-height: 1.6;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    vertical-align: top;
+}
+
+th {
+    background-color: #f4f4f4;
+}
+
+.sev-Critical { color: darkred; font-weight: bold; }
+.sev-High { color: red; font-weight: bold; }
+.sev-Medium { color: orange; }
+.sev-Low { color: green; }
+
+.cvss-bar {
+    background: #eee;
+    width: 100%;
+    height: 14px;
+    border-radius: 4px;
+}
+
+.cvss-fill {
+    height: 14px;
+    border-radius: 4px;
+}
+
+.cvss-Critical { background: darkred; }
+.cvss-High { background: red; }
+.cvss-Medium { background: orange; }
+.cvss-Low { background: green; }
+
+.summary-box {
+    border: 1px solid #ccc;
+    padding: 15px;
+    margin-top: 20px;
+    background: #fafafa;
+}
+
+.page-break {
+    page-break-before: always;
+}
+
+.watermark {
+    position: fixed;
+    top: 40%;
+    left: 15%;
+    font-size: 90px;
+    color: rgba(180, 180, 180, 0.12);
+    transform: rotate(-30deg);
+    z-index: -1;
+}
+
+footer {
+    margin-top: 60px;
+    font-size: 11px;
+    color: #777;
+    text-align: center;
+}
+
+/* ============================================================
+   PDF SAFETY & PRINT OPTIMIZATION (WeasyPrint)
+   ============================================================ */
+
+/* Page setup */
+@page {
+    size: A4;
+    margin: 14mm;
+}
+
+/* Force tables to respect page width */
+table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+/* Force wrapping everywhere */
+th, td {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+    font-size: 11px;
+}
+
+/* Prevent ugly page splits */
+tr {
+    page-break-inside: avoid;
+}
+
+/* Long raw output handling */
+pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+/* Reduce heading size for PDF */
+@media print {
+    body {
+        font-size: 11px;
+    }
+
+    h1 { font-size: 26px; }
+    h2 { font-size: 20px; }
+    h3 { font-size: 16px; }
+
+    .header img {
+        height: 60px;
+    }
+}
+
+/* ================= COVER PAGE ================= */
+
+.cover {
+    margin-top: 120px;
+    text-align: center;
+}
+
+.cover-title {
+    font-size: 56px;
+    font-weight: bold;
+    color: #8b0000;
+    margin-bottom: 20px;
+}
+
+.cover-subtitle {
+    font-size: 24px;
+    color: #444;
+    margin-bottom: 40px;
+}
+
+.cover-meta {
+    font-size: 18px;
+    margin-top: 20px;
+}
+
+/* ================= PAGE FOOTER & NUMBERS ================= */
+
+@page {
+    size: A4;
+    margin: 25mm 20mm 25mm 20mm;
+
+    @bottom-left {
+        content: "CONFIDENTIAL – For Authorized Use Only";
+        font-size: 9px;
+        color: #777;
+    }
+
+    @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 9px;
+        color: #777;
+    }
+}
+
+.footer {
+    position: fixed;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+    color: #777;
+}
+
+
+</style>
+</head>
+
+<body>
+
+<div class="watermark">RedSentinel</div>
+
+<!-- ================= COVER ================= -->
+<div class="cover">
+    <img src="../assets/redsentinel-logo.png" height="120" alt="RedSentinel Logo">
+
+    <div class="cover-title">
+        Security Assessment Report
+    </div>
+
+    <div class="cover-subtitle">
+        AI-Assisted External Security Review
+    </div>
+
+    <div class="cover-meta">
+        <strong>Target:</strong> {{ target }}<br>
+        <strong>Generated:</strong> {{ generated_on }}
+    </div>
+</div>
+<p style="margin-top: 40px; font-size: 14px; color: #555;">
+This document contains sensitive security information and is intended
+solely for the authorized recipient. Unauthorized disclosure is prohibited.
+</p>
+
+
+<div class="page-break"></div>
+
+
+<!-- ================= EXECUTIVE SUMMARY ================= -->
+<h2>Executive Summary</h2>
+
+<p>
+A security assessment was conducted to evaluate the external
+exposure and security posture of the target system.
+</p>
+
+<p>
+<strong>Executive Risk Rating:</strong>
+{{ executive_risk_score }} / 10
+</p>
+
+<div class="summary-box">
+<strong>Finding Summary:</strong><br><br>
+Critical: {{ normalized_findings.Critical | length if normalized_findings.Critical else 0 }}<br>
+High: {{ normalized_findings.High | length if normalized_findings.High else 0 }}<br>
+Medium: {{ normalized_findings.Medium | length if normalized_findings.Medium else 0 }}<br>
+Low: {{ normalized_findings.Low | length if normalized_findings.Low else 0 }}
+</div>
+
+<div class="page-break"></div>
+
+<!-- ================= RISK HEATMAP ================= -->
+<h2>Risk Overview</h2>
+
+{% if heatmap_path %}
+<img src="{{ heatmap_path }}" width="600">
+{% endif %}
+
+<div class="page-break"></div>
+
+<!-- ================= NORMALIZED FINDINGS ================= -->
+<h2>Technical Findings</h2>
+
+{% for severity, findings in normalized_findings.items() %}
+<h3>{{ severity }} Severity Findings</h3>
+
+<table>
+<tr>
+    <th width="18%">Finding</th>
+    <th width="8%">Confidence</th>
+    <th width="12%">CVSS</th>
+    <th width="25%">Evidence</th>
+    <th width="22%">Recommendation</th>
+    <th width="15%">Compliance</th>
+</tr>
+
+
+{% for f in findings %}
+<tr>
+<td class="sev-{{ severity }}">{{ f.title }}</td>
+<td>{{ f.confidence }}</td>
+<td>
+{{ f.cvss }}
+<div class="cvss-bar">
+    <div class="cvss-fill cvss-{{ severity }}"
+         style="width: {{ (f.cvss / 10) * 100 }}%">
+    </div>
+</div>
+</td>
+<td>{{ f.evidence }}</td>
+<td>{{ f.recommendation }}</td>
+<td>
+{% if f.compliance %}
+OWASP: {{ f.compliance.OWASP }}<br>
+ISO 27001: {{ f.compliance.ISO27001 }}<br>
+PCI DSS: {{ f.compliance["PCI-DSS"] }}
+{% else %}
+Not mapped
+{% endif %}
+</td>
+</tr>
+{% endfor %}
+</table>
+{% endfor %}
+
+<div class="page-break"></div>
+
+<!-- ================= AI REMEDIATION ================= -->
+<h2>AI-Generated Remediation Roadmap</h2>
+
+<pre>
+{{ remediation_roadmap }}
+</pre>
+
+<div class="page-break"></div>
+
+<!-- ================= TOOL OUTPUT APPENDIX ================= -->
+<h2>Tool Output Appendix</h2>
+
+<p>
+This section contains raw findings captured directly from
+security tools during the assessment.
+</p>
+
+{% for tool, items in tool_findings.items() %}
+<h3>{{ tool | upper }}</h3>
+
+<table>
+<tr>
+    <th width="12%">Severity</th>
+    <th width="10%">CVSS</th>
+    <th width="10%">Confidence</th>
+    <th width="68%">Raw Output</th>
+</tr>
+
+{% for item in items %}
+<tr>
+<td class="sev-{{ item.severity }}">{{ item.severity }}</td>
+<td>{{ item.cvss }}</td>
+<td>{{ item.confidence }}</td>
+<td><pre>{{ item.data }}</pre></td>
+</tr>
+{% endfor %}
+</table>
+{% endfor %}
+
+<div class="page-break"></div>
+
+<!-- ================= SIGN OFF ================= -->
+<h2>Consultant Sign-Off</h2>
+
+<p>
+This assessment was performed for defensive purposes only.
+No exploitation or intrusive testing was conducted.
+</p>
+
+<footer>
+<div class="footer">
+    CONFIDENTIAL – For Authorized Use Only
+</div>
+</footer>
+
+
+</body>
+</html>
+
