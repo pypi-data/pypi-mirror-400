@@ -1,0 +1,62 @@
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "publish" to confirm'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event.inputs.confirm == 'publish'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Build package
+      run: uv build
+
+    - name: Check if version already exists on PyPI
+      run: |
+        uv pip install --system tomli
+        python << 'EOF'
+        import tomli
+        import urllib.request
+        import urllib.error
+        import sys
+
+        with open("pyproject.toml", "rb") as f:
+            data = tomli.load(f)
+
+        name = data["project"]["name"]
+        version = data["project"]["version"]
+
+        print(f"Checking PyPI for {name} version {version}...")
+
+        url = f"https://pypi.org/pypi/{name}/{version}/json"
+        try:
+            urllib.request.urlopen(url)
+            print(f"::error::Version {version} of {name} already exists on PyPI!")
+            sys.exit(1)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                print(f"Version {version} not found on PyPI. Proceeding with publish.")
+            else:
+                print(f"::warning::PyPI API returned unexpected status {e.code}. Proceeding anyway.")
+        EOF
+
+    - name: Publish to PyPI
+      env:
+        UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      run: uv publish
