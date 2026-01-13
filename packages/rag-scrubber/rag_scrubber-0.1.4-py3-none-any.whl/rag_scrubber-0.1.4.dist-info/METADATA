@@ -1,0 +1,97 @@
+Metadata-Version: 2.4
+Name: rag-scrubber
+Version: 0.1.4
+Summary: Auto-removes headers, footers, and noise from PDF text for RAG apps.
+Author: MUGESH KUMAR M
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Dynamic: author
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: requires-python
+Dynamic: summary
+
+# rag-scrubber
+
+**Clean your "dirty" PDF text before feeding it to LLMs.**
+
+`rag-scrubber` is a lightweight Python library designed for **RAG (Retrieval-Augmented Generation)** pipelines. It automatically detects and removes recurring headers, footers, and page numbers from extracted text, and fixes broken hyphenation.
+
+## 😟 The Problem
+
+When extracting text from PDFs (especially corporate reports or scanned docs), you often get artifacts that confuse LLMs:
+
+> *"The Q3 revenue was **CONFIDENTIAL REPORT 2024** higher than expected..."*
+
+These interruptions waste tokens and degrade model performance. `rag-scrubber` cleans this mess up.
+
+## ✨ Features
+
+* **Auto-Header/Footer Removal:** Uses positional statistics to detect lines that repeat across pages (e.g., "Page 1 of 50", "Confidential").
+* **Smart De-Hyphenation:** Fixes words split across lines (e.g., `com-` + `puter`  `computer`) without merging proper nouns.
+* **Zero-Shot Configuration:** Works out of the box with sensible defaults, or tune the sensitivity yourself.
+* **Lightweight:** No heavy ML dependencies. pure Python logic.
+
+## 📦 Installation
+
+```bash
+pip install rag-scrubber
+
+```
+
+## 🚀 Quick Start
+
+```python
+from rag_scrubber import RAGScrubber
+
+# 1. Simulate dirty text (usually coming from PyPDF2 or PDFMiner)
+pages = [
+    "Q3 FINANCIAL REPORT - CONFIDENTIAL\nThe revenue increased by 20%.\nPage 1",
+    "Q3 FINANCIAL REPORT - CONFIDENTIAL\nOperating costs were lowered.\nPage 2",
+    "Q3 FINANCIAL REPORT - CONFIDENTIAL\nNew user acquisition is sta-\nble.\nPage 3"
+]
+
+# 2. Initialize the scrubber
+# threshold=0.4 means if a line appears in >40% of pages, it's garbage.
+scrubber = RAGScrubber(threshold=0.4)
+
+# 3. Clean the text
+clean_text = scrubber.clean(pages)
+
+print(clean_text)
+
+```
+
+**Output:**
+
+```text
+The revenue increased by 20%.
+
+Operating costs were lowered.
+
+New user acquisition is stable.
+
+```
+
+## ⚙️ Advanced Usage
+
+You can adjust the sensitivity if it is deleting too much (or too little).
+
+```python
+# Low threshold (0.1) = Very aggressive (removes anything that repeats even slightly)
+# High threshold (0.9) = Very safe (only removes exact matches on almost every page)
+scrubber = RAGScrubber(threshold=0.2) 
+
+```
+
+## 🤝 Contributing
+
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/new-logic`).
+3. Commit your changes.
+4. Push to the branch.
+5. Open a Pull Request.
+
+## 📄 License
+
+MIT License. Free to use for commercial and personal projects.
