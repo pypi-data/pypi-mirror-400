@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""
+Test xarray, pandas, pint, seaborn integration.
+"""
+import numpy as np
+import pandas as pd
+import pint
+import pytest
+import seaborn as sns
+import xarray as xr
+
+import ultraplot as uplt
+
+
+def test_seaborn_helpers_filtered_from_legend():
+    """
+    Seaborn-generated helper artists (e.g., CI bands) must be synthetic-tagged and
+    filtered out of legends so that only hue categories appear.
+    """
+    fig, ax = uplt.subplots()
+
+    # Create simple dataset with two hue levels
+    df = pd.DataFrame(
+        {
+            "x": np.concatenate([np.arange(10)] * 2),
+            "y": np.concatenate([np.arange(10), np.arange(10) + 1]),
+            "hue": ["h1"] * 10 + ["h2"] * 10,
+        }
+    )
+
+    # Use explicit external mode to engage UL's integration behavior for helper artists
+    with ax.external():
+        sns.lineplot(data=df, x="x", y="y", hue="hue", ax=ax)
+
+    # Explicitly create legend and verify labels
+    leg = ax.legend()
+    labels = {t.get_text() for t in leg.get_texts()}
+
+    # Only hue labels should be present
+    assert {"h1", "h2"}.issubset(labels)
+
+    # Spurious or synthetic labels must not appear
+    for bad in (
+        "y",
+        "ymin",
+        "ymax",
+        "_ultraplot_fill",
+        "_ultraplot_shade",
+        "_ultraplot_fade",
+    ):
+        assert bad not in labels
+
+
+def test_user_labeled_shading_appears_in_legend():
+    """
+    User-labeled shading (fill_between) must appear in legend even after seaborn plotting.
+    """
+    fig, ax = uplt.subplots()
+
+    # Seaborn plot first (to ensure seaborn context was present earlier)
+    df = pd.DataFrame({"x": np.arange(10), "y": np.arange(10)})
+    sns.lineplot(data=df, x="x", y="y", ax=ax, label="line")
+
+    # Add explicit user-labeled shading on the same axes
+    x = np.arange(10)
+    ax.fill_between(x, x - 0.2, x + 0.2, alpha=0.2, label="CI band")
+
+    # Legend must include both the seaborn line label and our shaded band label
+    leg = ax.legend()
+    labels = {t.get_text() for t in leg.get_texts()}
+    assert "CI band" in labels
+
+
+@pytest.mark.mpl_image_compare
+def test_pint_quantities(rng):
+    """
+    Ensure auto-formatting and column iteration both work.
+    """
+    with uplt.rc.context({"unitformat": "~H"}):
+        ureg = pint.UnitRegistry()
+        fig, ax = uplt.subplots()
+        ax.plot(
+            np.arange(10),
+            rng.random(10) * ureg.km,
+            "C0",
+            np.arange(10),
+            rng.random(10) * ureg.m * 1e2,
+            "C1",
+        )
+    return fig
+
+
+@pytest.mark.mpl_image_compare
+def test_data_keyword(rng):
+    """
+    Make sure `data` keywords work properly.
+    """
+    N = 10
+    M = 20
+    ds = xr.Dataset(
+        {"z": (("x", "y"), rng.random((N, M)))},
+        coords={
+            "x": ("x", np.arange(N) * 10, {"long_name": "longitude"}),
+            "y": ("y", np.arange(M) * 5, {"long_name": "latitude"}),
+        },
+    )
+    fig, ax = uplt.subplots()
+    # ax.pcolor('z', data=ds, order='F')
+    ax.pcolor(z="z", data=ds, transpose=True)
+    ax.format(xformatter="deglat", yformatter="deglon")
+    return fig
+
+
+@pytest.mark.mpl_image_compare
+def test_keep_guide_labels(rng):
+    """
+    Preserve metadata when passing mappables and handles to colorbar and
+    legend subsequently.
+    """
+    fig, ax = uplt.subplots()
+    df = pd.DataFrame(rng.random((5, 5)))
+    df.name = "variable"
+    m = ax.pcolor(df)
+    ax.colorbar(m)
+
+    fig, ax = uplt.subplots()
+    for k in ("foo", "bar", "baz"):
+        s = pd.Series(rng.random(5), index=list("abcde"), name=k)
+        ax.plot(
+            s,
+            legend="ul",
+            legend_kw={
+                "lw": 5,
+                "ew": 2,
+                "ec": "r",
+                "fc": "w",
+                "handle_kw": {"marker": "d"},
+            },
+        )
+    return fig
+
+
+@pytest.mark.mpl_image_compare
+def test_seaborn_swarmplot():
+    """
+    Test seaborn swarm plots.
+    """
+    tips = sns.load_dataset("tips")
+    fig = uplt.figure(refwidth=3)
+    ax = fig.subplot()
+    sns.swarmplot(
+        ax=ax, x="day", hue="day", y="total_bill", data=tips, palette="cubehelix"
+    )
+    # fig, ax = uplt.subplots()
+    # sns.swarmplot(y=np.random.normal(size=100), ax=ax)
+    return fig
+
+
+@pytest.mark.mpl_image_compare
+def test_seaborn_hist(rng):
+    """
+    Test seaborn histograms (smoke test using external mode contexts).
+    """
+    fig, axs = uplt.subplots(ncols=2, nrows=2)
+
+    with axs[0].external():
+        sns.histplot(rng.normal(size=100), ax=axs[0])
+
+    with axs[1].external():
+        sns.kdeplot(x=rng.random(100), y=rng.random(100), ax=axs[1])
+
+    penguins = sns.load_dataset("penguins")
+
+    with axs[2].external():
+        sns.histplot(
+            data=penguins,
+            x="flipper_length_mm",
+            hue="species",
+            multiple="stack",
+            ax=axs[2],
+        )
+
+    with axs[3].external():
+        sns.kdeplot(
+            data=penguins,
+            x="flipper_length_mm",
+            hue="species",
+            multiple="stack",
+            ax=axs[3],
+        )
+    return fig
+
+
+@pytest.mark.mpl_image_compare
+def test_seaborn_relational():
+    """
+    Test scatter plots. Disabling seaborn detection creates mismatch between marker
+    sizes and legend.
+    """
+    fig = uplt.figure()
+    ax = fig.subplot()
+    sns.set_theme(style="white")
+    # Load the example mpg dataset
+    mpg = sns.load_dataset("mpg")
+    # Plot miles per gallon against horsepower with other semantics
+    sns.scatterplot(
+        x="horsepower",
+        y="mpg",
+        hue="origin",
+        size="weight",
+        sizes=(40, 400),
+        alpha=0.5,
+        palette="muted",
+        # legend='bottom',
+        # height=6,
+        data=mpg,
+        ax=ax,
+    )
+    return fig
+
+
+@pytest.mark.mpl_image_compare
+def test_seaborn_heatmap(rng):
+    """
+    Test seaborn heatmaps. This should work thanks to backwards compatibility support.
+    """
+    fig, ax = uplt.subplots()
+    sns.heatmap(rng.normal(size=(50, 50)), ax=ax[0])
+    return fig
