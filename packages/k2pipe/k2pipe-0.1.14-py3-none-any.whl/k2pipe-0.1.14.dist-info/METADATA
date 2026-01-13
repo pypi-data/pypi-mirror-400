@@ -1,0 +1,255 @@
+Metadata-Version: 2.4
+Name: k2pipe
+Version: 0.1.14
+Summary: k2pipe
+Home-page: https://www.k2data.com.cn
+Author: K2data
+Author-email: admin@k2data.com.cn
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pandas
+Requires-Dist: numexpr
+Requires-Dist: loguru
+Requires-Dist: graphviz
+Requires-Dist: pytest
+Requires-Dist: pytest-mock
+Requires-Dist: pytest-cov
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Pipe SDK （暂用名）
+通过配置的方式，简化数据处理流程中常用操作，使得数据处理的业务逻辑更加直观和稳定。
+
+## 一、安装
+
+要求python 3.8或以上，建议3.8.10版本。
+
+```
+pip install -U k2pipe
+```
+
+## 二、使用方法
+
+### 2.1 数据加工
+
+提供 `extract_features()` 方法，根据配置里的计算规则，将当前DataFrame处理并返回结果DataFrame。
+
+#### 2.1.1 配置文件
+
+配置DataFrame一般从csv文件中加载，它定义了对原始DataFrame进行数据转换的规则。配置文件中每一行定义结果DataFrame里的一个（新）列，其中feature是列名，expression是列的计算表达式。
+
+配置里定义的列是顺序处理的，因此列表达式既可以引用原始DataFrame里的列，也可以引用前面新定义的列。
+
+| feature | expression                         | comment                      |
+|---------|------------------------------------|------------------------------|
+| feat1   | col1 / 100 - col2                  | 四则运算示例                       |
+| feat2   | col2.rolling(3).mean()             | 按行数滚动窗口示例                    |
+| feat3   | col2.rolling('3D').mean()          | 按时间滚动窗口示例（dataframe必须有时间索引列） |
+| feat4   | feat1.my_func()                    | 自定义函数示例（函数需要在python代码里注册）    |
+| feat5   | "where(col1 > 50, col1, col2 * 2)" | 条件赋值示例（支持多层where嵌套）          |
+| #       | 注释内容                             | 注释行示例                        |
+| feat6   | (col3 - k_ts).dt.days              | 时间处理示例                       |
+| *       |                                    | 表示保留原始dataframe的所有列          |
+| feat7   | k_device.str[1]                    | 字符串操作示例                      |
+| feat8   | "where(col1.isna(), 1, 2)"         | 空值判断示例                       |
+| feat9   | @df.shape[0]                       | 获取待处理的DataFrame的属性示例         |
+| feat10  | feat01.round()                     | 取整操作示例                       |
+| feat11  | k_ts + col1.astype('timedelta64[s]')  | 时间处理示例1（暂时无法进行常数时间计算）        |
+| feat12  | k_ts.time_shift('-10s')            | 时间处理示例2（带有常数时间的计算）           |
+
+说明：
+- 若表达式或注释包含逗号，需要用双引号包裹，双引号前不能有空格
+- 表达式不支持apply()函数
+- 内置变量列表：@df
+- 内置函数列表：time_shift()
+- 更多示例：[K2Pipe Examples](https://gitlab.kstonedata.k2/zhanghao/k2pipe/tree/develop/tests/example)
+- 表达式语法参考：[Mastering Eval Expressions in Pandas](https://www.sparkcodehub.com/pandas/advanced/eval-expressions-guide)
+
+
+#### 2.2.2 Python代码
+
+根据配置里定义的处理规则，将原始DataFrame数据转换为结果DataFrame数据。
+
+```python
+import pandas as pd
+from pathlib import Path
+from k2pipe.mypipe import MyDataFrame
+
+# 样例数据
+df = MyDataFrame({'k_device': ['dev1','dev1', 'dev1', 'dev2', 'dev2', 'dev2'],
+                   'col1': [50, 60, 70, 80, 90, 100],
+                   'col2': [1, 2, 3, 4, 5, 6]})
+df['k_ts'] = pd.date_range(start='2025-01-01 08:00:00', periods=len(df), freq='S')
+df['ts2'] = pd.date_range(start='2025-01-01 12:00:00', periods=len(df), freq='S')
+df.set_index('k_ts', inplace=True)
+
+# 配置信息
+config = pd.read_csv(Path(__file__).parent / 'my_feat.csv')
+df.columns = df.columns.str.strip()
+
+# 注册自定义函数
+pd.Series.my_func = (lambda x: x.rolling(3).mean())
+
+# 处理数据
+result = df.extract_features(config)
+```
+
+#### 2.2.3 运行结果
+
+原始数据：
+
+```
+                    k_device  col1  col2                col3
+k_ts                                                        
+2025-01-01 08:00:00     dev1    50     1 2025-01-01 12:00:00
+2025-01-01 08:00:01     dev1    60     2 2025-01-01 12:00:01
+2025-01-01 08:00:02     dev1    70     3 2025-01-01 12:00:02
+2025-01-01 08:00:03     dev2    80     4 2025-01-01 12:00:03
+2025-01-01 08:00:04     dev2    90     5 2025-01-01 12:00:04
+2025-01-01 08:00:05     dev2   100     6 2025-01-01 12:00:05
+
+```
+
+结果数据：
+
+```
+                    k_device  feat01  feat02  feat03  feat04  feat05  feat06 feat07  feat08  feat09  feat10              feat11
+k_ts                                                                                                                           
+2025-01-01 08:00:00     dev1    -0.5     NaN     1.0     NaN       2       0      e       2       6    -0.0 2025-01-01 08:00:10
+2025-01-01 08:00:01     dev1    -1.4     NaN     1.5     NaN      60       0      e       2       6    -1.0 2025-01-01 08:00:11
+2025-01-01 08:00:02     dev1    -2.3     2.0     2.0    -1.4      70       0      e       2       6    -2.0 2025-01-01 08:00:12
+2025-01-01 08:00:03     dev2    -3.2     3.0     2.5    -2.3      80       0      e       2       6    -3.0 2025-01-01 08:00:13
+2025-01-01 08:00:04     dev2    -4.1     4.0     3.0    -3.2      90       0      e       2       6    -4.0 2025-01-01 08:00:14
+2025-01-01 08:00:05     dev2    -5.0     5.0     3.5    -4.1     100       0      e       2       6    -5.0 2025-01-01 08:00:15
+```
+
+### 2.2 统一数据格式
+
+提供`format_columns()`方法，将输入的DataFrame内的`k_ts`转为时间类型，将`k_device`列转为字符串类型。
+
+```python
+import pandas as pd
+from k2pipe.mypipe import MyDataFrame
+
+df = MyDataFrame(...)
+df = df.format_columns()
+```
+
+
+### 2.3 数据流分析
+
+提供`generate_dataflow()`方法，生成svg格式的数据流图功能。此功能依赖`graphviz`包，安装方法见[这里](https://pypi.org/project/graphviz/)。
+
+```python
+df1 = MyDataFrame({'k_device': ['dev1', 'dev1', 'dev1', 'dev2', 'dev2', 'dev2'],
+                   'col1': [50, 60, 70, 80, 90, 100],
+                   'col2': [1, 2, 3, 4, 5, 6]})
+df1['k_ts'] = pd.date_range(start='2025-01-01 08:00:00', periods=len(df1), freq='S')
+df2 = df1.copy()
+df1 = df1.rename(columns={'col1': 'col3', 'col2': 'col4'})
+result = df1.merge(df2, on=['k_device', 'k_ts'])
+result.generate_dataflow(filename='dataflow_merge.svg', show_value=False)
+```
+
+数据流图效果（灰色矩形代表DataFrame实例，白色矩形表示数据列Series，黄色矩形表示没有连出边的数据列）：
+
+![merge](https://gitlab.kstonedata.k2/zhanghao/k2pipe/raw/dev_hao/static/dataflow_merge.png)
+
+
+### 2.4 长宽表转换
+
+提供`wide_to_long()`方法和`long_to_wide()`方法，用于长表风格与宽表风格的转换。
+
+宽表举例：
+
+```
+        k_ts k_device  f1_mean_3D  f1_mean_5D  f1_slope_3D  f1_slope_5D  f2_mean_3D  f2_mean_5D  f2_slope_3D  f2_slope_5D
+0 2025-01-01     dev1           8          24           67           87          79          48           10           94
+1 2025-01-01     dev2          52          98           53           66          98          14           34           24
+2 2025-01-02     dev1          15          60           58           16           9          93           86            2
+3 2025-01-02     dev2          27           4           31            1          13          83            4           91
+4 2025-01-03     dev1          59          67            7           49          47          65           61           14
+5 2025-01-03     dev2          55          71           80            2          94          19           98           63
+```
+
+长表举例：
+
+```
+         k_ts k_device feature measure period  value
+0  2025-01-01     dev1      f1    mean     3D      8
+1  2025-01-01     dev1      f1    mean     5D     24
+2  2025-01-01     dev1      f1   slope     3D     67
+3  2025-01-01     dev1      f1   slope     5D     87
+4  2025-01-01     dev1      f2    mean     3D     79
+5  2025-01-01     dev1      f2    mean     5D     48
+6  2025-01-01     dev1      f2   slope     3D     10
+7  2025-01-01     dev1      f2   slope     5D     94
+8  2025-01-01     dev2      f1    mean     3D     52
+9  2025-01-01     dev2      f1    mean     5D     98
+10 2025-01-01     dev2      f1   slope     3D     53
+11 2025-01-01     dev2      f1   slope     5D     66
+12 2025-01-01     dev2      f2    mean     3D     98
+13 2025-01-01     dev2      f2    mean     5D     14
+14 2025-01-01     dev2      f2   slope     3D     34
+15 2025-01-01     dev2      f2   slope     5D     24
+16 2025-01-02     dev1      f1    mean     3D     15
+17 2025-01-02     dev1      f1    mean     5D     60
+18 2025-01-02     dev1      f1   slope     3D     58
+19 2025-01-02     dev1      f1   slope     5D     16
+20 2025-01-02     dev1      f2    mean     3D      9
+21 2025-01-02     dev1      f2    mean     5D     93
+22 2025-01-02     dev1      f2   slope     3D     86
+23 2025-01-02     dev1      f2   slope     5D      2
+24 2025-01-02     dev2      f1    mean     3D     27
+25 2025-01-02     dev2      f1    mean     5D      4
+26 2025-01-02     dev2      f1   slope     3D     31
+27 2025-01-02     dev2      f1   slope     5D      1
+28 2025-01-02     dev2      f2    mean     3D     13
+29 2025-01-02     dev2      f2    mean     5D     83
+30 2025-01-02     dev2      f2   slope     3D      4
+31 2025-01-02     dev2      f2   slope     5D     91
+32 2025-01-03     dev1      f1    mean     3D     59
+33 2025-01-03     dev1      f1    mean     5D     67
+34 2025-01-03     dev1      f1   slope     3D      7
+35 2025-01-03     dev1      f1   slope     5D     49
+36 2025-01-03     dev1      f2    mean     3D     47
+37 2025-01-03     dev1      f2    mean     5D     65
+38 2025-01-03     dev1      f2   slope     3D     61
+39 2025-01-03     dev1      f2   slope     5D     14
+40 2025-01-03     dev2      f1    mean     3D     55
+41 2025-01-03     dev2      f1    mean     5D     71
+42 2025-01-03     dev2      f1   slope     3D     80
+43 2025-01-03     dev2      f1   slope     5D      2
+44 2025-01-03     dev2      f2    mean     3D     94
+45 2025-01-03     dev2      f2    mean     5D     19
+46 2025-01-03     dev2      f2   slope     3D     98
+47 2025-01-03     dev2      f2   slope     5D     63
+```
+
+宽表转长表：
+
+```python
+df_long = df_wide.wide_to_long()
+```
+
+长表转宽表：
+
+```python
+df_wide = df_long.long_to_wide()
+```
+
