@@ -1,0 +1,139 @@
+Metadata-Version: 2.4
+Name: dojinvoice-db
+Version: 2.1.0
+Summary: Make DB of Dojinvoice
+Project-URL: Repository, https://github.com/eggplants/dojinvoice_db
+Author-email: eggplants <w10776e8w@yahoo.co.jp>
+License: MIT
+License-File: LICENSE
+Keywords: dlsite,selenium
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Typing :: Typed
+Requires-Python: <4,>=3.12
+Requires-Dist: beautifulsoup4<5,>=4.12.3
+Requires-Dist: humanfriendly<11,>=10
+Requires-Dist: install-playwright<1.1,>=0.1
+Requires-Dist: lxml<7,>=5.3
+Requires-Dist: playwright<2,>=1.49.1
+Requires-Dist: requests<3,>=2.32.3
+Requires-Dist: types-beautifulsoup4<5,>=4.12.0.20241020
+Requires-Dist: types-humanfriendly<11,>=10.0.1.20241221
+Requires-Dist: types-requests<3,>=2.32.0.20241016
+Description-Content-Type: text/markdown
+
+# dojinvoice_db
+
+ [![PyPI version](
+  <https://badge.fury.io/py/dojinvoice-db.svg>
+)](
+  <https://badge.fury.io/py/dojinvoice_db>
+) [![CI](
+  <https://github.com/eggplants/dojinvoice_db/actions/workflows/ci.yml/badge.svg>
+  )](
+  <https://github.com/eggplants/dojinvoice_db/actions/workflows/ci.yml>
+)
+
+Dojinvoice (同人音声) DB
+
+- DLsite
+  - <https://www.dlsite.com/maniax/works/voice>
+
+## How to run
+
+```bash
+pip install dojinvoice-db
+```
+
+```shellsession
+$ dvdb
+Download pages? >> (`y` or Enter)
+<int> work(s) have already been committed to existing db!
+Now: ./dlsite/00001.html
+Now: ./dlsite/00002.html
+Now: ./dlsite/00003.html
+...
+```
+
+## DB Schema
+
+```python
+create_table(
+    '''work (
+            work_id text primary key,
+            detail_link text not null,
+            title text not null,
+            circle text not null,
+            circle_link text not null,
+            category text not null,
+            sale_date integer not null,
+            age_zone text not null,
+            file_format text not null,
+            file_size text not null,
+            description str not null,
+            monopoly integer not null,
+            price integer not null
+        ) '''
+)
+create_table(
+    '''option (
+            work_id text primary key,
+            thumbnail text,
+            cien_link text,
+            series text,
+            chobit_link text,
+            sales integer,
+            favorites integer,
+            trial_link text,
+            trial_size integer,
+            rating real
+        ) '''
+)
+create_table(
+    '''writer (
+            work_id text,
+            writer text,
+            primary key (work_id, writer)
+        ) '''
+)
+create_table(
+    '''scenario (
+            work_id text,
+            scenario text,
+            primary key (work_id, scenario)
+        ) '''
+)
+create_table(
+    '''illustrator (
+            work_id text,
+            illustrator text,
+            primary key (work_id, illustrator)
+        ) '''
+)
+create_table(
+    '''voice (
+            work_id text,
+            voice text,
+            primary key (work_id, voice)
+        ) '''
+)
+create_table(
+    '''musician (
+            work_id text,
+            musician text,
+            primary key (work_id, musician)
+        ) '''
+)
+create_table(
+    '''genre (
+            work_id text,
+            genre text,
+            primary key (work_id, genre)
+        ) '''
+)
+```
