@@ -1,0 +1,95 @@
+{% extends "allianceauth/base-bs5.html" %}
+
+{% load i18n %}
+{% load aa_i18n %}
+
+{% block page_title %}
+    {% translate "Fleet Activity Tracking" as page_title %}
+    {{ page_title|title }}
+{% endblock %}
+
+{% block header_nav_brand %}
+    {% translate "Fleet Activity Tracking" as page_title %}
+    {{ page_title|title }}
+{% endblock %}
+
+{% block header_nav_collapse_left %}
+    {% include "afat/partials/common/navigation/top-menu.html" %}
+{% endblock %}
+
+{% block content %}
+    <div class="allianceauth-afat">
+        <div class="allianceauth-afat-header">
+            {% block afat_header %}{% endblock %}
+        </div>
+
+        <div class="allianceauth-afat-body">
+            {% get_datatables_language_static LANGUAGE_CODE as DT_LANG_PATH %}
+
+            <script>
+                const afatJsSettingsDefaults = {
+                    datetimeFormat: 'YYYY-MMM-DD, HH:mm',
+                    language: '{{ LANGUAGE_CODE }}',
+                    dataTables: {
+                        paging: true,
+                        language: {url: '{{ DT_LANG_PATH }}'},
+                        layout: {
+                            topStart: 'pageLength',
+                            topEnd: null, // Removing the default search bar (Default is 'search', see https://datatables.net/reference/option/layout#Default)
+                            bottomStart: 'info',
+                            bottomEnd: 'paging'
+                        },
+                        ordering: {
+                            indicators: false,
+                            handler: false
+                        },
+                        columnControl: [
+                            {
+                                target: 0,
+                                content: [
+                                    'order',
+                                    // [
+                                    //     'orderAsc',
+                                    //     'orderDesc',
+                                    //     'spacer',
+                                    //     'orderAddAsc',
+                                    //     'orderAddDesc',
+                                    //     'spacer',
+                                    //     'orderRemove'
+                                    // ]
+                                ]
+                            },
+                            {
+                                target: 1,
+                                content: [
+                                    'search'
+                                ]
+                            }
+                        ]
+                    }
+                };
+            </script>
+
+            {% block afat_body %}{% endblock %}
+        </div>
+
+        <div class="allianceauth-afat-footer mt-3 pt-3 border-top border-light">
+            {% include "afat/partials/footer/app-translation-footer.html" %}
+        </div>
+
+        <div class="allianceauth-afat-datalists">
+            {% block afat_datalists %}{% endblock %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_javascript %}
+    {% include "afat/bundles/afat-js.html" %}
+
+    <script>
+        $(document).ready(() => {
+            // Initialize AFAT Tooltips
+            _afatBootstrapTooltip({namespace: 'afat'});
+        });
+    </script>
+{% endblock extra_javascript %}
