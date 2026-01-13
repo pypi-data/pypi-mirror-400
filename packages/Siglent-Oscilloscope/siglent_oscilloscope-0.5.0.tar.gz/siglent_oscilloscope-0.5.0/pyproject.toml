@@ -1,0 +1,190 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Siglent-Oscilloscope"
+version = "0.5.0"
+description = "Python library for Siglent oscilloscope and power supply control via SCPI over Ethernet/LAN. Oscilloscope support: SDS800XHD, SDS1000X-E, SDS2000X Plus, SDS5000X with waveform capture, measurements, FFT analysis, and PyQt6 GUI. Power supply support: SPD3303X series with programmatic control, data logging, and automation. Automated test report generation with AI analysis."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.8"
+license = { text = "MIT" }
+keywords = ["siglent", "oscilloscope", "power supply", "SDS", "SPD", "SCPI", "test equipment", "instrumentation", "measurement", "waveform", "automation", "data acquisition", "lab automation", "PyQt6", "GUI", "FFT", "protocol decoder", "I2C", "SPI", "UART", "real-time", "visualization", "PSU", "voltage", "current"]
+authors = [
+    {name = "Robin Mumm"}
+]
+maintainers = [
+    {name = "little-did-I-know"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Environment :: X11 Applications :: Qt",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "numpy>=1.24.0",
+    "matplotlib>=3.7.0",
+    "scipy>=1.10.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/little-did-I-know/Siglent-Oscilloscope"
+Documentation = "https://github.com/little-did-I-know/Siglent-Oscilloscope#readme"
+Repository = "https://github.com/little-did-I-know/Siglent-Oscilloscope"
+Issues = "https://github.com/little-did-I-know/Siglent-Oscilloscope/issues"
+Changelog = "https://github.com/little-did-I-know/Siglent-Oscilloscope/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0.0",
+    "codecov>=2.1.0",
+    "black>=23.0",
+    "flake8>=6.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
+    "black[jupyter]>=23.0"
+]
+hdf5 = [
+    "h5py>=3.8.0",
+]
+gui = [
+    "PyQt6>=6.6.0",
+    "PyQt6-WebEngine>=6.6.0",
+    "pyqtgraph>=0.13.0",
+]
+fun = [
+    "shapely>=2.0.0",
+    "Pillow>=10.0.0",
+    "svgpathtools>=1.6.0",
+]
+report-generator = [
+    "PyQt6>=6.6.0",
+    "Pillow>=10.0.0",
+    "requests>=2.31.0",
+    "reportlab>=4.0.0",
+    "ollama>=0.6.0",
+]
+# Experimental features (BETA - v0.4.0-beta.1)
+# Power supply control - no additional dependencies required
+# Included for explicit feature installation and documentation
+power-supply-beta = []
+# USB/VISA support for instruments (power supplies, oscilloscopes)
+# Enables USB, GPIB, and Serial connections via PyVISA
+usb = [
+    "pyvisa>=1.14.0",
+    "pyvisa-py>=0.7.0",  # Pure Python backend, no NI-VISA required
+]
+experimental = [
+    # Future experimental features will be added here
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.0",
+    "mkdocs-section-index>=0.3.0",
+]
+build-exe = [
+    "pyinstaller>=6.0.0",
+]
+all = [
+    "h5py>=3.8.0",
+    "PyQt6>=6.6.0",
+    "PyQt6-WebEngine>=6.6.0",
+    "pyqtgraph>=0.13.0",
+    "shapely>=2.0.0",
+    "Pillow>=10.0.0",
+    "svgpathtools>=1.6.0",
+    "requests>=2.31.0",
+    "reportlab>=4.0.0",
+    "ollama>=0.6.0",
+    # Note: Experimental features not included in 'all'
+    # Install explicitly with [power-supply-beta] or [experimental]
+]
+
+[project.scripts]
+siglent-gui = "siglent.gui.app:main"
+siglent-report-generator = "siglent.report_generator.app:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+siglent = ["py.typed"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["siglent*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311', "py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "hardware: tests that require actual oscilloscope hardware",
+    "gui: tests that require GUI dependencies (PyQt6)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["siglent"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "*/examples/*",
+    "*/scripts/*",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
