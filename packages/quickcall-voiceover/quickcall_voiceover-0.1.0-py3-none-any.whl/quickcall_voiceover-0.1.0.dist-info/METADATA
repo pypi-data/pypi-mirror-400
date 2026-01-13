@@ -1,0 +1,197 @@
+Metadata-Version: 2.4
+Name: quickcall-voiceover
+Version: 0.1.0
+Summary: Utility tool for creating voice-over audio assets for QuickCall videos
+Project-URL: Homepage, https://github.com/quickcall-dev/quickcall-voiceover
+Project-URL: Repository, https://github.com/quickcall-dev/quickcall-voiceover
+Project-URL: Issues, https://github.com/quickcall-dev/quickcall-voiceover/issues
+Author-email: Sagar Sarkale <hello@quickcall.dev>
+License-Expression: Apache-2.0
+License-File: LICENSE
+Keywords: audio,piper,quickcall,tts,voiceover
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Multimedia :: Sound/Audio :: Speech
+Requires-Python: >=3.10
+Requires-Dist: piper-tts>=1.3.0
+Requires-Dist: rich>=14.2.0
+Description-Content-Type: text/markdown
+
+# QuickCall VoiceOver
+
+Utility tool for creating voice-over audio assets for QuickCall videos using [Piper TTS](https://github.com/rhasspy/piper).
+
+## What It Does
+
+QuickCall VoiceOver is a config-driven tool that generates high-quality voice-over audio segments from text. It's designed for creating media assets for QuickCall's video content, but can be used for any TTS needs.
+
+## Key Features
+
+- **Config-driven**: Define all your voice-over segments in a single JSON file
+- **Automatic model download**: Voice models are downloaded automatically on first use
+- **Combined output**: Optionally merge all segments into a single audio file
+- **CLI tool**: Simple one-line command to generate all audio
+
+## Installation
+
+```bash
+pip install quickcall-voiceover
+```
+
+Or with `uv`:
+
+```bash
+uv pip install quickcall-voiceover
+```
+
+## Getting Started
+
+### 1. Create a config file
+
+Create a `voiceover.json` file:
+
+```json
+{
+  "voice": {
+    "model": "en_US-hfc_male-medium",
+    "length_scale": 1.0,
+    "noise_scale": 0.667,
+    "noise_w": 0.8,
+    "sentence_silence": 0.5
+  },
+  "output": {
+    "format": "wav"
+  },
+  "segments": [
+    {
+      "id": "01_intro",
+      "text": "Welcome to the demo."
+    },
+    {
+      "id": "02_main",
+      "text": "This is the main content of the video."
+    },
+    {
+      "id": "03_outro",
+      "text": "Thanks for watching!"
+    }
+  ]
+}
+```
+
+### 2. Generate audio
+
+```bash
+quickcall-voiceover voiceover.json
+```
+
+This will:
+- Download the voice model (first run only)
+- Generate WAV files for each segment in `./output/`
+
+### 3. Combined output (optional)
+
+To also create a single combined audio file:
+
+```bash
+quickcall-voiceover voiceover.json --combine
+```
+
+## CLI Options
+
+```
+quickcall-voiceover CONFIG [OPTIONS]
+
+Arguments:
+  CONFIG              Path to the JSON configuration file
+
+Options:
+  -o, --output DIR    Output directory (default: ./output)
+  -m, --models DIR    Models directory (default: ./models)
+  -c, --combine       Create a combined audio file from all segments
+  --combined-name     Filename for combined output (default: combined_voiceover.wav)
+```
+
+## Configuration Reference
+
+### Voice Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `model` | string | `en_US-hfc_male-medium` | Piper voice model name |
+| `length_scale` | float | `1.0` | Speech speed (lower = faster) |
+| `noise_scale` | float | `0.667` | Voice variation |
+| `noise_w` | float | `0.8` | Phoneme width noise |
+| `sentence_silence` | float | `0.5` | Silence between sentences (seconds) |
+
+### Available Voice Models
+
+See [Piper voices](https://rhasspy.github.io/piper-samples/) for all available models. Common ones:
+
+- `en_US-hfc_male-medium` - Male US English (recommended)
+- `en_US-amy-medium` - Female US English
+- `en_GB-alan-medium` - Male British English
+
+### Segment Format
+
+Each segment requires:
+- `id`: Unique identifier (used as filename)
+- `text`: The text to convert to speech
+
+## Programmatic Usage
+
+```python
+from quickcall_voiceover import generate_voiceover
+from pathlib import Path
+
+generate_voiceover(
+    config_path=Path("voiceover.json"),
+    output_dir=Path("./output"),
+    combine=True,
+)
+```
+
+## Docker Usage
+
+Build the image:
+
+```bash
+docker build -t quickcall-voiceover .
+```
+
+Run with a config file:
+
+```bash
+docker run -v $(pwd)/config:/config -v $(pwd)/output:/app/output quickcall-voiceover /config/voiceover.json
+```
+
+With combined output:
+
+```bash
+docker run -v $(pwd)/config:/config -v $(pwd)/output:/app/output quickcall-voiceover /config/voiceover.json --combine
+```
+
+## Changing Voice Models
+
+To use a different voice, simply change the `model` field in your config:
+
+```json
+{
+  "voice": {
+    "model": "en_US-amy-medium"
+  }
+}
+```
+
+The model will be automatically downloaded on first use. Browse all available voices at [Piper samples](https://rhasspy.github.io/piper-samples/).
+
+## License
+
+This project is licensed under Apache-2.0.
+
+**Note:** This tool depends on [Piper TTS](https://github.com/OHF-Voice/piper1-gpl) which is licensed under GPL-3.0. Piper is installed as a separate dependency and is not bundled with this package.
