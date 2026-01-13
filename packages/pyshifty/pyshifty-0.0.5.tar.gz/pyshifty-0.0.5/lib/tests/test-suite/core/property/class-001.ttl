@@ -1,0 +1,64 @@
+@prefix ex: <http://datashapes.org/sh/tests/core/property/class-001.test#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sht: <http://www.w3.org/ns/shacl-test#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:SubClass a rdfs:Class ;
+    rdfs:subClassOf ex:SuperClass .
+
+ex:SuperClass a rdfs:Class .
+
+ex:TestShape a sh:NodeShape ;
+    sh:property ex:TestShape-testProperty ;
+    sh:targetNode ex:InvalidResource1,
+        ex:ValidResource1,
+        ex:ValidResource2 .
+
+ex:SubClassInstance a ex:SubClass .
+
+ex:SuperClassInstance a ex:SuperClass .
+
+ex:ValidResource1 a rdfs:Resource ;
+    ex:testProperty ex:SubClassInstance,
+        ex:SuperClassInstance .
+
+ex:ValidResource2 a rdfs:Resource ;
+    ex:testProperty [ a ex:SubClass ],
+        [ a ex:SuperClass ] .
+
+<urn:class-001> a sht:Validate ;
+    rdfs:label "Test of sh:class at property shape 001" ;
+    mf:action [ sht:dataGraph <urn:class-001.ttl> ;
+            sht:shapesGraph <urn:class-001.ttl> ] ;
+    mf:result [ a sh:ValidationReport ;
+            sh:conforms false ;
+            sh:result [ a sh:ValidationResult ;
+                    sh:focusNode ex:InvalidResource1 ;
+                    sh:resultPath ex:testProperty ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:ClassConstraintComponent ;
+                    sh:sourceShape ex:TestShape-testProperty ;
+                    sh:value ex:InvalidResource1 ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode ex:InvalidResource1 ;
+                    sh:resultPath ex:testProperty ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:ClassConstraintComponent ;
+                    sh:sourceShape ex:TestShape-testProperty ;
+                    sh:value "A string" ] ] ;
+    mf:status sht:approved .
+
+<urn:class-001.ttl> a mf:Manifest ;
+    mf:entries ( <urn:class-001> ) .
+
+ex:TestShape-testProperty rdfs:label "test property" ;
+    sh:class ex:SuperClass ;
+    sh:path ex:testProperty .
+
+ex:InvalidResource1 a rdfs:Resource ;
+    ex:testProperty ex:InvalidResource1,
+        "A string" .
+

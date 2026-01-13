@@ -1,0 +1,40 @@
+@prefix ex: <http://datashapes.org/sh/tests/core/targets/targetSubjectsOf-001.test#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sht: <http://www.w3.org/ns/shacl-test#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@base <urn:shacl-advanced-core:> .
+ex:MyClass a rdfs:Class .
+
+ex:TestShape a sh:NodeShape ;
+    sh:property ex:TestShape-myProperty ;
+    sh:targetSubjectsOf ex:myProperty .
+
+ex:ValidInstance1 ex:myProperty "A" .
+
+<targetSubjectsOf-001> a sht:Validate ;
+    rdfs:label "Test of sh:targetSubjectsOf 001" ;
+    mf:action [ sht:dataGraph <targetSubjectsOf-001.test.ttl> ;
+            sht:shapesGraph <targetSubjectsOf-001.test.ttl> ] ;
+    mf:result [ a sh:ValidationReport ;
+            sh:conforms false ;
+            sh:result [ a sh:ValidationResult ;
+                    sh:focusNode ex:InvalidInstance1 ;
+                    sh:resultPath ex:myProperty ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:MaxCountConstraintComponent ;
+                    sh:sourceShape ex:TestShape-myProperty ] ] ;
+    mf:status sht:approved .
+
+ex:InvalidInstance1 ex:myProperty "A",
+        "B" .
+
+<targetSubjectsOf-001.test.ttl> a mf:Manifest ;
+    mf:entries ( <targetSubjectsOf-001> ) .
+
+ex:TestShape-myProperty a sh:PropertyShape ;
+    sh:maxCount 1 ;
+    sh:path ex:myProperty .

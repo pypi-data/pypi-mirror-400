@@ -1,0 +1,30 @@
+@prefix ex: <http://datashapes.org/sh/tests/core/misc/severity-001.test#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sht: <http://www.w3.org/ns/shacl-test#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@base <urn:shacl-advanced-core:> .
+<severity-001> a sht:Validate ;
+    rdfs:label "Test of sh:severity 001" ;
+    mf:action [ sht:dataGraph <severity-001.test.ttl> ;
+            sht:shapesGraph <severity-001.test.ttl> ] ;
+    mf:result [ a sh:ValidationReport ;
+            sh:conforms false ;
+            sh:result [ a sh:ValidationResult ;
+                    sh:focusNode "Hello" ;
+                    sh:resultSeverity sh:Warning ;
+                    sh:sourceConstraintComponent sh:DatatypeConstraintComponent ;
+                    sh:sourceShape ex:TestShape ;
+                    sh:value "Hello" ] ] ;
+    mf:status sht:approved .
+
+ex:TestShape a sh:NodeShape ;
+    sh:datatype xsd:integer ;
+    sh:severity sh:Warning ;
+    sh:targetNode "Hello" .
+
+<severity-001.test.ttl> a mf:Manifest ;
+    mf:entries ( <severity-001> ) .

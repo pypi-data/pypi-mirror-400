@@ -1,0 +1,56 @@
+@prefix ex: <http://datashapes.org/sh/tests/core/property/languageIn-001.test#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sht: <http://www.w3.org/ns/shacl-test#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@base <urn:shacl-advanced-core:> .
+ex:NewZealandLanguagesShape a sh:NodeShape ;
+    sh:property ex:NewZealandLanguagesShape-prefLabel ;
+    sh:targetNode ex:Berg,
+        ex:Mountain .
+
+<languageIn-001> a sht:Validate ;
+    rdfs:label "Test of sh:languageIn at property shape 001" ;
+    mf:action [ sht:dataGraph <languageIn-001.test.ttl> ;
+            sht:shapesGraph <languageIn-001.test.ttl> ] ;
+    mf:result [ a sh:ValidationReport ;
+            sh:conforms false ;
+            sh:result [ a sh:ValidationResult ;
+                    sh:focusNode ex:Berg ;
+                    sh:resultPath ex:prefLabel ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:LanguageInConstraintComponent ;
+                    sh:sourceShape ex:NewZealandLanguagesShape-prefLabel ;
+                    sh:value ex:BergLabel ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode ex:Berg ;
+                    sh:resultPath ex:prefLabel ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:LanguageInConstraintComponent ;
+                    sh:sourceShape ex:NewZealandLanguagesShape-prefLabel ;
+                    sh:value "Berg" ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode ex:Berg ;
+                    sh:resultPath ex:prefLabel ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:LanguageInConstraintComponent ;
+                    sh:sourceShape ex:NewZealandLanguagesShape-prefLabel ;
+                    sh:value "Berg"@de ] ] ;
+    mf:status sht:approved .
+
+ex:Mountain ex:prefLabel "Mountain"@en,
+        "Hill"@en-NZ,
+        "Maunga"@mi .
+
+<languageIn-001.test.ttl> a mf:Manifest ;
+    mf:entries ( <languageIn-001> ) .
+
+ex:Berg ex:prefLabel ex:BergLabel,
+        "Berg",
+        "Berg"@de .
+
+ex:NewZealandLanguagesShape-prefLabel sh:languageIn ( "en" "mi" ) ;
+    sh:path ex:prefLabel .

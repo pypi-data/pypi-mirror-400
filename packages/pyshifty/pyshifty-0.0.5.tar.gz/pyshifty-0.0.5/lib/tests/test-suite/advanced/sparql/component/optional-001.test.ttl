@@ -1,0 +1,82 @@
+@prefix ex: <http://datashapes.org/sh/tests/sparql/component/optional-001.test#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sht: <http://www.w3.org/ns/shacl-test#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@base <urn:shacl-advanced-sparql:> .
+ex:IncompleteShape a sh:NodeShape ;
+    rdfs:label "Incomplete shape" ;
+    ex:optionalParam "Some" ;
+    sh:targetNode "One",
+        "Three",
+        "Two" .
+
+<optional-001> a sht:Validate ;
+    rdfs:label "Test of sh:optional 001" ;
+    mf:action [ sht:dataGraph <optional-001.test.ttl> ;
+            sht:shapesGraph <optional-001.test.ttl> ] ;
+    mf:result [ a sh:ValidationReport ;
+            sh:conforms false ;
+            sh:result [ a sh:ValidationResult ;
+                    sh:focusNode "Three" ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent ex:TestConstraintComponent ;
+                    sh:sourceShape ex:TestShape1 ;
+                    sh:value "Three" ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode "Two" ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent ex:TestConstraintComponent ;
+                    sh:sourceShape ex:TestShape2 ;
+                    sh:value "Two" ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode "One" ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent ex:TestConstraintComponent ;
+                    sh:sourceShape ex:TestShape1 ;
+                    sh:value "One" ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode "One" ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent ex:TestConstraintComponent ;
+                    sh:sourceShape ex:TestShape2 ;
+                    sh:value "One" ] ] ;
+    mf:status sht:approved .
+
+<http://datashapes.org/sh/tests/sparql/component/optional-001.test> sh:declare [ a sh:PrefixDeclaration ;
+            sh:namespace "http://datashapes.org/sh/tests/sparql/component/optional-001.test#"^^xsd:anyURI ;
+            sh:prefix "ex" ] .
+
+<optional-001.test.ttl> a mf:Manifest ;
+    mf:entries ( <optional-001> ) .
+
+ex:TestShape1 a sh:NodeShape ;
+    rdfs:label "Test shape 1" ;
+    ex:requiredParam "One" ;
+    sh:targetNode "One",
+        "Three",
+        "Two" .
+
+ex:TestShape2 a sh:NodeShape ;
+    rdfs:label "Test shape 1" ;
+    ex:optionalParam "Two" ;
+    ex:requiredParam "One" ;
+    sh:targetNode "One",
+        "Three",
+        "Two" .
+
+ex:TestConstraintComponent a sh:ConstraintComponent ;
+    rdfs:label "Test constraint component" ;
+    sh:parameter [ sh:name "optional param" ;
+            sh:optional true ;
+            sh:path ex:optionalParam ],
+        [ sh:name "required param" ;
+            sh:path ex:requiredParam ] ;
+    sh:validator [ a sh:SPARQLAskValidator ;
+            sh:ask """ASK {
+    FILTER ($value != $requiredParam && $value != COALESCE(?optionalParam, "Three")) .
+}""" ;
+            sh:prefixes <http://datashapes.org/sh/tests/sparql/component/optional-001.test> ] .
