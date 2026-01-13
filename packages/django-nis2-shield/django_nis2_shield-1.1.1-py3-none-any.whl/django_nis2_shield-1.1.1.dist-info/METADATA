@@ -1,0 +1,304 @@
+Metadata-Version: 2.4
+Name: django-nis2-shield
+Version: 1.1.1
+Summary: A Security-First Middleware for Django to ensure NIS2 compliance with forensic logging, active defense, and SIEM integration.
+Author-email: Fabrizio Di Priamo <fabrizio.di.priamo@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/nis2shield/django-nis2-shield
+Project-URL: Documentation, https://github.com/nis2shield/django-nis2-shield#readme
+Project-URL: Repository, https://github.com/nis2shield/django-nis2-shield.git
+Project-URL: Changelog, https://github.com/nis2shield/django-nis2-shield/blob/main/CHANGELOG.md
+Project-URL: Bug Tracker, https://github.com/nis2shield/django-nis2-shield/issues
+Keywords: django,security,nis2,compliance,logging,siem,middleware,gdpr,audit,forensic,cybersecurity,enterprise,rate-limiting,session-guard
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 3.2
+Classifier: Framework :: Django :: 4.0
+Classifier: Framework :: Django :: 4.1
+Classifier: Framework :: Django :: 4.2
+Classifier: Framework :: Django :: 5.0
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Classifier: Topic :: System :: Logging
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Middleware
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Django>=3.2
+Requires-Dist: cryptography>=41.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-django>=4.5; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: isort>=5.12; extra == "dev"
+Requires-Dist: flake8>=6.0; extra == "dev"
+Dynamic: license-file
+
+# Django NIS2 Shield
+
+[![PyPI version](https://badge.fury.io/py/django-nis2-shield.svg)](https://badge.fury.io/py/django-nis2-shield)
+[![Python](https://img.shields.io/pypi/pyversions/django-nis2-shield.svg)](https://pypi.org/project/django-nis2-shield/)
+[![Django](https://img.shields.io/badge/django-3.2%20%7C%204.x%20%7C%205.x-blue.svg)](https://www.djangoproject.com/)
+[![Safety: Passing](https://pyup.io/repos/github/nis2shield/django-nis2-shield/shield.svg)](https://pyup.io/repos/github/nis2shield/django-nis2-shield/)
+[![PiWheels](https://img.shields.io/badge/piwheels-available-orange.svg)](https://piwheels.org/project/django-nis2-shield/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+### The "Security-First" Middleware for NIS2 Compliance.
+
+Companies subject to NIS2 Directive need **demonstrable compliance**. This middleware provides:
+
+1.  **Forensic logging** with HMAC-SHA256 integrity and PII encryption (Art. 21.2.h)
+2.  **Rate limiting** to prevent DoS/Brute Force attacks (Art. 21.2.e)
+3.  **Session Guard** to detect hijacking via IP/User-Agent validation (Art. 21.2.a)
+4.  **MFA Gatekeeper** for sensitive routes (Art. 21.2.j)
+5.  **Multi-SIEM Presets**: Ready-to-use configs for Splunk, Datadog, QRadar.
+
+> **Part of the NIS2 Shield Ecosystem**: Use with [`@nis2shield/react-guard`](https://github.com/nis2shield/react-guard), [`@nis2shield/angular-guard`](https://github.com/nis2shield/angular-guard), or [`@nis2shield/vue-guard`](https://github.com/nis2shield/vue-guard) for client-side protection and [`nis2shield/infrastructure`](https://github.com/nis2shield/infrastructure) for a full-stack implementation.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                              │
+│  @nis2shield/{react,angular,vue}-guard                      │
+│  ├── SessionWatchdog (idle detection)                       │
+│  ├── AuditBoundary (crash reports)                         │
+│  └── → POST /api/nis2/telemetry/                           │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Backend (NIS2 Adapter)                      │
+│  Supported: Django, Express, Spring Boot, .NET            │
+│  ├── ForensicLogger (HMAC signed logs)                     │
+│  ├── RateLimiter, SessionGuard, TorBlocker                 │
+│  └── → SIEM (Elasticsearch, Splunk, QRadar, etc.)          │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Infrastructure                            │
+│  nis2shield/infrastructure                                  │
+│  ├── Centralized Logging (ELK/Splunk)                       │
+│  └── Audited Deployment (Terraform/Helm)                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## ✨ Key Features
+
+### 🔒 Forensic Logger
+- Standardized logs (`NIS2-JSON-SCHEMA v1.0`) signed with HMAC-SHA256
+- Automatic PII field encryption (GDPR compliant)
+- Configurable IP anonymization
+
+### 🛡️ Active Defense
+- **Rate Limiting**: Protection against application-level DoS attacks (sliding window algorithm)
+- **Session Guard**: Session hijacking prevention with mobile network tolerance
+- **Tor Blocker**: Automatic blocking of Tor exit nodes
+- **MFA Gatekeeper**: 2FA redirect for sensitive paths
+
+### 📊 Compliance & Reporting
+- `check_nis2` command for configuration auditing
+- Incident report generation for CSIRT (24h deadline)
+- SIEM presets for Elasticsearch, Splunk, QRadar, Graylog, Sumo Logic, and Datadog
+
+### 🔔 Real-time Alerting (v0.3.0+)
+- Webhook notifications for security events
+- Supports Slack, Microsoft Teams, Discord, and generic HTTP
+
+## 📦 Installation
+
+```bash
+pip install django-nis2-shield
+```
+
+For development:
+```bash
+pip install django-nis2-shield[dev]
+```
+
+## ⚙️ Configuration
+
+### settings.py
+
+```python
+INSTALLED_APPS = [
+    ...,
+    'django_nis2_shield',
+]
+
+MIDDLEWARE = [
+    ...,
+    # Add after SessionMiddleware and before CommonMiddleware
+    'django_nis2_shield.middleware.Nis2GuardMiddleware', 
+    ...,
+]
+
+# NIS2 Shield Configuration
+NIS2_SHIELD = {
+    # Security Keys
+    'INTEGRITY_KEY': 'change-me-to-a-secure-secret',
+    'ENCRYPTION_KEY': b'your-32-byte-fernet-key-here=',  # Fernet.generate_key()
+    
+    # Privacy (GDPR)
+    'ANONYMIZE_IPS': True,
+    'ENCRYPT_PII': True,
+    'PII_FIELDS': ['user_id', 'email', 'ip', 'user_agent'],
+    
+    # Active Defense
+    'ENABLE_RATE_LIMIT': True,
+    'RATE_LIMIT_THRESHOLD': 100,  # requests per window
+    'RATE_LIMIT_WINDOW': 60,  # seconds
+    'RATE_LIMIT_ALGORITHM': 'sliding_window',  # or 'fixed_window'
+    'ENABLE_SESSION_GUARD': True,
+    'SESSION_IP_TOLERANCE': 'subnet',  # 'exact', 'subnet', 'none'
+    'BLOCK_TOR_EXIT_NODES': True,
+    
+    # MFA
+    'ENFORCE_MFA_ROUTES': ['/admin/', '/finance/'],
+    'MFA_SESSION_FLAG': 'is_verified_mfa',
+    'MFA_REDIRECT_URL': '/accounts/login/mfa/',
+    
+    # Webhooks (v0.3.0+)
+    'ENABLE_WEBHOOKS': True,
+    'WEBHOOKS': [
+        {'url': 'https://hooks.slack.com/...', 'format': 'slack'},
+    ]
+}
+```
+
+### Log Format: CEF (Enterprise SIEM)
+
+For CEF output instead of JSON:
+
+```python
+from django_nis2_shield.cef_formatter import get_cef_logging_config
+
+LOGGING = get_cef_logging_config('/var/log/django_nis2.cef')
+```
+
+## 🚀 Usage
+
+### Configuration Audit
+```bash
+python manage.py check_nis2
+```
+
+### Threat Intelligence Update
+```bash
+python manage.py update_threat_list
+```
+
+### Incident Report Generation
+```bash
+python manage.py generate_incident_report --hours=24 --output=incident.json
+```
+
+## 📈 Dashboard Monitoring
+
+The project includes a Docker stack for log visualization:
+
+```bash
+cd dashboard
+docker compose up -d
+
+# Access:
+# - Kibana: http://localhost:5601
+# - Grafana: http://localhost:3000 (admin/admin)
+```
+
+See [dashboard/README.md](dashboard/README.md) for details.
+
+## 🧪 Testing
+
+```bash
+# With pytest
+pip install pytest pytest-django
+PYTHONPATH=. pytest tests/ -v
+```
+
+## 📖 Recipes
+
+### Banking App with MFA & Rate Limiting
+
+```python
+# settings.py
+NIS2_SHIELD = {
+    'INTEGRITY_KEY': os.environ['NIS2_HMAC_KEY'],
+    'ENCRYPTION_KEY': os.environ['NIS2_AES_KEY'],
+    
+    # Rate Limit: 50 requests per minute
+    'ENABLE_RATE_LIMIT': True,
+    'RATE_LIMIT_THRESHOLD': 50,
+    'RATE_LIMIT_WINDOW': 60,
+    
+    # MFA for admin and finance
+    'ENFORCE_MFA_ROUTES': ['/admin/', '/finance/', '/transfers/'],
+    'MFA_REDIRECT_URL': '/accounts/mfa/verify/',
+}
+```
+
+### E-commerce with Splunk SIEM
+
+```python
+# settings.py
+import os
+
+NIS2_SHIELD = {
+    'INTEGRITY_KEY': os.environ['NIS2_HMAC_KEY'],
+    'ANONYMIZE_IPS': True,
+    'ENCRYPT_PII': True,
+    
+    # Webhooks for real-time alerts
+    'ENABLE_WEBHOOKS': True,
+    'WEBHOOKS': [
+        {'url': 'https://hooks.slack.com/...', 'format': 'slack'},
+    ]
+}
+
+# Splunk SIEM Output
+from django_nis2_shield.siem import get_splunk_logging_config
+LOGGING = get_splunk_logging_config(
+    splunk_url='https://splunk.example.com:8088',
+    token=os.environ['SPLUNK_HEC_TOKEN']
+)
+```
+
+### Healthcare API with Session Guard
+
+```python
+# Block session hijacking attempts with IP tolerance for mobile networks
+NIS2_SHIELD = {
+    'ENABLE_SESSION_GUARD': True,
+    'SESSION_IP_TOLERANCE': 'subnet',  # 'exact', 'subnet', or 'none'
+    'BLOCK_TOR_EXIT_NODES': True,
+}
+```
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## 🛡️ Security & Updates
+
+**Subscribe to our [Security Mailing List](https://buttondown.email/nis2shield)** to receive immediate alerts about:
+- Critical vulnerabilities (CVEs)
+- NIS2/DORA regulatory logic updates
+- Major breaking changes
+
+For reporting vulnerabilities, see [SECURITY.md](SECURITY.md).
+
+## 🤝 Contributing
+
+Contributions are welcome! Open an issue or PR on GitHub.
+
+---
+
+**[Documentation](https://nis2shield.com)** · **[PyPI](https://pypi.org/project/django-nis2-shield/)** · **[Changelog](CHANGELOG.md)**
