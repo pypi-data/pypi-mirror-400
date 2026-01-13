@@ -1,0 +1,159 @@
+{% extends 'base.html' %} {% block scripts %}
+<!-- <meta http-equiv="refresh" content="5" /> -->
+
+<script>
+  // Ensure global socket exists
+  if (typeof window.socket === 'undefined') {
+    window.socket = io();
+  }
+
+  // Initialize queue state if needed
+  if (typeof window.queuePageState === 'undefined') {
+    window.queuePageState = {
+      queue: [],
+      previousQueue: null
+    };
+  }
+
+  // Define global queue functions (will be called by socket listeners)
+  window.queuePage_getQueue = function() {
+    // Only fetch queue data if we're on the queue page (element exists)
+    // This prevents unnecessary AJAX calls when socket updates fire on other pages
+    if ($('#auto-refresh').length === 0) {
+      return;
+    }
+
+    $.get('{{ url_for("queue.get_queue") }}', function (data) {
+      var newQueue = JSON.parse(data);
+      if (!_.isEqual(newQueue, window.queuePageState.previousQueue)) {
+        window.queuePageState.queue = newQueue;
+        $("#auto-refresh").html(window.queuePage_generateHTML());
+        window.queuePageState.previousQueue = newQueue;
+      }
+    });
+  };
+
+  window.queuePage_generateHTML = function() {
+    var html = "";
+    var queue = window.queuePageState.queue;
+    if (queue.length > 0) {
+      queue.forEach((e, index) => {
+        html += `
+          <tr value=${e.title}>
+            <td width="20px" style="padding: 5px 0px">${index + 1}</td>
+            {% if admin %}
+              <td width="20px" style="padding: 5px 0px">
+                <a
+                  class="up-button"
+                  href="/queue/edit?action=up&song=${encodeURIComponent(e.file)}"
+                  title="Move up in queue"
+                  ><i class="icon  icon-up-circled ${index == 0 && "is-hidden"}"></i>
+                </a>
+              </td>
+              <td width="20px" style="padding: 5px 0px">
+                <a
+                  class="down-button"
+                  href="/queue/edit?action=down&song=${encodeURIComponent(e.file)}"
+                  title="Move down in queue"
+                  ><i class="icon  icon-down-circled ${index + 1 == queue.length && "is-hidden"}"></i>
+                </a>
+              </td>
+            {% endif %}
+            <td style="padding-left: 10px"><b class="is-hidden-tablet has-text-success">${e.user}: </b> ${e.title}</td>
+            <td style="padding-left: 5px" class="queue-user is-hidden-mobile has-text-success"><b>${e.user}</b></td>
+            {% if admin %}
+              <td width="20px">
+                <a
+                  class="delete-button confirm-delete has-text-danger"
+                  title="${e.title}"
+                  href="/queue/edit?action=delete&song=${encodeURIComponent(e.file)}"
+                  ><i class="icon icon-trash-empty"></i>
+                </a>
+              </td>
+            {% endif %}
+          </tr>
+        `;
+      });
+    }
+    else {
+      // {# MSG: Placeholder text which appears instead of a song when the queue is empty. #}
+      html += `<tr><td><p class="has-text-warning">{{ _('The queue is empty') }}</p></td></tr>`;
+    }
+    return html;
+  };
+
+  // Queue management click handlers are now in spa-navigation.js
+  // This prevents duplicate handlers during SPA navigation
+
+  // Clean up old listeners and attach fresh one
+  window.socket.off("queue_update");
+  window.socket.on("queue_update", window.queuePage_getQueue);
+
+  // Reset previousQueue so first load always updates the DOM
+  // This is critical for SPA navigation where DOM is replaced but data may be the same
+  window.queuePageState.previousQueue = null;
+
+  // Initialize queue immediately - works for both initial load and SPA navigation
+  if (document.readyState === 'loading') {
+    // Initial page load - wait for DOM
+    $(function() {
+      window.queuePage_getQueue();
+    });
+  } else {
+    // DOM already ready (SPA navigation) - execute immediately
+    window.queuePage_getQueue();
+  }
+
+  // Handle visibility changes - remove old listener first to prevent duplicates
+  document.removeEventListener("visibilitychange", window.queuePage_visibilityHandler);
+  window.queuePage_visibilityHandler = function() {
+    if (document.visibilityState === 'visible') {
+      window.queuePage_getQueue();
+      if (!window.socket.connected) {
+        console.log('Reconnecting socket...');
+        window.socket = io();
+        window.socket.on("queue_update", window.queuePage_getQueue);
+      }
+    }
+  };
+  document.addEventListener("visibilitychange", window.queuePage_visibilityHandler);
+
+  // Add random songs handler is now in spa-navigation.js
+</script>
+
+{% endblock %}
+
+{% block header %}
+<h1 class>{% block title %}
+  {# MSG: Title of the page showing the currently queued songs. #}
+  {%- trans -%}Queue{%- endtrans -%}
+  {% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+
+<table class="table is-striped" id="auto-refresh" style="margin-bottom: 30px">
+</table>
+
+{% if admin %}
+<div class="is-flex is-justify-content-space-between is-align-items-center mb-3">
+	<div class="is-flex is-align-items-center">
+		<a class="add-random has-text-success" href="#"
+			{# MSG: Button text which picks a given number of random songs from the already downloaded songs and adds them to the queue. #}
+			><i class="icon icon-plus-circled is-size-5 mr-1"></i></a>
+			{% trans %}Add <input id="randomNumberInput" class="input mx-2 p-2" pattern="\d*" maxlength="2" value="3" min="1" max="99" style="width: 42px" /> random songs{% endtrans %}
+	</div>
+
+	<div>
+		<a
+		class="button is-danger is-outlined confirm-clear"
+		href="/queue/edit?action=clear"
+		{# MSG: Text for the button which clears the entire queue. #}
+		><i class="icon icon-trash-empty mr-1"></i>{% trans %}Clear all{% endtrans %}</a>
+	</div>
+</div>
+
+
+{% endif %}
+
+{% endblock %}
