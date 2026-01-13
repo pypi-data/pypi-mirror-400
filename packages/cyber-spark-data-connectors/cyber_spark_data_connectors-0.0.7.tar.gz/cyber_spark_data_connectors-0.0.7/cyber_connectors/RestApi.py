@@ -1,0 +1,110 @@
+from typing import Dict, Iterator
+
+from pyspark.sql.datasource import DataSource, DataSourceStreamWriter, DataSourceWriter, WriterCommitMessage
+from pyspark.sql.types import Row, StructType
+
+from cyber_connectors.common import DateTimeJsonEncoder, SimpleCommitMessage, get_http_session
+
+
+class RestApiDataSource(DataSource):
+    """Data source for REST APIs. Right now supports writing to a REST API.
+
+    Write options:
+    - url: REST API URL
+    - http_format: (optional) format of the payload - json or form-data (default: json)
+    - http_method: (optional) HTTP method to use - post or put (default: post)
+    - http_header_*: (optional) custom HTTP headers. Use prefix http_header_ followed by header name.
+                     Example: http_header_Authorization, http_header_X-API-Key
+
+    """
+
+    @classmethod
+    def name(cls):
+        return "rest"
+
+    # needed only for reads without schema
+    # def schema(self):
+    #     return "name string, date string, zipcode string, state string"
+
+    def streamWriter(self, schema: StructType, overwrite: bool) -> DataSourceStreamWriter:
+        return RestApiStreamWriter(self.options)
+
+    def writer(self, schema: StructType, overwrite: bool) -> DataSourceWriter:
+        return RestApiBatchWriter(self.options)
+
+
+class RestApiWriter:
+    def __init__(self, options: Dict[str, any]):
+        self.options = options
+        self.url = self.options.get("url")
+        self.payload_format: str = self.options.get("http_format", "json").lower()
+        self.http_method: str = self.options.get("http_method", "post").lower()
+        assert self.url is not None
+        assert self.payload_format in ["json", "form-data"]
+        assert self.http_method in ["post", "put"]
+        
+        # Extract custom headers with http_header_ prefix
+        self.custom_headers = {}
+        header_prefix = "http_header_"
+        for key, value in self.options.items():
+            if key.startswith(header_prefix):
+                header_name = key[len(header_prefix):]
+                self.custom_headers[header_name] = value
+
+    def write(self, iterator: Iterator[Row]):
+        """Writes the data, then returns the commit message of that partition. Library imports must be within the method."""
+        import json
+
+        from pyspark import TaskContext
+
+        # Start with custom headers (they take precedence)
+        additional_headers = self.custom_headers.copy()
+        
+        # Add Content-Type only if not already specified by user
+        if self.payload_format == "json" and "Content-Type" not in additional_headers:
+            additional_headers["Content-Type"] = "application/json"
+        
+        # make retry_on_post configurable
+        s = get_http_session(additional_headers=additional_headers, retry_on_post=True)
+        context = TaskContext.get()
+        partition_id = context.partitionId()
+        cnt = 0
+        for row in iterator:
+            cnt += 1
+            data = None
+            row_dict = row.asDict()
+            if self.payload_format == "json":
+                data = json.dumps(row_dict, cls=DateTimeJsonEncoder)
+            elif self.payload_format == "form-data":
+                # Convert all values to strings for form data
+                data = {k: str(v) if v is not None else "" for k, v in row_dict.items()}
+            
+            if self.http_method == "post":
+                response = s.post(self.url, data=data)
+            elif self.http_method == "put":
+                response = s.put(self.url, data=data)
+            else:
+                raise ValueError(f"Unsupported http method: {self.http_method}")
+            print(response.status_code, response.text)
+
+        return SimpleCommitMessage(partition_id=partition_id, count=cnt)
+
+
+class RestApiBatchWriter(RestApiWriter, DataSourceWriter):
+    def __init__(self, options):
+        super().__init__(options)
+
+
+class RestApiStreamWriter(RestApiWriter, DataSourceStreamWriter):
+    def __init__(self, options):
+        super().__init__(options)
+
+    def commit(self, messages: list[WriterCommitMessage | None], batchId: int) -> None:
+        """Receives a sequence of :class:`WriterCommitMessage` when all write tasks have succeeded, then decides what to do with it.
+        """
+        pass
+    
+    def abort(self, messages: list[WriterCommitMessage | None], batchId: int) -> None:
+        """Receives a sequence of :class:`WriterCommitMessage` from successful tasks when some other tasks have failed, then decides what to do with it.
+        """
+        pass
