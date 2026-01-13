@@ -1,0 +1,852 @@
+# Moadian SDK
+
+A clean and simple Python SDK for interacting with the Iranian Tax Organization's Moadian API.
+
+## Features
+
+- ✅ Simple, intuitive API
+- ✅ Automatic Tax ID generation
+- ✅ Automatic invoice encryption and signing
+- ✅ Date-based serial number management (resets daily)
+- ✅ Optional serial storage (file or manual)
+- ✅ Rate limiting
+- ✅ Complete type hints
+- ✅ Comprehensive error handling
+- ✅ Server-friendly (no file writes by default)
+- ✅ UnitCode enum for measurement units
+- ✅ Header parameter overrides
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem, UnitCode
+
+# Initialize client
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs"
+)
+
+# Create invoice items
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="Product Name",
+        amount=1.0,
+        unit_fee=100000.0,
+        vat_rate=9.0,
+        mu=UnitCode.NUMBER,  # Measurement unit
+    )
+]
+
+# Create invoice data
+invoice_data = InvoiceData(
+    seller_tin="YOUR_TAX_ID",
+    buyer_tin="BUYER_TAX_ID",
+    items=items,
+    settlement_method=1,  # 1 = Cash, 2 = Credit
+)
+
+# Send invoice (SDK handles everything!)
+with client:
+    response = client.send_invoice(invoice_data)
+    print(f"Invoice sent! UID: {response.uid}")
+    print(f"Tax ID: {response.tax_id}")
+    print(f"Serial: {response.serial}")
+```
+
+## How It Works
+
+The SDK handles the complete invoice submission process:
+
+1. **Serial Number Generation**: Automatically generates sequential serial numbers (resets daily)
+2. **Tax ID Generation**: Creates unique Tax ID using fiscal ID, date, and serial number
+3. **Invoice Building**: Constructs invoice dictionary according to Moadian specification
+4. **Encryption**: Signs with JWS (RS256) and encrypts with JWE (RSA-OAEP-256 + AES256-GCM)
+5. **Submission**: Sends encrypted invoice to Moadian API
+6. **Response**: Returns invoice response with UID, reference number, Tax ID, and serial number
+
+## Examples
+
+### Example 1: Basic Invoice
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem, UnitCode
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+    enable_serial_storage=False,
+)
+
+# Create invoice items
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="محصول نمونه",
+        amount=2.0,
+        unit_fee=100000.0,
+        vat_rate=9.0,
+        discount=5000.0,
+        mu=UnitCode.NUMBER,
+    )
+]
+
+# Create invoice data
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+    settlement_method=1,  # Cash
+)
+
+# Send invoice
+with client:
+    response = client.send_invoice(invoice_data)
+    print(f"✅ Invoice sent! UID: {response.uid}")
+    print(f"   Tax ID: {response.tax_id}")
+    print(f"   Serial: {response.serial}")
+```
+
+### Example 2: Using UnitCode Enum
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem, UnitCode
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+)
+
+# Create items with different measurement units
+items = [
+    InvoiceItem(
+        sstid="PROD001",
+        sstt="محصول بر اساس کیلوگرم",
+        amount=5.0,
+        unit_fee=50000.0,
+        mu=UnitCode.KILOGRAM,  # Using enum
+    ),
+    InvoiceItem(
+        sstid="PROD002",
+        sstt="محصول بر اساس متر",
+        amount=10.0,
+        unit_fee=20000.0,
+        mu=UnitCode.METER,  # Using enum
+    ),
+    InvoiceItem(
+        sstid="PROD003",
+        sstt="محصول بر اساس عدد (پیش‌فرض)",
+        amount=3.0,
+        unit_fee=15000.0,
+        # mu defaults to UnitCode.NUMBER
+    ),
+]
+
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+)
+
+# You can also use string or int codes
+item_with_string = InvoiceItem(
+    sstid="PROD004",
+    sstt="محصول با کد رشته‌ای",
+    amount=1.0,
+    unit_fee=10000.0,
+    mu="164",  # String code
+)
+
+item_with_int = InvoiceItem(
+    sstid="PROD005",
+    sstt="محصول با کد عددی",
+    amount=1.0,
+    unit_fee=10000.0,
+    mu=164,  # Integer code
+)
+
+# Find UnitCode by code or Persian name
+unit_by_code = UnitCode.from_code(164)
+if unit_by_code:
+    print(f"Code 164: {unit_by_code.name} = {unit_by_code.persian_name}")
+
+unit_by_name = UnitCode.from_persian("کیلوگرم")
+if unit_by_name:
+    print(f"Persian 'کیلوگرم': {unit_by_name.name} = {unit_by_name.code}")
+```
+
+### Example 3: Invoice with All Optional Fields
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem, UnitCode
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+)
+
+# Create item with all optional fields
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="محصول کامل با تمام فیلدها",
+        amount=2.0,
+        unit_fee=100000.0,
+        vat_rate=9.0,
+        discount=10000.0,
+        mu=UnitCode.NUMBER,
+        nw=1.5,  # Net weight
+        cfee=1000.0,  # Currency fee
+        cut="USD",  # Currency unit type
+        exr=42000.0,  # Exchange rate
+        ssrv=200000.0,  # Service/Product sale rate value
+        sscv=200000.0,  # Service/Product sale currency value
+        vba=180000.0,  # VAT base amount
+        odt="DISCOUNT_TYPE",  # Other discount type
+        odr=5.0,  # Other discount rate
+        odam=5000.0,  # Other discount amount
+        olt="LEVY_TYPE",  # Other levy type
+        olr=2.0,  # Other levy rate
+        olam=2000.0,  # Other levy amount
+        consfee=10000.0,  # Construction fee
+    )
+]
+
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+    settlement_method=1,
+    invoice_type=1,
+    invoice_pattern=1,
+    invoice_subject=1,
+)
+
+with client:
+    response = client.send_invoice(invoice_data)
+```
+
+### Example 4: Header Parameter Overrides
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+)
+
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="محصول نمونه",
+        amount=1.0,
+        unit_fee=100000.0,
+    )
+]
+
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+    settlement_method=1,  # Default: Cash
+)
+
+# Override header parameters when sending
+with client:
+    response = client.send_invoice(
+        invoice_data,
+        # Override settlement method to Credit
+        settlement_method=2,
+        # Override type of business
+        tob=3,
+        # Add related tax ID
+        irtaxid="RELATED123456",
+        # Add other header fields
+        tax17=1000.0,
+        tinc="TAX_ID_CODE",
+        lno="LICENSE123",
+        # ... any other header parameter from build_invoice_dict()
+    )
+```
+
+### Example 5: Credit Settlement with Payments
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+)
+
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="محصول با تسویه اعتباری",
+        amount=1.0,
+        unit_fee=100000.0,
+    )
+]
+
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+    settlement_method=2,  # Credit
+)
+
+# For credit invoices, you can provide payment information
+payments = [
+    {
+        "iinn": "INSTRUMENT_ID",
+        "acn": "ACCOUNT_NUMBER",
+        "trmn": "TERMINAL_NUMBER",
+        "pmt": 1,  # Payment method
+        "trn": "TRANSACTION_NUMBER",
+        "pcn": "PAYMENT_CARD_NUMBER",
+        "pid": "PAYMENT_ID",
+        "pdt": 1704067200000,  # Payment date timestamp
+        "pv": 100000.0,  # Payment value
+    }
+]
+
+with client:
+    response = client.send_invoice(
+        invoice_data,
+        payments=payments,
+    )
+```
+
+### Example 6: Multiple Items
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+)
+
+# Create multiple items
+items = [
+    InvoiceItem(
+        sstid="PROD001",
+        sstt="محصول اول",
+        amount=2.0,
+        unit_fee=50000.0,
+        vat_rate=9.0,
+        discount=5000.0,
+    ),
+    InvoiceItem(
+        sstid="PROD002",
+        sstt="محصول دوم",
+        amount=3.0,
+        unit_fee=75000.0,
+        vat_rate=9.0,
+        discount=10000.0,
+    ),
+    InvoiceItem(
+        sstid="PROD003",
+        sstt="محصول سوم",
+        amount=1.0,
+        unit_fee=100000.0,
+        vat_rate=9.0,
+        discount=0.0,
+    ),
+]
+
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+)
+
+with client:
+    response = client.send_invoice(invoice_data)
+    print(f"Total items: {len(items)}")
+    print("Invoice totals calculated automatically")
+```
+
+### Example 7: Error Handling
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem, MoadianException
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+)
+
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="محصول نمونه",
+        amount=1.0,
+        unit_fee=100000.0,
+    )
+]
+
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+)
+
+try:
+    with client:
+        response = client.send_invoice(invoice_data)
+        print("✅ Success:", response.uid)
+except MoadianException as e:
+    print(f"❌ Moadian Error: {e}")
+except Exception as e:
+    print(f"❌ Unexpected Error: {e}")
+```
+
+### Example 8: Manual Serial Storage (Server Environment)
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem
+import json
+import datetime
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+    enable_serial_storage=False,  # No file writes
+)
+
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="Product Name",
+        amount=1.0,
+        unit_fee=100000.0,
+    )
+]
+
+invoice_data = InvoiceData(
+    seller_tin="YOUR_TAX_ID",
+    buyer_tin="BUYER_TAX_ID",
+    items=items,
+)
+
+with client:
+    response = client.send_invoice(invoice_data)
+
+    # Store manually in your database/file
+    invoice_record = {
+        "uid": response.uid,
+        "tax_id": response.tax_id,      # IMPORTANT: Store this!
+        "serial": response.serial,       # IMPORTANT: Store this!
+        "reference_number": response.reference_number,
+        "timestamp": datetime.datetime.now().isoformat(),
+    }
+
+    # Save to database
+    # db.insert("invoices", invoice_record)
+
+    # Or save to file
+    with open("invoices.json", "a") as f:
+        json.dump(invoice_record, f)
+        f.write("\n")
+```
+
+### Example 9: File-Based Serial Storage
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem
+
+# Enable automatic serial storage to file
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+    enable_serial_storage=True,  # Enable file storage
+    serial_file="last_serial.txt",  # Custom file path (optional)
+)
+
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="Product Name",
+        amount=1.0,
+        unit_fee=100000.0,
+    )
+]
+
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+)
+
+# Serial numbers will be automatically saved to file
+with client:
+    response = client.send_invoice(invoice_data)
+    # Serial automatically saved to last_serial.txt
+```
+
+### Example 10: Check Invoice Status
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, InvoiceItem
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+)
+
+items = [
+    InvoiceItem(
+        sstid="1234567890123",
+        sstt="Product Name",
+        amount=1.0,
+        unit_fee=100000.0,
+    )
+]
+
+invoice_data = InvoiceData(
+    seller_tin="1234567890",
+    buyer_tin="0987654321",
+    items=items,
+)
+
+with client:
+    response = client.send_invoice(invoice_data)
+
+    # Check status
+    status_list = client.inquiry_by_uid([response.uid])
+    if status_list:
+        status = status_list[0].get("status")
+        print(f"Status: {status}")
+
+        if status == "SUCCESS":
+            print("Invoice accepted!")
+        elif status == "FAILED":
+            errors = status_list[0].get("data", {}).get("error", [])
+            for err in errors:
+                print(f"Error: {err['message']}")
+```
+
+## Serial Number Storage Options
+
+The SDK provides two modes for handling serial numbers:
+
+### Option 1: Automatic File Storage (Default: Disabled)
+
+When `enable_serial_storage=True`, the SDK automatically saves serial numbers to a text file:
+
+```python
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    enable_serial_storage=True,  # Enable automatic file storage
+    serial_file="last_serial.txt"  # Optional: custom file path
+)
+```
+
+**How it works:**
+- Serial numbers are stored in `last_serial.txt` (or custom file)
+- Format: `YYYY-MM-DD:serial_number` (date-based, resets daily)
+- Automatically loads last serial for today on startup
+- Automatically saves after each invoice submission
+- File format example:
+  ```
+  # Date-based serial numbers (YYYY-MM-DD:serial)
+  2024-01-15:42
+  2024-01-14:150
+  2024-01-13:89
+  ```
+
+**Use when:**
+- You have write access to the filesystem
+- You want automatic persistence across restarts
+- Single-instance application
+
+### Option 2: Manual Storage (Default: Enabled)
+
+When `enable_serial_storage=False` (default), the SDK uses in-memory serial management:
+
+```python
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    enable_serial_storage=False  # Default - no file writes
+)
+```
+
+**How it works:**
+- Serial numbers are managed in-memory only
+- Resets to 0 each day automatically
+- **You must store serial and tax_id manually** after each invoice
+- Serial numbers reset on application restart
+
+**Use when:**
+- Server environments without write access
+- Multi-instance applications (load-balanced)
+- You want to store serials in your database
+- You need custom storage logic
+
+## Certificate Setup
+
+Place your certificates in a `certs/` directory:
+
+```
+certs/
+├── private_key.pem      # Private key (PEM format)
+└── certificate.pem      # Certificate (PEM format)
+```
+
+The SDK will automatically find these files. If you use different filenames:
+
+```python
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+    private_key_file="my_key.pem",
+    certificate_file="my_cert.pem",
+)
+```
+
+## API Reference
+
+### MoadianClient
+
+Main client class for interacting with Moadian API.
+
+#### Initialization
+
+```python
+MoadianClient(
+    client_id: str,                          # Required: Fiscal memory ID
+    certs_dir: str = "certs",                # Certificate directory
+    private_key_file: str = "private_key.pem",
+    certificate_file: str = "certificate.pem",
+    password: Optional[bytes] = None,        # Private key password
+    enable_serial_storage: bool = False,     # Enable file storage (default: False)
+    serial_file: str = "last_serial.txt",   # Serial file path
+)
+```
+
+#### Methods
+
+- `send_invoice(invoice_data, force_serial=None, min_delay=15.0, **header_overrides)` - Send invoice (high-level)
+  - Returns: `InvoiceResponse` with `uid`, `reference_number`, `tax_id`, `serial`
+  - Handles: Tax ID generation, encryption, submission
+  - `**header_overrides`: Optional keyword arguments to override header/invoice parameters
+    - Any parameter accepted by `build_invoice_dict()` can be passed here
+    - Examples: `settlement_method`, `tob`, `irtaxid`, `tax17`, `tinc`, `lno`, etc.
+
+- `send_invoices(invoices, tax_id=None, serial=None)` - Send invoices (low-level)
+  - For advanced use cases
+
+- `get_server_information()` - Get server info and public keys
+  - Returns: `ServerInfo` object
+
+- `inquiry_by_uid(uid_list, fiscal_id=None)` - Check invoice status by UID
+  - Returns: List of status dictionaries
+
+- `inquiry_by_reference_id(reference_ids)` - Check invoice status by reference
+  - Returns: List of status dictionaries
+
+- `inquiry_by_time_range(start, end, page_number=1, page_size=10, status=None)` - Query invoices by date range
+
+- `get_fiscal_information(memory_id)` - Get fiscal memory information
+
+- `get_taxpayer_information(economic_code)` - Get taxpayer information
+
+### Models
+
+#### InvoiceResponse
+
+```python
+@dataclass
+class InvoiceResponse:
+    uid: str                    # Invoice UID (requestTraceId)
+    reference_number: str      # Moadian reference number
+    tax_id: str                # Generated Tax ID (22 characters)
+    serial: int                # Serial number (decimal format)
+    packet_type: Optional[str]
+    data: Optional[Any]
+```
+
+#### InvoiceData
+
+```python
+@dataclass
+class InvoiceData:
+    seller_tin: str            # Seller Tax ID
+    buyer_tin: str             # Buyer Tax ID
+    items: List[InvoiceItem]   # Invoice items
+    settlement_method: int = 1  # 1=Cash, 2=Credit
+    invoice_type: int = 1
+    invoice_pattern: int = 1
+    invoice_subject: int = 1
+```
+
+#### InvoiceItem
+
+```python
+@dataclass
+class InvoiceItem:
+    sstid: str                 # Service/Product ID
+    sstt: str                  # Service/Product Title
+    amount: float              # Quantity (double)
+    unit_fee: float            # Unit price (double)
+    vat_rate: float = 10.0     # VAT rate percentage (double)
+    discount: float = 0.0       # Discount amount (double)
+    mu: Union[UnitCode, str, int] = None  # Measurement unit (default: UnitCode.NUMBER)
+
+    # Optional fields
+    nw: Optional[float] = None          # Net weight
+    cfee: Optional[float] = None        # Currency fee
+    cut: Optional[str] = None           # Currency unit type
+    exr: Optional[float] = None         # Exchange rate
+    ssrv: Optional[float] = None        # Service/Product sale rate value
+    sscv: Optional[float] = None        # Service/Product sale currency value
+    vba: Optional[float] = None         # VAT base amount
+    odt: Optional[str] = None           # Other discount type
+    odr: Optional[float] = None         # Other discount rate
+    odam: Optional[float] = None        # Other discount amount
+    olt: Optional[str] = None           # Other levy type
+    olr: Optional[float] = None          # Other levy rate
+    olam: Optional[float] = None        # Other levy amount
+    consfee: Optional[float] = None     # Construction fee
+```
+
+#### UnitCode
+
+Enumeration for measurement units (واحدهای سنجش):
+
+```python
+class UnitCode(Enum):
+    NUMBER = (1612, "عدد")           # Default
+    KILOGRAM = (164, "کیلوگرم")
+    METER = (1627, "متر")
+    LITER = (1637, "لیتر")
+    # ... and many more
+
+    # Methods
+    @classmethod
+    def from_code(cls, code: int) -> Optional[UnitCode]
+
+    @classmethod
+    def from_persian(cls, persian_name: str) -> Optional[UnitCode]
+```
+
+#### InvoiceStatus
+
+```python
+class InvoiceStatus(Enum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    IN_PROGRESS = "IN_PROGRESS"
+    NOT_FOUND = "NOT_FOUND"
+    TIMEOUT = "TIMEOUT"
+```
+
+## Important Notes
+
+### Serial Number Management
+
+- **Serial numbers reset daily** - Each day starts from 0 (or 1)
+- **Must be unique per day** - The SDK ensures this automatically
+- **Storage is optional** - Choose based on your environment:
+  - **File storage**: Use when you have write access and single instance
+  - **Manual storage**: Use in server environments or multi-instance setups
+
+### Tax ID and Serial Storage
+
+**When `enable_serial_storage=False` (default):**
+- You **MUST** store `tax_id` and `serial` from the response
+- These are critical for invoice tracking and compliance
+- Store them in your database or file system
+- The SDK provides these values in `InvoiceResponse` for your convenience
+
+**When `enable_serial_storage=True`:**
+- Serial numbers are automatically saved to file
+- You should still store `tax_id` for your records
+- Serial file format: `YYYY-MM-DD:serial_number`
+
+### Server Environments
+
+For production server environments:
+1. Set `enable_serial_storage=False` (default)
+2. Store `tax_id` and `serial` in your database after each invoice
+3. Use your database to track serial numbers if needed
+4. The SDK handles serial generation, you handle persistence
+
+### Measurement Units
+
+The SDK provides a `UnitCode` enum for measurement units. You can:
+
+- Use the enum directly: `mu=UnitCode.KILOGRAM`
+- Use string codes: `mu="164"`
+- Use integer codes: `mu=164`
+- Find by code: `UnitCode.from_code(164)`
+- Find by Persian name: `UnitCode.from_persian("کیلوگرم")`
+
+Default measurement unit is `UnitCode.NUMBER` (1612, "عدد").
+
+### Header Parameter Overrides
+
+You can override any header parameter when sending an invoice:
+
+```python
+response = client.send_invoice(
+    invoice_data,
+    settlement_method=2,  # Override to Credit
+    tob=3,                # Override type of business
+    irtaxid="RELATED123", # Add related tax ID
+    tax17=1000.0,         # Add tax17
+    # ... any other header parameter
+)
+```
+
+## Error Handling
+
+The SDK raises custom exceptions:
+
+- `MoadianException` - Base exception
+- `AuthenticationException` - Authentication failures
+- `APIException` - API errors
+- `CertificateException` - Certificate loading errors
+- `InvoiceException` - Invoice generation errors
+
+```python
+from moadian_sdk import MoadianClient, MoadianException, AuthenticationException
+
+try:
+    with client:
+        response = client.send_invoice(invoice_data)
+except AuthenticationException as e:
+    print(f"Auth failed: {e}")
+except MoadianException as e:
+    print(f"Error: {e}")
+```
+
+## Project Structure
+
+```
+moadian-sdk/
+├── moadian_sdk/          # SDK package
+│   ├── __init__.py       # Public API
+│   ├── client.py         # Main API client
+│   ├── crypto.py         # Encryption/signing
+│   ├── invoice.py        # Invoice building & Tax ID generation
+│   ├── models.py         # Data models
+│   ├── exceptions.py     # Custom exceptions
+│   └── utils.py          # Certificate utilities
+├── example.py            # Comprehensive examples
+├── pyproject.toml        # Project configuration
+└── README.md            # This file
+```
+
+## License
+
+MIT
