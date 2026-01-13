@@ -1,0 +1,33 @@
+# version: '3'
+services:
+  clash: # Clash 内核
+    container_name: clash-meta
+    image: metacubex/mihomo
+    restart: always
+    pid: host
+    ipc: host
+    network_mode: host
+    cap_add:
+      - ALL
+    security_opt:
+      - apparmor=unconfined
+    volumes:
+      - ./clash_meta_config:/root/.config/mihomo
+      - /dev/net/tun:/dev/net/tun
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
+  metacubexd: # Clash WebUI
+    container_name: metacubexd
+    image: ghcr.io/metacubex/metacubexd
+    restart: always
+    network_mode: bridge
+    ports:
+      - '28002:80'
+    volumes:
+      - ./clash_meta_caddy:/config/caddy
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
+
+

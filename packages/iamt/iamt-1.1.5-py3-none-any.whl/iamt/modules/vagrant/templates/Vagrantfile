@@ -1,0 +1,25 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Specs = [
+  { "name"=>"{{hostname}}","ip"=>"{{ hostip }}", "cpu"=>"{{hostcpu}}", "mem"=>"{{hostmem}}", "image"=>"{{hostimg}}","forwarded_port"=>"{{hostport}}"  },
+   
+]
+
+Vagrant.configure("2") do |config|
+    Specs.each_with_index do |spec, index|
+        config.vm.define spec["name"] do |node|
+
+            node.vm.box = spec["image"]
+            node.vm.network "forwarded_port", guest: 22, host: spec["forwarded_port"], id: "ssh"
+            node.vm.network "private_network", ip: spec["ip"]
+            node.vm.hostname = spec["name"]
+
+            node.vm.provider "virtualbox" do |v|
+                v.memory = spec["mem"]
+                v.cpus = spec["cpu"]
+            end
+
+        end
+    end
+end

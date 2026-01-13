@@ -1,0 +1,39 @@
+services:
+  lora-scripts:
+    container_name: lora-scripts
+    build:
+      context: .
+      dockerfile: Dockerfile-for-Mainland-China
+    image: lppx_lora-scripts:v2
+    ports:
+      - "28000:28000"
+      - "6006:6006"  
+    volumes:
+      - "./sd-models:/app/lora-scripts/sd-models"
+      - "./train:/app/lora-scripts/train"
+      - "./output:/app/lora-scripts/output"
+    environment:
+      - HF_HOME=huggingface
+      - PYTHONUTF8=1
+    security_opt:
+      - "label=type:nvidia_container_t"
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+    ipc: host
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      stack:
+        soft: 67108864
+        hard: 67108864
+
+
+# 需要的flux vae 和 clip 这三个模型做配套 
+
