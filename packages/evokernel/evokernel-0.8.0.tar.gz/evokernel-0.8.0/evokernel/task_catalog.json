@@ -1,0 +1,141 @@
+{
+  "tasks": [
+    {
+      "id": "layernorm",
+      "title": "Layer Normalization",
+      "description": "Implements LayerNorm: y = (x - E[x]) / sqrt(Var[x] + eps) * weight + bias. Normalizes across last N dimensions.",
+      "unique_characteristics": {
+        "supports_backward": true,
+        "operations": ["mean", "variance", "normalization", "affine_transform"],
+        "tensor_shapes": "4D input (batch, features, dim1, dim2)",
+        "init_methods": ["standard", "random"],
+        "has_cuda_reference": true
+      }
+    },
+    {
+      "id": "llama_ffw",
+      "title": "LLaMA Feedforward Network",
+      "description": "Implements the gated feedforward block from LLaMA: gate = SiLU(x @ gate_proj), up = x @ up_proj, output = (gate * up) @ down_proj",
+      "unique_characteristics": {
+        "supports_backward": false,
+        "operations": ["linear", "SiLU_activation", "element_wise_multiply"],
+        "tensor_shapes": "3D input (batch, tokens, features)",
+        "model_specific": "LLaMA architecture",
+        "has_cuda_reference": true
+      }
+    },
+    {
+      "id": "llama_rmsnorm",
+      "title": "LLaMA RMS Normalization",
+      "description": "Implements RMSNorm: y = x / sqrt(mean(x^2) + eps) * weight. Simpler than LayerNorm, no mean subtraction.",
+      "unique_characteristics": {
+        "supports_backward": true,
+        "operations": ["rsqrt", "mean_of_squares", "element_wise_multiply"],
+        "tensor_shapes": "3D input (batch, tokens, features)",
+        "model_specific": "LLaMA architecture"
+      }
+    },
+    {
+      "id": "mnist_conv_relu_pool",
+      "title": "MNIST Conv2D + ReLU + MaxPool",
+      "description": "Fused operation: 2D convolution followed by ReLU activation and 2x2 max pooling.",
+      "unique_characteristics": {
+        "supports_backward": true,
+        "operations": ["conv2d", "relu", "max_pool2d"],
+        "tensor_shapes": "4D MNIST-style (batch, channels, 28, 28)",
+        "has_cuda_reference": true
+      }
+    },
+    {
+      "id": "mnist_cross_entropy",
+      "title": "MNIST Cross Entropy Loss",
+      "description": "Computes cross entropy loss: loss = -log(softmax(x)[y]) for multi-class classification.",
+      "unique_characteristics": {
+        "supports_backward": true,
+        "operations": ["log_softmax", "nll_loss"],
+        "tensor_shapes": "2D predictions (batch, classes), 1D targets",
+        "no_learnable_params": true
+      }
+    },
+    {
+      "id": "mnist_linear",
+      "title": "MNIST Linear Layer",
+      "description": "Basic linear transformation: y = x @ W^T + b",
+      "unique_characteristics": {
+        "supports_backward": true,
+        "operations": ["linear"],
+        "tensor_shapes": "2D input (batch, features)"
+      }
+    },
+    {
+      "id": "mnist_linear_relu",
+      "title": "MNIST Linear + ReLU",
+      "description": "Linear layer with fused ReLU: y = relu(x @ W^T + b)",
+      "unique_characteristics": {
+        "supports_backward": true,
+        "operations": ["linear", "relu"],
+        "tensor_shapes": "2D input (batch, features)"
+      }
+    },
+    {
+      "id": "mnist_pool",
+      "title": "MNIST Max Pooling",
+      "description": "2x2 max pooling operation for downsampling.",
+      "unique_characteristics": {
+        "supports_backward": true,
+        "operations": ["max_pool2d"],
+        "tensor_shapes": "4D input (batch, channels, height, width)",
+        "no_learnable_params": true
+      }
+    },
+    {
+      "id": "resnet_block",
+      "title": "ResNet Basic Block",
+      "description": "Complete ResNet basic block: two conv+bn+relu branches with optional downsample for residual connection.",
+      "unique_characteristics": {
+        "supports_backward": false,
+        "operations": ["conv2d", "batch_norm", "relu", "residual_add", "downsample"],
+        "tensor_shapes": "4D input (batch, channels, 224, 224)",
+        "complex_structure": true
+      }
+    },
+    {
+      "id": "unet_conv2d",
+      "title": "U-Net Conv2D",
+      "description": "2D convolution layer used in U-Net architecture with configurable stride and padding.",
+      "unique_characteristics": {
+        "supports_backward": false,
+        "operations": ["conv2d"],
+        "tensor_shapes": "4D input (batch, channels, height, width)"
+      }
+    },
+    {
+      "id": "unet_linear",
+      "title": "U-Net Linear Layer",
+      "description": "Linear layer for U-Net, handles 3D input (batch, spatial, features).",
+      "unique_characteristics": {
+        "supports_backward": true,
+        "operations": ["linear"],
+        "tensor_shapes": "3D input (batch, height*width, features)"
+      }
+    }
+  ],
+  "metadata": {
+    "total_tasks": 11,
+    "tasks_with_backward": [
+      "layernorm",
+      "llama_rmsnorm",
+      "mnist_conv_relu_pool",
+      "mnist_cross_entropy",
+      "mnist_linear",
+      "mnist_linear_relu",
+      "mnist_pool",
+      "unet_linear"
+    ],
+    "tasks_with_cuda_reference": [
+      "layernorm",
+      "llama_ffw",
+      "mnist_conv_relu_pool"
+    ]
+  }
+}

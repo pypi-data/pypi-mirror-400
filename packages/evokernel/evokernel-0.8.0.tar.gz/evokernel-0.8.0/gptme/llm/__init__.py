@@ -1,0 +1,527 @@
+import logging
+import re
+import shutil
+import time
+from collections.abc import Generator, Iterator
+from functools import lru_cache
+from pathlib import Path
+from typing import cast
+
+from rich import print as rprint
+from rich.live import Live
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.text import Text
+
+from ..config import Config, get_config
+from ..constants import prompt_assistant
+from ..message import Message, MessageMetadata, format_msgs, len_tokens
+from ..telemetry import trace_function
+from ..tools import ToolSpec, ToolUse
+from ..util import console
+from .llm_anthropic import chat as chat_anthropic
+from .llm_anthropic import get_client as get_anthropic_client
+from .llm_anthropic import init as init_anthropic
+from .llm_anthropic import stream as stream_anthropic
+from .llm_openai import chat as chat_openai
+from .llm_openai import get_client as get_openai_client
+from .llm_openai import init as init_openai
+from .llm_openai import stream as stream_openai
+from .models import (
+    MODELS,
+    PROVIDERS_OPENAI,
+    CustomProvider,
+    ModelMeta,
+    Provider,
+    get_default_model_summary,
+    is_custom_provider,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def init_llm(provider: Provider):
+    """Initialize LLM client for a given provider if not already initialized.
+
+    Args:
+        provider: Provider name (built-in or custom)
+    """
+    config = get_config()
+
+    # Check if it's a built-in OpenAI-compatible provider
+    if provider in PROVIDERS_OPENAI and not get_openai_client(provider):
+        init_openai(provider, config)
+    # Check if it's a custom provider (OpenAI-compatible)
+    elif is_custom_provider(provider) and not get_openai_client(provider):
+        init_openai(provider, config)
+    elif provider == "anthropic" and not get_anthropic_client():
+        init_anthropic(config)
+    else:
+        logger.debug(f"Provider {provider} already initialized or unknown")
+
+
+def _get_agent_name(config: Config) -> str | None:
+    agent_config = config.chat and config.chat.agent_config
+    return agent_config.name if agent_config and agent_config.name else None
+
+
+@trace_function(name="llm.reply", attributes={"component": "llm"})
+def reply(
+    messages: list[Message],
+    model: str,
+    stream: bool = False,
+    tools: list[ToolSpec] | None = None,
+    workspace: Path | None = None,
+    output_schema: type | None = None,
+) -> Message:
+    # Trigger GENERATION_PRE hooks and collect context messages
+    from ..hooks import HookType, trigger_hook
+
+    context_msgs = list(
+        trigger_hook(
+            HookType.GENERATION_PRE, messages, workspace=workspace, manager=None
+        )
+    )
+
+    # Add context messages for generation (don't modify original messages)
+    generation_msgs = list(messages)  # Create a copy
+    if context_msgs:
+        generation_msgs.extend(context_msgs)
+
+    init_llm(get_provider_from_model(model))
+    config = get_config()
+    agent_name = _get_agent_name(config)
+    if stream:
+        break_on_tooluse = bool(config.get_env_bool("GPTME_BREAK_ON_TOOLUSE", True))
+        return _reply_stream(
+            generation_msgs,
+            model,
+            tools,
+            break_on_tooluse,
+            agent_name=agent_name,
+            output_schema=output_schema,
+        )
+    else:
+        rprint(f"{prompt_assistant(agent_name)}: Thinking...", end="\r")
+        response, metadata = _chat_complete(
+            generation_msgs, model, tools, output_schema=output_schema
+        )
+        rprint(" " * shutil.get_terminal_size().columns, end="\r")
+        rprint(f"{prompt_assistant(agent_name)}: {response}")
+        return Message("assistant", response, metadata=metadata)
+
+
+def get_provider_from_model(model: str) -> Provider:
+    """Extract provider from fully qualified model name.
+
+    Returns the provider (built-in BuiltinProvider or CustomProvider).
+    """
+    if "/" not in model:
+        raise ValueError(
+            f"Model name must be fully qualified with provider prefix: {model}"
+        )
+    provider_str = model.split("/")[0]
+
+    # Check built-in providers first
+    if provider_str in MODELS:
+        return cast(Provider, provider_str)
+
+    # Check custom providers from config - wrap in CustomProvider
+    if is_custom_provider(provider_str):
+        return CustomProvider(provider_str)
+
+    raise ValueError(f"Unknown provider: {provider_str}")
+
+
+def _get_base_model(model: str) -> str:
+    """Get base model name without provider prefix."""
+    return model.split("/", 1)[1]
+
+
+@trace_function(name="llm.chat_complete", attributes={"component": "llm"})
+def _chat_complete(
+    messages: list[Message],
+    model: str,
+    tools: list[ToolSpec] | None,
+    output_schema: type | None = None,
+) -> tuple[str, MessageMetadata | None]:
+    provider = get_provider_from_model(model)
+
+    # Providers with native constrained decoding support
+    # Custom providers are OpenAI-compatible, so route them through the OpenAI path
+    if provider in PROVIDERS_OPENAI or is_custom_provider(provider):
+        return chat_openai(messages, model, tools, output_schema=output_schema)
+    elif provider == "anthropic":
+        return chat_anthropic(
+            messages, _get_base_model(model), tools, output_schema=output_schema
+        )
+
+    # Unsupported provider - OpenAI and Anthropic are handled above
+    raise ValueError(f"Unsupported provider: {provider}")
+
+
+class _StreamWithMetadata:
+    """Wrapper that captures a generator's return value (metadata)."""
+
+    def __init__(self, gen: Generator[str, None, MessageMetadata | None], model: str):
+        self.gen = gen
+        self.model = model
+        self.metadata: MessageMetadata | None = None
+
+    def __iter__(self) -> Iterator[str]:
+        try:
+            while True:
+                yield next(self.gen)
+        except StopIteration as e:
+            self.metadata = e.value
+            # Ensure model is set in metadata even if provider didn't include it
+            if self.metadata is None:
+                self.metadata = {"model": self.model}
+            elif "model" not in self.metadata:
+                self.metadata["model"] = self.model
+
+
+@trace_function(name="llm.stream", attributes={"component": "llm"})
+def _stream(
+    messages: list[Message],
+    model: str,
+    tools: list[ToolSpec] | None,
+    output_schema: type | None = None,
+) -> _StreamWithMetadata:
+    provider = get_provider_from_model(model)
+    # Custom providers are OpenAI-compatible, so route them through the OpenAI path
+    if provider in PROVIDERS_OPENAI or is_custom_provider(provider):
+        gen = stream_openai(messages, model, tools, output_schema=output_schema)
+        return _StreamWithMetadata(gen, model)
+    elif provider == "anthropic":
+        gen = stream_anthropic(
+            messages, _get_base_model(model), tools, output_schema=output_schema
+        )
+        return _StreamWithMetadata(gen, model)
+    else:
+        # Note: Validation-only fallback for streaming is complex
+        # For now, unsupported providers don't support output_schema in streaming mode
+        if output_schema is not None:
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Provider {provider} does not support output_schema in streaming mode"
+            )
+        raise ValueError(f"Unsupported provider: {provider}")
+
+
+def _strip_thinking(content: str) -> str:
+    """Remove <think>...</think> blocks from content for display."""
+    # Replace thinking blocks with a subtle indicator
+    content = re.sub(r"<think>.*?</think>\s*", "", content, flags=re.DOTALL)
+    # Also handle partial thinking blocks (still streaming)
+    content = re.sub(r"<think>.*$", "", content, flags=re.DOTALL)
+    return content.strip()
+
+
+def _strip_tool_invocations(content: str) -> str:
+    """Replace tool invocation code blocks with a brief indicator."""
+
+    # Match completed code blocks that start with evo_ tool names
+    def replace_evo_tool(match):
+        tool_name = match.group(1)
+        return f"\n> *Running {tool_name}...*\n"
+
+    content = re.sub(
+        r"```(evo_\w+)[^\n]*\n.*?```\s*", replace_evo_tool, content, flags=re.DOTALL
+    )
+    # Also handle partial tool invocation blocks (still streaming)
+    content = re.sub(
+        r"```(evo_\w+)[^\n]*\n.*$", replace_evo_tool, content, flags=re.DOTALL
+    )
+
+    # Match file-editing tool blocks: save, patch, append, morph
+    def replace_file_tool(match):
+        tool_name = match.group(1)
+        path = match.group(2).strip() if match.group(2) else "file"
+        action_map = {
+            "save": "Saving",
+            "patch": "Patching",
+            "append": "Appending to",
+            "morph": "Editing",
+        }
+        action = action_map.get(tool_name, "Processing")
+        return f"\n> *{action} {path}...*\n"
+
+    # Completed file-editing blocks
+    content = re.sub(
+        r"```(save|patch|append|morph)\s+([^\n]*)\n.*?```\s*",
+        replace_file_tool,
+        content,
+        flags=re.DOTALL,
+    )
+    # Partial file-editing blocks (still streaming)
+    content = re.sub(
+        r"```(save|patch|append|morph)\s+([^\n]*)\n.*$",
+        replace_file_tool,
+        content,
+        flags=re.DOTALL,
+    )
+    return content
+
+
+def _render_streaming_content(
+    content: str, agent_name: str | None, is_thinking: bool
+) -> Panel:
+    """Render content as a rich Panel with markdown."""
+    # Strip thinking blocks and tool invocations for display
+    display_content = _strip_thinking(content)
+    display_content = _strip_tool_invocations(display_content).strip()
+
+    if not display_content:
+        inner = Text("...", style="dim")
+    else:
+        try:
+            inner = Markdown(display_content)
+        except Exception:
+            inner = Text(display_content)
+
+    title = f"[bold green]{prompt_assistant(agent_name)}[/bold green]"
+    if is_thinking:
+        title += " [dim italic](reasoning...)[/dim italic]"
+
+    return Panel(
+        inner,
+        title=title,
+        title_align="left",
+        border_style="green",
+        padding=(0, 1),
+    )
+
+
+@trace_function(name="llm.reply_stream", attributes={"component": "llm"})
+def _reply_stream(
+    messages: list[Message],
+    model: str,
+    tools: list[ToolSpec] | None,
+    break_on_tooluse: bool = True,
+    agent_name: str | None = None,
+    output_schema: type | None = None,
+) -> Message:
+    output = ""
+    start_time = time.time()
+    first_token_time = None
+    is_thinking = False
+    last_update = 0.0
+    update_interval = 0.05  # Update display every 50ms
+
+    # Create stream wrapper to capture metadata
+    stream = _stream(messages, model, tools, output_schema=output_schema)
+
+    # Initial "thinking" display
+    initial_panel = Panel(
+        Text("Thinking...", style="dim italic"),
+        title=f"[bold green]{prompt_assistant(agent_name)}[/bold green]",
+        title_align="left",
+        border_style="dim",
+        padding=(0, 1),
+    )
+
+    try:
+        with Live(
+            initial_panel, console=console, refresh_per_second=20, transient=False
+        ) as live:
+            for char in (char for chunk in stream for char in chunk):
+                if not output:  # first character
+                    first_token_time = time.time()
+
+                output += char
+
+                # Check for thinking state changes
+                if "<think>" in output or "<thinking>" in output:
+                    if not output.count("</think>") and not output.count("</thinking>"):
+                        is_thinking = True
+                if "</think>" in output or "</thinking>" in output:
+                    is_thinking = False
+
+                # Throttle updates for performance
+                now = time.time()
+                if now - last_update > update_interval or char == "\n":
+                    live.update(
+                        _render_streaming_content(output, agent_name, is_thinking)
+                    )
+                    last_update = now
+
+                # Trigger the tool detection only if the line is finished
+                if break_on_tooluse and char == "\n":
+                    tooluses = [
+                        tooluse
+                        for tooluse in ToolUse.iter_from_content(output, streaming=True)
+                        if tooluse.is_runnable
+                    ]
+                    if tooluses:
+                        logger.debug("Found tool use, breaking")
+                        break
+
+            # Final update
+            live.update(_render_streaming_content(output, agent_name, False))
+
+    except KeyboardInterrupt:
+        return Message(
+            "assistant", output + "... ^C Interrupted", metadata=stream.metadata
+        )
+    finally:
+        # Explicitly close the underlying generator to release resources
+        stream.gen.close()
+        if first_token_time:
+            end_time = time.time()
+            gen_time = max(end_time - first_token_time, 0.001)
+            logger.debug(
+                f"Generation finished in {end_time - start_time:.1f}s "
+                f"(ttft: {first_token_time - start_time:.2f}s, "
+                f"gen: {gen_time:.2f}s, "
+                f"tok/s: {len_tokens(output, model) / gen_time:.1f})"
+            )
+
+    return Message("assistant", output, metadata=stream.metadata)
+
+
+@trace_function(name="llm.summarize", attributes={"component": "llm"})
+def _summarize_str(content: str) -> str:
+    """
+    Summarizes a long text using a LLM.
+
+    To summarize messages or the conversation log,
+    use `gptme.tools.summarize` instead (which wraps this).
+    """
+    messages = [
+        Message(
+            "system",
+            content="You are a helpful assistant that helps summarize messages into bullet format. Dont use any preamble or heading, start directly with a bullet list.",
+        ),
+        Message("user", content=f"Summarize this:\n{content}"),
+    ]
+
+    model = get_default_model_summary()
+    if not model:
+        raise RuntimeError("No default model set")
+
+    if len_tokens(messages, model.model) > model.context:
+        raise ValueError(
+            f"Cannot summarize more than {model.context} tokens, got {len_tokens(messages, model.model)}"
+        )
+
+    summary, _metadata = _chat_complete(messages, model.full, None)
+    if not summary:
+        raise RuntimeError("Summarization produced no output")
+    logger.debug(
+        f"Summarized long output ({len_tokens(content, model.model)} -> {len_tokens(summary, model.model)} tokens): "
+        + summary
+    )
+    return summary
+
+
+def summarize(msg: str | Message | list[Message]) -> Message:
+    """Uses a cheap LLM to summarize long outputs."""
+    # construct plaintext from message(s)
+    if isinstance(msg, str):
+        content = msg
+    elif isinstance(msg, Message):
+        content = msg.content
+    else:
+        content = "\n".join(format_msgs(msg))
+
+    summary = _summarize_helper(content)
+
+    # construct message from summary
+    content = f"Here's a summary of the conversation:\n{summary}"
+    return Message(role="system", content=content)
+
+
+@lru_cache(maxsize=128)
+def _summarize_helper(s: str, tok_max_start=400, tok_max_end=400) -> str:
+    """
+    Helper function for summarizing long outputs.
+    Truncates long outputs, then summarizes.
+    """
+    # Use gpt-4 as default model for summarization helper
+    if len_tokens(s, "gpt-4") > tok_max_start + tok_max_end:
+        beginning = " ".join(s.split()[:tok_max_start])
+        end = " ".join(s.split()[-tok_max_end:])
+        summary = _summarize_str(beginning + "\n...\n" + end)
+    else:
+        summary = _summarize_str(s)
+    return summary
+
+
+def list_available_providers() -> list[tuple[Provider, str]]:
+    """
+    List all available providers based on configured API keys.
+
+    Returns:
+        List of tuples (provider, api_key_env_var) for configured providers
+    """
+    config = get_config()
+    available = []
+
+    # OpenRouter only - other providers commented out
+    provider_checks = [
+        # ("openai", "OPENAI_API_KEY"),
+        # ("anthropic", "ANTHROPIC_API_KEY"),
+        ("openrouter", "OPENROUTER_API_KEY"),
+        # ("gemini", "GEMINI_API_KEY"),
+        # ("groq", "GROQ_API_KEY"),
+        # ("xai", "XAI_API_KEY"),
+        # ("deepseek", "DEEPSEEK_API_KEY"),
+        # ("azure", "AZURE_OPENAI_API_KEY"),
+    ]
+
+    for provider, env_var in provider_checks:
+        if config.get_env(env_var):
+            available.append((cast(Provider, provider), env_var))
+
+    return available
+
+
+def guess_provider_from_config() -> Provider | None:
+    """
+    Guess the provider to use from the configuration.
+    """
+    available = list_available_providers()
+    if available:
+        provider, _ = available[0]  # Return first available provider
+        console.log(f"Found {provider} API key, using {provider} provider")
+        return provider
+    return None
+
+
+def get_model_from_api_key(api_key: str) -> tuple[str, Provider, str] | None:
+    """
+    Guess the model from the API key prefix.
+    """
+    # OpenRouter only
+    if api_key.startswith("sk-or-"):
+        return api_key, "openrouter", "OPENROUTER_API_KEY"
+    # Other providers commented out
+    # if api_key.startswith("sk-ant-"):
+    #     return api_key, "anthropic", "ANTHROPIC_API_KEY"
+    # elif api_key.startswith("sk-"):
+    #     return api_key, "openai", "OPENAI_API_KEY"
+
+    return None
+
+
+def get_available_models(provider: Provider) -> list[ModelMeta]:
+    """
+    Get available models from a provider.
+
+    Args:
+        provider: The provider to get models from
+
+    Returns:
+        List of ModelMeta objects
+
+    Raises:
+        ValueError: If provider doesn't support listing models
+        Exception: If API request fails
+    """
+    if provider in ("openrouter", "local") or is_custom_provider(provider):
+        from .llm_openai import get_available_models as get_openai_models
+
+        return get_openai_models(provider)
+    else:
+        raise ValueError(f"Provider {provider} does not support listing models")
