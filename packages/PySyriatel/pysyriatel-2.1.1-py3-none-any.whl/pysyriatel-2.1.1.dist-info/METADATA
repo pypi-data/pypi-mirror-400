@@ -1,0 +1,163 @@
+Metadata-Version: 2.4
+Name: PySyriatel
+Version: 2.1.1
+Summary: Python client for Syriatel API
+Author-email: melchersman <melchersman@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/melchersman/PySyriatel
+Project-URL: Documentation, https://api.melchersman.com/syr-cash/api-docs
+Project-URL: Repository, https://github.com/melchersman/PySyriatel
+Project-URL: Issues, https://github.com/melchersman/PySyriatel/issues
+Keywords: syriatel,cash,api,syria,payment,mobile,money
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: aiohttp>=3.8.0
+Requires-Dist: requests>=2.28.0
+Dynamic: license-file
+
+# PySyriatel
+
+Python client for Syriatel API.
+
+## Installation
+
+```bash
+pip install PySyriatel
+```
+
+## Usage
+
+### Async
+
+```python
+from syriatel import SyriatelAPI
+
+async with SyriatelAPI(api_token="your_token") as api:
+    # Get registered numbers
+    numbers = await api.get_numbers()
+    codes = await api.get_codes()
+    numbers_codes = await api.get_numbers_codes()
+    
+    # Syriatel Cash - accepts phone number or secret code (auto-detected)
+    balance = await api.syrcash.balance("0991234567")  # Phone number
+    balance = await api.syrcash.balance("65656565")    # Secret code as string
+    balance = await api.syrcash.balance(65656565)      # Secret code as int
+    
+    # Get transaction history (only successful transactions by default)
+    incoming = await api.syrcash.get_incoming_history("0991234567")
+    
+    # Get all transactions including failed ones
+    all_tx = await api.syrcash.get_incoming_history("0991234567", status="all")
+    
+    # Get only failed transactions
+    failed = await api.syrcash.get_incoming_history("0991234567", status="failed")
+    
+    # Date filtering
+    incoming = await api.syrcash.get_incoming_history(
+        "0991234567",
+        start_at="2024-01-01",
+        end_at="2024-12-31"
+    )
+    
+    outgoing = await api.syrcash.get_outgoing_history("0991234567")
+    
+    tx = await api.syrcash.find_incoming_transaction(
+        "6036565056",
+        query="0991234567"
+    )
+```
+
+### Sync
+
+```python
+from syriatel import SyriatelAPISync
+
+with SyriatelAPISync(api_token="your_token") as api:
+    numbers = api.get_numbers()
+    balance = api.syrcash.balance("0991234567")
+    balance = api.syrcash.balance(65656565)  # Secret code as int works too
+    incoming = api.syrcash.get_incoming_history("0991234567")
+```
+
+## API
+
+### SyriatelAPI / SyriatelAPISync
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `get_numbers()` | `List[str]` | Active phone numbers |
+| `get_codes()` | `List[str]` | Secret codes |
+| `get_numbers_codes()` | `List[Tuple[str, str]]` | Number and code pairs |
+
+### api.syrcash
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `balance(query)` | `float` | Balance in SYP. Accepts phone number or secret code (auto-detected) |
+| `get_incoming_history(query, page, status, start_at, end_at)` | `List[Transaction]` | Incoming transfers |
+| `get_outgoing_history(query, page, status, start_at, end_at)` | `List[Transaction]` | Outgoing transfers |
+| `find_incoming_transaction(transaction_no, query)` | `Transaction` | Find by transaction number |
+
+**Notes:**
+- `query` parameter auto-detects: if 10 digits starting with `09`, it's a phone number, otherwise it's a secret code
+- `status` parameter: `"success"` (default), `"failed"`, or `"all"`
+- Phone numbers and secret codes can be passed as strings or integers
+
+### Transaction
+
+```python
+@dataclass
+class Transaction:
+    transaction_no: str
+    date: str
+    from_gsm: str
+    to_gsm: str
+    amount: float
+    fee: float
+    net: float
+    channel: str
+    status: str
+```
+
+## Error Handling
+
+```python
+from syriatel import (
+    SyriatelAPIError,
+    InvalidTokenError,
+    SubscriptionExpiredError,
+    FetchFailedError,
+    NetworkError,
+)
+
+try:
+    balance = await api.syrcash.balance("0991234567")
+except SubscriptionExpiredError:
+    print("Subscription expired")
+except InvalidTokenError:
+    print("Invalid token")
+except NetworkError as e:
+    print(f"Network error: {e}")
+```
+
+## Rate Limits
+
+- Balance: 5 requests per minute per number
+- History: 5 requests per minute per number
+
+## License
+
+MIT
