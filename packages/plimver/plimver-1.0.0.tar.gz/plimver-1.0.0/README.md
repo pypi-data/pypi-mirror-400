@@ -1,0 +1,272 @@
+# Plimver Python SDK
+
+Official Python SDK for the **Plimver AI Platform** - Unified LLM, RAG, and Memory API.
+
+## Installation
+
+```bash
+pip install plimver
+```
+
+## Quick Start
+
+```python
+from plimver import Plimver
+
+client = Plimver(
+    api_key="pk_live_your_api_key",
+    workspace_id="ws_your_workspace_id"
+)
+
+response = client.chat("What is machine learning?")
+print(response.text)
+```
+
+## Features
+
+- ✅ **Type hints** - Full type annotations with dataclasses
+- ✅ **Sync & Async** - Both synchronous and async clients
+- ✅ **Streaming** - Generator-based streaming responses
+- ✅ **Multimodal** - Images, audio, and video support
+- ✅ **RAG** - Document upload and vector search
+- ✅ **Memory** - Conversation history management
+- ✅ **Retries** - Built-in retry with exponential backoff
+- ✅ **22+ LLM Providers** - OpenAI, Anthropic, Google, Groq, and more
+
+## Usage Examples
+
+### Basic Chat
+
+```python
+# Simple message
+response = client.chat("Hello!")
+print(response.text)
+
+# With options
+response = client.chat(
+    "Explain quantum computing",
+    mode="chat_and_rag",  # Use RAG for context
+    model="gpt-4o",       # Specific model
+    temperature=0.5,
+    user_id="user-123"    # Isolate conversation
+)
+```
+
+### Conversation History
+
+```python
+from plimver import Message
+
+response = client.chat_with_messages([
+    Message(role="user", content="My name is Alice"),
+    Message(role="assistant", content="Nice to meet you, Alice!"),
+    Message(role="user", content="What is my name?"),
+])
+
+print(response.text)  # "Your name is Alice"
+```
+
+### Streaming
+
+```python
+# Stream response token by token
+for chunk in client.stream("Tell me a story"):
+    print(chunk.content or "", end="", flush=True)
+
+# With options
+for chunk in client.stream("Write a poem", mode="chat_only"):
+    if chunk.done:
+        print(f"\n\nDone!")
+    else:
+        print(chunk.content or "", end="", flush=True)
+```
+
+### Async Client
+
+```python
+from plimver import AsyncPlimver
+import asyncio
+
+async def main():
+    async with AsyncPlimver(
+        api_key="pk_live_...",
+        workspace_id="ws_..."
+    ) as client:
+        response = await client.chat("Hello!")
+        print(response.text)
+        
+        # Async streaming
+        async for chunk in client.stream("Tell me a joke"):
+            print(chunk.content or "", end="", flush=True)
+
+asyncio.run(main())
+```
+
+### Vision (Images)
+
+```python
+# Analyze an image
+response = client.vision(
+    "What do you see in this image?",
+    "https://example.com/photo.jpg"
+)
+
+# With base64
+response = client.vision(
+    "Describe this diagram",
+    "data:image/png;base64,iVBORw0KGgo..."
+)
+```
+
+### Audio
+
+```python
+# Transcribe or analyze audio (requires Gemini 1.5 Pro+)
+response = client.audio(
+    "Transcribe this audio and summarize it",
+    "https://example.com/audio.mp3",
+    model="gemini-1.5-pro"
+)
+```
+
+### Video
+
+```python
+# Analyze video (requires Gemini 1.5 Pro+)
+response = client.video(
+    "What happens in this video?",
+    "https://example.com/video.mp4",
+    model="gemini-1.5-pro"
+)
+```
+
+### RAG Documents
+
+```python
+# Upload a document
+doc = client.documents.upload(
+    "Plimver is an AI platform that provides unified LLM access...",
+    source="about-plimver.txt"
+)
+
+# Upload a file
+doc = client.documents.upload_file("document.pdf")
+
+# List documents
+docs = client.documents.list()
+print(f"{len(docs)} documents indexed")
+
+# Search documents
+results = client.documents.search("what is plimver", limit=5)
+for r in results:
+    print(f"{r.source}: {r.score:.2f}")
+
+# Delete a document
+client.documents.delete("about-plimver.txt")
+```
+
+### Memory Management
+
+```python
+# Get conversation history for a user
+messages = client.memory.get("user-123", limit=50)
+
+# Clear user's history
+client.memory.clear("user-123")
+
+# Clear all history (danger!)
+client.memory.clear_all()
+```
+
+### Routing Modes
+
+```python
+# Auto (smart routing based on query)
+client.chat("Hello", mode="auto")
+
+# Chat only (no RAG, no memory)
+client.chat("Hello", mode="chat_only")
+
+# RAG only (search documents, no memory)
+client.chat("What is in my docs?", mode="rag_only")
+
+# Chat + RAG (full context)
+client.chat("Summarize my documents", mode="chat_and_rag")
+```
+
+### Error Handling
+
+```python
+from plimver import Plimver, PlimverError
+
+try:
+    response = client.chat("Hello")
+except PlimverError as e:
+    print(f"API Error {e.status}: {e.message}")
+```
+
+### Context Manager
+
+```python
+# Automatically closes connection
+with Plimver(api_key="...", workspace_id="...") as client:
+    response = client.chat("Hello!")
+    print(response.text)
+```
+
+## Configuration
+
+```python
+client = Plimver(
+    # Required
+    api_key="pk_live_...",
+    workspace_id="ws_...",
+    
+    # Optional
+    base_url="https://api.plimvr.tech",  # Custom API URL
+    timeout=30.0,                         # Request timeout (seconds)
+    max_retries=2,                        # Retry on failure
+)
+```
+
+## Response Objects
+
+### ChatResponse
+
+```python
+@dataclass
+class ChatResponse:
+    text: str           # AI response
+    model: str          # Model used
+    provider: str       # Provider used
+    mode: str           # Routing mode
+    usage: Usage        # Token usage
+    sources: List[Source]  # RAG sources
+    metadata: dict      # Extra metadata
+```
+
+### Usage
+
+```python
+@dataclass
+class Usage:
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+```
+
+## Supported Models
+
+| Provider | Models |
+|----------|--------|
+| OpenAI | gpt-4o, gpt-4o-mini, gpt-4-turbo |
+| Anthropic | claude-3-5-sonnet, claude-3-opus |
+| Google | gemini-2.0-flash, gemini-1.5-pro |
+| Groq | llama-3.1-70b, mixtral-8x7b |
+| DeepSeek | deepseek-chat, deepseek-coder |
+| xAI | grok-beta |
+| + 15 more... | |
+
+## License
+
+MIT © Plimver Team
