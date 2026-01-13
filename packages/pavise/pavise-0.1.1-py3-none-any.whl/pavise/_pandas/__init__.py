@@ -1,0 +1,1 @@
+"""Pandas-specific implementation details."""
