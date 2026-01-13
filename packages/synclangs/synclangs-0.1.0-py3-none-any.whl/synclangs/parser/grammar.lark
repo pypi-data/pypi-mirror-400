@@ -1,0 +1,71 @@
+start: (import_stmt | type_def | enum_def | const_def | fn_def | interface_def)*
+
+// Imports
+import_stmt: "import" "{" import_names "}" "from" STRING
+import_names: NAME ("," NAME)*
+
+// Type definitions with optional inheritance
+type_def: doc_comment? "type" NAME extends_clause? implements_clause? "{" field* "}"
+extends_clause: "extends" NAME
+implements_clause: "implements" NAME ("," NAME)*
+
+// Interface definitions
+interface_def: doc_comment? "interface" NAME "{" interface_member* "}"
+interface_member: fn_signature | field
+
+// Function definitions
+fn_def: doc_comment? async_modifier? "fn" NAME "(" fn_params? ")" "->" return_type
+fn_signature: doc_comment? async_modifier? "fn" NAME "(" fn_params? ")" "->" return_type
+async_modifier: "async"
+fn_params: fn_param ("," fn_param)*
+fn_param: NAME ":" type_expr default_value?
+default_value: "=" const_value
+return_type: type_expr | void_type
+void_type: "void"
+
+// Enum definitions
+enum_def: doc_comment? "enum" NAME "{" [enum_variant ("," enum_variant)* ","?] "}"
+enum_variant: doc_comment? NAME
+
+// Constant definitions
+const_def: doc_comment? "const" NAME ":" type_expr "=" const_value
+const_value: SIGNED_NUMBER -> number_value
+           | STRING -> string_value
+           | "true" -> true_value
+           | "false" -> false_value
+
+// Fields
+field: doc_comment? NAME ":" type_expr
+
+// Type expressions
+type_expr: nullable_type | base_type
+nullable_type: base_type "?"
+base_type: primitive | generic_type | type_ref
+type_ref: NAME
+
+// Primitives
+primitive: "string" -> string_type
+         | "int"    -> int_type
+         | "float"  -> float_type
+         | "bool"   -> bool_type
+         | "any"    -> any_type
+
+// Generics
+generic_type: list_type | map_type
+list_type: "list" "<" type_expr ">"
+map_type: "map" "<" type_expr "," type_expr ">"
+
+// Tokens
+NAME: /[A-Za-z_][A-Za-z0-9_]*/
+STRING: /"[^"]*"/ | /'[^']*'/
+SIGNED_NUMBER: /[+-]?[0-9]+(\.[0-9]+)?/
+DOC_COMMENT: /##[^\n]*/
+COMMENT: /#[^#][^\n]*/
+
+// Comments
+doc_comment: DOC_COMMENT+
+
+// Whitespace
+%import common.WS
+%ignore WS
+%ignore COMMENT
