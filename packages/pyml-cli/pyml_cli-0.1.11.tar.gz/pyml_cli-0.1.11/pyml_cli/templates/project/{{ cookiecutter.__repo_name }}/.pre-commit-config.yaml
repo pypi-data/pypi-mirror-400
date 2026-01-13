@@ -1,0 +1,31 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.10
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        exclude: ^notebooks/.*|^docs/.*|pyproject.toml$
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: 'v2.14'
+    hooks:
+      - id: vulture
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.7.0
+    hooks:
+      - id: interrogate
+        exclude: ^(docs/|tests/|scripts/|notebooks/)
+        args: [-c, pyproject.toml]
+  - repo: local
+    hooks:
+      - id: pixi-install
+        name: Keep lockfile up-to-date
+        entry: pixi install
+        language: system
+        always_run: true
+        require_serial: true
+        pass_filenames: false
