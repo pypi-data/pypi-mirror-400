@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+# Safety first
+set -o errexit -o pipefail -o nounset
+# Change into the project's directory
+cd "$(dirname "$0")/.."
+
+# Set defaults
+dry=false
+
+# Parse arguments
+for i in "$@"; do
+  case $i in
+    --dry)
+      dry=true
+      shift
+      ;;
+    --*)
+      echo "Unknown option $i"
+      exit 1
+      ;;
+    *)
+      ;;
+  esac
+done
+
+# Run checks
+if [ "${dry}" = true ]; then
+  uv run ruff check aiomqtt tests
+  uv run ruff format --check --diff aiomqtt tests
+else
+  uv run ruff check --fix aiomqtt tests
+  uv run ruff format aiomqtt tests
+fi
+uv run mypy aiomqtt tests --junit-xml="reports/mypy.xml"
