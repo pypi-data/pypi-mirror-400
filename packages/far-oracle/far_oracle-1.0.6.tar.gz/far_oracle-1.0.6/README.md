@@ -1,0 +1,122 @@
+# FAR Oracle - MCP Server
+
+An MCP (Model Context Protocol) server that provides AI agents with access to Federal Acquisition Regulations (FAR) search.
+
+<!-- mcp-name: io.github.blueskylineassets/far-mcp-server -->
+
+## Installation
+
+### Option 1: Install from PyPI
+
+```bash
+pip install far-oracle
+```
+
+### Option 2: Clone this repository
+
+```bash
+git clone https://github.com/blueskylineassets/far-mcp-server.git
+cd far-mcp-server
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Get Your API Key
+
+Get your RapidAPI key from:
+https://rapidapi.com/yschang/api/far-rag-federal-acquisition-regulation-search
+
+## Configure Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "far-oracle": {
+      "command": "python",
+      "args": ["-m", "server"],
+      "env": {
+        "RAPIDAPI_KEY": "your-rapidapi-key"
+      }
+    }
+  }
+}
+```
+
+Or if installed from source:
+
+```json
+{
+  "mcpServers": {
+    "far-oracle": {
+      "command": "/path/to/far-mcp-server/venv/bin/python",
+      "args": ["/path/to/far-mcp-server/server.py"],
+      "env": {
+        "RAPIDAPI_KEY": "your-rapidapi-key"
+      }
+    }
+  }
+}
+```
+
+## Usage
+
+Once configured, ask Claude Desktop questions like:
+
+- "What are the FAR requirements for cybersecurity?"
+- "Explain small business set-aside rules"
+- "What contract clauses apply to data rights?"
+
+## Compliance Logging for Government Contractors
+
+Government contractors using FAR data must often maintain audit trails. [Agent Observability](https://pypi.org/project/agent-observability/) provides automatic logging with **zero setup**:
+
+### Quick Setup (30 seconds)
+
+```bash
+pip install agent-observability
+```
+
+That's it! No API key needed - auto-registers on first use.
+
+### Log FAR Searches
+
+```python
+from agent_observability import AgentLogger
+
+# Auto-registers on first log - no API key needed!
+logger = AgentLogger()
+
+# After each FAR search via Claude
+logger.log("far_search", {
+    metadata={
+        "query": "DFARS cybersecurity requirements",
+        "source": "claude-mcp",
+        "contract_context": "DoD proposal"
+    }
+)
+```
+
+### Benefits for Contractors
+
+| Requirement | How Agent Observability Helps |
+|-------------|------------------------------|
+| DFARS 252.204-7012 | Audit trail of compliance research |
+| SOC 2 Type II | Demonstrate security due diligence |
+| ISO 27001 | Logging for ISMS requirements |
+| Internal Audits | Query historical research patterns |
+
+**Pricing**: 100K logs/month free, then $0.0001/log
+
+Learn more: [Agent Observability Docs](https://api-production-0c55.up.railway.app/docs)
+
+## Pricing
+
+See RapidAPI for pricing tiers:
+https://rapidapi.com/yschang/api/far-rag-federal-acquisition-regulation-search/pricing
+
+## License
+
+MIT
