@@ -1,0 +1,137 @@
+[project]
+name = "brainglobe-utils"
+authors = [{ name = "Adam Tyson", email = "code@adamltyson.com" }]
+description = "Shared general purpose tools for the BrainGlobe project"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: napari",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "brainglobe-atlasapi >= 2.0.1",
+    "brainglobe-space",
+    "configobj",
+    "natsort",
+    "nibabel >= 2.1.0",
+    "numba",
+    "numpy",
+    "dask",
+    "pandas",
+    "psutil",
+    "pyarrow",
+    "PyYAML",
+    "scikit-image",
+    "scipy",
+    "slurmio",
+    "tifffile",
+    "tqdm",
+    "qt-niu",
+    "rapidyaml"
+]
+dynamic = ["version"]
+
+
+[project.scripts]
+cite-brainglobe = "brainglobe_utils.citation.cite:cli"
+
+[project.urls]
+homepage = "https://brainglobe.info"
+bug_tracker = "https://github.com/brainglobe/brainglobe-utils/issues"
+source_code = "https://github.com/brainglobe/brainglobe-utils"
+user_support = "https://github.com/brainglobe/brainglobe-utils/issues"
+
+[project.entry-points."napari.manifest"]
+brainglobe-utils = "brainglobe_utils:napari.yaml"
+
+[project.optional-dependencies]
+qt = ["qtpy", "superqt"]
+napari = ["brainglobe-utils[qt]", "napari[all]"]
+
+dev = [
+    "black",
+    "coverage",
+    "mypy",
+    "pre-commit",
+    "pyqt5",
+    "pytest-cov",
+    "pytest-qt",
+    "pytest-mock",
+    "pytest",
+    "ruff",
+    "scikit-image",
+    "setuptools_scm",
+    "tox",
+    "pooch",
+    "brainglobe-utils[napari]",
+]
+
+
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["brainglobe_utils*"]
+exclude = ["tests", "docs*"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=brainglobe_utils"
+
+[tool.black]
+target-version = ['py311', 'py312', 'py313']
+skip-string-normalization = false
+line-length = 79
+
+[tool.setuptools_scm]
+
+[tool.ruff]
+line-length = 79
+exclude = ["__init__.py", "build", ".eggs"]
+fix = true
+
+[tool.ruff.lint]
+select = ["I", "E", "F"]
+
+[tool.mypy]
+ignore_errors = true
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py{311,312,313}, napari-dev
+isolated_build = True
+
+[gh-actions]
+python =
+    3.11: py311
+    3.12: py312
+    3.13: py313
+
+[testenv]
+extras =
+    dev
+commands =
+    pytest -v --color=yes --cov=brainglobe_utils --cov-report=xml
+passenv =
+    CI
+    NUMBA_DISABLE_JIT
+    GITHUB_ACTIONS
+    DISPLAY
+    XAUTHORITY
+    PYVISTA_OFF_SCREEN
+deps =
+    napari-dev: git+https://github.com/napari/napari
+"""
