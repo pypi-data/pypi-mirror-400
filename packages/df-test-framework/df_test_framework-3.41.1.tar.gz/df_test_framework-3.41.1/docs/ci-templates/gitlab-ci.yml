@@ -1,0 +1,235 @@
+# DF Test Framework - GitLab CI/CD 模板
+# 版本: v3.35.0+
+#
+# 使用方法:
+# 1. 将此文件重命名为 .gitlab-ci.yml 并放到项目根目录
+# 2. 根据项目需求修改配置
+# 3. 在 GitLab CI/CD 设置中配置必要的变量（如 API 密钥、数据库密码等）
+#
+# 此模板包含:
+# - 多 Python 版本测试
+# - 多环境测试（dev/staging/prod）
+# - 代码质量检查（ruff）
+# - 测试覆盖率报告
+# - Allure 报告生成
+# - 手动触发的生产环境测试
+
+# 默认镜像
+image: python:3.12-slim
+
+# 全局变量
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  DEFAULT_ENV: "test"
+  # 禁用 Git 浅克隆以支持代码覆盖率
+  GIT_DEPTH: 0
+
+# 缓存配置
+cache:
+  key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
+  paths:
+    - .cache/pip
+    - .cache/uv
+    - .venv
+
+# 阶段定义
+stages:
+  - lint
+  - test
+  - report
+  - deploy
+
+# ============ 全局前置脚本 ============
+.setup-uv: &setup-uv
+  before_script:
+    - apt-get update && apt-get install -y curl
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.cargo/bin:$PATH"
+    - uv sync --dev
+
+# ============ 代码检查 ============
+lint:
+  stage: lint
+  <<: *setup-uv
+  script:
+    - uv run ruff check src/ tests/
+    - uv run ruff format --check src/ tests/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# ============ 单元测试 ============
+.test-template: &test-template
+  stage: test
+  <<: *setup-uv
+  script:
+    - |
+      uv run pytest tests/ \
+        --env=${TEST_ENV:-$DEFAULT_ENV} \
+        --ignore=tests/test_messengers/ \
+        -v \
+        --tb=short \
+        --cov=src \
+        --cov-report=xml \
+        --cov-report=term-missing \
+        --junitxml=test-results.xml
+  artifacts:
+    when: always
+    paths:
+      - test-results.xml
+      - coverage.xml
+    reports:
+      junit: test-results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  coverage: '/TOTAL.*\s+(\d+%)/'
+
+test:python3.12:
+  <<: *test-template
+  image: python:3.12-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+test:python3.13:
+  <<: *test-template
+  image: python:3.13-slim
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ============ 多环境测试 ============
+test:dev:
+  <<: *test-template
+  variables:
+    TEST_ENV: "dev"
+    HTTP__BASE_URL: $DEV_API_URL
+    DB__PASSWORD: $DB_PASSWORD
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - test:python3.12
+
+test:staging:
+  <<: *test-template
+  variables:
+    TEST_ENV: "staging"
+    HTTP__BASE_URL: $STAGING_API_URL
+    DB__PASSWORD: $DB_PASSWORD
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - test:python3.12
+
+# ============ 生产环境冒烟测试（手动触发）============
+test:prod:smoke:
+  stage: test
+  <<: *setup-uv
+  variables:
+    TEST_ENV: "prod"
+    HTTP__BASE_URL: $PROD_API_URL
+  script:
+    - |
+      uv run pytest tests/ \
+        --env=prod \
+        -m smoke \
+        -v \
+        --tb=short
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  needs:
+    - test:staging
+
+# ============ Allure 报告 ============
+allure-report:
+  stage: report
+  <<: *setup-uv
+  script:
+    - |
+      uv run pytest tests/ \
+        --ignore=tests/test_messengers/ \
+        --alluredir=allure-results \
+        -v \
+        --tb=short || true
+    # 安装 Allure
+    - apt-get install -y default-jdk
+    - curl -o allure.tgz -Ls https://github.com/allure-framework/allure2/releases/download/2.25.0/allure-2.25.0.tgz
+    - tar -zxvf allure.tgz
+    - ./allure-2.25.0/bin/allure generate allure-results -o allure-report --clean
+  artifacts:
+    when: always
+    paths:
+      - allure-report
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - test:python3.12
+
+# ============ Pages 发布 Allure 报告 ============
+pages:
+  stage: deploy
+  script:
+    - mv allure-report public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - allure-report
+
+# ============ 安全审计 ============
+security:audit:
+  stage: lint
+  <<: *setup-uv
+  script:
+    - uv pip audit || true
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ============ 构建验证 ============
+build:verify:
+  stage: test
+  <<: *setup-uv
+  script:
+    - uv build
+    - pip install dist/*.whl
+    - python -c "import df_test_framework; print(df_test_framework.__version__)"
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 7 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - lint
+
+# ============ 定时任务：每日回归测试 ============
+scheduled:regression:
+  stage: test
+  <<: *setup-uv
+  variables:
+    TEST_ENV: "staging"
+    HTTP__BASE_URL: $STAGING_API_URL
+  script:
+    - |
+      uv run pytest tests/ \
+        --env=staging \
+        --ignore=tests/test_messengers/ \
+        -v \
+        --tb=short \
+        --alluredir=allure-results
+  artifacts:
+    when: always
+    paths:
+      - allure-results
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"

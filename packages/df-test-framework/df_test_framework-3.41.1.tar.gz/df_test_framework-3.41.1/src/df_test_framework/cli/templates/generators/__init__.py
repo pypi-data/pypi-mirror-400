@@ -1,0 +1,40 @@
+"""代码生成模板
+
+包含生成测试代码时使用的模板。
+"""
+
+from .api_client import GEN_API_CLIENT_TEMPLATE
+from .builder import GEN_BUILDER_TEMPLATE
+from .env_files import (
+    ENV_BASE_TEMPLATE,
+    ENV_DEV_TEMPLATE,
+    ENV_EXAMPLE_TEMPLATE,
+    ENV_PROD_TEMPLATE,
+    ENV_TEST_TEMPLATE,
+)
+from .graphql_client import GEN_GRAPHQL_CLIENT_TEMPLATE
+from .redis_example import GEN_REDIS_FIXTURE_TEMPLATE, GEN_TEST_REDIS_TEMPLATE
+from .repository import GEN_REPOSITORY_TEMPLATE
+from .settings_enhanced import SETTINGS_ENHANCED_TEMPLATE
+from .test import GEN_TEST_TEMPLATE
+from .test_complete import GEN_TEST_COMPLETE_TEMPLATE
+from .test_graphql import GEN_TEST_GRAPHQL_TEMPLATE
+
+__all__ = [
+    "GEN_TEST_TEMPLATE",
+    "GEN_TEST_COMPLETE_TEMPLATE",
+    "GEN_BUILDER_TEMPLATE",
+    "GEN_REPOSITORY_TEMPLATE",
+    "GEN_API_CLIENT_TEMPLATE",
+    "SETTINGS_ENHANCED_TEMPLATE",
+    "ENV_BASE_TEMPLATE",
+    "ENV_DEV_TEMPLATE",
+    "ENV_TEST_TEMPLATE",
+    "ENV_PROD_TEMPLATE",
+    "ENV_EXAMPLE_TEMPLATE",
+    # v3.35.5+ GraphQL 和 Redis 模板
+    "GEN_GRAPHQL_CLIENT_TEMPLATE",
+    "GEN_TEST_GRAPHQL_TEMPLATE",
+    "GEN_REDIS_FIXTURE_TEMPLATE",
+    "GEN_TEST_REDIS_TEMPLATE",
+]
