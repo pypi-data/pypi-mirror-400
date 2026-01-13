@@ -1,0 +1,151 @@
+"""Iron Vault Markdown extension integration.
+
+This module exposes a Python‑Markdown `Extension` that wires together all
+Iron‑Vault specific processors:
+
+- Front matter extraction from YAML sections delimited by `---`.
+- Obsidian‑style wiki links like `[[target#anchor|label]]`.
+- Parsing of fenced mechanics blocks (```iron-vault-mechanics) into
+  structured HTML via the parsers and Jinja templates.
+
+Usage:
+    ```python
+    from markdown import Markdown
+    from ironvaultmd.ironvault import IronVaultExtension
+
+    links: list = []
+    frontmatter: dict = {}
+
+    md = Markdown(extensions=[
+        IronVaultExtension(links=links, frontmatter=frontmatter)
+    ])
+
+    # Convert a small example document
+    html = md.convert(
+        "---\\ntitle: Demo\\n---\\n\\n,,,iron-vault-mechanics\\n"
+        "move \"[Face Danger](datasworn:move:...)\"\\n"
+        "roll \"edge\" action=4 adds=1 stat=2 vs1=3 vs2=8\\n,,,"
+    )
+    ```
+
+Configuration keys accepted by the extension (can be passed as keyword
+arguments when constructing `IronVaultExtension` or via Markdown config):
+
+- `links` (list): Optional list that will be populated with parsed wiki links.
+- `frontmatter` (dict): Optional dict that receives parsed YAML front matter.
+- `template_overrides` (TemplateOverrides): Optional overrides for templates.
+- `template_path` (str): Optional path for templates to use.
+"""
+import logging
+
+from markdown.extensions import Extension
+
+from ironvaultmd import logger_name
+from ironvaultmd.parsers.templater import TemplateOverrides, Templater, set_templater
+from ironvaultmd.processors.frontmatter import IronVaultFrontmatterPreprocessor
+from ironvaultmd.processors.links import WikiLinkProcessor, LinkCollector
+from ironvaultmd.processors.mechanics import (
+    IronVaultMechanicsBlockProcessor,
+    IronVaultMechanicsPreprocessor,
+)
+
+logger = logging.getLogger(logger_name)
+
+class IronVaultExtension(Extension):
+    """Markdown extension that registers the Iron‑Vault processors.
+
+    Attributes:
+        config: Python‑Markdown configuration mapping. Recognized keys are
+            `links`, `frontmatter`, and `templates`.
+        md: The `markdown.Markdown` instance after registration.
+        frontmatter: Optional dictionary that will receive parsed front matter.
+    """
+    def __init__(self, **kwargs):
+        """Create and configure the Iron‑Vault Markdown extension.
+
+        Args:
+            **kwargs: Standard Python‑Markdown extension configuration. The
+                following optional keys are recognized:
+                - `links` (list): Collect parsed wiki links.
+                - `frontmatter` (dict): Receive parsed YAML front matter.
+                - `templates` (TemplateOverrides): Override/disable templates.
+
+        Raises:
+            TypeError: If `links` is provided but is not a list, or if
+                `frontmatter` is provided but is not a dict.
+        """
+
+        self.config = {
+            'links': [[], 'List of collected links'],
+            'frontmatter': [{}, "YAML Frontmatter parsed into dictionary"],
+            'template_path': ["", "Path to a directory with custom templates"],
+            'template_overrides': [{}, "TemplateOverrides instance with user-defined template overrides"],
+        }
+
+        super().__init__(**kwargs)
+
+        self.md = None
+
+        links = self.getConfig('links', None)
+        if links is not None and not isinstance(links, list):
+            raise TypeError("Parameter 'links' must be a list")
+        self.link_collector = LinkCollector(links)
+
+        self.frontmatter = self.getConfig('frontmatter', None)
+        if self.frontmatter is not None and not isinstance(self.frontmatter, dict):
+            raise TypeError("Parameter 'frontmatter' must be a dict")
+
+        path: str | None = self.getConfig("template_path", None)
+        logger.debug(f"Template path: {path}")
+
+        overrides: TemplateOverrides | None = self.getConfig("template_overrides", None)
+        logger.debug(f"Template overrides: {overrides}")
+
+        templater = Templater(path, overrides)
+        set_templater(templater)
+
+    def extendMarkdown(self, md) -> None:
+        """Register processors on a `markdown.Markdown` instance.
+
+        This wires up the preprocessor that normalizes mechanics fences, the
+        front matter preprocessor, the mechanics block processor, and the wiki
+        link inline processor. Processor priorities are chosen to ensure that
+        mechanics blocks are isolated before fenced code runs, and that wiki
+        links are handled before Markdown's own wikilinks extension.
+
+        Args:
+            md: The `markdown.Markdown` instance the extension is attached to.
+        """
+        md.registerExtension(self)
+        self.md = md
+
+        # fenced_code preprocessor has priority 25, ours must have higher one to make sure it's runs first
+        md.preprocessors.register(IronVaultMechanicsPreprocessor(md), 'ironvault-mechanics-preprocessor', 50)
+        md.preprocessors.register(IronVaultFrontmatterPreprocessor(md, self.frontmatter), 'ironvault-frontmatter-preprocessor', 40)
+        md.parser.blockprocessors.register(IronVaultMechanicsBlockProcessor(md.parser), 'ironvault-mechanics', 175)
+        # wikilinks extension processor has priority 75, so need to make sure ours has higher priority again
+        md.inlinePatterns.register(WikiLinkProcessor(self.link_collector), 'ironvault-wikilinks-inlineprocessor', 100)
+
+        # There are callouts https://ironvault.quest/other-features/callouts.html
+        # Iron-vault has only "> [!spoiler]" but could consider other obsidian ones like "> [!warning]"  etc
+        # https://help.obsidian.md/callouts
+        # This should most likely be a dedicated inline pattern parser?
+        # Note, space is optional, `>[!foo]` and `> [!foo]` both exist
+        #
+        # PyMd parses `> text` as `<blockquote><p>text</p></blockquote>`
+        # registration: https://github.com/Python-Markdown/markdown/blob/master/markdown/blockprocessors.py#L53 priority 20
+        # implementation: https://github.com/Python-Markdown/markdown/blob/master/markdown/blockprocessors.py#L284
+        #
+        # Other stuff
+        # - images: `![[xyz]]` https://help.obsidian.md/embeds could be part of links inlineproc + collecting
+
+
+    def reset(self) -> None:
+        """Reset extension state between Markdown conversions.
+
+        Clears the optional `links` and `frontmatter` containers if they have
+        been provided, so each conversion starts with a clean state.
+        """
+        self.link_collector.reset()
+        if self.frontmatter is not None:
+            self.frontmatter.clear()
