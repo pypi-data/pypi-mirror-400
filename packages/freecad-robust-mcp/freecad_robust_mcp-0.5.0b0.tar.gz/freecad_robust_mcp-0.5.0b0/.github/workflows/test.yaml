@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "src/**/*.py"
+      - "tests/**/*.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/test.yaml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "src/**/*.py"
+      - "tests/**/*.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/test.yaml"
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+
+      - name: Cache uv dependencies
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit/ -v --tb=short
+
+      - name: Run type checking
+        run: uv run mypy src/
+
+  # Note: FreeCAD integration tests are handled by the "Macro Tests" workflow
+  # (macro-test.yaml) which runs on every PR. That workflow sets up FreeCAD
+  # AppImage and runs tests/integration/ tests with proper headless configuration.
