@@ -1,0 +1,76 @@
+[package]
+name = "polars-redis"
+version = "0.1.6"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Redis IO plugin for Polars"
+repository = "https://github.com/joshrotenberg/polars-redis"
+keywords = ["polars", "redis", "dataframe", "io"]
+categories = ["database", "data-structures"]
+readme = "README.md"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Redis client
+redis = { version = "1.0", features = ["tokio-comp", "json", "cluster-async", "connection-manager"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+
+# Async utilities
+futures = "0.3"
+chrono = "0.4"
+
+# Polars / Arrow
+polars = { version = "0.52", default-features = false, features = [
+    "dtype-struct",
+    "strings",
+    "lazy",
+    "timezones",
+    "temporal",
+] }
+arrow = { version = "57", default-features = false, features = ["ipc", "ipc_compression"] }
+parquet = { version = "57", default-features = false, features = ["arrow", "snap", "zstd", "lz4"] }
+
+# Python bindings (optional for pure Rust usage)
+pyo3 = { version = "0.27", features = ["extension-module"], optional = true }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bytes = "1.5"
+
+# Error handling
+thiserror = "2.0"
+
+[build-dependencies]
+pyo3-build-config = "0.27"
+
+[dev-dependencies]
+tokio-test = "0.4"
+proptest = "1.5"
+criterion = { version = "0.8", features = ["html_reports"] }
+docker-wrapper = { version = "0.10.1", features = ["template-redis", "template-redis-cluster", "testing"] }
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
+[[bench]]
+name = "redis_benchmarks"
+harness = false
+
+[features]
+default = ["json", "search"]
+python = ["pyo3"]
+json = []
+search = []
+cluster = []
+
+[[example]]
+name = "scan_hashes"
+path = "examples/rust/scan_hashes.rs"
+
+[[example]]
+name = "scan_json"
+path = "examples/rust/scan_json.rs"
