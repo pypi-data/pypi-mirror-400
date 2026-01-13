@@ -1,0 +1,527 @@
+GENERAL INSTRUCTIONS
+    -------------------
+    In our system, the behavior of a conversational AI agent is structured around predefined "journeys" - structured workflows that guide customer interactions toward specific outcomes.
+
+    ## Journey Structure
+    Each journey consists of:
+    - **Steps**: Individual actions that the agent must execute (e.g., ask a question, provide information, perform a task)
+    - **Transitions**: Rules that determine which step comes next based on customer responses or completion status
+    
+
+
+    TASK DESCRIPTION
+    -------------------
+    Analyze the current conversation state and determine if need to backtrack to journey step that was already executed.
+
+    Backtracking scenarios:
+        The customer has changed a previous decision that requires returning to an earlier step. Will need to retake a step we already visited before, and change the things we've done there. 
+        The customer wants to perform the journey process again, for a different purpose. That means that we will backtrack to the beginning and re-perform the journey. 
+        The customer wants to resume to a journey process that was stopped in the middle. That means that we will continue the journey from the last executed step.
+
+    - If return to previous step (or take the journey from the beginning) is needed, set `requires_backtracking` to `true`.
+        - Only steps marked with PREVIOUSLY EXECUTED flags are eligible for backtracking
+    - If backtracking is needed, specify the reason:
+            Set 'backtrack_to_same_journey_process' to 'true' if need to revisit the journey for the same reason, need to change previous decisions, or return to journey after we exited it, for the same purpose as before.
+            Set 'backtrack_to_same_journey_process' to 'false' if need to revisit the journey for a new purpose.
+
+    Example: if the journey is a process of making a purchase of an item, and the customer wants to change the amount of items they requested before, this is the same journey execution, same reason. If however they want 
+    to purchase another item, we may want to start from the beginning, which we will call a new purpose. 
+
+    
+
+
+    Examples of Journey Step Selections:
+    -------------------
+    Example #1: Book Taxi Journey
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "I need help with booking a taxi"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I would like to book a taxi from Newark Airport to Manhattan"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "I'm sorry, we do not operate outside of NYC."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Oh I see. Well, can I book a taxi from JFK Airport to Times Square then?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Yes! What time would you like to be picked up?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "8 AM. But actually, I changed my mind about the pickup location. Can you pick me up from LaGuardia Airport instead?"
+    }
+  }
+]
+
+
+    Journey: Book Taxi Journey
+    
+
+    Steps:
+    
+    STEP 1: Welcome the customer to the taxi service
+    Step Flags:
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "You welcomed the customer" → Go to step 2
+    
+    STEP 2: Ask the customer for their desired pick up location
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "The desired pick up location is in NYC" → Go to step 3
+↳ If "The desired pick up location is outside of NYC" → Go to step 4
+    
+    STEP 3: Ask where their destination is
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "This step was completed" → Go to step 5
+    
+    STEP 4: Inform the customer that we do not operate outside of NYC
+    Step Flags:
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "this step is completed",  → There are no further transitions.
+    
+    STEP 5: ask for the customer's desired pick up time
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- This is the last step that was executed.
+    TRANSITIONS:
+    ↳ If "the customer provided their desired pick up time" → Go to step 6
+    
+    STEP 6: Book the taxi ride as the customer requested
+    Step Flags:
+- REQUIRES TOOL CALLS: This step requires tool to be executed
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "the taxi ride was successfully booked" → Go to step 7
+    
+    STEP 7: Ask the customer if they want to pay in cash or credit
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "the customer wants to pay in credit" → Go to step 8
+↳ If "the customer wants to pay in cash" → There are no further transitions.
+    
+    STEP 8: Send the customer a credit card payment link
+    Step Flags:
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "this step is completed",  → There are no further transitions.
+    
+    
+- **Expected Result**:
+```json
+{
+  "rationale": "The customer is changing their mind about their pickup location which is a step that was previously visited in current journey process",
+  "requires_backtracking": true,
+  "backtrack_to_same_journey_process": true
+}
+```
+
+Example #2: Book Taxi Journey
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "I need help with booking a taxi"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I would like to book a taxi from Newark Airport to Manhattan"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "I'm sorry, we do not operate outside of NYC."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Oh I see. Well, can I book a taxi from JFK Airport to Times Square then?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Yes! What time would you like to be picked up?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "8 AM."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Actually Let's make it 7."
+    }
+  }
+]
+
+
+    Journey: Book Taxi Journey
+    
+
+    Steps:
+    
+    STEP 1: Welcome the customer to the taxi service
+    Step Flags:
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "You welcomed the customer" → Go to step 2
+    
+    STEP 2: Ask the customer for their desired pick up location
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "The desired pick up location is in NYC" → Go to step 3
+↳ If "The desired pick up location is outside of NYC" → Go to step 4
+    
+    STEP 3: Ask where their destination is
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "This step was completed" → Go to step 5
+    
+    STEP 4: Inform the customer that we do not operate outside of NYC
+    Step Flags:
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "this step is completed",  → There are no further transitions.
+    
+    STEP 5: ask for the customer's desired pick up time
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- This is the last step that was executed.
+    TRANSITIONS:
+    ↳ If "the customer provided their desired pick up time" → Go to step 6
+    
+    STEP 6: Book the taxi ride as the customer requested
+    Step Flags:
+- REQUIRES TOOL CALLS: This step requires tool to be executed
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "the taxi ride was successfully booked" → Go to step 7
+    
+    STEP 7: Ask the customer if they want to pay in cash or credit
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "the customer wants to pay in credit" → Go to step 8
+↳ If "the customer wants to pay in cash" → There are no further transitions.
+    
+    STEP 8: Send the customer a credit card payment link
+    Step Flags:
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "this step is completed",  → There are no further transitions.
+    
+    
+- **Expected Result**:
+```json
+{
+  "rationale": "The customer is changing their mind about their answer for current journey step, so no backtrack needed.",
+  "requires_backtracking": false
+}
+```
+
+Example #3: Book Taxi Journey
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Welcome! I'm here to help you book a taxi. How can I assist you today?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Hi, I need a taxi from Manhattan to JFK Airport"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Great! You'd like to go from Manhattan to JFK Airport. What time would you like to be picked up?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Tomorrow at 2 PM please"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Perfect! I've booked your taxi ride from Manhattan to JFK Airport for tomorrow at 2 PM. Would you like to pay with cash or credit?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Credit card please"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Excellent! I'm sending you a payment link now for your credit card. Is there anything else I can help you with?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Great!"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Is there anything else I can do for you?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I need to book another taxi for my son"
+    }
+  }
+]
+
+
+    Journey: Book Taxi Journey
+    
+
+    Steps:
+    
+    STEP 1: Welcome the customer to the taxi service
+    Step Flags:
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "You welcomed the customer" → Go to step 2
+    
+    STEP 2: Ask the customer for their desired pick up location
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "The desired pick up location is in NYC" → Go to step 3
+↳ If "The desired pick up location is outside of NYC" → Go to step 4
+    
+    STEP 3: Ask where their destination is
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "This step was completed" → Go to step 5
+    
+    STEP 4: Inform the customer that we do not operate outside of NYC
+    Step Flags:
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "this step is completed",  → There are no further transitions.
+    
+    STEP 5: ask for the customer's desired pick up time
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "the customer provided their desired pick up time" → Go to step 6
+    
+    STEP 6: Book the taxi ride as the customer requested
+    Step Flags:
+- REQUIRES TOOL CALLS: This step requires tool to be executed
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "the taxi ride was successfully booked" → Go to step 7
+    
+    STEP 7: Ask the customer if they want to pay in cash or credit
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "the customer wants to pay in credit" → Go to step 8
+↳ If "the customer wants to pay in cash" → There are no further transitions.
+    
+    STEP 8: Send the customer a credit card payment link
+    Step Flags:
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "this step is completed",  → There are no further transitions.
+    
+    
+- **Expected Result**:
+```json
+{
+  "rationale": "The customer wants to order another taxi, so need to restart the journey from the beginning",
+  "requires_backtracking": true,
+  "backtrack_to_same_journey_process": false
+}
+```
+
+
+    ###
+    Example section is over. The following is the real data you need to use for your decision.
+    
+
+
+The following is a list of events describing the most recent state of the back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "I want to reset my password"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "I can help you do just that. What\'s your username?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "it\'s leonardo_barbosa_1982"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Great! And what\'s the account\'s associated email address or phone number?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "the email is leonardobarbosa@gmail.br"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Got it. Before proceeding to reset your password, I wanted to wish you a good day"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Thank you! Have a great day as well!"}}']
+###
+
+
+
+    Journey: reset password journey
+    
+Journey activation condition: "the customer can't remember their password" OR "the customer wants to reset their password"
+
+    Steps:
+    
+    STEP 2: ask for their account name
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "The customer provided their account name" → Go to step 3
+    
+    STEP 3: Ask for their email address or phone number
+    Step Flags:
+- CUSTOMER DEPENDENT: This action requires an action from the customer to be considered complete." 
+- PREVIOUSLY EXECUTED: This step was previously executed. May need to backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "The customer provided their email address or phone number" → Go to step 4
+    
+    STEP 4: Wish them a good day
+    Step Flags:
+- This is the last step that was executed.
+    TRANSITIONS:
+    ↳ If "The customer wished you a good day in return" → Go to step 5
+↳ If "The customer did not immediately wish you a good day in return" → Go to step 6
+    
+    STEP 5: Use the reset_password tool with the customer's account name and email address or phone number.
+    Step Flags:
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "reset_password tool returned that the password was not successfully reset, or otherwise failed" → Go to step 6
+↳ If "reset_password tool returned that the password was successfully reset" → Go to step 7
+    
+    STEP 6: Apologize to the customer and report that the password cannot be reset at this times
+    Step Flags:
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "this step is completed",  → There are no further transitions.
+    
+    STEP 7: Inform the customer that their password has been successfully reset.
+    Step Flags:
+- NOT PREVIOUSLY EXECUTED: This step was not previously executed. We can not backtrack to this step.
+
+    TRANSITIONS:
+    ↳ If "this step is completed",  → There are no further transitions.
+    
+    
+
+
+IMPORTANT: Please provide your answer in the following JSON format.
+
+OUTPUT FORMAT
+-----------------
+- Fill in the following fields as instructed. Each field is required unless otherwise specified.
+
+```json
+{{
+    "rationale": "<str, explanation for whether need to perform backtrack and why>",
+    "requires_backtracking": <bool, does the agent need to backtrack to a previous step?>,
+    "backtrack_to_same_journey_process" "<bool, include only if requires_backtracking is true, whether need to return to the same journey process>",
+}}
+```

@@ -1,0 +1,83 @@
+GENERAL INSTRUCTIONS
+-----------------
+You are part of a system of AI agents which interact with a customer on the behalf of a business.
+The behavior of the system is determined by a list of behavioral guidelines provided by the business.
+Some of these guidelines are equipped with external tools—functions that enable the AI to access crucial information and execute specific actions.
+Your responsibility in this system is to evaluate when and how these tools should be employed, based on the current state of interaction, which will be detailed later in this prompt.
+
+This evaluation and execution process occurs iteratively, preceding each response generated to the customer.
+Consequently, some tool calls may have already been initiated and executed following the customer's most recent message.
+Any such completed tool call will be detailed later in this prompt along with its result.
+These calls do not require to be re-run at this time, unless you identify a valid reason for their reevaluation.
+
+Guidelines:
+- Only call the tool if it's clearly relevant to the customer's current request
+- Extract parameter values directly from the conversation or context variables
+- If a required parameter value cannot be determined, do not call the tool
+- Do not call the tool if the same call is already staged
+
+
+
+The following is a list of events describing a back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "I want to reset my password"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "I can help you do just that. What\'s your username?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "it\'s leonardo_barbosa_1982"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Great! And what\'s the account\'s associated email address or phone number?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "the email is leonardobarbosa@gmail.br"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Got it. Before proceeding to reset your password, I wanted to wish you a good day"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Thank you! Have a great day as well!"}}']
+###
+
+
+
+TOOL TO EVALUATE:
+-----------------
+Name: local:reset_password
+Description: Reset's a password for an account based on its username. Must provide either phone number or email address for verification.
+Parameters: {
+  "username": {
+    "type": "string",
+    "description": "The account's username"
+  },
+  "phone_number": {
+    "type": "string",
+    "description": "The account's associated phone number"
+  },
+  "email": {
+    "type": "string",
+    "description": "The account's associated email address"
+  }
+}
+Required parameters: ['username']
+
+
+
+EXAMPLES:
+
+Example 1 - Tool should be called:
+Conversation: "What's the weather in Paris?"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "Paris"}]}]}
+
+Example 2 - Tool should not be called:
+Conversation: "Hello, how are you?"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": false, "same_call_is_already_staged": false, "parameters": null}]}
+
+Example 3 - Multiple calls needed:
+Conversation: "Compare weather in Paris and London"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "Paris"}]}, {"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "London"}]}]}
+
+
+
+OUTPUT FORMAT:
+```json
+{
+    "name": "local:reset_password",
+    "tool_calls": [
+        {
+            "should_call": <true if tool should be called, false otherwise>,
+            "same_call_is_already_staged": <true if identical call is already staged>,
+            "parameters": [
+                {"parameter_name": "<name>", "value_as_string": "<extracted value or null>"}
+            ]
+        }
+    ]
+}
+```

@@ -1,0 +1,335 @@
+GENERAL INSTRUCTIONS
+-----------------
+In our system, the behavior of a conversational AI agent is guided by how the current state of its interaction with a customer (also referred to as "the user") compares to a number of pre-defined conditions:
+
+- "condition": This is a natural-language condition that specifies when a guideline should apply.
+          We evaluate each conversation at its current state against these conditions
+          to determine which guidelines should inform the agent's next reply.
+
+The agent will receive relevant information for its response based on the conditions that are deemed to apply to the current state of the interaction.
+
+Task Description
+----------------
+Your task is to evaluate the relevance and applicability of a set of provided 'when' conditions to the most recent state of an interaction between yourself (an AI agent) and a user.
+
+A guideline should be marked as applicable if it is relevant to the latest part of the conversation and in particular to the most recent customer message. Do not mark a guideline as
+applicable solely based on earlier parts of the conversation if the topic has since shifted, even if the previous topic remains unresolved or its action was never carried out.
+
+If the conversation shifts from a broad issue to a related sub-issue (a detail or follow-up within the same overall topic), the guideline remains applicable as long as it’s relevant to that sub-issue.
+However, once the discussion moves to an entirely new topic, previous guidelines should no longer be considered applicable.
+A guideline is not applicable when the customer explicitly sets aside or pauses the original issue to address something else, even if they plan to return to it later.
+Similarly, if the conversation has progressed beyond the specific sub-topic mentioned in the condition and into a different aspect or next stage of the general topic, the condition no longer applies.
+This approach ties applicability to the current conversational context while preserving continuity when exploring related subtopics.
+
+Persistent Facts: Conditions about user characteristics or established facts (e.g., "the user is a senior citizen", "the customer has allergies") apply once established based on the information in this prompt,
+regardless of current discussion topic.
+
+When evaluating whether the conversation has shifted to a related sub-issue versus a completely different topic, consider whether the customer remains interested in resolving their previous inquiry that fulfilled the condition.
+If the customer is still pursuing that original inquiry, then the current discussion should be considered a sub-issue of it. Do not concern yourself with whether the original issue was resolved - only ask if the current issue at hand is a sub-issue of the condition.
+
+The exact format of your response will be provided later in this prompt.
+
+
+
+
+Examples of Condition Evaluations:
+-------------------
+Example #1: ###
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Hi, I'm planning a trip to Italy next month. What can I do there?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "That sounds exciting! I can help you with that. Do you prefer exploring cities or enjoying scenic landscapes?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Can you help me figure out the best time to visit Rome and what to pack?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Actually I\u2019m also wondering \u2014 do I need any special visas or documents as an American citizen?"
+    }
+  }
+]
+
+
+- **Guidelines**:
+1) The customer is looking for flight or accommodation booking assistance
+2) The customer asks for activities recommendations
+3) The customer asks for logistical or legal requirements.
+
+
+- **Expected Result**:
+```json
+{
+  "checks": [
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The customer is looking for flight or accommodation booking assistance",
+      "rationale": "There\u2019s no mention of booking logistics like flights or hotels",
+      "applies": false
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The customer asks for activities recommendations",
+      "rationale": "The customer has moved from seeking activity recommendations to asking about legal requirements. Since they are no longer pursuing their original inquiry about activities, this represents a new topic rather than a sub-issue",
+      "applies": false
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The customer asks for logistical or legal requirements.",
+      "rationale": "The customer now asked about visas and documents which are legal requirements",
+      "applies": true
+    }
+  ]
+}
+```
+
+Example #2: ###
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Hi, I\u2019m interested in your Python programming course, but I\u2019m not sure if I\u2019m ready for it."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Happy to help! Could you share a bit about your background or experience with programming so far?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I\u2019ve done some HTML and CSS, but never written real code before."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Thanks for sharing! That gives me a good idea. Our Python course is beginner-friendly, but it does assume you're comfortable with logic and problem solving. Would you like me to recommend a short prep course first?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "That sounds useful. But I\u2019m also wondering \u2014 is the course self-paced? I work full time."
+    }
+  }
+]
+
+
+- **Guidelines**:
+1) The customer mentions a constraint that is related to commitment to the course
+2) The user expresses hesitation or self-doubt.
+3) The user asks about certification or course completion benefits.
+
+
+- **Expected Result**:
+```json
+{
+  "checks": [
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The customer mentions a constraint that is related to commitment to the course",
+      "rationale": "In the most recent message the customer mentions that they work full time which is a constraint",
+      "applies": true
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The user expresses hesitation or self-doubt.",
+      "rationale": "In the most recent message the user still sounds hesitant about their fit to the course",
+      "applies": true
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The user asks about certification or course completion benefits.",
+      "rationale": "The user didn't ask about certification or course completion benefits",
+      "applies": false
+    }
+  ]
+}
+```
+
+Example #3: ###
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I'm having trouble logging into my account."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "I'm sorry to hear that. Can you tell me what happens when you try to log in?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "It says my password is incorrect."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Have you tried resetting your password?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Yes, I did, but I can't access my mail to complete the reset."
+    }
+  }
+]
+
+
+- **Guidelines**:
+1) When the user is having a problem with login.
+
+
+- **Expected Result**:
+```json
+{
+  "checks": [
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "When the user is having a problem with login.",
+      "rationale": "In the most recent message the customer is still pursuing their login problem, making the mail access problem a sub-issue rather than a new topic",
+      "applies": true
+    }
+  ]
+}
+```
+
+Example #4: ###
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Hi, I'm thinking about ordering this coat, but I need to know \u2014 what's your return policy?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "You can return items within 30 days either in-store or using our prepaid return label."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "And what happens if I already wore it once?"
+    }
+  }
+]
+
+
+- **Guidelines**:
+1) When the customer asks about how to return an item.
+
+
+- **Expected Result**:
+```json
+{
+  "checks": [
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "When the customer asks about how to return an item.",
+      "rationale": "In the most recent message the customer asks about what happens when they wore the item, which is an inquiry regarding returning an item",
+      "applies": true
+    }
+  ]
+}
+```
+
+
+
+
+You are an AI agent named Healthcare Agent.
+
+The following is a description of your background and personality: ###
+Is empathetic and calming to the patient.
+###
+
+
+
+The following is a glossary of the business.
+Understanding these terms, as they apply to the business, is critical for your task.
+When encountering any of these terms, prioritize the interpretation provided here over any definitions you may already know.
+Please be tolerant of possible typos by the user with regards to these terms,
+and let the user know if/when you assume they meant a term by their typo: ###
+1) Name: 'Charles Xavier', Description: The doctor who specializes in neurology and is available on Mondays and Tuesdays., Synonyms: Professor X
+2) Name: 'Office Phone Number', Description: The phone number of our office, at +1-234-567-8900
+3) Name: 'Office Hours', Description: Office hours are Monday to Friday, 9 AM to 5 PM
+###
+
+
+
+The user you're interacting with is called Guest.
+
+
+
+The following is a list of events describing the most recent state of the back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "Guest", "message": "hello"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "Healthcare Agent", "message": "Hello! How can I assist you today?"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "Healthcare Agent", "message": "I\'m here whenever you\'re ready to share more or let me know how I can help."}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "Guest", "message": "I need my lab results. can you check if my lab results came back?"}}']
+###
+
+
+
+- Conditions List: ###
+1) The patient wants to schedule an appointment.
+###
+
+
+
+IMPORTANT: Please note there are exactly 1 guidelines in the list for you to check.
+
+Expected Output
+---------------------------
+- Specify the applicability of each guideline by filling in the details in the following list as instructed:
+
+    ```json
+    {
+        "checks":
+        [{"guideline_id": "1", "condition": "The patient wants to schedule an appointment", "rationale": "<Explanation for why the condition is or isn't met based on the recent interaction>", "applies": "<BOOL>"}]
+    }
+    ```
