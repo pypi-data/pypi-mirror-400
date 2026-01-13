@@ -1,0 +1,136 @@
+Metadata-Version: 2.3
+Name: lazyscribe
+Version: 2.0.0
+Summary: Lightweight and lazy experiment logging
+Author: Akshay Gupta
+Author-email: Akshay Gupta <akgcodes@gmail.com>
+License: MIT license
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: attrs>=21.2.0,<=25.4.0
+Requires-Dist: fsspec>=0.4.0,<=2025.12.0
+Requires-Dist: python-slugify>=5.0.0,<=8.0.4
+Requires-Dist: tomli>=2.2.1,<=2.3.0 ; python_full_version < '3.11'
+Requires-Dist: commitizen ; extra == 'build'
+Requires-Dist: uv ; extra == 'build'
+Requires-Dist: lazyscribe[build] ; extra == 'dev'
+Requires-Dist: lazyscribe[docs] ; extra == 'dev'
+Requires-Dist: lazyscribe[qa] ; extra == 'dev'
+Requires-Dist: lazyscribe[tests] ; extra == 'dev'
+Requires-Dist: furo ; extra == 'docs'
+Requires-Dist: matplotlib ; extra == 'docs'
+Requires-Dist: pandas ; extra == 'docs'
+Requires-Dist: pillow ; extra == 'docs'
+Requires-Dist: scikit-learn ; extra == 'docs'
+Requires-Dist: sphinx ; extra == 'docs'
+Requires-Dist: sphinx-gallery ; extra == 'docs'
+Requires-Dist: sphinx-inline-tabs ; extra == 'docs'
+Requires-Dist: time-machine ; extra == 'docs'
+Requires-Dist: edgetest ; extra == 'qa'
+Requires-Dist: edgetest-pip-tools ; extra == 'qa'
+Requires-Dist: mypy ; extra == 'qa'
+Requires-Dist: pip-tools ; extra == 'qa'
+Requires-Dist: pre-commit ; extra == 'qa'
+Requires-Dist: pyproject-fmt ; extra == 'qa'
+Requires-Dist: ruff ; extra == 'qa'
+Requires-Dist: types-python-slugify ; extra == 'qa'
+Requires-Dist: pytest ; extra == 'tests'
+Requires-Dist: pytest-cov ; extra == 'tests'
+Requires-Dist: requests ; extra == 'tests'
+Requires-Dist: scikit-learn ; extra == 'tests'
+Requires-Dist: time-machine ; extra == 'tests'
+Requires-Python: >=3.10.0
+Project-URL: documentation, https://lazyscribe.github.io/lazyscribe/
+Project-URL: repository, https://github.com/lazyscribe/lazyscribe
+Provides-Extra: build
+Provides-Extra: dev
+Provides-Extra: docs
+Provides-Extra: qa
+Provides-Extra: tests
+Description-Content-Type: text/markdown
+
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![PyPI](https://img.shields.io/pypi/v/lazyscribe)](https://pypi.org/project/lazyscribe/) [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lazyscribe)](https://pypi.org/project/lazyscribe/) [![Documentation Status](https://github.com/lazyscribe/lazyscribe/actions/workflows/docs.yml/badge.svg)](https://lazyscribe.github.io/lazyscribe/) [![codecov](https://codecov.io/github/lazyscribe/lazyscribe/branch/main/graph/badge.svg?token=M5BHYS2SSU)](https://codecov.io/github/lazyscribe/lazyscribe)
+
+# Lightweight, lazy experiment logging
+
+``lazyscribe`` is a lightweight package for model experiment logging. It creates a single JSON
+file per project, and an experiment is only added to the file when code finishes (errors won't
+result in partially finished experiments in your project log).
+
+``lazyscribe`` also has functionality to allow for multiple people to work on a single project.
+You can merge projects together and update the list of experiments to create a single, authoritative
+view of all executed experiments.
+
+# Installation
+
+Python 3.10 and above is required. Use `pip` to install:
+```console
+$ python -m pip install lazyscribe
+```
+
+# Basic Usage
+
+The basic usage involves instantiating a ``Project`` and using the context manager to log
+an experiment:
+
+```python
+import json
+
+from lazyscribe import Project
+
+project = Project(fpath="project.json")
+with project.log(name="My experiment") as exp:
+    exp.log_metric("auroc", 0.5)
+    exp.log_parameter("algorithm", "lightgbm")
+```
+
+You've created an experiment! You can view the experimental data by using ``list``:
+
+```python
+print(json.dumps(list(project), indent=4))
+```
+
+```json
+[
+    {
+        "name": "My experiment",
+        "author": "<AUTHOR>",
+        "last_updated_by": "<AUTHOR>",
+        "metrics": {
+            "auroc": 0.5
+        },
+        "parameters": {
+            "algorithm": "lightgbm"
+        },
+        "created_at": "<CREATED_AT>",
+        "last_updated": "<LAST_UPDATED>",
+        "dependencies": [],
+        "short_slug": "my-experiment",
+        "slug": "my-experiment-<CREATED_AT>",
+        "tests": [],
+        "artifacts": []
+    }
+]
+```
+
+Once you've finished, save the project to ``project.json``:
+
+```python
+project.save()
+```
+
+Later on, you can read the project back in read-only mode (`"r"`), append mode (`"a"`),
+or editable mode (`"w+"`):
+
+```python
+project = Project("project.json", mode="r")
+with project.log(name="New experiment") as exp:  # Raises a ReadOnlyError
+    ...
+```
