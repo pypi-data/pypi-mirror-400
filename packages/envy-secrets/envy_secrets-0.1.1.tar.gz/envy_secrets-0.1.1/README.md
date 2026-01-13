@@ -1,0 +1,140 @@
+# Envy 🔐
+
+> **Git for your .env files** - Secure environment variable management with encryption, profiles, and more.
+
+## Features
+
+### 🔒 **Security First**
+
+- **AES Encryption** - All secrets stored encrypted using Fernet (AES-256)
+- **System Keyring Integration** - Master key stored in OS keychain (Windows Credential Manager, macOS Keychain)
+- **Process Injection** - `envy run` injects secrets into memory, never writes to disk
+- **Age Encryption** - Public key sharing for team collaboration
+
+### 📁 **Profile Management**
+
+- Multiple environments (dev, staging, prod)
+- Easy switching between profiles
+- Copy and diff profiles
+
+### 🔄 **Drift Detection**
+
+- Compare profiles to find missing keys
+- Prevent "works on my machine" errors
+
+### ⏰ **Secret Rotation**
+
+- Set expiration dates on secrets
+- Automatic staleness detection
+- Health checks for your secrets
+
+## Installation
+
+```bash
+# Install from PyPI
+pip install envy-secrets
+```
+
+**PyPI:** https://pypi.org/project/envy-secrets/
+
+### Development Installation
+
+```bash
+# Create and activate virtual environment
+python -m venv venv
+.\venv\Scripts\Activate  # Windows
+source venv/bin/activate  # Linux/macOS
+
+# Install in development mode
+pip install -e .
+```
+
+## Quick Start
+
+```bash
+# Initialize envy in your project
+envy init
+
+# Set some secrets
+envy set DATABASE_URL=postgres://localhost/mydb
+envy set API_KEY=sk-1234567890 --expires 30d
+envy set PORT=3000 --profile prod
+
+# View secrets
+envy view
+envy view --profile prod --show
+
+# Run your app with secrets injected (RECOMMENDED!)
+envy run dev -- node index.js
+envy run prod -- python app.py
+
+# Generate .env file (less secure, but sometimes needed)
+envy export --output .env.local
+
+# Login to Envy Cloud (for team collaboration)
+envy cloud login
+envy cloud status  # Check who you're logged in as
+```
+
+## Commands
+
+### Core Commands
+
+| Command | Description |
+|---------|-------------|
+| `envy init` | Initialize envy in the current directory |
+| `envy set KEY=VALUE` | Set an encrypted environment variable |
+| `envy get KEY` | Get a variable value |
+| `envy delete KEY` | Delete a variable |
+| `envy view` | View all secrets in a profile |
+| `envy run <profile> -- <command>` | Run command with secrets injected |
+| `envy export` | Generate a .env file |
+| `envy import` | Import from a .env file |
+| `envy capture` | Capture current process environment |
+| `envy diff <source> <target>` | Show differences between profiles |
+| `envy check` | Check for expired/stale secrets |
+| `envy status` | Show envy status |
+
+### Profile Commands
+
+| Command | Description |
+|---------|-------------|
+| `envy profile list` | List all profiles |
+| `envy profile create <name>` | Create a new profile |
+| `envy profile delete <name>` | Delete a profile |
+| `envy profile switch <name>` | Switch active profile |
+| `envy profile copy <src> <dst>` | Copy secrets between profiles |
+
+### Team Commands
+
+| Command | Description |
+|---------|-------------|
+| `envy cloud login` | Login to Envy Cloud |
+| `envy cloud logout` | Logout from Envy Cloud |
+| `envy cloud status` | Show logged-in user info |
+| `envy cloud clone <slug>` | Clone a project from cloud |
+| `envy cloud push` | Push local secrets to cloud |
+| `envy cloud remote` | Show/set remote project |
+| `envy team list` | List team members from cloud |
+
+## Security Best Practices
+
+1. **Never commit `.envy/master.key`** - It's automatically added to `.gitignore`
+2. **Use `envy run` instead of `envy export`** - Secrets stay in memory
+3. **Set expiration dates** - `envy set KEY=value --expires 30d`
+4. **Run `envy check` regularly** - Find stale and expiring secrets
+
+## File Structure
+
+```
+your-project/
+├── .envy/
+│   ├── master.key      # 🔑 Encryption key (NEVER COMMIT!)
+│   └── secrets.json    # 🔒 Encrypted secrets (safe to commit)
+├── .gitignore          # Auto-updated to ignore sensitive files
+└── ...
+```
+
+## License
+
+MIT
