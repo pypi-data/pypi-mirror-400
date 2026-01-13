@@ -1,0 +1,627 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ANNPack Serve</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, sans-serif;
+      background: #0f1115;
+      color: #f0f2f6;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1f2636 0%, #0f1115 60%);
+    }
+    .app {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 32px 24px 60px;
+    }
+    .card {
+      background: rgba(26, 30, 40, 0.9);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    }
+    h1,
+    h2 {
+      margin: 0 0 12px;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: #9aa4b2;
+      margin-bottom: 6px;
+    }
+    input,
+    textarea,
+    button {
+      font: inherit;
+    }
+    input,
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #2a3242;
+      background: #121620;
+      color: #f0f2f6;
+    }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      background: #4c7dff;
+      color: #fff;
+      cursor: pointer;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: #1f2636;
+      color: #9aa4b2;
+    }
+    .status {
+      font-weight: 600;
+    }
+    .ok {
+      color: #1a7f37;
+    }
+    .err {
+      color: #b42318;
+    }
+    .error {
+      background: #3a1b1b;
+      color: #ffb4b4;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-top: 12px;
+    }
+    pre {
+      background: #0b0d12;
+      padding: 12px;
+      border-radius: 12px;
+      overflow: auto;
+      font-size: 0.85rem;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    li {
+      padding: 12px;
+      border-bottom: 1px solid #2a3242;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>ANNPack Serve</h1>
+    <p class="badge">Pack UI expects a manifest under <code>/pack/</code>.</p>
+
+    <div class="card">
+      <h2>Load Pack</h2>
+      <label for="manifest">Manifest URL</label>
+      <input id="manifest" type="text" value="/pack/pack.manifest.json">
+      <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <input type="checkbox" id="packsetToggle">
+        <label for="packsetToggle">PackSet manifest</label>
+        <input type="checkbox" id="metaToggle">
+        <label for="metaToggle">Load metadata</label>
+        <input type="number" id="metaLimit" min="1" value="32" style="width: 90px;">
+        <span class="badge">MB limit</span>
+      </div>
+      <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
+        <button id="loadBtn">Load</button>
+        <span class="badge">Status: <span id="status">Idle</span></span>
+      </div>
+      <div id="loadError" class="error" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Search</h2>
+      <div class="grid">
+        <div>
+          <label for="vector">Vector query</label>
+          <textarea id="vector" rows="3" placeholder="0.1, 0.2, 0.3..."></textarea>
+          <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 12px;">
+            <div>
+              <label for="topk">Top K</label>
+              <input id="topk" type="number" min="1" value="5">
+            </div>
+            <div>
+              <label for="probe">Probe</label>
+              <input id="probe" type="number" min="1" value="8">
+            </div>
+          </div>
+        </div>
+        <div>
+          <label>Text query (embedding plugin required)</label>
+          <input disabled placeholder="Configure embedding plugin">
+          <p class="badge" style="margin-top: 8px;">Embeddings disabled by default.</p>
+        </div>
+      </div>
+      <button id="searchBtn" style="margin-top: 12px;">Search</button>
+      <div id="searchError" class="error" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Results</h2>
+      <ul id="results"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Inspector</h2>
+      <div class="grid">
+        <div>
+          <label>Header</label>
+          <pre id="headerView">Header not loaded</pre>
+        </div>
+        <div>
+          <label>Manifest</label>
+          <pre id="manifestView">Manifest not loaded</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Logs</h2>
+      <pre id="log"></pre>
+    </div>
+  </div>
+
+  <script>
+    const LIMITS = {
+      maxDim: 4096,
+      maxLists: 1000000,
+      maxListBytes: 64 * 1024 * 1024,
+      maxCentroidBytes: 512 * 1024 * 1024,
+      maxTableBytes: 256 * 1024 * 1024,
+      maxProbe: 64,
+      maxTopK: 1000,
+      maxMetaLineBytes: 1024 * 1024
+    };
+
+    const state = {
+      pack: null,
+      manifest: null
+    };
+
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const resultsEl = document.getElementById('results');
+    const headerView = document.getElementById('headerView');
+    const manifestView = document.getElementById('manifestView');
+    const loadError = document.getElementById('loadError');
+    const searchError = document.getElementById('searchError');
+
+    document.getElementById('loadBtn').addEventListener('click', handleLoad);
+    document.getElementById('searchBtn').addEventListener('click', handleSearch);
+
+    function log(text) {
+      logEl.textContent += text + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(text, ok) {
+      statusEl.textContent = text;
+      statusEl.className = ok ? 'ok' : 'err';
+    }
+
+    function showError(el, message) {
+      el.textContent = message;
+      el.style.display = 'block';
+    }
+
+    function clearError(el) {
+      el.textContent = '';
+      el.style.display = 'none';
+    }
+
+    function parseVector(raw) {
+      const parts = raw.split(/[\s,]+/).filter(Boolean);
+      const nums = parts.map((p) => Number(p));
+      if (nums.some((n) => Number.isNaN(n))) {
+        throw new Error('Vector contains non-numeric values.');
+      }
+      return new Float32Array(nums);
+    }
+
+    function normalizeVector(vec) {
+      let sum = 0;
+      for (let i = 0; i < vec.length; i += 1) sum += vec[i] * vec[i];
+      const norm = Math.sqrt(sum);
+      if (!Number.isFinite(norm) || norm === 0) throw new Error('Zero vector');
+      const out = new Float32Array(vec.length);
+      for (let i = 0; i < vec.length; i += 1) out[i] = vec[i] / norm;
+      return out;
+    }
+
+    function clampInt(value, min, max, label) {
+      if (!Number.isFinite(value)) throw new Error(label + ' must be a number');
+      const rounded = Math.floor(value);
+      if (rounded < min) return min;
+      if (rounded > max) return max;
+      return rounded;
+    }
+
+    function safeNumber(value, label) {
+      if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw new Error(label + ' exceeds max safe integer');
+      }
+      return Number(value);
+    }
+
+    function halfToFloat(h) {
+      const s = (h >> 15) & 0x1;
+      const e = (h >> 10) & 0x1f;
+      const m = h & 0x3ff;
+      if (e === 0) {
+        if (m === 0) return s ? -0 : 0;
+        return (s ? -1 : 1) * Math.pow(2, -14) * (m / 1024);
+      }
+      if (e === 31) {
+        return m === 0 ? (s ? -Infinity : Infinity) : NaN;
+      }
+      return (s ? -1 : 1) * Math.pow(2, e - 15) * (1 + m / 1024);
+    }
+
+    async function fetchJson(url) {
+      const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+      return await resp.json();
+    }
+
+    async function fetchRange(url, start, end) {
+      const resp = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
+      if (!(resp.status === 206 || resp.status === 200)) {
+        throw new Error(`Range fetch failed: ${resp.status}`);
+      }
+      const buf = await resp.arrayBuffer();
+      const expected = end - start + 1;
+      if (buf.byteLength >= expected) {
+        return buf.slice(0, expected);
+      }
+      return buf;
+    }
+
+    function readHeader(buffer) {
+      const view = new DataView(buffer, 0, 72);
+      const magic = Number(view.getBigUint64(0, true));
+      const version = view.getUint32(8, true);
+      const endian = view.getUint32(12, true);
+      const headerSize = view.getUint32(16, true);
+      const dim = view.getUint32(20, true);
+      const metric = view.getUint32(24, true);
+      const nLists = view.getUint32(28, true);
+      const nVectors = view.getUint32(32, true);
+      const offsetTablePos = safeNumber(view.getBigUint64(36, true), 'offset_table_pos');
+      if (magic !== 0x504e4e41) throw new Error('Invalid magic');
+      if (version !== 1 || endian !== 1) throw new Error('Unsupported header');
+      if (headerSize < 72) throw new Error('Invalid header size');
+      if (dim <= 0 || dim > LIMITS.maxDim) throw new Error('dim out of bounds');
+      if (nLists <= 0 || nLists > LIMITS.maxLists) throw new Error('nLists out of bounds');
+      if (offsetTablePos <= headerSize) throw new Error('Invalid offset table position');
+      return { magic, version, endian, headerSize, dim, metric, nLists, nVectors, offsetTablePos };
+    }
+
+    async function loadMeta(url, maxBytes, mode) {
+      if (mode === 'none') return { mode, ids: new Set(), rows: null };
+      const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!resp.ok) throw new Error(`Failed to fetch metadata: ${resp.status}`);
+      const sizeHeader = resp.headers.get('Content-Length');
+      if (sizeHeader && Number(sizeHeader) > maxBytes) {
+        throw new Error(`Metadata exceeds maxBytes (${maxBytes})`);
+      }
+      const text = await resp.text();
+      if (text.length > maxBytes) throw new Error(`Metadata exceeds maxBytes (${maxBytes})`);
+      const ids = new Set();
+      const rows = mode === 'full' ? new Map() : null;
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        if (line.length > LIMITS.maxMetaLineBytes) throw new Error('Metadata line too large');
+        const row = JSON.parse(line);
+        if (row.id === undefined || row.id === null) continue;
+        const id = Number(row.id);
+        if (!Number.isFinite(id)) continue;
+        ids.add(id);
+        if (rows) rows.set(id, row);
+      }
+      return { mode, ids, rows };
+    }
+
+    async function loadTombstones(url, maxBytes) {
+      const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!resp.ok) throw new Error(`Failed to fetch tombstones: ${resp.status}`);
+      const sizeHeader = resp.headers.get('Content-Length');
+      if (sizeHeader && Number(sizeHeader) > maxBytes) {
+        throw new Error(`Tombstones exceeds maxBytes (${maxBytes})`);
+      }
+      const text = await resp.text();
+      if (text.length > maxBytes) throw new Error(`Tombstones exceeds maxBytes (${maxBytes})`);
+      const ids = new Set();
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        if (line.length > LIMITS.maxMetaLineBytes) throw new Error('Tombstone line too large');
+        const row = JSON.parse(line);
+        if (row.id === undefined || row.id === null) continue;
+        const id = Number(row.id);
+        if (Number.isFinite(id)) ids.add(id);
+      }
+      return ids;
+    }
+
+    async function loadShard(baseUrl, shard, metaMode, metaLimitBytes) {
+      const annpackUrl = new URL(shard.annpack, baseUrl).toString();
+      const metaUrl = new URL(shard.meta, baseUrl).toString();
+      const headerBuf = await fetchRange(annpackUrl, 0, 71);
+      const header = readHeader(headerBuf);
+      const centroidsBytes = header.nLists * header.dim * 4;
+      if (centroidsBytes > LIMITS.maxCentroidBytes) {
+        throw new Error('Centroids too large');
+      }
+      const centroidsBuf = await fetchRange(
+        annpackUrl,
+        header.headerSize,
+        header.headerSize + centroidsBytes - 1
+      );
+      const centroids = new Float32Array(centroidsBuf);
+      const tableBytes = header.nLists * 16;
+      if (tableBytes > LIMITS.maxTableBytes) {
+        throw new Error('Offset table too large');
+      }
+      const tableBuf = await fetchRange(
+        annpackUrl,
+        header.offsetTablePos,
+        header.offsetTablePos + tableBytes - 1
+      );
+      const offsets = new Float64Array(header.nLists);
+      const lengths = new Float64Array(header.nLists);
+      const tableView = new DataView(tableBuf);
+      for (let i = 0; i < header.nLists; i += 1) {
+        offsets[i] = safeNumber(tableView.getBigUint64(i * 16, true), 'offset');
+        lengths[i] = safeNumber(tableView.getBigUint64(i * 16 + 8, true), 'length');
+      }
+      const meta = await loadMeta(metaUrl, metaLimitBytes, metaMode);
+      return { name: shard.name || shard.annpack, annpackUrl, header, centroids, offsets, lengths, meta };
+    }
+
+    async function openPack(manifestUrl, opts) {
+      const manifest = await fetchJson(manifestUrl);
+      if (manifest.schema_version === 3) {
+        return openPackSet(manifestUrl, opts);
+      }
+      const baseUrl = new URL('.', manifestUrl).toString();
+      const metaMode = opts.loadMeta ? 'full' : 'none';
+      const shards = [];
+      for (const shard of manifest.shards || []) {
+        shards.push(await loadShard(baseUrl, shard, metaMode, opts.metaLimitBytes));
+      }
+      return { type: 'pack', manifest, shards };
+    }
+
+    async function openPackSet(manifestUrl, opts) {
+      const manifest = await fetchJson(manifestUrl);
+      if (manifest.schema_version !== 3) {
+        throw new Error('Not a PackSet manifest');
+      }
+      const baseDir = new URL('.', manifestUrl).toString();
+      const baseManifestUrl = new URL('pack.manifest.json', new URL(manifest.base.annpack, baseDir)).toString();
+      const basePack = await openPack(baseManifestUrl, { ...opts, loadMeta: opts.loadMeta });
+      const deltas = (manifest.deltas || []).slice().sort((a, b) => a.seq - b.seq);
+      const deltaStates = [];
+      for (const delta of deltas) {
+        const deltaManifest = {
+          shards: [{ name: `delta-${delta.seq}`, annpack: delta.annpack, meta: delta.meta }]
+        };
+        const deltaPack = await openPackFromManifest(deltaManifest, baseDir, opts);
+        const tombstones = await loadTombstones(new URL(delta.tombstones, baseDir).toString(), opts.metaLimitBytes);
+        const metaMode = opts.loadMeta ? 'full' : 'ids';
+        const overrideMeta = await loadMeta(new URL(delta.meta, baseDir).toString(), opts.metaLimitBytes, metaMode);
+        deltaStates.push({ entry: delta, pack: deltaPack, tombstones, overrides: overrideMeta.ids });
+      }
+      return { type: 'packset', manifest, base: basePack, deltas: deltaStates };
+    }
+
+    async function openPackFromManifest(manifest, baseUrl, opts) {
+      const metaMode = opts.loadMeta ? 'full' : 'none';
+      const shards = [];
+      for (const shard of manifest.shards || []) {
+        shards.push(await loadShard(baseUrl, shard, metaMode, opts.metaLimitBytes));
+      }
+      return { type: 'pack', manifest, shards };
+    }
+
+    async function searchPack(pack, vector, topK, probe) {
+      if (pack.type === 'pack') {
+        return searchPackShards(pack.shards, vector, topK, probe, null);
+      }
+      const results = [];
+      const seen = new Set();
+      const deltas = pack.deltas.slice().sort((a, b) => b.entry.seq - a.entry.seq);
+      const tombstoned = new Set();
+      const overridden = new Set();
+      for (const delta of deltas) {
+        for (const id of delta.tombstones) tombstoned.add(id);
+        for (const id of delta.overrides) overridden.add(id);
+      }
+      for (const delta of deltas) {
+        const hits = await searchPackShards(delta.pack.shards, vector, topK * 5, probe, `delta:${delta.entry.seq}`);
+        for (const row of hits) {
+          if (tombstoned.has(row.id) || seen.has(row.id)) continue;
+          seen.add(row.id);
+          results.push(row);
+          if (results.length >= topK) return results;
+        }
+      }
+      const baseHits = await searchPackShards(pack.base.shards, vector, topK * 5, probe, 'base');
+      for (const row of baseHits) {
+        if (tombstoned.has(row.id) || overridden.has(row.id) || seen.has(row.id)) continue;
+        results.push(row);
+        if (results.length >= topK) break;
+      }
+      return results;
+    }
+
+    async function searchPackShards(shards, vector, topK, probe, sourceOverride) {
+      const results = [];
+      for (const shard of shards) {
+        const header = shard.header;
+        const topScores = new Float32Array(topK);
+        const topIds = new Array(topK);
+        const topSources = new Array(topK);
+        let topCount = 0;
+        for (let i = 0; i < topK; i += 1) topScores[i] = -1e9;
+
+        const bestLists = new Int32Array(probe);
+        const bestScores = new Float32Array(probe);
+        for (let i = 0; i < probe; i += 1) {
+          bestLists[i] = -1;
+          bestScores[i] = -1e9;
+        }
+        for (let listId = 0; listId < header.nLists; listId += 1) {
+          let score = 0;
+          const base = listId * header.dim;
+          for (let d = 0; d < header.dim; d += 1) {
+            score += shard.centroids[base + d] * vector[d];
+          }
+          if (score > bestScores[probe - 1]) {
+            let pos = probe - 1;
+            while (pos > 0 && score > bestScores[pos - 1]) pos -= 1;
+            for (let m = probe - 1; m > pos; m -= 1) {
+              bestScores[m] = bestScores[m - 1];
+              bestLists[m] = bestLists[m - 1];
+            }
+            bestScores[pos] = score;
+            bestLists[pos] = listId;
+          }
+        }
+
+        for (let p = 0; p < bestLists.length; p += 1) {
+          const listId = bestLists[p];
+          if (listId < 0) continue;
+          const offset = shard.offsets[listId];
+          const length = shard.lengths[listId];
+          if (length <= 0 || length > LIMITS.maxListBytes) continue;
+          const end = offset + length - 1;
+          const buf = await fetchRange(shard.annpackUrl, offset, end);
+          if (buf.byteLength < 4) continue;
+          const view = new DataView(buf);
+          const count = view.getUint32(0, true);
+          const needed = 4 + count * 8 + count * header.dim * 2;
+          if (count === 0 || needed > buf.byteLength) continue;
+          const vecBase = 4 + count * 8;
+          for (let i = 0; i < count; i += 1) {
+            let score = 0;
+            const vecOffset = vecBase + i * header.dim * 2;
+            for (let d = 0; d < header.dim; d += 1) {
+              score += vector[d] * halfToFloat(view.getUint16(vecOffset + d * 2, true));
+            }
+            if (topCount < topK || score > topScores[topCount - 1]) {
+              const idOffset = 4 + i * 8;
+              const id = safeNumber(view.getBigUint64(idOffset, true), 'id');
+              let pos = topCount > 0 ? Math.min(topCount - 1, topK - 1) : 0;
+              while (pos >= 0 && score > topScores[pos]) pos -= 1;
+              pos += 1;
+              if (topCount < topK) topCount += 1;
+              for (let m = topCount - 1; m > pos; m -= 1) {
+                topScores[m] = topScores[m - 1];
+                topIds[m] = topIds[m - 1];
+                topSources[m] = topSources[m - 1];
+              }
+              topScores[pos] = score;
+              topIds[pos] = id;
+              topSources[pos] = sourceOverride || shard.name;
+            }
+          }
+        }
+
+        for (let i = 0; i < topCount; i += 1) {
+          const id = topIds[i];
+          const meta = shard.meta && shard.meta.rows ? shard.meta.rows.get(id) : null;
+          results.push({ id, score: Number(topScores[i]), source: topSources[i], meta });
+        }
+      }
+      results.sort((a, b) => b.score - a.score);
+      return results.slice(0, topK);
+    }
+
+    async function handleLoad() {
+      clearError(loadError);
+      setStatus('Loading...', false);
+      try {
+        const manifestUrl = document.getElementById('manifest').value;
+        const isPackSet = document.getElementById('packsetToggle').checked;
+        const loadMeta = document.getElementById('metaToggle').checked;
+        const metaLimitMb = Number(document.getElementById('metaLimit').value) || 32;
+        const metaLimitBytes = Math.max(1, metaLimitMb) * 1024 * 1024;
+
+        const pack = isPackSet
+          ? await openPackSet(manifestUrl, { loadMeta, metaLimitBytes })
+          : await openPack(manifestUrl, { loadMeta, metaLimitBytes });
+
+        state.pack = pack;
+        state.manifest = pack.manifest;
+        setStatus('Ready', true);
+        manifestView.textContent = JSON.stringify(pack.manifest, null, 2);
+        const header = pack.type === 'pack' ? pack.shards[0].header : pack.base.shards[0].header;
+        headerView.textContent = JSON.stringify(header, null, 2);
+        resultsEl.innerHTML = '';
+        log('[ui] Pack loaded');
+      } catch (err) {
+        setStatus('Error', false);
+        showError(loadError, String(err));
+        log('[ui] Load error: ' + err);
+      }
+    }
+
+    async function handleSearch() {
+      clearError(searchError);
+      if (!state.pack) {
+        showError(searchError, 'Load a pack first.');
+        return;
+      }
+      try {
+        const vectorInput = document.getElementById('vector').value;
+        const topK = clampInt(Number(document.getElementById('topk').value), 1, LIMITS.maxTopK, 'topK');
+        const probe = clampInt(Number(document.getElementById('probe').value), 1, LIMITS.maxProbe, 'probe');
+        const vec = normalizeVector(parseVector(vectorInput));
+
+        const hits = await searchPack(state.pack, vec, topK, probe);
+        renderResults(hits);
+      } catch (err) {
+        showError(searchError, String(err));
+        log('[ui] Search error: ' + err);
+      }
+    }
+
+    function renderResults(hits) {
+      resultsEl.innerHTML = '';
+      if (!hits.length) {
+        resultsEl.innerHTML = '<li>No results yet.</li>';
+        return;
+      }
+      for (const row of hits) {
+        const li = document.createElement('li');
+        const meta = row.meta ? JSON.stringify(row.meta) : 'No metadata';
+        li.innerHTML = `<strong>ID:</strong> ${row.id} &nbsp; <strong>Score:</strong> ${row.score.toFixed(4)} &nbsp; <strong>Source:</strong> ${row.source || 'pack'}<div>${meta}</div>`;
+        resultsEl.appendChild(li);
+      }
+    }
+  </script>
+</body>
+</html>

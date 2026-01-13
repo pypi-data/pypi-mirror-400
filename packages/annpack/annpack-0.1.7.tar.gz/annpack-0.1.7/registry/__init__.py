@@ -1,0 +1,1 @@
+"""ANNPACK registry service package."""
