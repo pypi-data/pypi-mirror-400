@@ -1,0 +1,63 @@
+[project]
+name = "dbt-rowlineage"
+dynamic = ["version"]
+description = "Adapter-agnostic dbt plugin providing row-level lineage tracing"
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [{ name = "RezerBleede", email = "remisharoon.aws@gmail.com" }]
+license = { file = "LICENSE" }
+keywords = ["dbt", "lineage", "analytics", "data-engineering"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "dbt-core>=1.7",
+    "pandas>=1.5",
+    "pyarrow>=10.0.0",
+    "sqlglot>=23.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/rezer-bleede/dbt-rowlineage"
+Repository = "https://github.com/rezer-bleede/dbt-rowlineage"
+Issues = "https://github.com/rezer-bleede/dbt-rowlineage/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "psycopg2-binary>=2.9",
+    "httpx>=0.27",
+]
+
+[project.entry-points."dbt.adapters"]
+rowlineage = "dbt_rowlineage.plugin:RowLineagePlugin"
+
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["dbt_rowlineage*"]
+exclude = ["demo*", "tests*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "dbt_rowlineage.__version__" }
+
+[project.scripts]
+dbt-rowlineage = "dbt_rowlineage.cli:main"
+
