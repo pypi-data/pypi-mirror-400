@@ -1,0 +1,147 @@
+# GeezPy: Amharic Python Programming
+
+GeezPy is a Python library that allows Ethiopian programmers to write Python code using Amharic keywords. This project aims to make programming more accessible and intuitive for Amharic speakers by providing a preprocessor that translates Amharic keywords into standard Python keywords before execution.
+
+## Features
+
+*   **Amharic Keyword Support**: Write Python code using a predefined set of Amharic keywords for common Python constructs.
+*   **Seamless Translation**: A preprocessor translates your Amharic Python code into standard Python, which is then executed.
+*   **Error Message Translation (Basic)**: Provides basic translation of Python error messages into Amharic to aid debugging.
+*   **Easy Installation**: Installable via `pip`.
+*   **Python 3.8+ Compatibility**: Designed to work with modern Python versions.
+
+## Installation
+
+You can install GeezPy using pip:
+
+```bash
+pip install geezpy
+```
+
+If you are installing from the source code, navigate to the project's root directory and run:
+
+```bash
+pip install .
+```
+
+## Usage
+
+To write and run Amharic Python code, you will create a file (e.g., `my_script.gp`) and use the `geezpy` command-line tool to execute it.
+
+### Example Amharic Python Script (`example.gp`)
+
+Let's say you have the following Amharic Python code in a file named `example.gp`:
+
+```amharic
+# ይህ የአማርኛ ፓይዘን ምሳሌ ነው።
+
+ተግባር ሰላም_በል(ስም):
+    አትም("ሰላም " + ስም + "!")
+
+ከሆነ እውነት:
+    ለ ቁጥር በ ክልል(5):
+        አትም("ቁጥር:", ቁጥር)
+    ሰላም_በል("አለም")
+```
+
+### Running the Script
+
+You can run this script using the `geezpy` command:
+
+```bash
+geezpy example.gp
+```
+
+This will output:
+
+```
+ቁጥር: 0
+ቁጥር: 1
+ቁጥር: 2
+ቁጥር: 3
+ቁጥር: 4
+ሰላም አለም!
+```
+
+### Supported Keywords
+
+The following is a mapping of Amharic keywords to their Python equivalents:
+
+| Python Keyword | Amharic Equivalent |
+| :------------- | :----------------- |
+| `False`        | `አሳሳቢ`            |
+| `True`         | `እውነት`             |
+| `None`         | `ምንም`              |
+| `and`          | `እና`               |
+| `or`           | `ወይም`              |
+| `if`           | `ከሆነ`              |
+| `else`         | `ካልሆነ`             |
+| `for`          | `ለ`                |
+| `while`        | `በሚኖርበት`          |
+| `def`          | `ተግባር`             |
+| `class`        | `ክፍል`              |
+| `return`       | `ተመልሷል`           |
+| `import`       | `አስመጣ`             |
+| `from`         | `ከ`                |
+| `as`           | `እንደ`              |
+| `try`          | `ሞክር`              |
+| `except`       | `በስተቀር`            |
+| `finally`      | `በመጨረሻ`           |
+| `with`         | `ጋር`               |
+| `lambda`       | `ላምዳ`              |
+| `yield`        | `አፈሰሰ`             |
+| `global`       | `አለምአቀፍ`           |
+| `nonlocal`     | `ያልአካባቢ`          |
+| `assert`       | `አረጋግጥ`            |
+| `break`        | `ቁርጥ`              |
+| `continue`     | `ቀጥል`              |
+| `del`          | `ሰርዝ`              |
+| `pass`         | `አልፍ`              |
+| `raise`        | `አስነሳ`             |
+
+## Development
+
+### Project Structure
+
+```
+geezpy/
+├── geezpy/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── translator.py
+│   └── keywords.json
+├── setup.py
+└── README.md
+```
+
+### Running Tests
+
+To run the unit tests for GeezPy:
+
+```bash
+# Run all tests
+python -m unittest discover tests
+
+# Run specific test file
+python -m unittest tests.test_translator
+
+# Run with verbose output
+python -m unittest discover tests -v
+```
+
+The test suite includes comprehensive tests for:
+- Basic keyword translation
+- Complex code translation with multiple keywords
+- String and comment preservation
+- Error message translation
+- Edge cases and boundary conditions
+
+All tests should pass to ensure the library functions correctly.
+
+### Contributing
+
+Contributions are welcome! Please feel free to submit pull requests or open issues on the GitHub repository.
+
+## License
+
+This project is licensed under the MIT License.
