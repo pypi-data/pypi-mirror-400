@@ -1,0 +1,242 @@
+Metadata-Version: 2.4
+Name: swiftmcp
+Version: 0.0.4
+Summary: multimoda MCP framework
+Author-email: Yaqiang Sun <sunyaking@163.com>
+License: GPL-3.0
+Requires-Python: <3.14,>=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.121.0
+Requires-Dist: fastmcp>=2.13.0.2
+Requires-Dist: miniolite>=0.0.0.3
+Dynamic: license-file
+
+# SwiftMCP
+<p align="center">
+<br>
+        <a href="README_CN.md">中文</a> &nbsp ｜ &nbsp English &nbsp
+</p>
+
+<p align="center">
+<img src="https://img.shields.io/badge/python-3.12-5be.svg">
+<a href="https://pypi.org/project/ms-swift/"><img src="https://badge.fury.io/py/ms-swift.svg"></a>
+</p>
+
+## 📝 Introduction
+
+SwiftMCP is a multimodal Model Control Protocol (MCP) framework designed to provide flexible and extensible service interfaces for integrating and managing various model services. It simplifies the implementation and deployment of MCP protocol, supports automatic conversion from OpenAPI to MCP, and provides toolchain integration capabilities to reduce the complexity of multimodal model service access.
+
+## 🎉 News
+- 🎁 2025.09.02: Release v0.0.1 package.
+<details><summary>More</summary>
+
+- 🎉 2024.09.02: Add `swiftmcp` command support.
+- 🔥 2025.08.25: Init the project.
+</details>
+
+## 🛠️ Installation
+
+### Prerequisites
+- Python >= 3.11 (Recommended: 3.12)
+- pip package manager
+
+### Install from PyPI
+```shell
+pip install swiftmcp -U
+```
+
+### Install from Source
+```shell
+git clone https://github.com/yaqiangsun/SwiftMCP.git
+cd SwiftMCP
+pip install -e .
+```
+
+## 🚀 Quick Start
+
+### Run serve
+Start the MCP service with the following command:
+```bash
+swiftmcp serve --port 8080 --path /mcp
+```
+
+This will start an HTTP server listening on port 8080 with the MCP endpoint at `/mcp`. You can then access the service at `http://localhost:8080/mcp`.
+
+### Command Line Options
+
+1. `serve` - Start the MCP composition service (MCP service composition tools will be fused with task tools into one MCP path)
+   - `--port`: Specify the port number (default: 8000)
+   - `--path`: Specify the service path (default: /mcp)
+
+2. `splitserve` - Start the split MCP composition service (MCP service tools and task tools are in two independent MCP paths)
+   - `--manager-port`: Specify the manager endpoint port number (default: 8001)
+   - `--manager-path`: Specify the manager endpoint path (default: /mcp_manager)
+   - `--task-port`: Specify the task endpoint port number (default: 8002)
+   - `--task-path`: Specify the task endpoint path (default: /mcp_task)
+
+3. `openapi2mcp` - Convert OpenAPI specification to MCP service
+   - `--port`: Specify the port number (default: 8003)
+   - `--path`: Specify the service path (default: /mcp)
+   - `--target-url`: Specify the target URL for OpenAPI service (default: http://0.0.0.0:10050)
+
+4. `mcp2mcp` - Proxy one MCP service to another MCP service (Proxy HTTP MCP service to form a new HTTP MCP service)
+   - `--port`: Specify the port number (default: 8003)
+   - `--path`: Specify the service path (default: /mcp)
+   - `--target-url`: Specify the URL of the target MCP service
+
+5. `toolmanager` - Start the tool management service (Supports tool modification functionality)
+   - `--port`: Specify the port number (default: 8003)
+   - `--manager-path`: Specify the manager endpoint path (default: /mcp_manager)
+   - `--task-path`: Specify the task endpoint path (default: /mcp_task)
+   - `--mcp-url`: Specify the URL of the target MCP service
+
+
+
+## 🧩 YAMLMCP Usage
+
+YAMLMCP is a subclass of FastMCP that automatically loads configuration from a `descriptions.yaml` file and provides decorator factories for `tool`, `resource`, and `prompt`, achieving complete decoupling between code and descriptions.
+
+### Example
+
+server.py:
+```python
+import os
+import yaml
+from swiftmcp.core.split_define.split_mcp import YAMLMCP
+
+yaml_path = os.path.join(os.path.dirname(__file__), "descriptions.yaml")
+mcp = YAMLMCP(yaml_path=yaml_path)
+
+# Define pure logic functions (completely clean)
+@mcp.tool_wrapper
+def add_numbers(a: int, b: int, scale: float = 1.0) -> int:
+    return int((a + b) * scale)
+
+@mcp.tool_wrapper
+def multiply(x: float, y: float) -> float:
+    return x * y
+
+@mcp.resource_wrapper("resource://{name}/details")  # uri read from "uri" field in descriptions.yaml
+def user_greeting(name: str) -> str:
+    return f"Hello, {name}! Welcome to MCP service."
+
+@mcp.resource_wrapper("default://static")
+def get_greeting() -> str:
+    return "Hello from FastMCP!"
+
+@mcp.prompt_wrapper
+def code_review_prompt(code: str):
+    from fastmcp.prompts import Message
+    return [
+        Message(f"Please review the following code and identify potential issues:\n```python\n{code}\n```"),
+        Message("I'm here to help you review the code.")
+    ]
+
+# Start the service
+if __name__ == "__main__":
+    print("Starting completely decoupled MCP service...")
+    mcp.run(transport="stdio")
+```
+
+descriptions.yaml:
+```yaml
+server:
+  name: "MyCompleteMCPServer"
+  instructions: "A complete MCP example service: including tools, resources and prompt templates"
+
+tools:
+  add_numbers:
+    description: "Add two integers with optional scaling"
+    parameters:
+      a: "First addend, must be integer"
+      b: "Second addend, must be integer"
+      scale: "Optional scaling factor, default 1.0"
+
+  multiply:
+    description: "Multiply two floating point numbers"
+
+resources:
+  get_greeting:
+    description: "Return a friendly static greeting"
+
+  user_greeting:               # Note: using function name as key since path contains {variable}
+    uri: "resource://{name}/details"
+    description: "Generate personalized greeting based on username"
+
+prompts:
+  code_review_prompt:
+    description: "Generate a code review prompt template"
+```
+
+This approach allows you to define function logic separately from metadata configuration, making it easier to modify descriptions, parameters and other metadata without changing the code.
+
+## ✨ Features
+
+### 1. MCP Composition
+SwiftMCP supports composing multiple MCP services into a single endpoint, allowing you to aggregate tools from different sources.
+
+### 2. HTTP Proxy
+The framework provides HTTP proxy capabilities to bridge local MCP services with remote clients.
+
+### 3. OpenAPI Integration
+SwiftMCP can automatically convert OpenAPI/Swagger specifications into MCP tools, making it easy to integrate existing HTTP APIs.
+
+### 4. Tool Management
+- Dynamic addition and removal of MCP servers
+- List available tools from mounted servers
+- Support for hiding tools from the main interface
+- Dynamic modification of tool descriptions on remote MCP services
+
+### 5. Multi-Protocol Support
+- HTTP transport for remote clients
+- STDIO transport for local applications like Claude Desktop
+
+### 6. Multiple Service Architectures
+- **Composed Architecture**: Dynamically add remote MCP services to the main service
+- **Split Architecture**: Management functions and task execution functions are served by different endpoints
+
+## 📚 API Reference
+
+See [API Documentation](docs/api.md) for detailed documentation on SwiftMCP APIs and tool development.
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [contributing guidelines](CONTRIBUTING.md) for details on how to submit pull requests, report issues, or request new features.
+
+## 🏛 License
+
+This framework is licensed under the [Apache License (Version 3.0)](https://github.com/yaqiangsun/SwiftMCP/blob/main/LICENSE). For models and datasets, please refer to the original resource page and follow the corresponding License.
+
+## 📚 Examples
+
+The following examples demonstrate various use cases of SwiftMCP:
+
+### 1. [Composition](examples/composition/README_CN.md)
+Demonstrates how to compose multiple independent MCP services into a unified service.
+
+Key features:
+- Dynamically add/remove remote MCP services
+- Aggregate tools from different sources
+- Unified management of multiple service tools
+
+### 2. [FastAPI Composition](examples/fastapi_composition/README.md)
+Demonstrates how to build a composite MCP service using FastAPI and SwiftMCP with a separation architecture.
+
+Key features:
+- Separation of management and task execution functions
+- Mounting multiple MCP services under different paths of the same port
+- Suitable for production environments requiring clear functional separation
+
+### 3. [OpenAPI to MCP Conversion](examples/openapi2mcp/README.md)
+Shows how to convert an OpenAPI service to MCP tools and use them.
+
+Key features:
+- Automatic conversion from OpenAPI specification to MCP tools
+- Integration with existing HTTP APIs
+- Easy migration from traditional REST APIs to MCP
+
+For detailed instructions on running these examples, please refer to their respective documentation.
+
+<!-- ## Star History
+[![Star History Chart](https://api.star-history.com/svg?repos=yaqiangsun/swiftmcp&type=Date)](https://star-history.com/#yaqiangsun/swiftmcp&Date) -->
