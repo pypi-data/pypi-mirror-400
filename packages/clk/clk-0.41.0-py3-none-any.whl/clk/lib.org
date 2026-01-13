@@ -1,0 +1,63 @@
+#+AUTHOR: Konubinix
+#+LANGUAGE: en
+#+TITLE: Some attempt at literately programming some code in clk
+#+EXPORT_FILE_NAME: ../doc/lp/lib.md
+
+#+NAME: header
+#+BEGIN_SRC python :results none :exports none
+
+  # GENERATED USING lib.org, DO NOT EDIT
+
+  import os
+  import shutil
+
+  from clk.log import get_logger
+
+  LOGGER = get_logger(__name__)
+  dry_run = None
+#+END_SRC
+
+* rm
+  :PROPERTIES:
+  :CUSTOM_ID:       bcdb0473-f9fa-4947-bc65-8cd6a91b5089
+  :END:
+
+  This function can be use as a substitute of shutil.rmtree, that deals with the
+  dry-run mode and symbolic links.
+
+  #+NAME: rm
+  #+BEGIN_SRC python :results none :exports code
+    def rm(*file_or_tree):
+        """
+        Removing some files or directories.
+
+        Does nothing in case dry run is set.
+        """
+
+        LOGGER.action("remove {}".format(" ".join(map(str, file_or_tree))))
+        if dry_run:
+            return
+        for f in file_or_tree:
+            if not (os.path.exists(f) or os.path.islink(f)):
+                LOGGER.debug(f"{f} not removed because already missing")
+                return
+            if os.path.isdir(f) and not os.path.islink(f):
+                shutil.rmtree(f)
+            else:
+                os.unlink(f)
+  #+END_SRC
+
+* weave                                                            :noexport:
+  :PROPERTIES:
+  :ID:       919c606c-d455-403e-a201-b5c506420b64
+  :END:
+  #+BEGIN_SRC python :results none :exports code :noweb yes :tangle liblp.py :shebang "#!/usr/bin/env python"
+
+    <<header>>
+
+
+    <<rm>>
+
+
+    # end
+  #+END_SRC
