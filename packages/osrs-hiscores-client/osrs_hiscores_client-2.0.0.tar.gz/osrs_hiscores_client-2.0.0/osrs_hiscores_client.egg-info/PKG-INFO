@@ -1,0 +1,67 @@
+Metadata-Version: 2.4
+Name: osrs-hiscores-client
+Version: 2.0.0
+Summary: Python client for Old School RuneScape Hiscores API.
+Author: Valtteri Remes
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/vremes/osrs-hiscores
+Project-URL: Documentation, https://github.com/vremes/osrs-hiscores
+Project-URL: Repository, https://github.com/vremes/osrs-hiscores.git
+Project-URL: Issues, https://github.com/vremes/osrs-hiscores/issues
+Keywords: osrs,hiscores,runescape,api,client
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Dynamic: license-file
+
+# OSRS Hiscores
+
+Simple OSRS Hiscores client for Python.
+
+---
+
+## Installation
+
+```bash
+pip install osrs-hiscores-client
+```
+
+
+## Usage
+
+```py
+from osrs_hiscores.client import HiscoresClient
+from osrs_hiscores.enums import PlayerType, Skill, Activity
+
+rsn = "Lynx Titan"
+
+client = HiscoresClient()
+
+# PlayerType also has PlayerType.IRONMAN, PlayerType.HARDCORE_IRONMAN and PlayerType.ULTIMATE_IRONMAN
+stats = client.get_player_stats(rsn, PlayerType.NORMAL)
+
+# You can access specific skill using ID.
+agility_skill = stats.get_skill_by_id(Skill.AGILITY)
+
+if agility_skill is not None:
+    print(f"Player {stats.rsn} has agility level of {agility_skill.level}, {agility_skill.experience} experience and rank {agility_skill.rank}.")
+    # Player Lynx Titan has agility level of 99, 200000000 experience and rank 24.
+
+# You can loop all skills.
+for skill in stats.skills.values():
+    print(f"Player {stats.rsn} has {skill.name} level of {skill.level}, {skill.experience} experience and rank {skill.rank}.")
+
+# You can access specific activity using ID.
+jad_activity = stats.get_activity_by_id(Activity.TZTOK_JAD)
+
+if jad_activity is not None:
+    print(f"Player {stats.rsn} has {jad_activity.score} Jad KC and rank {jad_activity.rank}.")
+    # Player Lynx Titan has activity TzTok-Jad score of 186 and rank 375.
+
+# You can also loop all activities.
+for activity in stats.activities.values():
+    print(f"Player {stats.rsn} has activity {activity.name} score of {activity.score} and rank {activity.rank}.")
+```
