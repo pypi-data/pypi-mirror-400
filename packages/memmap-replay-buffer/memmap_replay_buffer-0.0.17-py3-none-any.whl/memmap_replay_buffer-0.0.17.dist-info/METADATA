@@ -1,0 +1,130 @@
+Metadata-Version: 2.4
+Name: memmap-replay-buffer
+Version: 0.0.17
+Summary: Simple Replay Buffer for RL
+Project-URL: Homepage, https://pypi.org/project/memmap-replay-buffer/
+Project-URL: Repository, https://github.com/lucidrains/memmap-replay-buffer
+Author-email: Phil Wang <lucidrains@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2025 Phil Wang
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Keywords: artificial intelligence,deep learning,replay buffer
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Requires-Dist: beartype
+Requires-Dist: einops>=0.8.1
+Requires-Dist: einx>=0.3.0
+Requires-Dist: numpy
+Requires-Dist: torch>=2.4
+Provides-Extra: examples
+Provides-Extra: test
+Requires-Dist: pytest; extra == 'test'
+Description-Content-Type: text/markdown
+
+## memmap-replay-buffer
+
+An easy-to-use numpy memmap replay buffer for RL and other sequence-based learning tasks.
+
+## Install
+
+```bash
+$ pip install memmap-replay-buffer
+```
+
+## Usage
+
+```python
+import torch
+from memmap_replay_buffer import ReplayBuffer
+
+# initialize buffer
+
+buffer = ReplayBuffer(
+    './replay_data',
+    max_episodes = 1000,
+    max_timesteps = 500,
+    fields = dict(
+        state = ('float', (3, 16, 16), 0.),    # type, shape, and optional default value
+        action = ('int', 2),
+        reward = 'float'                       # default shape is ()
+    ),
+    meta_fields = dict(
+        task_id = 'int'
+    ),
+    circular = True,
+    overwrite = True
+)
+
+# store 4 episodes
+
+for _ in range(4):
+    with buffer.one_episode(task_id = 1):
+        for _ in range(100):
+            buffer.store(
+                state = torch.randn(3, 16, 16),
+                action = torch.randint(0, 4, (2,)).numpy(),
+                reward = 1.0
+            )
+
+# rehydrate from disk
+
+buffer_rehydrated = ReplayBuffer.from_folder('./replay_data')
+assert buffer_rehydrated.num_episodes == 4
+
+# train 2 episodes at a time
+
+dataloader = buffer.dataloader(
+    batch_size = 2,
+    return_mask = True,
+    to_named_tuple = ('state', 'action', 'reward', 'task_id', '_mask', '_lens')
+)
+
+for state, action, reward, task_id, mask, lens in dataloader:
+    assert state.shape   == (2, 100, 3, 16, 16)
+    assert action.shape  == (2, 100, 2)
+    assert reward.shape  == (2, 100)
+    assert task_id.shape == (2,)
+
+    assert lens.shape    == (2,)
+    assert mask.shape    == (2, 100)
+
+# for loading per timestep
+
+dataloader = buffer.dataloader(
+    batch_size = 8,
+    filter_meta = dict(
+        task_id = 1
+    ),
+    to_named_tuple = ('state', 'action', 'task_id'),
+    timestep_level = True,
+    drop_last = True
+)
+
+for state, action, task_id in dataloader:
+    assert state.shape   == (8, 3, 16, 16)
+    assert action.shape  == (8, 2)
+    assert task_id.shape == (8,)
+```
