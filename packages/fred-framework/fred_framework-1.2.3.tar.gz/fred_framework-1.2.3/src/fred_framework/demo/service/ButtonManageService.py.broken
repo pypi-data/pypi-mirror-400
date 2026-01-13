@@ -1,0 +1,113 @@
+    def add_button(self, data):
+        """
+        新增按钮
+        """
+        # 检查菜单是否存在
+        menu = AuthMenu.query.get(data['menu_id'])
+        if not menu:
+            abort(400, gettext('菜单不存在'))
+
+        # 检查按钮名称是否已存在
+        existing_button = AuthButton.query.filter(
+            and_(
+                AuthButton.menu_id == data['menu_id'],
+                AuthButton.button_name == data['button_name']
+            )
+        ).first()
+        
+        if existing_button:
+            abort(400, gettext('该菜单下已存在相同名称的按钮'))
+
+        # 创建新按钮
+        button = AuthButton()
+        button.menu_id = data['menu_id']
+        button.button_name = data['button_name']
+        button.explain = data.get('explain', '')
+        button.api_url = ''  # 不再使用单个API字段
+        button.method = ''   # 不再使用单个method字段
+        
+        db.session.add(button)
+        db.session.flush()  # 获取button.id
+        
+        # 添加API关联关系
+        api_list = data.get('api_list', [])
+        
+        # 向后兼容：如果没有api_list但有api_url，则创建一个API项
+        if not api_list and data.get('api_url'):
+            api_list = [{
+                'api_url': data.get('api_url', ''),
+                'method': data.get('method', 'GET')
+            }]
+        
+        if api_list:
+            for api_info in api_list:
+                api_relation = AuthApiRelation()
+                api_relation.auth_id = button.id
+                api_relation.api_url = api_info.get('api_url', '')
+                api_relation.method = api_info.get('method', 'GET')
+                api_relation.type = 1  # 设置权限类型为1，表示按钮权限
+                db.session.add(api_relation)
+        
+        db.session.commit()
+        
+        return button.id
+
+    def update_button(self, data):
+        """
+        更新按钮
+        """
+        button_id = data.get('id')
+        button = AuthButton.query.get(button_id)
+        
+        if not button:
+            abort(400, gettext('按钮不存在'))
+
+        # 检查菜单是否存在
+        menu = AuthMenu.query.get(data['menu_id'])
+        if not menu:
+            abort(400, gettext('菜单不存在'))
+
+        # 检查按钮名称是否已存在（排除当前按钮）
+        existing_button = AuthButton.query.filter(
+            and_(
+                AuthButton.menu_id == data['menu_id'],
+                AuthButton.button_name == data['button_name'],
+                AuthButton.id != button_id
+            )
+        ).first()
+        
+        if existing_button:
+            abort(400, gettext('该菜单下已存在相同名称的按钮'))
+
+        # 更新按钮信息
+        button.menu_id = data['menu_id']
+        button.button_name = data['button_name']
+        button.explain = data.get('explain', '')
+        button.api_url = ''  # 不再使用单个API字段
+        button.method = ''   # 不再使用单个method字段
+        
+        # 删除原有的API关联关系
+        AuthApiRelation.query.filter_by(auth_id=button_id).delete()
+        
+        # 添加新的API关联关系
+        api_list = data.get('api_list', [])
+        
+        # 向后兼容：如果没有api_list但有api_url，则创建一个API项
+        if not api_list and data.get('api_url'):
+            api_list = [{
+                'api_url': data.get('api_url', ''),
+                'method': data.get('method', 'GET')
+            }]
+        
+        if api_list:
+            for api_info in api_list:
+                api_relation = AuthApiRelation()
+                api_relation.auth_id = button_id
+                api_relation.api_url = api_info.get('api_url', '')
+                api_relation.method = api_info.get('method', 'GET')
+                api_relation.type = 1  # 设置权限类型为1，表示按钮权限
+                db.session.add(api_relation)
+        
+        db.session.commit()
+        
+        return button.id
