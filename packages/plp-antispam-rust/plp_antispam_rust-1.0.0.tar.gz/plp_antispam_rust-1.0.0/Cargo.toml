@@ -1,0 +1,36 @@
+[package]
+name = "plpas"
+version = "1.0.0"
+edition = "2021"
+authors = ["Paul Lucian Pinzariu"]
+description = "Fast Rust-based anti-spam inference engine for email classification"
+license = "MIT"
+repository = "https://github.com/PLucianP/university"
+keywords = ["spam", "email", "machine-learning", "inference", "rust"]
+categories = ["machine-learning", "email"]
+
+[lib]
+name = "plpas"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23.0", features = ["extension-module", "abi3-py39"] }
+rayon = "1.8"           # Parallelism (no GIL!)
+sprs = "0.11"           # Sparse matrices (CSR format)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"      # JSON deserialization for XGBoost trees
+rmp-serde = "1.1"       # MessagePack serialization
+ndarray = "0.15"        # Dense arrays
+regex = "1.10"          # Tokenization
+unicode-segmentation = "1.10"  # Character splitting
+ahash = "0.8"           # Fast hash maps
+
+[profile.release]
+opt-level = 3          # Maximum optimization
+lto = "fat"            # Link-time optimization (smaller binary)
+codegen-units = 1      # Smaller binary
+strip = true           # Strip debug symbols
+panic = "abort"        # Smaller panic handler
+
+[profile.dev]
+opt-level = 1          # Some optimization for faster dev builds
