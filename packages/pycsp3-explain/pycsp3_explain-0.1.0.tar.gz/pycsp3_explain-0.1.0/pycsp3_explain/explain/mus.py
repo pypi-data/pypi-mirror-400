@@ -1,0 +1,775 @@
+"""
+MUS (Minimal Unsatisfiable Subset) algorithms for PyCSP3.
+
+This module provides implementations of:
+- mus: Assumption-based MUS using core extraction (ACE)
+- mus_naive: Deletion-based MUS using naive re-solving
+- quickxplain_naive: Preferred MUS based on constraint ordering
+- optimal_mus: Find optimal MUS according to weights
+- smus: Find smallest MUS
+- ocus_naive: Optimal Constrained MUS (naive version)
+
+A MUS is a minimal subset of constraints that is unsatisfiable:
+- The subset itself is UNSAT
+- Removing any constraint from the subset makes it SAT
+"""
+
+from typing import List, Any, Optional, Union
+
+from pycsp3_explain.explain.utils import (
+    flatten_constraints,
+    order_by_num_variables,
+    make_assump_model,
+    get_constraint_variables,
+)
+from pycsp3_explain.solvers.wrapper import (
+    SolveResult,
+    is_sat,
+    is_unsat,
+    solve_subset,
+    solve_subset_with_core,
+)
+
+
+class OCUSException(Exception):
+    """Exception raised when OCUS cannot find a valid solution."""
+    pass
+
+
+def mus_naive(
+    soft: List[Any],
+    hard: Optional[List[Any]] = None,
+    solver: str = "ace",
+    verbose: int = -1
+) -> List[Any]:
+    """
+    Compute a Minimal Unsatisfiable Subset using deletion-based algorithm.
+
+    This **naive** implementation re-solves the model from scratch for each
+    constraint test. For large models, this can be slow.
+
+    Algorithm:
+    1. Start with all soft constraints (must be UNSAT)
+    2. For each constraint c (ordered by number of variables, descending):
+       - Try removing c from the current set
+       - If still UNSAT: c is not needed, keep it removed
+       - If SAT: c is necessary for unsatisfiability, restore it
+    3. Return the remaining constraints (the MUS)
+
+    :param soft: List of soft constraints (candidates for MUS)
+    :param hard: List of hard constraints (always included, not in MUS)
+    :param solver: Solver name ("ace" or "choco")
+    :param verbose: Verbosity level (-1 for silent)
+    :return: A minimal unsatisfiable subset of soft constraints
+    :raises AssertionError: If soft + hard is satisfiable
+    """
+    # Flatten and validate input
+    soft = flatten_constraints(soft)
+    hard = flatten_constraints(hard) if hard else []
+
+    if not soft:
+        raise ValueError("soft constraints cannot be empty")
+
+    # Verify the model is UNSAT
+    assert is_unsat(soft, hard, solver, verbose), \
+        "MUS: model must be UNSAT (soft + hard constraints must be unsatisfiable)"
+
+    # Order constraints: try removing constraints with many variables first
+    # (they are more likely to be removable)
+    candidates = order_by_num_variables(soft, descending=True)
+
+    mus = []  # constraints confirmed to be in the MUS
+
+    for i, c in enumerate(candidates):
+        # Try without constraint c
+        remaining = mus + candidates[i + 1:]
+
+        if verbose >= 0:
+            print(f"MUS: testing constraint {i + 1}/{len(candidates)}, "
+                  f"current MUS size: {len(mus)}")
+
+        if is_sat(remaining, hard, solver, verbose):
+            # Removing c makes it SAT, so c must be in the MUS
+            mus.append(c)
+            if verbose >= 0:
+                print(f"  -> constraint is in MUS")
+        else:
+            # Still UNSAT without c, so c is not needed
+            if verbose >= 0:
+                print(f"  -> constraint not needed")
+
+    return mus
+
+
+def mus(
+    soft: List[Any],
+    hard: Optional[List[Any]] = None,
+    solver: str = "ace",
+    verbose: int = -1
+) -> List[Any]:
+    """
+    Compute a Minimal Unsatisfiable Subset using assumption indicators.
+
+    This implementation relies on ACE's core extraction to seed and refine
+    a deletion-based MUS search.
+
+    :param soft: List of soft constraints (candidates for MUS)
+    :param hard: List of hard constraints (always included, not in MUS)
+    :param solver: Solver name ("ace" only for core extraction)
+    :param verbose: Verbosity level (-1 for silent)
+    :return: A minimal unsatisfiable subset of soft constraints
+    :raises AssertionError: If soft + hard is satisfiable
+    """
+    if solver.lower() != "ace":
+        if verbose >= 0:
+            print("mus: solver does not support core extraction, using mus_naive")
+        return mus_naive(soft, hard, solver, verbose)
+
+    soft, hard, assumptions, guard_constraints = make_assump_model(soft, hard)
+
+    def solve_with_assumptions(assumed_indices: List[int]):
+        assumption_constraints = [assumptions[i] == 1 for i in assumed_indices]
+        soft_constraints = guard_constraints + assumption_constraints
+        return solve_subset_with_core(soft_constraints, hard, solver, verbose)
+
+    def core_to_assumptions(core_indices: List[int], assumed_indices: List[int]) -> set[int]:
+        core_assumps = set()
+        hard_offset = len(hard)
+        guard_count = len(guard_constraints)
+        for idx in core_indices:
+            if idx < hard_offset:
+                continue
+            rel = idx - hard_offset
+            if rel < guard_count:
+                core_assumps.add(rel)
+                continue
+            rel -= guard_count
+            if 0 <= rel < len(assumed_indices):
+                core_assumps.add(assumed_indices[rel])
+        return core_assumps
+
+    all_indices = list(range(len(soft)))
+    result, core_indices = solve_with_assumptions(all_indices)
+    assert result == SolveResult.UNSAT, \
+        "MUS: model must be UNSAT (soft + hard constraints must be unsatisfiable)"
+
+    core = core_to_assumptions(core_indices, all_indices)
+    if not core:
+        core = set(all_indices)
+
+    def num_vars(i: int) -> int:
+        try:
+            return len(get_constraint_variables(soft[i]))
+        except Exception:
+            return 0
+
+    ordered = sorted(core, key=num_vars, reverse=True)
+
+    for idx in ordered:
+        if idx not in core:
+            continue
+        core.remove(idx)
+        assumed = sorted(core)
+        result, core_indices = solve_with_assumptions(assumed)
+        if result == SolveResult.SAT:
+            core.add(idx)
+        elif result == SolveResult.UNSAT:
+            refined = core_to_assumptions(core_indices, assumed)
+            if refined:
+                core = set(refined)
+        else:
+            if verbose >= 0:
+                print("mus: solver returned UNKNOWN/ERROR, using mus_naive")
+            return mus_naive(soft, hard, solver, verbose)
+
+    return [soft[i] for i in range(len(soft)) if i in core]
+
+
+def quickxplain_naive(
+    soft: List[Any],
+    hard: Optional[List[Any]] = None,
+    solver: str = "ace",
+    verbose: int = -1
+) -> List[Any]:
+    """
+    Find a preferred MUS based on constraint ordering.
+
+    This algorithm finds a MUS where constraints earlier in the `soft` list
+    are preferred over later ones. If multiple MUSes exist, this returns
+    one that includes constraints with lower indices when possible.
+
+    Implementation of the QuickXplain algorithm by Junker (2004).
+
+    :param soft: List of soft constraints (order determines preference)
+    :param hard: List of hard constraints (always included)
+    :param solver: Solver name ("ace" or "choco")
+    :param verbose: Verbosity level (-1 for silent)
+    :return: A preferred minimal unsatisfiable subset
+    :raises AssertionError: If soft + hard is satisfiable
+
+    Reference:
+        Junker, U. "Preferred explanations and relaxations for
+        over-constrained problems." AAAI 2004.
+    """
+    soft = flatten_constraints(soft)
+    hard = flatten_constraints(hard) if hard else []
+
+    if not soft:
+        raise ValueError("soft constraints cannot be empty")
+
+    # Verify the model is UNSAT
+    assert is_unsat(soft, hard, solver, verbose), \
+        "QuickXplain: model must be UNSAT"
+
+    def do_recursion(soft_list: List[Any], hard_list: List[Any], delta: List[Any]) -> List[Any]:
+        """
+        Recursive QuickXplain procedure.
+
+        :param soft_list: Current soft constraints to analyze
+        :param hard_list: Current hard constraints (background)
+        :param delta: Constraints added to hard since last check
+        :return: Minimal conflict from soft_list
+        """
+        # If delta is non-empty and hard alone is UNSAT, conflict is in hard
+        if delta and is_unsat([], hard_list, solver, verbose):
+            return []
+
+        # Base case: only one constraint, it must be in the MUS
+        if len(soft_list) == 1:
+            return list(soft_list)
+
+        # Split soft constraints
+        split = len(soft_list) // 2
+        more_preferred = soft_list[:split]  # Earlier = more preferred
+        less_preferred = soft_list[split:]
+
+        # Find conflicts from less preferred, treating more preferred as hard
+        delta2 = do_recursion(
+            less_preferred,
+            hard_list + more_preferred,
+            more_preferred
+        )
+
+        # Find which more preferred constraints are actually needed
+        delta1 = do_recursion(
+            more_preferred,
+            hard_list + delta2,
+            delta2
+        )
+
+        return delta1 + delta2
+
+    return do_recursion(soft, hard, [])
+
+
+def is_mus(
+    subset: List[Any],
+    hard: Optional[List[Any]] = None,
+    solver: str = "ace",
+    verbose: int = -1
+) -> bool:
+    """
+    Verify that a subset is a MUS.
+
+    A valid MUS must be:
+    1. UNSAT (with hard constraints)
+    2. Minimal: removing any single constraint makes it SAT
+
+    :param subset: The subset to verify
+    :param hard: Hard constraints
+    :param solver: Solver name
+    :param verbose: Verbosity level
+    :return: True if subset is a valid MUS
+    """
+    subset = flatten_constraints(subset)
+    hard = flatten_constraints(hard) if hard else []
+
+    if not subset:
+        return False
+
+    # Check UNSAT
+    if not is_unsat(subset, hard, solver, verbose):
+        if verbose >= 0:
+            print("is_mus: subset is SAT, not a MUS")
+        return False
+
+    # Check minimality
+    for i, c in enumerate(subset):
+        reduced = subset[:i] + subset[i + 1:]
+        if is_unsat(reduced, hard, solver, verbose):
+            if verbose >= 0:
+                print(f"is_mus: removing constraint {i} still UNSAT, not minimal")
+            return False
+
+    return True
+
+
+def all_mus_naive(
+    soft: List[Any],
+    hard: Optional[List[Any]] = None,
+    solver: str = "ace",
+    verbose: int = -1,
+    max_mus: Optional[int] = None
+) -> List[List[Any]]:
+    """
+    Find all MUSes (up to a maximum count).
+
+    This is a naive implementation that repeatedly finds MUSes and blocks them.
+    For complete enumeration, consider using MARCO algorithm.
+
+    WARNING: This can be very slow for models with many MUSes.
+
+    :param soft: List of soft constraints
+    :param hard: List of hard constraints
+    :param solver: Solver name
+    :param verbose: Verbosity level
+    :param max_mus: Maximum number of MUSes to find (None for all)
+    :return: List of all found MUSes
+    """
+    soft = flatten_constraints(soft)
+    hard = flatten_constraints(hard) if hard else []
+
+    if not soft:
+        return []
+
+    if not is_unsat(soft, hard, solver, verbose):
+        return []  # Model is SAT, no MUS
+
+    all_muses = []
+    blocked_sets = []  # Sets of constraint indices that have been found
+
+    while True:
+        if max_mus is not None and len(all_muses) >= max_mus:
+            break
+
+        # Find a MUS avoiding already found ones
+        # Use different orderings to find different MUSes
+        import random
+        shuffled = soft.copy()
+        random.shuffle(shuffled)
+
+        mus = mus_naive(shuffled, hard, solver, verbose)
+
+        # Check if this MUS is new
+        mus_set = frozenset(id(c) for c in mus)
+        if mus_set in blocked_sets:
+            # Try with original ordering
+            mus = mus_naive(soft, hard, solver, verbose)
+            mus_set = frozenset(id(c) for c in mus)
+
+            if mus_set in blocked_sets:
+                # No new MUS found
+                break
+
+        all_muses.append(mus)
+        blocked_sets.append(mus_set)
+
+        if verbose >= 0:
+            print(f"Found MUS #{len(all_muses)} with {len(mus)} constraints")
+
+        # Simple termination: if we found a MUS of size 1, we're likely done
+        # (this is a heuristic, not complete)
+        if len(mus) == 1:
+            break
+
+    return all_muses
+
+
+def optimal_mus_naive(
+    soft: List[Any],
+    hard: Optional[List[Any]] = None,
+    weights: Optional[List[Union[int, float]]] = None,
+    solver: str = "ace",
+    verbose: int = -1
+) -> List[Any]:
+    """
+    Find an optimal MUS according to a linear objective function.
+
+    This naive implementation uses an iterative hitting set approach:
+    1. Generate correction subsets by growing satisfiable subsets
+    2. Find optimal hitting sets that hit all correction subsets
+    3. Test if hitting set is UNSAT; if so, return it as optimal MUS
+
+    :param soft: List of soft constraints
+    :param hard: List of hard constraints
+    :param weights: Weight for each soft constraint (default: all 1s = smallest MUS)
+    :param solver: Solver name
+    :param verbose: Verbosity level
+    :return: An optimal MUS according to weights
+    :raises OCUSException: If no MUS exists
+    :raises AssertionError: If model is SAT
+
+    Reference:
+        Gamba, Emilio, Bart Bogaerts, and Tias Guns. "Efficiently explaining
+        CSPs with unsatisfiable subset optimization."
+        Journal of Artificial Intelligence Research 78 (2023): 709-746.
+    """
+    soft = flatten_constraints(soft)
+    hard = flatten_constraints(hard) if hard else []
+
+    if not soft:
+        raise ValueError("soft constraints cannot be empty")
+
+    n = len(soft)
+
+    # Default weights: all 1s (find smallest MUS)
+    w: List[Union[int, float]] = weights if weights is not None else [1] * n
+    if len(w) != n:
+        raise ValueError(f"weights length ({len(w)}) must match soft length ({n})")
+
+    # Verify model is UNSAT
+    assert is_unsat(soft, hard, solver, verbose), \
+        "optimal_mus: model must be UNSAT"
+
+    # Collect correction subsets (complements of maximal satisfiable subsets)
+    correction_subsets: List[set] = []
+
+    def find_optimal_hitting_set(correction_sets: List[set]) -> Optional[set]:
+        """
+        Find the minimum weight hitting set that hits all correction sets.
+
+        Builds a CP model with binary selection variables and a weighted
+        objective. Falls back to enumeration if the solver cannot find
+        an optimal solution.
+        """
+        if not correction_sets:
+            return set(range(n))  # All indices if no correction sets
+
+        def solve_hitting_set_cp() -> Optional[set]:
+            from pycsp3 import (
+                VarArray,
+                Sum,
+                satisfy,
+                minimize,
+                solve,
+                value,
+                ACE,
+                CHOCO,
+                SAT,
+                OPTIMUM,
+            )
+            from pycsp3.classes.entities import (
+                CtrEntities,
+                VarEntities,
+                ObjEntities,
+                AnnEntities,
+            )
+            from pycsp3.classes.main.variables import Variable
+            from pycsp3.classes.main.constraints import auxiliary
+            from pycsp3.compiler import Compilation
+            from pycsp3.tools.utilities import integer_scaling
+            from pycsp3_explain.solvers.wrapper import disable_pycsp3_atexit
+            import os
+            import tempfile
+            import uuid
+
+            if any(len(cs) == 0 for cs in correction_sets):
+                return None
+
+            disable_pycsp3_atexit()
+
+            saved_ctr_items = CtrEntities.items[:]
+            saved_obj_items = ObjEntities.items[:]
+            saved_ann_items = AnnEntities.items[:]
+            saved_ann_types = AnnEntities.items_types[:] if hasattr(AnnEntities, "items_types") else []
+            saved_var_items = VarEntities.items[:]
+            saved_var_to_evar = VarEntities.varToEVar.copy()
+            saved_var_to_evar_array = VarEntities.varToEVarArray.copy()
+            saved_prefix_to_evar_array = VarEntities.prefixToEVarArray.copy()
+            saved_name2obj = Variable.name2obj.copy()
+            saved_arrays = Variable.arrays[:] if hasattr(Variable, "arrays") else []
+
+            saved_compilation = {
+                "done": Compilation.done,
+                "model": Compilation.model,
+                "string_model": Compilation.string_model,
+                "string_data": Compilation.string_data,
+                "data": Compilation.data,
+                "solve": Compilation.solve,
+                "stopwatch": Compilation.stopwatch,
+                "stopwatch2": Compilation.stopwatch2,
+                "pathname": Compilation.pathname,
+                "filename": Compilation.filename,
+            }
+
+            aux = auxiliary()
+            saved_aux_intro = aux._introduced_variables
+            saved_aux_collected = aux._collected_constraints
+            saved_aux_raw = aux._collected_raw_constraints
+            saved_aux_ext = aux._collected_extension_constraints
+            saved_aux_cache = aux.cache
+            saved_aux_cache_ints = aux.cache_ints.copy()
+            saved_aux_cache_nodes = aux.cache_nodes.copy()
+
+            try:
+                # Reset global state for an isolated CP model.
+                CtrEntities.items = []
+                ObjEntities.items = []
+                AnnEntities.items = []
+                if hasattr(AnnEntities, "items_types"):
+                    AnnEntities.items_types = []
+                VarEntities.items = []
+                VarEntities.varToEVar = {}
+                VarEntities.varToEVarArray = {}
+                VarEntities.prefixToEVarArray = {}
+                Variable.name2obj = {}
+                if hasattr(Variable, "arrays"):
+                    Variable.arrays = []
+
+                aux._introduced_variables = []
+                aux._collected_constraints = []
+                aux._collected_raw_constraints = []
+                aux._collected_extension_constraints = []
+                aux.cache = []
+                aux.cache_ints = {}
+                aux.cache_nodes = {}
+
+                Compilation.done = False
+                Compilation.model = None
+                Compilation.string_model = None
+                Compilation.string_data = None
+                Compilation.data = None
+                Compilation.solve = None
+                Compilation.stopwatch = None
+                Compilation.stopwatch2 = None
+                Compilation.pathname = ""
+                Compilation.filename = ""
+
+                var_id = f"hs_{uuid.uuid4().hex}"
+                select = VarArray(size=n, dom=range(2), id=var_id)
+
+                constraints = [Sum(select[i] for i in cs) >= 1 for cs in correction_sets]
+                satisfy(constraints)
+
+                if any(isinstance(weight, float) and not weight.is_integer() for weight in w):
+                    scaled_w = integer_scaling(w)
+                else:
+                    scaled_w = [int(weight) for weight in w]
+
+                minimize(Sum(select[i] * scaled_w[i] for i in range(n)))
+
+                solver_type = ACE if solver.lower() == "ace" else CHOCO
+                temp_filename = os.path.join(
+                    tempfile.gettempdir(),
+                    f"pycsp3_explain_hs_{uuid.uuid4().hex}.xml",
+                )
+                status = solve(
+                    solver=solver_type,
+                    verbose=verbose,
+                    filename=temp_filename,
+                )
+
+                try:
+                    if os.path.exists(temp_filename):
+                        os.remove(temp_filename)
+                except Exception:
+                    pass
+
+                if status not in (SAT, OPTIMUM):
+                    return None
+
+                return {i for i in range(n) if value(select[i]) == 1}
+            finally:
+                CtrEntities.items = saved_ctr_items
+                ObjEntities.items = saved_obj_items
+                AnnEntities.items = saved_ann_items
+                if hasattr(AnnEntities, "items_types"):
+                    AnnEntities.items_types = saved_ann_types
+                VarEntities.items = saved_var_items
+                VarEntities.varToEVar = saved_var_to_evar
+                VarEntities.varToEVarArray = saved_var_to_evar_array
+                VarEntities.prefixToEVarArray = saved_prefix_to_evar_array
+                Variable.name2obj = saved_name2obj
+                if hasattr(Variable, "arrays"):
+                    Variable.arrays = saved_arrays
+
+                aux._introduced_variables = saved_aux_intro
+                aux._collected_constraints = saved_aux_collected
+                aux._collected_raw_constraints = saved_aux_raw
+                aux._collected_extension_constraints = saved_aux_ext
+                aux.cache = saved_aux_cache
+                aux.cache_ints = saved_aux_cache_ints
+                aux.cache_nodes = saved_aux_cache_nodes
+
+                Compilation.done = saved_compilation["done"]
+                Compilation.model = saved_compilation["model"]
+                Compilation.string_model = saved_compilation["string_model"]
+                Compilation.string_data = saved_compilation["string_data"]
+                Compilation.data = saved_compilation["data"]
+                Compilation.solve = saved_compilation["solve"]
+                Compilation.stopwatch = saved_compilation["stopwatch"]
+                Compilation.stopwatch2 = saved_compilation["stopwatch2"]
+                Compilation.pathname = saved_compilation["pathname"]
+                Compilation.filename = saved_compilation["filename"]
+
+        def solve_hitting_set_enum() -> Optional[set]:
+            from itertools import combinations
+
+            # Try subsets in order of increasing weight
+            indexed_weights = [(i, w[i]) for i in range(n)]
+            indexed_weights.sort(key=lambda x: x[1])
+
+            best_set = None
+            best_weight = float("inf")
+
+            # Try all subsets from size 1 to n
+            for size in range(1, n + 1):
+                # Early termination: minimum possible weight for this size
+                min_possible_weight = sum(indexed_weights[i][1] for i in range(size))
+                if min_possible_weight >= best_weight:
+                    break
+
+                for combo in combinations(range(n), size):
+                    combo_set = set(combo)
+                    combo_weight = sum(w[i] for i in combo)
+
+                    if combo_weight >= best_weight:
+                        continue
+
+                    # Check if this set hits all correction sets
+                    hits_all = all(bool(combo_set & cs) for cs in correction_sets)
+                    if hits_all:
+                        best_set = combo_set
+                        best_weight = combo_weight
+
+                # If we found a solution at this size, no need to try larger
+                if best_set is not None:
+                    break
+
+            return best_set
+
+        try:
+            hitting_set = solve_hitting_set_cp()
+            if hitting_set is not None:
+                return hitting_set
+        except Exception as exc:
+            if verbose >= 0:
+                print(f"optimal_mus: hitting set CP solve failed ({exc}); using enumeration")
+
+        return solve_hitting_set_enum()
+
+    # Main OCUS loop
+    while True:
+        # Find optimal hitting set
+        hitting_set = find_optimal_hitting_set(correction_subsets)
+
+        if hitting_set is None:
+            raise OCUSException("No unsatisfiable subset could be found")
+
+        hitting_set_list = sorted(hitting_set)
+        subset = [soft[i] for i in hitting_set_list]
+
+        if verbose >= 0:
+            print(f"optimal_mus: testing hitting set of size {len(hitting_set)}, "
+                  f"weight {sum(w[i] for i in hitting_set)}")
+
+        # Test if hitting set is UNSAT
+        result = solve_subset(subset, hard, solver, verbose)
+
+        if result == SolveResult.UNSAT:
+            # Found an optimal MUS candidate - verify and shrink if needed
+            # The hitting set might not be minimal, so shrink it
+            mus_indices = set(hitting_set)
+
+            # Order by weight (higher weight first for removal)
+            ordered = sorted(mus_indices, key=lambda i: -w[i])
+
+            for idx in ordered:
+                if idx not in mus_indices:
+                    continue
+                mus_indices.remove(idx)
+                test_subset = [soft[i] for i in sorted(mus_indices)]
+                if not test_subset or is_sat(test_subset, hard, solver, verbose):
+                    mus_indices.add(idx)
+
+            return [soft[i] for i in range(n) if i in mus_indices]
+
+        elif result == SolveResult.SAT:
+            # SAT: grow to MSS, derive correction subset
+            mss_indices = set(hitting_set_list)
+
+            for i in range(n):
+                if i in mss_indices:
+                    continue
+                test_indices = sorted(mss_indices | {i})
+                test_subset = [soft[j] for j in test_indices]
+                if is_sat(test_subset, hard, solver, verbose):
+                    mss_indices.add(i)
+
+            # Correction subset = complement of MSS
+            correction_subset = set(range(n)) - mss_indices
+            if not correction_subset:
+                raise OCUSException("Model is SAT, no MUS exists")
+
+            correction_subsets.append(correction_subset)
+
+            if verbose >= 0:
+                print(f"optimal_mus: found correction subset of size {len(correction_subset)}")
+
+        else:
+            raise OCUSException(f"Solver returned {result}")
+
+
+def smus(
+    soft: List[Any],
+    hard: Optional[List[Any]] = None,
+    solver: str = "ace",
+    verbose: int = -1
+) -> List[Any]:
+    """
+    Find the Smallest Minimal Unsatisfiable Subset (SMUS).
+
+    This is equivalent to optimal_mus with all weights equal to 1.
+
+    :param soft: List of soft constraints
+    :param hard: List of hard constraints
+    :param solver: Solver name
+    :param verbose: Verbosity level
+    :return: The smallest MUS
+    """
+    return optimal_mus_naive(soft, hard, weights=None, solver=solver, verbose=verbose)
+
+
+def optimal_mus(
+    soft: List[Any],
+    hard: Optional[List[Any]] = None,
+    weights: Optional[List[Union[int, float]]] = None,
+    solver: str = "ace",
+    verbose: int = -1
+) -> List[Any]:
+    """
+    Find an optimal MUS according to weights.
+
+    Alias for optimal_mus_naive. For weighted MUS optimization.
+
+    :param soft: List of soft constraints
+    :param hard: List of hard constraints
+    :param weights: Weight for each soft constraint
+    :param solver: Solver name
+    :param verbose: Verbosity level
+    :return: An optimal MUS according to weights
+    """
+    return optimal_mus_naive(soft, hard, weights, solver, verbose)
+
+
+def ocus_naive(
+    soft: List[Any],
+    hard: Optional[List[Any]] = None,
+    weights: Optional[List[Union[int, float]]] = None,
+    solver: str = "ace",
+    verbose: int = -1
+) -> List[Any]:
+    """
+    Find an Optimal Constrained Unsatisfiable Subset (OCUS).
+
+    This is a naive implementation without assumption variables.
+    Equivalent to optimal_mus_naive for now.
+
+    :param soft: List of soft constraints
+    :param hard: List of hard constraints
+    :param weights: Weight for each soft constraint
+    :param solver: Solver name
+    :param verbose: Verbosity level
+    :return: An optimal MUS according to weights
+    """
+    return optimal_mus_naive(soft, hard, weights, solver, verbose)
