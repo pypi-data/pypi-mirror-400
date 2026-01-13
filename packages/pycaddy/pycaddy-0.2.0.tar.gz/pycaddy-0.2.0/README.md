@@ -1,0 +1,164 @@
+# pycaddy
+
+[![PyPI version](https://img.shields.io/pypi/v/pycaddy.svg)](https://pypi.org/project/pycaddy/)
+[![Python versions](https://img.shields.io/pypi/pyversions/pycaddy.svg)](https://pypi.org/project/pycaddy/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A Python toolbox caddy for experiment tracking, parameter sweeping, and automation tasks.
+
+**pycaddy** helps you organize machine learning experiments, track runs with unique IDs, sweep hyperparameter grids, and manage experiment artifacts — all with minimal overhead and zero bloat.
+
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Key Features](#key-features)
+- [Core Components](#core-components)
+- [Documentation](#documentation)
+- [License](#license)
+
+---
+
+## Installation
+
+```bash
+pip install pycaddy
+```
+
+**Requirements**: Python ≥ 3.11
+
+---
+
+## Quick Start
+
+### Experiment Tracking
+
+```python
+from pycaddy.project import Project
+
+# Create a project for organizing experiments
+project = Project(root="experiments").ensure_folder()
+
+# Start a new experiment run
+session = project.session("train", params={"lr": 0.001, "batch_size": 32})
+session.start()
+
+# Your experiment code here
+model_path = session.path("model.pt")
+# save_model(model_path)
+
+# Mark as completed
+session.done()
+```
+
+### Parameter Sweeping
+
+```python
+from pycaddy.sweeper import DictSweep, StrategyName
+
+# Define parameter space
+params = {
+    'learning_rate': [0.01, 0.001],
+    'batch_size': [16, 32, 64]
+}
+
+# Generate all combinations
+sweep = DictSweep(parameters=params, strategy=StrategyName.PRODUCT)
+for config in sweep.generate():
+    print(config)
+    # {'learning_rate': 0.01, 'batch_size': 16}
+    # {'learning_rate': 0.01, 'batch_size': 32}
+    # ... etc
+```
+
+### Grid Search with Auto-Resume
+
+```python
+from pycaddy.project import Project, ExistingRun
+
+project = Project(root="experiments").ensure_folder()
+
+for config in sweep.generate():
+    session = project.session(
+        "train",
+        params=config,
+        existing_run_strategy=ExistingRun.RESUME
+    )
+
+    if session.is_done():
+        print(f"Skipping completed run: {session.uid}")
+        continue
+
+    session.start()
+    # train_model(config, checkpoint_path=session.path("checkpoint.pt"))
+    session.done()
+```
+
+---
+
+## Key Features
+
+- **Project Management**: Structured folder organization with automatic metadata tracking
+- **Session Tracking**: Track experiment runs with unique IDs, status monitoring, and file attachments
+- **Parameter Sweeping**: Generate parameter combinations with multiple strategies (product, zip, grid)
+- **Auto-Resume**: Automatically detect and skip completed runs based on parameter hashing
+- **Concurrent Safe**: File-based locking for multi-process experiment tracking
+- **Lightweight**: Minimal dependencies, designed as a focused toolbox
+- **Flexible Storage**: Choose between subfolder or prefix-based file organization
+
+---
+
+## Core Components
+
+### Project & Session
+
+High-level API for organizing experiments into projects and tracking individual runs as sessions.
+
+- **Project**: Manages a root folder and creates sessions
+- **Session**: Represents one experiment run with status tracking and file management
+
+[→ Full Project & Session Guide](docs/project-session.md)
+
+### Ledger
+
+Low-level JSON-backed registry that tracks all experiment runs in a single `metadata.json` file.
+
+- Thread/process-safe with file locking
+- Deterministic parameter hashing for run deduplication
+- Fine-grained control for advanced use cases
+
+[→ Full Ledger Guide](docs/ledger.md)
+
+### Parameter Sweeping
+
+Generate parameter configurations with various strategies:
+
+- `PRODUCT`: Cartesian product of all parameter values
+- `ZIP`: Zip parameters together element-wise
+- Custom strategies for advanced sampling
+
+[→ Full Parameter Sweeping Guide](docs/parameter-sweeping.md)
+
+---
+
+## Documentation
+
+- [Project & Session API](docs/project-session.md) — High-level experiment management
+- [Ledger API](docs/ledger.md) — Low-level run registry
+- [Parameter Sweeping](docs/parameter-sweeping.md) — Grid search and parameter generation
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) file for details.
+
+---
+
+## Links
+
+- **Repository**: https://github.com/HutoriHunzu/pycaddy
+- **PyPI**: https://pypi.org/project/pycaddy/
+- **Author**: Uri Goldblatt (uri.goldblatt@gmail.com)
