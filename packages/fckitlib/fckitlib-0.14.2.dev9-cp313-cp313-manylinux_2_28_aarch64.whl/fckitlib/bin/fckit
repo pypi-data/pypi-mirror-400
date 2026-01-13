@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+
+FCKIT_VERSION_STR="0.14.2"
+FCKIT_VERSION="0.14.2"
+
+FCKIT_MAJOR_VERSION=0
+FCKIT_MINOR_VERSION=14
+FCKIT_PATCH_VERSION=2
+
+FCKIT_GIT_SHA1="f104a7d53d652e7c9bb0112e2708e68dc1840490"
+
+#################################################################
+# Commands
+#################################################################
+
+usage()
+{
+  echo "Usage: fckit [--version] [--info] [--git]"
+  exit $1
+}
+
+version()
+{
+  echo "0.14.2"
+}
+
+print_feature()
+{
+  if [ -z "$1" ]; then
+    echo "OFF"
+  elif [[ $1 =~ (true|TRUE|ON|1) ]]; then
+    echo "ON"
+  else
+    echo "OFF"
+  fi
+}
+
+
+info()
+{
+  echo "fckit version (0.14.2), git-sha1 f104a7d53d652e7c9bb0112e2708e68dc1840490"
+  echo ""
+  echo "Build:"
+  echo "  build type      : RelWithDebInfo"
+  echo "  timestamp       : 20260105150846"
+  echo "  op. system      : Linux-6.14.0-1014-azure (linux.64)"
+  echo "  processor       : aarch64"
+  echo "  sources         : /src/fckit"
+  echo "  c++ compiler    : GNU 14.2.1"
+  echo "    flags         :  -pipe -O2 -g -DNDEBUG"
+  echo "  fortran compiler: GNU 14.2.1"
+  echo "    flags         :  -O2 -g -DNDEBUG"
+  echo ""
+  echo "Features:"
+  echo "  MPI             : $(print_feature )"
+  echo "  final           : $(print_feature 1)"
+  echo "  eckit           : $(print_feature 1)"
+  echo ""
+  echo "Dependencies: "
+  if [ -n "1" ]; then
+  echo "  eckit version (1.32.5), git-sha1 $(short_gitsha1 e23eab8173b7a734d19ca54ad5fd3fb3017bca38)"
+  else
+  echo "  None"
+  fi
+}
+
+gitsha1()
+{
+  echo "f104a7d53d652e7c9bb0112e2708e68dc1840490"
+}
+
+short_gitsha1()
+{
+  if [ -z "$1" ]; then
+    echo "unknown"
+  else
+    echo $1 | head -c 13
+  fi
+}
+
+#################################################################
+# Parse command-line
+#################################################################
+
+if test $# -eq 0; then
+    usage 1
+fi
+
+while test $# -gt 0; do
+
+    # Split --option=value in $opt="--option" and $val="value"
+
+    opt=""
+    val=""
+
+    case "$1" in
+    --*=*)
+      opt=`echo "$1" | sed 's/=.*//'`
+      val=`echo "$1" | sed 's/--[_a-zA-Z0-9]*=//'`
+      ;;
+    --*)
+      opt=$1
+      ;;
+    *)
+      break
+      ;;
+    esac
+
+    # Parse options
+    case "$opt" in
+      --version)
+        version
+        ;;
+      --git)
+        gitsha1
+          ;;
+      --info)
+        info
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        echo "unknown option: $opt"
+        usage 1
+        ;;
+    esac
+    shift
+done
