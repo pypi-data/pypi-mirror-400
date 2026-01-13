@@ -1,0 +1,103 @@
+# smartpool
+
+Auto-selecting thread/process pool utilities for parameterized tasks.
+
+[English](README.md) | [简体中文](README_zh.md)
+
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![Typing](https://img.shields.io/badge/Typing-PEP%20561-informational.svg)](https://peps.python.org/pep-0561/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## ✨ Why smartpool
+
+smartpool provides a single entry point to run parameterized tasks with either a thread pool or a process pool. It keeps the API small, chooses a sensible executor in `auto` mode, and stays close to the stdlib so you can drop it into existing scripts.
+
+## 🎯 Target users & scope
+
+Smartpool is designed for lightweight batch execution in scripts and services where you want a small, predictable API.
+
+- Best for: IO-heavy tasks, CPU-heavy tasks, short batch jobs
+- Not for: distributed scheduling, persistent queues, complex retry pipelines
+
+## ✅ Features
+
+- Unified interface for thread/process pools
+- `auto` mode picks a reasonable executor for the runtime
+- Ordered or completion-order results
+- Timeout control per task and per run
+- Lightweight stats collection via `RunStats`
+- Resource guard with `max_tasks`
+- PEP 561 typing with `py.typed`
+
+## 📦 Installation
+
+```bash
+pip install smartpool
+```
+
+## 🚀 Quickstart
+
+```python
+from smartpool import ThreadUtils
+
+
+def work(x: int) -> int:
+    return x * 2
+
+result = ThreadUtils.run_parameterized_task(
+    work,
+    [1, 2, 3, 4],
+    mode="auto",
+    ordered=True,
+)
+print(result)
+```
+
+## 📘 API
+
+```python
+ThreadUtils.run_parameterized_task(
+    task,
+    params,
+    *,
+    mode="auto",          # auto | cpu | io | thread | process
+    max_workers=None,
+    thread_name_prefix="default",
+    timeout=None,
+    timeout_total=None,
+    ordered=True,
+    result_order=None,    # "input" | "completed"
+    chunksize=1,          # meaningful for process + ordered=True
+    max_tasks=None,
+    return_exceptions=False,
+    stats=None,           # RunStats
+)
+```
+
+### 🧭 Mode selection
+
+- `auto` / `cpu`: use thread pool on free-threaded runtimes, otherwise process pool
+- `io` / `thread`: always use a thread pool
+- `process`: always use a process pool
+
+### 📝 Behavior notes
+
+- Process pools require `task` to be a top-level function and parameters to be pickle-able.
+- With `ordered=True`, process pool uses `map`; per-item timeout is not available in this path.
+- With `ordered=False`, results are returned by completion order.
+- For ordered process pools, enabling timeout/return_exceptions/timeout_total switches to `submit` and ignores `chunksize`.
+- `timeout_total` enforces a total runtime limit; it may raise `TimeoutError`.
+- When `return_exceptions=True`, exceptions are returned in the result list.
+
+## 🧱 Project structure
+
+```
+smartpool/
+├── __init__.py
+├── thread.py
+└── py.typed
+```
+
+## 📄 License
+
+MIT License. See `LICENSE` for details.
