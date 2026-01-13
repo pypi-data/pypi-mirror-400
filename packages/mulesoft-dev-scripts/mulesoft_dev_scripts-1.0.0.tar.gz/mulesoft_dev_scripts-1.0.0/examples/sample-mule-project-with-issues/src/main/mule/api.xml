@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.mulesoft.org/schema/mule/xsi"
+      xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+    <http:listener-config name="HTTP_Listener_config">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+
+    <!-- Insecure HTTP listener (no HTTPS) -->
+    <flow name="insecure-api">
+        <http:listener path="/api/insecure" config-ref="HTTP_Listener_config"/>
+        <logger level="INFO" message="Using ${missing.property} and ${db.password}"/>
+    </flow>
+
+    <!-- Hardcoded secret (BAD!) -->
+    <flow name="bad-practice">
+        <http:listener path="/api/bad" config-ref="HTTP_Listener_config"/>
+        <logger level="INFO" message="API Key: sk_live_1234567890abcdef"/>
+    </flow>
+
+</mule>
+

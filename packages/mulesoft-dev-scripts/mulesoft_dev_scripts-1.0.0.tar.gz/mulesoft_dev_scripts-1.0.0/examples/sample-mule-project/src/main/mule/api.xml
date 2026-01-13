@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.mulesoft.org/schema/mule/xsi"
+      xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee-core.xsd">
+
+    <http:listener-config name="HTTP_Listener_config">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+
+    <flow name="users-api">
+        <http:listener path="/api/v1/users" config-ref="HTTP_Listener_config" allowedMethods="GET,POST"/>
+        <logger level="INFO" message="Processing request to ${api.base.url}/users"/>
+        <ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[{
+                    "message": "Users endpoint",
+                    "timestamp": now()
+                }]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+
+    <flow name="orders-api">
+        <http:listener path="/api/v1/orders" config-ref="HTTP_Listener_config" allowedMethods="GET,POST,PUT"/>
+        <logger level="INFO" message="Processing orders with timeout ${api.timeout}"/>
+        <ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[{
+                    "message": "Orders endpoint"
+                }]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+
+    <flow name="data-processor">
+        <http:listener path="/api/v1/data" config-ref="HTTP_Listener_config"/>
+        <logger level="INFO" message="Processing data"/>
+        <ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[{
+                    "status": "processed"
+                }]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+
+</mule>
+

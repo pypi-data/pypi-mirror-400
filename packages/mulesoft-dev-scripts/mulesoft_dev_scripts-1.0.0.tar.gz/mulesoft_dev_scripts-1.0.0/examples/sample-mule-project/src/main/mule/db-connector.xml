@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.mulesoft.org/schema/mule/xsi"
+      xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+
+    <db:config name="Database_Config">
+        <db:generic-connection 
+            driverClassName="org.postgresql.Driver"
+            url="jdbc:postgresql://${db.host}:${db.port}/${db.name}"
+            user="${db.username}"
+            password="${db.password}"/>
+    </db:config>
+
+    <flow name="database-query">
+        <logger level="INFO" message="Querying database at ${db.host}:${db.port}"/>
+        <db:select config-ref="Database_Config">
+            <db:sql>SELECT * FROM users LIMIT 10</db:sql>
+        </db:select>
+    </flow>
+
+</mule>
+
