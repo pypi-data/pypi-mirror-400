@@ -1,0 +1,109 @@
+[project]
+name = "craft-ls"
+dynamic = ["version"]
+description = "A Language Server Protocol implementation for *craft files."
+readme = "README.md"
+authors = [
+  { name = "Alex Batisse", email = "alex.batisse@canonical.com" },
+]
+keywords = [
+  "lsp",
+  "snapcraft",
+  "rockcraft",
+  "charmcraft",
+]
+requires-python = ">=3.12"
+dependencies = [
+  "pygls>=1.1.0",
+  "lsprotocol>=2025.0.0",
+  "jsonschema>=4.23.0",
+  "pyyaml>=6.0.2",
+  "referencing>=0.36.2",
+  "jsonref>=1.1.0",
+  "jsonpath-ng>=1.7.0",
+  "more-itertools>=10.7.0",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3 :: Only",
+]
+license = "BSD-3-Clause"
+
+[project.urls]
+Repository = "https://github.com/batalex/craft-ls"
+Releases = "https://github.com/batalex/craft-ls/releases"
+
+[dependency-groups]
+fmt = [
+  "ruff >=0.14.0,<0.15.0",
+]
+lint = [
+  "ruff >=0.14.0,<0.15.0",
+  "mypy >= 1.14.0",
+  "types-pyyaml",
+  "types-jsonschema",
+]
+unit = [
+  "hypothesis>=6.127.3",
+  "pytest>=9.0.0",
+  "pytest-lsp>=1.0.0",
+]
+
+[project.scripts]
+craft-ls = "craft_ls.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/craft_ls/__init__.py"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "C", "N", "D", "I001"]
+ignore = [
+  "E501", # line too long, handled by black
+  "D107", # Missing docstring in __init__
+]
+extend-ignore = [
+  "D203",
+  "D204",
+  "D213",
+  "D215",
+  "D400",
+  "D401",
+  "D404",
+  "D406",
+  "D407",
+  "D408",
+  "D409",
+  "D413",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["craft_ls"]
+
+[tool.mypy]
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
+  "jsonref",
+  "jsonpath_ng"
+]
+ignore_missing_imports = true
+
+[tool.pyright]
+enableReachabilityAnalysis = false  # unreliable
+
+[tool.pytest]
+log_cli_level = "INFO"
+asyncio_mode = "auto"
