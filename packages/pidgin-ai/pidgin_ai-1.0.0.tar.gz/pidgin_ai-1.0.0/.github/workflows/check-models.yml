@@ -1,0 +1,83 @@
+name: Check Model Updates
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  check-models:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        # Only need pidgin itself to read model config
+        pip install -e .
+    
+    - name: Check for model updates from LiteLLM
+      id: check
+      run: |
+        # Run the sync script which returns exit code 1 if updates found
+        python scripts/sync_models_from_litellm.py > model_updates.txt 2>&1 || true
+        
+        # Check if updates were found
+        if grep -q "New models found\|Pricing updates found" model_updates.txt; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          
+          # Format the output for the issue
+          echo "issue_body<<EOF" >> $GITHUB_OUTPUT
+          echo "## Model and Pricing Updates Available" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "The weekly sync with LiteLLM's model database found updates:" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo '```' >> $GITHUB_OUTPUT
+          cat model_updates.txt >> $GITHUB_OUTPUT
+          echo '```' >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "To apply these updates:" >> $GITHUB_OUTPUT
+          echo "1. Review the suggested changes above" >> $GITHUB_OUTPUT
+          echo "2. Run \`python scripts/sync_models_from_litellm.py\` locally" >> $GITHUB_OUTPUT
+          echo "3. Copy the generated code snippets to the appropriate provider files" >> $GITHUB_OUTPUT
+          echo "4. Test and commit the changes" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create issue if changes found
+      if: steps.check.outputs.has_changes == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issueBody = `${{ steps.check.outputs.issue_body }}`;
+          
+          // Check if a similar issue already exists
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            labels: 'model-updates',
+            state: 'open'
+          });
+          
+          // Only create if no open model update issues
+          if (issues.data.length === 0) {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🤖 Model and SDK Updates Detected',
+              body: issueBody,
+              labels: ['model-updates', 'maintenance']
+            });
+          } else {
+            console.log('Model update issue already exists, skipping creation');
+          }
