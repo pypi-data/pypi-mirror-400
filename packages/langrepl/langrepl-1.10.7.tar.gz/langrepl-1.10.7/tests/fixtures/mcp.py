@@ -1,0 +1,23 @@
+"""MCP-related test fixtures."""
+
+import pytest
+
+from langrepl.configs import MCPConfig, MCPServerConfig
+from langrepl.configs.mcp import MCPTransport
+
+
+@pytest.fixture
+def mock_mcp_server_config():
+    """Create a mock MCP server config for testing."""
+    return MCPServerConfig(
+        command="python",
+        args=["-m", "server"],
+        transport=MCPTransport.STDIO,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def mock_mcp_config():
+    """Create a mock MCP config with no servers for testing."""
+    return MCPConfig(servers={})
