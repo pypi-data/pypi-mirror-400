@@ -1,0 +1,178 @@
+Metadata-Version: 2.4
+Name: fail-kit
+Version: 1.1.0
+Summary: F.A.I.L. Kit Python Language Server for LangChain, CrewAI, and AutoGen
+Author-email: v3ctor <failkit@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/your-org/fail-kit
+Project-URL: Documentation, https://fail-kit.dev/docs/python-lsp
+Project-URL: Repository, https://github.com/your-org/fail-kit
+Keywords: ai,agents,audit,langchain,crewai,autogen,lsp,language-server
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: pygls<2.0.0,>=1.2.0
+Requires-Dist: lsprotocol<2025.0.0,>=2023.0.0
+Requires-Dist: tree-sitter>=0.20.0
+Requires-Dist: tree-sitter-python>=0.20.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+
+# F.A.I.L. Kit Python LSP Server
+
+A Language Server Protocol (LSP) implementation for auditing Python AI agent code. Provides real-time diagnostics, code actions, and hover information for LangChain, CrewAI, and AutoGen frameworks.
+
+## Features
+
+- **Real-time Diagnostics**: Detects missing receipts, unhandled errors, secret exposure, and more
+- **Framework Support**: LangChain, CrewAI, AutoGen, and generic Python agent patterns
+- **Code Actions**: Quick fixes for common issues (add try-catch, generate receipts)
+- **Hover Information**: Contextual documentation for F.A.I.L. Kit rules
+
+## Installation
+
+```bash
+pip install failkit-lsp
+```
+
+Or from source:
+
+```bash
+cd middleware/python-lsp
+pip install -e .
+```
+
+## Usage
+
+### VS Code
+
+Add to your `settings.json`:
+
+```json
+{
+  "failKit.pythonLsp.enabled": true,
+  "failKit.pythonLsp.path": "failkit-lsp"
+}
+```
+
+### Neovim (with nvim-lspconfig)
+
+```lua
+local lspconfig = require('lspconfig')
+local configs = require('lspconfig.configs')
+
+if not configs.failkit_lsp then
+  configs.failkit_lsp = {
+    default_config = {
+      cmd = { 'failkit-lsp' },
+      filetypes = { 'python' },
+      root_dir = lspconfig.util.root_pattern('pyproject.toml', 'setup.py', '.git'),
+    },
+  }
+end
+
+lspconfig.failkit_lsp.setup{}
+```
+
+### Command Line
+
+Run the server directly:
+
+```bash
+failkit-lsp --stdio
+```
+
+Or with TCP:
+
+```bash
+failkit-lsp --tcp --host 127.0.0.1 --port 2087
+```
+
+## Supported Rules
+
+| Rule ID | Description | Severity |
+|---------|-------------|----------|
+| FK001 | Missing Receipt for Tool Call | Error |
+| FK002 | Missing Error Handling | Warning |
+| FK003 | Secret Exposure | Error |
+| FK004 | Side-Effect Without Confirmation | Warning |
+| FK005 | LLM Call Missing Resilience | Info |
+| FK006 | Missing Provenance Metadata | Warning |
+| FK007 | Hardcoded Credential | Error |
+| FK008 | CrewAI Task Missing Error Handler | Warning |
+| FK009 | AutoGen Agent Missing Termination | Warning |
+
+## Framework-Specific Detection
+
+### LangChain
+
+- `AgentExecutor.invoke()` / `.run()` calls
+- `BaseTool` subclasses without receipt generation
+- `@tool` decorated functions
+- Chain invocations without error handling
+
+### CrewAI
+
+- `Crew.kickoff()` calls
+- `Task` definitions without error handlers
+- Agent configurations missing memory settings
+
+### AutoGen
+
+- `UserProxyAgent` / `AssistantAgent` configurations
+- `initiate_chat()` calls without termination conditions
+- Function tool definitions
+
+## Configuration
+
+Create a `.failkit.yaml` or `failkit.config.json` in your project root:
+
+```yaml
+# .failkit.yaml
+python:
+  enabled: true
+  severity_overrides:
+    FK005: "warning"  # Downgrade resilience checks to warnings
+  ignore_patterns:
+    - "**/tests/**"
+    - "**/migrations/**"
+  frameworks:
+    langchain: true
+    crewai: true
+    autogen: true
+```
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black src tests
+ruff check src tests
+
+# Type check
+mypy src
+```
+
+## License
+
+MIT License - see LICENSE file for details.
