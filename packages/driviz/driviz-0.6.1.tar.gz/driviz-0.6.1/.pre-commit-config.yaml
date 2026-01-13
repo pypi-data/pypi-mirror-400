@@ -1,0 +1,58 @@
+default_install_hook_types:
+  - pre-commit
+  - post-checkout
+  - post-merge
+  - post-rewrite
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+  - id: check-yaml
+    exclude: mkdocs.yml
+  - id: check-toml
+  - id: check-added-large-files
+    args:
+    - --maxkb=500
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+- repo: https://github.com/astral-sh/uv-pre-commit
+  rev: 0.9.22
+  hooks:
+  - id: uv-lock
+  - id: uv-sync
+    args: ["--locked", "--all-packages"]
+- repo: https://github.com/dribia/sync-with-uv
+  rev: v0.1.2
+  hooks:
+  - id: sync-with-uv
+- repo: https://github.com/python-jsonschema/check-jsonschema
+  rev: 0.36.0
+  hooks:
+  - id: check-github-workflows
+- repo: https://github.com/mrtazz/checkmake.git
+  rev: 0.2.2
+  hooks:
+  - id: checkmake
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.14.10
+  hooks:
+  - id: ruff-check
+    types_or: [ python, pyi ]
+    args:
+    - --fix
+  - id: ruff-format
+    types_or: [ python, pyi ]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.19.1
+  hooks:
+  - id: mypy
+    additional_dependencies:
+      - pandas-stubs==2.3.3.251219
+- repo: https://github.com/fpgmaas/deptry.git
+  rev: 0.24.0
+  hooks:
+  - id: deptry
+
+ci:
+    autofix_commit_msg: 🎨 [pre-commit.ci] Auto format from pre-commit.com hooks
+    autoupdate_commit_msg: ⬆ [pre-commit.ci] pre-commit autoupdate
