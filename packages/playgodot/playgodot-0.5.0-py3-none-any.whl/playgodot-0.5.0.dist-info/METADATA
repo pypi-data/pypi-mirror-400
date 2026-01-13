@@ -1,0 +1,90 @@
+Metadata-Version: 2.4
+Name: playgodot
+Version: 0.5.0
+Summary: External automation and testing framework for Godot Engine games
+Project-URL: Homepage, https://github.com/Randroids-Dojo/PlayGodot
+Project-URL: Documentation, https://github.com/Randroids-Dojo/PlayGodot#readme
+Project-URL: Repository, https://github.com/Randroids-Dojo/PlayGodot
+Project-URL: Issues, https://github.com/Randroids-Dojo/PlayGodot/issues
+Author: PlayGodot Contributors
+License-Expression: MIT
+Keywords: automation,game-testing,godot,playwright,testing
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: Pytest
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Games/Entertainment
+Classifier: Topic :: Software Development :: Testing
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: pillow>=10.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0; extra == 'dev'
+Requires-Dist: numpy>=1.24; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# PlayGodot Python Client
+
+Python client library for PlayGodot - external automation and testing framework for Godot Engine games.
+
+## Installation
+
+```bash
+pip install playgodot
+```
+
+For screenshot comparison support:
+
+```bash
+pip install playgodot[image]
+```
+
+## Quick Start
+
+```python
+import asyncio
+from playgodot import Godot
+
+async def test_game():
+    async with Godot.launch("path/to/project") as game:
+        # Wait for game to be ready
+        await game.wait_for_node("/root/Main")
+
+        # Interact with the game
+        await game.click("/root/Main/UI/StartButton")
+        await game.wait_for_signal("game_started")
+
+        # Take a screenshot
+        await game.screenshot("game_started.png")
+
+asyncio.run(test_game())
+```
+
+## Documentation
+
+See the [main README](../README.md) for full documentation.
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Type checking
+mypy playgodot
+
+# Linting
+ruff check playgodot
+```
