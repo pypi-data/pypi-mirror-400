@@ -1,0 +1,407 @@
+name: Connector Regression Test
+permissions:
+  contents: read
+  checks: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      connector_name:
+        description: "Connector name to build from source (e.g., 'source-pokeapi')."
+        required: true
+        type: string
+      pr:
+        description: "PR number to checkout and build from (e.g., 70847). Must be from the repository specified by 'repo'."
+        required: true
+        type: string
+      repo:
+        description: "Repository where the connector PR is located."
+        required: false
+        type: choice
+        options:
+          - airbyte
+          - airbyte-enterprise
+        default: "airbyte"
+      connection_id:
+        description: "Airbyte Cloud connection ID to fetch config/catalog from."
+        required: false
+        type: string
+      skip_compare:
+        description: "If true, skip comparison and run single-version tests only. If false (default), run comparison tests (target vs control)."
+        required: false
+        type: boolean
+        default: false
+      skip_read_action:
+        description: "If true, skip the read action (run only spec, check, discover)."
+        required: false
+        type: boolean
+        default: false
+      override_test_image:
+        description: "Override test connector image with tag (e.g., airbyte/source-github:1.0.0). Ignored if skip_compare=false."
+        required: false
+        type: string
+      override_control_image:
+        description: "Override control connector image (baseline version) with tag. Ignored if skip_compare=true."
+        required: false
+        type: string
+
+  workflow_call:
+    inputs:
+      connector_name:
+        description: "Connector name to build from source (e.g., 'source-pokeapi')."
+        required: true
+        type: string
+      pr:
+        description: "PR number to checkout and build from. Must be from the repository specified by 'repo'."
+        required: true
+        type: string
+      repo:
+        description: "Repository where the connector PR is located. Use 'airbyte' or 'airbyte-enterprise'."
+        required: false
+        type: string
+        default: "airbyte"
+      connection_id:
+        description: "Airbyte Cloud connection ID to fetch config/catalog from."
+        required: false
+        type: string
+      skip_compare:
+        description: "If true, skip comparison and run single-version tests only. If false (default), run comparison tests (target vs control)."
+        required: false
+        type: boolean
+        default: false
+      skip_read_action:
+        description: "If true, skip the read action (run only spec, check, discover)."
+        required: false
+        type: boolean
+        default: false
+      override_test_image:
+        description: "Override test connector image with tag. Ignored if skip_compare=false."
+        required: false
+        type: string
+      override_control_image:
+        description: "Override control connector image (baseline version) with tag. Ignored if skip_compare=true."
+        required: false
+        type: string
+    outputs:
+      success:
+        description: "True if regression test passed (no regression detected)"
+        value: ${{ jobs.regression-test.outputs.success }}
+      summary_url:
+        description: "GitHub Actions run summary URL"
+        value: ${{ jobs.regression-test.outputs.summary_url }}
+      report_url:
+        description: "Detailed regression report (GitHub Check URL)"
+        value: ${{ jobs.regression-test.outputs.report_url }}
+    secrets:
+      AIRBYTE_CLOUD_CLIENT_ID:
+        required: false
+      AIRBYTE_CLOUD_CLIENT_SECRET:
+        required: false
+      GCP_GSM_CREDENTIALS:
+        required: false
+      GCP_GSM_CREDENTIALS_FOR_TESTING_TOOL:
+        required: false
+
+jobs:
+  regression-test:
+    name: Regression Test: '${{ inputs.connector_name }}'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Resolve connector repo ref
+        id: resolve-connector-ref
+        run: |
+          REPO="${{ inputs.repo }}"
+          # Default to 'airbyte' if not specified
+          if [ -z "$REPO" ]; then
+            REPO="airbyte"
+          fi
+          echo "repo=$REPO" >> "$GITHUB_OUTPUT"
+          echo "resolved_ref=refs/pull/${{ inputs.pr }}/head" >> "$GITHUB_OUTPUT"
+          echo "Using PR ${{ inputs.pr }} from airbytehq/$REPO -> refs/pull/${{ inputs.pr }}/head"
+
+      - name: Checkout connector repo
+        uses: actions/checkout@v6
+        with:
+          repository: airbytehq/${{ steps.resolve-connector-ref.outputs.repo }}
+          ref: ${{ steps.resolve-connector-ref.outputs.resolved_ref }}
+          path: connector-repo
+          fetch-depth: 1
+
+      - name: Install Cloud SQL Proxy
+        if: ${{ inputs.connection_id != '' }}
+        run: |
+          set -euo pipefail
+          echo "Installing Cloud SQL Proxy..."
+          VERSION="v2.15.0"
+          BASE_URL="https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/${VERSION}"
+          BINARY_NAME="cloud-sql-proxy.linux.amd64"
+          # Checksum from GitHub release: https://github.com/GoogleCloudPlatform/cloud-sql-proxy/releases/tag/v2.15.0
+          EXPECTED_SHA256="cf3e9d069ea0d09cdfddce77daa36811bb0b963b1169e9c3f1586433ca7325fa"
+
+          echo "Downloading Cloud SQL Proxy binary..."
+          curl -fsSLO "${BASE_URL}/${BINARY_NAME}"
+
+          echo "Verifying Cloud SQL Proxy checksum..."
+          echo "${EXPECTED_SHA256}  ${BINARY_NAME}" | sha256sum -c -
+
+          chmod +x "${BINARY_NAME}"
+          sudo mv "${BINARY_NAME}" /usr/local/bin/cloud-sql-proxy
+          cloud-sql-proxy --version
+
+      - name: Start Cloud SQL Proxy
+        if: ${{ inputs.connection_id != '' }}
+        env:
+          GCP_PROD_DB_ACCESS_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS_FOR_TESTING_TOOL }}
+        run: |
+          echo "Starting Cloud SQL Proxy for connection secret retrieval..."
+          # Start proxy in background on port 15432
+          uv run airbyte-ops cloud db start-proxy --port 15432 &
+          # Wait for proxy to be ready
+          for i in {1..30}; do
+            if nc -z localhost 15432 2>/dev/null; then
+              echo "Cloud SQL Proxy is ready on port 15432"
+              break
+            fi
+            echo "Waiting for proxy to start... ($i/30)"
+            sleep 1
+          done
+          if ! nc -z localhost 15432 2>/dev/null; then
+            echo "ERROR: Cloud SQL Proxy failed to start"
+            exit 1
+          fi
+
+      - name: Build common args
+        id: build-args
+        run: |
+          SKIP_COMPARE="${{ inputs.skip_compare }}"
+          ARGS=""
+
+          # Always add connector_name and repo-root (both are required)
+          ARGS+=" --connector-name ${{ inputs.connector_name }}"
+          ARGS+=" --repo-root ${{ github.workspace }}/connector-repo"
+
+          # Add connection_id if provided
+          if [ -n "${{ inputs.connection_id }}" ]; then
+            ARGS+=" --connection-id ${{ inputs.connection_id }}"
+          fi
+
+          if [ "$SKIP_COMPARE" = "true" ]; then
+            # Single-version mode: use --skip-compare flag
+            ARGS+=" --skip-compare"
+
+            if [ -n "${{ inputs.override_test_image }}" ]; then
+              ARGS+=" --test-image ${{ inputs.override_test_image }}"
+            fi
+          else
+            # Comparison mode (default): run target vs control
+            if [ -n "${{ inputs.override_control_image }}" ]; then
+              ARGS+=" --control-image ${{ inputs.override_control_image }}"
+            fi
+          fi
+
+          echo "common_args=$ARGS" >> "$GITHUB_OUTPUT"
+
+      - name: Run SPEC
+        id: run-spec
+        env:
+          AIRBYTE_CLOUD_CLIENT_ID: ${{ secrets.AIRBYTE_CLOUD_CLIENT_ID }}
+          AIRBYTE_CLOUD_CLIENT_SECRET: ${{ secrets.AIRBYTE_CLOUD_CLIENT_SECRET }}
+          GCP_GSM_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS }}
+          GCP_PROD_DB_ACCESS_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS_FOR_TESTING_TOOL }}
+          USE_CONNECTION_SECRET_RETRIEVER: "true"
+        run: |
+          echo "Running: uv run airbyte-ops cloud connector regression-test --command spec ${{ steps.build-args.outputs.common_args }} --output-dir /tmp/regression_test_artifacts/spec"
+          uv run airbyte-ops cloud connector regression-test --command spec ${{ steps.build-args.outputs.common_args }} --output-dir /tmp/regression_test_artifacts/spec
+
+      - name: Upload SPEC Artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: regression-test-artifacts-spec-${{ github.run_id }}
+          path: /tmp/regression_test_artifacts/spec/
+          retention-days: 7
+
+      - name: Run CHECK
+        id: run-check
+        env:
+          AIRBYTE_CLOUD_CLIENT_ID: ${{ secrets.AIRBYTE_CLOUD_CLIENT_ID }}
+          AIRBYTE_CLOUD_CLIENT_SECRET: ${{ secrets.AIRBYTE_CLOUD_CLIENT_SECRET }}
+          GCP_GSM_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS }}
+          GCP_PROD_DB_ACCESS_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS_FOR_TESTING_TOOL }}
+          USE_CONNECTION_SECRET_RETRIEVER: "true"
+        run: |
+          echo "Running: uv run airbyte-ops cloud connector regression-test --command check ${{ steps.build-args.outputs.common_args }} --output-dir /tmp/regression_test_artifacts/check"
+          uv run airbyte-ops cloud connector regression-test --command check ${{ steps.build-args.outputs.common_args }} --output-dir /tmp/regression_test_artifacts/check
+
+      - name: Upload CHECK Artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: regression-test-artifacts-check-${{ github.run_id }}
+          path: /tmp/regression_test_artifacts/check/
+          retention-days: 7
+
+      - name: Run DISCOVER
+        id: run-discover
+        env:
+          AIRBYTE_CLOUD_CLIENT_ID: ${{ secrets.AIRBYTE_CLOUD_CLIENT_ID }}
+          AIRBYTE_CLOUD_CLIENT_SECRET: ${{ secrets.AIRBYTE_CLOUD_CLIENT_SECRET }}
+          GCP_GSM_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS }}
+          GCP_PROD_DB_ACCESS_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS_FOR_TESTING_TOOL }}
+          USE_CONNECTION_SECRET_RETRIEVER: "true"
+        run: |
+          echo "Running: uv run airbyte-ops cloud connector regression-test --command discover ${{ steps.build-args.outputs.common_args }} --output-dir /tmp/regression_test_artifacts/discover"
+          uv run airbyte-ops cloud connector regression-test --command discover ${{ steps.build-args.outputs.common_args }} --output-dir /tmp/regression_test_artifacts/discover
+
+      - name: Upload DISCOVER Artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: regression-test-artifacts-discover-${{ github.run_id }}
+          path: /tmp/regression_test_artifacts/discover/
+          retention-days: 7
+
+      - name: Run READ
+        id: run-read
+        if: inputs.skip_read_action != true
+        env:
+          AIRBYTE_CLOUD_CLIENT_ID: ${{ secrets.AIRBYTE_CLOUD_CLIENT_ID }}
+          AIRBYTE_CLOUD_CLIENT_SECRET: ${{ secrets.AIRBYTE_CLOUD_CLIENT_SECRET }}
+          GCP_GSM_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS }}
+          GCP_PROD_DB_ACCESS_CREDENTIALS: ${{ secrets.GCP_GSM_CREDENTIALS_FOR_TESTING_TOOL }}
+          USE_CONNECTION_SECRET_RETRIEVER: "true"
+        run: |
+          echo "Running: uv run airbyte-ops cloud connector regression-test --command read ${{ steps.build-args.outputs.common_args }} --output-dir /tmp/regression_test_artifacts/read"
+          uv run airbyte-ops cloud connector regression-test --command read ${{ steps.build-args.outputs.common_args }} --output-dir /tmp/regression_test_artifacts/read
+
+      - name: Upload READ Artifacts
+        if: always() && inputs.skip_read_action != true
+        uses: actions/upload-artifact@v5
+        with:
+          name: regression-test-artifacts-read-${{ github.run_id }}
+          path: /tmp/regression_test_artifacts/read/
+          retention-days: 7
+
+      - name: Determine Final Status
+        id: final-status
+        if: always()
+        run: |
+          SPEC_RESULT="${{ steps.run-spec.outcome }}"
+          CHECK_RESULT="${{ steps.run-check.outcome }}"
+          DISCOVER_RESULT="${{ steps.run-discover.outcome }}"
+          READ_RESULT="${{ steps.run-read.outcome }}"
+          SKIP_READ="${{ inputs.skip_read_action }}"
+
+          echo "SPEC: $SPEC_RESULT"
+          echo "CHECK: $CHECK_RESULT"
+          echo "DISCOVER: $DISCOVER_RESULT"
+          echo "READ: $READ_RESULT (skip_read=$SKIP_READ)"
+
+          if [ "$SPEC_RESULT" != "success" ] || [ "$CHECK_RESULT" != "success" ] || [ "$DISCOVER_RESULT" != "success" ]; then
+            echo "success=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$SKIP_READ" != "true" ] && [ "$READ_RESULT" != "success" ]; then
+            echo "success=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "success=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create Regression Test Report Check
+        id: create-report-check
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Collect results from each command
+            const specResult = '${{ steps.run-spec.outcome }}';
+            const checkResult = '${{ steps.run-check.outcome }}';
+            const discoverResult = '${{ steps.run-discover.outcome }}';
+            const readResult = '${{ steps.run-read.outcome }}';
+            const skipRead = '${{ inputs.skip_read_action }}' === 'true';
+
+            const results = [
+              { command: 'spec', result: specResult },
+              { command: 'check', result: checkResult },
+              { command: 'discover', result: discoverResult },
+            ];
+            if (!skipRead) {
+              results.push({ command: 'read', result: readResult });
+            }
+
+            // Build report content
+            let reportContent = '# Sequential Regression Test Report\n\n';
+            reportContent += '| Command | Result |\n';
+            reportContent += '|---------|--------|\n';
+            for (const r of results) {
+              const status = r.result === 'success' ? 'PASS' : 'FAIL';
+              reportContent += `| ${r.command.toUpperCase()} | ${status} |\n`;
+            }
+
+            const allPassed = results.every(r => r.result === 'success');
+            const conclusion = allPassed ? 'success' : 'failure';
+
+            const skipCompare = '${{ inputs.skip_compare }}' === 'true';
+            const connectorName = '${{ inputs.connector_name }}';
+            const prNumber = '${{ inputs.pr }}';
+            const commands = skipRead ? 'spec, check, discover' : 'spec, check, discover, read';
+            let summary;
+            if (skipCompare) {
+              const image = '${{ inputs.override_test_image }}' || `(built from ${connectorName} PR #${prNumber})`;
+              summary = `Single-version sequential regression test: \`${image}\` running \`${commands}\` commands.`;
+            } else {
+              const controlImage = '${{ inputs.override_control_image }}' || '(auto-detected)';
+              summary = `Comparison sequential regression test: \`${connectorName}\` (PR #${prNumber}) vs \`${controlImage}\` running \`${commands}\` commands.`;
+            }
+
+            const check = await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Regression Test Report',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: {
+                title: 'Regression Test Report',
+                summary: summary,
+                text: reportContent
+              }
+            });
+
+            core.setOutput('report_url', check.data.html_url);
+
+      - name: Add Report Link to Summary
+        if: always()
+        run: |
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "### View Full Report"
+            echo ""
+            echo "[Open Regression Test Report](${{ steps.create-report-check.outputs.report_url }})"
+          } >> "$GITHUB_STEP_SUMMARY"
+    outputs:
+      success: ${{ steps.final-status.outputs.success }}
+      summary_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      report_url: ${{ steps.create-report-check.outputs.report_url }}
