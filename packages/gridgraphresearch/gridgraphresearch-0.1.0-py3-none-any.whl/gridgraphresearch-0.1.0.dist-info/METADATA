@@ -1,0 +1,202 @@
+Metadata-Version: 2.4
+Name: gridgraphresearch
+Version: 0.1.0
+Summary: Power System Load Flow and Transient Stability Analysis Tool
+Author: pronoobe
+License: MIT
+Project-URL: Homepage, https://github.com/pronoobe/GridGraphResearch
+Project-URL: Bug Tracker, https://github.com/pronoobe/GridGraphResearch/issues
+Keywords: power system,load flow,transient stability,grid analysis,electrical engineering
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Physics
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: graph
+Requires-Dist: networkx; extra == "graph"
+Requires-Dist: matplotlib; extra == "graph"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Provides-Extra: all
+Requires-Dist: networkx; extra == "all"
+Requires-Dist: matplotlib; extra == "all"
+Requires-Dist: pytest; extra == "all"
+Requires-Dist: pytest-cov; extra == "all"
+Dynamic: license-file
+
+# GridGraphResearch
+
+电力系统潮流计算与暂态稳定分析工具
+
+## 简介
+
+GridGraphResearch 是一个用于电力系统仿真分析的 Python 工具包，支持：
+
+- 解析电力系统配置文件（LF.L0-L9, ST.* 等格式）
+- 执行潮流计算和暂态稳定计算
+- 设置和分析各类故障（单相接地、两相短路、三相短路等）
+- 构建电网拓扑图并进行可视化
+
+## 安装
+
+```bash
+pip install gridgraphresearch
+```
+
+或从源码安装：
+
+```bash
+git clone https://github.com/pronoobe/GridGraphResearch.git
+cd GridGraphResearch
+pip install -e .
+```
+
+## 快速开始
+
+### 基本使用
+
+```python
+from gridgraphresearch import GridLFSTAnalyzer
+
+# 初始化分析器，指定配置文件目录
+analyzer = GridLFSTAnalyzer(r"path/to/config/files")
+
+# 执行潮流计算
+analyzer.execute_LFcal()
+
+# 执行暂态稳定计算
+analyzer.execute_STcal()
+
+# 获取计算结果
+lf_data = analyzer.get_LFcal_data()
+st_data = analyzer.get_STcal_data()
+```
+
+### 设置故障
+
+```python
+# 设置发电机故障
+analyzer.set_generator_fault(
+    IDname='风电场1#虚拟发电机',
+    fault_type='ABCG',  # 三相短路接地
+    fault_begin_time=1,
+    fault_during_time=10,
+    fault_R=0.5,
+    fault_X=0.01
+)
+```
+
+### 支持的故障类型
+
+| 故障代码 | 描述 |
+|---------|------|
+| AG | A相接地 |
+| BG | B相接地 |
+| CG | C相接地 |
+| AB | AB相间短路 |
+| AC | AC相间短路 |
+| BC | BC相间短路 |
+| ABG | AB相间短路接地 |
+| ACG | AC相间短路接地 |
+| BCG | BC相间短路接地 |
+| ABCG | 三相短路接地 |
+
+### 构建电网图
+
+```python
+# 初始化图工具
+analyzer.graph_tools.make_graph()
+
+# 可视化
+analyzer.graph_tools.visualize_graph('network.png')
+```
+
+## 配置文件格式
+
+### 支持的文件类型
+
+| 文件名 | 描述 | 解析函数 |
+|-------|------|---------|
+| LF.L0 | 系统控制信息 | `read_control_info_LFL0` |
+| LF.L1 | 母线数据 | `parse_bus_data_LFL1` |
+| LF.L2 | 交流线数据 | `parse_ac_line_data_LFL2` |
+| LF.L3 | 变压器数据 | `parse_transformer_data_LFL3` |
+| LF.L5 | 发电机数据 | `parse_generator_data_LFL5` |
+| LF.L6 | 负荷数据 | `parse_load_data_LFL6` |
+| LF.L7 | 区域功率交换数据 | `parse_area_power_data_LFL7` |
+| LF.L9 | 用户自定义模型数据 | `parse_ud_data_LFL9` |
+| LF.NL4 | 直流线数据 | `parse_dc_line_data_LFNL4` |
+| LF.CAL | 潮流计算标识 | `parse_cal_data_LFCAL` |
+| LF.LP1 | 母线计算结果 | `parse_LFLP1_data` |
+| LF.LP2 | 交流线计算结果 | `parse_LFLP2_data` |
+| LF.LP3 | 变压器计算结果 | `parse_LFLP3_data` |
+| ST.CAL | 暂态计算标识 | `parse_STCAL_data` |
+| ST.S11 | 故障设置 | `parse_fault_data_STS11` |
+| ST.B12 | 母线120电压 | `parse_STB12_data` |
+| ST.R12 | 线路120电流 | `parse_STR12_data` |
+| STANA.DAT | 自动分析结果 | `parse_STANADAT_data` |
+| ST.SME | 监视设置 | `parse_st_sme` |
+
+## API 参考
+
+### GridLFSTAnalyzer 类
+
+主要分析器类，提供以下功能：
+
+#### 初始化
+```python
+GridLFSTAnalyzer(file_path, cal_delay=7)
+```
+- `file_path`: 配置文件目录路径
+- `cal_delay`: 计算等待时间（秒）
+
+#### 主要方法
+
+- `execute_LFcal()`: 执行潮流计算
+- `execute_STcal()`: 执行暂态稳定计算
+- `LF_is_converge()`: 检查潮流计算是否收敛
+- `ST_is_converge()`: 检查暂态计算是否收敛
+- `get_LFcal_data()`: 获取潮流计算结果
+- `get_STcal_data()`: 获取暂态稳定计算结果
+- `set_generator_fault()`: 设置发电机故障
+- `find_by_IDName()`: 根据名称查找元素
+- `find_by_line_number()`: 根据行号查找元素
+
+### GraphTools 类
+
+电网拓扑图工具类：
+
+- `make_graph()`: 构建电网图
+- `visualize_graph(name)`: 可视化并保存图片
+- `get_U_inrange(v_range)`: 获取指定电压范围内的母线
+
+## 依赖
+
+- Python >= 3.7
+- networkx
+- matplotlib
+
+## 许可证
+
+MIT License
+
+## 作者
+
+pronoobe
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
