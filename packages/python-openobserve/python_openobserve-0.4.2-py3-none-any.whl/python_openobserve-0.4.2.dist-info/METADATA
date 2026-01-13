@@ -1,0 +1,136 @@
+Metadata-Version: 2.4
+Name: python-openobserve
+Version: 0.4.2
+Summary: OpenObserve client for Python
+License-File: LICENSES/CC-BY-4.0.txt
+License-File: LICENSES/CC-BY-SA-4.0.txt
+License-File: LICENSES/GPL-3.0-or-later.txt
+Keywords: openobserve,elasticsearch,logging,unstructured data
+Author: Justin Guese
+Author-email: guese.justin@gmail.com
+Requires-Python: >=3.10,<3.14
+Classifier: Programming Language :: Python :: 3
+Provides-Extra: ci
+Provides-Extra: docs
+Provides-Extra: fireducks
+Provides-Extra: pandas
+Provides-Extra: polars
+Provides-Extra: tests
+Requires-Dist: fireducks (==1.4.4) ; extra == "fireducks"
+Requires-Dist: guarddog (==2.6.0) ; extra == "ci"
+Requires-Dist: jmespath (==1.0.1) ; extra == "ci"
+Requires-Dist: jmespath (==1.0.1) ; extra == "tests"
+Requires-Dist: memray (==1.17.2) ; extra == "ci"
+Requires-Dist: mkdocs (==1.6.1) ; extra == "docs"
+Requires-Dist: mkdocs-material (==9.6.15) ; extra == "docs"
+Requires-Dist: mkdocstrings (==0.29.1) ; extra == "docs"
+Requires-Dist: mypy (==1.15.0) ; extra == "ci"
+Requires-Dist: mypy-extensions (==1.0.0) ; extra == "ci"
+Requires-Dist: pandas (==2.2.3) ; extra == "ci"
+Requires-Dist: pandas (>=2.2) ; extra == "pandas"
+Requires-Dist: pandas-stubs (==2.2.2.240807) ; extra == "ci"
+Requires-Dist: polars (==1.30.0) ; extra == "polars"
+Requires-Dist: pydantic (>=2.10,<3.0)
+Requires-Dist: pytest (==8.3.5) ; extra == "ci"
+Requires-Dist: pytest (==8.3.5) ; extra == "tests"
+Requires-Dist: pytest-cov (==6.0.0) ; extra == "ci"
+Requires-Dist: pytest-memray (==1.7.0) ; extra == "ci"
+Requires-Dist: python-dotenv (==1.0.1) ; extra == "ci"
+Requires-Dist: python-dotenv (==1.0.1) ; extra == "tests"
+Requires-Dist: requests (>=2.32.4,<2.33.0)
+Requires-Dist: sqlglot (>=26.4.0,<26.5.0)
+Requires-Dist: types-jmespath (==1.0.2.20240106) ; extra == "ci"
+Requires-Dist: types-requests (==2.32.0.20241016) ; extra == "ci"
+Project-URL: Homepage, https://github.com/JustinGuese/python-openobserve
+Project-URL: Repository, https://github.com/JustinGuese/python-openobserve
+Description-Content-Type: text/markdown
+
+# python-openobserve
+
+<!--
+    SPDX-FileCopyrightText: 2025 The python_openobserve authors
+    SPDX-License-Identifier: CC-BY-SA-4.0
+-->
+
+[![Actions Status - Main](https://github.com/JustinGuese/python-openobserve/workflows/pytest/badge.svg)](https://github.com/JustinGuese/python-openobserve/actions?query=branch%3Amain)
+[![PyPI Downloads](https://static.pepy.tech/badge/python-openobserve/week)](https://pepy.tech/projects/python-openobserve)
+[![Documentation build status](https://img.shields.io/readthedocs/python-openobserve?logo=read-the-docs)](https://python-openobserve.readthedocs.org/en/latest/)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/JustinGuese/python-openobserve/badge)](https://scorecard.dev/viewer/?uri=github.com/JustinGuese/python-openobserve)
+
+A python connector to interact with OpenObserve (https://github.com/openobserve/openobserve) be it sending data, searching, or exporting/importing settings.
+
+The idea is to have a similar python connector to the "Elasticsearch" package, which allows a 1:1 replacement of the "Elasticsearch" package with the "OpenObserve" package.
+
+OpenObserve is way more lightweight than Elasticsearch, and it is open source, like everything should be.
+
+## install
+
+`pip install python-openobserve`
+
+## usage
+
+see [example.ipynb](docs/example.ipynb) for a full example
+
+```python
+from python_openobserve.openobserve import OpenObserve
+
+OO = OpenObserve(user = "root@example.com", password = "Complexpass#123")
+
+from datetime import datetime
+from random import random
+from pprint import pprint
+document = {
+    "@timestamp" : datetime.utcnow(),
+    "component" : "testagent",
+    "action" : "buy",
+    "amount" : random() * 100,
+    "portfolio" : {
+        "USD" : random() * 100.0,
+        "BTC" : 0.1 + random() * 0.1
+    }
+}
+pprint(document)
+
+# insert document
+OO.index("dd", document)
+
+#search
+# example sql parsing helper
+sql = 'SELECT * FROM "dd"'
+results = OO.search(sql, days=1)
+print(f"got {len(results)} results")
+pprint(results)
+
+OO = OpenObserve(host="https://o2.example.com", user="root@example.com", password="Complexpass#123")
+sql = 'SELECT log_file_name,count(*) FROM "default" GROUP BY log_file_name'
+start_timeperiod = datetime.now() - timedelta(days=7)
+end_timeperiod = datetime.now()
+df_search_results = oo_conn.search2df(
+    sql,
+    start_time=start_timeperiod,
+    end_time=end_timeperiod,
+    verbosity=5,
+)
+
+# Export settings in split json, csv, or xlsx
+OO.config_export(f"{tmpdir}/", verbosity=0, split=True)
+OO.config_export(f"{tmpdir}/", verbosity=0, outformat="csv")
+OO.config_export(f"{tmpdir}/", verbosity=0, outformat="xlsx")
+```
+
+## Troubleshooting
+
+If you have issues, try:
+
+* increase verbosity
+* reproduce issue with curl directly
+* check known issues
+
+## Known issues
+
+There are notable gaps and inconsistence in openobserve API at Q2 2025. Check against documentation and swagger. Report API issues upstream.
+
+* folder_id in alerts creation is ignored
+* API field names are variable (id, alert_id)
+* API returns are inconsistent (use folderId at alert creation but get folder name at alert listing)
+
