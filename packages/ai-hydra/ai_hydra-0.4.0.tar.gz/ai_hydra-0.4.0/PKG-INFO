@@ -1,0 +1,132 @@
+Metadata-Version: 2.4
+Name: ai-hydra
+Version: 0.4.0
+Summary: ZeroMQ-based client-server communication framework
+Author: Your Name
+Author-email: your.email@example.com
+Requires-Python: >=3.11,<4.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: pyzmq (>=25.0.0,<26.0.0)
+Description-Content-Type: text/markdown
+
+# Hydra Router
+
+A standalone ZeroMQ-based message routing system that provides reliable communication between multiple clients and a single server.
+
+## Features
+
+- **Centralized Message Routing**: Routes messages between multiple clients and a single server
+- **Message Format Conversion**: Automatic conversion between internal and router message formats
+- **Heartbeat Monitoring**: Automatic client health monitoring and connection tracking
+- **Comprehensive Error Handling**: Detailed validation and error reporting
+- **Simple Examples**: Includes simple client/server examples for quick testing
+- **Client Registry Query**: Query router for connected client information
+
+## Installation
+
+```bash
+pip install hydra-router
+```
+
+## Quick Start
+
+### Start the Router
+
+```bash
+# Basic usage
+hydra-router
+
+# Custom configuration
+hydra-router --address 0.0.0.0 --port 5556 --log-level INFO
+```
+
+### Simple Client/Server Demo
+
+```bash
+# Terminal 1: Start the router
+hydra-router --log-level DEBUG
+
+# Terminal 2: Start the simple server
+hydra-server_simple --router tcp://localhost:5556
+
+# Terminal 3: Start the simple client
+hydra-client_simple --router tcp://localhost:5556
+# Then enter numbers to see their squares calculated by the server
+```
+
+### Using the MQClient Library
+
+```python
+from hydra_router import MQClient, RouterConstants
+
+# Create a client
+client = MQClient(
+    router_address="tcp://localhost:5556",
+    client_type=RouterConstants.HYDRA_CLIENT,
+    client_id="my-client-001"
+)
+
+# Connect and send messages
+await client.connect()
+await client.send_message(my_message)
+
+# Query connected clients
+client_table = await client.request_client_registry()
+print("Connected clients:", client_table)
+```
+
+## Architecture
+
+The Hydra Router system consists of:
+
+- **HydraRouter**: Central message routing component
+- **MQClient**: Generic client library for applications
+- **RouterConstants**: Message format definitions and constants
+- **SimpleClient/SimpleServer**: Example applications
+
+## Configuration
+
+The router supports the following command-line options:
+
+- `--address, -a`: IP address to bind to (default: 0.0.0.0)
+- `--port, -p`: Port to bind to (default: 5556)
+- `--log-level`: Logging level (DEBUG, INFO, WARNING, ERROR, default: INFO)
+- `--help, -h`: Show help message
+
+## Requirements
+
+- Python 3.11+
+- ZeroMQ (pyzmq)
+
+## License
+
+GPL-3.0
+
+## Contributing
+
+This project follows the specification-driven development methodology. See the `.kiro/specs/` directory for detailed requirements, design, and implementation tasks.
+
+## Packaging & publishing 🔁
+
+- Local development and install (recommended):
+
+```bash
+poetry lock      # update lockfile
+poetry install   # install deps into the active environment
+```
+
+- Run the console command from the Poetry environment:
+
+```bash
+poetry run hydra-router   # or `poetry run hydra_router`
+# or: python -m hydra_router
+```
+
+- Publishing is handled by a GitHub Actions workflow that publishes on tag push (`v*.*.*`). See `.github/workflows/pypi-publish.yml` for the exact steps (install Poetry, build, and `poetry publish`).
+
+Note: The project uses Poetry/PEP621 `[project.scripts]` to declare console entry points (no setuptools entry-points). If you bump the package version, tag a release `vX.Y.Z` to trigger the publish workflow.
+
