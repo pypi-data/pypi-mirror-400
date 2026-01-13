@@ -1,0 +1,281 @@
+<p align="center">
+  <a href="https://thatipamula-jashwanth.github.io/SmartEco/">
+    <img src="https://img.shields.io/badge/Website-SmartEco-blue?style=for-the-badge" alt="SmartEco Website">
+  </a>
+</p>
+
+# ***SmartML***
+
+***SmartML*** is a **CPU-first machine learning benchmarking library** focused on **fair, leakage-free, and reproducible evaluation** of tabular machine learning models.
+
+SmartML is part of the ***SmartEco*** ecosystem.
+
+---
+
+## Core Principles
+
+- **CPU-only by default**
+- **Deterministic and reproducible benchmarks**
+- **Zero data leakage**
+- **Minimal but safe preprocessing**
+- **Honest model availability detection**
+- **Fair comparison across models**
+
+> SmartML only exposes models that actually run on the current system.
+
+No fake availability. No “works on my GPU” nonsense.
+
+---
+
+## Intended Use & Scope
+
+SmartML is **not a commercial AutoML system**.
+
+It is an **internal benchmarking and evaluation tool**, designed to:
+- Compare models fairly under identical conditions
+- Measure real-world CPU performance
+- Ensure leakage-free and reproducible results
+
+All models are evaluated using:
+- Fixed default hyperparameters
+- Identical preprocessing
+- Identical train/test splits
+
+No model is tuned, favored, or given any special advantage.
+
+SmartML prioritizes **fairness, transparency, and repeatability** over leaderboard-style optimization.
+
+For full details on:
+- Default hyperparameters
+- Preprocessing rules
+- Benchmark methodology
+
+Please refer to the official ***SmartEco*** documentation and website.
+
+---
+
+## Installation
+
+SmartML is used as part of the ***SmartEco*** package.
+
+Install SmartEco in editable mode from the directory that contains the `SmartEco` folder.
+
+### ***Required Dependencies***
+
+- `numpy`
+- `pandas`
+- `scikit-learn`
+
+### ***Optional Dependencies***
+
+Installing these unlocks additional models:
+
+- `lightgbm`
+- `xgboost`
+- `catboost`
+- `interpret` (for NAM / Explainable Boosting)
+- `pytorch-tabnet`
+- `torch` (CPU)
+- `smart-knn` (SmartEco-native)
+
+> Some research libraries are platform-dependent and may not be available on Windows CPU.  
+> SmartML automatically hides unavailable models.
+
+---
+
+## Data Encoding & Preprocessing
+
+SmartML uses **minimal, transparent, and safe preprocessing**.
+
+### ***Feature Encoding***
+
+- **Numerical features**  
+  Passed directly without modification.
+
+- **Categorical features**
+  - Low-cardinality → **One-Hot Encoding (OHE)**
+  - High-cardinality → **Target Encoding**
+
+### ***Target Encoding Safety***
+
+- Computed **only on the training split**
+- Validation and test data **never influence encoding**
+- Guarantees **zero target leakage**
+
+Additional guarantees:
+- Classification targets → label-encoded
+- Regression targets → remain continuous
+- Encoding logic is **task-aware**
+- Test targets are **never used** during preprocessing
+- Linear models are **feature-scaled** to ensure fair and stable benchmarking
+
+---
+
+## Train / Test Split
+
+- Fixed random seed is always used
+- Default split is deterministic
+- Stratification is applied automatically for classification
+- Regression splits are random but reproducible
+
+This ensures:
+- Identical splits across runs
+- Fair comparison between models
+- Benchmark repeatability
+
+---
+
+## Available Models
+
+SmartML dynamically detects and exposes models that are usable on the **current machine**.
+
+### ***Classification Models***
+
+Depending on installed dependencies:
+
+- Logistic Regression
+- Support Vector Classifier (SVC)
+- K-Nearest Neighbors (KNN)
+- Naive Bayes
+- Random Forest
+- Extra Trees
+- LightGBM
+- XGBoost
+- CatBoost
+- NAM (Explainable Boosting)
+- TabNet
+- **SmartKNN**
+- Optional research models (platform-dependent)
+
+---
+
+### ***Regression Models***
+
+Depending on installed dependencies:
+
+- Linear Regression
+- Ridge Regression
+- Lasso
+- ElasticNet
+- Support Vector Regressor (SVR)
+- KNN Regressor
+- Random Forest
+- Extra Trees
+- LightGBM
+- XGBoost
+- CatBoost
+- NAM (Explainable Boosting)
+- TabNet
+- **SmartKNN**
+- Optional research models (platform-dependent)
+
+---
+
+## Model Availability Policy
+
+If a model cannot run on the current system, it **does not appear**.
+
+SmartML:
+- Does **not** fake availability
+- Does **not** crash on missing dependencies
+- Does **not** assume Linux or GPU environments
+
+Model availability is determined **at runtime**.
+
+---
+
+## Inspection Utility
+
+SmartML provides a runtime inspection utility called ***SmartML_Inspect***.
+
+It generates a JSON file reporting:
+- Available classification models
+- Available regression models
+- Metrics used by SmartML
+
+> The output reflects **actual runtime capability**, not theoretical support.  
+> No terminal output is produced.
+
+---
+
+## Evaluation Metrics
+
+### ***Classification Metrics***
+- Accuracy
+- Macro F1 Score
+
+### ***Regression Metrics***
+- R² Score
+- Mean Squared Error (MSE)
+
+### ***Inference & Performance Metrics***
+- Training time
+- Batch inference time
+- Batch throughput
+- Single-sample mean latency
+- Single-sample P95 latency
+
+These metrics evaluate **both model quality and real-world performance**.
+
+---
+
+## Benchmarking Behavior
+
+For each model, SmartML:
+
+- Uses the same train/test split
+- Applies identical preprocessing
+- Trains the model
+- Measures training time
+- Measures batch inference time
+- Measures single-sample latency distribution
+- Records results in a unified format
+
+Result: **fair, comparable, honest benchmarks**.
+
+---
+
+## Platform Notes
+
+- **Windows + CPU** → fully supported
+- **Linux / WSL** → additional research models may become available
+- **GPU** → not required, not assumed, not enforced
+
+SmartML remains **CPU-safe by default**.
+
+---
+
+## Experimental & Research Models
+
+Some models exist in the codebase but may be hidden at runtime due to missing dependencies:
+
+- Torch-Tabular models (MLP, FTTransformer, SAINT, TabTransformer)
+- DeepGBM
+- GrowNet
+- ModernNCA
+
+These models are:
+- Guarded by optional imports
+- Exposed only when installable
+- Never removed from source code
+
+---
+
+## Architecture Overview
+
+SmartML is organized into modular components:
+
+- Dataset loading and encoding
+- Model registry and availability detection
+- Training and benchmarking engine
+- Evaluation and inference measurement
+- Inspection and reporting
+
+Each component is **deterministic and reproducible**.
+
+---
+
+## Part of SmartEco
+
+SmartML is one component of the ***SmartEco*** ecosystem
+
