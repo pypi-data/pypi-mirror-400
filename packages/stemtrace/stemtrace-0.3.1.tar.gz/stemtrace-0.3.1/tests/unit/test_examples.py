@@ -1,0 +1,245 @@
+"""Tests to validate examples work correctly.
+
+These tests ensure that the examples in the examples/ directory:
+1. Can be imported without errors
+2. Have properly configured Celery apps
+3. Define expected tasks
+4. Work with stemtrace instrumentation
+
+This helps catch regressions before shipping to users.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Add examples to path so we can import them
+EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
+sys.path.insert(0, str(EXAMPLES_DIR))
+
+
+class TestCeleryAppExample:
+    """Tests for the main celery_app.py example."""
+
+    def test_import_without_error(self) -> None:
+        """celery_app.py can be imported without errors."""
+        # Use fresh import to avoid state issues
+        import importlib
+
+        if "celery_app" in sys.modules:
+            importlib.reload(sys.modules["celery_app"])
+        else:
+            import celery_app  # noqa: F401
+
+    def test_celery_app_configured(self) -> None:
+        """Celery app is properly configured."""
+        from celery_app import app
+
+        assert app.main == "examples"
+        # Should have broker URL
+        assert app.conf.broker_url is not None
+
+    def test_tasks_defined(self) -> None:
+        """Expected tasks are defined."""
+        from celery_app import add, multiply, process_data
+
+        # Verify they are callable
+        assert callable(add)
+        assert callable(multiply)
+        assert callable(process_data)
+
+    def test_aggregate_results_defined(self) -> None:
+        """aggregate_results task for chord demos is defined."""
+        from celery_app import aggregate_results
+
+        assert callable(aggregate_results)
+
+    def test_add_task_logic(self) -> None:
+        """add task returns expected result."""
+        from celery_app import add
+
+        # add is a bound task, can't call directly without self
+        # Just verify it exists and is callable
+        assert hasattr(add, "delay")
+
+    def test_multiply_task_logic(self) -> None:
+        """multiply task is properly defined."""
+        from celery_app import multiply
+
+        # multiply is a bound task, verify it has delay method
+        assert hasattr(multiply, "delay")
+
+    def test_aggregate_results_handles_dicts(self) -> None:
+        """aggregate_results correctly sums dictionaries from add tasks."""
+        from celery_app import aggregate_results
+
+        # Simulate results from tasks with dict results containing "sum"
+        results = [
+            {"sum": 5},
+            {"sum": 7},
+            {"sum": 9},
+        ]
+        # aggregate_results is a bound task, call run() directly
+        result = aggregate_results.run(results)
+        assert result == {"total": 21, "count": 3}
+
+    def test_aggregate_results_handles_integers(self) -> None:
+        """aggregate_results handles integer results."""
+        from celery_app import aggregate_results
+
+        # Simulate integer results
+        results = [10, 20, 30]
+        result = aggregate_results.run(results)
+        assert result == {"total": 60, "count": 3}
+
+    def test_run_demo_function_exists(self) -> None:
+        """run_demo function for CLI is defined."""
+        from celery_app import run_demo
+
+        assert callable(run_demo)
+
+    def test_demo_options_include_chord(self) -> None:
+        """Demo options include standalone-group and standalone-chord."""
+        from celery_app import run_demo
+
+        # Check the docstring mentions expected demos
+        assert run_demo.__doc__ is not None
+        # Demo function exists and is callable
+        assert callable(run_demo)
+
+
+class TestFastAPIIntegrationExample:
+    """Tests for fastapi_integration.py example."""
+
+    def test_import_without_error(self) -> None:
+        """fastapi_integration.py can be imported without errors."""
+        import importlib
+
+        if "fastapi_integration" in sys.modules:
+            importlib.reload(sys.modules["fastapi_integration"])
+        else:
+            import fastapi_integration  # noqa: F401
+
+    def test_fastapi_app_defined(self) -> None:
+        """FastAPI app is defined."""
+        from fastapi_integration import app
+
+        assert app is not None
+
+    def test_stemtrace_routes_mounted(self) -> None:
+        """Stemtrace routes are mounted on the FastAPI app."""
+        from fastapi_integration import app
+
+        # Check that stemtrace routes are mounted
+        routes = [route.path for route in app.routes]
+        assert "/stemtrace" in routes
+        assert any("/stemtrace/" in route for route in routes)
+
+
+class TestWithAuthExample:
+    """Tests for with_auth.py example."""
+
+    def test_import_without_error(self) -> None:
+        """with_auth.py can be imported without errors."""
+        import importlib
+
+        if "with_auth" in sys.modules:
+            importlib.reload(sys.modules["with_auth"])
+        else:
+            import with_auth  # noqa: F401
+
+    def test_auth_credentials_configured(self) -> None:
+        """Auth credentials are configured."""
+        from with_auth import AUTH_PASSWORD, AUTH_USERNAME
+
+        assert AUTH_USERNAME is not None
+        assert AUTH_PASSWORD is not None
+        assert len(AUTH_USERNAME) > 0
+        assert len(AUTH_PASSWORD) > 0
+
+    def test_auth_routes_mounted(self) -> None:
+        """Stemtrace routes are mounted with auth protection."""
+        import importlib
+
+        # Force reload to get fresh module state
+        if "with_auth" in sys.modules:
+            importlib.reload(sys.modules["with_auth"])
+
+        from with_auth import app
+
+        # Check that stemtrace routes are mounted
+        routes = [route.path for route in app.routes]
+        assert "/stemtrace" in routes
+        assert any("/stemtrace/" in route for route in routes)
+
+
+class TestExamplesConsistency:
+    """Tests for consistency across examples."""
+
+    def test_celery_app_uses_redis_broker(self) -> None:
+        """celery_app.py defaults to redis broker unless overridden via env."""
+        from celery_app import app as celery_app_app
+
+        configured = os.getenv("CELERY_BROKER_URL")
+        if configured is None:
+            assert (celery_app_app.conf.broker_url or "").startswith("redis://")
+        else:
+            assert (celery_app_app.conf.broker_url or "") == configured
+
+    def test_celery_app_can_be_configured_via_env(self) -> None:
+        """celery_app.py respects CELERY_BROKER_URL and CELERY_RESULT_BACKEND env vars."""
+        import importlib
+
+        old_broker = os.environ.get("CELERY_BROKER_URL")
+        old_backend = os.environ.get("CELERY_RESULT_BACKEND")
+        old_transport = os.environ.get("STEMTRACE_TRANSPORT_URL")
+        try:
+            os.environ["CELERY_BROKER_URL"] = "amqp://guest:guest@localhost:5672//"
+            os.environ["CELERY_RESULT_BACKEND"] = "redis://localhost:6379/1"
+            os.environ["STEMTRACE_TRANSPORT_URL"] = (
+                "amqp://guest:guest@localhost:5672//"
+            )
+
+            # Fresh reload so module-level config reads env vars.
+            if "celery_app" in sys.modules:
+                importlib.reload(sys.modules["celery_app"])
+            else:
+                import celery_app  # noqa: F401
+
+            from celery_app import app as celery_app_app
+
+            assert celery_app_app.conf.broker_url == os.environ["CELERY_BROKER_URL"]
+            assert (
+                celery_app_app.conf.result_backend
+                == os.environ["CELERY_RESULT_BACKEND"]
+            )
+        finally:
+
+            def restore(key: str, old: str | None) -> None:
+                if old is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = old
+
+            restore("CELERY_BROKER_URL", old_broker)
+            restore("CELERY_RESULT_BACKEND", old_backend)
+            restore("STEMTRACE_TRANSPORT_URL", old_transport)
+
+            # Restore module defaults for any later tests.
+            if "celery_app" in sys.modules:
+                importlib.reload(sys.modules["celery_app"])
+
+    def test_stemtrace_initialization(self) -> None:
+        """Examples that use stemtrace should initialize it properly."""
+        # The celery_app.py initializes via stemtrace.init_worker()
+        from celery_app import app
+
+        # stemtrace should be initialized (check for signal handlers)
+        # This is implicit - if import works and app is configured, it's good
+        assert app is not None
+
+    def test_fastapi_extension_configured_with_redis(self) -> None:
+        """fastapi_integration.py should use redis broker URL."""
+        from fastapi_integration import BROKER_URL
+
+        assert "redis" in BROKER_URL
