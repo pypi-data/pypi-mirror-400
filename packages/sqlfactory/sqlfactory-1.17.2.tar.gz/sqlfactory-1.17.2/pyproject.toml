@@ -1,0 +1,110 @@
+[tool.poetry]
+name = "sqlfactory"
+version = "v1.17.2"
+description = "Convenient classes for building SQL queries in Python. Main purpose of this library is to ease construction of SQL queries in Python code. It is not an ORM (and don't intend to be), just a plain SQL query builder with syntax as similar to actual SQL as possible."
+authors = ["Michal Kuchta <niximor@gmail.com>"]
+readme = "README.md"
+packages = [{include = "sqlfactory"}]
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries",
+    "Programming Language :: SQL",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[tool.poetry.urls]
+Homepage = "https://gitlab.com/gcm-cz/sqlfactory"
+Repository = "https://gitlab.com/gcm-cz/sqlfactory"
+Issues = "https://gitlab.com/gcm-cz/sqlfactory/-/issues"
+Documentation = "https://gcm-cz.gitlab.io/sqlfactory/"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.1.1"
+pytest-asyncio = "^0.23.6"
+pylint = "^3.1.0"
+mypy = "^1.9.0"
+pytest-cov = "^5.0.0"
+ruff = "^0.9.2"
+pdoc = "^15.0.1"
+pytest-mypy-plugins = "^3.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pylint.'MESSAGES CONTROL']
+max-line-length = 130
+max-args = 8
+max-positional-arguments = 8
+disable = [
+    "missing-module-docstring",
+    "too-few-public-methods",
+    "duplicate-code",
+]
+enable = [
+    "useless-suppression"
+]
+load-plugins = [
+    "pylint.extensions.no_self_use",
+]
+
+[tool.mypy]
+# more informative output
+pretty = true
+show_error_codes = true
+show_error_context = true
+
+# stricter rules
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+
+# relaxing rules
+strict_optional = false
+follow_imports = "silent"
+disable_error_code = [
+    "import-untyped",
+]
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+# see https://docs.astral.sh/ruff/rules/ for more information about what checks each option adds
+select = [
+    "F",     # pyflakes
+    "E",     # pycodestyle (former pep8) error
+    "W",     # pycodestyle (former pep8) warning
+    "I",     # isort
+    "N",     # pep8-naming
+    "RUF",   # RUFF's own rules
+    "B",     # flake8-bugbear
+    "S",     # flake8-bandit
+    "A",     # flake8-builtins
+    "ASYNC", # flake8-async
+    "DTZ",   # flake8-datetimez
+    "YTT",   # flake8-annotations
+    "C4",    # flake8-comprehension
+    "G",     # flake8-logging-format
+]
+ignore = [
+    "N818",  # https://docs.astral.sh/ruff/rules/error-suffix-on-exception-name/
+    "S608",  # https://docs.astral.sh/ruff/rules/hardcoded-sql-expression/
+
+    # For better SQL compatibility (which is often written as uppercase), we offer uppercase versions of methods as alternative
+    # to snake_case names. This is why we ignore this rule.
+    "N802",  # https://docs.astral.sh/ruff/rules/function-name-should-be-lowercase/
+]
