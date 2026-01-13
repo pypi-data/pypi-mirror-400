@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_ConditionNode" Id="{56789012-5678-5678-5678-567890123abc}" SpecialFunc="None">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+{attribute 'strict'}
+(* Condition node with EXTENDS and multiple interface check *)
+FUNCTION_BLOCK FB_ConditionNode EXTENDS FB_BaseNode
+VAR_INPUT
+    bCondition : BOOL;
+END_VAR
+VAR
+    _bLastCondition : BOOL;
+    _nEvaluationCount : UDINT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Method Name="Tick" Id="{56789013-5678-5678-5678-567890123abc}">
+      <Declaration><![CDATA[METHOD Tick : E_NodeStatus]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_nEvaluationCount := _nEvaluationCount + 1;
+_bLastCondition := bCondition;
+
+IF bCondition THEN
+    Tick := E_NodeStatus.SUCCESS;
+    SetProgressComplete();
+ELSE
+    Tick := E_NodeStatus.FAILURE;
+END_IF
+
+eLastStatus := Tick;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Reset" Id="{56789014-5678-5678-5678-567890123abc}">
+      <Declaration><![CDATA[METHOD Reset : BOOL]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[SUPER^.Reset();
+_bLastCondition := FALSE;
+_nEvaluationCount := 0;
+Reset := TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="EvaluationCount" Id="{56789015-5678-5678-5678-567890123abc}">
+      <Declaration><![CDATA[PROPERTY EvaluationCount : UDINT]]></Declaration>
+      <Get Name="Get" Id="{56789016-5678-5678-5678-567890123abc}">
+        <Declaration><![CDATA[VAR
+END_VAR]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[EvaluationCount := _nEvaluationCount;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="LastCondition" Id="{56789017-5678-5678-5678-567890123abc}">
+      <Declaration><![CDATA[PROPERTY LastCondition : BOOL]]></Declaration>
+      <Get Name="Get" Id="{56789018-5678-5678-5678-567890123abc}">
+        <Declaration><![CDATA[VAR
+END_VAR]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[LastCondition := _bLastCondition;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+  </POU>
+</TcPlcObject>

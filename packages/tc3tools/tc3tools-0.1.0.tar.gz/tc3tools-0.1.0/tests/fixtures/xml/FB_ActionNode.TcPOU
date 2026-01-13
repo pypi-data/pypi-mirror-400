@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_ActionNode" Id="{33333333-3333-3333-3333-333333333333}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Action node that extends base node *)
+FUNCTION_BLOCK FB_ActionNode EXTENDS FB_BaseNode
+VAR
+    _nExecutionCount : INT;
+    _bFirstExecution : BOOL := TRUE;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Method Name="Tick" Id="{33333333-3333-3333-3333-333333333334}">
+      <Declaration><![CDATA[METHOD Tick : E_NodeStatus]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _bFirstExecution THEN
+    _bFirstExecution := FALSE;
+    _nExecutionCount := 0;
+END_IF
+
+_nExecutionCount := _nExecutionCount + 1;
+
+IF HasError() THEN
+    Tick := E_NodeStatus.FAILURE;
+ELSE
+    Tick := E_NodeStatus.SUCCESS;
+END_IF
+
+eLastStatus := Tick;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Reset" Id="{33333333-3333-3333-3333-333333333335}">
+      <Declaration><![CDATA[METHOD Reset : BOOL]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[SUPER^.Reset();
+_nExecutionCount := 0;
+_bFirstExecution := TRUE;
+Reset := TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetExecutionCount" Id="{33333333-3333-3333-3333-333333333336}">
+      <Declaration><![CDATA[METHOD PUBLIC GetExecutionCount : INT]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[GetExecutionCount := _nExecutionCount;]]></ST>
+      </Implementation>
+    </Method>
+  </POU>
+</TcPlcObject>

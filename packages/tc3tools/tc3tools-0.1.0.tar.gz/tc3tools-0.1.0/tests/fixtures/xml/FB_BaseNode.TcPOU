@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_BaseNode" Id="{22222222-2222-2222-2222-222222222222}" SpecialFunc="None">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+FUNCTION_BLOCK FB_BaseNode IMPLEMENTS I_TreeNode, I_Errorable
+VAR
+    eLastStatus : E_NodeStatus := E_NodeStatus.IDLE;
+    _sNodeName : STRING(50);
+    rProgress : REAL := 0.0;
+    _fbErrorHandler : FB_ErrorHandler;
+    _sFailedChildName : STRING(50);
+    _ipParent : I_TreeNode;
+    _bHalted : BOOL := FALSE;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Property Name="NodeName" Id="{22222222-2222-2222-2222-222222222223}">
+      <Declaration><![CDATA[PROPERTY NodeName : STRING(50)]]></Declaration>
+      <Get Name="Get" Id="{22222222-2222-2222-2222-222222222224}">
+        <Declaration><![CDATA[VAR
+END_VAR]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[NodeName := _sNodeName;]]></ST>
+        </Implementation>
+      </Get>
+      <Set Name="Set" Id="{22222222-2222-2222-2222-222222222225}">
+        <Declaration><![CDATA[VAR
+END_VAR]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[_sNodeName := NodeName;
+_fbErrorHandler.Initialize(_sNodeName);]]></ST>
+        </Implementation>
+      </Set>
+    </Property>
+    <Method Name="Tick" Id="{22222222-2222-2222-2222-222222222226}">
+      <Declaration><![CDATA[METHOD Tick : E_NodeStatus]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Tick := E_NodeStatus.IDLE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Halt" Id="{22222222-2222-2222-2222-222222222227}">
+      <Declaration><![CDATA[METHOD Halt]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_bHalted := TRUE;
+eLastStatus := E_NodeStatus.IDLE;
+rProgress := 0.0;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Reset" Id="{22222222-2222-2222-2222-222222222228}">
+      <Declaration><![CDATA[METHOD Reset : BOOL]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_bHalted := FALSE;
+eLastStatus := E_NodeStatus.IDLE;
+rProgress := 0.0;
+ClearError();
+Reset := TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="HasError" Id="{22222222-2222-2222-2222-222222222229}">
+      <Declaration><![CDATA[METHOD PUBLIC HasError : BOOL]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[HasError := _fbErrorHandler.IsActive();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetError" Id="{22222222-2222-2222-2222-22222222222a}">
+      <Declaration><![CDATA[METHOD PUBLIC GetError : ST_Error]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[GetError := _fbErrorHandler.GetError();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ClearError" Id="{22222222-2222-2222-2222-22222222222b}">
+      <Declaration><![CDATA[METHOD PUBLIC ClearError]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_fbErrorHandler.Clear();
+_sFailedChildName := '';]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetProgress" Id="{22222222-2222-2222-2222-22222222222c}">
+      <Declaration><![CDATA[METHOD PUBLIC GetProgress : REAL]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[GetProgress := rProgress;]]></ST>
+      </Implementation>
+    </Method>
+  </POU>
+</TcPlcObject>
