@@ -1,0 +1,56 @@
+---
+- name: Create VM resources directory
+  ansible.builtin.file:
+    path: "{{ download_dir }}"
+    state: directory
+
+- name: Download get-pip.py
+  ansible.builtin.get_url:
+    url: "https://bootstrap.pypa.io/get-pip.py"
+    dest: "{{ download_dir }}/get-pip.py"
+
+- name: Create pip packages directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ download_dir }}/pip_packages"
+    - "{{ download_dir }}/pip_packages/pip"
+    - "{{ download_dir }}/pip_packages/pip/ipython"
+
+- name: Download pip packages
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ item.destination }}"
+  loop:
+    - { url: "https://files.pythonhosted.org/packages/60/75/f692a584e85b7eaba0e03827b3d51f45f571c2e793dd731e598828d380aa/certifi-2019.3.9-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/certifi-2019.3.9-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/bc/a9/01ffebfb562e4274b6487b4bb1ddec7ca55ec7510b22e4c51f14098443b8/chardet-3.0.4-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/chardet-3.0.4-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/14/2c/cd551d81dbe15200be1cf41cd03869a46fe7226e7450af7a6545bfc474c9/idna-2.8-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/idna-2.8-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/c2/d7/90f34cb0d83a6c5631cf71dfe64cc1054598c843a92b400e55675cc2ac37/pip-18.1-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/pip-18.1-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/1f/2c/d9626f045e7b49a6225c6b09257861f24da78f4e5f23af2ddbdf852c99b8/pip-22.2.2-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/pip-22.2.2-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/7d/e3/20f3d364d6c8e5d2353c72a67778eb189176f08e873c9900e10c0287b84b/requests-2.21.0-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/requests-2.21.0-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/b6/40/353c051f77ee5618adaf1fd96f4f6bae9714ed0a22c7142c01c24eb77fe4/setuptools-65.5.1-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/setuptools-65.5.1-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/df/1c/59cca3abf96f991f2ec3131a4ffe72ae3d9ea1f5894abe8a9c5e3c77cfee/urllib3-1.24.2-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/urllib3-1.24.2-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/5a/9b/6aebe9e2636d35d1a93772fa644c828303e1d5d124e8a88f156f42ac4b87/wheel-0.32.2-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/wheel-0.32.2-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/0b/42/d9d95cc461f098f204cd20c85642ae40fbff81f74c300341b8d0e0df14e0/Pygments-2.14.0-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/Pygments-2.14.0-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/1f/aa/a6509b4059359edd00308e3f068212dca53b7252940862cc40981a2bd713/ipython-8.8.0-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/ipython-8.8.0-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/9a/41/220f49aaea88bc6fa6cba8d05ecf24676326156c23b991e80b3f2fc24c77/pickleshare-0.7.5-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/pickleshare-0.7.5-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/6a/81/aa96c25c27f78cdc444fec27d80f4c05194c591465e491a1358d8a035bc1/stack_data-0.6.2-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/stack_data-0.6.2-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/f3/e1/64679d9d0759db5b182222c81ff322c2fe2c31e156a59afd6e9208c960e5/asttokens-2.2.1-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/asttokens-2.2.1-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/6d/60/4acda63286ef6023515eb914543ba36496b8929cb7af49ecce63afde09c6/jedi-0.18.2-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/jedi-0.18.2-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/eb/37/791f1a6edd13c61cac85282368aa68cb0f3f164440fdf60032f2cc6ca34e/prompt_toolkit-3.0.36-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/prompt_toolkit-3.0.36-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/44/2d/76503546de9c5eaf70a5864288e9b3eb4d017c7bd7800b5fd6e93d1d4ab0/traitlets-5.8.0-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/traitlets-5.8.0-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/4c/1c/ff6546b6c12603d8dd1070aa3c3d273ad4c07f5771689a7b69a550e8c951/backcall-0.2.0-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/backcall-0.2.0-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/f2/51/c34d7a1d528efaae3d8ddb18ef45a41f284eacf9e514523b191b7d0872cc/matplotlib_inline-0.1.6-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/matplotlib_inline-0.1.6-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/22/a6/858897256d0deac81a172289110f31629fc4cee19b6f01283303e18c8db3/ptyprocess-0.7.0-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/ptyprocess-0.7.0-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/59/7c/e39aca596badaf1b78e8f547c807b04dae603a433d3e7a7e04d67f2ef3e5/wcwidth-0.2.5-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/wcwidth-0.2.5-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/d5/50/83c593b07763e1161326b3b8c6686f0f4b0f24d5526546bee538c89837d6/decorator-5.1.1-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/decorator-5.1.1-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/05/63/8011bd08a4111858f79d2b09aad86638490d62fbf881c44e434a6dfca87b/parso-0.8.3-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/parso-0.8.3-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/2b/27/77f9d5684e6bce929f5cfe18d6cfbe5133013c06cb2fbf5933670e60761d/pure_eval-0.2.2-py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/pure_eval-0.2.2-py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/28/3c/bc3819dd8b1a1588c9215a87271b6178cc5498acaa83885211f5d4d9e693/executing-1.2.0-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/executing-1.2.0-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/39/7b/88dbb785881c28a102619d46423cb853b46dbccc70d3ac362d99773a78ce/pexpect-4.8.0-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/pexpect-4.8.0-py2.py3-none-any.whl" }
+    - { url: "https://files.pythonhosted.org/packages/d9/5a/e7c31adbe875f2abbb91bd84cf2dc52d792b5a01506781dbcf25c91daf11/six-1.16.0-py2.py3-none-any.whl", destination: "{{ download_dir }}/pip_packages/pip/ipython/six-1.16.0-py2.py3-none-any.whl" }
+
+- name: Warn about missing files
+  ansible.builtin.fail:
+    msg: "Warning: Some required files are not available on the Internet, though they are unlikely to be used in recent experiments. If you do NOT need the following files [`python-pip-1404.tgz`, `python-pip-1604.tgz`, `xenial_python_3.7.tgz`, `xenial_python3.7_bin.tgz`, `xenial_python3.7_include.tgz`, and `xenial_python3.7_lib.tgz`] you should manually create {{ install_flag }}. Please contact the FIREWHEEL developers if you do need these files or have additional questions."

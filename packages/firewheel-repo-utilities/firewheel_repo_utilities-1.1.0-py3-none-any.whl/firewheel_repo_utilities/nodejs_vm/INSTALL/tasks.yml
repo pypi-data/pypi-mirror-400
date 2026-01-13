@@ -1,0 +1,12 @@
+---
+- name: Create VM resources directory
+  ansible.builtin.file:
+    path: "{{ download_dir }}"
+    state: directory
+
+- name: Download Node.js binaries
+  ansible.builtin.get_url:
+    url: "https://nodejs.org/dist/v{{ item.version }}/node-v{{ item.version }}-linux-x64.tar.xz"
+    dest: "{{ download_dir }}/node-v{{ item.version }}-linux-x64.tar.xz"
+    checksum: "sha256:{{ item.checksum }}"
+  loop: "{{ node_versions }}"
