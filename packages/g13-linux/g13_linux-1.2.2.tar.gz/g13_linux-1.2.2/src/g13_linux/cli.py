@@ -1,0 +1,269 @@
+"""
+G13 Linux CLI
+
+Command-line interface for controlling the Logitech G13.
+"""
+
+import argparse
+import sys
+
+from . import __version__
+
+
+# Color presets
+COLOR_PRESETS = {
+    "red": (255, 0, 0),
+    "green": (0, 255, 0),
+    "blue": (0, 0, 255),
+    "white": (255, 255, 255),
+    "yellow": (255, 255, 0),
+    "cyan": (0, 255, 255),
+    "magenta": (255, 0, 255),
+    "orange": (255, 128, 0),
+    "purple": (128, 0, 255),
+    "off": (0, 0, 0),
+}
+
+
+def cmd_run(args):
+    """Run the G13 input daemon."""
+    from .device import open_g13, read_event
+    from .mapper import G13Mapper
+
+    print("Opening Logitech G13…")
+    try:
+        h = open_g13()
+    except Exception as e:
+        print(f"Error: Could not open G13 device: {e}", file=sys.stderr)
+        print("Make sure the G13 is connected and udev rules are installed.", file=sys.stderr)
+        sys.exit(1)
+
+    mapper = G13Mapper()
+    print("G13 opened. Press keys; Ctrl+C to exit.")
+
+    try:
+        while True:
+            data = read_event(h)
+            if data:
+                mapper.handle_raw_report(data)
+    except KeyboardInterrupt:
+        print("\nExiting.")
+    finally:
+        h.close()
+        mapper.close()
+
+
+def cmd_lcd(args):
+    """Display text on the LCD."""
+    from .device import open_g13
+    from .hardware.lcd import G13LCD
+
+    try:
+        device = open_g13()
+    except Exception as e:
+        print(f"Error: Could not open G13: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    lcd = G13LCD(device)
+
+    if args.clear:
+        lcd.clear()
+        print("LCD cleared.")
+    else:
+        text = " ".join(args.text) if args.text else ""
+        if text:
+            lcd.clear()
+            lcd.write_text_centered(text)
+            print(f"LCD: {text}")
+        else:
+            print("No text provided. Use --clear to clear the LCD.", file=sys.stderr)
+            sys.exit(1)
+
+    device.close()
+
+
+def cmd_color(args):
+    """Set the backlight color."""
+    from .device import open_g13
+    from .hardware.backlight import G13Backlight
+
+    # Parse color
+    if args.color in COLOR_PRESETS:
+        r, g, b = COLOR_PRESETS[args.color]
+    elif len(args.color) == 6 and all(c in "0123456789abcdefABCDEF" for c in args.color):
+        # Hex color without #
+        r = int(args.color[0:2], 16)
+        g = int(args.color[2:4], 16)
+        b = int(args.color[4:6], 16)
+    elif args.color.startswith("#") and len(args.color) == 7:
+        # Hex color with #
+        r = int(args.color[1:3], 16)
+        g = int(args.color[3:5], 16)
+        b = int(args.color[5:7], 16)
+    else:
+        # Try RGB values
+        try:
+            parts = args.color.split(",")
+            if len(parts) == 3:
+                r, g, b = int(parts[0]), int(parts[1]), int(parts[2])
+            else:
+                raise ValueError()
+        except ValueError:
+            print(f"Error: Invalid color '{args.color}'", file=sys.stderr)
+            print(f"Use: preset name, hex (#FF0000), or RGB (255,0,0)", file=sys.stderr)
+            print(f"Presets: {', '.join(COLOR_PRESETS.keys())}", file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        device = open_g13()
+    except Exception as e:
+        print(f"Error: Could not open G13: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    backlight = G13Backlight(device)
+    backlight.set_color(r, g, b)
+    print(f"Backlight: RGB({r}, {g}, {b})")
+    device.close()
+
+
+def cmd_profile(args):
+    """Manage profiles."""
+    from .gui.models.profile_manager import ProfileManager
+
+    pm = ProfileManager()
+
+    if args.profile_cmd == "list":
+        profiles = pm.list_profiles()
+        if profiles:
+            print("Available profiles:")
+            for p in profiles:
+                print(f"  - {p}")
+        else:
+            print("No profiles found.")
+
+    elif args.profile_cmd == "show":
+        try:
+            profile = pm.load_profile(args.name)
+            print(f"Profile: {profile.name}")
+            print(f"Description: {profile.description or '(none)'}")
+            print(f"Backlight: {profile.backlight}")
+            print(f"LCD: {profile.lcd}")
+            print(f"Mappings ({len(profile.mappings)}):")
+            for key, value in sorted(profile.mappings.items()):
+                if isinstance(value, dict):
+                    print(f"  {key}: {value.get('keys', value)}")
+                elif value != "KEY_RESERVED":
+                    print(f"  {key}: {value}")
+        except FileNotFoundError:
+            print(f"Error: Profile '{args.name}' not found.", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.profile_cmd == "load":
+        try:
+            profile = pm.load_profile(args.name)
+            print(f"Loaded profile: {profile.name}")
+
+            # Apply backlight if device is available
+            try:
+                from .device import open_g13
+                from .hardware.backlight import G13Backlight
+
+                device = open_g13()
+                backlight = G13Backlight(device)
+
+                color = profile.backlight.get("color", "#FFFFFF")
+                if color.startswith("#"):
+                    r = int(color[1:3], 16)
+                    g = int(color[3:5], 16)
+                    b = int(color[5:7], 16)
+                    backlight.set_color(r, g, b)
+                    print(f"Applied backlight: RGB({r}, {g}, {b})")
+
+                device.close()
+            except Exception as e:
+                print(f"Note: Could not apply to device: {e}")
+
+        except FileNotFoundError:
+            print(f"Error: Profile '{args.name}' not found.", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.profile_cmd == "create":
+        if pm.profile_exists(args.name):
+            print(f"Error: Profile '{args.name}' already exists.", file=sys.stderr)
+            sys.exit(1)
+        profile = pm.create_profile(args.name)
+        pm.save_profile(profile)
+        print(f"Created profile: {args.name}")
+
+    elif args.profile_cmd == "delete":
+        try:
+            pm.delete_profile(args.name)
+            print(f"Deleted profile: {args.name}")
+        except FileNotFoundError:
+            print(f"Error: Profile '{args.name}' not found.", file=sys.stderr)
+            sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="g13-linux",
+        description="Logitech G13 Linux driver",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version", "-v", action="version", version=f"g13-linux {__version__}"
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    # run command
+    run_parser = subparsers.add_parser("run", help="Run the input daemon")
+    run_parser.set_defaults(func=cmd_run)
+
+    # lcd command
+    lcd_parser = subparsers.add_parser("lcd", help="Control the LCD display")
+    lcd_parser.add_argument("text", nargs="*", help="Text to display")
+    lcd_parser.add_argument("--clear", "-c", action="store_true", help="Clear the LCD")
+    lcd_parser.set_defaults(func=cmd_lcd)
+
+    # color command
+    color_parser = subparsers.add_parser("color", help="Set backlight color")
+    color_parser.add_argument(
+        "color",
+        help=f"Color: preset ({', '.join(COLOR_PRESETS.keys())}), hex (#FF0000), or RGB (255,0,0)",
+    )
+    color_parser.set_defaults(func=cmd_color)
+
+    # profile command
+    profile_parser = subparsers.add_parser("profile", help="Manage profiles")
+    profile_subparsers = profile_parser.add_subparsers(dest="profile_cmd", help="Profile commands")
+
+    profile_list = profile_subparsers.add_parser("list", help="List profiles")
+    profile_show = profile_subparsers.add_parser("show", help="Show profile details")
+    profile_show.add_argument("name", help="Profile name")
+    profile_load = profile_subparsers.add_parser("load", help="Load a profile")
+    profile_load.add_argument("name", help="Profile name")
+    profile_create = profile_subparsers.add_parser("create", help="Create a new profile")
+    profile_create.add_argument("name", help="Profile name")
+    profile_delete = profile_subparsers.add_parser("delete", help="Delete a profile")
+    profile_delete.add_argument("name", help="Profile name")
+
+    profile_parser.set_defaults(func=cmd_profile)
+
+    args = parser.parse_args()
+
+    if args.command is None:
+        # Default: run daemon
+        cmd_run(args)
+    elif hasattr(args, "func"):
+        if args.command == "profile" and args.profile_cmd is None:
+            profile_parser.print_help()
+            sys.exit(1)
+        args.func(args)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
