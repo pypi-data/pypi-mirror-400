@@ -1,0 +1,300 @@
+Metadata-Version: 2.4
+Name: cdd-tooling
+Version: 0.1.3
+Summary: Reference implementation of Contract-Driven Development tooling
+Project-URL: Homepage, https://github.com/thegdyne/cdd-tooling
+Project-URL: Documentation, https://github.com/thegdyne/cdd
+Author: Gareth Dyne
+License: MIT
+Keywords: cdd,contracts,testing,tooling,validation
+Requires-Python: >=3.10
+Requires-Dist: jsonschema>=4.22.0
+Requires-Dist: pyyaml>=6.0.1
+Requires-Dist: referencing>=0.35.1
+Requires-Dist: rich>=13.7.1
+Provides-Extra: dev
+Requires-Dist: mypy>=1.11.0; extra == 'dev'
+Requires-Dist: pytest>=8.2.0; extra == 'dev'
+Requires-Dist: ruff>=0.6.0; extra == 'dev'
+Provides-Extra: pdf
+Requires-Dist: pymupdf>=1.23.0; extra == 'pdf'
+Provides-Extra: sclang
+Description-Content-Type: text/markdown
+
+# CDD Tooling
+
+Reference implementation of [Contract-Driven Development](https://github.com/thegdyne/cdd) tooling.
+
+Implements **CDD Spec 1.1.5**
+
+## Installation
+
+```bash
+# Via pip
+pip install cdd-tooling
+
+# With PDF analysis support
+pip install cdd-tooling[pdf]
+
+# Via pipx (recommended for CLI use)
+pipx install cdd-tooling[pdf]
+
+# From source (editable)
+git clone https://github.com/thegdyne/cdd-tooling.git
+cd cdd-tooling
+pip install -e ".[dev,pdf]"
+```
+
+## Quick Start
+
+```bash
+# Analyze a reference artifact
+cdd analyze reference.pdf -o analysis/baseline/
+
+# Write contracts grounded in the analysis
+# ... edit contracts/project.yaml ...
+
+# Verify paths resolve
+cdd paths contracts/
+
+# Validate contracts
+cdd lint contracts/
+
+# Run a single contract in isolation
+cdd isolate contracts/feature.yaml
+
+# Run all tests
+cdd test contracts/
+
+# Compare output to baseline
+cdd analyze output.pdf -o analysis/output/
+cdd compare analysis/baseline/ analysis/output/
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `cdd spec --version` | Show spec/tool version |
+| `cdd paths <contracts/>` | Verify file paths in contracts resolve |
+| `cdd analyze <file> -o <dir>` | Extract baseline from PDF/HTML/source |
+| `cdd compare <baseline> <output>` | Compare two analyses |
+| `cdd lint <contracts/>` | Validate contract schema + coverage |
+| `cdd test <contracts/>` | Run contract tests |
+| `cdd isolate <contract>` | Run single contract in isolated workspace |
+| `cdd coverage <contracts/>` | Requirement coverage report |
+
+### Paths
+
+```bash
+# Verify all file paths in contracts resolve correctly
+cdd paths contracts/
+
+# Single contract
+cdd paths contracts/feature.yaml
+
+# JSON output
+cdd paths contracts/ --json
+```
+
+Pre-gate check that catches path errors before running tests. Extracts paths from `files:` fields and shell command arguments, verifies they resolve relative to the contract directory.
+
+### Analyze
+
+```bash
+# PDF analysis (requires [pdf] extra)
+cdd analyze form.pdf -o analysis/
+
+# HTML analysis
+cdd analyze wireframe.html -o analysis/
+
+# Source reference (Python, JS, SuperCollider, etc.)
+cdd analyze src/gui/window.py -o analysis/baseline/
+
+# Output varies by type:
+#   PDF/HTML: structure.json, elements.md, layout.md
+#   Source:   source.<ext>, structure.json, PATTERNS.md, elements.md
+```
+
+#### Source Reference Handler
+
+For readable source files, captures a frozen snapshot for reference-based development:
+
+```bash
+cdd analyze src/existing_module.py -o analysis/baseline/
+```
+
+Creates:
+```
+analysis/baseline/
+├── source.py          # Frozen snapshot of reference
+├── structure.json     # Metadata (hash, timestamp, lines)
+├── PATTERNS.md        # Pattern template (fill in)
+└── elements.md        # Summary
+```
+
+**Supported types:** `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.scd`, `.sc`, `.yaml`, `.json`, `.sh`, `.md`, `.css`, `.sql`, `.rs`, `.go`, `.rb`, `.lua`, `.c`, `.cpp`, `.java`, `.swift`, `.kt`
+
+**Workflow:**
+1. Analyze existing code: `cdd analyze reference.py -o analysis/baseline/`
+2. Fill in `PATTERNS.md` with patterns to preserve
+3. Write contract based on documented patterns
+4. Implement against contract
+
+### Compare
+
+```bash
+# Compare baseline to output (PDF, HTML, or source)
+cdd compare analysis/baseline/ analysis/output/
+
+# PDF/HTML: Shows exact deviations
+#   ✗ Element spacing: baseline 15pt, output 12pt (deviation: 3pt)
+#   ✓ Field dimensions: match within tolerance
+
+# Source: Hash-based comparison
+#   ✓ Files are identical
+#   ✗ Files differ - use contracts to verify structural requirements
+
+# JSON output for CI
+cdd compare analysis/baseline/ analysis/output/ --json
+```
+
+### Lint
+
+```bash
+# Basic validation
+cdd lint contracts/
+
+# Strict mode (warnings become errors)
+cdd lint contracts/ --strict
+
+# JSON output for CI
+cdd lint contracts/ --json
+```
+
+### Test
+
+```bash
+# Run all tests
+cdd test contracts/
+
+# With variables
+cdd test contracts/ --var target=my_component
+
+# Filter by test ID
+cdd test contracts/ --only T001
+
+# JSON output
+cdd test contracts/ --json
+```
+
+### Isolate
+
+Run a single contract in a clean, isolated workspace. Solves the problem of `cdd test` running all contracts in a directory.
+
+```bash
+# Run single contract in isolation
+cdd isolate contracts/feature.yaml
+
+# Verbose output (show setup steps)
+cdd isolate contracts/feature.yaml -v
+
+# Keep work directory after run (for debugging)
+cdd isolate contracts/feature.yaml --keep
+
+# Keep work directory only on failure
+cdd isolate contracts/feature.yaml --keep-on-fail
+
+# Preview without running (dry run)
+cdd isolate contracts/feature.yaml --dry-run
+
+# Only run path verification
+cdd isolate contracts/feature.yaml --paths-only
+
+# Custom work directory
+cdd isolate contracts/feature.yaml -w /tmp/my-test
+```
+
+**How it works:**
+1. Auto-detects project root (looks for `.cdd/`, `.git/`, or `src/` + `contracts/`)
+2. Creates temporary workspace in `/tmp/cdd-isolate-<hash>-<pid>/`
+3. Copies only the specified contract
+4. Symlinks required source directories
+5. Runs `cdd paths` then `cdd test`
+6. Cleans up (unless `--keep`)
+
+**Exit codes:**
+| Code | Meaning |
+|------|---------|
+| 0 | Paths and tests passed |
+| 1 | Test failure |
+| 2 | Path verification failed |
+| 3 | Contract parse error |
+| 4 | Project root not found |
+| 5 | Invalid source path |
+
+### Coverage
+
+```bash
+# Show requirement coverage
+cdd coverage contracts/
+
+# Fail if uncovered requirements exist
+cdd coverage contracts/ --strict
+```
+
+## Executors
+
+| Executor | Status | Actions | Use Case |
+|----------|--------|---------|----------|
+| `python` | ✅ Full | `call`, `call_n` | Python functions |
+| `shell` | ✅ Full | `shell` | CLI tools, scripts |
+| `static` | ⚠️ Partial | (file assertions) | Regex/content checks |
+| `sclang` | ⚠️ Stub | `render_nrt` | SuperCollider audio |
+
+**Note:** The `sclang` executor currently returns "not_implemented". Full NRT rendering support is planned for Phase 3.
+
+## Known Issues
+
+| Issue | Status | Workaround |
+|-------|--------|------------|
+| `cdd test file.yaml` runs all contracts in directory | Fixed | Use `cdd isolate` or `--only T001` |
+| Static executor `$.file.content` returns null | Open | Use shell executor with grep instead |
+
+## Spec Compatibility
+
+This tooling implements [CDD Spec](https://github.com/thegdyne/cdd) version **1.1.5**.
+
+| Tooling Version | Spec Version | Status |
+|-----------------|--------------|--------|
+| 0.1.x | 1.1.x | Current |
+
+The `cdd_spec` field in your contracts declares which spec version you're targeting. Tooling validates compatibility at runtime.
+
+## Documentation
+
+- **[CDD Spec](https://github.com/thegdyne/cdd)** — The methodology and normative specification
+- **[CHANGELOG.md](CHANGELOG.md)** — Tooling version history
+- **[ROADMAP.md](ROADMAP.md)** — Implementation status and future plans
+- **[CDD_ANALYSIS_AND_IMPROVEMENTS.md](CDD_ANALYSIS_AND_IMPROVEMENTS.md)** — Detailed implementation notes
+
+## Development
+
+```bash
+# Clone
+git clone https://github.com/thegdyne/cdd-tooling.git
+cd cdd-tooling
+
+# Install in dev mode
+pip install -e ".[dev,pdf]"
+
+# Run tests
+pytest
+
+# Lint
+ruff check src/
+```
+
+## License
+
+MIT

@@ -1,0 +1,65 @@
+contract: calculator
+version: 1.0.0
+status: draft
+description: |
+  Simple calculator for testing CDD tooling.
+
+runner:
+  executor: python
+  entry: calculator.py
+  symbol: add
+  timeout_ms: 5000
+
+requirements:
+  - id: R001
+    priority: must
+    description: Can add two numbers
+    acceptance_criteria:
+      - add(1, 2) returns 3
+
+  - id: R002
+    priority: must
+    description: Can subtract two numbers
+    acceptance_criteria:
+      - subtract(5, 3) returns 2
+
+tests:
+  - id: T001
+    name: add_positive_numbers
+    requirement: R001
+    type: unit
+    steps:
+      - action: call
+        with: { a: 1, b: 2 }
+        save_as: result
+    assert:
+      - op: eq
+        actual: $.result.value
+        expected: 3
+
+  - id: T002
+    name: add_negative_numbers
+    requirement: R001
+    type: unit
+    steps:
+      - action: call
+        with: { a: -1, b: -2 }
+        save_as: result
+    assert:
+      - op: eq
+        actual: $.result.value
+        expected: -3
+
+  - id: T003
+    name: subtract_numbers
+    requirement: R002
+    type: unit
+    steps:
+      - action: call
+        method: subtract
+        with: { a: 5, b: 3 }
+        save_as: result
+    assert:
+      - op: eq
+        actual: $.result.value
+        expected: 2
