@@ -1,0 +1,40 @@
+spark-submit-local: /workdir/spark-3.2.0-bin-hadoop2.7/bin/spark-submit
+python-local:
+  - .venv/bin/python3
+  - python3.7
+  - python3
+  - python
+spark-submit: /apache/spark3.1/bin/spark-submit
+files:
+  - file:///apache/hive/conf/hive-site.xml
+  - file:///apache/hadoop/etc/hadoop/ssl-client.xml
+  - file:///apache/hadoop/etc/hadoop/hdfs-site.xml
+  - file:///apache/hadoop/etc/hadoop/core-site.xml
+  - file:///apache/hadoop/etc/hadoop/federation-mapping.xml
+  - file:///apache/fed-test-confs/conf/federation-mapping.xml
+master: yarn
+deploy-mode: cluster
+queue: your-queue
+num-executors: 300
+executor-memory: 20G
+driver-memory: 30G
+executor-cores: 4
+archives:
+conf: 
+  spark.yarn.maxAppAttempts: 1
+  spark.dynamicAllocation.enabled: true
+  spark.dynamicAllocation.maxExecutors: 1000
+  spark.network.timeout: 300s
+  spark.driver.maxResultSize: 8g
+  spark.executor.memoryOverhead: 4G
+  spark.yarn.appMasterEnv.ARROW_PRE_0_15_IPC_FORMAT: 1
+  spark.executorEnv.ARROW_PRE_0_15_IPC_FORMAT: 1
+  spark.sql.execution.arrow.enabled: True
+  spark.executor.extraJavaOptions: -XX:MaxDirectMemorySize=8G
+  spark.sql.shuffle.partitions: 1000
+  spark.pyspark.driver.python: ./env/bin/python3
+  spark.pyspark.python: ./env/bin/python3
+email:
+  host:
+  from:
+  to:

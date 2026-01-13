@@ -1,0 +1,22 @@
+name: Release
+on:
+  release:
+    types: [published]
+jobs:
+  release:
+    name: Release autil
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Build and Pubblish Package to PyPI
+        run: |
+          ~/.local/bin/uv build
+          ls -lha dist/
+          ~/.local/bin/uv publish -u __token__ -p ${{ secrets.PYPI_AIUTIL }}

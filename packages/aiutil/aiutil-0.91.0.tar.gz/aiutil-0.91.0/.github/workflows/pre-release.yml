@@ -1,0 +1,30 @@
+name: pre-release
+on:
+  push:
+    branches:
+      - main
+jobs:
+  pre-release:
+    name: Pre Release
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Build Package
+        run: |
+          ~/.local/bin/uv build
+          ls -lha dist/
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          automatic_release_tag: next
+          prerelease: true
+          title: "Development Build"
+          files: |
+            dist/*
