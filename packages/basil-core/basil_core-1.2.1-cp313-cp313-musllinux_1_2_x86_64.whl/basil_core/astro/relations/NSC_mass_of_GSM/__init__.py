@@ -1,0 +1,2 @@
+from basil_core.astro.relations.NSC_mass_of_GSM.NSC_mass_of_GSM import Neumayer_early_NSC_mass
+from basil_core.astro.relations.NSC_mass_of_GSM.NSC_mass_of_GSM import Neumayer_late_NSC_mass
