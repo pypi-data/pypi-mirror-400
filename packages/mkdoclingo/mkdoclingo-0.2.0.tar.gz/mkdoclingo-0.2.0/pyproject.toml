@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mkdoclingo"
+authors = [{ name = "Potassco", email = "hahnmartinlu@uni-potsdam.de" }]
+description = "Mkdocs plugin to generate documentation from clingo files"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dynamic = ["version"]
+readme = "README.md"
+dependencies = [
+    "clingo",
+    "mkdocstrings>=1.0.0",
+    "tree-sitter",
+    "tree-sitter-clingo>=1.0.3",
+    "pydantic",
+    "pygments_clingo",
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.5",
+    "mkdocs-autorefs>=1.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/potassco/mkdoclingo.git/"
+
+[project.optional-dependencies]
+format = ["black", "isort", "autoflake"]
+lint_pylint = ["pylint", "djlint"]
+typecheck = ["types-setuptools", "mypy", "types-Markdown"]
+test = ["coverage[toml]", "pytest"]
+doc = ["mkdocstrings[python]", "mkdocs-literate-nav"]
+dev = ["mkdoclingo[test,typecheck,lint_pylint,doc]"]
+
+[project.entry-points."mkdocstrings.handlers"]
+clingo = "mkdocstrings_handlers.asp._internal.handler:ASPHandler"
+
+[tool.setuptools.package-data]
+"mkdocstrings_handlers.asp" = ["templates/**/*.css"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+version_scheme = "python-simplified-semver"
+local_scheme = "no-local-version"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.black]
+line-length = 120
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.design]
+max-args = 10
+max-attributes = 7
+max-bool-expr = 5
+max-branches = 12
+max-locals = 30
+max-parents = 7
+max-public-methods = 20
+max-returns = 10
+max-statements = 50
+min-public-methods = 1
+
+[tool.pylint.similarities]
+ignore-comments = true
+ignore-docstrings = true
+ignore-imports = true
+ignore-signatures = true
+
+[tool.pylint.basic]
+argument-rgx = "^[a-z][a-z0-9]*((_[a-z0-9]+)*_?)?$"
+variable-rgx = "^[a-z][a-z0-9]*((_[a-z0-9]+)*_?)?$"
+good-names = ["_"]
+
+[tool.coverage.run]
+source = ["mkdocstrings_handlers.asp", "tests"]
+
+[tool.coverage.paths]
+source = [
+    "src/mkdocstrings_handlers/asp",
+    "*/site-packages/mkdocstrings_handlers/asp",
+]
+
+[tool.coverage.report]
+exclude_lines = ["assert", "nocoverage"]
+
+[tool.djlint]
+profile = "jinja"
+indent = 2
+format_css = true
+format_js = true
+
+[tool.mypy]
+files = "src"
+mypy_path = "src"
+namespace_packages = true
+explicit_package_bases = true
+
+[tool.pytest]
+minversion = "9.0"
+testpaths = ["tests"]
