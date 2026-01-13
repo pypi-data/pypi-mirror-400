@@ -1,0 +1,30 @@
+# 1xx
+def StatusContinue() -> str: return "100 Continue"
+def StatusSwitchingProtocols() -> str: return "101 Switching Protocols"
+def StatusProcessing() -> str: return "102 Processing"
+# 2xx
+def StatusOK() -> str: return "200 OK"
+def StatusCreated() -> str: return "201 Created"
+def StatusAccepted() -> str: return "202 Accepted"
+def StatusNonAuthoritativeInformation() -> str: return "203 Non-Authoritative Information"
+def StatusNoContent() -> str: return "204 No Content"
+def StatusResetContent() -> str: return "205 Reset Content"
+# 3xx
+def StatusNotModified() -> str: return "304 Not Modified"
+def StatusUseProxy() -> str: return "305 Use Proxy"
+def StatusTemporaryRedirect() -> str: return "307 Temporary Redirect"
+# 4xx
+def StatusBadRequest() -> str: return "400 Bad Request"
+def StatusUnauthorized() -> str: return "401 Unauthorized"
+def StatusForbidden() -> str: return "403 Forbidden"
+def StatusNotFound() -> str: return "404 Not Found"
+def StatusProxyAuthenticationRequired() -> str: return "407 Proxy Authentication Required"
+def StatusRequestTimeout() -> str: return "408 Request Timeout"
+def StatusConflict() -> str: return "409 Conflict"
+def StatusPayloadTooLarge() -> str: return "413 Payload Too Large"
+def StatusURITooLong() -> str: return "414 URI Too Long"
+def StatusTooManyRequests() -> str: return "429 Too Many Requests"
+# 5xx
+def StatusInternalServerError() -> str: return "500 Internal Server Error"
+def StatusBadGateway() -> str: return "502 Bad Gateway"
+def StatusGatewayTimeout() -> str: return "504 Gateway Timeout"

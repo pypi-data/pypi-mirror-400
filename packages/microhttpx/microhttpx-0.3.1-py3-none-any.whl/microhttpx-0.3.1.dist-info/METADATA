@@ -1,0 +1,98 @@
+Metadata-Version: 2.4
+Name: microhttpx
+Version: 0.3.1
+Summary: Lightweight HTTP server library for microcontrollers.
+Author: netcorelink
+License: MIT
+Project-URL: Homepage, https://github.com/netcorelink/microhttpx
+Project-URL: Repository, https://github.com/netcorelink/microhttpx
+Project-URL: Documentation, https://github.com/netcorelink/microhttpx#readme
+Keywords: http,server,microcontroller,micropython,iot
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Classifier: Typing :: Typed
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+<p align="center">
+  <img alt="golangci-lint logo" src="https://avatars.githubusercontent.com/u/252895549?s=400&u=6c747c431c2844620af7772fcd716ef423a6ab1d&v=4" height="150" />
+  <h3 align="center">netcorelink/microhttpx</h3>
+  <p align="center">Lightweight HTTP server library for microcontrollers</p>
+</p>
+
+---
+
+`netcorelink/microhttpx` is a lightweight HTTP server library for microcontrollers.
+
+## Install by `pip` `microhttpx`
+
+```bash
+pip install microhttpx
+```
+
+## Install by `MicroPython` `microhttpx`
+
+For MicroPython, installation is performed by copying `microhttpx/*` the library files to the device's file system.
+
+example: `microhttpx/*` - `:lib/*`
+
+## A quick example
+
+### Route
+
+```python
+from microhttpx.status import StatusOK
+from microhttpx import HttpxServer, HttpxRequest, HttpxResponse
+
+server = HttpxServer()
+
+@server.route("/hello", methods=("GET",))
+def get_hello(req: HttpxRequest):
+  return HttpxResponse.json(req.conn, StatusOK(), {"message": "Hello, world!"})
+
+server.listen(port=8080)
+```
+
+### Structs
+
+```python
+from microhttpx import HttpxStruct, HttpxField
+
+class GetUsersStruct(HttpxStruct):
+    __route__ = "/users/{uuid}"
+    __fields__ = {
+        "uuid": HttpxField(str, required=True),
+        "expand": HttpxField(str, required=False, default="basic"),
+    }
+
+    uuid: str
+    expand: str
+```
+
+| Argument   | Type                  | Default value | Description                                                                                                              |
+| ---------- | --------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| field_type | type                  | str           | Field type (`str`, `int`, `float`, `bool`, `etc.`). The value is automatically converted during parsing.                 |
+| required   | bool                  | False         | Is the field required. If True and the field is missing, a `ValueError` is thrown.                                       |
+| default    | any                   | None          | The default value for an optional field. is used if no value is passed.                                                  |
+| validator  | Callable[[any], bool] | None          | A function to check the value of a field. It should return `True` if the value is valid. If `False`, an error is thrown. |
+
+`usage struct in route:`
+
+```python
+@server.route("/users/{uuid}")
+def get_user(req: HttpxRequest):
+    try:
+        user = GetUsersStruct(req)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    return HttpxResponse.json(req.conn, StatusOK(), {"message": {"uuid": user.uuid, "expand": user.expand}})
+```
+
+`microhttpx is not a complete replacement for full-fledged server frameworks (Flask, FastAPI, etc.)`
