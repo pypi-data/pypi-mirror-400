@@ -1,0 +1,36 @@
+id: connector@mirandaproject.eu			# OpenC2 identifier for the Consumer
+consumer:										# Communication stack configuration
+   host: '127.0.0.1'							# IP address to listen to (also reported when necessary to the Producer)
+   port: 8080									# TCP port to bind to
+   endpoint: "/.well-known/openc2"		# Endpoint (should not be changed)
+   encoding: "json"							# Serialization format (default to json)
+   transfer: "http"							# Transfer protocol (default to https)
+configs: "configs"							# Config folder with actuator-specific configuration files
+
+logger:											# Logging framework configuration. See the documentation
+   version: 1
+   formatters:
+      otupy:
+         (): otupy.LogFormatter
+         datetime: True
+         name: True
+      otupy2file:
+         (): otupy.LogFormatter
+         datetime: True
+         name: True
+         datefmt: "%t"
+   handlers:
+      console:
+         class: logging.StreamHandler
+         formatter: otupy
+         level: INFO
+         filters: Null
+      file:
+         class: logging.FileHandler
+         formatter: otupy2file
+         level: DEBUG
+         filters: Null
+         filename: "connector.log"
+   root:
+      handlers: [console, file]
+      level: INFO
