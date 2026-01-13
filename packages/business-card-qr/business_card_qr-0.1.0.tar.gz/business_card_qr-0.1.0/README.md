@@ -1,0 +1,64 @@
+# Business Card QR Code Generator
+
+Generate professional vCard QR codes with custom styling for business cards.
+
+## Features
+
+- 🎨 Custom colors and gradients
+- 🔲 Rounded corners with anti-aliasing
+- 🖼️ Logo embedding (PNG/JPG)
+- 📱 vCard format for easy contact import
+- 🎯 High error correction for reliable scanning
+- 🖥️ Beautiful Streamlit interface
+
+## Installation
+```bash
+pip install business-card-qr
+```
+
+## Usage
+
+### Web Interface
+
+Run the Streamlit app:
+```bash
+business-card-qr
+# or
+streamlit run -m business_card_qr.app
+```
+
+### Python API
+```python
+from business_card_qr import BusinessCardQRGenerator
+from PIL import Image
+
+# Create vCard data
+vcard = """BEGIN:VCARD
+VERSION:3.0
+FN:John Doe
+ORG:Example Company
+EMAIL:john@example.com
+END:VCARD"""
+
+# Generate QR code
+qr_gen = BusinessCardQRGenerator(vcard)
+qr_img = qr_gen.generate_custom(
+    rounded=True,
+    fill_color="black",
+    back_color="white"
+)
+
+# Save
+qr_img.save("business_card_qr.png")
+```
+
+## Requirements
+
+- Python 3.8+
+- qrcode[pil]
+- Pillow
+- streamlit
+
+## License
+
+MIT License
