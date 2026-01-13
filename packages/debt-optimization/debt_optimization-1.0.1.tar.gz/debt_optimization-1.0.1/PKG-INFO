@@ -1,0 +1,176 @@
+Metadata-Version: 2.4
+Name: debt-optimization
+Version: 1.0.1
+Summary: A novel optimization framework based on debt-paying mechanics
+Home-page: https://github.com/Arya1718/debt-optimization
+Author: Arya H
+Author-email: Arya H <arya.h1718@gmail.com>
+Project-URL: Homepage, https://github.com/Arya1718/debt-optimization
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.19.0
+Provides-Extra: accurate
+Requires-Dist: torch>=1.9.0; extra == "accurate"
+Provides-Extra: viz
+Requires-Dist: matplotlib>=3.3.0; extra == "viz"
+Provides-Extra: full
+Requires-Dist: torch>=1.9.0; extra == "full"
+Requires-Dist: matplotlib>=3.3.0; extra == "full"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Debt Optimization — Tyrion Lannister Debt‑Paying Optimization (TL‑DPO)
+
+A compact, extensible Python framework implementing the "Tyrion Lannister Debt‑Paying Optimization" (TL‑DPO) meta‑heuristic and utilities for Neural Architecture Search (NAS). TL‑DPO takes controlled "debt" (accepting worse solutions), then repays and overshoots in the opposite direction, plus a learning step toward the best found solution. This repository provides:
+
+- A domain‑agnostic TL‑DPO core (`core/debt_core.py`)
+- A NAS integration with a stable continuous encoding (`architecture/neural_architecture.py`)
+- An optimizer wrapper for NAS experiments (`optimizer/optimizer.py`)
+- A learned surrogate adapter & simple multi‑fidelity evaluation (`evaluation/adapter.py`)
+- Benchmarking and visualization scripts (`benchmarks/`)
+- Unit tests and example scripts (`examples/`, `tests/`)
+
+---
+
+## Features
+
+- Conditional debt moves, severity‑scaled repayment, and double payment (overshoot)
+- Directional intelligence toward the global best solution
+- Multi‑agent council consensus for population guidance
+- Stable continuous architecture encoding and decoding for NAS
+- Optional learned surrogate (FAST mode) and real training with successive halving (ACCURATE mode)
+- Benchmarking harness with baselines (random, hill‑climber, genetic, regularized evolution)
+
+---
+
+## Installation
+
+Recommended: editable install (for development):
+
+```powershell
+cd "C:\Documents\MHO LAB\debt_optimization"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e .
+```
+
+Or install from the distribution wheel produced by `python -m build`:
+
+```powershell
+python -m pip install dist\debt_optimization-1.0.0-py3-none-any.whl
+```
+
+Optional extras:
+
+```powershell
+pip install ".[full]"   # installs torch + matplotlib (if available for your platform)
+```
+
+---
+
+## Quickstart
+
+Run a short example (from the workspace parent folder):
+
+```powershell
+cd "C:\Documents\MHO LAB"
+python -m debt_optimization.example_using_package
+```
+
+Or run the simple usage example directly:
+
+```powershell
+python -m debt_optimization.examples.simple_usage
+```
+
+Typical workflow in code:
+
+```python
+from debt_optimization import DebtOptimizer, EvaluationMode
+
+opt = DebtOptimizer(mode=EvaluationMode.FAST, eval_budget=100, n_agents=3)
+best_arch, best_fitness, history, evals = opt.search(max_iterations=100)
+print(best_arch, best_fitness)
+```
+
+---
+
+## Benchmarks & Visualization
+
+Run the quick benchmark suite (FAST mode) comparing TL‑DPO to simple baselines:
+
+```powershell
+python -m debt_optimization.benchmarks.run_benchmarks
+```
+
+Visualize results (requires `pandas`, `matplotlib`, `seaborn`):
+
+```powershell
+python -m debt_optimization.benchmarks.visualize_results benchmarks/results.csv
+```
+
+For rigorous NAS comparisons, integrate with NAS‑Bench datasets (recommended next step).
+
+---
+
+## Testing
+
+Run unit tests with `pytest`:
+
+```powershell
+cd "C:\Documents\MHO LAB\debt_optimization"
+pytest -q
+```
+
+The test suite includes core behavior checks, adapter tests, and optional visualization tests (skipped if plotting libs are unavailable).
+
+---
+
+## Publishing to PyPI
+
+Build distributions and upload (TestPyPI recommended first):
+
+```powershell
+pip install --upgrade build twine
+python -m build
+twine check dist/*
+
+# Upload to TestPyPI
+$env:TWINE_USERNAME = "__token__"
+$env:TWINE_PASSWORD = "pypi-...TESTTOKEN..."
+twine upload --repository testpypi dist/*
+
+# Upload to PyPI (when ready)
+$env:TWINE_PASSWORD = "pypi-...PRODTOKEN..."
+twine upload dist/*
+```
+
+Add a `pyproject.toml` and `MANIFEST.in` are already included for packaging.
+
+---
+
+## Contributing
+
+Contributions, issues, and PRs are welcome. Suggested next improvements:
+
+- Full ENAS controller or wrappers for public NAS algorithms
+- Integration with NAS‑Bench datasets for reproducible comparison
+- More comprehensive evaluation metrics (parameters, FLOPs, latency)
+- CI pipeline to run tests and optional benchmarks
+
+Please open an issue describing the feature or bug before sending significant changes.
+
+
+---
+
+If you want, I can also add a short usage guide page, CI workflow, or a reproducible benchmark notebook — tell me which next.
