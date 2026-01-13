@@ -1,0 +1,24 @@
+"""Set up module for BCScraper"""
+from setuptools import setup, find_packages
+
+VERSION = "0.0.3"
+DESCRIPTION = "Un scraper para buscacursos.uc.cl."
+LONG_DESCRIPTION = "Un scraper para buscacursos.uc.cl hecho en Python."
+
+setup(
+    name="bcscraper",
+    version=VERSION,
+    author="Víctor Moreno",
+    author_email="vicmoor07@gmail.com",
+    maintainer="Víctor Moreno",
+    maintainer_email="vicmoor07@gmail.com",
+    description=DESCRIPTION,
+    long_description=LONG_DESCRIPTION,
+    license="MIT",
+    packages=find_packages(),
+    install_requires=[
+        "beautifulsoup4>=4.14.3",
+        "cloudscraper>=1.2.71",
+    ],
+    keywords=["scraper", "buscacursos", "uc"]
+)
