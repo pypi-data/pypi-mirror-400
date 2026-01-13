@@ -1,0 +1,25 @@
+from setuptools import setup, find_packages
+
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
+setup(
+    name='scGCA',
+    version='0.0.2',
+    description='Single-Cell Genome-Wide Chromatin Accessibility',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    author='Feng Zeng',
+    author_email='zengfeng@xmu.edu.cn',
+    packages=find_packages(),
+    install_requires=['dill==0.3.8','scanpy','pytorch-ignite','datatable','scipy','numpy','scikit-learn','pandas','pyro-ppl', "jax[cuda12]",
+                      'pyfaidx','pyBigWig','biopython',
+                      'leidenalg','python-igraph','networkx','matplotlib','seaborn','fa2-modified','zuko'],
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
+    ],
+    python_requires='>=3.9',
+    url='https://github.com/ZengFLab/scGCA',  # 项目的 GitHub 地址
+)
