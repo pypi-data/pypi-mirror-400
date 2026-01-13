@@ -1,0 +1,65 @@
+name: CI
+on:
+  push:
+  pull_request:
+    branches:
+      - master
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    name: Check Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.13"
+          - "3.14"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopus-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - run: rustup component add clippy
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Add problem matchers
+        run: echo "::add-matcher::.github/rust.json"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          version: "latest"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-features --all-targets
+
+      - name: Syncing uv project
+        run: uv sync --all-extras --dev --no-install-project --frozen
+
+      - name: Build wheels for checking
+        run: uv tool run maturin develop
+
+      - name: Run ruff
+        run: uv tool run ruff check --output-format=github
+
+      - name: Run ruff formatter
+        run: uv tool run ruff format --diff
+
+      - name: Run ty
+        run: uv tool run ty check --output-format=github --python-version ${{ matrix.python-version }}
