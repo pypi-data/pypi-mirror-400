@@ -1,0 +1,1 @@
+from basil_core.astro.relations.NSC_frac_of_GSM.NSC_frac_of_GSM import Neumayer_NSC_frac_of_GSM
