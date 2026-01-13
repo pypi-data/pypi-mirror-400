@@ -1,0 +1,94 @@
+Metadata-Version: 2.4
+Name: opentrace
+Version: 1.2.7
+Summary: Official Python SDK for OpenTrace Analytics (https://github.com/del4pp/opentrace)
+Project-URL: Homepage, https://opentrace.dev
+Project-URL: Repository, https://github.com/del4pp/opentrace
+Project-URL: Bug Tracker, https://github.com/del4pp/opentrace/issues
+Author-email: del4pp <del4pp.dev@proton.me>
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.7
+Requires-Dist: requests>=2.25.0
+Description-Content-Type: text/markdown
+
+# OpenTrace Python SDK
+
+Official Python client for [OpenTrace Analytics](https://github.com/del4pp/opentrace). Built for performance, privacy, and full marketing attribution.
+
+## Installation
+
+```bash
+pip install opentrace
+```
+
+## Quick Start (Telegram Bot)
+
+```python
+from opentrace import OpenTrace
+
+ot = OpenTrace(host="https://your-analytics.com", project_id="ot_web_123")
+
+# Track sub with auto-UTM resolution
+ot.track_event(
+    name="bot_start",
+    bot_param=command.args, # Extracts metadata from ?start=utm_XXXX
+    session_id=ot.get_user_hash(user_id) # Persistent privacy-first ID
+)
+```
+
+## User Identity & Persistence
+To track a user’s journey over time (User Timeline), use a consistent `session_id`. For Telegram bots, we recommend hashing the User ID:
+
+```python
+# Generate a short anonymous hash (e.g. 'a1b2c3d4e5f6')
+user_hash = ot.get_user_hash(message.from_user.id)
+
+# Every event sent with this hash will be linked in the dashboard
+ot.track_event("purchase", session_id=user_hash, payload={"price": 10})
+```
+
+## API Reference
+
+### `OpenTrace(host, project_id=None, debug=False)`
+Initialize the client.
+- `host`: URL of your OpenTrace instance.
+- `project_id`: Default Resource UID for all events.
+- `debug`: Enable verbose logging.
+
+---
+
+### `.track_event(...)`
+Recommended for Server-side actions and Bots.
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `str` | **Required**. Event name. |
+| `bot_param` | `str` | The `start` parameter from Telegram. Auto-resolves UTMs. |
+| `session_id`| `str` | Unique user identity for Timeline tracking. |
+| `project_id`| `str` | Resource UID (overrides default). |
+| `payload` | `dict`| Custom metadata. |
+| `utm_source`| `str` | Manual UTM Source. |
+| `utm_medium`| `str` | Manual UTM Medium. |
+| `utm_campaign`| `str` | Manual UTM Campaign. |
+
+---
+
+### `.get_user_hash(user_id)`
+Creates a persistent 16-char anonymous hash for a raw ID.
+
+---
+
+### `.resolve_bot_param(param)`
+Manually fetch campaign metadata from the server.
+
+---
+
+## Technical Features
+
+- **Asynchronous Execution**: Network requests are handled in background threads.
+- **Zero Dependencies**: Requires only the `requests` library.
+- **Privacy First**: Tools included to anonymize sensitive IDs before tracking.
+
+## License
+MIT
