@@ -1,0 +1,312 @@
+#!/usr/bin/env python3
+"""
+A CLI app / python package for interacting with Aruba Central Cloud Management Platform.
+
+Features of Central CLI:
+  - Cross Platform Support
+  - Auto/TAB Completion
+  - Specify device, site, etc. by fuzzy match of multiple fields (i.e. name, mac, serial#, ip address)
+  - Multiple output formats + Output to file
+  - Numerous import formats (csv, yaml, json, etc.)
+  - Multiple workspace support (easily switch between different central workspaces --ws myotherworkspace)
+  - Batch Operation based on data from input file. i.e. Add sites in batch based on data from a csv.
+  - Automatically rename APs in mass using portions or all of:
+    - The switch hostname the AP is connected to, switch port, AP MAC, AP model, AP serial, and the Site it's assigned to in Aruba Central
+  - Automatic Token refresh. With prompt to paste in a new token if it becomes invalid.
+
+centralcli can also be imported as a python package for use in your own scripts.
+
+Documentation: https://central-api-cli.readthedocs.io/en/latest/readme.html
+HomePage: https://github.com/Pack3tL0ss/central-api-cli
+"""
+# flake8: noqa
+import os
+import sys
+from pathlib import Path
+from typing import Callable, Iterable, List, Literal, Optional, Sequence, overload
+from functools import cached_property
+
+import click
+import typer
+from rich.traceback import install
+
+from .environment import env
+from .utils import Utils
+
+install(show_locals=True, suppress=[click])
+
+
+utils = Utils()  # TODO make utils.py a module, strip the class
+
+
+@overload
+def get_option_from_args(option: str, is_flag: Literal[True]) -> bool: ...
+
+@overload
+def get_option_from_args(option: str) -> bool: ...
+
+@overload
+def get_option_from_args(option: str, is_flag: Literal[False]) -> str: ...
+
+@overload
+def get_option_from_args(option: str, is_flag: Literal[False], convert_int: Optional[Literal[False]], pop: Optional[bool]) -> str: ...
+
+@overload
+def get_option_from_args(option: str, is_flag: Literal[False], convert_int: Literal[True],  pop: Optional[bool]) -> int: ...
+
+def get_option_from_args(option: str, is_flag: bool = True, pop: bool = True, convert_int: bool = False) -> str | int | bool:
+    """Get CLI Options from sys.argv
+
+    Args:
+        option (str): The option to look for.  i.e. '--debug'
+        is_flag (bool, optional): If the option is a flag, meaning there is no value expected to follow and the return of this function will be a bool. Defaults to True.
+        pop (bool, optional): If the option should be removed from sys.argv after the value is determined. Defaults to True.
+        convert_int (bool, optional): If the value retuned should be coverted to an int. Defaults to False.
+
+    Returns:
+        str | int | bool | None: Returns a bool if is_flag=True.
+            Otherwise returns the value following the option (str unless convert_int otherwise int) or None if the option is not found.
+    """
+    assert not all([is_flag, convert_int])
+
+    if option not in sys.argv:
+        return False if is_flag else None
+
+    idx = sys.argv.index(option)
+    if pop:
+        _ = sys.argv.pop(sys.argv.index(option))
+
+    value_idx = idx if pop else idx + 1
+
+    if is_flag:
+        return True
+
+    value = sys.argv[value_idx] if not pop else sys.argv.pop(value_idx)
+
+    return value if not convert_int else int(value)
+
+
+_calling_script = Path(sys.argv[0])
+if str(_calling_script) == "." and os.environ.get("TERM_PROGRAM", "") == "vscode":
+    _calling_script = Path.cwd() / "cli.py"   # vscode run in python shell
+
+if _calling_script.name == "cencli":
+    base_dir = Path(typer.get_app_dir(__name__))
+elif _calling_script.name.startswith("test_"):
+    base_dir = _calling_script.parent.parent
+elif "centralcli" in Path(__file__).parts:
+    base_dir = Path(__file__).parent
+    while base_dir.name != "centralcli":
+        base_dir = base_dir.parent
+    base_dir = base_dir.parent
+else:
+    base_dir = _calling_script.resolve().parent
+    if base_dir.name == "centralcli":
+        base_dir = base_dir.parent
+    else:
+        print("Warning Logic Error in git/pypi detection")
+        print(f"base_dir Parts: {base_dir.parts}")
+
+from . import constants
+from .config import Config
+from .logger import MyLogger
+
+if os.environ.get("TERM_PROGRAM") == "vscode":  # pragma: no cover
+    from .vscodeargs import vscode_arg_handler
+    vscode_arg_handler()
+
+# hidden dev option stripped from args before instantiating CLI app
+# Must be b4 config is instantiated.
+# Results in use of mock cache.  API request/responses are still real
+if get_option_from_args("--mock"):
+    env.is_pytest = True
+
+config = Config(base_dir=base_dir)
+
+log_file = config.log_dir / f"{__name__}.log"
+
+if '--debug' in sys.argv or env.debug:
+    config.debug = True  # for the benefit of the 2 log messages below
+if '--debugv' in sys.argv:
+    config.debug = config.debugv = True
+    # debugv is stripped from args below
+
+log = MyLogger(log_file, debug=config.debug, show=config.debug, verbose=config.debugv, deprecation_warnings=config.deprecation_warnings)
+
+log.debug(f"{__name__} __init__ calling script: {_calling_script}, base_dir: {config.base_dir}")
+
+# HACK Windows completion fix for upstream issue.
+# completion has gotten jacked up.  typer calls click.utils._expand_args in Windows which was added in click 8, but completion is broken in click 8 so cencli is pinned to 7.1.2 until I can investigate further
+# This hack manually adds the _expand_args functionality to click.utils which is pinned to 7.1.2  Otherwise an exception is thrown on Windows.
+if os.name == "nt":  # pragma: no cover
+    def _expand_args(
+        args: Iterable[str],
+        *,
+        user: bool = True,
+        env: bool = True,
+        glob_recursive: bool = True,
+    ) -> List[str]:
+        """Simulate Unix shell expansion with Python functions.
+
+        See :func:`glob.glob`, :func:`os.path.expanduser`, and
+        :func:`os.path.expandvars`.
+
+        This is intended for use on Windows, where the shell does not do any
+        expansion. It may not exactly match what a Unix shell would do.
+
+        :param args: List of command line arguments to expand.
+        :param user: Expand user home directory.
+        :param env: Expand environment variables.
+        :param glob_recursive: ``**`` matches directories recursively.
+
+        :meta private:
+        """
+        import re
+        from glob import glob
+
+        out = []
+
+        for arg in args:
+            if user:
+                arg = os.path.expanduser(arg)
+
+            if env:
+                arg = os.path.expandvars(arg)
+
+            try:
+                matches = glob(arg, recursive=glob_recursive)
+            except re.error:
+                matches = []
+
+            if not matches:
+                out.append(arg)
+            else:
+                out.extend(matches)
+
+        return out
+
+    import click
+    if not hasattr(click.utils, "_expand_args"):
+        click.utils._expand_args = _expand_args
+
+# if no environ vars set for LESS command line options
+# set -X to retain scroll-back after quitting less
+#     -R for color output (default for the pager but defaults are not used if LESS is set)
+#     +G so (start with output scrolled to end) so scroll-back contains all contents
+# if not os.environ.get("LESS"):
+os.environ["LESS"] = "-RX +G"
+
+def _get_value_from_argv(flag: str, *, is_flag: bool = False, transformer: Callable = None, strip_from_argv: bool = True) -> tuple[Sequence, str | int | bool]:
+    if flag not in sys.argv:
+        return sys.argv, None if not is_flag else False
+
+    idx = sys.argv.index(flag)
+    if is_flag:
+        value = True
+    else:
+        value = sys.argv[idx + 1]  # want to fail fast here so not checking len of sys.argv
+
+    value = value if not transformer else transformer(value)
+    if strip_from_argv:
+        _ = [sys.argv.pop(idx) for _ in range(idx, idx + (1 if is_flag else 2))]
+
+    return sys.argv, value
+
+
+
+
+# Most of these are global hidden flags/args that are stripped before sending to cli
+# We do it this way, as we then don't need to include them in each CLI command
+# Most would be hidden flags anyway.
+sys.argv, raw_out = _get_value_from_argv("--raw", is_flag=True)
+if "--capture-raw" in sys.argv:  # captures raw responses into a flat file for later use in local testing
+    config.dev.capture_raw = True
+    _ = sys.argv.pop(sys.argv.index("--capture-raw"))
+if "--test" in sys.argv:
+    config.dev.capture_raw = True
+    sys.argv, env.current_test = _get_value_from_argv("--test")
+if "--debug-limit" in sys.argv:
+    _idx = sys.argv.index("--debug-limit")
+    _ = sys.argv.pop(sys.argv.index("--debug-limit"))
+    if len(sys.argv) - 1 >= _idx and sys.argv[_idx].isdigit():
+        config.dev.limit = int(sys.argv[_idx])
+        _ = sys.argv.pop(_idx)
+if "--sanitize" in sys.argv:
+    _ = sys.argv.pop(sys.argv.index("--sanitize"))
+    config.dev.sanitize = True
+if "--debugv" in sys.argv:
+    _ = sys.argv.pop(sys.argv.index("--debugv"))
+    # config var updated above, just stripping flag here.
+if "?" in sys.argv:
+    sys.argv[sys.argv.index("?")] = "--help"  # Replace '?' with '--help' as '?' causes issues in cli in some scenarios
+if "--account" in sys.argv:  # bachward compat TODO remove anytime after 12.2025
+    sys.argv = [item if item != "--account" else "--ws" for item in sys.argv]
+    print("--account flag is deprecated.  Use --ws or --workspace.", file=sys.stderr)
+if "--again" in sys.argv:
+    valid_options = ["--json", "--yaml", "--csv", "--table", "--sort", "-r", "--pager", "-d", "--debug"]
+    ws_flag = "--workspace" if "--workspace" in sys.argv else "--ws"
+    if ws_flag in sys.argv:
+        ws_idx = sys.argv.index(ws_flag) + 1
+        if len(sys.argv) - 1 >= ws_idx:
+            valid_options += ["--ws", sys.argv[ws_idx]]
+    out_args = []
+    if "--out" in sys.argv:
+        outfile = sys.argv[sys.argv.index("--out") + 1]
+        out_args = ["--out", outfile]
+
+    args = [*[arg for arg in sys.argv if arg in valid_options], *out_args]
+    sys.argv = [sys.argv[0], "show", "last", *args]
+
+from .classic.api import ClassicAPI
+from .cnx.api import CentralAPI, GreenLakeAPI
+
+class APIClients:  # TODO play with cached property vs setting in init to see how it impacts import performance across the numerous files that need this
+    def __init__(self, *, classic_base_url: str = config.classic.base_url, glp_base_url: str = config.glp.base_url, cnx_base_url: str = config.cnx.base_url, silent: bool = False):
+        self.classic_base_url = classic_base_url
+        self.glp_base_url = glp_base_url
+        self.cnx_base_url = cnx_base_url
+        self.silent = silent
+
+    @cached_property
+    def classic(self):
+        return ClassicAPI(self.classic_base_url, silent=self.silent)
+
+    @cached_property
+    def glp(self):
+        return None if not config.glp.ok else GreenLakeAPI(self.glp_base_url, silent=self.silent)
+
+    @cached_property
+    def cnx(self):
+        return None if not config.cnx.ok else CentralAPI(self.cnx_base_url, silent=self.silent)
+
+api_clients = APIClients()
+
+from .cache import Cache, CacheCert, CacheClient, CacheDevice, CacheGroup, CacheGuest, CacheInvDevice, CacheLabel, CacheMpsk, CacheMpskNetwork, CachePortal, CacheSite, CacheTemplate, CacheFloorPlanAP, CacheBuilding
+
+cache = Cache(config=config)
+if config.valid:
+    CacheDevice.set_db(cache.DevDB)
+    CacheInvDevice.set_db(cache.InvDB)
+    CacheCert.set_db(cache.CertDB)
+    CacheGroup.set_db(cache.GroupDB)
+    CacheSite.set_db(cache.SiteDB)
+    CacheClient.set_db(cache.ClientDB, cache=cache)
+    CacheLabel.set_db(cache.LabelDB)
+    CachePortal.set_db(cache.PortalDB)
+    CacheGuest.set_db(cache.GuestDB, cache=cache)
+    CacheTemplate.set_db(cache.TemplateDB)
+    CacheMpskNetwork.set_db(cache.MpskNetDB)
+    CacheMpsk.set_db(cache.MpskDB)
+    CacheBuilding.set_db(cache.BuildingDB)
+    CacheFloorPlanAP.set_db(cache.FloorPlanAPDB, building_db=cache.BuildingDB)
+
+from .clicommon import CLICommon
+
+common = CLICommon(config.workspace, cache, raw_out=raw_out)
+
+from . import cleaner, render
+
+# allow singular form and common synonyms for the defined show commands
+# show switches / show switch, delete label / labels ...
+if len(sys.argv) > 2:
+    sys.argv[2] = constants.arg_to_what(sys.argv[2], cmd=sys.argv[1])

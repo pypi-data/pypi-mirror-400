@@ -1,0 +1,238 @@
+[project]
+name = "centralcli"
+version = "9.2.3"
+description = "A CLI for interacting with Aruba Central (Cloud Management Platform).  Facilitates bulk imports, exports, reporting.  A handy tool if you have devices managed by Aruba Central."
+license = "MIT"
+authors = [{"name" = "Wade Wells (Pack3tL0ss)","email" = "cencli@consolepi.com"}]
+maintainers = [{"name" = "Wade Wells (Pack3tL0ss)","email" = "cencli@consolepi.com"}]
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+
+
+dependencies = [
+    "tabulate>=0.8",
+    "typer>=0.6,<0.11.0",
+    "pylibyaml>=0.1.0",
+    "PyYAML>=6",
+    "tinydb>=4",
+    "shellingham>=1",
+    "pendulum>=2",
+    "pycentral>=0.0.3",
+    "aiohttp>=3",
+    "asyncio>=3",
+    "rich>=10",
+    "tablib>=3",
+    "jinja2",
+    "pydantic>=2.0.0",
+    "ipaddress",
+    "fuzzywuzzy",
+    "levenshtein",
+    "click<=7.1.2",
+    "uniplot>=0.13.0",
+    "protobuf",
+    "eval_type_backport;python_version<'3.10'",
+    "colorama;platform_system == 'Windows'",
+    "oauthlib>=3.2.2",
+    "requests_oauthlib>=2.0.0",
+    "stringenum;python_version<'3.11'",
+]
+
+keywords = [
+    "cli",
+    "Aruba",
+    "Aruba Networks",
+    "Aruba Central",
+    "HPE",
+    "HPE Networking",
+    "API",
+    "RESTFUL",
+    "REST"
+]
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License"
+]
+
+[project.optional-dependencies]
+hook-proxy = ["fastapi", "uvicorn", "psutil"]
+speedups = [
+    "aiodns>=3.2.0;platform_system != 'Windows'",
+    "pycares<5.0.0;platform_system != 'Windows'",
+    "Brotli;platform_python_implementation == \"CPython\"",
+    "brotlicffi;platform_python_implementation != 'CPython'"
+]
+xlsx = ["tablib[xlsx]"]
+
+[project.urls]
+documentation = "https://central-api-cli.readthedocs.org"
+repository = "https://github.com/Pack3tL0ss/central-api-cli"
+issues = "https://github.com/Pack3tL0ss/central-api-cli/issues"
+
+[project.scripts]
+cencli = "centralcli.cli:app"
+
+[tool.poetry.group.dev.dependencies]
+ruff = ">=0.8.0"
+pytest = ">=6"
+pytest-cov = ">=6.2.1"
+nox = ">=2025.5.1"
+pytest-asyncio = ">=1.2.0"
+jsonref = ">=1.1.0"
+nox-uv = ">=0.6.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.hatch.build.targets.sdist]
+include = [
+]
+exclude = [
+  "/.github",
+  "/docs",
+  "/.*",
+  "*.lock",
+  "/logs",
+  "/out",
+  "/tests",
+  "noxfile.py",
+  "requirements*",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["centralcli"]
+
+[dependency-groups]
+test = [
+    "nox-uv>=0.6.3",
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "jsonref",
+]
+lint = [
+    "ruff",
+]
+dev = [
+    "ruff>=0.8.0",
+    "pytest>=6",
+    "pytest-cov>=6.2.1",
+    "nox>=2025.5.1",
+    "pytest-asyncio>=1.2.0",
+    "jsonref>=1.1.0",
+    "nox-uv>=0.6.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning"
+]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+omit = [
+    "centralcli/noxfile.py",
+    "centralcli/wh_proxy.py",
+    "centralcli/wh_proxy_service.py",
+    "centralcli/ws_client.py",
+    "centralcli/setup.py",
+    "centralcli/webhook.py",
+    "centralcli/snow.py",
+    "centralcli/boilerplate/*",
+    "protobuf/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "if __name__ == \"__main__\":",
+    "if __name__ == '__main__':",
+    "if TYPE_CHECKING:",
+    "# pragma: no cover",
+    "@overload",
+    "if not import_file:",
+    "if result.exit_code != 0",
+    "if result.exception:",
+    "if missing:",
+    "if ctx.resilient_parsing:",
+    "if ctx is not None and ctx.resilient_parsing:",
+    "if not config.valid:",
+    "if config.is_old_cfg:",
+    "if match and not completion:",  # cache get_..._identifier methods multi-match requires tty
+    "if len(match) > 1:",
+    "if config.is_old_cfg:",
+    "if config.dev.mock_tests:",
+]
+exclude_also = [
+    # 1. Exclude an except clause of a specific form:
+    # 'except ValueError:\n\s*assume\(False\)',
+    # 2. Comments to turn coverage on and off:
+    'no cover: start(?s:.)*?no cover: stop',
+    # 3. A pragma comment that excludes an entire file:
+    '\A(?s:.*# pragma: exclude file.*)\Z',
+    '\s*def __repr__(self):\n\s*.*return .*',
+]
+omit = [
+    "tests/test_rate_limit.py",
+    "tests/cache_test.py",
+    "*/snow.py",
+    "*/webhook.py",
+    "centralcli/__init__.py",
+    "centralcli/wh2snow.py",
+    "centralcli/dashboard/*",
+    "centralcli/vscodeargs.py",
+    "centralcli/clitree/dev.py",
+    "centralcli/protobuf/*",
+    "noxfile.py"
+]
+
+[tool.ruff]
+line-length = 181
+exclude = ["dashboard", "wh_proxy_service.py"]
+# Enable the pycodestyle (`E`) and Pyflakes (`F`) rules by default.
+# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# McCabe complexity (`C901`) by default.
+
+[tool.ruff.lint]
+select = ["E", "F", "W605"]
+ignore = ["E501"]  # ignore line too long
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+# fixable = ["ALL"]
+# unfixable = []
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+# Enable auto-formatting of code examples in docstrings. Markdown,
+# reStructuredText code/literal blocks and doctests are all supported.
+#
+# This is currently disabled by default, but it is planned for this
+# to be opt-out in the future.
+docstring-code-format = false
+
+# Set the line length limit used when formatting code snippets in
+# docstrings.
+#
+# This only has an effect when the `docstring-code-format` setting is
+# enabled.
+docstring-code-line-length = "dynamic"
