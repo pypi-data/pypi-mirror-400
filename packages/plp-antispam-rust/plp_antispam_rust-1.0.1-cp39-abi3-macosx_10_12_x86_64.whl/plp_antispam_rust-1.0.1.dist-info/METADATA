@@ -1,0 +1,76 @@
+Metadata-Version: 2.4
+Name: plp-antispam-rust
+Version: 1.0.1
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Topic :: Communications :: Email :: Filters
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Summary: Fast Rust-based anti-spam inference engine for email classification
+Author: Paul Lucian Pinzariu
+License: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+
+# plp-antispam-rust
+
+Fast Rust-based anti-spam inference engine for email classification, achieving **10x speedup** over pure Python with 99.9% accuracy.
+
+## Features
+
+- **High Performance**: 2,300+ emails/second inference speed (vs 220 emails/s in Python)
+- **Production Ready**: 99.9% accuracy on real-world spam datasets
+- **Cross-Platform**: Works on Linux, macOS (Intel/ARM), and Windows
+- **Python 3.9+**: Compatible with Python 3.9, 3.10, 3.11, 3.12, 3.13+ (abi3 stable ABI)
+- **Zero Dependencies**: Self-contained binary wheels, no external dependencies
+
+## Installation
+
+```bash
+pip install plp-antispam-rust
+```
+
+## Usage
+
+```python
+import plpas
+from plpas import RustEnsemble
+
+# Load pre-trained models
+ensemble = RustEnsemble.load("path/to/models")
+
+# Predict single email
+prediction = ensemble.predict(["email text here"])
+print(f"Spam probability: {prediction[0]}")
+
+# Batch prediction (faster)
+emails = ["email 1", "email 2", "email 3"]
+predictions = ensemble.predict(emails)
+```
+
+## Architecture
+
+4-model stacked ensemble:
+- Model 1: Naive Bayes + Word Unigrams
+- Model 2: Logistic Regression + Word Bigrams
+- Model 3: SVM + Character Trigrams
+- Model 4: XGBoost + Word 1-2 Grams
+- Meta-Classifier: Logistic Regression with StandardScaler
+
+All models are pre-trained and exported to MessagePack format for fast Rust deserialization.
+
+## Performance
+
+| Implementation | Speed (emails/s) | Accuracy |
+|---------------|------------------|----------|
+| Python (sklearn) | 220 | 99.93% |
+| **Rust (this package)** | **2,311** | **99.90%** |
+| **Speedup** | **10.5x** | **-0.03%** |
+
+## License
+
+MIT
+
+## Author
+
+Paul Lucian Pinzariu
+
