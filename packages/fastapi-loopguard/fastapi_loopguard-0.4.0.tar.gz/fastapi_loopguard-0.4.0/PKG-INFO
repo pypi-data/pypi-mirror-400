@@ -1,0 +1,127 @@
+Metadata-Version: 2.4
+Name: fastapi-loopguard
+Version: 0.4.0
+Summary: Detect event-loop blocking in FastAPI/Starlette with per-request attribution
+Project-URL: Homepage, https://github.com/parhamdavari/fastapi-loopguard
+Project-URL: Documentation, https://github.com/parhamdavari/fastapi-loopguard#readme
+Project-URL: Repository, https://github.com/parhamdavari/fastapi-loopguard
+Project-URL: Issues, https://github.com/parhamdavari/fastapi-loopguard/issues
+Author: Parham
+License-Expression: MIT
+License-File: LICENSE
+Keywords: asyncio,blocking,event-loop,fastapi,middleware,monitoring,performance,starlette
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: AsyncIO
+Classifier: Framework :: FastAPI
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Monitoring
+Classifier: Typing :: Typed
+Requires-Python: >=3.12
+Requires-Dist: starlette<1.0,>=0.37.0
+Provides-Extra: all
+Requires-Dist: prometheus-client>=0.19.0; extra == 'all'
+Requires-Dist: structlog>=24.1.0; extra == 'all'
+Provides-Extra: dev
+Requires-Dist: coverage>=7.4.0; extra == 'dev'
+Requires-Dist: fastapi>=0.110.0; extra == 'dev'
+Requires-Dist: httpx>=0.27.0; extra == 'dev'
+Requires-Dist: mypy>=1.8.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.3.0; extra == 'dev'
+Provides-Extra: prometheus
+Requires-Dist: prometheus-client>=0.19.0; extra == 'prometheus'
+Provides-Extra: stress
+Requires-Dist: locust>=2.20.0; extra == 'stress'
+Requires-Dist: uvicorn>=0.27.0; extra == 'stress'
+Provides-Extra: structlog
+Requires-Dist: structlog>=24.1.0; extra == 'structlog'
+Description-Content-Type: text/markdown
+
+<p align="center">
+  <img src="assets/loopguard-logo.webp" alt="LoopGuard" width="280" />
+</p>
+
+<p align="center">
+  <strong>Catch event-loop blocking in FastAPI with per-request attribution.</strong>
+</p>
+
+<p align="center">
+  <a href="https://badge.fury.io/py/fastapi-loopguard"><img src="https://badge.fury.io/py/fastapi-loopguard.svg" alt="PyPI version"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
+
+---
+
+When a request blocks your event loop (via `time.sleep()`, blocking I/O, or CPU work), LoopGuard detects it **and tells you which endpoint caused it**.
+
+## Install
+
+```bash
+pip install fastapi-loopguard
+```
+
+## Quick Start
+
+```python
+from fastapi import FastAPI
+from fastapi_loopguard import LoopGuardMiddleware
+
+app = FastAPI()
+app.add_middleware(LoopGuardMiddleware)
+```
+
+## Enforcement Modes
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `"warn"` | Console warnings + headers | **Default** |
+| `"strict"` | HTTP 503 + error page | Development / CI |
+| `"log"` | Silent logging | Production |
+
+```python
+from fastapi_loopguard import LoopGuardConfig
+
+# Development: strict enforcement (503 on blocking)
+config = LoopGuardConfig(dev_mode=True)
+
+# Production: silent logging
+config = LoopGuardConfig(enforcement_mode="log")
+
+app.add_middleware(LoopGuardMiddleware, config=config)
+```
+
+## What You Get
+
+### Strict Mode
+Returns an educational 503 page that explains what went wrong and how to fix it:
+
+<p align="center">
+  <img src="assets/error-page-screenshot.png" alt="Strict mode error page" width="600" />
+</p>
+
+---
+
+### Warn Mode
+Adds diagnostic headers to every response for debugging:
+
+<p align="center">
+  <img src="assets/error-page-screenshot-endpoint.png" alt="Warn mode headers" width="600" />
+</p>
+
+---
+
+### Log Mode
+Writes structured logs with full request attribution:
+
+<p align="center">
+  <img src="assets/error-page-screenshot-console.png" alt="Console output" width="600" />
+</p>
+
+---
