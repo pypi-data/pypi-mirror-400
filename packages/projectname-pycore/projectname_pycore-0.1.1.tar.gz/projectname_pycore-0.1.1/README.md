@@ -1,0 +1,228 @@
+# PyCore 1.0 — estado estable
+
+Este esqueleto separa claramente las capas del proyecto y refleja el estado
+estable de la versión **1.0.0**:
+
+- `pycore/`: núcleo Rust.
+- `python/projectname/`: capa Python que consume el núcleo.
+- `tests/`: pruebas asociadas.
+
+## Árbol de directorios actual
+
+```
+project/
+├── pycore/
+│   ├── Cargo.lock
+│   ├── Cargo.toml
+│   └── src/
+│       └── lib.rs
+├── python/
+│   └── projectname/
+│       ├── __init__.py
+│       ├── api.py
+│       └── core.py
+├── README.md
+├── pyproject.toml
+└── tests/
+    ├── README.md
+    ├── __init__.py
+    └── test_core.py
+```
+
+Regla básica: **Python y Rust viven juntos, pero no mezclados**. Cada lenguaje se mantiene en su propio árbol sin cruzar implementaciones.
+
+Nota rápida: **PyCore no piensa, ejecuta**; cualquier contribución debe respetar el contrato descrito en [docs/fase5_contrato.md](../docs/fase5_contrato.md).
+
+## Dónde va cada pieza de lógica
+
+Para mantener la disciplina del roadmap, seguimos la regla de colocar el **código crítico** y los **bucles** en `pycore/`, mientras que la **orquestación** y la **API pública** residen en `python/projectname/`. Consulta el detalle en [docs/hoja_ruta.txt](../docs/hoja_ruta.txt).
+
+- `pycore/` (núcleo Rust):
+  - Bucles ajustados al rendimiento.
+  - Validaciones masivas o parsing intensivo.
+  - Cálculo pesado (álgebra, cifrado, ML kernels).
+
+- `python/projectname/` (capa Python):
+  - DSLs y funciones que componen pipelines.
+  - Orquestación de llamadas batch al core.
+  - API pública y contratos expuestos a usuarios finales.
+
+## Requisitos previos
+
+Para construir el paquete necesitas instalar:
+
+- Python **>= 3.10**.
+- Rust **>= 1.75** con `cargo` disponible en el PATH.
+- [`maturin`](https://github.com/PyO3/maturin) instalado en el entorno de Python.
+
+### Verificación rápida del entorno (ejecutada desde `project/`)
+
+- Python reporta `Python 3.12.12`, cumpliendo con el mínimo requerido.
+- Rust y `cargo` reportan `rustc 1.89.0` y `cargo 1.89.0`, ambos superiores al mínimo solicitado.
+- `maturin` está instalado en el entorno actual con la versión `1.10.2`.
+
+## Fase 4: Compilar e instalar PyCore
+
+### Prerrequisitos
+
+- Rust **>= 1.75** disponible en el PATH.
+- [`maturin`](https://github.com/PyO3/maturin) instalado en el entorno actual.
+- Python **>= 3.10**.
+
+### Pasos desde `project/`
+
+1. Asegúrate de tener `maturin` instalado (si falta, instálalo):
+
+   ```bash
+   pip install maturin
+   ```
+
+2. Compila e instala el módulo en modo desarrollo:
+
+   ```bash
+   maturin develop
+   ```
+
+3. Verifica rápidamente que el módulo quedó disponible en el entorno:
+
+   ```bash
+   python -c "import pycore; print(pycore.core_add(2,3))"
+   ```
+
+## Estado del núcleo Rust
+
+El archivo `project/pycore/src/lib.rs` expone la función `core_add` como parte del módulo `pycore` y cuenta con pruebas internas que cubren sumas de enteros positivos, negativos y casos límite (incluido el cero) para validar el comportamiento básico del núcleo.
+
+## Construcción local rápida
+
+Ejecuta el siguiente comando desde la carpeta `project` para compilar la extensión y exponerla en el entorno actual. El manifiesto de Cargo vive en `pycore/` y queda referenciado en `pyproject.toml`, así que no necesitas pasarle rutas adicionales a `maturin`:
+
+```bash
+maturin develop
+```
+
+Tras compilar, puedes ejecutar el smoke test `tests/smoke_pycore.py`, que imprime la verificación `pycore.core_add(2, 3) == 5` si el módulo fue instalado correctamente.
+
+## Fase 6 — API gruesa (estable)
+
+La hoja de ruta exige minimizar cruces Py↔Core: **una llamada, muchos elementos**. Agrupa los datos en lotes y delega en funciones batch para reducir la latencia. Consulta la guía detallada en [docs/fase6_api_gruesa.md](../docs/fase6_api_gruesa.md). El tamaño de lote recomendado y por defecto en 1.0 es **20_000** (`DEFAULT_BATCH_SIZE`).
+
+### Ejemplo mínimo con la API batch actual
+
+```python
+from projectname.api import add_batch
+
+# Paquetiza los datos una sola vez
+pares = [(1, 2), (5, -5), (-3, 4)]
+
+# Una llamada al núcleo procesa todo el lote
+resultados = add_batch(pares)
+print(resultados)  # [3, 0, 1]
+```
+
+### Ejemplo mixto con `process_batch`
+
+Este es el recorrido recomendado para lotes heterogéneos: materializa el lote,
+haz una sola llamada gruesa y evita bucles Python→Core repetidos. La guía
+completa está en [docs/fase6_api_gruesa.md](../docs/fase6_api_gruesa.md), que
+refuerza la regla **«una llamada, muchos elementos»**. Por defecto se procesan
+fragmentos de 20k operaciones para equilibrar latencia y throughput.
+
+```python
+from projectname.api import process_batch
+
+# Lote mixto: cada tupla sigue el esquema (operacion, a, b)
+lote_mixto = [
+    ("add", 3, 5),
+    ("subtract", 10, 7),
+    ("add", -2, 4),
+]
+
+# Una sola ida y vuelta al núcleo para todo el lote
+resultados = process_batch(lote_mixto)
+print(resultados)  # [8, 3, 2]
+```
+
+> ⚠️ Evita patrones del tipo `for op in operaciones: process(op)` desde
+> Python. Cada iteración abre un cruce Py↔Core extra: empaqueta todo y haz una
+> única llamada gruesa.
+
+## Fase 7 — Integración con Smooth Criminal (estable)
+
+La fase 7 expande la API gruesa para convivir con **Smooth Criminal**, la capa
+Python que orquesta y limpia los lotes antes de delegarlos en `process_batch`.
+El objetivo es mantener la regla del roadmap (*una llamada, muchos elementos*),
+reducir cruces Py↔Core y conservar trazabilidad en pipelines declarativos.
+
+### Instalación y requisitos
+
+1. Activa el entorno donde ya tienes compilado PyCore (`maturin develop`).
+2. Instala Smooth Criminal desde PyPI (o la fuente interna definida en la hoja
+   de ruta). La dependencia se resuelve en tiempo de ejecución y **no** se
+   empaqueta ningún stub local en el wheel publicado:
+
+   ```bash
+   pip install "smooth-criminal>=0.8.0"
+   ```
+
+3. Confirma que el módulo se resuelve en el intérprete configurado por tu IDE.
+
+### Pipeline mínimo con `@sc.pipeline`
+
+Smooth Criminal expone un decorador `@sc.pipeline` que permite envolver la
+orquestación previa al núcleo. El ejemplo siguiente empaqueta un lote mixto,
+normaliza alias de operación y hace una sola llamada gruesa a
+`projectname.smooth.process`, que delega en `core_process_batch` aplicando el
+`DEFAULT_BATCH_SIZE` estable (20k) salvo que se indique lo contrario.
+
+```python
+import smooth_criminal as sc
+from projectname.smooth import process
+
+
+@sc.pipeline
+def pipeline_pycore(lote, *, batch_size=None):
+    # Valida el esquema (operacion, a, b), normaliza alias y respeta el tamaño
+    # de lote por defecto si no se especifica otro explícito.
+    return process(lote, batch_size=batch_size)
+
+
+if __name__ == "__main__":
+    operaciones = [
+        ("add", 3, 5),
+        ("resta", 10, 7),
+        ("+", -2, 4),
+    ]
+    resultados = pipeline_pycore(operaciones)
+    print(resultados)
+
+## Detección automática de cuellos de botella (CLI)
+
+Para acelerar la pycorización sin recurrir a inspecciones manuales, la
+distribución incluye el comando `projectname-bottleneck`:
+
+- `projectname-bottleneck detect --script tu_script.py -- arg1 arg2` perfila el
+  recorrido como `__main__` y muestra las funciones con mayor tiempo
+  acumulado.
+- `projectname-bottleneck detect --callable modulo:funcion` ejecuta un callable
+  directo (sin try/except alrededor de imports) y devuelve el mismo resumen.
+- `projectname-bottleneck pycorice --script tu_script.py` usa la ruta
+  simplificada para generar automáticamente un plan de pycorización con
+  comandos listos para pegar. También puede invocarse como atajo con
+  `projectname-bottleneck -pycorice --script ...` o directamente con el
+  script `projectname-pycorice`.
+
+El resultado incluye tareas guiadas para priorizar la pycorización. Consulta
+[`docs/tareas_bottleneck_cli.md`](docs/tareas_bottleneck_cli.md) para ver un
+checklist detallado y repetir el comando de forma segura en CI.
+
+## Notas de migración hacia 1.0
+
+- El tamaño de lote por defecto sube de 10_000 a **20_000** para maximizar el
+  throughput sin penalizar la latencia perceptible.
+- Las rutas recomendadas pasan a ser `projectname.process` y
+  `projectname.process_pipeline` (decoradas con Smooth) para centralizar
+  validaciones y normalización de alias.
+- El resto de funciones (`add`, `add_batch_core`) permanecen para compatibilidad
+  pero se consideran rutas finas; prioriza siempre la API gruesa y los
+  pipelines Smooth.
