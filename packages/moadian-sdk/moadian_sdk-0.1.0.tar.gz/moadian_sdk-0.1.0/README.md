@@ -1,0 +1,449 @@
+# Moadian SDK
+
+A clean and simple Python SDK for interacting with the Iranian Tax Organization's Moadian API.
+
+## Features
+
+- ✅ Simple, intuitive API
+- ✅ Automatic Tax ID generation
+- ✅ Automatic invoice encryption and signing
+- ✅ Date-based serial number management (resets daily)
+- ✅ Optional serial storage (file or manual)
+- ✅ Rate limiting
+- ✅ Complete type hints
+- ✅ Comprehensive error handling
+- ✅ Server-friendly (no file writes by default)
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, create_invoice_item
+
+# Initialize client
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs"
+)
+
+# Create invoice items
+items = [
+    create_invoice_item(
+        sstid="PRODUCT_ID",
+        sstt="Product Name",
+        amount=1,
+        unit_fee=10000,
+        vat_rate=10,
+    )
+]
+
+# Create invoice data
+invoice_data = InvoiceData(
+    seller_tin="YOUR_TAX_ID",
+    buyer_tin="BUYER_TAX_ID",
+    items=items,
+    settlement_method=1,  # 1 = Cash, 2 = Credit
+)
+
+# Send invoice (SDK handles everything!)
+with client:
+    response = client.send_invoice(invoice_data)
+    print(f"Invoice sent! UID: {response.uid}")
+    print(f"Tax ID: {response.tax_id}")
+    print(f"Serial: {response.serial}")
+```
+
+## How It Works
+
+The SDK handles the complete invoice submission process:
+
+1. **Serial Number Generation**: Automatically generates sequential serial numbers (resets daily)
+2. **Tax ID Generation**: Creates unique Tax ID using fiscal ID, date, and serial number
+3. **Invoice Building**: Constructs invoice dictionary according to Moadian specification
+4. **Encryption**: Signs with JWS (RS256) and encrypts with JWE (RSA-OAEP-256 + AES256-GCM)
+5. **Submission**: Sends encrypted invoice to Moadian API
+6. **Response**: Returns invoice response with UID, reference number, Tax ID, and serial number
+
+## Serial Number Storage Options
+
+The SDK provides two modes for handling serial numbers:
+
+### Option 1: Automatic File Storage (Default: Disabled)
+
+When `enable_serial_storage=True`, the SDK automatically saves serial numbers to a text file:
+
+```python
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    enable_serial_storage=True,  # Enable automatic file storage
+    serial_file="last_serial.txt"  # Optional: custom file path
+)
+```
+
+**How it works:**
+- Serial numbers are stored in `last_serial.txt` (or custom file)
+- Format: `YYYY-MM-DD:serial_number` (date-based, resets daily)
+- Automatically loads last serial for today on startup
+- Automatically saves after each invoice submission
+- File format example:
+  ```
+  # Date-based serial numbers (YYYY-MM-DD:serial)
+  2024-01-15:42
+  2024-01-14:150
+  2024-01-13:89
+  ```
+
+**Use when:**
+- You have write access to the filesystem
+- You want automatic persistence across restarts
+- Single-instance application
+
+### Option 2: Manual Storage (Default: Enabled)
+
+When `enable_serial_storage=False` (default), the SDK uses in-memory serial management:
+
+```python
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    enable_serial_storage=False  # Default - no file writes
+)
+```
+
+**How it works:**
+- Serial numbers are managed in-memory only
+- Resets to 0 each day automatically
+- **You must store serial and tax_id manually** after each invoice
+- Serial numbers reset on application restart
+
+**Use when:**
+- Server environments without write access
+- Multi-instance applications (load-balanced)
+- You want to store serials in your database
+- You need custom storage logic
+
+**Manual Storage Example:**
+
+```python
+with client:
+    response = client.send_invoice(invoice_data)
+
+    # You MUST store these values manually
+    invoice_data_to_store = {
+        "uid": response.uid,
+        "reference_number": response.reference_number,
+        "tax_id": response.tax_id,      # Store this!
+        "serial": response.serial,        # Store this!
+        "timestamp": datetime.datetime.now().isoformat(),
+    }
+
+    # Store in your database
+    db.execute(
+        "INSERT INTO invoices (uid, tax_id, serial, reference_number) VALUES (?, ?, ?, ?)",
+        response.uid, response.tax_id, response.serial, response.reference_number
+    )
+
+    # Or save to file
+    with open("invoices.json", "a") as f:
+        json.dump(invoice_data_to_store, f)
+        f.write("\n")
+```
+
+## Certificate Setup
+
+Place your certificates in a `certs/` directory:
+
+```
+certs/
+├── private_key.pem      # Private key (PEM format)
+└── certificate.pem      # Certificate (PEM format)
+```
+
+The SDK will automatically find these files. If you use different filenames:
+
+```python
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    certs_dir="certs",
+    private_key_file="my_key.pem",
+    certificate_file="my_cert.pem",
+)
+```
+
+## API Reference
+
+### MoadianClient
+
+Main client class for interacting with Moadian API.
+
+#### Initialization
+
+```python
+MoadianClient(
+    client_id: str,                          # Required: Fiscal memory ID
+    certs_dir: str = "certs",                # Certificate directory
+    private_key_file: str = "private_key.pem",
+    certificate_file: str = "certificate.pem",
+    password: Optional[bytes] = None,        # Private key password
+    enable_serial_storage: bool = False,     # Enable file storage (default: False)
+    serial_file: str = "last_serial.txt",   # Serial file path
+)
+```
+
+#### Methods
+
+- `send_invoice(invoice_data, force_serial=None, min_delay=15.0)` - Send invoice (high-level)
+  - Returns: `InvoiceResponse` with `uid`, `reference_number`, `tax_id`, `serial`
+  - Handles: Tax ID generation, encryption, submission
+
+- `send_invoices(invoices, tax_id=None, serial=None)` - Send invoices (low-level)
+  - For advanced use cases
+
+- `get_server_information()` - Get server info and public keys
+  - Returns: `ServerInfo` object
+
+- `inquiry_by_uid(uid_list, fiscal_id=None)` - Check invoice status by UID
+  - Returns: List of status dictionaries
+
+- `inquiry_by_reference_id(reference_ids)` - Check invoice status by reference
+  - Returns: List of status dictionaries
+
+- `inquiry_by_time_range(start, end, page_number=1, page_size=10, status=None)` - Query invoices by date range
+
+- `get_fiscal_information(memory_id)` - Get fiscal memory information
+
+- `get_taxpayer_information(economic_code)` - Get taxpayer information
+
+### Models
+
+#### InvoiceResponse
+
+```python
+@dataclass
+class InvoiceResponse:
+    uid: str                    # Invoice UID (requestTraceId)
+    reference_number: str      # Moadian reference number
+    tax_id: str                # Generated Tax ID (22 characters)
+    serial: int                # Serial number (decimal format)
+    packet_type: Optional[str]
+    data: Optional[Any]
+```
+
+#### InvoiceData
+
+```python
+@dataclass
+class InvoiceData:
+    seller_tin: str            # Seller Tax ID
+    buyer_tin: str             # Buyer Tax ID
+    items: List[InvoiceItem]   # Invoice items
+    settlement_method: int = 1  # 1=Cash, 2=Credit
+    invoice_type: int = 1
+    invoice_pattern: int = 1
+    invoice_subject: int = 1
+```
+
+#### InvoiceItem
+
+```python
+@dataclass
+class InvoiceItem:
+    sstid: str                 # Service/Product ID
+    sstt: str                  # Service/Product Title
+    amount: int                # Quantity
+    unit_fee: int              # Unit price
+    vat_rate: int = 10         # VAT rate percentage
+    discount: int = 0          # Discount amount
+    measurement_unit: str = "164"
+```
+
+#### InvoiceStatus
+
+```python
+class InvoiceStatus(Enum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    IN_PROGRESS = "IN_PROGRESS"
+    NOT_FOUND = "NOT_FOUND"
+    TIMEOUT = "TIMEOUT"
+```
+
+### Utilities
+
+- `create_invoice_item(sstid, sstt, amount, unit_fee, vat_rate=10, discount=0, measurement_unit="164")` - Create invoice item dictionary
+
+## Complete Examples
+
+### Example 1: With Automatic Serial Storage
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, create_invoice_item
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    enable_serial_storage=True,  # Automatic file storage
+)
+
+items = [create_invoice_item(
+    sstid="PRODUCT_ID",
+    sstt="Product Name",
+    amount=1,
+    unit_fee=10000,
+)]
+
+invoice_data = InvoiceData(
+    seller_tin="YOUR_TAX_ID",
+    buyer_tin="BUYER_TAX_ID",
+    items=items,
+)
+
+with client:
+    response = client.send_invoice(invoice_data)
+    print(f"UID: {response.uid}")
+    print(f"Tax ID: {response.tax_id}")
+    # Serial automatically saved to last_serial.txt
+```
+
+### Example 2: Manual Storage (Server Environment)
+
+```python
+from moadian_sdk import MoadianClient, InvoiceData, create_invoice_item
+import json
+import datetime
+
+client = MoadianClient(
+    client_id="YOUR_FISCAL_ID",
+    enable_serial_storage=False,  # No file writes
+)
+
+items = [create_invoice_item(
+    sstid="PRODUCT_ID",
+    sstt="Product Name",
+    amount=1,
+    unit_fee=10000,
+)]
+
+invoice_data = InvoiceData(
+    seller_tin="YOUR_TAX_ID",
+    buyer_tin="BUYER_TAX_ID",
+    items=items,
+)
+
+with client:
+    response = client.send_invoice(invoice_data)
+
+    # Store manually in your database/file
+    invoice_record = {
+        "uid": response.uid,
+        "tax_id": response.tax_id,      # IMPORTANT: Store this!
+        "serial": response.serial,       # IMPORTANT: Store this!
+        "reference_number": response.reference_number,
+        "timestamp": datetime.datetime.now().isoformat(),
+    }
+
+    # Save to database
+    # db.insert("invoices", invoice_record)
+
+    # Or save to file
+    with open("invoices.json", "a") as f:
+        json.dump(invoice_record, f)
+        f.write("\n")
+```
+
+### Example 3: Check Invoice Status
+
+```python
+with client:
+    response = client.send_invoice(invoice_data)
+
+    # Check status
+    status_list = client.inquiry_by_uid([response.uid])
+    if status_list:
+        status = status_list[0].get("status")
+        print(f"Status: {status}")
+
+        if status == "SUCCESS":
+            print("Invoice accepted!")
+        elif status == "FAILED":
+            errors = status_list[0].get("data", {}).get("error", [])
+            for err in errors:
+                print(f"Error: {err['message']}")
+```
+
+## Project Structure
+
+```
+moadian-sdk/
+├── moadian_sdk/          # SDK package
+│   ├── __init__.py       # Public API
+│   ├── client.py         # Main API client
+│   ├── crypto.py         # Encryption/signing
+│   ├── invoice.py        # Invoice building & Tax ID generation
+│   ├── models.py         # Data models
+│   ├── exceptions.py     # Custom exceptions
+│   └── utils.py          # Certificate utilities
+├── main.py               # Example usage
+├── pyproject.toml        # Project configuration
+└── README.md            # This file
+```
+
+## Important Notes
+
+### Serial Number Management
+
+- **Serial numbers reset daily** - Each day starts from 0 (or 1)
+- **Must be unique per day** - The SDK ensures this automatically
+- **Storage is optional** - Choose based on your environment:
+  - **File storage**: Use when you have write access and single instance
+  - **Manual storage**: Use in server environments or multi-instance setups
+
+### Tax ID and Serial Storage
+
+**When `enable_serial_storage=False` (default):**
+- You **MUST** store `tax_id` and `serial` from the response
+- These are critical for invoice tracking and compliance
+- Store them in your database or file system
+- The SDK provides these values in `InvoiceResponse` for your convenience
+
+**When `enable_serial_storage=True`:**
+- Serial numbers are automatically saved to file
+- You should still store `tax_id` for your records
+- Serial file format: `YYYY-MM-DD:serial_number`
+
+### Server Environments
+
+For production server environments:
+1. Set `enable_serial_storage=False` (default)
+2. Store `tax_id` and `serial` in your database after each invoice
+3. Use your database to track serial numbers if needed
+4. The SDK handles serial generation, you handle persistence
+
+## Error Handling
+
+The SDK raises custom exceptions:
+
+- `MoadianException` - Base exception
+- `AuthenticationException` - Authentication failures
+- `APIException` - API errors
+- `CertificateException` - Certificate loading errors
+- `InvoiceException` - Invoice generation errors
+
+```python
+from moadian_sdk import MoadianClient, MoadianException, AuthenticationException
+
+try:
+    with client:
+        response = client.send_invoice(invoice_data)
+except AuthenticationException as e:
+    print(f"Auth failed: {e}")
+except MoadianException as e:
+    print(f"Error: {e}")
+```
+
+## License
+
+MIT
