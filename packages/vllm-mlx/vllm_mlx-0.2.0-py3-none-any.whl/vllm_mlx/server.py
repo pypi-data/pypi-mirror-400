@@ -1,0 +1,816 @@
+# SPDX-License-Identifier: Apache-2.0
+"""
+Unified OpenAI-compatible API server for vllm-mlx.
+
+This module provides a FastAPI server that exposes an OpenAI-compatible
+API for LLM and MLLM (Multimodal Language Model) inference using MLX on Apple Silicon.
+
+Supports two modes:
+- Simple mode (default): Maximum throughput for single-user scenarios
+- Batched mode: Continuous batching for multiple concurrent users
+
+Features:
+- Text-only LLM inference (mlx-lm)
+- Multimodal MLLM inference with images and video (mlx-vlm)
+- OpenAI-compatible chat/completions API
+- Streaming responses
+- MCP (Model Context Protocol) tool integration
+- Tool calling (Qwen/Llama formats)
+
+Usage:
+    # Simple mode (maximum throughput)
+    python -m vllm_mlx.server --model mlx-community/Llama-3.2-3B-Instruct-4bit
+
+    # Batched mode (for multiple concurrent users)
+    python -m vllm_mlx.server --model mlx-community/Llama-3.2-3B-Instruct-4bit --continuous-batching
+
+    # With MCP tools
+    python -m vllm_mlx.server --model mlx-community/Qwen3-4B-4bit --mcp-config mcp.json
+
+The server provides:
+    - POST /v1/completions - Text completions
+    - POST /v1/chat/completions - Chat completions (with multimodal support)
+    - GET /v1/models - List available models
+    - GET /health - Health check
+    - GET /v1/mcp/tools - List MCP tools
+    - GET /v1/mcp/servers - MCP server status
+    - POST /v1/mcp/execute - Execute MCP tool
+"""
+
+import argparse
+import asyncio
+import json
+import logging
+import os
+import time
+import uuid
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, Optional
+
+from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+
+# Import from new modular API
+from .api.models import (
+    Message,
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatCompletionChoice,
+    ChatCompletionChunk,
+    ChatCompletionChunkChoice,
+    ChatCompletionChunkDelta,
+    AssistantMessage,
+    CompletionRequest,
+    CompletionResponse,
+    CompletionChoice,
+    Usage,
+    ModelInfo,
+    ModelsResponse,
+    MCPToolInfo,
+    MCPToolsResponse,
+    MCPServerInfo,
+    MCPServersResponse,
+    MCPExecuteRequest,
+    MCPExecuteResponse,
+)
+from .api.utils import clean_output_text, extract_multimodal_content
+from .api.tool_calling import (
+    parse_tool_calls,
+    convert_tools_for_template,
+    parse_json_output,
+    build_json_system_prompt,
+)
+from .engine import BaseEngine, SimpleEngine, BatchedEngine
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Global engine instance
+_engine: Optional[BaseEngine] = None
+_model_name: Optional[str] = None
+_default_max_tokens: int = 32768
+
+# Global MCP manager
+_mcp_manager = None
+_mcp_executor = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan for startup/shutdown events."""
+    global _engine, _mcp_manager
+
+    # Startup: Start engine if loaded (needed for BatchedEngine in uvicorn's event loop)
+    if _engine is not None and hasattr(_engine, '_loaded') and not _engine._loaded:
+        await _engine.start()
+
+    # Initialize MCP if config provided
+    mcp_config = os.environ.get("VLLM_MLX_MCP_CONFIG")
+    if mcp_config:
+        await init_mcp(mcp_config)
+
+    yield
+
+    # Shutdown: Close MCP connections and stop engine
+    if _mcp_manager is not None:
+        await _mcp_manager.stop()
+        logger.info("MCP manager stopped")
+    if _engine is not None:
+        await _engine.stop()
+        logger.info("Engine stopped")
+
+
+app = FastAPI(
+    title="vllm-mlx API",
+    description="OpenAI-compatible API for MLX LLM/MLLM inference on Apple Silicon",
+    version="0.2.0",
+    lifespan=lifespan,
+)
+
+
+def get_engine() -> BaseEngine:
+    """Get the loaded engine, raising error if not loaded."""
+    if _engine is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    return _engine
+
+
+def load_model(
+    model_name: str,
+    use_batching: bool = False,
+    scheduler_config=None,
+    stream_interval: int = 1,
+    max_tokens: int = 32768,
+    force_mllm: bool = False,
+):
+    """
+    Load a model (auto-detects MLLM vs LLM).
+
+    Args:
+        model_name: HuggingFace model name or local path
+        use_batching: Use continuous batching (BatchedEngine) vs simple mode (SimpleEngine)
+        scheduler_config: Scheduler config for batched mode
+        stream_interval: Tokens to batch before streaming (batched mode only)
+        max_tokens: Default max tokens for generation
+        force_mllm: Force loading as MLLM even if not auto-detected
+    """
+    global _engine, _model_name, _default_max_tokens
+
+    _default_max_tokens = max_tokens
+    _model_name = model_name
+
+    if use_batching:
+        logger.info(f"Loading model with BatchedEngine: {model_name}")
+        _engine = BatchedEngine(
+            model_name=model_name,
+            scheduler_config=scheduler_config,
+            stream_interval=stream_interval,
+        )
+        # BatchedEngine will be started in lifespan (uvicorn's event loop)
+        # Just log for now
+        logger.info(f"LLM model loaded (batched mode): {model_name}")
+    else:
+        logger.info(f"Loading model with SimpleEngine: {model_name}")
+        _engine = SimpleEngine(model_name=model_name)
+        # Start SimpleEngine synchronously (no background loop)
+        asyncio.get_event_loop().run_until_complete(_engine.start())
+        model_type = "MLLM" if _engine.is_mllm else "LLM"
+        logger.info(f"{model_type} model loaded (simple mode): {model_name}")
+
+    logger.info(f"Default max tokens: {_default_max_tokens}")
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint."""
+    mcp_info = None
+    if _mcp_manager is not None:
+        connected = sum(1 for s in _mcp_manager.get_server_status() if s.state.value == "connected")
+        total = len(_mcp_manager.get_server_status())
+        mcp_info = {
+            "enabled": True,
+            "servers_connected": connected,
+            "servers_total": total,
+            "tools_available": len(_mcp_manager.get_all_tools()),
+        }
+
+    engine_stats = _engine.get_stats() if _engine else {}
+
+    return {
+        "status": "healthy",
+        "model_loaded": _engine is not None,
+        "model_name": _model_name,
+        "model_type": "mllm" if (_engine and _engine.is_mllm) else "llm",
+        "engine_type": engine_stats.get("engine_type", "unknown"),
+        "mcp": mcp_info,
+    }
+
+
+@app.get("/v1/models")
+async def list_models() -> ModelsResponse:
+    """List available models."""
+    models = []
+    if _model_name:
+        models.append(ModelInfo(id=_model_name))
+    return ModelsResponse(data=models)
+
+
+# =============================================================================
+# MCP Endpoints
+# =============================================================================
+
+@app.get("/v1/mcp/tools")
+async def list_mcp_tools() -> MCPToolsResponse:
+    """List all available MCP tools."""
+    if _mcp_manager is None:
+        return MCPToolsResponse(tools=[], count=0)
+
+    tools = []
+    for tool in _mcp_manager.get_all_tools():
+        tools.append(MCPToolInfo(
+            name=tool.full_name,
+            description=tool.description,
+            server=tool.server_name,
+            parameters=tool.input_schema,
+        ))
+
+    return MCPToolsResponse(tools=tools, count=len(tools))
+
+
+@app.get("/v1/mcp/servers")
+async def list_mcp_servers() -> MCPServersResponse:
+    """Get status of all MCP servers."""
+    if _mcp_manager is None:
+        return MCPServersResponse(servers=[])
+
+    servers = []
+    for status in _mcp_manager.get_server_status():
+        servers.append(MCPServerInfo(
+            name=status.name,
+            state=status.state.value,
+            transport=status.transport.value,
+            tools_count=status.tools_count,
+            error=status.error,
+        ))
+
+    return MCPServersResponse(servers=servers)
+
+
+@app.post("/v1/mcp/execute")
+async def execute_mcp_tool(request: MCPExecuteRequest) -> MCPExecuteResponse:
+    """Execute an MCP tool."""
+    if _mcp_manager is None:
+        raise HTTPException(
+            status_code=503,
+            detail="MCP not configured. Start server with --mcp-config"
+        )
+
+    result = await _mcp_manager.execute_tool(
+        request.tool_name,
+        request.arguments,
+    )
+
+    return MCPExecuteResponse(
+        tool_name=result.tool_name,
+        content=result.content,
+        is_error=result.is_error,
+        error_message=result.error_message,
+    )
+
+
+# =============================================================================
+# Audio Endpoints
+# =============================================================================
+
+# Global audio engines (lazy loaded)
+_stt_engine = None
+_tts_engine = None
+
+
+@app.post("/v1/audio/transcriptions")
+async def create_transcription(
+    file: UploadFile,
+    model: str = "whisper-large-v3",
+    language: Optional[str] = None,
+    response_format: str = "json",
+):
+    """
+    Transcribe audio to text (OpenAI Whisper API compatible).
+
+    Supported models:
+    - whisper-large-v3 (multilingual, best quality)
+    - whisper-large-v3-turbo (faster)
+    - whisper-medium, whisper-small (lighter)
+    - parakeet-tdt-0.6b-v2 (English, fastest)
+    """
+    global _stt_engine
+    import tempfile
+    import os
+
+    try:
+        from .audio.stt import STTEngine
+
+        # Map model aliases to full names
+        model_map = {
+            "whisper-large-v3": "mlx-community/whisper-large-v3-mlx",
+            "whisper-large-v3-turbo": "mlx-community/whisper-large-v3-turbo",
+            "whisper-medium": "mlx-community/whisper-medium-mlx",
+            "whisper-small": "mlx-community/whisper-small-mlx",
+            "parakeet": "mlx-community/parakeet-tdt-0.6b-v2",
+            "parakeet-v3": "mlx-community/parakeet-tdt-0.6b-v3",
+        }
+        model_name = model_map.get(model, model)
+
+        # Load engine if needed
+        if _stt_engine is None or _stt_engine.model_name != model_name:
+            _stt_engine = STTEngine(model_name)
+            _stt_engine.load()
+
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        try:
+            result = _stt_engine.transcribe(tmp_path, language=language)
+        finally:
+            os.unlink(tmp_path)
+
+        if response_format == "text":
+            return result.text
+
+        return {
+            "text": result.text,
+            "language": result.language,
+            "duration": result.duration,
+        }
+
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="mlx-audio not installed. Install with: pip install mlx-audio"
+        )
+    except Exception as e:
+        logger.error(f"Transcription failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/audio/speech")
+async def create_speech(
+    model: str = "kokoro",
+    input: str = "",
+    voice: str = "af_heart",
+    speed: float = 1.0,
+    response_format: str = "wav",
+):
+    """
+    Generate speech from text (OpenAI TTS API compatible).
+
+    Supported models:
+    - kokoro (fast, lightweight)
+    - chatterbox (multilingual, expressive)
+    - vibevoice (realtime)
+    - voxcpm (Chinese/English)
+    """
+    global _tts_engine
+    from fastapi.responses import Response
+
+    try:
+        from .audio.tts import TTSEngine
+
+        # Map model aliases to full names
+        model_map = {
+            "kokoro": "mlx-community/Kokoro-82M-bf16",
+            "kokoro-4bit": "mlx-community/Kokoro-82M-4bit",
+            "chatterbox": "mlx-community/chatterbox-turbo-fp16",
+            "chatterbox-4bit": "mlx-community/chatterbox-turbo-4bit",
+            "vibevoice": "mlx-community/VibeVoice-Realtime-0.5B-4bit",
+            "voxcpm": "mlx-community/VoxCPM1.5",
+        }
+        model_name = model_map.get(model, model)
+
+        # Load engine if needed
+        if _tts_engine is None or _tts_engine.model_name != model_name:
+            _tts_engine = TTSEngine(model_name)
+            _tts_engine.load()
+
+        audio = _tts_engine.generate(input, voice=voice, speed=speed)
+        audio_bytes = _tts_engine.to_bytes(audio, format=response_format)
+
+        content_type = "audio/wav" if response_format == "wav" else f"audio/{response_format}"
+        return Response(content=audio_bytes, media_type=content_type)
+
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="mlx-audio not installed. Install with: pip install mlx-audio"
+        )
+    except Exception as e:
+        logger.error(f"TTS generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/v1/audio/voices")
+async def list_voices(model: str = "kokoro"):
+    """List available voices for a TTS model."""
+    from .audio.tts import KOKORO_VOICES, CHATTERBOX_VOICES
+
+    if "kokoro" in model.lower():
+        return {"voices": KOKORO_VOICES}
+    elif "chatterbox" in model.lower():
+        return {"voices": CHATTERBOX_VOICES}
+    else:
+        return {"voices": ["default"]}
+
+
+# =============================================================================
+# Completion Endpoints
+# =============================================================================
+
+@app.post("/v1/completions")
+async def create_completion(request: CompletionRequest):
+    """Create a text completion."""
+    engine = get_engine()
+
+    # Handle single prompt or list of prompts
+    prompts = request.prompt if isinstance(request.prompt, list) else [request.prompt]
+
+    if request.stream:
+        return StreamingResponse(
+            stream_completion(engine, prompts[0], request),
+            media_type="text/event-stream",
+        )
+
+    # Non-streaming response with timing
+    start_time = time.perf_counter()
+    choices = []
+    total_completion_tokens = 0
+
+    for i, prompt in enumerate(prompts):
+        output = await engine.generate(
+            prompt=prompt,
+            max_tokens=request.max_tokens or _default_max_tokens,
+            temperature=request.temperature,
+            top_p=request.top_p,
+            stop=request.stop,
+        )
+
+        choices.append(CompletionChoice(
+            index=i,
+            text=output.text,
+            finish_reason=output.finish_reason,
+        ))
+        total_completion_tokens += output.completion_tokens
+
+    elapsed = time.perf_counter() - start_time
+    tokens_per_sec = total_completion_tokens / elapsed if elapsed > 0 else 0
+    logger.info(f"Completion: {total_completion_tokens} tokens in {elapsed:.2f}s ({tokens_per_sec:.1f} tok/s)")
+
+    return CompletionResponse(
+        model=request.model,
+        choices=choices,
+        usage=Usage(
+            completion_tokens=total_completion_tokens,
+            total_tokens=total_completion_tokens,
+        ),
+    )
+
+
+@app.post("/v1/chat/completions")
+async def create_chat_completion(request: ChatCompletionRequest):
+    """
+    Create a chat completion (supports multimodal content for VLM models).
+
+    OpenAI-compatible multimodal format for images:
+    ```json
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What's in this image?"},
+            {"type": "image_url", "image_url": {"url": "https://..."}}
+        ]
+    }]
+    ```
+
+    Video support:
+    ```json
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What happens in this video?"},
+            {"type": "video_url", "video_url": {"url": "https://example.com/video.mp4"}}
+        ]
+    }]
+    ```
+
+    Structured output (JSON mode):
+    ```json
+    response_format={"type": "json_object"}
+    ```
+
+    Structured output (JSON Schema):
+    ```json
+    response_format={
+        "type": "json_schema",
+        "json_schema": {
+            "name": "my_schema",
+            "schema": {"type": "object", "properties": {...}}
+        }
+    }
+    ```
+    """
+    engine = get_engine()
+
+    # Extract text, images, and videos from messages
+    messages, images, videos = extract_multimodal_content(request.messages)
+
+    has_media = bool(images or videos)
+
+    # Handle response_format - inject system prompt if needed
+    response_format = request.response_format
+    if response_format:
+        json_instruction = build_json_system_prompt(response_format)
+        if json_instruction:
+            # Inject JSON instruction into messages
+            messages = _inject_json_instruction(messages, json_instruction)
+
+    # Prepare kwargs
+    chat_kwargs = {
+        "max_tokens": request.max_tokens or _default_max_tokens,
+        "temperature": request.temperature,
+        "top_p": request.top_p,
+    }
+
+    # Add multimodal content
+    if has_media:
+        chat_kwargs["images"] = images if images else None
+        chat_kwargs["videos"] = videos if videos else None
+        if request.video_fps:
+            chat_kwargs["video_fps"] = request.video_fps
+        if request.video_max_frames:
+            chat_kwargs["video_max_frames"] = request.video_max_frames
+
+    # Add tools if provided
+    if request.tools:
+        chat_kwargs["tools"] = convert_tools_for_template(request.tools)
+
+    if request.stream:
+        return StreamingResponse(
+            stream_chat_completion(engine, messages, request, **chat_kwargs),
+            media_type="text/event-stream",
+        )
+
+    # Non-streaming response with timing
+    start_time = time.perf_counter()
+
+    output = await engine.chat(messages=messages, **chat_kwargs)
+
+    elapsed = time.perf_counter() - start_time
+    tokens_per_sec = output.completion_tokens / elapsed if elapsed > 0 else 0
+    logger.info(f"Chat completion: {output.completion_tokens} tokens in {elapsed:.2f}s ({tokens_per_sec:.1f} tok/s)")
+
+    # Parse tool calls from output
+    cleaned_text, tool_calls = parse_tool_calls(output.text)
+
+    # Process response_format if specified
+    if response_format and not tool_calls:
+        cleaned_text, parsed_json, is_valid, error = parse_json_output(
+            cleaned_text or output.text,
+            response_format
+        )
+        if parsed_json is not None:
+            # Return JSON as string
+            cleaned_text = json.dumps(parsed_json)
+        if not is_valid:
+            logger.warning(f"JSON validation failed: {error}")
+
+    # Determine finish reason
+    finish_reason = "tool_calls" if tool_calls else output.finish_reason
+
+    return ChatCompletionResponse(
+        model=request.model,
+        choices=[ChatCompletionChoice(
+            message=AssistantMessage(
+                content=clean_output_text(cleaned_text) if cleaned_text else None,
+                tool_calls=tool_calls,
+            ),
+            finish_reason=finish_reason,
+        )],
+        usage=Usage(
+            prompt_tokens=output.prompt_tokens,
+            completion_tokens=output.completion_tokens,
+            total_tokens=output.prompt_tokens + output.completion_tokens,
+        ),
+    )
+
+
+def _inject_json_instruction(messages: list, instruction: str) -> list:
+    """
+    Inject JSON instruction into messages.
+
+    If a system message exists, append to it. Otherwise, prepend a new system message.
+    """
+    messages = list(messages)  # Make a copy
+
+    # Find existing system message
+    system_idx = None
+    for i, msg in enumerate(messages):
+        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
+        if role == "system":
+            system_idx = i
+            break
+
+    if system_idx is not None:
+        # Append to existing system message
+        msg = messages[system_idx]
+        if isinstance(msg, dict):
+            existing = msg.get("content", "")
+            msg["content"] = f"{existing}\n\n{instruction}"
+        else:
+            existing = getattr(msg, "content", "") or ""
+            msg.content = f"{existing}\n\n{instruction}"
+    else:
+        # Prepend new system message
+        messages.insert(0, {"role": "system", "content": instruction})
+
+    return messages
+
+
+# =============================================================================
+# Streaming Helpers
+# =============================================================================
+
+async def stream_completion(
+    engine: BaseEngine,
+    prompt: str,
+    request: CompletionRequest,
+) -> AsyncIterator[str]:
+    """Stream completion response."""
+    async for output in engine.stream_generate(
+        prompt=prompt,
+        max_tokens=request.max_tokens or _default_max_tokens,
+        temperature=request.temperature,
+        top_p=request.top_p,
+        stop=request.stop,
+    ):
+        data = {
+            "id": f"cmpl-{uuid.uuid4().hex[:8]}",
+            "object": "text_completion",
+            "created": int(time.time()),
+            "model": request.model,
+            "choices": [{
+                "index": 0,
+                "text": output.new_text,
+                "finish_reason": output.finish_reason if output.finished else None,
+            }],
+        }
+        yield f"data: {json.dumps(data)}\n\n"
+
+    yield "data: [DONE]\n\n"
+
+
+async def stream_chat_completion(
+    engine: BaseEngine,
+    messages: list,
+    request: ChatCompletionRequest,
+    **kwargs,
+) -> AsyncIterator[str]:
+    """Stream chat completion response."""
+    response_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
+
+    # First chunk with role
+    first_chunk = ChatCompletionChunk(
+        id=response_id,
+        model=request.model,
+        choices=[ChatCompletionChunkChoice(
+            delta=ChatCompletionChunkDelta(role="assistant"),
+        )],
+    )
+    yield f"data: {first_chunk.model_dump_json()}\n\n"
+
+    # Stream content
+    async for output in engine.stream_chat(messages=messages, **kwargs):
+        chunk = ChatCompletionChunk(
+            id=response_id,
+            model=request.model,
+            choices=[ChatCompletionChunkChoice(
+                delta=ChatCompletionChunkDelta(content=output.new_text if output.new_text else None),
+                finish_reason=output.finish_reason if output.finished else None,
+            )],
+        )
+        yield f"data: {chunk.model_dump_json()}\n\n"
+
+    yield "data: [DONE]\n\n"
+
+
+# =============================================================================
+# MCP Initialization
+# =============================================================================
+
+async def init_mcp(config_path: str):
+    """Initialize MCP manager from config file."""
+    global _mcp_manager, _mcp_executor
+
+    try:
+        from vllm_mlx.mcp import MCPClientManager, ToolExecutor, load_mcp_config
+
+        config = load_mcp_config(config_path)
+        _mcp_manager = MCPClientManager(config)
+        await _mcp_manager.start()
+
+        _mcp_executor = ToolExecutor(_mcp_manager)
+
+        logger.info(f"MCP initialized with {len(_mcp_manager.get_all_tools())} tools")
+
+    except ImportError as e:
+        logger.error(f"MCP SDK not installed. Install with: pip install mcp")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to initialize MCP: {e}")
+        raise
+
+
+# =============================================================================
+# Main Entry Point
+# =============================================================================
+
+def main():
+    """Run the server."""
+    parser = argparse.ArgumentParser(
+        description="vllm-mlx OpenAI-compatible server for LLM and MLLM inference",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    # Start with simple mode (maximum throughput)
+    python -m vllm_mlx.server --model mlx-community/Llama-3.2-3B-Instruct-4bit
+
+    # Start with continuous batching (for multiple users)
+    python -m vllm_mlx.server --model mlx-community/Llama-3.2-3B-Instruct-4bit --continuous-batching
+
+    # With MCP tools
+    python -m vllm_mlx.server --model mlx-community/Qwen3-4B-4bit --mcp-config mcp.json
+        """,
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="mlx-community/Llama-3.2-3B-Instruct-4bit",
+        help="Model to load (HuggingFace model name or local path)",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host to bind to",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to",
+    )
+    parser.add_argument(
+        "--mllm",
+        action="store_true",
+        help="Force loading as MLLM (multimodal language model)",
+    )
+    parser.add_argument(
+        "--continuous-batching",
+        action="store_true",
+        help="Enable continuous batching for multiple concurrent users",
+    )
+    parser.add_argument(
+        "--mcp-config",
+        type=str,
+        default=None,
+        help="Path to MCP configuration file (JSON/YAML)",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=32768,
+        help="Default max tokens for generation",
+    )
+
+    args = parser.parse_args()
+
+    # Set MCP config for lifespan
+    if args.mcp_config:
+        os.environ["VLLM_MLX_MCP_CONFIG"] = args.mcp_config
+
+    # Load model before starting server
+    load_model(
+        args.model,
+        use_batching=args.continuous_batching,
+        max_tokens=args.max_tokens,
+        force_mllm=args.mllm,
+    )
+
+    # Start server
+    import uvicorn
+    uvicorn.run(app, host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()
