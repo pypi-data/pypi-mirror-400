@@ -1,0 +1,164 @@
+Metadata-Version: 2.4
+Name: sandwich
+Version: 0.2.1
+Summary: DataVault 2.0 code gen
+Author-email: Andrey Morozov <andrey@morozov.lv>
+License-File: LICENSE
+Keywords: DWH,Data Vault 2.0
+Classifier: Development Status :: 1 - Planning
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Typing :: Typed
+Requires-Python: >=3.14
+Requires-Dist: sqlalchemy
+Description-Content-Type: text/markdown
+
+## Data Vault 2.0 scaffolding tool
+This tool is designed to streamline the process of creating Data Vault 2.0 entities, 
+such as hubs, links, and satellites. 
+As well as building information layer objects such as dim and fact tables 
+from a multidimensional paradigm.
+
+### How it works:
+User: provides a staging view `stg.[entity_name]` (or a table if the staging layer persisted)
+with all requirements for the `[entity_name]` defined in the schema (how to define see below).  
+Tool:
+1. Validates metadata of the provided staging view or table.  
+2. Generates the necessary DDL statements to create the Data Vault 2.0 entities.
+3. Generates ELT procedures to load data to the generated entities.
+4. Generates support procedures such as `meta.Drop_all_related_to_[entity_name]` and `elt.Run_all_related_to_[entity_name]`
+
+```text
+                                     +----------------------+
+                                     | hub.[entity_name]    |
+                                     +----------------------+
+                                                 ^
+   o   1.define   +-------------------+          | 3.create
+  /|\  ------->   | stg.[entity_name] |          #              +----------------------+
+  / \             +-------------------+         /|\  ---------> | sat.[entity_name]    |
+  User ---------------------------------------> / \  3.create   +----------------------+
+                           2.use                Tool
+                                                 | 3.create
+                                                 v
+                                     +----------------------+
+                                     | dim.[entity_name]    |
+                                     +----------------------+
+
+```
+
+### How to define a staging view or table:
+* `bk_` (BusinessKey) - at least one `bk_` column
+* `hk_[entity_name]` (HashKey) - exactly one `hk_[entity_name]` column if you want a `hub` table created
+* `LoadDate` - required by dv2 standard for an auditability
+* `RecordSource` - required by dv2 standard for an auditability
+* `HashDiff` - optional, required if you want to have a scd2 type `dim` table created
+* `IsAvailable` - optional, required if you want to track missing/deleted records
+* all other columns will be considered as business columns and will be included to the `sat` table definition
+
+
+| staging fields     | scd2dim profile |
+|--------------------|-----------------|
+| bk_                | ✅               |
+| hk_`[entity_name]` | ✅               |
+| LoadDate           | ✅               |
+| RecordSource       | ✅               |
+| HashDiff           | ✅               |
+| IsAvailable        | ✅               |
+
+```sql
+-- staging view example for the scd2dim profile (mssql)
+create view [stg].[UR_officers] as
+select cast(31 as bigint) [bk_id]
+, core.StringToHash1(cast(31 as bigint)) [hk_UR_officers]
+, sysdatetime() [LoadDate]
+, cast('LobSystem.dbo.officers_daily' as varchar(200)) [RecordSource]
+, core.StringToHash8(
+    cast('uri' as nvarchar(100))
+    , cast('00000000000000' as varchar(20))
+    , cast('NATURAL_PERSON' as varchar(50))
+    , cast(null as varchar(20))
+    , cast('INDIVIDUALLY' as varchar(50))
+    , cast(0 as int)
+    , cast('2008-04-07' as date)
+    , cast('2008-04-07 18:00:54.000' as datetime)
+) [HashDiff]
+, cast('uri' as nvarchar(100)) [uri]
+, cast('00000000000000' as varchar(20)) [at_legal_entity_registration_number]
+, cast('NATURAL_PERSON' as varchar(50)) [entity_type]
+, cast(null as varchar(20)) [legal_entity_registration_number]
+, cast('INDIVIDUALLY' as varchar(50)) [rights_of_representation_type]
+, cast(0 as int) [representation_with_at_least]
+, cast('2008-04-07' as date) [registered_on]
+, cast('2008-04-07 18:00:54.000' as datetime) [last_modified_at]
+, cast(1 as bit) [IsAvailable]
+```
+### scd2dim profile example:
+| stg                | hub                    | sat                        | dim                |
+|--------------------|------------------------|----------------------------|--------------------|
+|                    |                        |                            | hk_`[entity_name]` |
+| BKs...             | (uk)BKs...             | BKs...                     | (pk)BKs...         |
+| hk_`[entity_name]` | (pk)hk_`[entity_name]` | (pk)(fk)hk_`[entity_name]` |                    |
+| LoadDate           | LoadDate               | (pk)LoadDate               |                    |
+| RecordSource       | RecordSource           | RecordSource               |                    |
+| HashDiff           |                        | HashDiff                   |                    |
+| FLDs...            |                        | FLDs...                    | FLDs...            |
+| IsAvailable        |                        | IsAvailable                | IsAvailable        |
+|                    |                        |                            | IsCurrent          |
+|                    |                        |                            | (pk)DateFrom       |
+|                    |                        |                            | DateTo             |
+
+### link2fact profile example:
+| stg                | link                   | sat                        | fact |
+|--------------------|------------------------|----------------------------|------|
+| HKs...             | (uk)(fk)HKs...         |                            |      |
+| hk_`[entity_name]` | (pk)hk_`[entity_name]` | (pk)(fk)hk_`[entity_name]` |      |
+| degenerate_field   | (uk)degenerate_field   | degenerate_field           |      |
+| LoadDate           | LoadDate               | LoadDate                   |      |
+| RecordSource       | RecordSource           | RecordSource               |      |
+| FLDs...            |                        | FLDs...                    |      |
+
+
+### Schemas:
+* `core` - framework-related code
+* `stg` - staging layer for both virtual (views) and materialized (tables)
+* `hub` - hub layer
+* `sat` - satellite layer
+* `dim` - dimension layer (information vault)
+* `fact` - fact layer (information vault)
+* `elt` - ELT procedures
+* `job` - top level ELT procedures
+* `meta` - metadata vault
+* `proxy` - source data for materialized staging area (meant for wrapping external data sources as SQL views)
+
+### DV2-related schemas layering
+| LoB*  | staging | raw vault | business vault | information vault |
+|-------|---------|-----------|----------------|-------------------|
+| proxy | stg     | hub       | sal            | dim               |
+|       |         | sat       |                | fact              |
+|       |         | link      |                |                   |
+_* Line of Business applications_
+
+### Usage diagram
+```text
+          +          +-----------+    automation
+    +---- + -------> | Dv2Utils  | -------+------+
+    |     +   uses   +-----------+               |
+    |     +                | uses                | creates
+    |     +                v                     |    
+    |     +   uses   +-----------+       uses    |
+    +---- + -------> | Dv2Helper | --------------+
+    |     +          +-----------+               |
+    o     +                |                     |       
+   /|\    +                | DDL                 |       python
+   / \  ==========================================================
+ DWH Dev  +        creates |                     |       database
+    |     +                v                     V      
+    |     +   uses    +--------+   uses   +---------------+
+    +---- + ------->  | entity |  ----->  | core objects  |
+          +           +--------+          +---------------+
+          +                           
+
+```
