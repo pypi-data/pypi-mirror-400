@@ -1,0 +1,395 @@
+Metadata-Version: 2.4
+Name: alphai
+Version: 0.2.0
+Summary: A CLI tool and Python package for the runalph.ai platform
+Author-email: Andrew Chang <andrew@runalph.ai>
+Project-URL: Homepage, https://runalph.ai
+Project-URL: Documentation, https://docs.runalph.ai
+Project-URL: Repository, https://github.com/alph-ai/alphai
+Project-URL: Issues, https://github.com/alph-ai/alphai/issues
+Keywords: cli,api,data-science,alph
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: click>=8.1.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: alph-sdk>=0.5.0
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: questionary>=2.1.0
+Requires-Dist: jupyterlab>=4.5.1
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+
+# alphai
+
+A beautiful and powerful CLI tool and Python package for the runalph.ai platform, built with Click and Rich.
+
+Depends on the `alph-sdk` Python SDK for seamless API integration.
+
+## Installation
+
+The CLI is automatically installed when you install the Python package:
+
+```bash
+pip install alphai
+```
+
+## Quick Start
+
+1. **Authenticate** with your runalph.ai account:
+   ```bash
+   alphai login
+   ```
+
+2. **View your status**:
+   ```bash
+   alphai status
+   ```
+
+3. **List organizations**:
+   ```bash
+   alphai orgs list
+   ```
+
+4. **List projects**:
+   ```bash
+   alphai projects list
+   ```
+
+5. **Run a Docker container**:
+   ```bash
+   alphai run --image quay.io/jupyter/base-notebook:latest
+   ```
+
+## Commands
+
+### Authentication
+
+#### `alphai login`
+Authenticate with the runalph.ai API using browser-based authentication or a bearer token.
+
+**Smart authentication checking**: The login command automatically checks if you're already authenticated and validates your existing credentials. If you're already logged in with a valid token, it will skip the login process.
+
+```bash
+# Interactive login (browser-based, recommended)
+alphai login
+
+# Browser-based login (explicit)
+alphai login --browser
+
+# Login with token directly
+alphai login --token YOUR_BEARER_TOKEN
+
+# Force re-authentication even if already logged in
+alphai login --force
+
+# Login with custom API URL
+alphai login --api-url https://runalph.ai/api --token YOUR_TOKEN
+
+# Force browser login even if already authenticated
+alphai login --browser --force
+```
+
+**Authentication methods:**
+1. **Browser login (recommended)**: Opens your browser for secure OAuth authentication
+2. **Token login**: Manually enter a bearer token from https://runalph.ai/account/tokens
+
+**Options:**
+- `--token`: Provide a bearer token directly (bypasses authentication check)
+- `--browser`: Use browser-based authentication explicitly
+- `--force`: Force re-authentication even if already logged in
+- `--api-url`: Set a custom API base URL
+
+You can also set the `ALPHAI_BEARER_TOKEN` environment variable to authenticate automatically.
+
+#### `alphai logout`
+Log out and clear authentication credentials.
+
+```bash
+alphai logout
+```
+
+#### `alphai status`
+Show current configuration and authentication status.
+
+```bash
+alphai status
+```
+
+### Organizations
+
+#### `alphai orgs list`
+List all organizations you have access to.
+
+```bash
+alphai orgs list
+```
+
+#### `alphai orgs create`
+Create a new organization.
+
+```bash
+# Create with name only
+alphai orgs create --name "My Organization"
+
+# Create with name and description
+alphai orgs create --name "My Org" --description "A sample organization"
+```
+
+#### `alphai orgs select`
+Select an organization as your current context.
+
+```bash
+alphai orgs select ORG_ID
+```
+
+### Projects
+
+#### `alphai projects list`
+List all projects, optionally filtered by organization.
+
+```bash
+# List all projects
+alphai projects list
+
+# List projects in a specific organization
+alphai projects list --org ORG_ID
+
+# List projects in current organization context
+alphai orgs select ORG_ID
+alphai projects list
+```
+
+#### `alphai projects select`
+Select a project as your current context.
+
+```bash
+alphai projects select PROJECT_ID
+```
+
+### Docker Container Management
+
+#### `alphai run`
+Launch and manage local Docker containers with beautiful progress indicators.
+
+```bash
+# Basic usage - run Jupyter notebook
+alphai run --image quay.io/jupyter/base-notebook:latest
+
+# Custom ports
+alphai run --image quay.io/jupyter/base-notebook:latest --app-port 3000 --jupyter-port 9999
+
+# Run in background (detached)
+alphai run --image quay.io/jupyter/base-notebook:latest --detach
+
+# With custom name
+alphai run --image python:3.11 --name my-python-env
+
+# With environment variables
+alphai run --image python:3.11 --env "DEBUG=true" --env "API_KEY=secret"
+
+# With volume mounts
+alphai run --image python:3.11 --volume "/host/path:/container/path" --volume "/data:/app/data"
+
+# Complex example
+alphai run \
+  --image quay.io/jupyter/base-notebook:latest \
+  --name jupyter-dev \
+  --app-port 5000 \
+  --jupyter-port 8888 \
+  --env "JUPYTER_ENABLE_LAB=yes" \
+  --volume "$(pwd):/home/jovyan/work" \
+  --detach
+```
+
+**Supported options:**
+- `--image`: Docker image to run (required)
+- `--app-port`: Application port (default: 5000)
+- `--jupyter-port`: Jupyter port (default: 8888)
+- `--name`: Container name (auto-generated if not specified)
+- `--env`: Environment variables (format: `KEY=VALUE`, can be used multiple times)
+- `--volume`: Volume mounts (format: `HOST_PATH:CONTAINER_PATH`, can be used multiple times)
+- `--detach, -d`: Run container in background
+
+### Configuration Management
+
+#### `alphai config show`
+Show current configuration.
+
+```bash
+alphai config show
+```
+
+#### `alphai config set`
+Set configuration values.
+
+```bash
+# Set API URL
+alphai config set api_url https://runalph.ai/api
+
+# Enable debug mode
+alphai config set debug true
+
+# Set current organization
+alphai config set current_org ORG_ID
+
+# Set current project
+alphai config set current_project PROJECT_ID
+```
+
+#### `alphai config reset`
+Reset configuration to defaults.
+
+```bash
+alphai config reset
+```
+
+## Global Options
+
+- `--debug`: Enable debug mode for the current command
+- `--version`: Show version information
+
+```bash
+# Enable debug mode
+alphai --debug orgs list
+
+# Show version
+alphai --version
+```
+
+## Environment Variables
+
+- `ALPHAI_BEARER_TOKEN`: Bearer token for authentication
+- `ALPHAI_API_URL`: Custom API base URL
+- `ALPHAI_DEBUG`: Enable debug mode (set to `true`, `1`, `yes`, or `on`)
+
+## Configuration
+
+Configuration is stored in `~/.alphai/config.json`. Bearer tokens are securely stored in your system's keyring.
+
+Example configuration:
+```json
+{
+  "api_url": "https://runalph.ai/api",
+  "current_org": "org_123",
+  "current_project": "proj_456",
+  "debug": false
+}
+```
+
+## Features
+
+### Beautiful CLI Interface
+- 🎨 Rich terminal UI with colors and formatting
+- 📊 Beautiful tables for data display
+- ⏳ Progress indicators for long-running operations
+- 🔐 Secure credential storage with keyring
+
+### Docker Integration
+- 🐳 Seamless Docker container management
+- 📦 Automatic image pulling with progress
+- 🔧 Support for custom ports, environment variables, and volumes
+- 🚀 Background and interactive modes
+
+### Smart Configuration
+- 💾 Persistent configuration with secure token storage
+- 🏢 Organization and project context management
+- 🔧 Environment variable support
+- 🔄 Easy configuration reset
+
+### Error Handling
+- 🛡️ Comprehensive error handling and user feedback
+- 🔍 Debug mode for troubleshooting
+- ⚡ Connection testing and validation
+
+## Development
+
+To set up for development:
+
+```bash
+# Clone the repository
+git clone https://github.com/americandatascience/alphai.git
+cd alphai
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linting
+ruff check src/
+black src/
+
+# Type checking
+mypy src/
+```
+
+## API Integration
+
+This CLI uses the `alph-sdk` to interact with the runalph.ai API. All API operations are wrapped with beautiful progress indicators and error handling.
+
+The CLI automatically:
+- Validates bearer tokens before making API calls
+- Provides helpful error messages for common issues
+- Handles connection timeouts and network errors gracefully
+- Uses secure credential storage
+
+## Examples
+
+### Complete Workflow
+
+```bash
+# 1. Login
+alphai login
+
+# 2. List organizations and select one
+alphai orgs list
+alphai orgs select org_abc123
+
+# 3. List projects in the organization
+alphai projects list
+
+# 4. Run a development environment
+alphai run \
+  --image quay.io/jupyter/datascience-notebook:latest \
+  --name datascience-env \
+  --volume "$(pwd):/home/jovyan/work" \
+  --env "JUPYTER_ENABLE_LAB=yes" \
+  --detach
+
+# 5. Check status
+alphai status
+```
+
+### Multiple Containers
+
+```bash
+# Start a web application
+alphai run --image nginx:latest --app-port 80 --name web-server --detach
+
+# Start a database
+alphai run --image postgres:13 --app-port 5432 --name database \
+  --env "POSTGRES_PASSWORD=secret" --detach
+
+# Start a development environment
+alphai run --image python:3.11 --name dev-env \
+  --volume "$(pwd):/app" --env "PYTHONPATH=/app"
+```
+
+## Support
+
+- Documentation: https://docs.runalph.ai
+- Issues: https://github.com/americandatascience/alphai/issues
+- Website: https://runalph.ai
