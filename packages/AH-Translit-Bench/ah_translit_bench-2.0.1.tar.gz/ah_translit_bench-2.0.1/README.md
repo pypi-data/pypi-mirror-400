@@ -1,0 +1,262 @@
+# **AH-Translit_Benchmark**
+
+**Arabic → Hindi Transliteration Benchmark Dataset**
+
+[![PyPI version](https://badge.fury.io/py/AH-Translit_Bench.svg)](https://pypi.org/project/AH-Translit-Bench/)
+[![GitHub license](https://img.shields.io/github/license/vilalali/AH-Translit-Bench.svg)](https://github.com/vilalali/AH-Translit-Bench/blob/main/LICENSE)
+
+---
+
+## Description
+
+**AH-Translit_Bench** is a **6,000-sample Arabic-to-Hindi transliteration benchmark dataset**, curated for **systematic evaluation and comparison** of transliteration models across **three linguistically distinct domains**:
+
+* **Quranic Arabic**
+* **Modern Standard Arabic (Daily Use)**
+* **Modern Standard Arabic (Bibliographic)**
+
+Each domain contributes **2,000 carefully selected sentence pairs**, ensuring **balanced, fair, and domain-aware evaluation** of cross-script transliteration systems.
+
+This benchmark is designed **strictly for testing and reporting results**, and is complementary to the full AH-Translit training dataset.
+
+---
+
+## Dataset Curators
+
+**Vilal Ali**
+MS by Research, Data Sciences and Analytics Centre
+IIIT Hyderabad
+📧 [vilal.ali@research.iiit.ac.in](mailto:vilal.ali@research.iiit.ac.in)
+
+**Mohd Hozaifa Khan**
+MS by Research, CVIT
+IIIT Hyderabad
+📧 [mohd.hozaifa@research.iiit.ac.in](mailto:mohd.hozaifa@research.iiit.ac.in)
+
+---
+
+## Dataset Usage
+
+Designed for **benchmarking and evaluating Arabic-to-Hindi phonetic transliteration models** under domain shifts and varying sequence-length conditions.
+
+---
+
+## Content Type
+
+Text — sentence-level **Arabic source text** paired with **Hindi (Devanagari) phonetic transliteration**.
+
+---
+
+## File Type
+
+CSV (Comma-Separated Values)
+
+---
+
+## Dataset Structure
+
+```
+AH-Translit-Benchmark-Dataset
+├── quranic_benchmark_2000.csv
+├── msa_dailyuse_benchmark_2000.csv
+├── msa_bibliographic_benchmark_2000.csv
+├── all_domain_mix_benchmark_6000.csv
+└── README.md
+```
+
+---
+
+## File Descriptions
+
+* **quranic_benchmark_2000.csv**
+  2,000 sentence pairs from **Quranic Arabic**, characterized by long sequences and rich morphology.
+
+* **msa_dailyuse_benchmark_2000.csv**
+  2,000 sentence pairs from **daily-use Modern Standard Arabic**, representing short and conversational inputs.
+
+* **msa_bibliographic_benchmark_2000.csv**
+  2,000 sentence pairs from **formal and bibliographic MSA**, featuring higher lexical diversity.
+
+* **all_domain_mix_benchmark_6000.csv**
+  Combined benchmark file containing all **6,000 samples**, evenly distributed across domains.
+
+Each CSV contains exactly **two columns**:
+
+```
+Arabic , Hindi
+```
+
+Hindi text is **phonetic transliteration**, not translation.
+
+---
+
+## Benchmark Scale Summary
+
+| Domain            |   Samples |
+| ----------------- | --------: |
+| Quranic           |     2,000 |
+| MSA Daily Use     |     2,000 |
+| MSA Bibliographic |     2,000 |
+| **Total**         | **6,000** |
+
+This strict balance ensures **macro-averaged, unbiased evaluation** across domains.
+
+---
+
+## How to Use This Dataset
+
+Here is a **clean, minimal, copy-paste–ready Python sample** that you can put directly in your **README.md** or use for quick sanity testing after installing the package.
+
+This matches your **current AH-Translit-Bench v2.0.0 API**.
+
+---
+
+## Python Usage Example
+
+### 1️⃣ Install the Package
+
+```bash
+pip install AH-Translit-Bench
+```
+
+---
+
+### 2️⃣ Load Domain-wise Benchmark Datasets
+
+```python
+from AH_Translit_Bench import load_dataset, get_available_domains
+
+# List all available domains
+domains = get_available_domains()
+print("Available domains:", domains)
+```
+
+**Expected output**
+
+```text
+Available domains: ['quranic', 'msa_dailyuse', 'msa_bibliographic', 'all']
+```
+
+---
+
+### 3️⃣ Load Individual Domains
+
+#### Quranic Benchmark (2000 samples)
+
+```python
+quranic_df = load_dataset("quranic")
+print(quranic_df.head())
+print("Quranic shape:", quranic_df.shape)
+```
+
+Expected:
+
+```text
+Quranic shape: (2000, 2)
+```
+
+---
+
+#### MSA Daily Use Benchmark (2000 samples)
+
+```python
+daily_df = load_dataset("msa_dailyuse")
+print(daily_df.head())
+print("MSA Daily Use shape:", daily_df.shape)
+```
+
+Expected:
+
+```text
+MSA Daily Use shape: (2000, 2)
+```
+
+---
+
+#### MSA Bibliographic Benchmark (2000 samples)
+
+```python
+biblo_df = load_dataset("msa_bibliographic")
+print(biblo_df.head())
+print("MSA Bibliographic shape:", biblo_df.shape)
+```
+
+Expected:
+
+```text
+MSA Bibliographic shape: (2000, 2)
+```
+
+---
+
+### 4️⃣ Load the Full Mixed Benchmark (All Domains)
+
+```python
+all_df = load_dataset("all")
+print(all_df.head())
+print("All-domain benchmark shape:", all_df.shape)
+```
+
+Expected:
+
+```text
+All-domain benchmark shape: (6000, 2)
+```
+
+---
+
+### 5️⃣ Access Arabic–Hindi Pairs
+
+```python
+arabic_text = quranic_df.iloc[0]["Arabic"]
+hindi_translit = quranic_df.iloc[0]["Hindi"]
+
+print("Arabic:", arabic_text)
+print("Hindi :", hindi_translit)
+```
+---
+
+## Example Data Snippet
+
+```csv
+Arabic,Hindi
+المطبعة الحيدرية،,"अल-मतबअह अल-हैदरियह,"
+```
+
+---
+
+## Version Overview
+
+### **Version 2.0 (Current)**
+
+**Version Description:**
+Expanded benchmark release with **2,000 samples per domain**, covering Quranic Arabic, MSA Daily Use, and MSA Bibliographic text, along with a **combined 6,000-sample mixed-domain benchmark file** for standardized evaluation.
+
+---
+
+## Important Notes
+
+* This is a **benchmark-only dataset**
+* Not intended for model training
+* No overlap with AH-Translit training splits
+* Focuses on **phonetic fidelity**, not semantic translation
+
+---
+
+## License
+
+* **Code:** MIT License
+* **Dataset:** Creative Commons Attribution–NonCommercial 4.0 (CC BY-NC 4.0)
+
+Permitted for **research and educational use only** with proper attribution.
+
+Full license:
+[https://creativecommons.org/licenses/by-nc/4.0/](https://creativecommons.org/licenses/by-nc/4.0/)
+
+---
+
+## Authors
+**Vilal Ali** [![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-0077B5.svg?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/vilal-ali/)
+---
+**Mohd Hozaifa Khan** [![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-0077B5.svg?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/mohd-hozaifa-khan-361b7814a/)
+---
