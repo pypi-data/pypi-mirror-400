@@ -1,0 +1,1062 @@
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Set, Tuple, Type, Union
+
+from mewpy.germ.models.serialization import Serializer, serialize
+from mewpy.util.history import HistoryManager, recorder
+
+# Preventing circular dependencies that only happen due to type checking
+if TYPE_CHECKING:
+    from mewpy.germ.models import MetabolicModel, RegulatoryModel
+    from mewpy.germ.variables import Gene, Interaction, Metabolite, Reaction, Regulator, Target, Variable
+
+
+class MetaModel(type):
+    """
+    The MetaModel class is used to dynamically create Model classes.
+    Models instances are created from static classes representing the different information for a given model.
+
+    However, integrated Metabolic-Regulatory models must combine different types of variables, such as genes, reactions,
+    metabolites, but also regulators, targets, interactions. This is not possible with static classes, as they miss
+    the containers to store these variables.
+    Thus, a Model factory is used to dynamically create Model classes
+    based on the multiple types of a single integrated model.
+
+    The Model factory is the interface to create these multi-type models.
+    It also manages all models by implementing base attributes and methods.
+
+    The MetaModel class creates a dynamic Model class as follows:
+        1. It collects all static base classes to be included into the dynamic Model class
+        2. It collects the model type from the base classes or from the model_type attribute
+        3. It sets the name of the dynamic Model class using the name of the base classes
+        4. It updates the model_type attribute with all types of the base classes
+        5. It creates the dynamic Model class having all attributes and methods of the base classes
+        6. It adds polymorphic constructors to the dynamic Model class based on the types of the base classes
+        7. It adds type checkers to the dynamic Model class based on the types of the base classes
+    """
+
+    factories = {}
+
+    def __new__(mcs, name, bases, attrs, **kwargs):
+        # if it is the model factory, only registration is done
+        factory = kwargs.get("factory", False)
+
+        if factory:
+            cls = super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
+
+            MetaModel.factories[name] = cls
+
+            return cls
+
+        # Dynamic typing being used. In this case, a proper name and model type must be provided
+        dynamic = kwargs.get("dynamic", False)
+        if dynamic:
+            names = [base.model_type for base in bases]
+
+            name = "".join([name.title() for name in names])
+            name += "Model"
+
+            kwargs["model_type"] = "-".join(names)
+
+        # The model type is always added to the subclasses. If it is not given upon subclass creation,
+        # the subclass name is to be used
+        model_type = kwargs.get("model_type", name.lower())
+        attrs["model_type"] = model_type
+
+        return super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
+
+    def __init__(cls, name, bases, attrs, **kwargs):
+        super().__init__(name, bases, attrs)
+
+        factory = kwargs.get("factory", False)
+        if factory:
+            # collection of all containers that must be serialized for a particular class or subclass
+            containers = cls.get_serializable_containers(attrs)
+
+            attrs["_containers_registry"]["model"] = containers
+
+            # Skip further building of the Model factory
+            return
+
+        # Dynamic typing being used. In this case, all children have already been constructed, so everything can be
+        # skipped
+        dynamic = kwargs.get("dynamic", False)
+        if dynamic:
+            return
+
+        # Several attributes and methods must be added automatically to the Model factory children based on the
+        # model type.
+        model_type = attrs["model_type"]
+
+        for base in bases:
+
+            factory = MetaModel.factories.get(base.__name__)
+
+            if factory and hasattr(cls, "model_type"):
+
+                # if some class inherits from the Model factory, it must be registered in the factory for type
+                # checking
+                if cls.model_type not in factory.get_registry():
+                    raise TypeError(f"{cls.model_type} does not inherit from Model")
+
+                # If set otherwise upon class creation, all subclasses of the Model factory will contribute to
+                # their parent factory with an alternative initializer. The polymorphic constructor, e.g. from_{
+                # model_type}, is added to the Model factory
+                constructor = kwargs.get("constructor", True)
+
+                if constructor:
+                    # noinspection PyProtectedMember
+                    model_type_initializer = Model._from(cls)
+                    setattr(factory, f"from_{model_type}", model_type_initializer)
+
+                # If set otherwise upon class creation, all subclasses of the Model factory will contribute to
+                # their parent factory with a declared type checker. The type checker, e.g. is_{model_type},
+                # is added to the Model factory
+                checker = kwargs.get("checker", True)
+
+                if checker:
+                    # noinspection PyProtectedMember
+                    model_type_checker = Model._is(model_type)
+                    setattr(factory, f"is_{model_type}", model_type_checker)
+
+                # collection of all containers that must be serialized for a particular class or subclass
+                containers = cls.get_serializable_containers(attrs)
+
+                Model.register_containers(containers, cls)
+
+    @staticmethod
+    def get_serializable_containers(attrs: Dict[str, Any]) -> Dict[str, Tuple[str, str, str]]:
+        """
+        Collects all containers that must be serialized for a particular class or subclass
+
+         All containers have property descriptors marked with the @serialize decorator. This decorator marks attributes
+        for serialization, deserialization and pickle serialization/deserialization. The decorator also provides
+        information about the attribute name.
+
+        If serialization, deserialization or pickle serialization/deserialization is not desired, the attribute must
+        be marked with the @serialize decorator with the corresponding argument set to None.
+        :param attrs: the attributes of the class or subclass
+        :return: a dictionary with the container name as key and a tuple with the attribute name for serialization,
+        deserialization and pickle serialization/deserialization
+        """
+        containers = {}
+
+        for name, method in attrs.items():
+
+            if hasattr(method, "fget"):
+
+                if (
+                    hasattr(method.fget, "serialize")
+                    and hasattr(method.fget, "deserialize")
+                    and hasattr(method.fget, "pickle")
+                ):
+                    containers[name] = (method.fget.serialize, method.fget.deserialize, method.fget.pickle)
+
+        return containers
+
+
+class Model(Serializer, metaclass=MetaModel, factory=True):
+    """
+    The Model class is the base class and factory for all models.
+    It is the interface to create multi-type models providing several base attributes and methods.
+
+    It implements the basic attributes:
+        - types: the types of the model
+        - id: the id of the model
+        - name: the name of the model
+        - simulators: the simulation methods attached to the model. Linear problems such as FBA, RFBA, etc.
+        - compartments: the compartments of the model
+        - contexts: the contexts associated with the model.
+        - history: the history of the model.
+
+    It implements the basic methods:
+        - factory: the factory for dynamic model types
+        - from_types: creates a model from a list of types
+        - copy: creates a copy of the model
+        - deepcopy: creates a deep copy of the model
+        - get: returns a variable in the model
+        - add: adds a variable to the model
+        - remove: removes a variable from the model
+        - update: updates the model with a new information
+        - attach: attaches a simulation method to the model
+        - detach: detaches a simulation method from the model
+        - notify: notifies all simulation methods attached to the model regarding a change in the model
+        - undo: undoes the last change of the model
+        - redo: redoes the last change of the model
+        - reset: resets the model to its initial state
+        - restore: restores the model to a previous state
+        - from polymorphic constructors: creates a model from a specific type
+        - is polymorphic type checkers: checks if a model is of a specific type
+
+    It implements the basic serialization methods:
+        - to_dict: serializes the model to a dictionary
+        - from_dict: deserializes the model from a dictionary
+
+    """
+
+    # -----------------------------------------------------------------------------
+    # Factory management
+    # -----------------------------------------------------------------------------
+    _registry = {}
+    _containers_registry = {"model": {}}
+
+    def __init_subclass__(cls, **kwargs):
+        """
+        This method is called when a subclass of Model is created. It is used to register the subclass in the
+        Model factory.
+
+        Internal use only.
+        :param kwargs: the keyword arguments
+        """
+        super(Model, cls).__init_subclass__(**kwargs)
+
+        # the child type
+        model_type = getattr(cls, "model_type", cls.__name__.lower())
+
+        cls.register_type(model_type, cls)
+
+    @staticmethod
+    def get_registry() -> Dict[str, Type["Model"]]:
+        """
+        Returns the registry of the Model factory.
+
+        Internal use only.
+        :return: the registry of the Model factory
+        """
+        return Model._registry.copy()
+
+    @staticmethod
+    def get_containers_registry() -> Dict[str, Dict[str, Tuple[str, str, str]]]:
+        """
+        Returns the containers registry of the Model factory.
+
+        Internal use only.
+        :return: the containers registry of the Model factory
+        """
+        return Model._containers_registry.copy()
+
+    @staticmethod
+    def register_type(model_type: str, child: Type["Model"]):
+        """
+        Registers a type in the Model factory.
+
+        Internal use only.
+        :param model_type: the type to register
+        :param child: the child class
+        :return:
+        """
+        Model._registry[model_type] = child
+
+    # -----------------------------------------------------------------------------
+    # Serialization
+    # -----------------------------------------------------------------------------
+    @staticmethod
+    def register_containers(containers, child):
+        """
+        Registers the containers of a child class in the containers registry of the Model factory. This is useful for
+        serialization and deserialization.
+
+        Internal use only.
+        :param containers: the containers to register
+        :param child: the child class
+        :return:
+        """
+        if hasattr(child, "model_type"):
+
+            Model._containers_registry[child.model_type] = containers
+
+        elif child is Model:
+            Model._containers_registry["model"] = containers
+
+    @property
+    def containers(self) -> Dict[str, Tuple[str, str, str]]:
+        """
+        Returns the containers of the model. This is useful for serialization and deserialization.
+
+        Internal use only.
+        :return: the containers of the model as a dictionary with the container name as key and a tuple with the
+        attribute name for serialization, deserialization and pickle serialization/deserialization
+        """
+        class_containers = self.get_containers_registry()
+
+        containers = class_containers["model"].copy()
+
+        for model_type in self.types:
+
+            for name, (serialize_name, deserialize_name, pickle_name) in class_containers[model_type].items():
+                containers[name] = (serialize_name, deserialize_name, pickle_name)
+
+        return containers
+
+    # -----------------------------------------------------------------------------
+    # Factory polymorphic constructor
+    # -----------------------------------------------------------------------------
+    @classmethod
+    def factory(cls, *args: str) -> Union[Type["Model"], Type["MetabolicModel"], Type["RegulatoryModel"]]:
+        """
+        It creates a dynamic Model class from a list of types. The types must be registered in the Model factory.
+
+        Example:
+            >>> Model.factory('metabolic', 'regulatory')
+            <class 'mewpy.germ.model.MetabolicRegulatoryModel'>
+
+        :param args: the types of the model
+        :return: the model type
+        """
+        if not args:
+            args = ()
+
+        registry = cls.get_registry()
+
+        types = tuple([registry[name] for name in args])
+
+        if len(types) == 1:
+            return types[0]
+
+        _Model = MetaModel("Model", types, {}, dynamic=True)
+
+        # noinspection PyTypeChecker
+        return _Model
+
+    # -----------------------------------------------------------------------------
+    # Factory polymorphic initializer
+    # -----------------------------------------------------------------------------
+    @classmethod
+    def from_types(cls, types: Iterable[str], **kwargs) -> Union["Model", "MetabolicModel", "RegulatoryModel"]:
+        """
+        It creates a model instance from a list of types and a dictionary of containers and attributes.
+        The types must be registered in the Model factory.
+
+        :param types: the types of the model
+        :param kwargs: the containers and attributes to initilize the model
+        :return: the model instance
+        """
+        ModelType = cls.factory(*types)
+        return ModelType(**kwargs)
+
+    # -----------------------------------------------------------------------------
+    # Factory helper methods
+    # -----------------------------------------------------------------------------
+    @staticmethod
+    def _from(cls):
+        """
+        Method to be added to the subclasses of Model to create a model from a specific type.
+
+        Internal use only.
+        :param cls: the class of the model
+        :return: the model to be added to the subclass of Model
+        """
+
+        def from_(identifier, **kwargs):
+            return cls(identifier, **kwargs)
+
+        return from_
+
+    @staticmethod
+    def _is(model_type):
+        """
+        Method to be added to the subclasses of Model to check if a model is of a specific type.
+
+        Internal use only.
+        :param model_type: the type to check
+        :return: the method to be added to the subclass of Model
+        """
+
+        def is_(self):
+            return self.is_a(model_type)
+
+        return is_
+
+    # -----------------------------------------------------------------------------
+    # Base initializer
+    # -----------------------------------------------------------------------------
+    def __init__(self, identifier: Any, name: str = None):
+        """
+        The model is the base class for all models, such as metabolic model or regulatory model.
+        See also model.MetabolicModel and model.RegulatoryModel for concrete implementations of a model type.
+
+        The model object is the factory for several model types.
+        This model object provides all batteries to create new model types and to manage the model types' inheritance.
+
+        The factory type assists with systematic tasks such as attributes and containers serialization,
+        history management, simulator observation, among others.
+
+        For that, attributes, containers and inheritance are registered in the factory. The MetaModel manages
+        both the factory and the model types derived from the factory.
+
+        :param identifier: identifier,  e.g. iMC1010
+        :param name: the name of the model
+        """
+        self._check_inheritance()
+
+        if not identifier:
+            identifier = ""
+
+        if not name:
+            name = identifier
+
+        self._id = ""
+        self._name = ""
+        self._simulators = []
+        self._types = set()
+
+        # History: reversible changes to the model
+        self._contexts = []
+        self._history = HistoryManager()
+
+        self._id = identifier
+        self.name = name
+
+        # models share different compartments. Although it is not the most subtle solution, name mangling is used to
+        # store the specific compartments of each child. An alternative would be to check for shared attributes
+        # between all children and perform this solution for them
+        self.__compartments = {}
+
+    def _check_inheritance(self):
+        """
+        It checks if the class is a subclass of Model and if it is not, it raises an error.
+        :return:
+        """
+        registry = self.get_registry()
+
+        for model_type in self.types:
+            if model_type not in registry:
+                raise ValueError(f"{model_type} is not registered as subclass of {self.__class__.__name__}")
+
+    # -----------------------------------------------------------------------------
+    # Built-in
+    # -----------------------------------------------------------------------------
+
+    def __str__(self):
+        return f"Model {self.id} - {self.name}"
+
+    def __repr__(self):
+        """Rich representation showing model statistics."""
+        lines = []
+        lines.append("=" * 60)
+        lines.append(f"Model: {self.id}")
+        lines.append("=" * 60)
+
+        # Basic info
+        if hasattr(self, "name") and self.name:
+            lines.append(f"{'Name:':<25} {self.name}")
+
+        # Model types
+        if hasattr(self, "types") and self.types:
+            types_str = ", ".join(sorted(self.types))
+            lines.append(f"{'Types:':<25} {types_str}")
+
+        # Metabolic info (if metabolic model)
+        if hasattr(self, "is_metabolic") and self.is_metabolic():
+            if hasattr(self, "reactions"):
+                lines.append(f"{'Reactions:':<25} {len(self.reactions)}")
+            if hasattr(self, "metabolites"):
+                lines.append(f"{'Metabolites:':<25} {len(self.metabolites)}")
+            if hasattr(self, "genes"):
+                lines.append(f"{'Genes:':<25} {len(self.genes)}")
+            if hasattr(self, "compartments"):
+                comp_str = (
+                    ", ".join(self.compartments)
+                    if len(self.compartments) <= 5
+                    else f"{len(self.compartments)} compartments"
+                )
+                lines.append(f"{'Compartments:':<25} {comp_str}")
+
+            # Boundary reactions
+            if hasattr(self, "exchanges"):
+                lines.append(f"{'Exchanges:':<25} {len(self.exchanges)}")
+            if hasattr(self, "demands") and len(self.demands) > 0:
+                lines.append(f"{'Demands:':<25} {len(self.demands)}")
+            if hasattr(self, "sinks") and len(self.sinks) > 0:
+                lines.append(f"{'Sinks:':<25} {len(self.sinks)}")
+
+        # Regulatory info (if regulatory model)
+        if hasattr(self, "is_regulatory") and self.is_regulatory():
+            if hasattr(self, "interactions"):
+                lines.append(f"{'Interactions:':<25} {len(self.interactions)}")
+            if hasattr(self, "targets"):
+                lines.append(f"{'Targets:':<25} {len(self.targets)}")
+            if hasattr(self, "regulators"):
+                lines.append(f"{'Regulators:':<25} {len(self.regulators)}")
+            if hasattr(self, "environmental_stimuli") and len(self.environmental_stimuli) > 0:
+                lines.append(f"{'Environmental stimuli:':<25} {len(self.environmental_stimuli)}")
+
+        # Objective
+        if hasattr(self, "objective") and self.objective:
+            try:
+                if isinstance(self.objective, dict):
+                    obj_keys = list(self.objective.keys())
+                    if obj_keys:
+                        obj_id = obj_keys[0].id if hasattr(obj_keys[0], "id") else str(obj_keys[0])
+                        obj_val = self.objective[obj_keys[0]]
+                        direction = "maximize" if obj_val > 0 else "minimize"
+                        lines.append(f"{'Objective:':<25} {obj_id} ({direction})")
+            except:
+                lines.append(f"{'Objective:':<25} defined")
+
+        lines.append("=" * 60)
+        return "\n".join(lines)
+
+    # noinspection PyUnresolvedReferences
+    def _repr_html_(self):
+        """Pandas-like HTML representation for Jupyter notebooks."""
+        from mewpy.util.html_repr import render_html_table
+
+        rows = []
+
+        # Name
+        if hasattr(self, "name") and self.name and self.name != self.id:
+            rows.append(("Name", self.name))
+
+        # Types
+        try:
+            types_str = ", ".join(sorted(self.types))
+            rows.append(("Types", types_str))
+        except:
+            pass
+
+        # Compartments
+        try:
+            comps = self.compartments
+            if comps:
+                comp_str = ", ".join(comps) if len(comps) <= 5 else f"{len(comps)} compartments"
+                rows.append(("Compartments", comp_str))
+        except:
+            pass
+
+        # Metabolic model stats
+        if self.is_metabolic():
+            try:
+                rows.append(("Reactions", str(len(self.reactions))))
+            except:
+                pass
+
+            try:
+                rows.append(("Metabolites", str(len(self.metabolites))))
+            except:
+                pass
+
+            try:
+                rows.append(("Genes", str(len(self.genes))))
+            except:
+                pass
+
+            # Boundary reactions
+            try:
+                exchanges = len(self.exchanges)
+                demands = len(self.demands)
+                sinks = len(self.sinks)
+                if exchanges > 0:
+                    rows.append(("  Exchanges", str(exchanges)))
+                if demands > 0:
+                    rows.append(("  Demands", str(demands)))
+                if sinks > 0:
+                    rows.append(("  Sinks", str(sinks)))
+            except:
+                pass
+
+            # Objective
+            try:
+                if hasattr(self, "objective") and self.objective:
+                    obj_keys = list(self.objective.keys())
+                    if obj_keys:
+                        obj_id = obj_keys[0]
+                        obj_val = self.objective[obj_keys[0]]
+                        direction = "maximize" if obj_val > 0 else "minimize"
+                        rows.append(("Objective", f"{obj_id} ({direction})"))
+            except:
+                pass
+
+        # Regulatory model stats
+        if self.is_regulatory():
+            try:
+                rows.append(("Interactions", str(len(self.interactions))))
+            except:
+                pass
+
+            try:
+                rows.append(("Targets", str(len(self.targets))))
+            except:
+                pass
+
+            try:
+                rows.append(("Regulators", str(len(self.regulators))))
+            except:
+                pass
+
+            # Sub-categories
+            try:
+                reg_rxns = len(self.regulatory_reactions)
+                reg_mets = len(self.regulatory_metabolites)
+                env_stim = len(self.environmental_stimuli)
+                if reg_rxns > 0:
+                    rows.append(("  Regulatory reactions", str(reg_rxns)))
+                if reg_mets > 0:
+                    rows.append(("  Regulatory metabolites", str(reg_mets)))
+                if env_stim > 0:
+                    rows.append(("  Environmental stimuli", str(env_stim)))
+            except:
+                pass
+
+        return render_html_table(f"Model: {self.id}", rows)
+
+    # -----------------------------------------------------------------------------
+    # Model type manager
+    # -----------------------------------------------------------------------------
+    @serialize("types", None, None)
+    @property
+    def types(self) -> Set[str]:
+        """
+        It returns the types of the model.
+        :return: the types of the model as a set of strings
+        """
+        return set()
+
+    # -----------------------------------------------------------------------------
+    # Static attributes
+    # -----------------------------------------------------------------------------
+    @serialize("id", None, "_id")
+    @property
+    def id(self) -> Any:
+        """
+        It returns the identifier of the model.
+        :return: the identifier of the model
+        """
+        return self._id
+
+    @serialize("name", "name", "_name")
+    @property
+    def name(self) -> str:
+        """
+        It returns the name of the model.
+        :return: the name of the model
+        """
+        return self._name
+
+    @property
+    def simulators(self) -> List[Any]:
+        """
+        It returns the list of simulation methods associated with the model.
+        :return: the list of simulation methods
+        """
+        return self._simulators
+
+    # -----------------------------------------------------------------------------
+    # Static attributes setters
+    # -----------------------------------------------------------------------------
+    @name.setter
+    @recorder
+    def name(self, value: str):
+        """
+        It sets the name of the model.
+        :param value: the name of the model
+        :return:
+        """
+        if not value:
+            value = ""
+
+        self._name = value
+
+    # -----------------------------------------------------------------------------
+    # Operations/Manipulations
+    # -----------------------------------------------------------------------------
+
+    def get(
+        self, identifier: Any, default=None
+    ) -> Union["Gene", "Interaction", "Metabolite", "Reaction", "Regulator", "Target"]:
+        """
+        It returns the variable with the given identifier.
+        :param identifier: the identifier of the variable
+        :param default: the default value to return if the variable is not found
+        :return: the variable with the given identifier
+        """
+        return default
+
+    def add(self, *variables: "Variable", comprehensive: bool = True, history: bool = True):
+        """
+        It adds the given variables to the model.
+        This method accepts a single variable or a list of variables to be added to specific containers in the model.
+        The containers to which the variables will be added are specified by the types.
+
+        For instance, if a variable is simultaneously a metabolite and regulator,
+        it will be added to the metabolites and regulators containers.
+
+        If comprehensive is True, the variables and their related variables will be added to the model too.
+        If history is True, the changes will be recorded in the history.
+
+        This method notifies all simulators with the recent changes.
+
+        :param variables: the variables to be added to the model
+        :param comprehensive: if True, the variables and their related variables will be added to the model too
+        :param history: if True, the changes will be recorded in the history
+        :return:
+        """
+        if history:
+            self.history.queue_command(
+                undo_func=self.remove,
+                undo_args=variables,
+                undo_kwargs={"remove_orphans": True, "history": False},
+                func=self.add,
+                args=variables,
+                kwargs={"comprehensive": comprehensive, "history": history},
+            )
+
+        self.notify()
+
+    def remove(self, *variables: "Variable", remove_orphans: bool = False, history: bool = True):
+        """
+        It removes the given variables from the model.
+        This method accepts a single variable or a list of variables to be removed from specific containers
+        in the model.
+        The containers from which the variables will be removed are specified by the types.
+
+        For instance, if a variable is simultaneously a metabolite and regulator,
+        it will be removed from the metabolites and regulators containers.
+
+        If remove_orphans is True, the variables and their related variables will be removed from the model too.
+        If history is True, the changes will be recorded in the history.
+
+        This method notifies all simulators with the recent changes.
+
+        :param variables: the variables to be removed from the model
+        :param remove_orphans: if True, the variables and their related variables will be removed from the model too
+        :param history: if True, the changes will be recorded in the history
+        :return:
+        """
+        if history:
+            self.history.queue_command(
+                undo_func=self.add,
+                undo_args=variables,
+                undo_kwargs={"comprehensive": True, "history": False},
+                func=self.remove,
+                args=variables,
+                kwargs={"remove_orphans": remove_orphans, "history": history},
+            )
+
+        self.notify()
+
+    def update(self, name: str = None):
+        """
+        It updates the model with relevant information.
+        :param name: the name of the model
+        :return:
+        """
+        if name:
+            self.name = name
+
+    def _add_variable_to_container(self, variable, container):
+        """
+        It adds the given variable to the given container.
+
+        Helper method to be used internally.
+        :param variable: the variable to be added to the container
+        :param container: the container to which the variable will be added
+        :return:
+        """
+
+        if isinstance(container, str):
+            container = getattr(self, container, container)
+
+        if variable.id not in container:
+            container[variable.id] = variable
+
+            if variable.model is not self:
+                variable.model = self
+                # noinspection PyProtectedMember
+                variable._model_ref = 1
+
+            elif variable.model is self:
+                # noinspection PyProtectedMember
+                variable._model_ref += 1
+
+    def _remove_variable_from_container(self, variable, container):
+        """
+        It removes the given variable from the given container.
+
+        Helper method to be used internally.
+        :param variable: the variable to be removed from the container
+        :param container: the container from which the variable will be removed
+        :return:
+        """
+        if isinstance(container, str):
+            container = getattr(self, container, container)
+
+        if variable.id in container:
+
+            del container[variable.id]
+
+            # noinspection PyProtectedMember
+            if variable._model_ref < 2:
+                variable.model = None
+
+            elif variable._model_ref > 1:
+                # noinspection PyProtectedMember
+                variable._model_ref -= 1
+
+    # -----------------------------------------------------------------------------
+    # Simulators observer pattern
+    # -----------------------------------------------------------------------------
+    def attach(self, simulator: Any):
+        """
+        It attaches the given simulation method (simulator) to the model.
+        Once a simulator is attached to the model, it will be notified with model changes.
+        Hence, the simulator is synchronized with the model and following optimizations reflect
+        the changes in the model.
+
+        :param simulator: the simulator to be attached to the model
+        :return:
+        """
+        self.simulators.append(simulator)
+
+    def detach(self, simulator):
+        """
+        It detaches the given simulation method (simulator) from the model.
+        Once a simulator is detached from the model, it will not be notified with model changes.
+        Hence, the simulator is not synchronized with the model and following optimizations do not reflect
+        the changes in the model.
+
+        :param simulator: the simulator to be detached from the model
+        :return:
+        """
+        self.simulators.remove(simulator)
+
+    def notify(self):
+        """
+        It notifies all simulators with the recent changes in the model.
+
+        :return:
+        """
+        for simulator in self.simulators:
+            simulator.update()
+
+    # -----------------------------------------------------------------------------
+    # History manager command pattern
+    # -----------------------------------------------------------------------------
+    @property
+    def contexts(self) -> List[HistoryManager]:
+        """
+        It returns the list of contexts the model is currently in.
+        :return: the list of contexts the model is currently in
+        """
+        return self._contexts
+
+    @property
+    def history(self) -> HistoryManager:
+        """
+        It returns the history manager of the model.
+        If the model is in a context, the history manager of the last context is returned.
+        :return: the history manager of the model
+        """
+        if self.contexts:
+            return self.contexts[-1]
+
+        return self._history
+
+    def undo(self):
+        """
+        It undoes the last action performed on the model.
+        :return:
+        """
+        self.history.undo()
+
+    def redo(self):
+        """
+        It redoes the last action performed on the model.
+        :return:
+        """
+        self.history.redo()
+
+    def clean_history(self):
+        """
+        It cleans the history of the model.
+        :return:
+        """
+        self._history = HistoryManager()
+
+    def clean_context(self, index=None):
+        """
+        It cleans the context of the model.
+        :param index: the index of the context to be cleaned
+        :return:
+        """
+        if not index:
+            index = -1
+
+        self.contexts[index] = HistoryManager()
+
+    def reset(self):
+        """
+        It resets the model to its initial state.
+        :return:
+        """
+        self.history.reset()
+
+    def restore(self):
+        """
+        It restores the model to its last state.
+        :return:
+        """
+        self.history.restore()
+
+    def __enter__(self):
+        """
+        It enters the context of the model.
+        It creates a new context and adds it to the list of contexts.
+        All changes performed within this context will be reset when the context is exited.
+
+        :return: the model itself
+        """
+        self.contexts.append(HistoryManager())
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        It exits the context of the model performing a history reset.
+
+        :param exc_type:
+        :param exc_val:
+        :param exc_tb:
+        :return:
+        """
+        context = self.contexts.pop()
+        context.reset()
+
+    # -----------------------------------------------------------------------------
+    # Abstract implementations
+    # -----------------------------------------------------------------------------
+    # The following polymorphic initializers are just registered here to avoid type checking errors
+    @classmethod
+    def from_metabolic(
+        cls,
+        identifier: Any,
+        name: str = None,
+        compartments: Dict[str, str] = None,
+        genes: Dict[str, "Gene"] = None,
+        metabolites: Dict[str, "Metabolite"] = None,
+        objective: Dict["Reaction", Union[float, int]] = None,
+        reactions: Dict[str, "Reaction"] = None,
+    ) -> "MetabolicModel":
+        """
+        It creates a metabolic model from the given information.
+        :param identifier: the identifier of the model
+        :param name: the name of the model
+        :param compartments: the compartments of the model
+        :param genes: the genes of the model
+        :param metabolites: the metabolites of the model
+        :param objective: the objective of the model
+        :param reactions: the reactions of the model
+        :return: a metabolic model
+        """
+        ...
+
+    @classmethod
+    def from_regulatory(
+        cls,
+        identifier: Any,
+        name: str = None,
+        compartments: Dict[str, str] = None,
+        interactions: Dict[str, "Interaction"] = None,
+        regulators: Dict[str, "Regulator"] = None,
+        targets: Dict[str, "Target"] = None,
+    ) -> "RegulatoryModel":
+        """
+        It creates a regulatory model from the given information.
+        :param identifier: the identifier of the model
+        :param name: the name of the model
+        :param compartments: the compartments of the model
+        :param interactions: the interactions of the model
+        :param regulators: the regulators of the model
+        :param targets: the targets of the model
+        :return: a regulatory model
+        """
+        ...
+
+    # -----------------------------------------------------------------------------
+    # Type checker
+    # -----------------------------------------------------------------------------
+    # The following type checkers are just registered here to avoid type checking errors
+    def is_metabolic(self) -> bool:
+        """
+        It checks whether the model is a metabolic model.
+        :return: True if the model is a metabolic model, False otherwise
+        """
+        ...
+
+    def is_regulatory(self) -> bool:
+        """
+        It checks whether the model is a regulatory model.
+        :return: True if the model is a regulatory model, False otherwise
+        """
+        ...
+
+    def is_a(self, model_type) -> bool:
+        """
+        It checks whether the model is of the given type.
+        :param model_type: the type of the model
+        :return: True if the model is of the given type, False otherwise
+        """
+        if model_type in self.types:
+            return True
+
+        return False
+
+    # -----------------------------------------------------------------------------
+    # Common attributes - Name mangling
+    # -----------------------------------------------------------------------------
+    @property
+    def compartments(self) -> Dict[str, str]:
+        """
+        It returns the compartments of the model.
+        :return: the compartments of the model as a dictionary
+        """
+        return self.__compartments
+
+    # -----------------------------------------------------------------------------
+    # Helper methods
+    # -----------------------------------------------------------------------------
+
+    @staticmethod
+    def _get_orphans(to_remove, first_container, second_container):
+        """
+        It returns the orphans of the given containers.
+
+        Internal use only.
+        :param to_remove: the variables to be removed
+        :param first_container: the first container
+        :param second_container: the second container
+        :return:
+        """
+        orphans = set()
+
+        for variable in to_remove:
+
+            container_iter = getattr(
+                variable, f"yield_{first_container}", lambda: [getattr(variable, f"{first_container}")]
+            )
+
+            for variable_2 in container_iter():
+
+                remove_variable = True
+
+                container_iter2 = getattr(
+                    variable_2, f"yield_{second_container}", lambda: [getattr(variable_2, f"{second_container}")]
+                )
+
+                for variable_3 in container_iter2():
+
+                    if variable_3 not in to_remove:
+                        remove_variable = False
+
+                if remove_variable:
+                    orphans.add(variable_2)
+
+        return orphans
+
+
+def build_model(types: Iterable[str], kwargs: Dict[str, Any]) -> Union["Model", "MetabolicModel", "RegulatoryModel"]:
+    """
+    It builds a model from the given types and arguments. Check the `Model.from_types()` method for details.
+    :param types: the types of the model
+    :param kwargs: the arguments of the model
+    :return: a new model instance for the given types and arguments
+    """
+    return Model.from_types(types, **kwargs)
