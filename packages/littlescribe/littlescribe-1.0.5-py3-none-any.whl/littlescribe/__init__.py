@@ -1,0 +1,1 @@
+from .littlescribe import main as entrypoint
