@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "teachbooks"
+version = "0.2.4"
+description = "TeachBooks wrapper around JupyterBooks"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "TeachBooks", email = "teachbooks@tudelft.nl"}]
+classifiers = [
+  "Programming Language :: Python :: 3",
+]
+dependencies = [
+  "jupyter-book ~= 1.0",
+  "click",
+  "psutil"
+]
+
+[project.scripts]
+teachbooks = "teachbooks.cli.main:main"
+
+[project.optional-dependencies]
+testing = [
+  "pytest",
+  "flaky"
+]
+lint = [
+  "ruff",
+]
+docs = [
+  "furo",
+  "numpydoc",
+  "sphinxcontrib-apidoc",
+  "sphinx-click"
+]
+dev = [
+  "teachbooks[testing,lint,docs]"
+]
+
+[tool.ruff]
+target-version = "py310"
+exclude = ["teachbooks/plugins/*", "*/_ext/*"]
+
+[tool.ruff.lint]
+select = [
+  "A",  # builtins
+  "E",
+  "F",
+  "UP",
+  "B",
+  "SIM",
+  "I",  # import sorting
+  "D",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "E501"]
+"*/__init__.py" = ["D104"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["teachbooks"]
+
+[tool.setuptools.packages]
+find = {}
+
+[project.urls]
+"Homepage" = "https://github.com/teachbooks/teachbooks"
+
+[project.entry-points."pybtex.style.formatting"]
+apa = "teachbooks.plugins.pybtex.formatting.apa:APAStyle"
+
+[project.entry-points."pybtex.style.labels"]
+apa = "teachbooks.plugins.pybtex.labels.apa:APALabelStyle"
+
+[project.entry-points."pybtex.style.names"]
+firstlast = "teachbooks.plugins.pybtex.names:FirstLastStyle"
+
+[project.entry-points."sphinxcontrib.bibtex.style.referencing"]
+author_year_round = "teachbooks.plugins.sphinxcontrib_bibtex.style.referencing.author_year_apa:AuthorYearRoundReferenceStyle"
