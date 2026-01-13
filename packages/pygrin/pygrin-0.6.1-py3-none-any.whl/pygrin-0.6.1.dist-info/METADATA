@@ -1,0 +1,177 @@
+Metadata-Version: 2.4
+Name: pygrin
+Version: 0.6.1
+Summary: Gradient Index (GRIN) Lens Calculations
+Author-email: Scott Prahl <scott.prahl@oit.edu>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/scottprahl/pygrin
+Project-URL: Documentation, https://pygrin.readthedocs.io
+Project-URL: Source, https://github.com/scottprahl/pygrin
+Project-URL: Tracker, https://github.com/scottprahl/pygrin/issues
+Project-URL: Changelog, https://github.com/scottprahl/pygrin/blob/main/docs/CHANGELOG.rst
+Keywords: endoscope,pitch,SELFOC,Graded Index
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Description-Content-Type: text/x-rst
+License-File: LICENSE.txt
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Provides-Extra: docs
+Requires-Dist: Sphinx==8.1.3; extra == "docs"
+Requires-Dist: nbsphinx==0.9.7; extra == "docs"
+Requires-Dist: sphinx_automodapi; extra == "docs"
+Requires-Dist: sphinx_rtd_theme; extra == "docs"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: yamllint; extra == "dev"
+Requires-Dist: rstcheck; extra == "dev"
+Requires-Dist: pylint; extra == "dev"
+Requires-Dist: pyroma; extra == "dev"
+Requires-Dist: black[jupyter]; extra == "dev"
+Requires-Dist: build; extra == "dev"
+Requires-Dist: check-manifest; extra == "dev"
+Requires-Dist: libarchive-c; extra == "dev"
+Requires-Dist: pyyaml; extra == "dev"
+Requires-Dist: setuptools; extra == "dev"
+Requires-Dist: jupyterlab; extra == "dev"
+Requires-Dist: nbconvert; extra == "dev"
+Requires-Dist: nbformat; extra == "dev"
+Provides-Extra: lite
+Requires-Dist: jupyterlite-core==0.6.4; extra == "lite"
+Requires-Dist: jupyterlite-pyodide-kernel==0.6.1; extra == "lite"
+Dynamic: license-file
+
+.. |pypi| image:: https://img.shields.io/pypi/v/pygrin?color=68CA66
+   :target: https://pypi.org/project/pygrin/
+   :alt: pypi
+
+.. |github| image:: https://img.shields.io/github/v/tag/scottprahl/pygrin?label=github&color=68CA66
+   :target: https://github.com/scottprahl/pygrin
+   :alt: github
+
+.. |conda| image:: https://img.shields.io/conda/vn/conda-forge/pygrin?label=conda&color=68CA66
+   :target: https://github.com/conda-forge/pygrin-feedstock
+   :alt: conda
+
+.. |doi| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.8370821.svg
+   :target: https://doi.org/10.5281/zenodo.8370821
+   :alt: doi  
+
+.. |license| image:: https://img.shields.io/github/license/scottprahl/pygrin?color=68CA66
+   :target: https://github.com/scottprahl/pygrin/blob/main/LICENSE.txt
+   :alt: License
+
+.. |test| image:: https://github.com/scottprahl/pygrin/actions/workflows/test.yaml/badge.svg
+   :target: https://github.com/scottprahl/pygrin/actions/workflows/test.yaml
+   :alt: Testing
+
+.. |docs| image:: https://readthedocs.org/projects/pygrin/badge?color=68CA66
+   :target: https://pygrin.readthedocs.io
+   :alt: Docs
+
+.. |downloads| image:: https://img.shields.io/pypi/dm/pygrin?color=68CA66
+   :target: https://pypi.org/project/pygrin/
+   :alt: Downloads
+
+.. |lite| image:: https://img.shields.io/badge/try-JupyterLite-68CA66.svg
+   :target: https://scottprahl.github.io/pyspeckle/
+   :alt: Try Online
+
+pygrin
+======
+
+A basic collection of routines to ray trace through graded index (GRIN) lenses with a
+parabolic radial profile.
+
+|pypi| |github| |conda| |doi|
+
+|license| |test| |docs| |downloads|
+
+|lite|
+
+.. image:: https://raw.githubusercontent.com/scottprahl/pygrin/main/docs/pitch.png
+   :alt: full pitch lens
+
+Example
+-------
+
+Properties of a 0.25 pitch GRIN lens from an ancient Melles Griot Catalog::
+
+    import pygrin
+    n = 1.608 
+    gradient = 0.339 
+    length = 5.37
+    diameter = 1.8
+    
+    pitch = pygrin.period(gradient, length)
+    ffl = pygrin.FFL(n,pitch,length)
+    efl = pygrin.EFL(n,pitch,length)
+    na = pygrin.NA(n,pitch,length,diameter)
+
+    angle = pygrin.max_angle(n,pitch,length,diameter)
+    print('expected pitch = 0.29,            calculated %.2f' % pitch)
+    print('expected FFL = 0.46 mm,           calculated %.2f' % ffl)
+    print('expected NA = 0.46,               calculated %.2f' % na)
+    print('expected full accept angle = 55°, calculated %.0f°' % (2*angle*180/np.pi))
+    print('working distance = %.2f mm'%(efl-ffl))
+
+Produces::
+
+    expected pitch = 0.29,            calculated 0.29
+    expected FFL = 0.46,              calculated 0.47
+    expected NA = 0.46,               calculated 0.46
+    expected full accept angle = 55°, calculated 55°
+    working distance = 1.43 mm
+
+But the real utility of this module is creating plots that show the path of rays through
+a GRIN lens.   For examples, see <https://pygrin.readthedocs.io>
+
+Installation
+------------
+
+Use ``pip``::
+
+    pip install pygrin
+
+or ``conda``::
+
+    conda install -c conda-forge pygrin
+
+or use immediately in your browser via the JupyterLite button below
+
+    |lite|
+
+Citation
+--------
+
+If you use ``pygrin`` in academic or technical work, please cite:
+
+Prahl, S. (2025). *pygrin: A Python module for ray tracing through gradient-index (GRIN) lenses* (Version 0.6.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.8370821
+
+BibTeX
+~~~~~~
+
+.. code-block:: bibtex
+
+   @software{pygrin_prahl_2025,
+     author    = {Scott Prahl},
+     title     = {pygrin: A Python module for ray tracing through gradient-index (GRIN) lenses},
+     year      = {2025},
+     version   = {0.6.0},
+     doi       = {10.5281/zenodo.8370821},
+     url       = {https://github.com/scottprahl/pygrin},
+     publisher = {Zenodo}
+   }
+
+License
+-------
+``pygrin`` is licensed under the terms of the MIT license.
