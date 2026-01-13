@@ -1,0 +1,115 @@
+[build-system]
+requires = ["setuptools", "wheel", "babel"]
+build-backend = "build_support.backend"
+backend-path = ["."]
+
+[project]
+name = "workers-control"
+version = "0.1.4"
+description = "A flask app for labour time accounting."
+license = "AGPL-3.0-or-later"
+requires-python = ">=3.12"
+classifiers = [
+    "Framework :: Flask",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+readme = "README.rst"
+
+dependencies = [
+    # Pin to exact versions, if possible. Update manually.
+    "alembic>=1.16.4, <=1.17.2",  # different versions in stable/unstable nixpkgs 
+    "email-validator==2.2.0",
+    "flask==3.1.2",
+    "flask-babel==4.0.0",
+    "flask-mail==0.10.0",
+    "flask-talisman==1.1.0",
+    "flask-login==0.6.3",
+    "flask-wtf==1.2.2",
+    "matplotlib==3.10.5"
+]
+
+[project.optional-dependencies]
+profiling = ["flask_profiler"]
+
+[project.urls]
+Source = "https://github.com/ida-arbeitszeit/workers-control"
+Documentation = "https://workers-control.readthedocs.io/"
+Changelog = "https://github.com/ida-arbeitszeit/workers-control/blob/master/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = [ "src" ]
+
+[tool.black]
+target-version = ['py312']
+extend-exclude = '''
+(
+  ^/src/workers_control/db/migrations/versions/
+)
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+skip = "src/workers_control/db/migrations/versions/"
+
+[tool.mypy]
+files = [
+    "src",
+    "dev",
+    "build_support",
+    "tests",
+    "run-checks",
+    "format_code.py",
+]
+mypy_path = "src:dev/type_stubs"
+exclude = '''
+    dev/type_stubs
+'''
+disable_error_code = "type-abstract"
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = [
+    "src",
+    "dev",
+    "tests"
+]
+allow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "flask_babel",
+    "flask_login",
+    "flask_wtf",
+    "parameterized.*",
+    "wtforms.*",
+]
+ignore_errors = true
+
+[tool.coverage.run]
+source = [
+    "src",
+]
+omit = [
+    "src/workers_control/db/migrations/versions/*",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    # Don't complain about missing debug-only code:
+    "def __repr__",
+    "if self\\.debug",
+
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+]
