@@ -1,0 +1,460 @@
+<| set ns = namespace(total_marks=0) -|>
+<| set default_marks = {'mc': 2.5, 'ma': 2.5, 'tf': 2.5, 'essay': 5, 'matching': 2.5, 'ordering': 2.5} -|>
+<| for q in questions if q.type in default_marks -|>
+    <| set q_marks = q.marks | float if q.marks is defined else default_marks.get(q.type, 0) -|>
+    <| set ns.total_marks = ns.total_marks + q_marks -|>
+<| endfor -|>
+<!DOCTYPE html>
+<html dir="ltr" lang="en">
+  <head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<title>Quiz</title>
+    <style type="text/css">
+	 html * {
+	 font-family: sans-serif;
+     	 line-height: 1.35;	 
+	 }
+     p {
+		 max-width: 37em;
+		 page-break-before: avoid;
+	     margin: 0.5em 0;
+	 }	 
+	 .incorrect {
+		 color: black;
+		 background: none;
+		 border: none;				   		 
+	 }
+	 .essay-answer {
+	 display: none;
+	 }
+	 .essay-answer.showanswers {
+	 display: block;	 
+	 }	 
+	 .correct {
+		 color: black;
+		 background: none;
+		 border: none;				   		 
+	 }
+     .correct.showanswers {
+		color: #3c763d;
+		background: #dff0d8;		 
+		border-color: #d6e9c6;
+		/* max-width: 37em; */
+		 /* border: 1px solid; */
+		border-radius: 4px;
+	}
+    .incorrect.showanswers {
+		color: #a94442;
+		background: #f2dede;
+		border-color: #ebccd1;
+		/* max-width: 37em; */
+		/* border: 1px solid; */
+		border-radius: 4px;				   
+	 }
+	 li p:first-child {
+		 margin-top: 0em;
+	 }
+	 li p:last-child {
+		 margin-bottom: 0em;
+	 }
+	 li {margin: 0.5em 0em}
+
+	 ol.question-list {
+		 list-style: none;
+		 /* counter-reset: item; */
+	 }
+	 ol.answers {
+		 list-style: lower-latin;
+		 /* counter-reset: item; */
+	 }
+	 li.question li:first-child {
+		 margin-top: 1.5em;
+     }
+	 ol.question-list {
+		 margin: 0em 0em 0em -2em;
+	 }
+	 ol.question-list li.question {
+		 margin: 1.25em 0em;
+		 /* counter-increment: item; */
+		 margin-bottom: 5px;
+	 }
+	 ol.question-list li.question:before {
+	     margin-right: 10px;
+	     margin-bottom: 1em;
+		 content: "QUESTION " attr(data-questionid);
+		 font-size: 100%;
+		 font-weight: 600;
+	     display: inline-block;}
+	 .question {
+	     border: 1px solid lightgray;
+		 border-radius: 4px;
+		 padding: 1.5em;
+	 }
+	 .question-type{
+		 float: right;
+		 font-style: italic;
+	 }
+	 .marks {
+		 float: right;
+		 margin: 0em 1em;
+		 font-weight: 600;		 
+	 }
+	 .marks:after{
+		 content: ' marks ]'
+     }
+	 .marks:before{
+		 content: '[ '
+     }
+	 
+	 ol { max-width: 43em; page-break-before: avoid; }
+     li { max-width: 43em; page-break-before: avoid; }
+
+     /* Side-by-side figure support */
+     .question-container {
+         display: flex;
+         flex-direction: row;
+         gap: 2em;
+         align-items: flex-start;
+         margin-top: 1em;
+     }
+     .question-content {
+         /* flex-basis set inline */
+     }
+     .question-figure {
+         /* flex-basis set inline */
+         text-align: center;
+         align-self: flex-start;
+     }
+     .question-figure img, .question-figure svg {
+         max-width: 100%;
+         height: auto;
+         border: 1px solid #eee;
+         padding: 5px;
+     }
+     @media (max-width: 700px) {
+         .question-container {
+             flex-direction: column;
+         }
+         .question-figure {
+             flex-basis: auto !important;
+             width: 100%;
+             margin-top: 1em;
+         }
+     }
+    </style>
+  </head>
+  <body>
+	<p><i>Total Possible Marks: << ns.total_marks >> </i>
+	  <button onclick="toggleShowAnswers()"
+			  id="toggleShowAnswersBtn"
+			  style="float:right"
+			  title= "Shortcut: m">Show Answers</button>
+	  <button onclick="toggleSlideShow()"
+			  id="toggleSlideShowBtn"
+			  style="float:right"
+			  title= "Shortcut: l">Slide Show</button>
+    <ol class='question-list'>
+<| for q in questions |>
+<li class='question' id='Q<< loop.index >>' data-questionid='<< loop.index >>' style='vertical-align: top;'>
+<| if q.type == 'essay' |>
+<div class='question-type'>Essay</div><div class='marks'><< q.marks >></div>
+<<q.question>>
+<| if q.answer is defined |>
+  <div class='essay-answer' style='background:#eee; max-width: 34.5em;
+			  padding: 1em; margin-bottom:1em; margin-top:1em'>
+  <p><i>indicative answer:</i></p>
+  <<q.answer>>
+</div>
+  <| else |>
+  <div style='background:#eee; max-width: 34.5em;
+			  padding: 1em; margin-bottom:1em; margin-top:1em'>
+	no indicative answer given.
+  </div>	
+  <| endif |>
+<| elif q.type == 'mc'|>
+<div class='question-type'>Multiple Choice</div><div class='marks'><< q.marks >></div>
+<<q.question>>
+<| if q['figure-split'] is defined |>
+<div class="question-container">
+<div class="question-figure" style="flex: << q['figure-split']|float >>"><<q.figure>></div>
+<div class="question-content" style="flex: << 1.0 - q['figure-split']|float >>">
+<| endif |>
+<ol class='answers'>
+<|-   for a in q.choices |>
+<|        if a.x is defined   -|>
+  <li class='correct'>
+	<<a.x>>
+  </li>	  
+<|-        else          -|>  
+  <li class='incorrect'>
+	<<a.o>>
+  </li>	  
+<|-        endif          |>  
+<|-    endfor +|>
+</ol>
+<| if q['figure-split'] is defined |></div></div>
+<| elif q.figure is defined |><div class="question-figure" style="margin-top: 1em;"><<q.figure>></div>
+<| endif |>
+
+<| elif q.type == 'tf'|>
+<div class='question-type'>True/False</div><div class='marks'><< q.marks >></div>
+<<q.question>>
+<| if q['figure-split'] is defined |>
+<div class="question-container">
+<div class="question-figure" style="flex: << q['figure-split']|float >>"><<q.figure>></div>
+<div class="question-content" style="flex: << 1.0 - q['figure-split']|float >>">
+<| endif |>
+<ol class='answers'>
+<|   if q.answer|lower == 'true'  -|>
+  <li class='correct'>
+	True
+  </li>	  
+  <li class='incorrect'>
+	False
+  </li>	  
+<|-        else          -|>  
+  <li class='incorrect'>
+	True
+  </li>	  
+  <li class='correct'>
+	False
+  </li>	  
+<|-   endif          |>  
+</ol>
+<| if q['figure-split'] is defined |></div></div>
+<| elif q.figure is defined |><div class="question-figure" style="margin-top: 1em;"><<q.figure>></div>
+<| endif |>
+
+<| elif q.type == 'ma'|>
+<div class='question-type'>Multiple Answers</div><div class='marks'><< q.marks >></div>
+<<q.question>>
+<| if q['figure-split'] is defined |>
+<div class="question-container">
+<div class="question-figure" style="flex: << q['figure-split']|float >>"><<q.figure>></div>
+<div class="question-content" style="flex: << 1.0 - q['figure-split']|float >>">
+<| endif |>
+<ol class='answers'>
+<|-   for a in q.choices |>
+<|        if a.x is defined   -|>
+  <li class='correct'>
+	<<a.x>>
+  </li>	  
+<|-        else          -|>  
+  <li class='incorrect'>
+	<<a.o>>
+  </li>	  
+<|-        endif          |>  
+<|-    endfor +|>
+</ol>
+<| if q['figure-split'] is defined |></div></div>
+<| elif q.figure is defined |><div class="question-figure" style="margin-top: 1em;"><<q.figure>></div>
+<| endif |>
+
+<| elif q.type == 'matching' |>
+<div class='question-type'>Matching</div><div class='marks'><< q.marks >></div>
+<<q.question>>
+<| if q['figure-split'] is defined |>
+<div class="question-container">
+<div class="question-figure" style="flex: << q['figure-split']|float >>"><<q.figure>></div>
+<div class="question-content" style="flex: << 1.0 - q['figure-split']|float >>">
+<| endif |>
+<ol class='answers'>
+<|-   for choice in q.choices |>
+	<li>
+	  <ol>
+		<li>
+		  <div class='block'
+			   style='border-left:2px solid; padding-left:1em;
+					  border-color: #f2f;max-width: 30.25em;'>
+			<< choice.A >>
+		  </div>
+		</li>
+		<li>
+		  <div class='block'
+			   style='border-left:2px solid; border-color: #2ff;
+					  padding-left:1em; max-width: 30.25em;'>
+            << choice.B >> 
+          </div>
+	    </li>
+	  </ol>
+	</li>
+<|-    endfor +|>
+</ol>
+<| if q['figure-split'] is defined |></div></div>
+<| elif q.figure is defined |><div class="question-figure" style="margin-top: 1em;"><<q.figure>></div>
+<| endif |>
+
+<| elif q.type == 'ordering' |>
+<div class='question-type'>Ordering</div><div class='marks'><< q.marks >></div>
+<<q.question>>
+<| if q['figure-split'] is defined |>
+<div class="question-container">
+<div class="question-figure" style="flex: << q['figure-split']|float >>"><<q.figure>></div>
+<div class="question-content" style="flex: << 1.0 - q['figure-split']|float >>">
+<| endif |>
+<ol class='answers'>
+  <|-   for choice in q.choices |>
+  <li>
+	<div class='block'
+		 style='border-left:2px solid; padding-left:1em;
+				border-color: #f2f;max-width: 30.25em;'>
+	  << choice >>
+	</div>
+  </li>
+  <|-    endfor +|>
+</ol>
+<| if q['figure-split'] is defined |></div></div>
+<| elif q.figure is defined |><div class="question-figure" style="margin-top: 1em;"><<q.figure>></div>
+<| endif |>
+
+<|- endif          |>
+  </li>
+<| endfor |>
+	</ol>	
+
+<script>
+	var slideShow = sessionStorage.getItem("autosave-slideShow")  === "true";
+	var showAnswers = sessionStorage.getItem("autosave-showAnswers")  === "true";
+	var currentQuestion	= parseInt(sessionStorage.getItem("autosave-currentQuestion")) || 1;	
+
+	var toggleShowAnswersBtn = document.getElementById("toggleShowAnswersBtn");
+	var toggleSlideShowBtn = document.getElementById("toggleSlideShowBtn");
+	
+  	var nQuestions = document.getElementsByClassName("question").length;
+	currentQuestion = Math.min(currentQuestion, nQuestions);
+
+	refresh();
+	
+	function toggleShowAnswers() {
+		showAnswers = !showAnswers;
+		sessionStorage.setItem("autosave-showAnswers", showAnswers);
+		refresh();		
+	}
+
+	function toggleSlideShow() {		  
+		slideShow = !slideShow;
+		sessionStorage.setItem("autosave-slideShow", slideShow);
+		refresh();
+	}
+
+	function incrCurrentQuestion() {
+		currentQuestion = Math.min(currentQuestion + 1, nQuestions);
+		sessionStorage.setItem("autosave-currentQuestion", currentQuestion);			
+		refresh();		  
+	}
+
+	function decrCurrentQuestion() {
+		currentQuestion = Math.max(currentQuestion - 1, 1);
+		sessionStorage.setItem("autosave-currentQuestion", currentQuestion);			
+		refresh();		  
+	}
+		
+	function refresh() {
+		if (slideShow){
+			var elements = document.getElementsByClassName("question");
+			for (let i=0; i<elements.length; i++){
+				if (elements[i].getAttribute('data-questionid') === currentQuestion.toString()) {
+					elements[i].style.display = 'block';
+				}
+				else {
+					elements[i].style.display = 'none';
+				}
+			}
+		}
+		else {
+			var elements = document.getElementsByClassName("question");
+			for (let i=0; i<elements.length; i++){		  
+				elements[i].style.display = 'block';
+			}
+		}
+
+		if (showAnswers) {
+			toggleShowAnswersBtn.textContent = "Hide Answers";
+		} else {
+			toggleShowAnswersBtn.textContent = "Show Answers";
+		}
+
+		if (slideShow) {
+			toggleSlideShowBtn.textContent = "Show All";
+		} else {
+			toggleSlideShowBtn.textContent = "Slide Show";
+		}
+		
+		for (const className of ["correct", "incorrect", "essay-answer"]) { 
+			const elements = document.getElementsByClassName(className);
+
+			for (let i = 0; i < elements.length; i++) {
+				if (showAnswers) {
+					elements[i].classList.add("showanswers");
+				} else {
+					elements[i].classList.remove("showanswers");
+				}
+			}
+		}			
+	}  
+
+  
+	document.addEventListener("keydown", function onEvent(event) {
+		if (event.key === "m") {			
+			toggleShowAnswers();
+		}
+		if (event.key === "l") {
+			toggleSlideShow();
+		}
+		if (event.key === "ArrowLeft"  ) {
+			decrCurrentQuestion();
+		}
+		if (event.key === "ArrowRight" || event.key === " " ) {
+			incrCurrentQuestion();
+		}
+		
+	});
+
+    // Auto-reload polling
+    // If livereload_port is defined (by compile.py --watch), we poll the local server
+    // otherwise we try to poll the file itself (works only if served via HTTP)
+    
+    <| if livereload_port is defined |>
+    var lastTimestamp = null;
+    function checkServerUpdate() {
+        fetch("http://localhost:<< livereload_port >>/status")
+        .then(res => res.json())
+        .then(data => {
+            if (lastTimestamp === null) {
+                lastTimestamp = data.timestamp;
+            } else if (data.timestamp > lastTimestamp) {
+                console.log("File changed (server), reloading...");
+                window.location.reload();
+            }
+        })
+        .catch(err => {
+            console.debug("LiveReload server unreachable");
+        });
+    }
+    setInterval(checkServerUpdate, 100);
+    <| else |>
+    var lastModifiedHeader = null;
+    function checkFileUpdate() {
+        fetch(window.location.href, {method: 'HEAD', cache: 'no-cache'})
+        .then(res => {
+            const lm = res.headers.get('Last-Modified');
+            if (lastModifiedHeader === null) {
+                lastModifiedHeader = lm;
+            } else if (lm && lm !== lastModifiedHeader) {
+                console.log("File changed, reloading...");
+                window.location.reload();
+            }
+        })
+        .catch(err => {
+            // Fails silently on file:// protocol usually
+        });
+    }
+    setInterval(checkFileUpdate, 100);
+    <| endif |>
+	    
+</script>
+
+
+
+  </body>
+</html>
