@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Callable
+from typing import Any
+
+from arp_auth import AuthClient
+from arp_standard_client.errors import ArpApiError
+from arp_standard_client.selection import SelectionClient
+from arp_standard_model import (
+    CandidateSet,
+    CandidateSetRequest,
+    Health,
+    SelectionGenerateCandidateSetRequest,
+    SelectionHealthRequest,
+    SelectionVersionRequest,
+    VersionInfo,
+)
+from arp_standard_server import ArpServerError
+
+from ..auth import client_credentials_token
+
+
+class SelectionGatewayClient:
+    """Outgoing Selection Service client wrapper for the Composite Executor."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        auth_client: AuthClient,
+        audience: str | None = None,
+        scope: str | None = None,
+        client: SelectionClient | None = None,
+        client_factory: Callable[[Any], SelectionClient] | None = None,
+    ) -> None:
+        self.base_url = base_url
+        self._client = client or SelectionClient(base_url=base_url)
+        self._auth_client = auth_client
+        self._audience = audience
+        self._scope = scope
+        self._client_factory = client_factory or (lambda raw_client: SelectionClient(client=raw_client))
+
+    async def generate_candidate_set(self, body: CandidateSetRequest) -> CandidateSet:
+        return await self._call(
+            "generate_candidate_set",
+            SelectionGenerateCandidateSetRequest(body=body),
+        )
+
+    async def health(self) -> Health:
+        return await self._call(
+            "health",
+            SelectionHealthRequest(),
+        )
+
+    async def version(self) -> VersionInfo:
+        return await self._call(
+            "version",
+            SelectionVersionRequest(),
+        )
+
+    async def _call(self, method_name: str, request: Any) -> Any:
+        client = await self._client_for()
+        fn: Callable[[Any], Any] = getattr(client, method_name)
+        try:
+            return await asyncio.to_thread(fn, request)
+        except ArpApiError as exc:
+            raise ArpServerError(
+                code=exc.code,
+                message=exc.message,
+                status_code=exc.status_code or 502,
+                details=exc.details,
+            ) from exc
+        except Exception as exc:
+            raise ArpServerError(
+                code="selection_service_unavailable",
+                message="Selection Service request failed",
+                status_code=502,
+                details={
+                    "selection_service_url": self.base_url,
+                    "error": str(exc),
+                },
+            ) from exc
+
+    async def _client_for(self) -> SelectionClient:
+        bearer_token = await client_credentials_token(
+            self._auth_client,
+            audience=self._audience,
+            scope=self._scope,
+            service_label="Selection Service",
+        )
+        raw_client = self._client.raw_client.with_headers({"Authorization": f"Bearer {bearer_token}"})
+        return self._client_factory(raw_client)
