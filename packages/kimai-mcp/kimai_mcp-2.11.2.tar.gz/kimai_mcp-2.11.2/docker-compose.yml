@@ -1,0 +1,92 @@
+# =============================================================================
+# Kimai MCP Streamable HTTP Server
+# =============================================================================
+#
+# BEFORE STARTING: Create config/users.json with your user credentials:
+#
+#   cp config/users.example.json config/users.json
+#   # Edit config/users.json with your Kimai credentials:
+#   # {
+#   #   "username": {
+#   #     "kimai_url": "https://kimai.example.com",
+#   #     "kimai_token": "your-api-token",
+#   #     "kimai_user_id": "1"
+#   #   }
+#   # }
+#
+# START: docker-compose up -d
+# LOGS:  docker-compose logs -f
+# HEALTH: curl http://localhost:8000/health
+#
+# Claude.ai Connector URL: https://your-domain.com/mcp/{username}
+#
+# For SSE Server (legacy), change CMD in Dockerfile to: kimai-mcp-server
+# =============================================================================
+
+version: '3.8'
+
+services:
+  kimai-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kimai-mcp-server
+    restart: unless-stopped
+
+    # Environment variables
+    environment:
+      # Path to users config file (inside container)
+      - USERS_CONFIG_FILE=/app/config/users.json
+
+      # SSL verification for Kimai connections
+      - KIMAI_SSL_VERIFY=${KIMAI_SSL_VERIFY:-true}
+
+    # Ports
+    ports:
+      - "${SERVER_PORT:-8000}:8000"
+
+    # Mount the users config file
+    volumes:
+      - ./config/users.json:/app/config/users.json:ro
+      # Optional: Mount CA certificates for custom SSL
+      # - ./certs/ca-bundle.crt:/app/certs/ca-bundle.crt:ro
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Resource limits (adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+# Optional: Add reverse proxy with SSL termination
+# Example with Traefik (uncomment if using)
+#
+# networks:
+#   default:
+#     name: traefik
+#     external: true
+#
+# labels:
+#   - "traefik.enable=true"
+#   - "traefik.http.routers.kimai-mcp.rule=Host(`mcp.example.com`)"
+#   - "traefik.http.routers.kimai-mcp.entrypoints=websecure"
+#   - "traefik.http.routers.kimai-mcp.tls.certresolver=letsencrypt"
+#   - "traefik.http.services.kimai-mcp.loadbalancer.server.port=8000"
