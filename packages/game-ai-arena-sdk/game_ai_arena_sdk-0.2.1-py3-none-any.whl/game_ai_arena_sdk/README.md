@@ -1,0 +1,126 @@
+# Game AI Arena SDK
+
+Python SDK for running bots on Game AI Arena.
+
+## Installation
+
+```bash
+pip install game-ai-arena-sdk
+```
+
+## Configuration
+
+Set the matchmaker URL via environment variable or pass directly:
+
+```bash
+# Environment variable (recommended)
+export MATCHMAKER_URL=ws://192.168.2.106:9000/matchmaking/ws
+
+# Or for tunnel mode
+export MATCHMAKER_URL=wss://your-tunnel.trycloudflare.com/matchmaking/ws
+```
+
+Get the correct URL from your admin.
+
+## Getting Your Credentials
+
+### Option A: Swagger UI
+
+1. Open `http://<SERVER>:9000/docs` in your browser
+2. Use `/api/auth/signup` to create an account
+3. Click **Authorize** and enter your access token
+4. Use `/api/bots/` POST to create a bot (save the `bot_api_key` - shown once!)
+5. Use `/api/bots/` GET to find your bot's `id`
+
+### Option B: curl
+
+```bash
+# Set your server URL (get this from your admin)
+SERVER="http://<SERVER_ADDRESS>:9000"
+
+# 1. Create account
+curl -X POST $SERVER/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "username": "yourname", "password": "SecurePass123"}'
+
+# Response: {"access_token": "eyJhbG...", ...}
+TOKEN="paste_your_access_token_here"
+
+# 2. Create a bot
+curl -X POST $SERVER/api/bots/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"bot_name": "MyBot", "game_type": "flipflop_3x3"}'
+
+# Response: {"message": "Bot created successfully", "bot_api_key": "..."}
+# Save the bot_api_key - it's only shown once!
+
+# 3. Get your bot ID
+curl -X GET $SERVER/api/bots/ \
+  -H "Authorization: Bearer $TOKEN"
+
+# Find your bot in the list, copy its "id" field
+```
+
+## Quick Start
+
+```python
+import random
+from game_ai_arena_sdk import Bot, start, GameType, Move, GameStateLoop
+
+class MyBot(Bot):
+    async def on_move(self, state: GameStateLoop) -> Move:
+        piece = random.choice(state.legal_moves)
+        dest = random.choice(piece.valid_moves)
+        return Move(from_pos=piece.pos, to_pos=dest)
+
+bot = MyBot(bot_id="YOUR_BOT_ID", api_key="YOUR_API_KEY")
+
+# Uses MATCHMAKER_URL env var, or pass explicitly:
+start(bot, GameType.FLIPFLOP_3X3)
+# Or: start(bot, GameType.FLIPFLOP_3X3, matchmaker_url="ws://...")
+```
+
+## GameStateLoop
+
+Received in `on_move`:
+
+| Field | Description |
+|-------|-------------|
+| `board` | Board string representation |
+| `my_side` | Your side (`"white"` / `"black"`) |
+| `current_turn` | Whose turn it is |
+| `legal_moves` | List of `PieceMovesInfo` you can move |
+
+Each `PieceMovesInfo` has `name`, `pos`, and `valid_moves`.
+
+## Hooks
+
+All optional except `on_move`:
+
+```python
+async def on_move(self, state: GameStateLoop) -> Move  # Required
+async def on_ready(self) -> None
+async def on_match_found(self, match_id: str) -> None
+async def on_game_start(self, state: GameStateLoop) -> None
+async def on_game_end(self, winner: str | None, state: GameStateEnd) -> None
+```
+
+## Multiple Bots
+
+```python
+import asyncio
+from game_ai_arena_sdk import run
+
+async def main():
+    await asyncio.gather(
+        run(MyBot("id1", "key1"), GameType.FLIPFLOP_3X3),
+        run(MyBot("id2", "key2"), GameType.FLIPFLOP_3X3),
+    )
+
+asyncio.run(main())
+```
+
+## Game Types
+
+`FLIPFLOP_3X3`, `FLIPFLOP_5X5`
