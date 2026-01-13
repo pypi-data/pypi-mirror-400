@@ -1,0 +1,127 @@
+[project]
+name = "particula"
+description = "a simple, fast, and powerful particle simulator"
+readme = "readme.md"
+requires-python = ">=3.9"
+license = {file = "license"}
+authors = [
+    {name = "Particula developers", email = "uncscode@users.noreply.github.com"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+keywords = [
+    "atmospheric", "particles", "climate", "aerosol", "particulate"
+]
+
+dependencies = [
+    "numpy>=2.0.0", "scipy>=1.12",
+]
+
+# This is set automatically by flit using `particula.__version__`
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://github.com/uncscode/particula"
+repository = "https://github.com/uncscode/particula"
+
+[project.optional-dependencies]
+dev = [
+    "pylint", "pytest", "pytest-cov", "autopep8", "jupyterlab",
+    "typing", "build", "flake8", "jupyter-book", "ghp-import",
+    "mkdocs", "mkdocs-material[imaging]", "mkdocs-jupyter", "mkdocstrings[python]",
+    "mkdocs-gen-files", "mkdocs-literate-nav",
+    "griffe", "openai", "GitPython", "ruff", "mypy",
+]
+extra = [
+    "matplotlib", "pandas", "pint", "thermo", "tqdm",
+]
+all = [
+    "particula[dev]",
+    "particula[extra]",
+]
+
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+# Configuration for ruff, a fast Python linter and formatter #
+[tool.ruff]
+line-length = 80
+fix = true
+extend-exclude = [
+  "**/*.ipynb",    # ignore every .ipynb anywhere in the project
+]
+
+[tool.ruff.format]
+docstring-code-line-length = 80
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W", "C90", "D", "ANN", "B", "S", "N", "I"
+]
+ignore = [
+  # choose one of the conflicting class-blank-line rules:
+  "D203",  # or drop this and keep D211 instead
+  "D205", # add back later
+  "D213",  # or drop this and keep D212 instead
+  "D417",  # Missing argument descriptions in the docstring :contentReference[oaicite:0]{index=0}
+]
+extend-ignore = [
+  "ANN",    # ignore all missing-type-*/missing-return-type checks :contentReference[oaicite:1]{index=1}
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore assert‐usage (S101) in any file ending with _test.py
+"*_test.py" = ["S101", "E721", "B008"]
+
+[tool.ruff.lint.pydocstyle]
+# enforce Google-style sections and disable incompatible rules
+convention = "google"          # accepts "google", "numpy", or "pep257"
+
+[tool.pytest.ini_options]
+testpaths = ["particula"]
+norecursedirs = ["trees", ".git", "dist", "build", "particula/dynamics/wall_loss/tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "performance: marks tests as performance-intensive (deselect with '-m \"not performance\"')",
+]
+
+# Configuration for pylint
+[tool.pylint.main]
+# Use multiple processes to speed up Pylint
+jobs = 0
+
+[tool.pylint.messages_control]
+# Disable import-related warnings and other checks handled by ruff
+disable = [
+    "line-too-long",          # Line length handled by ruff
+    "import-error",           # Don't check if imports can be resolved
+    "no-name-in-module",      # Don't check module members (handled by mypy)
+    "wrong-import-order",     # Import order handled by ruff (I rule)
+    "ungrouped-imports",      # Import grouping handled by ruff
+    "wrong-import-position",  # Import position handled by ruff
+    "cyclic-import",          # Cyclic imports (can be overly strict)
+    "duplicate-code",         # Duplicate code detection (too noisy)
+    "fixme",                  # Allow TODO/FIXME comments
+    "missing-module-docstring",  # Module docstrings (handled by ruff D rules)
+    "missing-class-docstring",   # Class docstrings (handled by ruff D rules)
+    "missing-function-docstring", # Function docstrings (handled by ruff D rules)
+]
+
+[tool.pylint.basic]
+# Allow short variable names common in scientific computing
+good-names = ["i", "j", "k", "n", "m", "x", "y", "z", "t", "p", "T", "P", "df", "ax"]
+
+[tool.pylint.design]
+# Maximum number of arguments for function/method (scientific functions can have many)
+max-args = 10
+
+[tool.mypy]
+exclude = [
+    "docs/.assets/.*",
+]
