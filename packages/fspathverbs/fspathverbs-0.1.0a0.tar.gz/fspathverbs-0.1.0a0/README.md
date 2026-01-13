@@ -1,0 +1,122 @@
+# `fspathverbs`
+
+A Python package for representing filesystem paths as a sequence of verbs.
+
+## What makes `fspathverbs` unique?
+
+Unlike traditional libraries that treat filesystem paths as **nouns**, `fspathverbs` views filesystem paths as a sequence of **verbs**:
+
+- `Root(root)`: Step to the root directory `root`.
+- `Parent`: Step to the parent directory.
+- `Current`: Step to the current directory.
+- `Child(child)`: Step to the child `child` (file or directory).
+
+```python
+import ntpath
+import posixpath
+from fspathverbs import Root, Parent, Current, Child, compile_to_fspathverbs
+
+# NT path test cases
+assert compile_to_fspathverbs(path='', split=ntpath.split) == [Current()]
+assert compile_to_fspathverbs(path='C:\\Users\\Alice\\Documents', split=ntpath.split) == [
+    Root(root='C:\\'),
+    Child(child='Users'),
+    Child(child='Alice'),
+    Child(child='Documents')
+]
+assert compile_to_fspathverbs(path='D:notes\\todo.txt', split=ntpath.split) == [
+    Root(root='D:'),
+    Child(child='notes'),
+    Child(child='todo.txt')
+]
+assert compile_to_fspathverbs(path='\\server\\share\\folder\\', split=ntpath.split) == [
+    Root(root='\\'),
+    Child(child='server'),
+    Child(child='share'),
+    Child(child='folder'),
+    Current()
+]
+assert compile_to_fspathverbs(path='.\\subdir\\file', split=ntpath.split) == [
+    Current(),
+    Current(),
+    Child(child='subdir'),
+    Child(child='file')
+]
+assert compile_to_fspathverbs(path='..\\backup\\..\\archive', split=ntpath.split) == [
+    Current(),
+    Parent(),
+    Child(child='backup'),
+    Parent(),
+    Child(child='archive')
+]
+# Absolute path with mixed slashes
+assert compile_to_fspathverbs(path='C:/weird\\mix/format', split=ntpath.split) == [
+    Root(root='C:/'),
+    Child(child='weird'),
+    Child(child='mix'),
+    Child(child='format')
+]
+# UNC path with share, trailing slash
+assert compile_to_fspathverbs(path='\\\\network-pc\\storage\\docs\\', split=ntpath.split) == [
+    Root(root='\\\\network-pc\\storage\\'),
+    Child(child='docs'),
+    Current()
+]
+# Device path
+assert compile_to_fspathverbs(path='\\\\.\\COM56\\logs', split=ntpath.split) == [
+    Root(root='\\\\.\\COM56\\'),
+    Child(child='logs')
+]
+
+# POSIX path test cases
+assert compile_to_fspathverbs(path='', split=posixpath.split) == [Current()]
+assert compile_to_fspathverbs(path='/', split=posixpath.split) == [Root(root='/')]
+assert compile_to_fspathverbs(path='/alpha/beta/gamma', split=posixpath.split) == [
+    Root(root='/'),
+    Child(child='alpha'),
+    Child(child='beta'),
+    Child(child='gamma')
+]
+assert compile_to_fspathverbs(path='delta/epsilon', split=posixpath.split) == [
+    Current(),
+    Child(child='delta'),
+    Child(child='epsilon')
+]
+assert compile_to_fspathverbs(path='/foo/./bar/../baz/', split=posixpath.split) == [
+    Root(root='/'),
+    Child(child='foo'),
+    Current(),
+    Child(child='bar'),
+    Parent(),
+    Child(child='baz'),
+    Current()
+]
+assert compile_to_fspathverbs(path='./theta/../iota', split=posixpath.split) == [
+    Current(),
+    Current(),
+    Child(child='theta'),
+    Parent(),
+    Child(child='iota')
+]
+```
+
+## Installation
+
+```bash
+pip install fspathverbs
+```
+
+## What are the benefits?
+
+- **Correctness**: Traditional path simplification (e.g., collapsing `foo/../bar` to `bar`) can be **incorrect** if `foo` is a file and not a directory. `fspathverbs` allows you to validate each navigation step as it happens, ensuring your code reflects the *actual structure of the filesystem*.
+- **Security**: Treating paths as a series of verbs helps prevent path traversal vulnerabilities (such as escaping a sandbox via `..`). Each verb can be checked against permissions and boundaries, stopping exploits before they occur.
+- **Clarity**: Verbs are explicit, making path handling **transparent and auditable**.
+- **Novelty**: To our knowledge, this is the first open-source library that represents filesystem paths as a sequence of verbs, rather than just strings or string wrappers. This fills a long-standing gap in filesystem path modeling.
+
+## Contributing
+
+Contributions are welcome! Please submit pull requests or open issues on the GitHub repository.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
