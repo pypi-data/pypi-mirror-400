@@ -1,0 +1,643 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ 
+    refreshing: false,
+    cancelling: false,
+    jobStatus: '{{ job.status.value }}',
+    pollInterval: null,
+    shards: [],
+    totalCommands: {{ job.total_commands }},
+    remainingTime: {{ job.duration_seconds }},
+    elapsedTime: 0,
+    timerInterval: null,
+    timerStarted: false,
+    durationSeconds: {{ job.duration_seconds }},
+    startedAt: {% if job.started_at %}'{{ job.started_at.isoformat() }}Z'{% else %}null{% endif %},
+    init() {
+        {% if job.status.value in ['pending', 'running', 'finalizing'] %}
+        if (this.startedAt) { this.startTimer(); }
+        this.pollStatus();
+        this.pollInterval = setInterval(() => this.pollStatus(), 2000);
+        {% endif %}
+    },
+    startTimer() {
+        if (this.timerStarted) return;
+        this.timerStarted = true;
+        if (this.startedAt) {
+            const startedAtDate = new Date(this.startedAt);
+            this.elapsedTime = Math.floor((new Date() - startedAtDate) / 1000);
+            this.remainingTime = Math.max(0, this.durationSeconds - this.elapsedTime);
+        }
+        this.timerInterval = setInterval(() => {
+            if (this.remainingTime > 0) { this.remainingTime--; this.elapsedTime++; }
+        }, 1000);
+    },
+    formatTime(s) { return s <= 0 ? '0s' : Math.floor(s/60) > 0 ? Math.floor(s/60) + 'm ' + (s%60) + 's' : s + 's'; },
+    async cancelJob() {
+        if (this.cancelling || !confirm('Cancel this job? Commands captured so far will be saved.')) return;
+        this.cancelling = true;
+        try {
+            const r = await fetch('/api/jobs/{{ job.id }}/cancel', { method: 'POST' });
+            if (!r.ok) { alert((await r.json()).error || 'Failed'); this.cancelling = false; }
+        } catch (e) { alert('Failed to cancel'); this.cancelling = false; }
+    },
+    async pollStatus() {
+        this.refreshing = true;
+        try {
+            const r = await fetch('/api/jobs/{{ job.id }}/status');
+            const d = await r.json();
+            if (d.status === 'running' && this.jobStatus !== 'running') {
+                if (d.started_at) { this.startedAt = d.started_at; }
+                this.startTimer();
+            }
+            this.jobStatus = d.status;
+            this.totalCommands = d.total_commands || 0;
+            if (d.shards?.length > 0) { this.shards = d.shards; }
+            // Reload page when job finishes to get full server-rendered data
+            if (['completed', 'failed', 'cancelled', 'timed_out'].includes(d.status)) {
+                if (this.timerInterval) clearInterval(this.timerInterval);
+                if (this.pollInterval) clearInterval(this.pollInterval);
+                window.location.reload();
+            }
+        } catch (e) { console.error('Poll failed:', e); }
+        this.refreshing = false;
+    }
+}">
+    <!-- Compact Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="space-y-1">
+            <div class="flex items-center gap-2 text-sm text-slate-500">
+                <a href="/jobs" class="hover:text-white transition-colors">Jobs</a>
+                <span>/</span>
+                <span class="font-mono">{{ job.id[:8] }}</span>
+            </div>
+            <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+                {{ job.name or job.replication_group_id }}
+                <span x-show="jobStatus === 'pending'" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-700 text-slate-300" x-cloak>
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Pending
+                </span>
+                <span x-show="jobStatus === 'running'" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300" x-cloak>
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 status-pulse"></span>Running
+                </span>
+                <span x-show="jobStatus === 'completed'" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400" x-cloak>
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Completed
+                </span>
+                <span x-show="jobStatus === 'failed'" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-redis-500/20 text-redis-400" x-cloak>
+                    <span class="w-1.5 h-1.5 rounded-full bg-redis-400"></span>Failed
+                </span>
+                <span x-show="jobStatus === 'cancelled'" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400" x-cloak>
+                    <span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span>Cancelled
+                </span>
+                <span x-show="jobStatus === 'timed_out'" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400" x-cloak>
+                    <span class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>Timed Out
+                </span>
+            </h1>
+            <div class="flex items-center gap-4 text-sm text-slate-500">
+                <span class="font-mono">{{ job.replication_group_id }}</span>
+                <span>•</span>
+                <span>{{ job.region }}</span>
+                <span>•</span>
+                <span data-utc="{{ job.created_at.isoformat() }}" data-format="datetime">{{ job.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            {% if job.status.value == 'completed' and job.total_commands > 0 %}
+            <a href="/jobs/{{ job.id }}/timeline" class="px-3 sm:px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all font-medium text-sm flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                Timeline
+            </a>
+            <a href="/jobs/{{ job.id }}/shard-distribution" class="px-3 sm:px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-all font-medium text-sm flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7zm0 5h16" /></svg>
+                Shards
+            </a>
+            <a href="/jobs/{{ job.id }}/analysis" class="px-3 sm:px-4 py-2 rounded-lg bg-redis-500/20 text-redis-400 hover:bg-redis-500/30 transition-all font-medium text-sm flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                Analyze
+            </a>
+            <a href="/query?job_id={{ job.id }}" class="px-3 sm:px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all font-medium text-sm flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                SQL
+            </a>
+            {% endif %}
+            <a href="/" class="px-4 py-2 rounded-lg bg-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-700 transition-all text-sm">
+                + New Job
+            </a>
+        </div>
+    </div>
+
+    <!-- Running Job Progress -->
+    <div x-show="jobStatus === 'running' || jobStatus === 'finalizing'" x-cloak
+         class="glass-card rounded-xl p-4 border" :class="remainingTime > 0 ? 'border-amber-500/30 bg-amber-500/5' : 'border-purple-500/30 bg-purple-500/5'">
+        <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center" :class="remainingTime > 0 ? 'bg-amber-500/20' : 'bg-purple-500/20'">
+                    <template x-if="remainingTime > 0">
+                        <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </template>
+                    <template x-if="remainingTime <= 0">
+                        <svg class="w-6 h-6 text-purple-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    </template>
+                </div>
+                <div>
+                    <template x-if="remainingTime > 0">
+                        <div>
+                            <div class="text-2xl font-bold text-white font-mono" x-text="formatTime(remainingTime) + ' remaining'"></div>
+                            <div class="text-sm text-slate-400">Monitoring <span x-text="shards.length || {{ shards|length }}"></span> shards</div>
+                        </div>
+                    </template>
+                    <template x-if="remainingTime <= 0">
+                        <div>
+                            <div class="text-xl font-bold text-purple-300">Finalizing...</div>
+                            <div class="text-sm text-purple-400">Flushing data to database</div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="text-right">
+                    <div class="text-3xl font-bold text-emerald-400 font-mono" x-text="totalCommands.toLocaleString()"></div>
+                    <div class="text-xs text-slate-500">Commands captured</div>
+                </div>
+                <div class="w-48 hidden md:block">
+                    <div class="flex justify-between text-xs text-slate-500 mb-1">
+                        <span x-text="formatTime(elapsedTime)"></span>
+                        <span>{{ job.duration_seconds|format_duration }}</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-gradient-to-r from-amber-500 to-emerald-500 rounded-full transition-all duration-1000" 
+                             :style="'width: ' + Math.min(100, (elapsedTime / {{ job.duration_seconds }}) * 100) + '%'"></div>
+                    </div>
+                </div>
+                <button @click="cancelJob()" :disabled="cancelling"
+                        class="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30 transition-all text-sm font-medium disabled:opacity-50">
+                    <span x-text="cancelling ? 'Cancelling...' : 'Cancel'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Message -->
+    {% if job.error_message %}
+    <div class="glass-card rounded-xl p-4 border-l-4 border-redis-500 bg-redis-500/10">
+        <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-redis-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div>
+                <h4 class="text-redis-300 font-medium">Error</h4>
+                <p class="text-redis-200 text-sm mt-1">{{ job.error_message }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if job.status.value == 'completed' %}
+    <!-- Summary Stats Bar -->
+    <div class="glass-card rounded-xl p-4">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-8">
+            <div class="text-center md:text-left">
+                <div class="text-3xl font-bold text-white">{{ job.total_commands|format_number }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wide">Total Commands</div>
+            </div>
+            <div class="text-center md:text-left">
+                <div class="text-3xl font-bold text-white">{{ shards|length }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wide">Shards</div>
+            </div>
+            <div class="text-center md:text-left">
+                <div class="text-3xl font-bold text-white">{{ job.duration_seconds|format_duration }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wide">Duration</div>
+            </div>
+            <div class="text-center md:text-left">
+                {% set total_qps = (job.total_commands / job.duration_seconds) if job.duration_seconds > 0 else 0 %}
+                <div class="text-3xl font-bold text-white">{{ "%.0f"|format(total_qps) }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wide">Avg QPS</div>
+            </div>
+            <div class="text-center md:text-left">
+                <div class="text-3xl font-bold text-slate-400">{{ job.endpoint_type|title }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wide">Endpoint Type</div>
+            </div>
+        </div>
+    </div>
+
+    {% if job.total_commands > 0 %}
+    <!-- Full Width Shard Distribution Chart -->
+    <div class="glass-card rounded-xl p-6" x-data="chartManager()" x-init="loadStats()">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-white">Shard Traffic Distribution</h2>
+            <div class="flex items-center gap-2">
+                <div class="flex rounded-lg bg-slate-800/50 p-0.5" x-show="statsLoaded">
+                    <button @click="viewMode = 'total'; updateChart('total')" 
+                            :class="viewMode === 'total' ? 'bg-redis-500 text-white' : 'text-slate-400 hover:text-white'"
+                            class="px-3 py-1.5 text-xs font-medium rounded-md transition-all">Total</button>
+                    <button @click="viewMode = 'type'; updateChart('type')" 
+                            :class="viewMode === 'type' ? 'bg-redis-500 text-white' : 'text-slate-400 hover:text-white'"
+                            class="px-3 py-1.5 text-xs font-medium rounded-md transition-all">By Command</button>
+                    <button @click="viewMode = 'pattern'; updateChart('pattern')" 
+                            :class="viewMode === 'pattern' ? 'bg-redis-500 text-white' : 'text-slate-400 hover:text-white'"
+                            class="px-3 py-1.5 text-xs font-medium rounded-md transition-all">By Pattern</button>
+                </div>
+            </div>
+        </div>
+        
+        <div x-show="!statsLoaded" class="h-[250px] flex items-center justify-center">
+            <div class="flex items-center gap-2 text-slate-500">
+                <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span>Loading chart...</span>
+            </div>
+        </div>
+        <div x-show="statsLoaded" x-transition class="h-[250px]">
+            <canvas id="shardChart"></canvas>
+        </div>
+        <div x-show="statsLoaded && viewMode !== 'total'" class="mt-2 text-xs text-slate-500 text-center">
+            Click legend to focus • Shift+click to hide
+        </div>
+    </div>
+
+    <!-- Insights Row -->
+    <div x-data="insightsManager()" x-init="loadInsights()">
+        <div x-show="loading" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <template x-for="i in 4"><div class="glass-card rounded-xl p-4 animate-pulse"><div class="h-6 w-20 bg-slate-700 rounded mb-2"></div><div class="h-4 w-24 bg-slate-800 rounded"></div></div></template>
+        </div>
+        <div x-show="!loading && insights" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <!-- Hot Shard -->
+            <div class="glass-card rounded-xl p-4 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                 :class="insights.hot_shards?.[0]?.status === 'hot' ? 'border-l-4 border-red-500' : 'border-l-4 border-emerald-500'"
+                 @click="showHotShardDetail = !showHotShardDetail">
+                <div class="flex items-center gap-2 mb-1">
+                    <span x-show="insights.hot_shards?.[0]?.status === 'hot'">🔥</span>
+                    <span x-show="insights.hot_shards?.[0]?.status !== 'hot'">✓</span>
+                    <span class="text-xs font-medium text-slate-400">Hottest Shard</span>
+                </div>
+                <div class="text-xl font-bold text-white" x-text="insights.hot_shards?.[0]?.shard || 'N/A'"></div>
+                <div class="text-xs text-slate-500"><span x-text="insights.hot_shards?.[0]?.deviation > 0 ? '+' : ''"></span><span x-text="insights.hot_shards?.[0]?.deviation?.toFixed(1) || 0"></span>% deviation</div>
+            </div>
+            <!-- Top Signature -->
+            <div class="glass-card rounded-xl p-4 border-l-4 border-amber-500 cursor-pointer hover:bg-slate-800/50 transition-colors" @click="showAbuseDetail = !showAbuseDetail">
+                <div class="flex items-center gap-2 mb-1"><span>⚠️</span><span class="text-xs font-medium text-slate-400">Top Signature</span></div>
+                <div class="text-sm font-mono text-white truncate" x-text="insights.top_signatures?.[0]?.signature || 'N/A'"></div>
+                <div class="text-xs text-slate-500"><span x-text="insights.top_signatures?.[0]?.percentage?.toFixed(1) || 0"></span>% of traffic</div>
+            </div>
+            <!-- Lock Ops -->
+            <div class="glass-card rounded-xl p-4 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                 :class="insights.lock_stats?.percentage > 5 ? 'border-l-4 border-purple-500' : 'border-l-4 border-slate-600'"
+                 @click="showLockDetail = !showLockDetail">
+                <div class="flex items-center gap-2 mb-1"><span>🔒</span><span class="text-xs font-medium text-slate-400">Lock Operations</span></div>
+                <div class="text-xl font-bold text-white" x-text="insights.lock_stats?.percentage?.toFixed(1) + '%' || '0%'"></div>
+                <div class="text-xs text-slate-500"><span x-text="insights.lock_stats?.count?.toLocaleString() || 0"></span> ops</div>
+            </div>
+            <!-- Full Scans -->
+            <div class="glass-card rounded-xl p-4 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                 :class="insights.full_scan_stats?.percentage > 1 ? 'border-l-4 border-red-500' : 'border-l-4 border-slate-600'"
+                 @click="showScanDetail = !showScanDetail">
+                <div class="flex items-center gap-2 mb-1"><span>🔍</span><span class="text-xs font-medium text-slate-400">Full Scans</span></div>
+                <div class="text-xl font-bold text-white" x-text="insights.full_scan_stats?.percentage?.toFixed(2) + '%' || '0%'"></div>
+                <div class="text-xs text-slate-500"><span x-text="insights.full_scan_stats?.count?.toLocaleString() || 0"></span> expensive ops</div>
+            </div>
+        </div>
+        
+        <!-- Expandable Detail Panels -->
+        <div x-show="showHotShardDetail && insights.hot_shards?.length > 0" x-transition class="glass-card rounded-xl p-4 mt-4">
+            <h4 class="font-semibold text-white mb-3">🔥 Shard Load Distribution</h4>
+            <div class="space-y-2">
+                <template x-for="shard in insights.hot_shards" :key="shard.shard">
+                    <div class="flex items-center gap-3">
+                        <span class="w-16 text-sm font-mono text-slate-300" x-text="shard.shard"></span>
+                        <div class="flex-1 h-5 bg-slate-800 rounded overflow-hidden">
+                            <div class="h-full transition-all" :class="shard.status === 'hot' ? 'bg-red-500' : shard.status === 'cold' ? 'bg-blue-500' : 'bg-emerald-500'" :style="'width: ' + shard.percentage + '%'"></div>
+                        </div>
+                        <span class="w-24 text-right text-sm" :class="shard.deviation > 25 ? 'text-red-400' : shard.deviation < -25 ? 'text-blue-400' : 'text-slate-400'" x-text="shard.count.toLocaleString() + ' (' + (shard.deviation > 0 ? '+' : '') + shard.deviation.toFixed(1) + '%)'"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+        <div x-show="showAbuseDetail && insights.abuse_combos?.length > 0" x-transition class="glass-card rounded-xl p-4 mt-4">
+            <h4 class="font-semibold text-white mb-3">⚠️ Top Client + Signature Combinations</h4>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-slate-400 border-b border-slate-700"><tr><th class="text-left py-2 px-2">Client IP</th><th class="text-left py-2 px-2">Signature</th><th class="text-right py-2 px-2">Count</th><th class="text-right py-2 px-2">%</th></tr></thead>
+                    <tbody class="divide-y divide-slate-800">
+                        <template x-for="combo in insights.abuse_combos?.slice(0, 10)" :key="combo.client_ip + combo.signature">
+                            <tr class="hover:bg-slate-800/50"><td class="py-2 px-2 font-mono text-cyan-400" x-text="combo.client_ip"></td><td class="py-2 px-2 font-mono text-xs truncate max-w-xs" x-text="combo.signature"></td><td class="py-2 px-2 text-right text-white" x-text="combo.count.toLocaleString()"></td><td class="py-2 px-2 text-right text-slate-400" x-text="combo.percentage.toFixed(2) + '%'"></td></tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div x-show="showLockDetail && insights.lock_stats?.top_patterns?.length > 0" x-transition class="glass-card rounded-xl p-4 mt-4">
+            <h4 class="font-semibold text-white mb-3">🔒 Lock Operation Patterns</h4>
+            <div class="space-y-2">
+                <template x-for="p in insights.lock_stats.top_patterns" :key="p.signature"><div class="flex items-center justify-between py-2 border-b border-slate-800"><span class="font-mono text-sm text-purple-300 truncate flex-1" x-text="p.signature"></span><span class="text-white font-medium ml-4" x-text="p.count.toLocaleString()"></span></div></template>
+            </div>
+        </div>
+        <div x-show="showScanDetail && insights.full_scan_stats?.top_patterns?.length > 0" x-transition class="glass-card rounded-xl p-4 mt-4">
+            <h4 class="font-semibold text-white mb-3">🔍 Expensive Full Scan Patterns</h4>
+            <div class="space-y-2">
+                <template x-for="p in insights.full_scan_stats.top_patterns" :key="p.signature"><div class="flex items-center justify-between py-2 border-b border-slate-800"><span class="font-mono text-sm text-red-300 truncate flex-1" x-text="p.signature"></span><span class="text-white font-medium ml-4" x-text="p.count.toLocaleString()"></span></div></template>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Shards Grid -->
+    <div class="space-y-4">
+        <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-redis-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+            </svg>
+            Shards ({{ shards|length }})
+        </h2>
+        
+        {% if shards %}
+        {% set max_commands = shards|map(attribute='command_count')|max %}
+        {% set sorted_shards = shards|sort(attribute='command_count', reverse=true) %}
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for item in sorted_shards %}
+            {% set heat_pct = (item.command_count / max_commands * 100) if max_commands > 0 else 0 %}
+            <div class="glass-card rounded-xl p-5 space-y-4 hover:border-slate-600/50 transition-colors relative">
+                <!-- Heat indicator bar -->
+                {% if item.command_count > 0 and heat_pct > 50 %}
+                <div class="absolute top-0 left-0 h-1 rounded-t-xl hot-indicator" style="width: {{ heat_pct }}%;"></div>
+                {% elif item.command_count > 0 %}
+                <div class="absolute top-0 left-0 h-1 rounded-t-xl bg-emerald-500" style="width: {{ heat_pct }}%;"></div>
+                {% endif %}
+                
+                <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1 min-w-0 flex-1">
+                        <h3 class="font-semibold text-white flex items-center gap-2">
+                            {{ item.shard.shard_name }}
+                            {% if item.shard.redis_version %}
+                            <span class="text-[10px] px-1.5 py-0.5 bg-slate-700 text-slate-400 rounded font-mono">v{{ item.shard.redis_version }}</span>
+                            {% endif %}
+                            {% if heat_pct > 80 %}
+                            <span class="text-xs px-1.5 py-0.5 bg-redis-500/20 text-redis-400 rounded-full">🔥 Hot</span>
+                            {% endif %}
+                        </h3>
+                        <p class="text-xs font-mono text-slate-500 truncate">{{ item.shard.host }}:{{ item.shard.port }}</p>
+                    </div>
+                    <div class="flex-shrink-0">
+                        {% if item.shard.status.value == 'completed' %}
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>OK
+                        </span>
+                        {% elif item.shard.status.value == 'failed' %}
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-redis-500/20 text-redis-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-redis-400"></span>Failed
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-700 text-slate-300">
+                            {{ item.shard.status.value }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if item.shard.error_message %}
+                <div class="text-sm text-redis-400 bg-redis-500/10 rounded-lg p-3 font-mono text-xs break-all">
+                    {{ item.shard.error_message[:200] }}{% if item.shard.error_message|length > 200 %}...{% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Memory bar -->
+                {% if item.shard.memory_used_bytes and item.shard.status.value == 'completed' %}
+                {% set mem_used_gb = item.shard.memory_used_bytes / 1024 / 1024 / 1024 %}
+                {% set mem_max_gb = (item.shard.memory_max_bytes / 1024 / 1024 / 1024) if item.shard.memory_max_bytes else 0 %}
+                {% set mem_pct = (item.shard.memory_used_bytes / item.shard.memory_max_bytes * 100) if item.shard.memory_max_bytes and item.shard.memory_max_bytes > 0 else 0 %}
+                <div class="space-y-1">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-500">Memory</span>
+                        <span class="text-slate-400">
+                            {{ "%.2f"|format(mem_used_gb) }} GB
+                            {% if mem_max_gb > 0 %}
+                            <span class="text-slate-500">/ {{ "%.1f"|format(mem_max_gb) }} GB</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all {{ 'bg-redis-500' if mem_pct > 80 else 'bg-amber-500' if mem_pct > 60 else 'bg-emerald-500' }}" 
+                             style="width: {{ mem_pct }}%"></div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Stats -->
+                <!-- Stats -->
+                <div class="grid grid-cols-3 gap-4 pt-3 border-t border-slate-700/50">
+                    <div>
+                        <div class="text-xl font-bold text-white">{{ item.command_count|format_number }}</div>
+                        <div class="text-xs text-slate-500">Commands</div>
+                    </div>
+                    <div>
+                        <div class="text-xl font-bold text-slate-300">{{ "%.1f"|format(item.qps) }}</div>
+                        <div class="text-xs text-slate-500">QPS</div>
+                    </div>
+                    <div>
+                        {% if item.shard.cpu_sys_delta is not none and item.shard.cpu_user_delta is not none %}
+                        {% set cpu_total = item.shard.cpu_sys_delta + item.shard.cpu_user_delta %}
+                        {% set cpu_pct = (cpu_total / job.duration_seconds * 100) if job.duration_seconds > 0 else 0 %}
+                        {% set cpu_cores = cpu_total / job.duration_seconds if job.duration_seconds > 0 else 0 %}
+                        <div class="text-xl font-bold {{ 'text-redis-400' if cpu_cores > 2 else 'text-amber-400' if cpu_cores > 1 else 'text-emerald-400' }}"
+                             title="Redis CPU Total: {{ '%.2f'|format(cpu_total) }}s">
+                            {% if cpu_cores >= 1 %}{{ "%.1f"|format(cpu_cores) }}x{% else %}{{ "%.0f"|format(cpu_pct) }}%{% endif %}
+                        </div>
+                        <div class="text-xs text-slate-500">Redis CPU</div>
+                        {% else %}
+                        <div class="text-xl font-bold text-slate-500">—</div>
+                        <div class="text-xs text-slate-500">Redis CPU</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- AWS CloudWatch CPU -->
+                {% if item.shard.aws_engine_cpu_max is not none %}
+                <div class="mt-3 flex justify-end">
+                    <div class="inline-flex items-center gap-2 rounded-md bg-slate-800/40 px-2 py-1 text-[11px]"
+                         title="AWS EngineCPUUtilization Maximum: {{ '%.1f'|format(item.shard.aws_engine_cpu_max) }}%">
+                        <span class="text-slate-500 uppercase tracking-wide whitespace-nowrap">CloudWatch CPU</span>
+                        <span class="shrink-0 font-semibold text-cyan-300">{{ '%.1f'|format(item.shard.aws_engine_cpu_max) }}%</span>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if item.shard.status.value == 'completed' and item.command_count > 0 %}
+                <a href="/jobs/{{ job.id }}/shards/{{ item.shard.shard_name }}" 
+                   class="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg bg-slate-700/50 text-slate-300 font-medium hover:bg-slate-700 hover:text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    View Details
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="glass-card rounded-xl p-8 text-center">
+            <svg class="w-12 h-12 mx-auto text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-slate-400">No shards monitored</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Quick Links -->
+    {% if job.total_commands > 0 %}
+    <div class="glass-card rounded-xl p-4">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-slate-400">Quick Analysis</span>
+            <div class="flex items-center gap-2 flex-wrap">
+                <a href="/jobs/{{ job.id }}/timeline" class="px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 text-xs font-medium transition-colors">📈 Timeline</a>
+                <a href="/jobs/{{ job.id }}/shard-distribution" class="px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 text-xs font-medium transition-colors">💾 Shards</a>
+                <a href="/jobs/{{ job.id }}/analysis?group_by=key_pattern" class="px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 text-xs font-medium transition-colors">📊 Key Patterns</a>
+                <a href="/jobs/{{ job.id }}/analysis?group_by=command" class="px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 text-xs font-medium transition-colors">⚡ Commands</a>
+                <a href="/jobs/{{ job.id }}/analysis?group_by=client_ip" class="px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 text-xs font-medium transition-colors">🖥️ Clients</a>
+                <a href="/query?job_id={{ job.id }}" class="px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 text-xs font-medium transition-colors">🔍 SQL Query</a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- No traffic warning (completed but 0 commands) -->
+    <div class="glass-card rounded-xl p-6 border-l-4 border-amber-500 bg-amber-500/5">
+        <div class="flex items-start gap-4">
+            <span class="text-3xl">⚠️</span>
+            <div>
+                <h3 class="text-lg font-medium text-amber-300">No Commands Captured</h3>
+                <p class="text-amber-200/80 text-sm mt-2">The monitoring completed but no Redis/Valkey commands were captured. This could mean:</p>
+                <ul class="text-amber-200/60 text-sm mt-2 list-disc list-inside space-y-1">
+                    <li>The cache had no traffic during the monitoring period</li>
+                    <li>You're monitoring replicas but traffic goes to primary only</li>
+                    <li>Check server logs for connection/permission issues</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Running job shard cards -->
+    <template x-if="shards.length > 0">
+        <div class="glass-card rounded-xl p-6">
+            <h2 class="text-lg font-semibold text-white mb-4">Shards (<span x-text="shards.length"></span>)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <template x-for="shard in shards" :key="shard.shard_name">
+                    <div class="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold text-white" x-text="shard.shard_name"></span>
+                            <span class="text-xs px-2 py-1 rounded-full"
+                                  :class="shard.status === 'monitoring' ? 'bg-amber-500/20 text-amber-300' : shard.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-300'"
+                                  x-text="shard.status"></span>
+                        </div>
+                        <div class="text-xs font-mono text-slate-500" x-text="shard.host + ':' + shard.port"></div>
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-700">
+                            <div>
+                                <div class="text-lg font-bold text-white" x-text="shard.command_count.toLocaleString()"></div>
+                                <div class="text-xs text-slate-500">commands</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-lg font-bold text-slate-300" x-text="shard.qps.toFixed(1)"></div>
+                                <div class="text-xs text-slate-500">qps</div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+    {% endif %}
+
+    {% if job.status.value == 'completed' and shards %}
+    <script>
+        const shardLabels = [{% for item in shards %}'{{ item.shard.shard_name }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+        const shardCounts = [{% for item in shards %}{{ item.command_count }}{% if not loop.last %}, {% endif %}{% endfor %}];
+        let commandTypes = [], commandByShard = {}, topPatterns = [], patternByShard = {};
+        const cmdColors = {
+            'GET': { bg: 'rgba(16, 185, 129, 0.7)', border: 'rgba(16, 185, 129, 1)' },
+            'SET': { bg: 'rgba(59, 130, 246, 0.7)', border: 'rgba(59, 130, 246, 1)' },
+            'HGET': { bg: 'rgba(139, 92, 246, 0.7)', border: 'rgba(139, 92, 246, 1)' },
+            'HSET': { bg: 'rgba(236, 72, 153, 0.7)', border: 'rgba(236, 72, 153, 1)' },
+            'DEL': { bg: 'rgba(220, 38, 38, 0.7)', border: 'rgba(220, 38, 38, 1)' },
+            'EXPIRE': { bg: 'rgba(249, 115, 22, 0.7)', border: 'rgba(249, 115, 22, 1)' },
+        };
+        const patternColors = [
+            { bg: 'rgba(239, 68, 68, 0.7)', border: 'rgba(239, 68, 68, 1)' },
+            { bg: 'rgba(59, 130, 246, 0.7)', border: 'rgba(59, 130, 246, 1)' },
+            { bg: 'rgba(16, 185, 129, 0.7)', border: 'rgba(16, 185, 129, 1)' },
+            { bg: 'rgba(249, 115, 22, 0.7)', border: 'rgba(249, 115, 22, 1)' },
+            { bg: 'rgba(139, 92, 246, 0.7)', border: 'rgba(139, 92, 246, 1)' },
+        ];
+        let shardChart = null, totalData = null, typeData = null, patternData = null;
+        
+        function insightsManager() {
+            return {
+                loading: true, insights: null, showHotShardDetail: false, showAbuseDetail: false, showLockDetail: false, showScanDetail: false,
+                async loadInsights() {
+                    try { const r = await fetch('/api/jobs/{{ job.id }}/insights'); if (r.ok) this.insights = await r.json(); } catch (e) { console.error(e); } finally { this.loading = false; }
+                }
+            };
+        }
+        
+        function chartManager() {
+            return {
+                statsLoaded: false, viewMode: 'total',
+                async loadStats() {
+                    try {
+                        const r = await fetch('/api/jobs/{{ job.id }}/stats');
+                        const d = await r.json();
+                        if (d.loaded) { commandTypes = d.command_types; commandByShard = d.command_by_shard; topPatterns = d.top_patterns; patternByShard = d.pattern_by_shard; }
+                        this.initChart();
+                        this.statsLoaded = true;
+                    } catch (e) { console.error(e); this.initChart(); this.statsLoaded = true; }
+                },
+                initChart() {
+                    const maxCount = Math.max(...shardCounts, 1);
+                    const bgColors = shardCounts.map(c => c/maxCount > 0.8 ? 'rgba(220, 38, 38, 0.7)' : c/maxCount > 0.5 ? 'rgba(249, 115, 22, 0.7)' : 'rgba(16, 185, 129, 0.7)');
+                    const borderColors = shardCounts.map(c => c/maxCount > 0.8 ? 'rgba(220, 38, 38, 1)' : c/maxCount > 0.5 ? 'rgba(249, 115, 22, 1)' : 'rgba(16, 185, 129, 1)');
+                    totalData = { labels: shardLabels, datasets: [{ label: 'Commands', data: shardCounts, backgroundColor: bgColors, borderColor: borderColors, borderWidth: 1 }] };
+                    typeData = { labels: shardLabels, datasets: commandTypes.map((cmd, i) => ({ label: cmd, data: shardLabels.map(s => commandByShard[s]?.[cmd] || 0), backgroundColor: (cmdColors[cmd] || patternColors[i % patternColors.length]).bg, borderColor: (cmdColors[cmd] || patternColors[i % patternColors.length]).border, borderWidth: 1 })) };
+                    patternData = { labels: shardLabels, datasets: topPatterns.map((p, i) => ({ label: p.length > 20 ? p.substring(0, 17) + '...' : p, data: shardLabels.map(s => patternByShard[s]?.[p] || 0), backgroundColor: patternColors[i % patternColors.length].bg, borderColor: patternColors[i % patternColors.length].border, borderWidth: 1 })) };
+                    const ctx = document.getElementById('shardChart').getContext('2d');
+                    shardChart = new Chart(ctx, {
+                        type: 'bar', data: totalData,
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: { 
+                                legend: { 
+                                    display: false, 
+                                    position: 'bottom', 
+                                    labels: { color: '#94a3b8', boxWidth: 12, padding: 8 },
+                                    onClick: (e, legendItem, legend) => {
+                                        const chart = legend.chart;
+                                        const ci = legendItem.datasetIndex;
+                                        const meta = chart.getDatasetMeta(ci);
+                                        if (e.native.shiftKey) {
+                                            meta.hidden = !meta.hidden;
+                                        } else {
+                                            const allOthersHidden = chart.data.datasets.every((ds, i) => i === ci ? true : chart.getDatasetMeta(i).hidden);
+                                            if (allOthersHidden && !meta.hidden) {
+                                                chart.data.datasets.forEach((ds, i) => { chart.getDatasetMeta(i).hidden = false; });
+                                            } else {
+                                                chart.data.datasets.forEach((ds, i) => { chart.getDatasetMeta(i).hidden = (i !== ci); });
+                                            }
+                                        }
+                                        chart.update();
+                                    }
+                                }, 
+                                tooltip: { callbacks: { label: (item) => `${item.dataset.label}: ${item.raw.toLocaleString()}` } } 
+                            },
+                            scales: { y: { beginAtZero: true, stacked: false, grid: { color: 'rgba(148, 163, 184, 0.1)' }, ticks: { color: '#94a3b8' } }, x: { stacked: false, grid: { display: false }, ticks: { color: '#94a3b8' } } }
+                        }
+                    });
+                },
+                updateChart(mode) {
+                    if (!shardChart) return;
+                    this.viewMode = mode;
+                    if (mode === 'total') { shardChart.data = totalData; shardChart.options.plugins.legend.display = false; shardChart.options.scales.y.stacked = false; shardChart.options.scales.x.stacked = false; }
+                    else if (mode === 'type') { shardChart.data = typeData; shardChart.options.plugins.legend.display = true; shardChart.options.scales.y.stacked = true; shardChart.options.scales.x.stacked = true; }
+                    else { shardChart.data = patternData; shardChart.options.plugins.legend.display = true; shardChart.options.scales.y.stacked = true; shardChart.options.scales.x.stacked = true; }
+                    shardChart.update();
+                }
+            };
+        }
+    </script>
+    {% endif %}
+</div>
+{% endblock %}

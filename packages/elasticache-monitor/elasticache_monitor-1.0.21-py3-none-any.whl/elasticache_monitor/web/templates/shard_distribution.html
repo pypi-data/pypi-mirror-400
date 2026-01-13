@@ -1,0 +1,856 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6" x-data="shardDistributionApp()">
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm">
+        <a href="/jobs" class="text-slate-400 hover:text-white transition-colors">Jobs</a>
+        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <a href="/jobs/{{ job.id }}" class="text-slate-400 hover:text-white transition-colors">
+            {{ job.name or job.id[:8] }}
+        </a>
+        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <span class="text-white">Shards</span>
+    </nav>
+
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mt-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+                <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7zm0 5h16" /></svg>
+                Shard Distribution
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">{{ job.name or job.replication_group_id }} — Compare traffic across shards</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="/jobs/{{ job.id }}" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                Overview
+            </a>
+            <a href="/jobs/{{ job.id }}/timeline" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                Timeline
+            </a>
+            <span class="px-3 py-1.5 text-sm bg-cyan-600 rounded-lg text-white flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7zm0 5h16" /></svg>
+                Shards
+            </span>
+            <a href="/jobs/{{ job.id }}/analysis" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                Analyze
+            </a>
+            <a href="/query?job_id={{ job.id }}" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                SQL
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex flex-col lg:flex-row gap-6">
+        <!-- Chart Area -->
+        <div class="flex-1 min-w-0 space-y-4 order-2 lg:order-1">
+            <!-- Chart Card -->
+            <div class="glass-card rounded-xl p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <div>
+                        <h3 class="text-base font-semibold text-white">Commands by Shard</h3>
+                        <p class="text-xs text-slate-400">Grouped by <span class="text-cyan-400" x-text="groupByLabel()"></span></p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <!-- Chart Type -->
+                        <div class="flex bg-slate-800 rounded-lg p-0.5" :class="loading && 'opacity-50 pointer-events-none'">
+                            <button @click="changeChartType('bar')" :disabled="loading"
+                                    :class="chartType === 'bar' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'"
+                                    class="p-2 rounded-md transition-colors" title="Bar Chart">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </button>
+                            <button @click="changeChartType('horizontalBar')" :disabled="loading"
+                                    :class="chartType === 'horizontalBar' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'"
+                                    class="p-2 rounded-md transition-colors" title="Horizontal Bar">
+                                <svg class="w-4 h-4 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </button>
+                        </div>
+                        <!-- Share button -->
+                        <div x-data="{ sharing: false, copied: false, showTooltip: false }" class="relative">
+                            <button 
+                                @click="async () => { 
+                                    sharing = true; 
+                                    showTooltip = false;
+                                    const result = await UrlState.copyUrl(true); 
+                                    sharing = false; 
+                                    if (result.copied) { 
+                                        copied = true; 
+                                        setTimeout(() => copied = false, 2000); 
+                                    } 
+                                }"
+                                @mouseenter="showTooltip = true"
+                                @mouseleave="showTooltip = false"
+                                :disabled="sharing"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/50 text-slate-300 hover:text-white hover:bg-slate-700 transition-all disabled:opacity-50">
+                                <svg x-show="!sharing && !copied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                </svg>
+                                <svg x-show="sharing" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <svg x-show="copied" x-cloak class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span x-text="copied ? 'Copied!' : 'Share'"></span>
+                            </button>
+                            <!-- Tooltip -->
+                            <div x-show="showTooltip && !sharing && !copied" 
+                                 x-cloak
+                                 x-transition:enter="transition ease-out duration-150"
+                                 x-transition:enter-start="opacity-0 translate-y-1"
+                                 x-transition:enter-end="opacity-100 translate-y-0"
+                                 class="absolute top-full right-0 mt-2 w-56 z-50">
+                                <div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 text-xs">
+                                    <p class="text-white font-medium mb-1">Share this view</p>
+                                    <p class="text-slate-400 leading-relaxed">Creates a short URL with your current filters, groupings, and chart settings.</p>
+                                    <div class="absolute -top-1.5 right-4 w-3 h-3 bg-slate-800 border-l border-t border-slate-700 rotate-45"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chart Container - always visible -->
+                <div class="relative w-full" :class="chartType === 'horizontalBar' ? 'h-auto min-h-[380px]' : 'h-[380px]'">
+                    <!-- Loading Overlay - on top of chart -->
+                    <div x-show="loading" class="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-10 rounded-lg">
+                        <div class="flex flex-col items-center gap-3">
+                            <svg class="animate-spin h-8 w-8 text-cyan-500" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span class="text-slate-400 text-sm">Loading shard data...</span>
+                        </div>
+                    </div>
+                    <!-- Canvas - always in DOM, use x-ref instead of id -->
+                    <canvas x-ref="shardCanvas" class="w-full h-full"></canvas>
+                </div>
+                <div x-show="!loading" class="mt-2 text-xs text-slate-500 text-center">
+                    Click legend to focus • Shift+click to hide
+                </div>
+            </div>
+
+            <!-- Breakdown Table -->
+            <div class="glass-card rounded-xl p-6">
+                <h3 class="text-lg font-semibold text-white mb-4">Breakdown by Shard</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="text-left text-sm text-slate-400 border-b border-slate-700/50">
+                                <th class="pb-3 font-medium">Shard</th>
+                                <th class="pb-3 font-medium text-right">Total Commands</th>
+                                <th class="pb-3 font-medium text-right">% of Total</th>
+                                <th class="pb-3 font-medium">Top Items</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700/30">
+                            <template x-for="item in breakdownData" :key="item.shard">
+                                <tr class="text-sm hover:bg-slate-800/30">
+                                    <td class="py-3">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-3 h-3 rounded-full" :style="'background-color: ' + item.color"></span>
+                                            <span class="font-mono text-white" x-text="item.shard"></span>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 text-right font-mono text-slate-300" x-text="item.total.toLocaleString()"></td>
+                                    <td class="py-3 text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <span class="text-slate-400" x-text="item.percentage.toFixed(1) + '%'"></span>
+                                            <div class="w-16 h-2 bg-slate-800 rounded-full overflow-hidden">
+                                                <div class="h-full rounded-full" :style="'width: ' + item.percentage + '%; background-color: ' + item.color"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3">
+                                        <div class="flex flex-wrap gap-1">
+                                            <template x-for="(top, idx) in item.topItems.slice(0, 3)" :key="idx">
+                                                <span class="px-2 py-0.5 text-xs bg-slate-700/50 rounded text-slate-300 font-mono truncate max-w-[150px]" 
+                                                      :title="top.name + ' (' + top.count + ')'" x-text="top.name.substring(0, 20) + (top.name.length > 20 ? '...' : '')"></span>
+                                            </template>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Controls -->
+        <div class="w-full lg:w-64 flex-shrink-0 space-y-4 order-1 lg:order-2">
+            <!-- Group By -->
+            <div class="glass-card rounded-xl p-4" :class="loading && 'opacity-50 pointer-events-none'">
+                <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    Stack By
+                    <svg x-show="loading" class="w-4 h-4 animate-spin text-cyan-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </h4>
+                <div class="space-y-2" :class="loading && 'opacity-50 pointer-events-none'">
+                    <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-800/50 transition-colors"
+                           :class="groupBy === 'command_signature' ? 'bg-cyan-600/20 border border-cyan-500/30' : ''">
+                        <input type="radio" name="groupBy" value="command_signature" :checked="groupBy === 'command_signature'" @click="changeGroupBy('command_signature')" :disabled="loading" class="text-cyan-500 focus:ring-cyan-500 bg-slate-700 border-slate-600">
+                        <span class="text-sm text-slate-300">Command Signature</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-800/50 transition-colors"
+                           :class="groupBy === 'command' ? 'bg-cyan-600/20 border border-cyan-500/30' : ''">
+                        <input type="radio" name="groupBy" value="command" :checked="groupBy === 'command'" @click="changeGroupBy('command')" :disabled="loading" class="text-cyan-500 focus:ring-cyan-500 bg-slate-700 border-slate-600">
+                        <span class="text-sm text-slate-300">Command Type</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-800/50 transition-colors"
+                           :class="groupBy === 'key_pattern' ? 'bg-cyan-600/20 border border-cyan-500/30' : ''">
+                        <input type="radio" name="groupBy" value="key_pattern" :checked="groupBy === 'key_pattern'" @click="changeGroupBy('key_pattern')" :disabled="loading" class="text-cyan-500 focus:ring-cyan-500 bg-slate-700 border-slate-600">
+                        <span class="text-sm text-slate-300">Key Pattern</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-800/50 transition-colors"
+                           :class="groupBy === 'client_ip' ? 'bg-cyan-600/20 border border-cyan-500/30' : ''">
+                        <input type="radio" name="groupBy" value="client_ip" :checked="groupBy === 'client_ip'" @click="changeGroupBy('client_ip')" :disabled="loading" class="text-cyan-500 focus:ring-cyan-500 bg-slate-700 border-slate-600">
+                        <span class="text-sm text-slate-300">Client IP</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="glass-card rounded-xl p-4 overflow-visible relative z-30" :class="loading && 'opacity-50 pointer-events-none'">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-sm font-semibold text-white">Filters</h4>
+                    <button x-show="hasActiveFilters()" 
+                            @click="clearAllFilters()"
+                            class="text-xs text-cyan-400 hover:text-cyan-300">Clear all</button>
+                </div>
+
+                <div class="space-y-3">
+                    <!-- Command Filter -->
+                    <div x-data="{ open: false, search: '' }" class="relative">
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Command <span x-show="availableOptions.commands.length" class="text-slate-500" x-text="'(' + availableOptions.commands.length + ')'"></span></span>
+                            <button x-show="filters.command" @click.stop="clearFilter('command')" class="text-cyan-400 hover:text-cyan-300">Clear</button>
+                        </label>
+                        <button @click="open = !open; search = ''; $nextTick(() => $refs.cmdSearch.focus())" type="button"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-left text-xs text-white flex items-center justify-between">
+                            <span x-text="filters.command || 'All'"></span>
+                            <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition
+                             class="absolute z-[100] mt-1 left-0 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+                            <div class="p-2 border-b border-slate-700">
+                                <input type="text" x-model="search" x-ref="cmdSearch" placeholder="Search commands..." @click.stop
+                                       class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div class="max-h-48 overflow-y-auto">
+                                <template x-for="cmd in availableOptions.commands" :key="cmd">
+                                    <button x-show="cmd.toLowerCase().includes(search.toLowerCase())"
+                                            @click="applyFilter('command', cmd); open = false;"
+                                            class="block w-full text-left px-3 py-2 hover:bg-slate-700 text-xs" x-text="cmd"></button>
+                                </template>
+                                <div x-show="availableOptions.commands.length === 0" class="px-3 py-2 text-xs text-slate-500 italic">No commands match current filters</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Client IP Filter -->
+                    <div>
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Client IP</span>
+                            <button x-show="filters.client_ip" @click.stop="clearFilter('client_ip')" class="text-cyan-400 hover:text-cyan-300">Clear</button>
+                        </label>
+                        <input type="text" x-model="filters.client_ip" @input.debounce.500ms="onClientIpInput()"
+                               placeholder="e.g., 10.0.1.50"
+                               class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500">
+                    </div>
+
+                    <!-- Key Pattern Filter -->
+                    <div x-data="{ open: false, search: '' }" class="relative">
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Key Pattern <span x-show="availableOptions.patterns.length" class="text-slate-500" x-text="'(' + availableOptions.patterns.length + ')'"></span></span>
+                            <button x-show="filters.key_pattern" @click.stop="clearFilter('key_pattern')" class="text-cyan-400 hover:text-cyan-300">Clear</button>
+                        </label>
+                        <button @click="open = !open; search = ''; $nextTick(() => $refs.patternSearch.focus())" type="button"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-left text-xs text-white flex items-center justify-between truncate">
+                            <span class="truncate" x-text="filters.key_pattern || 'All'"></span>
+                            <svg class="w-3 h-3 text-slate-400 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition
+                             class="absolute z-[100] mt-1 left-0 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+                            <div class="p-2 border-b border-slate-700">
+                                <input type="text" x-model="search" x-ref="patternSearch" placeholder="Search patterns..." @click.stop
+                                       class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div class="max-h-48 overflow-y-auto">
+                                <template x-for="pattern in availableOptions.patterns" :key="pattern">
+                                    <button x-show="pattern.toLowerCase().includes(search.toLowerCase())"
+                                            @click="applyFilter('key_pattern', pattern); open = false;"
+                                            class="block w-full text-left px-3 py-2 hover:bg-slate-700 text-xs truncate font-mono"
+                                            :title="pattern" x-text="pattern.substring(0, 40) + (pattern.length > 40 ? '...' : '')"></button>
+                                </template>
+                                <div x-show="availableOptions.patterns.length === 0" class="px-3 py-2 text-xs text-slate-500 italic">No patterns match current filters</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Signature Filter -->
+                    <div x-data="{ open: false, search: '' }" class="relative">
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Signature <span x-show="availableOptions.signatures.length" class="text-slate-500" x-text="'(' + availableOptions.signatures.length + ')'"></span></span>
+                            <button x-show="filters.command_signature" @click.stop="clearFilter('command_signature')" class="text-cyan-400 hover:text-cyan-300">Clear</button>
+                        </label>
+                        <button @click="open = !open; search = ''; $nextTick(() => $refs.sigSearch.focus())" type="button"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-left text-xs text-white flex items-center justify-between truncate">
+                            <span class="truncate" x-text="filters.command_signature || 'All'"></span>
+                            <svg class="w-3 h-3 text-slate-400 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition
+                             class="absolute z-[100] mt-1 left-0 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+                            <div class="p-2 border-b border-slate-700">
+                                <input type="text" x-model="search" x-ref="sigSearch" placeholder="Search signatures..." @click.stop
+                                       class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div class="max-h-48 overflow-y-auto">
+                                <template x-for="sig in availableOptions.signatures" :key="sig">
+                                    <button x-show="sig.toLowerCase().includes(search.toLowerCase())"
+                                            @click="applyFilter('command_signature', sig); open = false;"
+                                            class="block w-full text-left px-3 py-2 hover:bg-slate-700 text-xs truncate font-mono"
+                                            :title="sig" x-text="sig.substring(0, 40) + (sig.length > 40 ? '...' : '')"></button>
+                                </template>
+                                <div x-show="availableOptions.signatures.length === 0" class="px-3 py-2 text-xs text-slate-500 italic">No signatures match current filters</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="glass-card rounded-xl p-4 relative z-10" :class="loading && 'opacity-50 pointer-events-none'">
+                <h4 class="text-sm font-semibold text-white mb-3">Quick Actions</h4>
+                <div class="space-y-2">
+                    <button @click="quickAction('command_signature')"
+                            class="w-full text-left px-3 py-2 text-xs bg-slate-800 hover:bg-cyan-600/20 rounded border border-slate-700 transition-colors flex items-center gap-2">
+                        <span class="text-cyan-400">🔍</span> View by Signature
+                    </button>
+                    <button @click="quickAction('command')"
+                            class="w-full text-left px-3 py-2 text-xs bg-slate-800 hover:bg-cyan-600/20 rounded border border-slate-700 transition-colors flex items-center gap-2">
+                        <span class="text-purple-400">⚡</span> View by Command Type
+                    </button>
+                    <button @click="quickAction('client_ip')"
+                            class="w-full text-left px-3 py-2 text-xs bg-slate-800 hover:bg-cyan-600/20 rounded border border-slate-700 transition-colors flex items-center gap-2">
+                        <span class="text-amber-400">🖥️</span> View by Client IP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Stats -->
+            <div class="glass-card rounded-xl p-4">
+                <h4 class="text-sm font-semibold text-white mb-3">Summary</h4>
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Total Shards</span>
+                        <span class="text-white font-mono">{{ shards|length }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Total Commands</span>
+                        <span class="text-white font-mono" x-text="totalCommands.toLocaleString()">{{ job.total_commands }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Hottest Shard</span>
+                        <span class="text-cyan-400 font-mono" x-text="hottestShard || '-'"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Imbalance</span>
+                        <span class="font-mono" :class="imbalanceRatio > 2 ? 'text-red-400' : imbalanceRatio > 1.5 ? 'text-amber-400' : 'text-emerald-400'" 
+                              x-text="imbalanceRatio ? imbalanceRatio.toFixed(1) + 'x' : '-'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+function shardDistributionApp() {
+    return {
+        jobId: '{{ job.id }}',
+        groupBy: 'command_signature',
+        chartType: 'bar',
+        loading: true,
+        chart: null,
+        rawData: null,
+        breakdownData: [],
+        totalCommands: {{ job.total_commands }},
+        hottestShard: null,
+        imbalanceRatio: null,
+        filters: {
+            command: '',
+            client_ip: '',
+            key_pattern: '',
+            command_signature: ''
+        },
+        // Dynamic filter options
+        availableOptions: {
+            commands: {{ commands | tojson }},
+            patterns: {{ patterns | tojson }},
+            signatures: {{ signatures | tojson }}
+        },
+        optionsLoading: false,
+        requestId: 0,  // Track request order to prevent race conditions
+
+        // Custom hydrate for nested filters object
+        hydrateFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            
+            const groupBy = params.get('group_by');
+            if (groupBy) this.groupBy = groupBy;
+            
+            const chartType = params.get('chart_type');
+            if (chartType) this.chartType = chartType;
+            
+            // Nested filters
+            const filterCommand = params.get('filter_command');
+            if (filterCommand) this.filters.command = filterCommand;
+            
+            const filterClientIp = params.get('filter_client_ip');
+            if (filterClientIp) this.filters.client_ip = filterClientIp;
+            
+            const filterKeyPattern = params.get('filter_key_pattern');
+            if (filterKeyPattern) this.filters.key_pattern = filterKeyPattern;
+            
+            const filterSignature = params.get('filter_signature');
+            if (filterSignature) this.filters.command_signature = filterSignature;
+        },
+
+        // Custom sync for nested filters object
+        syncToUrl(push = true) {
+            const params = new URLSearchParams();
+            
+            if (this.groupBy && this.groupBy !== 'command_signature') {
+                params.set('group_by', this.groupBy);
+            }
+            if (this.chartType && this.chartType !== 'bar') {
+                params.set('chart_type', this.chartType);
+            }
+            if (this.filters.command) {
+                params.set('filter_command', this.filters.command);
+            }
+            if (this.filters.client_ip) {
+                params.set('filter_client_ip', this.filters.client_ip);
+            }
+            if (this.filters.key_pattern) {
+                params.set('filter_key_pattern', this.filters.key_pattern);
+            }
+            if (this.filters.command_signature) {
+                params.set('filter_signature', this.filters.command_signature);
+            }
+            
+            const queryString = params.toString();
+            const url = queryString ? `${location.pathname}?${queryString}` : location.pathname;
+            
+            if (push) {
+                history.pushState({ urlState: true }, '', url);
+            } else {
+                history.replaceState({ urlState: true }, '', url);
+            }
+        },
+
+        init() {
+            this.loading = true;
+            // Hydrate state from URL on init
+            this.hydrateFromUrl();
+            this.refresh();
+            
+            // Handle browser back/forward navigation
+            window.addEventListener('popstate', () => {
+                this.hydrateFromUrl();
+                this.refresh();
+            });
+        },
+        
+        async changeGroupBy(newGroupBy) {
+            if (this.loading) return;
+            if (this.groupBy === newGroupBy) return;  // Same value, do nothing
+            this.loading = true;
+            this.groupBy = newGroupBy;
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        changeChartType(type) {
+            if (this.chartType === type) return;
+            this.chartType = type;
+            this.syncToUrl(false);  // replaceState, don't push to history
+            this.updateChart();
+        },
+        
+        async refresh() {
+            try {
+                await this.fetchFilterOptions();
+                await this.fetchData();
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        groupByLabel() {
+            const labels = {
+                'command_signature': 'Signature',
+                'command': 'Command',
+                'key_pattern': 'Key Pattern',
+                'client_ip': 'Client IP'
+            };
+            return labels[this.groupBy] || this.groupBy;
+        },
+
+        hasActiveFilters() {
+            return this.filters.command || this.filters.client_ip || 
+                   this.filters.key_pattern || this.filters.command_signature;
+        },
+
+        async clearAllFilters() {
+            if (this.loading) return;
+            this.loading = true;
+            this.filters = { command: '', client_ip: '', key_pattern: '', command_signature: '' };
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async quickAction(newGroupBy) {
+            if (this.loading) return;
+            this.loading = true;
+            this.groupBy = newGroupBy;
+            this.filters = { command: '', client_ip: '', key_pattern: '', command_signature: '' };
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async fetchFilterOptions() {
+            this.optionsLoading = true;
+            const params = new URLSearchParams();
+            
+            if (this.filters.command) params.set('filter_command', this.filters.command);
+            if (this.filters.client_ip) params.set('filter_client_ip', this.filters.client_ip);
+            if (this.filters.key_pattern) params.set('filter_key_pattern', this.filters.key_pattern);
+            if (this.filters.command_signature) params.set('filter_command_signature', this.filters.command_signature);
+
+            try {
+                const response = await fetch(`/api/jobs/${this.jobId}/filter-options?${params}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.availableOptions = {
+                        commands: data.commands || [],
+                        patterns: data.patterns || [],
+                        signatures: data.signatures || []
+                    };
+                }
+            } catch (e) {
+                console.error('Failed to fetch filter options:', e);
+            }
+            this.optionsLoading = false;
+        },
+
+        async applyFilter(type, value) {
+            if (this.loading) return;
+            this.loading = true;
+            this.filters[type] = value;
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async clearFilter(filterName) {
+            if (this.loading) return;
+            this.loading = true;
+            this.filters[filterName] = '';
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async onClientIpInput() {
+            if (this.loading) return;
+            this.loading = true;
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async fetchData() {
+            const currentRequest = ++this.requestId;
+            try {
+                const params = new URLSearchParams({
+                    group_by: this.groupBy
+                });
+                
+                if (this.filters.command) params.set('filter_command', this.filters.command);
+                if (this.filters.client_ip) params.set('filter_client_ip', this.filters.client_ip);
+                if (this.filters.key_pattern) params.set('filter_key_pattern', this.filters.key_pattern);
+                if (this.filters.command_signature) params.set('filter_command_signature', this.filters.command_signature);
+
+                const response = await fetch(`/api/jobs/${this.jobId}/shard-distribution-data?${params}`);
+                const data = await response.json();
+                
+                // Only apply if this is still the latest request
+                if (currentRequest !== this.requestId) return;
+                
+                this.rawData = data;
+                this.totalCommands = data.total_commands || 0;
+                this.processData(data);
+                
+                // Initialize chart once, then update in place
+                this.$nextTick(() => {
+                    if (currentRequest === this.requestId) {
+                        this.initChart();
+                        this.updateChart(currentRequest);
+                    }
+                });
+            } catch (e) {
+                console.error('Failed to fetch data:', e);
+            }
+        },
+
+        processData(data) {
+            const shards = data.shards || [];
+            const totals = {};
+            let maxTotal = 0;
+            let minTotal = Infinity;
+            let hottestShard = null;
+
+            // Calculate totals per shard
+            shards.forEach(shard => {
+                const total = Object.values(shard.breakdown || {}).reduce((a, b) => a + b, 0);
+                totals[shard.name] = total;
+                if (total > maxTotal) {
+                    maxTotal = total;
+                    hottestShard = shard.name;
+                }
+                if (total < minTotal && total > 0) {
+                    minTotal = total;
+                }
+            });
+
+            this.hottestShard = hottestShard;
+            this.imbalanceRatio = minTotal > 0 ? maxTotal / minTotal : null;
+
+            // Build breakdown data
+            const colors = this.generateColors(shards.length);
+            this.breakdownData = shards.map((shard, idx) => {
+                const total = totals[shard.name] || 0;
+                const topItems = Object.entries(shard.breakdown || {})
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(([name, count]) => ({ name: name || '(none)', count }));
+
+                return {
+                    shard: shard.name,
+                    total,
+                    percentage: this.totalCommands > 0 ? (total / this.totalCommands * 100) : 0,
+                    color: colors[idx],
+                    topItems
+                };
+            });
+        },
+
+        generateColors(count) {
+            const baseColors = [
+                'rgb(6, 182, 212)',    // cyan
+                'rgb(168, 85, 247)',   // purple
+                'rgb(249, 115, 22)',   // orange
+                'rgb(34, 197, 94)',    // green
+                'rgb(239, 68, 68)',    // red
+                'rgb(59, 130, 246)',   // blue
+                'rgb(236, 72, 153)',   // pink
+                'rgb(234, 179, 8)',    // yellow
+                'rgb(20, 184, 166)',   // teal
+                'rgb(139, 92, 246)',   // violet
+            ];
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                colors.push(baseColors[i % baseColors.length]);
+            }
+            return colors;
+        },
+
+        // Build datasets from raw data - creates new objects to avoid reference issues
+        buildDatasets() {
+            if (!this.rawData?.shards?.length) return { labels: [], datasets: [] };
+
+            const shards = this.rawData.shards;
+            const labels = shards.map(s => s.name);
+            
+            // Get all unique breakdown keys
+            const allKeys = new Set();
+            shards.forEach(shard => {
+                Object.keys(shard.breakdown || {}).forEach(k => allKeys.add(k));
+            });
+
+            // Get top N keys by total count
+            const keyTotals = {};
+            allKeys.forEach(key => {
+                keyTotals[key] = shards.reduce((sum, shard) => sum + (shard.breakdown?.[key] || 0), 0);
+            });
+            const topKeys = Object.entries(keyTotals)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10)
+                .map(([key]) => key);
+
+            // Create datasets for stacked bar chart - explicit object creation
+            const colors = this.generateColors(topKeys.length + 1);
+            const datasets = topKeys.map((key, idx) => {
+                return {
+                    label: key || '(none)',
+                    data: shards.map(shard => shard.breakdown?.[key] || 0),
+                    backgroundColor: colors[idx],
+                    borderColor: colors[idx],
+                    borderWidth: 1
+                };
+            });
+
+            // Add "Other" dataset
+            const otherData = shards.map(shard => {
+                const breakdown = shard.breakdown || {};
+                const topTotal = topKeys.reduce((sum, key) => sum + (breakdown[key] || 0), 0);
+                const total = Object.values(breakdown).reduce((sum, v) => sum + v, 0);
+                return total - topTotal;
+            });
+            if (otherData.some(v => v > 0)) {
+                datasets.push({
+                    label: 'Other',
+                    data: otherData.slice(), // Clone
+                    backgroundColor: 'rgb(100, 116, 139)',
+                    borderColor: 'rgb(100, 116, 139)',
+                    borderWidth: 1
+                });
+            }
+
+            return { labels: labels.slice(), datasets }; // Clone labels
+        },
+
+        // Always recreate chart - safest approach
+        renderChart(requestId = this.requestId) {
+            if (requestId !== this.requestId) return;
+            
+            const canvas = this.$refs.shardCanvas;
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            // Destroy existing chart if any
+            if (this.chart) {
+                try { this.chart.destroy(); } catch (e) {}
+                this.chart = null;
+            }
+
+            const isHorizontal = this.chartType === 'horizontalBar';
+            const { labels, datasets } = this.buildDatasets();
+
+            if (!datasets.length) return;
+
+            try {
+                this.chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options: {
+                        indexAxis: isHorizontal ? 'y' : 'x',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: {
+                                    color: 'rgb(148, 163, 184)',
+                                    boxWidth: 12,
+                                    padding: 15,
+                                    font: { size: 11 }
+                                },
+                                onClick: (e, legendItem, legend) => {
+                                    const chart = legend.chart;
+                                    const ci = legendItem.datasetIndex;
+                                    const meta = chart.getDatasetMeta(ci);
+                                    
+                                    // Shift+click = toggle hide (original behavior)
+                                    if (e.native.shiftKey) {
+                                        meta.hidden = !meta.hidden;
+                                    } else {
+                                        // Single click = focus behavior
+                                        const allOthersHidden = chart.data.datasets.every((ds, i) => 
+                                            i === ci ? true : chart.getDatasetMeta(i).hidden
+                                        );
+                                        
+                                        if (allOthersHidden && !meta.hidden) {
+                                            // Clicking the only visible item -> show all
+                                            chart.data.datasets.forEach((ds, i) => {
+                                                chart.getDatasetMeta(i).hidden = false;
+                                            });
+                                        } else {
+                                            // Focus: show only clicked, hide all others
+                                            chart.data.datasets.forEach((ds, i) => {
+                                                chart.getDatasetMeta(i).hidden = (i !== ci);
+                                            });
+                                        }
+                                    }
+                                    chart.update();
+                                }
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                titleColor: 'rgb(248, 250, 252)',
+                                bodyColor: 'rgb(203, 213, 225)',
+                                borderColor: 'rgb(51, 65, 85)',
+                                borderWidth: 1,
+                                padding: 12,
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.dataset.label}: ${context.raw.toLocaleString()}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                grid: { color: 'rgba(51, 65, 85, 0.5)' },
+                                ticks: { color: 'rgb(148, 163, 184)', font: { size: 11 } }
+                            },
+                            y: {
+                                stacked: true,
+                                grid: { color: 'rgba(51, 65, 85, 0.5)' },
+                                ticks: { color: 'rgb(148, 163, 184)', font: { size: 11 } }
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.log('Chart creation failed:', e);
+            }
+        },
+
+        // Aliases for compatibility
+        initChart() {
+            // No-op, renderChart handles everything
+        },
+
+        updateChart(requestId = this.requestId) {
+            this.renderChart(requestId);
+        }
+    };
+}
+</script>
+{% endblock %}
+
