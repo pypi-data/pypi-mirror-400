@@ -1,0 +1,106 @@
+Metadata-Version: 2.4
+Name: openrouter-banana-mcp
+Version: 0.1.1
+Summary: MCP server that generates images via OpenRouter using google/gemini-3-pro-image-preview.
+Author-email: sugarforever <william.1022@gmail.com>
+Requires-Python: >=3.12
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: requests>=2.31.0
+Description-Content-Type: text/markdown
+
+# openrouter-banana-mcp
+
+MCP server that generates images from text prompts using OpenRouter with the
+`google/gemini-3-pro-image-preview` model.
+
+## Install
+
+```bash
+pip install openrouter-banana-mcp
+```
+
+## Setup
+
+```bash
+uv sync
+```
+
+Create a `.env` file or export environment variables:
+
+```bash
+OPENROUTER_API_KEY=your_key_here
+```
+
+## Run
+
+```bash
+uv run banana-mcp
+```
+
+Or:
+
+```bash
+python -m banana_mcp
+```
+
+## Configure MCP clients
+
+Add a stdio server entry in your MCP client config (for example, Claude Desktop,
+Cursor, or Continue). Use one of these command styles:
+
+```json
+{
+  "mcpServers": {
+    "openrouter-banana": {
+      "command": "banana-mcp",
+      "args": [],
+      "env": {
+        "OPENROUTER_API_KEY": "your_key_here"
+      }
+    }
+  }
+}
+```
+
+If you prefer running via Python or uv:
+
+```json
+{
+  "mcpServers": {
+    "openrouter-banana": {
+      "command": "python",
+      "args": ["-m", "banana_mcp"],
+      "env": {
+        "OPENROUTER_API_KEY": "your_key_here"
+      }
+    }
+  }
+}
+```
+
+### One-command install
+
+Codex CLI:
+
+```bash
+codex mcp add openrouter-banana --env OPENROUTER_API_KEY=your_key_here -- banana-mcp
+```
+
+Claude Code:
+
+```bash
+claude mcp add --transport stdio openrouter-banana --env OPENROUTER_API_KEY=your_key_here -- banana-mcp
+```
+
+## MCP Tool
+
+Tool: `generate_image`
+
+Input:
+- `prompt` (string)
+
+Output:
+- `model` (string)
+- `images` (list of base64 data URLs)
+- `text` (optional assistant text)
