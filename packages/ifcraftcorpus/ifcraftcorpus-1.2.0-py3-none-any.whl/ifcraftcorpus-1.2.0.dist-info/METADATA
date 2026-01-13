@@ -1,0 +1,138 @@
+Metadata-Version: 2.4
+Name: ifcraftcorpus
+Version: 1.2.0
+Summary: Interactive fiction craft corpus with search library and MCP server
+Project-URL: Homepage, https://pvliesdonk.github.io/if-craft-corpus
+Project-URL: Repository, https://github.com/pvliesdonk/if-craft-corpus
+Project-URL: Documentation, https://pvliesdonk.github.io/if-craft-corpus
+Author: pvliesdonk
+License: MIT
+License-File: LICENSE
+License-File: LICENSE-CONTENT
+Keywords: corpus,craft,interactive-fiction,mcp,rag,search,writing
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Text Processing
+Requires-Python: >=3.10
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: all
+Requires-Dist: fastmcp>=2.0; extra == 'all'
+Requires-Dist: httpx>=0.25; extra == 'all'
+Requires-Dist: numpy>=1.20; extra == 'all'
+Provides-Extra: all-local
+Requires-Dist: fastmcp>=2.0; extra == 'all-local'
+Requires-Dist: numpy>=1.20; extra == 'all-local'
+Requires-Dist: sentence-transformers>=2.0; extra == 'all-local'
+Provides-Extra: dev
+Requires-Dist: fastmcp>=2.0; extra == 'dev'
+Requires-Dist: mypy>=1.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: python-semantic-release>=10.0; extra == 'dev'
+Requires-Dist: ruff>=0.1; extra == 'dev'
+Requires-Dist: types-pyyaml>=6.0; extra == 'dev'
+Provides-Extra: docs
+Requires-Dist: mkdocs-material>=9.0; extra == 'docs'
+Requires-Dist: mkdocs>=1.5; extra == 'docs'
+Provides-Extra: embeddings
+Requires-Dist: numpy>=1.20; extra == 'embeddings'
+Requires-Dist: sentence-transformers>=2.0; extra == 'embeddings'
+Provides-Extra: embeddings-api
+Requires-Dist: httpx>=0.25; extra == 'embeddings-api'
+Requires-Dist: numpy>=1.20; extra == 'embeddings-api'
+Provides-Extra: mcp
+Requires-Dist: fastmcp>=2.0; extra == 'mcp'
+Description-Content-Type: text/markdown
+
+# IF Craft Corpus
+
+A curated knowledge base for interactive fiction writing craft, with a Python library for search and RAG applications.
+
+## Features
+
+- **43 documents** covering narrative structure, prose craft, genre conventions, and more
+- **1300+ searchable sections** with detailed craft guidance
+- **Python library** for programmatic access with FTS and optional semantic search
+- **Pre-built index** for instant search without setup
+
+## Installation
+
+```bash
+pip install ifcraftcorpus
+```
+
+For semantic search with embeddings:
+
+```bash
+pip install ifcraftcorpus[embeddings]
+```
+
+## Quick Start
+
+```python
+from ifcraftcorpus import Corpus
+
+# Initialize corpus (uses bundled content and pre-built index)
+corpus = Corpus()
+
+# Full-text search
+results = corpus.search("dialogue subtext techniques")
+for r in results:
+    print(f"{r.document}: {r.heading}")
+    print(f"  {r.snippet}...")
+
+# Browse by cluster
+docs = corpus.list_documents(cluster="prose-and-language")
+
+# Get full document
+doc = corpus.get_document("dialogue_craft")
+print(doc.title, doc.summary)
+```
+
+### Semantic Search (Optional)
+
+```python
+# Enable semantic search with sentence-transformers
+corpus = Corpus(embeddings="all-MiniLM-L6-v2")
+
+# Hybrid search combines FTS + semantic
+results = corpus.search(
+    "how to write realistic conversations",
+    mode="hybrid"
+)
+```
+
+## Corpus Clusters
+
+| Cluster | Documents | Focus |
+|---------|-----------|-------|
+| narrative-structure | 10 | Pacing, beats, branching, scene structure |
+| prose-and-language | 8 | Dialogue, voice, style, prose patterns |
+| craft-foundations | 10 | Quality standards, testing, workflow, tools |
+| world-and-setting | 5 | Worldbuilding, canon, setting |
+| genre-conventions | 4 | Mystery, horror, fantasy, romance |
+| audience-and-access | 3 | Accessibility, localization, targeting |
+| emotional-design | 2 | Emotional beats, catharsis |
+| scope-and-planning | 2 | Scope, length, planning |
+| agent-design | 2 | Multi-agent patterns, prompt engineering |
+| game-design | 1 | Mechanics design patterns |
+
+## Documentation
+
+Full documentation: https://pvliesdonk.github.io/if-craft-corpus
+
+## License
+
+- **Code**: MIT License (see [LICENSE](LICENSE))
+- **Content**: CC-BY-4.0 (see [LICENSE-CONTENT](LICENSE-CONTENT))
+
+## Contributing
+
+Contributions welcome! Please open an issue or PR.
