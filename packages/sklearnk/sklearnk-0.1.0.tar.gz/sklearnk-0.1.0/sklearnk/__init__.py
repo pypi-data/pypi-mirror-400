@@ -1,0 +1,12 @@
+from .program1 import run as program1
+from .program2 import run as program2
+from .program3 import run as program3
+from .program4 import run as program4
+from .program5 import run as program5
+from .program6 import run as program6
+from .program7 import run as program7
+from .program8 import run as program8
+from .program9 import run as program9
+from .program10 import run as program10
+from .program11 import run as program11
+from .program12 import run as program12
