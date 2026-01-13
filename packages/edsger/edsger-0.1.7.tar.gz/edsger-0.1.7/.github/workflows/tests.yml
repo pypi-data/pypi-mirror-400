@@ -1,0 +1,47 @@
+name: Run tests and upload coverage
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  test:
+    name: Run tests and collect coverage
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-14]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+        pip install .
+    - name: Format Python code with black
+      run: |
+        black --check --diff .
+    - name: Lint Cython code
+      run: |
+        cython-lint src/edsger/commons.pyx src/edsger/dijkstra.pyx src/edsger/path_tracking.pyx src/edsger/pq_4ary_dec_0b.pyx src/edsger/spiess_florian.pyx src/edsger/star.pyx src/edsger/commons.pxd src/edsger/pq_4ary_dec_0b.pxd
+    - name: Run tests with coverage
+      if: matrix.os == 'ubuntu-22.04' && matrix.python-version == '3.10'
+      run: |
+        pytest --cov=src/edsger --cov-branch --cov-report=xml tests/
+    - name: Run tests without coverage
+      if: matrix.os != 'ubuntu-22.04' || matrix.python-version != '3.10'
+      run: |
+        pytest tests/
+    - name: Upload results to Codecov
+      if: matrix.os == 'ubuntu-22.04' && matrix.python-version == '3.10'
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
