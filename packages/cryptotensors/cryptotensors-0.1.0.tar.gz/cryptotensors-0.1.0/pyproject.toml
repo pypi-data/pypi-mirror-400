@@ -1,0 +1,118 @@
+[project]
+name = 'cryptotensors'
+requires-python = '>=3.9'
+description = 'CryptoTensors is an extension of safetensors that adds encryption, signing, and access control (Rego-based policy engine) while maintaining full backward compatibility with the safetensors format'
+authors = [
+    {name = 'Aiyah Meloken', email = 'aiyah_meloken@protonmail.com'}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+license = { file = "LICENSE" }
+dynamic = [
+    'readme',
+    'version',
+]
+
+[project.urls]
+Homepage = 'https://github.com/aiyah-meloken/cryptotensors'
+Source = 'https://github.com/aiyah-meloken/cryptotensors'
+Documentation = 'https://aiyah-meloken.github.io/cryptotensors/'
+
+[project.optional-dependencies]
+numpy = ["numpy>=1.21.6"]
+torch = [
+    "packaging",
+    "cryptotensors[numpy]",
+    "torch>=1.10",
+]
+tensorflow = [
+    "cryptotensors[numpy]",
+    "tensorflow>=2.11.0",
+]
+# pinning tf version 2.11.0 for doc-builder
+pinned-tf = [
+    "cryptotensors[numpy]",
+    "tensorflow==2.18.0",
+]
+jax = [
+    "cryptotensors[numpy]",
+    "flax>=0.6.3",
+    "jax>=0.3.25",
+    "jaxlib>=0.3.25",
+]
+mlx = [
+    "mlx>=0.0.9",
+]
+paddlepaddle = [
+    "cryptotensors[numpy]",
+    "paddlepaddle>=2.4.1",
+]
+quality = [
+    "ruff",
+]
+testing = [
+    "cryptotensors[numpy]",
+    "h5py>=3.7.0",
+    "huggingface_hub>=0.12.1",
+    "setuptools_rust>=1.5.2",
+    "pytest>=7.2.0",
+    "pytest-benchmark>=4.0.0",
+    # "python-afl>=0.7.3",
+    "hypothesis>=6.70.2",
+    "cryptography>=41.0.0",
+]
+testingfree = [
+    "cryptotensors[numpy]",
+    "huggingface_hub>=0.12.1",
+    "setuptools_rust>=1.5.2",
+    "pytest>=7.2.0",
+    "pytest-benchmark>=4.0.0",
+    # "python-afl>=0.7.3",
+    "hypothesis>=6.70.2",
+    # cryptography is not compatible with freethreaded Python 3.13
+    # freethreaded tests don't use encryption features
+]
+all = [
+    "cryptotensors[torch]",
+    "cryptotensors[numpy]",
+    "cryptotensors[pinned-tf]",
+    "cryptotensors[jax]",
+    "cryptotensors[paddlepaddle]",
+    "cryptotensors[quality]",
+    "cryptotensors[testing]",
+]
+dev = [
+    "cryptotensors[all]",
+]
+
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+python-source = "py_src"
+module-name = "cryptotensors._safetensors_rust"
+bindings = 'pyo3'
+features = ["pyo3/extension-module"]
+manifest-path = "bindings/python/Cargo.toml"
+
+[tool.black]
+line-length = 119
+target-version = ['py35']
+
+[tool.setuptools.dynamic]
+readme = {file = ["README.md"]}
