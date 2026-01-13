@@ -1,0 +1,400 @@
+Metadata-Version: 2.4
+Name: sap-config-guard
+Version: 0.1.0
+Summary: Fail-fast configuration validation & environment drift detection for SAP landscapes
+Home-page: https://github.com/upendra-manike/sap-config-guard
+Author: SAP Community
+Author-email: 
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Systems Administration
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: flake8>=6.0; extra == "dev"
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# 🛡️ sap-config-guard
+
+**Fail-fast configuration validation & environment drift detection for SAP landscapes**
+
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## 🎯 Problem
+
+In almost every SAP project:
+
+- ❌ DEV / QA / PROD configs **silently differ**
+- ❌ Missing parameters cause **runtime failures**
+- ❌ Secure parameters fail only in PROD
+- ❌ No automated **pre-deployment validation**
+
+👉 SAP has **no lightweight, open tool** to catch this **before deployment**.
+
+---
+
+## ✅ Solution
+
+`sap-config-guard` is a **CLI + library** that:
+
+- ✔️ Validates SAP configuration files
+- ✔️ Detects missing / unused / invalid parameters
+- ✔️ Compares environments (DEV vs QA vs PROD)
+- ✔️ Fails builds **before deployment**
+- ✔️ Works **outside SAP** (CI/CD friendly)
+
+---
+
+## 🚀 Quick Start
+
+### Installation
+
+**Option 1: PyPI (when published)**
+```bash
+pip install sap-config-guard
+```
+
+**Option 2: From source**
+```bash
+git clone https://github.com/upendra-manike/sap-config-guard.git
+cd sap-config-guard
+pip install -e .
+```
+
+**Option 3: Docker**
+```bash
+docker pull sap-config-guard:latest
+# Or build from source
+docker build -t sap-config-guard:latest .
+```
+
+### Basic Usage
+
+#### 1️⃣ Validate Configuration
+
+```bash
+sap-config-guard validate ./config/dev
+```
+
+**Output:**
+```
+❌ Missing required key: SAP_API_URL
+❌ Invalid pattern: SAP_CLIENT = 12 (expected pattern: ^[0-9]{3}$)
+⚠️  Secure key missing or empty: SAP_PASSWORD
+```
+
+#### 2️⃣ Compare Environments
+
+```bash
+sap-config-guard diff dev=./config/dev qa=./config/qa prod=./config/prod
+```
+
+**Output:**
+```
+⚠️  Drift detected:
+
+  ⚠️  Key 'SAP_TIMEOUT' differs: dev=30, qa=30, prod=10
+  ⚠️  Key 'SAP_API_URL' differs: dev=http://localhost:8080, qa=https://qa.sap.com, prod=https://prod.sap.com
+  ❌ Key 'SAP_CLIENT' missing in: qa
+```
+
+#### 3️⃣ Production Validation (Strict Mode)
+
+```bash
+sap-config-guard validate ./config/prod --environment prod --fail-on-warning
+```
+
+---
+
+## 📖 Library API
+
+### Python
+
+```python
+from sap_config_guard import validate, compare_environments
+
+# Validate configuration
+results, is_valid = validate(
+    config_path="./config/prod",
+    schema_path="./schema.yaml",  # optional
+    environment="prod",
+    fail_on_warning=True
+)
+
+for result in results:
+    print(result)
+
+# Compare environments
+diff_results = compare_environments({
+    "dev": "./config/dev",
+    "qa": "./config/qa",
+    "prod": "./config/prod"
+})
+
+for diff in diff_results:
+    print(f"{diff.key}: {diff.message}")
+```
+
+---
+
+## 📁 Supported File Formats
+
+- ✅ `.env` files
+- ✅ `.properties` files (Java-style)
+- ✅ `.yaml` / `.yml` files
+- ✅ `.json` files
+- ✅ Directory with multiple config files
+
+---
+
+## 🔧 Configuration Schema
+
+Create a `schema.yaml` file to define validation rules:
+
+```yaml
+required:
+  - SAP_CLIENT
+  - SAP_SYSTEM_ID
+  - SAP_API_URL
+
+secure:
+  - SAP_PASSWORD
+  - SAP_PRIVATE_KEY
+
+patterns:
+  SAP_CLIENT: "^[0-9]{3}$"
+  SAP_API_URL: "^https://.*"
+
+forbidden_in_prod:
+  - mock
+  - localhost
+  - 127.0.0.1
+
+min_lengths:
+  SAP_PASSWORD: 8
+```
+
+---
+
+## 🧩 Supported SAP Contexts
+
+| Area                         | Supported    |
+| ---------------------------- | ------------ |
+| SAP BTP                      | ✅            |
+| SAP CPI / PI                 | ✅            |
+| MuleSoft ↔ SAP               | ✅            |
+| CAP Apps                     | ✅            |
+| SAP Properties / YAML / JSON | ✅            |
+| ABAP exports (CSV/XML)       | ⚠️ (phase 2) |
+
+---
+
+## 🔐 Built-in SAP Rules
+
+- ✅ No `localhost` in PROD
+- ✅ No hardcoded secrets
+- ✅ SAP client must be 3 digits
+- ✅ HTTPS enforced
+- ✅ Timeout sanity checks
+- ✅ Destination name validation
+
+---
+
+## 🖥️ CLI Reference
+
+### `validate` Command
+
+```bash
+sap-config-guard validate <config_path> [options]
+```
+
+**Options:**
+- `--schema, -s`: Path to schema YAML file
+- `--environment, -e`: Environment name (dev, qa, prod) - default: dev
+- `--fail-on-warning`: Treat warnings as errors
+
+**Examples:**
+```bash
+# Basic validation
+sap-config-guard validate ./config/dev
+
+# Production validation with custom schema
+sap-config-guard validate ./config/prod --environment prod --schema ./custom-schema.yaml
+
+# Strict mode (fail on warnings)
+sap-config-guard validate ./config/prod --environment prod --fail-on-warning
+```
+
+### `diff` Command
+
+```bash
+sap-config-guard diff <env1>=<path1> [env2]=<path2> ... [options]
+```
+
+**Options:**
+- `--show-same`: Show keys that are the same across environments
+- `--fail-on-drift`: Exit with error code if drift is detected
+
+**Examples:**
+```bash
+# Compare environments
+sap-config-guard diff dev=./config/dev qa=./config/qa prod=./config/prod
+
+# Positional arguments (auto-named as dev, qa, prod)
+sap-config-guard diff ./config/dev ./config/qa ./config/prod
+
+# Fail CI/CD on drift
+sap-config-guard diff dev=./config/dev prod=./config/prod --fail-on-drift
+```
+
+---
+
+## 🔄 CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Validate SAP Config
+
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install sap-config-guard
+      - run: sap-config-guard validate ./config/prod --environment prod --fail-on-warning
+      - run: sap-config-guard diff dev=./config/dev qa=./config/qa prod=./config/prod --fail-on-drift
+```
+
+### Jenkins
+
+```groovy
+stage('Validate Config') {
+    steps {
+        sh 'pip install sap-config-guard'
+        sh 'sap-config-guard validate ./config/prod --environment prod --fail-on-warning'
+    }
+}
+```
+
+### Docker in CI/CD
+
+```yaml
+- name: Validate with Docker
+  run: |
+    docker run --rm \
+      -v ${{ github.workspace }}/config:/app/configs:ro \
+      sap-config-guard:latest \
+      validate /app/configs/prod --environment prod --fail-on-warning
+```
+
+---
+
+## 📈 Roadmap
+
+### v0.1.0 (Current) ✅
+- ✅ CLI
+- ✅ Config validation
+- ✅ Env diff
+- ✅ CI-friendly exit codes
+
+### v0.2.0 (Planned)
+- 🔄 CAP app support
+- 🔄 MuleSoft properties
+- 🔄 JSON/YAML schemas
+
+### v0.3.0 (Planned)
+- 🔄 ABAP export validation
+- 🔄 SAP transport pre-checks
+
+### v1.0.0 (Future)
+- 🔄 Java wrapper
+- 🔄 Plugin system
+- 🔄 SAP GenAI config advisor
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- Built for the SAP community
+- Inspired by real-world production issues
+- Designed to be SAP-agnostic and CI/CD friendly
+
+---
+
+## 🐳 Docker Support
+
+Full Docker support is available! See [DOCKER.md](DOCKER.md) for detailed usage.
+
+```bash
+# Quick start with Docker
+docker run --rm \
+  -v $(pwd)/config:/app/configs:ro \
+  sap-config-guard:latest \
+  validate /app/configs/prod
+```
+
+## 📚 Additional Documentation
+
+- [QUICKSTART.md](QUICKSTART.md) - 5-minute getting started guide
+- [DOCKER.md](DOCKER.md) - Complete Docker usage guide
+- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
+- [examples/ADVANCED_USAGE.md](examples/ADVANCED_USAGE.md) - Advanced usage patterns
+
+## 📞 Support
+
+- 🐛 [Report Issues](https://github.com/upendra-manike/sap-config-guard/issues)
+- 💬 [Discussions](https://github.com/upendra-manike/sap-config-guard/discussions)
+- 📧 Email: (add your email)
+
+---
+
+**Made with ❤️ for the SAP community**
+
