@@ -1,0 +1,105 @@
+Metadata-Version: 2.4
+Name: license-tool-ias
+Version: 0.2.1
+Summary: Example algo package with Cython-compiled submodules
+Author: Your Name
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Cython
+Classifier: Programming Language :: C
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: cryptography==45.0.5
+
+# 🔐 License Tool
+
+License Tool 是一個 **基於 RSA 簽名驗證** 的授權管理套件，提供：
+- ✅ License 簽署（sign）
+- ✅ License 驗證（verify）
+- ✅ RSA 金鑰自動生成（genkeys）
+
+---
+
+## 📚 目錄
+
+- [安裝方式](#安裝方式)
+- [使用方式](#使用方式)
+  - [金鑰產生](#金鑰產生)
+  - [License 生成](#license-生成)
+  - [License 驗證](#license-驗證)
+- [提交內容](#提交內容)
+
+## 🚀 安裝方式
+
+### 1️⃣ 本地安裝（開發模式）
+```bash
+git clone https://your.repo/license_tool.git
+
+cd license_tool
+
+python -m venv .venv
+
+source .venv/bin/activate
+
+pip install -r requirements.txt
+
+pip install -e .
+```
+
+
+## 使用方式
+- 必須進入license_tool的虛擬環境
+- 查看指令功能
+    ```Bash
+    license-tool -h
+
+    license-tool genkeys -h
+
+    license-tool sign -h
+
+    license-tool verify -h
+    ```
+### 金鑰產生 
+**⚠️ gitlab clone下來的專案已經有keys**
+
+**⚠️已經有金鑰就不要重複產生**，否則金鑰可能覆蓋，造成已經生成的license失效
+  - 指令: 
+    ```Bash
+    license-tool genkeys <output_dir>
+    ```
+  - 範例: license-tool genkeys keys
+    - 📂 會產生以下兩個檔案：
+    - `keys/private.pem` (⚠️ private.pem 絕對不能給出)
+    - `keys/public.pem`
+### License 生成
+  - 指令: 
+    ```Bash
+    license-tool sign <license_file_path> <private_key>
+    ```
+  - 範例: license-tool sign example/license.json keys/private.pem
+  - License file 格式請參考下列範例
+    ``` json
+    {
+        "custom_name": "IOTech",
+        "macs": [
+            "c8:d9:d2:19:fa:2c",
+            "08:00:27:a6:59:dd",
+            "08:00:27:6f:f7:c0"
+        ],
+        "expire_date": "2025-12-31 23:59:59",
+        "deploy_cnt": "2",
+        "signature": ""
+    }
+    ```
+> ⚠️ `license.json` 是原始未簽名的檔案，`license_out.json` 是經簽名後產生的授權檔案，包含合法的 `signature` 欄位。
+### License 驗證
+  - 指令: 
+    ```Bash
+    license-tool verify <license_path> <public_key> <host_mac>
+    ```
+  - 範例: license-tool verify example/license_out.json keys/public.pem 08:00:27:6f:f7:c0
+
+## 提交內容
+- license檔案: 例如範例中的license_out.json
+- Public Key: 例如範例中的public.pem
+
+⚠️ Private Key 絕對不能給出
