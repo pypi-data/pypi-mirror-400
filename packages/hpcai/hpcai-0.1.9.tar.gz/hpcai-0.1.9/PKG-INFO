@@ -1,0 +1,143 @@
+Metadata-Version: 2.3
+Name: hpcai
+Version: 0.1.9
+Summary: Python SDK for HPC-AI cloud GPU fine-tuning
+Project-URL: Homepage, https://hpc-ai.com
+Project-URL: Repository, https://github.com/hpcaitech/HPC-AI-SDK
+Project-URL: Documentation, https://www.hpc-ai.com/doc
+Author-email: "HPC AI TECHNOLOGY PTE. LTD." <service@hpc-ai.com>
+License: Apache-2.0
+Keywords: distributed training,fine-tuning,gpu,hpcai,machine learning
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: OS Independent
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: aiohttp
+Requires-Dist: anyio<5,>=3.5.0
+Requires-Dist: chz
+Requires-Dist: datasets
+Requires-Dist: distro<2,>=1.7.0
+Requires-Dist: httpx-aiohttp>=0.1.8
+Requires-Dist: httpx[http2]<1,>=0.23.0
+Requires-Dist: logtree
+Requires-Dist: neptune-scale
+Requires-Dist: nest-asyncio
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: pydantic<3,>=1.9.0
+Requires-Dist: pylatexenc
+Requires-Dist: sniffio
+Requires-Dist: termcolor
+Requires-Dist: torch>=2.0.0
+Requires-Dist: trackio
+Requires-Dist: transformers>=4.30.0
+Requires-Dist: typing-extensions<5,>=4.10
+Requires-Dist: wandb
+Description-Content-Type: text/markdown
+
+<h1 align="center">HPC-AI Python SDK</h1>
+
+## Overview
+
+The HPC-AI Python SDK provides a powerful interface for distributed GPU training and fine-tuning on HPC-AI's cloud infrastructure.
+
+## Installation
+
+we recommend using conda to install the SDK.
+
+```bash
+conda create -n hpcai python=3.12 -y
+conda activate hpcai
+git clone https://github.com/hpcaitech/HPC-AI-SDK
+cd HPC-AI-SDK
+pip install .
+```
+
+We only support installing from source currently, we will release official PIP package soon.
+
+## Quick Start
+
+```python
+from hpcai import ServiceClient, TrainingClient
+
+# Initialize the service client
+client = ServiceClient(
+    base_url="https://www.hpc-ai.com/finetunesdk",
+    api_key="your-api-key"
+)
+
+# Create a training client for LoRA fine-tuning
+training_client = client.create_lora_training_client(
+    base_model="Qwen/Qwen2.5-7B",
+    rank=8,
+    seed=42
+)
+```
+
+
+
+### Path Protocol
+
+The SDK uses the `hpcai://` protocol for model and checkpoint paths:
+
+```python
+model_path = "hpcai://run-123/training/checkpoint-001"
+```
+
+
+### Environment Variables
+
+Configure the SDK using these environment variables:
+
+- `HPCAI_API_KEY` - Your API key
+- `HPCAI_BASE_URL` - API endpoint (default: https://www.hpc-ai.com/finetunesdk)
+
+
+## Features
+
+- **Distributed Training**: Leverage HPC-AI's GPU cloud for efficient model training
+- **LoRA Fine-tuning**: Memory-efficient fine-tuning with LoRA adapters
+- **Async Support**: Full async/await support for concurrent operations
+- **Type Safety**: Comprehensive type hints for better IDE support
+
+
+## Usage Example
+
+[A usage example for finetune "Qwen3-8B" model](./Usage.md).
+
+## Documentation
+
+### API Reference
+
+- [ServiceClient API Reference](./docs/service_client_api_docs.md) - Main entry point for creating clients and querying server capabilities
+- [TrainingClient API Reference](./docs/training_client_api_docs.md) - Training operations including forward/backward passes and optimization
+- [RestClient API Reference](./docs/rest_client_api_docs.md) - REST API operations for querying training runs and checkpoints
+
+## Development
+
+This repository uses `pre-commit` for basic formatting and hygiene checks.
+
+```bash
+pip install -r requirements-dev.txt
+pre-commit install
+pre-commit run -a
+```
+
+## Third-Party Notice
+
+This SDK provides interoperability with components based on the Tinker project (Apache License 2.0).
+Tinker is a trademark of its respective owner. This project is not affiliated with or endorsed by Thinking Machines Lab.
+
+## License
+
+Licensed under the Apache License, Version 2.0. See LICENSE file for details.
