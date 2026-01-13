@@ -1,0 +1,721 @@
+# GitHub API Integration
+
+This project integrates with GitHub's API to collect and display user contributions, specifically pull requests across all repositories and organizations.
+
+## Overview
+
+The GitHub integration provides:
+
+- **Authentication**: Personal Access Token (PAT) support
+- **PR Collection**: Gather all pull requests authored by a user
+- **Filtering**: Filter by date range and repository visibility
+- **Rate Limiting**: Automatic rate limit detection and exponential backoff
+- **Async Operations**: High-performance async HTTP client using httpx
+
+## Architecture
+
+### Components
+
+```
+gitbrag/services/github/
+├── auth.py           # Authentication and client factory
+├── client.py         # Async GitHub API client with rate limiting
+├── pullrequests.py   # PR collection service
+└── models.py         # Data models (PullRequestInfo)
+```
+
+### Flow
+
+1. **Authentication**: `GitHubClient` factory creates authenticated `GitHubAPIClient`
+2. **Collection**: `PullRequestCollector` uses client to search GitHub API
+3. **Pagination**: Client automatically handles pagination for large result sets
+4. **Rate Limiting**: Exponential backoff on rate limit hits with header monitoring
+5. **Transformation**: Raw API responses converted to `PullRequestInfo` models
+
+### Code Enrichment
+
+GitBrag enriches basic PR data with additional code metrics and analysis:
+
+#### PR File Lists and Code Metrics
+
+- **File Fetching**: After collecting PRs, fetches detailed file lists via `/repos/{owner}/{repo}/pulls/{number}/files` API
+- **Code Statistics**: Extracts additions, deletions, and changed_files counts from file data
+- **Caching Strategy**: File lists cached with 6-hour TTL to enable efficient regeneration of overlapping time periods
+- **Concurrent Fetching**: Uses semaphore-limited async fetching (max 10 parallel) for performance
+
+#### Language Detection
+
+- **Extension Mapping**: 50+ file extension to language mappings (.py → Python, .js → JavaScript, etc.)
+- **Analysis Service**: `language_analyzer.py` calculates language percentages across all PRs
+- **Top Languages**: Reports show top 10 (web) or top 5 (CLI) languages with percentages
+- **No External Dependencies**: Simple extension-based detection, no Linguist required
+
+#### PR Size Categorization
+
+- **Six Categories**: One Liner (1), Small (2-100), Medium (101-500), Large (501-1500), Huge (1501-5000), Massive (5000+)
+- **Based on Total Lines**: Additions + deletions = total lines changed
+- **Visual Display**: Color-coded badges in both web and CLI interfaces
+- **Service**: `pr_size.py` provides categorization function
+
+#### Repository Roles
+
+- **Author Association**: Tracks contributor relationship (OWNER, MEMBER, CONTRIBUTOR, COLLABORATOR, etc.)
+- **Repository Level**: Uses most recent PR's author_association for each repository
+- **Visual Display**: Color-coded badges in repository headers and summary statistics
+
+#### Data Model Extensions
+
+The `PullRequestInfo` model includes these optional enrichment fields:
+
+```python
+@dataclass
+class PullRequestInfo:
+    # ... base fields ...
+
+    # Code enrichment fields (optional)
+    additions: int | None = None          # Lines added
+    deletions: int | None = None          # Lines deleted
+    changed_files: int | None = None      # Number of files changed
+    author_association: str | None = None # Contributor role
+    file_list: list[str] | None = None   # List of file paths (for language detection)
+```
+
+## Authentication Setup
+
+### Personal Access Token (PAT)
+
+#### Creating a PAT
+
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Click "Generate new token (classic)"
+3. Set a descriptive name (e.g., "GitBrag CLI")
+4. Select scopes:
+   - `public_repo` - Access public repositories (minimum required)
+   - `repo` - Full control of private repositories (only if using `--include-private`)
+5. Click "Generate token"
+6. Copy the token immediately (you won't see it again)
+
+#### Configuring the Token
+
+**Option 1: Environment Variable**
+
+```bash
+export GITHUB_TOKEN="ghp_your_token_here"
+```
+
+**Option 2: .env File** (recommended for development)
+
+Create a `.env` file in the project root:
+
+```bash
+GITHUB_TOKEN=ghp_your_token_here
+```
+
+**Option 3: CLI Override**
+
+Pass the token directly to commands:
+
+```bash
+gitbrag list username --token ghp_your_token_here
+```
+
+### Token Permissions
+
+Different use cases require different permissions:
+
+| Use Case | Required Scope | Notes |
+|----------|---------------|-------|
+| Public repositories only | `public_repo` | Default, safest option |
+| Include private repos | `repo` | Grants full repository access |
+
+## Usage
+
+### Basic PR Collection
+
+List all pull requests from the last year:
+
+```bash
+gitbrag list username
+```
+
+### Date Range Filtering
+
+The `--since` and `--until` options filter by **last activity** (updated time), not just creation date. This means a PR created last year but merged this year will appear in this year's results.
+
+```bash
+# PRs with activity in the last month
+gitbrag list username --since 2024-11-14 --until 2024-12-14
+
+# PRs active this year
+gitbrag list username --since 2024-01-01
+```
+
+### Including Private Repositories
+
+Requires a token with `repo` scope:
+
+```bash
+gitbrag list username --include-private
+```
+
+### Display Options
+
+Show PR URLs in output:
+
+```bash
+gitbrag list username --show-urls
+```
+
+Show repository star increases during the filtered period:
+
+```bash
+gitbrag list username --since 2024-12-14 --show-star-increase
+```
+
+### Sorting Results
+
+Sort by one or more fields:
+
+```bash
+# Sort by repository name
+gitbrag list username --sort repository
+
+# Sort by merge date (newest first)
+gitbrag list username --sort merged:desc
+
+# Multi-field sort: repository, then by merge date
+gitbrag list username --sort repository --sort merged:desc
+
+# Sort by star increase (requires --show-star-increase)
+gitbrag list username --show-star-increase --sort stars:desc
+```
+
+Valid sort fields:
+
+- `repository` - Repository full name (owner/repo)
+- `state` - PR state (merged, open, closed)
+- `created` - Creation date
+- `merged` - Merge date
+- `title` - PR title
+- `stars` - Repository star increase (requires `--show-star-increase` flag)
+
+Valid sort orders:
+
+- `asc` - Ascending (default for most fields)
+- `desc` - Descending (default for date fields)
+
+## API Details
+
+### GitHub Search API
+
+The integration uses GitHub's [Search Issues API](https://docs.github.com/en/rest/search#search-issues-and-pull-requests) with the following query patterns:
+
+```
+is:pr author:username updated:2024-01-01..2024-12-31
+```
+
+Query components:
+
+- `is:pr` - Filter to pull requests only
+- `author:username` - Filter by PR author
+- `updated:YYYY-MM-DD..YYYY-MM-DD` - Filter by last update/activity time
+
+### GitHub Users API
+
+For user profile data, the integration uses GitHub's [Users REST API](https://docs.github.com/en/rest/users):
+
+#### User Social Accounts
+
+GitBrag fetches social media profiles via the `/users/{username}/social_accounts` endpoint:
+
+```
+GET https://api.github.com/users/{username}/social_accounts
+```
+
+**Supported Providers:**
+
+- `mastodon` - Mastodon profile URLs
+- `linkedin` - LinkedIn profile URLs
+- `bluesky` - Bluesky profile URLs
+
+**Response Format:**
+
+```json
+[
+  {
+    "provider": "mastodon",
+    "url": "https://mastodon.social/@username"
+  },
+  {
+    "provider": "linkedin",
+    "url": "https://www.linkedin.com/in/username"
+  }
+]
+```
+
+**Error Handling:**
+
+- Returns empty list on 404 (user not found or no social accounts configured)
+- Gracefully handles API failures without breaking profile display
+- Uses same retry logic as other endpoints for rate limiting
+
+**Display:** Social accounts are shown in user reports with emoji icons (Mastodon 🐘, LinkedIn 💼, Bluesky 🦋) alongside traditional `blog` and `twitter_username` fields.
+
+### GitHub GraphQL API
+
+For star increase data, the integration uses GitHub's [GraphQL API](https://docs.github.com/en/graphql) to fetch stargazer timestamps:
+
+```graphql
+query($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    stargazers(first: 100, after: $cursor, orderBy: {field: STARRED_AT, direction: DESC}) {
+      edges {
+        starredAt
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
+```
+
+**Optimization Strategy:**
+
+- **Pagination**: Fetches 100 stargazers per page
+- **DESC Ordering**: Most recent stars first enables early termination
+- **Early Termination**: Stops fetching when `starredAt < since` date
+- **Concurrent Fetching**: Multiple repositories fetched in parallel
+- **Deduplication**: Unique repositories extracted from PR list
+- **Caching**: Results cached for 24 hours to minimize API calls
+
+**Rate Limiting:**
+
+GraphQL shares the same rate limits as REST API (5,000 requests/hour). The client implements:
+
+- Automatic retry with exponential backoff on 429/403 responses
+- Optional wait for rate limit reset (`wait_for_rate_limit` parameter)
+- Cache to avoid redundant queries for same repositories
+
+### Rate Limiting
+
+GitHub's rate limits:
+
+- **Authenticated requests**: 5,000 requests/hour for core API, 30 requests/minute for search
+- **Unauthenticated**: 60 requests/hour (not supported in this project)
+
+The client automatically handles rate limiting:
+
+1. **Detection**: Monitors `X-RateLimit-Remaining` header and 429 status codes
+2. **Backoff**: Exponential backoff (1s, 2s, 4s, 8s, etc.)
+3. **Reset Time**: Waits until `X-RateLimit-Reset` time when limit is hit
+4. **Retry**: Automatically retries failed requests up to max_retries (default: 3)
+
+### Token Validation
+
+The `GitHubAPIClient` includes a `validate_token()` method to proactively verify token validity before starting expensive operations.
+
+#### How It Works
+
+The validation method makes a lightweight GET request to GitHub's `/user` endpoint:
+
+```python
+async def validate_token(self) -> bool:
+    """Validate that the current token is valid with GitHub API.
+
+    Returns:
+        True if token is valid (200 response), False if expired/invalid (401/403)
+    """
+```
+
+**Behavior:**
+
+- Returns `True` for valid tokens (200 response)
+- Returns `False` for expired/invalid tokens (401 or 403 response)
+- Raises exceptions for other errors (rate limits, network issues, server errors)
+
+#### When Validation Occurs
+
+Token validation happens automatically in two scenarios:
+
+##### Web Authentication Flow
+
+When a user makes an authenticated web request:
+
+```text
+1. Request hits authenticated route
+2. get_authenticated_github_client() dependency called
+3. Token decrypted from session
+4. GitHubAPIClient created with token
+5. validate_token() called to verify with GitHub
+6. If invalid: session invalidated, 401 returned
+7. If valid: request proceeds normally
+```
+
+##### Background Job Scheduling
+
+Before scheduling background report generation:
+
+```text
+1. schedule_report_generation() called
+2. Rate limit check passes
+3. Token validated with validate_token()
+4. If invalid: job not scheduled, returns False
+5. If valid: job scheduled and started
+```
+
+#### User Experience Benefits
+
+**Accurate Session State:**
+
+- No false "logged in" state with expired tokens
+- Automatic logout when tokens expire
+- Clear error messages prompting re-authentication
+
+**Fail-Fast Behavior:**
+
+- Background jobs rejected immediately with invalid tokens
+- No wasted resources on operations that will fail
+- Faster feedback to users
+
+**Resource Optimization:**
+
+- Prevents cascading failures from expired tokens
+- Reduces unnecessary API calls with invalid tokens
+- Improves overall system performance
+
+#### Implementation Example
+
+Using token validation in custom code:
+
+```python
+from gitbrag.services.github.client import GitHubAPIClient
+from pydantic import SecretStr
+
+async def check_authentication(token: str) -> bool:
+    """Check if a GitHub token is still valid."""
+    client = GitHubAPIClient(token=SecretStr(token))
+    async with client:
+        is_valid = await client.validate_token()
+        if not is_valid:
+            print("Token has expired or is invalid")
+            return False
+        return True
+```
+
+### Pagination
+
+The GitHub Search API returns up to 100 results per page. The client automatically:
+
+1. Makes initial request with `per_page=100`
+2. Checks `total_count` in response
+3. Calculates required pages
+4. Fetches remaining pages sequentially
+5. Combines all results
+
+Large result sets are handled transparently - no user intervention needed.
+
+## Data Models
+
+### PullRequestInfo
+
+```python
+@dataclass
+class PullRequestInfo:
+    number: int                    # PR number
+    title: str                     # PR title
+    repository: str                # Full repo name (owner/repo)
+    organization: str              # Organization/owner name
+    author: str                    # PR author username
+    state: str                     # "open" or "closed"
+    created_at: datetime           # Creation timestamp
+    closed_at: datetime | None     # Close timestamp (if closed)
+    merged_at: datetime | None     # Merge timestamp (if merged)
+    url: str                       # GitHub URL to PR
+```
+
+## Error Handling
+
+### Common Errors
+
+**Authentication Failure**
+
+```
+Error: 401 Unauthorized
+```
+
+- **Cause**: Invalid or expired token
+- **Solution**: Generate a new token and update configuration
+
+**Rate Limit Exceeded**
+
+```
+Error: 403 Forbidden - Rate limit exceeded
+```
+
+- **Cause**: Too many requests in short time
+- **Solution**: Wait for rate limit reset (handled automatically with backoff)
+
+**User Not Found**
+
+```
+Error: 422 Unprocessable Entity
+```
+
+- **Cause**: Invalid username or user doesn't exist
+- **Solution**: Verify username spelling
+
+**Permission Denied**
+
+```
+Error: Access forbidden - check token permissions
+```
+
+- **Cause**: Token lacks required scopes for private repos
+- **Solution**: Regenerate token with `repo` scope if using `--include-private`
+
+## Security Best Practices
+
+### Token Storage
+
+✅ **DO:**
+
+- Store tokens in `.env` file (gitignored)
+- Use environment variables in production
+- Use secret management services in CI/CD
+- Regenerate tokens periodically
+
+❌ **DON'T:**
+
+- Hardcode tokens in source code
+- Commit `.env` files to version control
+- Share tokens in chat/email
+- Use tokens with broader permissions than needed
+
+### Token Security
+
+The project uses Pydantic's `SecretStr` to:
+
+- Prevent accidental token logging
+- Mask tokens in error messages
+- Protect tokens in memory dumps
+
+Tokens are never logged or displayed in output.
+
+### Minimal Permissions
+
+Always use the minimum required scope:
+
+- Public repos only → `public_repo` scope
+- Private repos needed → `repo` scope
+
+## Troubleshooting
+
+### "No pull requests found"
+
+**Possible causes:**
+
+1. User has no PRs in the date range
+2. User has no public PRs (need `--include-private`)
+3. Date range is too restrictive
+4. Username is incorrect
+
+**Solutions:**
+
+```bash
+# Try wider date range
+gitbrag list username --since 2020-01-01
+
+# Include private repos
+gitbrag list username --include-private
+
+# Verify username exists
+curl https://api.github.com/users/username
+```
+
+### Slow Performance
+
+**Causes:**
+
+- Large number of PRs requiring many API calls
+- Rate limiting causing delays
+- Network latency
+
+**Solutions:**
+
+- Narrow date range to reduce results
+- Use more specific filters
+- Monitor rate limits: check `X-RateLimit-Remaining` in debug logs
+
+**Enable debug logging:**
+
+```bash
+export LOG_LEVEL=DEBUG
+gitbrag list username
+```
+
+### Missing Data in Reports
+
+**Symptoms:**
+
+- "Lines changed" showing 0 when PRs exist
+- Code statistics missing for some PRs
+- Language data incomplete
+- More missing data in longer time periods (2+ years) vs shorter periods (1 year)
+
+**Root Causes:**
+
+1. **Concurrent API request failures**: Too many simultaneous requests can cause transient failures
+2. **Rate limiting**: GitHub API returns 429 errors under load
+3. **Network timeouts**: Individual requests timing out without proper retry
+
+**Solutions:**
+
+1. **Adjust concurrency settings** (recommended first step):
+
+   ```bash
+   # Reduce concurrent file fetches (default: 5)
+   export GITHUB_PR_FILE_FETCH_CONCURRENCY=3
+
+   # Reduce concurrent repo description fetches (default: 10)
+   export GITHUB_REPO_DESC_FETCH_CONCURRENCY=5
+   ```
+
+2. **Monitor collection statistics**:
+
+   ```bash
+   # Enable INFO logging to see success rates
+   export LOG_LEVEL=INFO
+   gitbrag report username
+
+   # Look for lines like:
+   # INFO: Collection statistics: 145 PRs, success rate: 97.2% (141/145), 4 failed
+   # INFO: Cached: 15 (10.3%), Fetched: 130 (89.7%)
+   ```
+
+3. **Check for retry attempts** in logs:
+
+   ```bash
+   # Enable DEBUG logging to see retry details
+   export LOG_LEVEL=DEBUG
+   gitbrag report username
+
+   # Look for lines like:
+   # WARNING: Transient error fetching files for PR #123, retrying (attempt 1/3)...
+   # ERROR: Failed to fetch files for PR #456 after 3 attempts
+   ```
+
+4. **Target success rate >95%**: If success rate is lower:
+   - Reduce `GITHUB_PR_FILE_FETCH_CONCURRENCY` by 2-3
+   - Re-run and check statistics again
+   - Continue reducing until success rate improves
+
+**Understanding the Retry System:**
+
+GitBrag includes automatic retry logic for transient failures:
+
+- **Transient errors** (retried 3 times with exponential backoff):
+  - Timeouts
+  - 429 (rate limit)
+  - 500, 502, 503, 504 (server errors)
+
+- **Fatal errors** (not retried):
+  - 401 (unauthorized)
+  - 403 (forbidden - insufficient permissions)
+  - 404 (not found)
+  - 422 (unprocessable entity)
+
+- **Backoff strategy**: 1s, 2s, 4s delays with ±25% jitter to prevent thundering herd
+
+**Best Practices:**
+
+- Start with default concurrency settings (5 for PRs, 10 for repos)
+- For reports with 100+ PRs across 2+ years, consider reducing to 3
+- Monitor success rates in logs after changes
+- Trade off speed vs reliability based on your needs
+
+### Token Permission Issues
+
+**Symptoms:**
+
+- Can see public repos but not private ones
+- "Access forbidden" errors
+
+**Solution:**
+Regenerate token with correct scopes (see [Creating a PAT](#creating-a-pat))
+
+## Performance Considerations
+
+### Optimization Tips
+
+1. **Narrow Date Ranges**: Smaller ranges = fewer API calls
+
+   ```bash
+   gitbrag list username --since 2024-01-01 --until 2024-12-31
+   ```
+
+2. **Public Only**: Skip `--include-private` if not needed
+
+   ```bash
+   gitbrag list username  # Faster than --include-private
+   ```
+
+3. **Caching**: Results are not cached - each run queries GitHub API fresh
+
+### Expected Performance
+
+| PRs | API Calls | Time (approx) |
+|-----|-----------|---------------|
+| <100 | 1-2 | <1 second |
+| 100-500 | 2-5 | 1-3 seconds |
+| 500-1000 | 5-10 | 3-5 seconds |
+| >1000 | 10+ | 5+ seconds |
+
+*Times assume no rate limiting and good network conditions*
+
+## Development
+
+### Testing Against GitHub API
+
+The project includes integration tests that can run against the real GitHub API:
+
+```bash
+# Set token in .env
+echo "GITHUB_TOKEN=your_token" > .env
+
+# Run integration tests (not skipped with token present)
+pytest tests/integration/test_github_integration.py -v
+```
+
+### Testing Without API Access
+
+Unit tests mock the GitHub API:
+
+```bash
+# Run all tests (mocked, no token needed)
+make tests
+```
+
+### Manual API Testing
+
+A test script is provided for manual API verification:
+
+```bash
+python test_github_api.py
+```
+
+This script:
+
+- Verifies token authentication
+- Checks rate limits
+- Tests search queries
+- Shows raw API responses
+
+## References
+
+- [GitHub REST API Documentation](https://docs.github.com/en/rest)
+- [Search API Reference](https://docs.github.com/en/rest/search)
+- [Rate Limiting](https://docs.github.com/en/rest/overview/rate-limits-for-the-rest-api)
+- [Personal Access Tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token)
+- [httpx Documentation](https://www.python-httpx.org/)
