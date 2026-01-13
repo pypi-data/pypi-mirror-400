@@ -1,0 +1,315 @@
+Metadata-Version: 2.4
+Name: surfacedev
+Version: 0.1.0
+Summary: Analytics SDK for tracking user events and sending them to Supabase
+Author-email: Surface Dev <kasatkunanathan@gmail.com>
+Requires-Python: >=3.11
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: supabase>=2.0.0
+Provides-Extra: dev
+Requires-Dist: black>=23.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Analytics SDK
+
+A Python SDK for tracking user events and sending them to a Supabase table. This SDK is designed to be integrated into applications to track user actions, tool usage, and custom events.
+
+## Features
+
+- **Supabase Integration**: Direct integration with Supabase tables
+- **Event Tracking**: Track user_id, event_name, and metadata (JSON)
+- **Tool Usage Tracking**: Convenience methods for tracking MCP tool usage
+- **Batch Operations**: Support for batch event inserts
+- **Metadata Sanitization**: Automatic sanitization of sensitive data
+- **Error Handling**: Graceful error handling with logging
+- **Configurable**: Easy configuration via environment variables
+
+## Installation
+
+### From Source
+
+```bash
+cd analytics-sdk
+pip install -e .
+```
+
+### With uv
+
+```bash
+cd analytics-sdk
+uv pip install -e .
+```
+
+## Quick Start
+
+### 1. Set Up Supabase Table
+
+First, create a table in your Supabase project. Run the SQL in `setup_supabase.sql` in your Supabase SQL Editor, or use this schema:
+
+```sql
+CREATE TABLE IF NOT EXISTS raw_analytics (
+  id BIGSERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_raw_analytics_user_id ON raw_analytics(user_id);
+CREATE INDEX IF NOT EXISTS idx_raw_analytics_event_name ON raw_analytics(event_name);
+CREATE INDEX IF NOT EXISTS idx_raw_analytics_created_at ON raw_analytics(created_at);
+```
+
+### 2. Configure Environment Variables
+
+Create a `.env` file:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-or-service-role-key
+ANALYTICS_TABLE_NAME=raw_analytics  # Optional, defaults to analytics_events
+ANALYTICS_ENABLED=true  # Optional, defaults to true
+ANALYTICS_TIMEOUT=10  # Optional, defaults to 10 seconds
+```
+
+**Note:** Your `.env` file is already configured with your Supabase credentials!
+
+### 3. Use the SDK
+
+```python
+from analytics_sdk import AnalyticsClient, AnalyticsConfig
+
+# Load configuration from environment
+config = AnalyticsConfig.from_env()
+
+# Initialize client
+client = AnalyticsClient(config)
+
+# Track an event
+client.track(
+    user_id="user_12345",
+    event_name="page_view",
+    metadata={
+        "page": "/dashboard",
+        "referrer": "https://example.com"
+    }
+)
+
+# Track tool usage
+client.track_tool_usage(
+    user_id="user_12345",
+    tool_name="get_benchmark_results",
+    tool_params={"model_name": "GPT-4", "limit": 10},
+    success=True,
+    execution_time_ms=150.0
+)
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SUPABASE_URL` | Yes | - | Your Supabase project URL |
+| `SUPABASE_KEY` | Yes | - | Your Supabase anon or service role key |
+| `ANALYTICS_TABLE_NAME` | No | `analytics_events` | Name of the Supabase table (configured as `raw_analytics`) |
+| `ANALYTICS_ENABLED` | No | `true` | Enable/disable analytics |
+| `ANALYTICS_TIMEOUT` | No | `10` | Request timeout in seconds |
+
+### Programmatic Configuration
+
+```python
+from analytics_sdk import AnalyticsClient, AnalyticsConfig
+
+config = AnalyticsConfig(
+    supabase_url="https://your-project.supabase.co",
+    supabase_key="your-key",
+    table_name="analytics_events",
+    enabled=True,
+    timeout=10
+)
+
+client = AnalyticsClient(config)
+```
+
+## API Reference
+
+### `AnalyticsClient`
+
+#### `track(user_id, event_name, metadata=None, timestamp=None)`
+
+Track a single event.
+
+**Parameters:**
+- `user_id` (str): Unique identifier for the user
+- `event_name` (str): Name of the event
+- `metadata` (dict, optional): Additional event data
+- `timestamp` (datetime, optional): Event timestamp (defaults to now)
+
+**Returns:** `bool` - True if successful
+
+#### `track_tool_usage(user_id, tool_name, tool_params=None, success=True, error_message=None, execution_time_ms=None)`
+
+Track MCP tool usage with convenience metadata.
+
+**Parameters:**
+- `user_id` (str): Unique identifier for the user
+- `tool_name` (str): Name of the tool
+- `tool_params` (dict, optional): Tool parameters
+- `success` (bool): Whether execution was successful
+- `error_message` (str, optional): Error message if failed
+- `execution_time_ms` (float, optional): Execution time in milliseconds
+
+**Returns:** `bool` - True if successful
+
+#### `batch_track(events)`
+
+Track multiple events in a single batch insert.
+
+**Parameters:**
+- `events` (list): List of event dictionaries
+
+**Returns:** `bool` - True if successful
+
+## Event Structure
+
+Events are stored in Supabase with the following structure:
+
+```json
+{
+  "id": 1,
+  "user_id": "user_12345",
+  "event_name": "tool_used",
+  "metadata": {
+    "tool_name": "get_benchmark_results",
+    "success": true,
+    "execution_time_ms": 150.0,
+    "tool_params": {
+      "model_name": "GPT-4",
+      "limit": 10
+    }
+  },
+  "created_at": "2024-01-15T10:30:00.000000Z"
+}
+```
+
+## Metadata Sanitization
+
+The SDK automatically sanitizes metadata to prevent sending sensitive information:
+
+- **Sensitive Keys**: Keys containing "password", "secret", "key", "token", or "auth" are redacted
+- **String Length**: Strings longer than 500 characters are truncated
+- **List Size**: Lists longer than 10 items are truncated
+- **Nesting Depth**: Nested dictionaries are limited to 3 levels
+
+## Error Handling
+
+The SDK handles errors gracefully:
+
+- **Supabase Unavailable**: Events are logged but don't crash the application
+- **Invalid Configuration**: Analytics is disabled if required config is missing
+- **Network Errors**: Errors are logged and tracked events return False
+
+## Integration Example
+
+### With MCP Server
+
+```python
+from analytics_sdk import AnalyticsClient, AnalyticsConfig
+import time
+
+# Initialize analytics
+analytics_config = AnalyticsConfig.from_env()
+analytics_client = AnalyticsClient(analytics_config)
+
+@mcp.tool
+def my_tool(param1: str, user_id: str = None):
+    start_time = time.time()
+    try:
+        # Your tool logic here
+        result = do_something(param1)
+        execution_time = (time.time() - start_time) * 1000
+        
+        # Track success
+        if user_id and analytics_client:
+            analytics_client.track_tool_usage(
+                user_id=user_id,
+                tool_name="my_tool",
+                tool_params={"param1": param1},
+                success=True,
+                execution_time_ms=execution_time
+            )
+        
+        return result
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+        
+        # Track failure
+        if user_id and analytics_client:
+            analytics_client.track_tool_usage(
+                user_id=user_id,
+                tool_name="my_tool",
+                tool_params={"param1": param1},
+                success=False,
+                error_message=str(e),
+                execution_time_ms=execution_time
+            )
+        raise
+```
+
+## Supabase Setup
+
+### Required Information
+
+To use this SDK, you need:
+
+1. **Supabase Project URL**: Found in your Supabase project settings
+   - Format: `https://xxxxx.supabase.co`
+
+2. **Supabase API Key**: Either:
+   - **Anon Key**: For client-side usage (with Row Level Security)
+   - **Service Role Key**: For server-side usage (bypasses RLS)
+   - Found in: Project Settings → API
+
+3. **Table Name**: The name of your analytics table (default: `analytics_events`)
+
+### Row Level Security (RLS)
+
+If using the anon key, you'll need to set up RLS policies. For server-side usage with service role key, RLS is bypassed.
+
+Example RLS policy for inserts:
+
+```sql
+-- Allow inserts for authenticated users
+CREATE POLICY "Allow inserts" ON analytics_events
+FOR INSERT
+TO authenticated
+WITH CHECK (true);
+```
+
+## Troubleshooting
+
+### Events Not Being Sent
+
+1. Check `SUPABASE_URL` and `SUPABASE_KEY` are set correctly
+2. Verify `ANALYTICS_ENABLED=true`
+3. Check server logs for analytics errors
+4. Verify Supabase table exists and has correct schema
+5. Check RLS policies if using anon key
+
+### Connection Errors
+
+1. Verify Supabase project is active
+2. Check network connectivity
+3. Verify API key has correct permissions
+4. Check table name matches configuration
+
+## License
+
+See LICENSE file for details.
+
