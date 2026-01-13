@@ -1,0 +1,85 @@
+# mydocuments
+
+A command line tool that returns the path to the user's `Documents` directory.
+
+## Description
+
+Conventional knowledge says that in Windows, user's default Documents directory
+is located in `%USERPROFILE%\Documents`. 
+
+This is **wrong**.
+
+The `Documents` directory can exist in multiple locations:
+
+```batch
+    %USERPROFILE%\Documents
+    %USERPROFILE%\OneDrive\Documents
+    %USERPROFILE%\OneDrive - [Company Name]\Documents
+```
+
+In fact, a folder named `Documents` can exist in all of the above locations
+simultaneously.
+
+They all may have files inside. Which one is the correct one?
+
+That is for windows to know, and for you to find out.
+
+Except, it's not that easy.
+
+You see, there is no environmental variable that tells you which one is the 
+correct one.
+
+There is no environment variable that tells you whether OneDrive backup is
+enabled or not, or if it is, if it's personal OneDrive or OneDrive for Business.
+
+This tool was written to eliminate the guess-work and provide a definite answer
+by making a Windows API call to retrieve the correct path.
+
+For platform agnosticism sake, it also provides a fuzzy find method that
+attempts to guess a path to a folder named `Documents` by process of elimination.
+
+That part of the program is somewhat error prone. The Windows API method on the
+other hand, will yield the correct result every time.
+
+## Usage
+
+```bash
+    mydocuments [-f | -w | -h | -v]
+
+      --help,    -h    Show this help message and exit.
+      --version, -v Show version information and exit.
+      --fuzzy,   -f   Use a fuzzy multiplatform method.
+      --winapi,  -w  Use Windows API method.
+```
+
+By default, if run on Windows the tool will use the accurate `-w` method.
+On other platforms it will default to the fuzzy finder, for obvious reasons.
+
+## Installation
+
+### Any Platform
+
+You can install using `uv` (see [uv](https://github.com/astral-sh/uv)):
+
+    uv tool install mydocuments
+
+You can also run it without installing:
+
+    uv tool run mydocuments
+
+### Windows
+
+On Windows, this tool is distributed via `scoop` 
+(see [scoop.sh](https://scoop.sh)).
+
+ First, you need to add my bucket:
+
+    scoop bucket add maciak https://github.com/maciakl/bucket
+    scoop update
+
+ Next simply run:
+ 
+    scoop install mydocuments
+
+If you don't want to use `scoop` you can simply download the executable from 
+the release page and extract it somewhere in your path.
