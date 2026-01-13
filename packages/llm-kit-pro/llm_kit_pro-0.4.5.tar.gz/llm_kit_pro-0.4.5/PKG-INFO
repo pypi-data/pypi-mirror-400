@@ -1,0 +1,205 @@
+Metadata-Version: 2.4
+Name: llm-kit-pro
+Version: 0.4.5
+Summary: A unified toolkit for working with multiple LLM providers
+License: MIT
+License-File: LICENSE
+Keywords: llm,ai,openai,gemini,anthropic,language-models,async
+Author: Preetam Raj
+Requires-Python: >=3.11,<4.0
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Provides-Extra: anthropic
+Provides-Extra: bedrock
+Provides-Extra: gemini
+Provides-Extra: openai
+Requires-Dist: anthropic (>=0.75.0,<0.76.0) ; extra == "anthropic"
+Requires-Dist: boto3 (>=1.42.14,<2.0.0) ; extra == "bedrock"
+Requires-Dist: google-genai (>=1.0.0,<2.0.0) ; extra == "gemini"
+Requires-Dist: httpx (>=0.28.1)
+Requires-Dist: json-repair (>=0.55.0,<0.56.0)
+Requires-Dist: openai (>=2.14.0,<3.0.0) ; extra == "openai"
+Requires-Dist: pydantic (>=2.0,<2.13)
+Requires-Dist: pydantic-settings (>=2.12.0,<3.0.0)
+Description-Content-Type: text/markdown
+
+# llm-kit-pro
+
+**llm-kit-pro** is a unified, async-first Python toolkit for interacting with multiple Large Language Model (LLM) providers through a consistent, provider-agnostic API.
+
+It is designed for developers who need to switch between providers (OpenAI, Gemini, Anthropic/Bedrock) without rewriting their core application logic, with a heavy emphasis on **structured data** and **multimodal inputs**.
+
+---
+
+## ✨ Features
+
+- **Unified API**: One interface for OpenAI, Gemini, Anthropic, and AWS Bedrock.
+- **Pydantic-First Structured Output**: Pass Pydantic models directly to get validated, type-safe dictionaries back.
+- **Native "Strict Mode"**: Automatically handles OpenAI's Structured Outputs requirements.
+- **Multimodal Inputs**: First-class support for PDF, PNG, JPEG, and Text files across all supported providers.
+- **Async-First**: Built from the ground up for high-performance asynchronous Python applications.
+- **Provider-Agnostic Inputs**: Use `LLMFile` to handle different file types without worrying about provider-specific formatting.
+- **Universal File Loader**: Load files from local paths or URLs with automatic MIME type detection.
+
+---
+
+## 📦 Installation
+
+```bash
+pip install llm-kit-pro
+```
+
+Install with specific provider support:
+
+```bash
+# For OpenAI
+pip install "llm-kit-pro[openai]"
+
+# For Google Gemini
+pip install "llm-kit-pro[gemini]"
+
+# For Anthropic
+pip install "llm-kit-pro[anthropic]"
+
+# For AWS Bedrock (Anthropic/Llama/etc)
+pip install "llm-kit-pro[bedrock]"
+```
+
+---
+
+## 🚀 Quick Start
+
+### 1. Simple Text Generation
+
+```python
+from llm_kit_pro.providers.openai import OpenAIClient
+from llm_kit_pro.providers.openai.config import OpenAIConfig
+
+client = OpenAIClient(OpenAIConfig(
+    api_key="your-key",
+    model="gpt-4o-mini"
+))
+
+text = await client.generate_text(
+    prompt="Explain quantum entanglement like I'm five."
+)
+print(text)
+```
+
+### 2. Structured Data with Pydantic
+
+Instead of messy regex or manual JSON parsing, define your schema as a Pydantic model. `llm-kit-pro` handles the schema injection, strict mode enforcement, and final validation.
+
+```python
+from pydantic import BaseModel
+from llm_kit_pro.providers.gemini import GeminiClient
+from llm_kit_pro.providers.gemini.config import GeminiConfig
+
+class MovieReview(BaseModel):
+    title: str
+    rating: int
+    summary: str
+    sentiment: str
+
+client = GeminiClient(GeminiConfig(
+    api_key="your-key",
+    model="gemini-2.5-flash"
+))
+
+# Pass the class directly!
+data = await client.generate_json(
+    prompt="Review the movie 'Inception'",
+    schema=MovieReview
+)
+
+print(data["rating"])
+```
+
+### 3. Multimodal: Extracting from a PDF
+
+`llm-kit-pro` treats files as first-class citizens. You can pass images or PDFs directly to the model.
+
+```python
+from llm_kit_pro.core.helpers import load_file
+from pydantic import BaseModel
+
+class Invoice(BaseModel):
+    vendor: str
+    amount: float
+    due_date: str
+
+# Load your file (from local path or URL)
+pdf = load_file("invoice.pdf")
+# Or from URL: pdf = await load_file_async("https://example.com/invoice.pdf")
+
+# Extract structured data from the document
+data = await client.generate_json(
+    prompt="Extract the invoice details",
+    schema=Invoice,
+    files=[pdf]
+)
+```
+
+---
+
+## 🧠 Core Abstractions
+
+### `BaseLLMClient`
+
+Every provider implements this interface, ensuring your code remains portable.
+
+- `generate_text(prompt, files=None, **kwargs)` -> `str`
+- `generate_json(prompt, schema, files=None, **kwargs)` -> `dict`
+
+### `LLMFile`
+
+A simple container for file-based inputs.
+
+- `content`: Raw bytes.
+- `mime_type`: e.g., `application/pdf`, `image/jpeg`.
+- `filename`: Optional metadata.
+
+### File Loading Helpers
+
+Utilities to load files from local paths or URLs:
+
+- `load_file(source)` -> `LLMFile` - Universal loader (auto-detects local vs URL)
+- `load_file_async(source)` -> `LLMFile` - Async version
+- `load_file_from_path(path)` -> `LLMFile` - Load from local filesystem
+- `load_file_from_url(url)` -> `LLMFile` - Download from URL
+
+See [File Loader Guide](docs/FILE_LOADER_GUIDE.md) for detailed documentation.
+
+---
+
+## 🔌 Supported Providers
+
+| Provider          | Installation Extra | Status    | Structured Output  | Multimodal           |
+| :---------------- | :----------------- | :-------- | :----------------- | :------------------- |
+| **OpenAI**        | `[openai]`         | ✅ Stable | Native Strict Mode | Images               |
+| **Google Gemini** | `[gemini]`         | ✅ Stable | Native JSON Schema | Images, PDF          |
+| **Anthropic**     | `[anthropic]`      | ✅ Stable | Native Tool Use    | Images, PDF          |
+| **AWS Bedrock**   | `[bedrock]`        | ✅ Stable | Schema Injection   | Images, PDF (Claude) |
+
+---
+
+## 📍 Status
+
+🚧 **Under active development**
+
+The public API is stabilizing. We are currently focusing on adding more Bedrock adapters (Llama 3, Titan).
+
+---
+
+## 📄 License
+
+MIT License
+
