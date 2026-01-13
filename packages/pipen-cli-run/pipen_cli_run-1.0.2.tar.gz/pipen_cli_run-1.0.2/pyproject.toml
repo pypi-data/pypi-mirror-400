@@ -1,0 +1,52 @@
+[tool.poetry]
+name = "pipen-cli-run"
+version = "1.0.2"
+description = "A pipen cli plugin to run a process or a pipeline"
+authors = ["pwwang <pwwang@pwwang.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/pwwang/pipen-cli-run"
+repository = "https://github.com/pwwang/pipen-cli-run"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pipen-args = "^1.1"
+pipen = {version = "1.1.*", allow-prereleases = true}
+
+[tool.poetry.build]
+generate-setup-file = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8"
+pytest-cov = "^6"
+pytest-xdist = "^3"
+pytest-forked = "^1"
+
+[tool.poetry.plugins.pipen_cli]
+cli-run = "pipen_cli_run:PipenCliRunPlugin"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.mypy]
+ignore_missing_imports = true
+allow_redefinition = true
+disable_error_code = ["attr-defined", "no-redef"]
+show_error_codes = true
+strict_optional = false
+
+[tool.pytest.ini_options]
+# addopts = "-vv --cov-config=.coveragerc --cov=pipen_cli_run --cov-report xml:.coverage.xml --cov-report term-missing"
+addopts = "-vv -n auto -p no:asyncio --cov-config=.coveragerc --cov=pipen_cli_run --cov-report xml:.coverage.xml --cov-report term-missing"
+filterwarnings = [
+    #"error"
+    "ignore:.*use of fork\\(\\) may lead to deadlocks in the child.*"
+]
+console_output_style = "progress"
+junit_family = "xunit1"
