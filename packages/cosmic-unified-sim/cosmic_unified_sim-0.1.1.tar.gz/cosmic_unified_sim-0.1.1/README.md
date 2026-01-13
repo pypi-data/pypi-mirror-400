@@ -1,0 +1,297 @@
+# 🌌 Unified Cosmological Simulation Framework
+
+**A comprehensive Python library combining quantum mechanics, N-body dynamics, coherence evolution, matter genesis, and holographic analysis.**
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## 🚀 Features
+
+| Module | Description |
+|--------|-------------|
+| **quantum** | Multi-qubit systems, entanglement, emergent laws, observer decoherence |
+| **cosmic** | N-body gravitational simulations, orbital mechanics, presets |
+| **coherence** | Universe coherence evolution, information theory, predictions |
+| **genesis** | Parametric resonance, leptogenesis, quantum particle creation |
+| **holographic** | k-alpha analysis, information capacity, cosmological models |
+| **visualization** | 3D/2D plots, animations, unified plotting API |
+
+---
+
+## 📦 Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/xtimon/unified-sim.git
+cd unified-sim
+
+# Install in development mode
+pip install -e .
+
+# Or install with all dependencies
+pip install -e ".[all]"
+```
+
+### GPU Acceleration (Optional)
+
+```bash
+# NVIDIA CUDA
+pip install -e ".[gpu-cuda]"
+
+# AMD/NVIDIA/Intel (Vulkan)
+pip install -e ".[gpu-vulkan]"
+
+# AMD/NVIDIA/Intel (OpenCL)
+pip install -e ".[gpu-opencl]"
+```
+
+---
+
+## 🎯 Quick Start
+
+### Quantum Simulation
+
+```python
+from sim.quantum import QuantumFabric, EmergentLaws, HUMAN_OBSERVER
+
+# Create 3-qubit system
+qf = QuantumFabric(num_qubits=3)
+
+# Create Bell states via entanglement
+qf.apply_entanglement_operator([(0, 1), (1, 2)])
+print(f"Entanglement entropy: {qf.get_entanglement_entropy():.4f}")
+
+# Measure a qubit
+result = qf.measure(0)
+print(f"Measured: |{result}>")
+
+# Emergent physics
+particles = EmergentLaws.simulate_particle_creation(vacuum_energy=0.2)
+energy = EmergentLaws.landauer_principle(bits_erased=1e6, temperature=300)
+```
+
+### N-Body Simulation
+
+```python
+from sim.cosmic import NBodySimulator, SystemPresets
+
+# Create Solar System
+presets = SystemPresets()
+bodies = presets.create_solar_system(include_outer_planets=True)
+
+# Simulate 1 year
+sim = NBodySimulator(bodies)
+times, states = sim.simulate(t_span=(0, 365.25*24*3600), n_points=2000)
+
+# Analyze
+print(f"Total energy: {sim.get_total_energy():.2e} J")
+print(f"Center of mass: {sim.get_center_of_mass()}")
+```
+
+### Coherence Evolution
+
+```python
+from sim.coherence import CoherenceModel
+from sim.constants import UNIVERSE_STAGES
+
+model = CoherenceModel()
+K, C, Total = model.evolve(N=12, alpha=0.66)
+
+for i, stage in enumerate(UNIVERSE_STAGES):
+    print(f"{stage}: K = {K[i]:.4f}")
+
+print(f"Growth: {K[-1]/K[0]:.2f}x")
+```
+
+### Matter Genesis
+
+```python
+from sim.genesis import MatterGenesisSimulation, LeptogenesisModel
+
+# Leptogenesis
+lepto = LeptogenesisModel(M=1e10, CP_violation=1e-6)
+result = lepto.solve_leptogenesis()
+print(f"Baryon asymmetry: {result['eta_B']:.2e}")
+
+# Full simulation
+sim = MatterGenesisSimulation()
+history = sim.evolve_universe(total_time=1000)
+```
+
+### Holographic Analysis
+
+```python
+from sim.holographic import HolographicAnalysis
+
+analysis = HolographicAnalysis()
+results = analysis.analyze_all_models()
+
+print(f"Mean k: {results['mean_k']:.6f}")
+print(f"k/α ≈ {results['mean_k_over_alpha']:.1f}")  # ≈ 66
+```
+
+---
+
+## 🖥️ Command Line Interface
+
+```bash
+# Show library info
+sim info
+
+# Run quantum simulation
+sim quantum --qubits 5 --entangle
+
+# Run N-body simulation
+sim cosmic --system solar --days 365
+
+# Run coherence evolution
+sim coherence --stages 24 --alpha 0.66
+
+# Generate holographic report
+sim holographic --report
+```
+
+---
+
+## 📊 Visualization
+
+```python
+from sim.visualization import (
+    plot_trajectories_3d,
+    plot_coherence_evolution,
+    plot_quantum_state,
+    animate_simulation
+)
+
+# 3D trajectory plot
+fig = plot_trajectories_3d(bodies, title="Solar System")
+
+# Coherence bar chart
+fig = plot_coherence_evolution(K, stages=UNIVERSE_STAGES)
+
+# Quantum state distribution
+fig = plot_quantum_state(qf.get_probability_distribution())
+
+# Animation
+anim = animate_simulation(bodies, save_path='orbit.gif')
+```
+
+---
+
+## 📁 Project Structure
+
+```
+unified-sim/
+├── sim/
+│   ├── __init__.py          # Main API exports
+│   ├── constants/           # Physical & cosmological constants
+│   │   ├── fundamental.py   # α, G, c, masses, etc.
+│   │   └── cosmological.py  # H0, Ω, A_s, n_s, k, etc.
+│   ├── core/                # Base classes & utilities
+│   │   ├── base.py          # SimulationBase, SimulationResult
+│   │   ├── gpu.py           # GPU acceleration
+│   │   └── io.py            # Save/load utilities
+│   ├── quantum/             # Quantum mechanics
+│   │   ├── fabric.py        # QuantumFabric (multi-qubit)
+│   │   ├── emergence.py     # EmergentLaws
+│   │   └── observer.py      # Observer decoherence
+│   ├── cosmic/              # N-body dynamics
+│   │   ├── body.py          # Body class
+│   │   ├── nbody.py         # NBodySimulator
+│   │   ├── presets.py       # SystemPresets
+│   │   └── calculator.py    # CosmicCalculator
+│   ├── coherence/           # Universe coherence
+│   │   ├── models.py        # CoherenceModel, DepositionModel
+│   │   └── simulator.py     # UniverseSimulator
+│   ├── genesis/             # Matter creation
+│   │   ├── resonance.py     # ParametricResonance
+│   │   ├── leptogenesis.py  # LeptogenesisModel
+│   │   ├── quantum_creation.py
+│   │   └── simulation.py    # MatterGenesisSimulation
+│   ├── holographic/         # Holographic analysis
+│   │   ├── analysis.py      # HolographicAnalysis
+│   │   └── report.py        # UniverseFormulaReport
+│   ├── visualization/       # Plotting
+│   │   └── plots.py         # All visualization functions
+│   └── cli/                 # Command line interface
+│       └── main.py
+├── examples/
+│   └── quick_start.py
+├── tests/
+├── pyproject.toml
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 🔬 Physical Models
+
+### Coherence Model
+$$K(n) = K_0 + \alpha \cdot \sum_{k=0}^{n-1} \frac{K(k)}{N - k}$$
+
+### Holographic Relation
+$$k = \pi \cdot \alpha_{fs} \cdot \frac{\ln(1/A_s)}{n_s} \approx 66\alpha$$
+
+### Boltzmann Equations (Leptogenesis)
+$$\frac{dY_L}{dz} = \epsilon D (Y_N - Y_N^{eq}) - W Y_L$$
+
+---
+
+## 📚 Dependencies
+
+- **numpy** >= 1.21.0
+- **scipy** >= 1.7.0
+- **matplotlib** >= 3.5.0
+- **pandas** >= 1.3.0
+
+Optional:
+- **cupy** (CUDA acceleration)
+- **vulkpy** (Vulkan acceleration)
+- **pyopencl** (OpenCL acceleration)
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 👤 Author
+
+**Timur Isanov**
+- Email: tisanov@yahoo.com
+- GitHub: [@xtimon](https://github.com/xtimon)
+
+---
+
+## 🙏 Acknowledgments
+
+This unified framework combines features from:
+- **coherence-sim** - Coherence evolution models
+- **cosmic-sim** - N-body simulations
+- **oscillators-cosmology** - Matter genesis
+- **reality-sim** - Quantum mechanics
+- **holo** - Holographic analysis
+
+All based on current cosmological data from Planck 2018, WMAP, and other surveys.
+
+---
+
+⭐ **Star this repo if you find it useful!**
+
