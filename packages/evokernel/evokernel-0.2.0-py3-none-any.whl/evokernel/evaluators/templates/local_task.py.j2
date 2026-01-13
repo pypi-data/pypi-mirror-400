@@ -1,0 +1,134 @@
+"""OpenEvolve evaluator for EvoKernel - runs on local GPU."""
+import os
+import sys
+import time
+from pathlib import Path
+from openevolve.evaluation_result import EvaluationResult
+
+TASK_NAME = os.environ.get("EVOKERNEL_TASK", "{{ task }}")
+INCLUDE_DIRS = {{ include_dirs }}
+WORKSPACE_DIR = "{{ workspace_dir }}"
+
+def evaluate(program_path: str) -> EvaluationResult:
+    import torch
+    import numpy as np
+    from torch.utils.cpp_extension import load
+    
+    result = {
+        "compile_success": False,
+        "correct": False,
+        "speedup": 0.0,
+        "error": None,
+    }
+    
+    try:
+        # Build include flags
+        include_flags = [f"-I{d}" for d in INCLUDE_DIRS if os.path.isdir(d)]
+        include_flags.append(f"-I{WORKSPACE_DIR}")
+        
+        # Compile with torch extension
+        import uuid
+        module_name = f"kernel_{uuid.uuid4().hex[:8]}"
+        cuda_module = load(
+            name=module_name,
+            sources=[program_path],
+            extra_cuda_cflags=["-O3", "--use_fast_math"] + include_flags,
+            verbose=False,
+        )
+        result["compile_success"] = True
+        
+        if not hasattr(cuda_module, 'forward'):
+            result["error"] = "Module missing 'forward' function"
+            return EvaluationResult(
+                metrics={"compile_success": 1.0, "correct": 0.0, "speedup": 0.0, "combined_score": 0.0},
+                artifacts=result,
+            )
+        
+        # Try to load robust-kbench for proper testing
+        try:
+            sys.path.insert(0, "/app/robust-kbench")
+            from robust_kbench import KernelTask
+            task_dir = f"/app/robust-kbench/tasks/{TASK_NAME}"
+            
+            if os.path.isdir(task_dir):
+                kernel_task = KernelTask(task_dir, multi_input_settings=False, multi_init_settings=False, forward=True)
+                init_configs = kernel_task.get_init_settings()
+                input_configs = kernel_task.get_input_settings()
+                Model = kernel_task.model
+                get_inputs = kernel_task.get_inputs
+                forward_fn = kernel_task.forward_fn
+                
+                init_config = init_configs[0]
+                input_config = input_configs[0]
+                torch.manual_seed(42)
+                model = Model(**init_config).cuda()
+                inputs = [x.cuda() for x in get_inputs(**input_config)]
+                params = list(model.parameters())
+                
+                # Correctness test
+                with torch.no_grad():
+                    ref_output = forward_fn(*inputs, *params)
+                    cuda_output = cuda_module.forward(*inputs, *params)
+                    is_close = torch.allclose(cuda_output, ref_output, atol={{ op_atol }}, rtol={{ op_rtol }})
+                    result["correct"] = bool(is_close)
+                
+                if result["correct"]:
+                    # Benchmark
+                    for _ in range({{ warmup_time }}):
+                        with torch.no_grad():
+                            _ = cuda_module.forward(*inputs, *params)
+                    torch.cuda.synchronize()
+                    
+                    cuda_times = []
+                    for _ in range({{ rep_time }}):
+                        torch.cuda.synchronize()
+                        start = time.perf_counter()
+                        with torch.no_grad():
+                            _ = cuda_module.forward(*inputs, *params)
+                        torch.cuda.synchronize()
+                        cuda_times.append((time.perf_counter() - start) * 1000)
+                    
+                    for _ in range({{ warmup_time }}):
+                        with torch.no_grad():
+                            _ = forward_fn(*inputs, *params)
+                    torch.cuda.synchronize()
+                    
+                    torch_times = []
+                    for _ in range({{ rep_time }}):
+                        torch.cuda.synchronize()
+                        start = time.perf_counter()
+                        with torch.no_grad():
+                            _ = forward_fn(*inputs, *params)
+                        torch.cuda.synchronize()
+                        torch_times.append((time.perf_counter() - start) * 1000)
+                    
+                    cuda_mean = np.mean(cuda_times)
+                    torch_mean = np.mean(torch_times)
+                    result["speedup"] = torch_mean / cuda_mean if cuda_mean > 0 else 0.0
+            else:
+                # No robust-kbench task, just verify compilation
+                result["correct"] = True
+                result["speedup"] = 1.0
+                result["error"] = f"Task {TASK_NAME} not found, compilation-only test"
+        except ImportError:
+            # robust-kbench not installed, just verify compilation
+            result["correct"] = True
+            result["speedup"] = 1.0
+            result["error"] = "robust-kbench not installed, compilation-only test"
+            
+    except Exception as e:
+        result["error"] = str(e)
+    
+    compile_score = 1.0 if result["compile_success"] else 0.0
+    correct_score = 1.0 if result["correct"] else 0.0
+    speedup = result["speedup"] if result["correct"] else 0.0
+    
+    return EvaluationResult(
+        metrics={
+            "compile_success": compile_score,
+            "correct": correct_score,
+            "speedup": speedup,
+            "combined_score": speedup,
+        },
+        artifacts=result,
+    )

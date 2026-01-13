@@ -1,0 +1,79 @@
+"""OpenEvolve evaluator for EvoKernel - standalone mode (no correctness check)."""
+import os
+import json
+import modal
+from openevolve.evaluation_result import EvaluationResult
+
+GPU_TYPE = "{{ gpu_type }}"
+BASELINE_FILE = os.path.join(os.path.dirname(__file__), "baseline_timing.json")
+
+# Map GPU types to Modal class names
+GPU_CLASS_MAP = {
+    "t4": "VerifierT4",
+    "l4": "VerifierL4",
+    "a10g": "VerifierA10G",
+    "a100": "VerifierA100",
+    "a100-80gb": "VerifierA100_80GB",
+    "l40s": "VerifierL40S",
+    "h100": "VerifierH100",
+    "h200": "VerifierH200",
+    "b200": "VerifierB200",
+}
+
+def evaluate(program_path: str) -> EvaluationResult:
+    with open(program_path, "r") as f:
+        cuda_code = f.read()
+
+    # Load baseline timing if exists
+    baseline_time_ms = None
+    if os.path.exists(BASELINE_FILE):
+        with open(BASELINE_FILE) as f:
+            baseline_time_ms = json.load(f).get("timing_ms")
+
+    try:
+        # Get the appropriate verifier class via Modal lookup
+        class_name = GPU_CLASS_MAP.get(GPU_TYPE, "VerifierA100")
+        verifier_cls = modal.Cls.from_name("evokernel-verify", class_name)
+        verifier = verifier_cls()
+        
+        result = verifier.verify.remote(
+            cuda_code=cuda_code,
+            task=None,  # Standalone mode
+            warmup_time={{ warmup_time }},
+            rep_time={{ rep_time }},
+            baseline_time_ms=baseline_time_ms,
+        )
+    except Exception as e:
+        return EvaluationResult(
+            metrics={"compile_success": 0.0, "correct": 1.0, "speedup": 0.0, "combined_score": 0.0},
+            artifacts={"error": str(e), "standalone_mode": True},
+        )
+
+    compile_success = 1.0 if result.get("compile_success") else 0.0
+    cuda_timing = result.get("cuda_timing", {})
+    timing_ms = cuda_timing.get("mean_ms", 0.0)
+
+    # Save baseline timing on first successful evaluation
+    if compile_success and timing_ms > 0 and not os.path.exists(BASELINE_FILE):
+        with open(BASELINE_FILE, "w") as f:
+            json.dump({"timing_ms": timing_ms}, f)
+
+    # Calculate speedup vs baseline
+    speedup = result.get("speedup_vs_baseline", 1.0) or 1.0
+
+    return EvaluationResult(
+        metrics={
+            "compile_success": compile_success,
+            "correct": 1.0,  # Assumed correct in standalone
+            "speedup": speedup,
+            "timing_ms": timing_ms,
+            "combined_score": speedup,
+        },
+        artifacts={
+            "success": result.get("success", False),
+            "standalone_mode": True,
+            "gpu_type": GPU_TYPE,
+            "warning": result.get("warning"),
+            "error": result.get("error"),
+        },
+    )

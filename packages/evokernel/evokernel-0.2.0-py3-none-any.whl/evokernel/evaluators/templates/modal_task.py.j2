@@ -1,0 +1,64 @@
+"""OpenEvolve evaluator for EvoKernel - calls Modal GPU endpoint."""
+import os
+import modal
+from openevolve.evaluation_result import EvaluationResult
+
+TASK_NAME = os.environ.get("EVOKERNEL_TASK", "{{ task }}")
+GPU_TYPE = "{{ gpu_type }}"
+
+# Map GPU types to Modal class names
+GPU_CLASS_MAP = {
+    "t4": "VerifierT4",
+    "l4": "VerifierL4",
+    "a10g": "VerifierA10G",
+    "a100": "VerifierA100",
+    "a100-80gb": "VerifierA100_80GB",
+    "l40s": "VerifierL40S",
+    "h100": "VerifierH100",
+    "h200": "VerifierH200",
+    "b200": "VerifierB200",
+}
+
+def evaluate(program_path: str) -> EvaluationResult:
+    with open(program_path, "r") as f:
+        cuda_code = f.read()
+    
+    try:
+        # Get the appropriate verifier class via Modal lookup
+        class_name = GPU_CLASS_MAP.get(GPU_TYPE, "VerifierA100")
+        verifier_cls = modal.Cls.from_name("evokernel-verify", class_name)
+        verifier = verifier_cls()
+        
+        result = verifier.verify.remote(
+            cuda_code=cuda_code,
+            task=TASK_NAME,
+            forward=True,
+            op_atol={{ op_atol }},
+            op_rtol={{ op_rtol }},
+            warmup_time={{ warmup_time }},
+            rep_time={{ rep_time }},
+        )
+    except Exception as e:
+        return EvaluationResult(
+            metrics={"compile_success": 0.0, "correct": 0.0, "speedup": 0.0},
+            artifacts={"error": str(e)},
+        )
+    
+    compile_success = 1.0 if result.get("compile_success") else 0.0
+    correct = 1.0 if result.get("correct") else 0.0
+    speedup = result.get("speedup_vs_torch", 0.0) if result.get("correct") else 0.0
+    
+    return EvaluationResult(
+        metrics={
+            "compile_success": compile_success,
+            "correct": correct,
+            "speedup": speedup,
+            "combined_score": speedup,
+        },
+        artifacts={
+            "success": result.get("success", False),
+            "task": TASK_NAME,
+            "gpu_type": GPU_TYPE,
+            "error": result.get("error"),
+        },
+    )
