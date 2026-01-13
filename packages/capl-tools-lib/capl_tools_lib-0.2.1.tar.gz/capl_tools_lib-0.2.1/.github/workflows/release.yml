@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers when you push a tag like v0.2.0
+
+permissions:
+  contents: write    # Required to create the GitHub Release
+  id-token: write    # Required for PyPI Trusted Publishing
+
+jobs:
+  publish:
+    name: Build, Release, and Publish
+    runs-on: ubuntu-latest
+    # This environment must be configured on PyPI.org
+    environment: pypi
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. Extract the section from CHANGELOG.md for the current tag
+      # It looks for the ## [v0.x.y] header and grabs the text below it
+      - name: Extract Release Notes
+        id: extract-release-notes
+        uses: ffurrer2/extract-release-notes@v2
+
+      # 2. Create the GitHub Release automatically
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # We use printf to handle special characters in release notes safely
+          NOTES=$(cat << 'EOF'
+          ${{ steps.extract-release-notes.outputs.release_notes }}
+          EOF
+          )
+          
+          gh release create "${{ github.ref_name }}" \
+            --title "Release ${{ github.ref_name }}" \
+            --notes "$NOTES" \
+            --replaces-artifact || echo "Release already exists, moving to publish step."
+
+      # 3. Setup Python and Build the package
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Build Package
+        run: uv build
+
+      # 4. Publish to PyPI
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
