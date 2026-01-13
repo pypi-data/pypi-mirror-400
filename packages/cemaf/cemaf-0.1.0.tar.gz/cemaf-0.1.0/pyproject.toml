@@ -1,0 +1,184 @@
+[project]
+name = "cemaf"
+version = "0.1.0"
+description = "Context Engineering Multi-Agent Framework - A pluggable, modular framework for building AI agent systems"
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "MIT" }
+authors = [
+    { name = "Hikuri Bado Chinca", email = "chincadr@gmail.com" },
+]
+keywords = [
+    "ai",
+    "agents",
+    "multi-agent",
+    "context-engineering",
+    "llm",
+    "dag",
+    "orchestration",
+    "langchain",
+    "langgraph",
+    "autogen",
+    "crewai",
+    "context-management",
+    "token-budgeting",
+    "provenance",
+    "replay",
+    "framework-agnostic",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+    "Framework :: AsyncIO",
+]
+
+# =============================================================================
+# CORE DEPENDENCIES - Minimal, framework-agnostic
+# =============================================================================
+dependencies = [
+    "pydantic>=2.0",
+    "typing-extensions>=4.9",
+]
+
+# =============================================================================
+# OPTIONAL DEPENDENCIES - Install only what you need
+# =============================================================================
+[project.optional-dependencies]
+# Development tools
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.8",
+    "ruff>=0.3",
+    "bandit[toml]>=1.7",
+    "pre-commit>=4.0",
+]
+
+# Accurate token counting (OpenAI tokenizer)
+tiktoken = [
+    "tiktoken>=0.5",
+]
+
+# OpenAI integration
+openai = [
+    "openai>=1.0",
+    "tiktoken>=0.5",
+]
+
+# Anthropic integration
+anthropic = [
+    "anthropic>=0.20",
+]
+
+# Vector store integrations
+pinecone = [
+    "pinecone-client>=3.0",
+]
+
+# Temporarily disabled - waiting for Python 3.14 wheel support
+# chromadb = [
+#     "chromadb>=0.4",
+# ]
+
+# Performance profiling tools
+profiling = [
+    "pytest-benchmark>=5.1.0",
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.2.0",
+]
+
+# All optional integrations
+all = [
+    "tiktoken>=0.5",
+    "openai>=1.0",
+    "anthropic>=0.20",
+]
+
+[project.urls]
+Homepage = "https://github.com/drchinca/cemaf"
+Documentation = "https://github.com/drchinca/cemaf/blob/main/docs/README.md"
+Repository = "https://github.com/drchinca/cemaf"
+"Bug Tracker" = "https://github.com/drchinca/cemaf/issues"
+"Discussions" = "https://github.com/drchinca/cemaf/discussions"
+"Discord Community" = "https://discord.gg/C8ZXAbD8"
+"Changelog" = "https://github.com/drchinca/cemaf/blob/main/CHANGELOG.md"
+"Source Code" = "https://github.com/drchinca/cemaf"
+
+# =============================================================================
+# BUILD SYSTEM
+# =============================================================================
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cemaf"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/docs",
+    "/examples",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+
+# =============================================================================
+# TOOL CONFIGURATION
+# =============================================================================
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+# Ignore specific rules for code style preferences and test patterns
+ignore = [
+    "E402",      # Module level import not at top of file
+    "B017",      # assertRaises(Exception) should be considered evil
+    "N815",      # Variable in function should be lowercase
+    "N818",      # Exception name should end in Error
+    "SIM105",    # Use contextlib.suppress() instead of try-except-pass
+    "SIM108",    # Use ternary operator instead of if-else
+    "TC001",     # Move application import into TYPE_CHECKING block (replaces TCH001)
+    "TC002",     # Move third-party import into TYPE_CHECKING block (replaces TCH002)
+    "TC003",     # Move standard library import into TYPE_CHECKING block (replaces TCH003)
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "venv", "build", "dist", ".pytest_cache"]
+skips = ["B101"]  # Allow assert in tests
+tests = [
+    "B201", "B301", "B302", "B303", "B304", "B305", "B306", "B307", "B308",
+    "B310", "B311", "B312", "B313", "B314", "B315", "B316", "B317", "B318",
+    "B319", "B320", "B321", "B323", "B324", "B325", "B401", "B402", "B403",
+    "B404", "B405", "B406", "B407", "B408", "B409", "B410", "B411", "B412",
+    "B413", "B501", "B502", "B503", "B504", "B505", "B506", "B507", "B508",
+    "B509", "B601", "B602", "B603", "B604", "B605", "B606", "B607", "B608",
+    "B609", "B610", "B611", "B612", "B701", "B702", "B703"
+]
