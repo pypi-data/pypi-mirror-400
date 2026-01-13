@@ -1,0 +1,104 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = [ "hatch-vcs", "hatchling" ]
+
+[project]
+name = "annsel"
+description = "A Narwhals powered DataFrame-style selection, filtering and indexing operations on AnnData Objects."
+readme = "README.md"
+license = { file = "LICENSE" }
+maintainers = [
+  { name = "Sricharan Reddy Varra", email = "srivarra@stanford.edu" },
+]
+authors = [ { name = "Sricharan Reddy Varra" } ]
+requires-python = ">=3.10"
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dynamic = [ "version" ]
+dependencies = [
+  "anndata",
+  "more-itertools>=10.7",
+  "narwhals[pandas]>=2.14",
+  "pooch>=1.8.2",
+  # for debug logging (referenced from the issue template)
+  "session-info2",
+  "tqdm>=4",
+  "universal-pathlib>=0.2",
+]
+optional-dependencies.dev = [ "esbonio>=0.16.5", "pre-commit" ]
+optional-dependencies.doc = [
+  "docutils>=0.21.2",
+  "ipykernel",
+  "ipython",
+  "llvmlite>=0.44.0rc2",
+  "matplotlib>=3.10",
+  "myst-nb>=1.1.2",
+  "numba>=0.61.0rc2",
+  "pandas",
+  "polars",
+  "pyarrow",
+  "scanpy>=1.11.0rc1",
+  "scanpydoc>=0.15.2",
+  # Until pybtex >0.23.0 releases: https://bitbucket.org/pybtex-devs/pybtex/issues/169/
+  "setuptools",
+  "sphinx>=8.1.3,<8.2",
+  "sphinx-autodoc-typehints",
+  "sphinx-autosummary-accessors>=2023.4",
+  "sphinx-book-theme>=1.1.3",
+  "sphinx-copybutton",
+  "sphinx-design>=0.6.1",
+  "sphinx-tabs",
+  "sphinx-toolbox",
+  "sphinxcontrib-bibtex>=2.6.3",
+  "sphinxext-opengraph",
+]
+optional-dependencies.nb = [ "jupyterlab>=4.3.4" ]
+optional-dependencies.test = [
+  "coverage",
+  "pytest",
+  "pytest-cov>=6",
+  "pytest-xdist>=3.6.1",
+]
+# https://docs.pypi.org/project_metadata/#project-urls
+urls.Documentation = "https://annsel.readthedocs.io/"
+urls.Homepage = "https://github.com/srivarra/annsel"
+urls.Source = "https://github.com/srivarra/annsel"
+
+[tool.pytest.ini_options]
+testpaths = [ "tests" ]
+xfail_strict = true
+addopts = [
+  "--import-mode=importlib", # allow using test files with same name
+]
+filterwarnings = [
+  "ignore::pytest.PytestUnknownMarkWarning",
+  "ignore::coverage.exceptions.CoverageWarning:",
+]
+
+[tool.coverage.run]
+source = [ "annsel" ]
+omit = [ "**/test_*.py" ]
+concurrency = [ "multiprocessing" ]
+parallel = true
+
+[tool.coverage.report]
+exclude_also = [ "raise NotImplementedError", "@(abc\\.)?abstractmethod" ]
+
+[tool.cruft]
+skip = [
+  "tests",
+  "src/**/__init__.py",
+  "src/**/basic.py",
+  "docs/api/index.md",
+  "docs/changelog.md",
+  "docs/references.bib",
+  "docs/references.md",
+  "docs/notebooks/example.ipynb",
+]
