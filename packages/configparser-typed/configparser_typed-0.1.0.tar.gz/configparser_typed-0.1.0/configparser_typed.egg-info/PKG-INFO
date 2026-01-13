@@ -1,0 +1,153 @@
+Metadata-Version: 2.4
+Name: configparser-typed
+Version: 0.1.0
+Summary: A typed, validated wrapper around Python's built-in configparser
+Author-email: Pierre <pierrebruno@hotmail.ch>
+Maintainer-email: Pierre <pierrebruno@hotmail.ch>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/PierrunoYT/typed-configparser
+Project-URL: Repository, https://github.com/PierrunoYT/typed-configparser
+Project-URL: Issues, https://github.com/PierrunoYT/typed-configparser/issues
+Project-URL: Changelog, https://github.com/PierrunoYT/typed-configparser/releases
+Keywords: config,ini,configparser,typed,dataclass,pydantic,validation,configuration
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: mypy>=1.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Provides-Extra: test
+Requires-Dist: pytest>=7.0; extra == "test"
+Requires-Dist: pytest-cov>=4.0; extra == "test"
+
+# typed-configparser
+
+A small, modern Python library that provides a typed, validated wrapper around Python's built-in `configparser`.
+
+## What it does
+
+`typed-configparser` lets you load INI configuration files into typed dataclasses or Pydantic models with automatic type conversion and validation. It's thin, explicit, and predictable—no magic, no auto-loading, no framework overhead.
+
+## Installation
+
+```bash
+pip install typed-configparser
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/PierrunoYT/typed-configparser.git
+cd typed-configparser
+pip install -e .
+```
+
+## Example
+
+Given an INI file:
+
+```ini
+# app.ini
+[server]
+port = 8000
+debug = true
+```
+
+And a dataclass:
+
+```python
+from dataclasses import dataclass
+from typed_configparser import load_section
+
+@dataclass
+class ServerConfig:
+    port: int
+    debug: bool = False
+
+config = load_section("app.ini", "server", ServerConfig)
+
+assert isinstance(config.port, int)  # True
+assert isinstance(config.debug, bool)  # True
+```
+
+## Features
+
+- **Typed section loading**: Map INI sections to dataclasses or Pydantic models
+- **Type conversion**: Automatic conversion for `int`, `float`, `bool`, `str`, `list`, `dict`, and `Path`
+- **Validation**: Clear errors for missing keys, unknown keys, and type mismatches
+- **Optional fields**: Support for `Optional[T]` and default values
+- **Python 3.10+**: Full type hints throughout with `py.typed` marker
+- **Zero dependencies**: Uses only Python standard library
+
+## Non-goals
+
+This library intentionally does **not** provide:
+
+- Environment variable support
+- Multiple file merging
+- Remote configuration loading
+- CLI tools
+- Plugin systems
+- Section inheritance
+- Logging framework integration
+
+If you need these features, this library is not for you.
+
+## Development
+
+### Running Tests
+
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=typed_configparser
+```
+
+### Type Checking
+
+```bash
+mypy typed_configparser/
+```
+
+### Linting
+
+```bash
+ruff check .
+```
+
+## Publishing
+
+See [PUBLISHING.md](PUBLISHING.md) for detailed instructions on building and publishing this package to PyPI.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - see the LICENSE file for details.
+
+## Links
+
+- **PyPI**: https://pypi.org/project/typed-configparser/
+- **Source Code**: https://github.com/PierrunoYT/typed-configparser
+- **Issue Tracker**: https://github.com/PierrunoYT/typed-configparser/issues
+- **Changelog**: https://github.com/PierrunoYT/typed-configparser/releases
+
