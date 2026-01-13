@@ -1,0 +1,177 @@
+---
+include:
+  - affidavit_body.yml
+---
+metadata:
+  title: Affidavit of Indigency (fee waiver)
+  short title: Affidavit of Indigency (fee waiver)
+  description: |
+    If you cannot afford to pay court fees or other costs related to your court case, this form will help you ask the court to waive the fees.
+    
+    Depending on the kind of income you get, you may need to give information about your income, expenses, assets, and debts. You will also need to provide information about the case you are involved in.
+
+    This interview can make the Affidavit of Indigency and the Supplement to the Affidavit of Indigency form, if you need it.
+  can_I_use_this_form: |
+    You can use this interview if you are asking the court to waive fees for a court case in Massachusetts.
+
+    The fees you can get waived include costs for:
+
+    - Filing
+    - Depositions
+    - Expert witnesses
+    - Appeals
+    - Serving court papers
+    - Transcripts
+    - Copies or recordings of court records
+    - Other costs related to your case
+  before_you_start: |
+    Before you start, you will need to know:
+
+    - The name of the court where your case is happening
+    - The docket number of your case
+    - Your income, and you may need to know your expenses, assets, and debts
+  maturity: production
+  estimated_completion_minutes: 15
+  estimated_completion_delta: 5
+  languages:
+    - en
+  help_page_url: https://www.masslegalhelp.org/courts-hearings-language-rights/courts-massachusetts/affidavit-indigency-if-you-cant-afford
+  help_page_title: Affidavit of Indigency if you can't afford Massachusetts court costs
+  LIST_topics:
+    - CO-07-06-01-00
+  tags:
+    - CO-07-06-01-00
+  jurisdiction: NAM-US-MA+MA
+  review_date: 2025-07-21
+  form_titles:
+    - Affidavit of Indigency
+    - Supplement to the Affidavit of Indigency
+  fees:
+    - Filing fee: 0.0
+  authors:
+    - Quinten Steenhuis
+    - Bryce Willey
+    - Samuel Roth
+---
+code: |
+  interview_short_title = "Ask the court to waive fees"
+---
+code: |
+  github_repo_name = "docassemble-ALAffidavitOfIndigency"
+---
+code: |
+  # This controls the default country and list of states in address field questions
+  AL_DEFAULT_COUNTRY = "US"
+---
+code: |
+  # This controls the default state in address field questions
+  AL_DEFAULT_STATE = "MA"
+---
+code: |
+  al_form_requires_digital_signature = False
+---
+code: |
+  affidavit_is_standalone = True
+---
+code: |
+  affidavitofindigency_attachment.enabled = True
+---
+sections:
+  - review_affidavit_of_indigency: Affidavit
+  - review_affidavit_of_indigency_supplement: Supplement
+    subsections:
+    - review_case_info: Case and Personal Information
+    - review_income: Income
+    - review_expenses: Expenses
+    - review_assets_and_debts: Assets and Debts
+  - fees_section: Fees to Waive
+  - download_form: Download Form
+---
+############################# Main order #######################
+id: run main interview
+mandatory: True
+code: |
+  al_intro_screen
+  aff_of_indigency_intro
+  affidavit_match_to_case_prompts # Make sure people give a docket number
+  ask_affidavit_questions # Main questions
+  if not is_indigent:
+    doesnt_qualify_ending
+  # Store anonymous data for analytics / statistics
+  store_variables_snapshot(
+      persistent=True,
+      data={
+          "zip": showifdef("users[0].address.zip"),
+          "reached_interview_end": True,
+      },
+  )
+  preview
+  basic_questions_signature_flow
+  download
+---
+id: preview form
+continue button field: preview
+question: |
+  Preview of your document
+subquestion: |
+  Click the image below to open a preview of your document in a new
+  window. On the next screen, you will have a chance to sign it.
+
+  ${ al_user_bundle.as_pdf(key='preview') }
+
+  ${action_button_html(url_action('review_affidavit_of_indigency'), icon='edit', label=word("Make Changes"), size="sm")}
+---
+id: final download
+decoration: file-download
+question: |
+  Review, Download and Print
+subquestion: |
+  Thank you ${users[0]}. Your form is ready to print and deliver to the court. **This website cannot file
+  it for you.**
+
+  1. Click the "view" button below to open the form in a new window. Correct any errors using the "Make changes" button below.
+  1. Download and save or print a copy of this form for your 
+  records.
+  1. Print 2 copies. Keep one for your records and file the other with the ${ trial_court }.
+     The court's address is ${ trial_court.address.on_one_line() }. Please note: for some court
+     locations, you must file at a different address. Call the court to be sure.
+  1. If you need to call the court, you can call ${ trial_court } at ${ trial_court.phone }.
+  
+  ${ al_user_bundle.download_list_html() }
+  
+  ${action_button_html(url_action('review_affidavit_of_indigency'), icon='edit', label=word("Make changes"))}
+
+  ${ only_once_review_widget() }
+
+  ${ al_user_bundle.send_button_html(show_editable_checkbox=False) }
+progress: 100
+section: download
+event: download
+---
+event: review_affidavit_of_indigency_supplement
+code: |
+  review_affidavit_of_indigency
+---
+event: fees_section
+code: |
+  review_affidavit_of_indigency
+---
+event: review_assets_and_debts
+code: |
+  review_affidavit_of_indigency
+---
+event: review_income
+code: |
+  review_affidavit_of_indigency
+---
+event: review_expenses
+code: |
+  review_affidavit_of_indigency
+---
+event: review_case_info
+code: |
+  review_affidavit_of_indigency
+---
+objects:
+  - al_user_bundle: ALDocumentBundle.using(elements=[affidavitofindigency_attachment], filename="affidavit_of_indigency.pdf", title="All forms to download for your records")
+  - al_court_bundle: ALDocumentBundle.using(elements=[affidavitofindigency_attachment], filename="affidavit_of_indigency.pdf", title="All forms to download for your records")
