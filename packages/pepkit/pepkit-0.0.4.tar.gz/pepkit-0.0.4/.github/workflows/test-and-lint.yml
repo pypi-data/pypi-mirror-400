@@ -1,0 +1,51 @@
+# This workflow installs Python dependencies, runs tests and lints for PepKit
+
+name: Test & Lint
+
+on:
+  push:
+    branches: [ "main", "dev", "clean" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    # Set up Miniconda
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: 3.11
+
+    # Create and activate Conda environment
+    - name: Create and activate pepkit environment
+      run: |
+        conda create --name pepkit-env python=3.11 -y
+        conda activate pepkit-env
+        pip install flake8 pytest
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      shell: bash -l {0}
+
+    # Lint with flake8
+    - name: Lint with flake8
+      run: |
+        conda activate pepkit-env
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        if [ -f lint.sh ]; then ./lint.sh; fi
+      shell: bash -l {0}
+
+    # Test with pytest
+    - name: Test with pytest
+      run: |
+        conda activate pepkit-env
+        if [ -f pytest.sh ]; then ./pytest.sh; else pytest; fi
+      shell: bash -l {0}
