@@ -1,0 +1,244 @@
+[build-system]
+requires = [
+    "setuptools",
+    "mypy[mypyc]==1.19.1",
+
+    # mypyc requires that runtime dependencies are also installed
+    # during the build, since it parses the code base.
+    # For now, the only solution is to copy-paste the list here.
+    "attrs",
+    "backports.strenum",
+    "blake3",
+    "cmake-file-api==0.0.8.6",
+    "ijson",
+    "mypy_extensions",
+    "pandas",
+    "pyelftools==0.32",
+    "regex",
+    "rich",
+    "rich-tools",
+    "semantic_version",
+    "system-helpers>=0.0.3",
+    "typing-extensions>=4.4.0",
+
+    # Requirements from requirements/requirements.python.txt that are required by mypyc.
+    "types-regex",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "reprospect",
+    "reprospect.installers",
+    "reprospect.test",
+    "reprospect.test.sass",
+    "reprospect.test.sass.controlflow",
+    "reprospect.test.sass.instruction",
+    "reprospect.test.sass.matchers",
+    "reprospect.tools",
+    "reprospect.tools.binaries",
+    "reprospect.tools.ncu",
+    "reprospect.tools.sass",
+    "reprospect.utils",
+]
+
+[tool.setuptools.package-data]
+"reprospect" = ["py.typed"]
+
+[tool.setuptools.dynamic]
+# https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
+dependencies = {file = ["requirements/requirements.txt"]}
+
+[project]
+name = "reprospect"
+description = "A framework for reproducible prospecting of CUDA applications."
+version = "1.0.2"
+license = "LGPL-3.0-only"
+license-files = ["LICENSE"]
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">= 3.10"
+dynamic = [
+    "dependencies",
+]
+authors = [
+  {name = "Arnst Maarten"},
+  {name = "Tomasetti Romin"},
+]
+
+[project.urls]
+Homepage = "https://github.com/uliegecsm/reprospect"
+Documentation = "https://uliegecsm.github.io/reprospect/"
+
+[project.scripts]
+reprospect-install-cuda-bindings = "reprospect.installers.cuda_bindings:main"
+reprospect-install-nsight-systems = "reprospect.installers.nsight_systems:main"
+reprospect-utils-detect-gpus = "reprospect.utils.detect:main"
+
+[tool.mypy]
+follow_untyped_imports = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+packages = ["reprospect"]
+
+[tool.ruff]
+preview = true
+
+[tool.ruff.lint.per-file-ignores]
+"docs/source/conf.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+section-order = [
+  "future",
+  "standard-library",
+  "third-party",
+  "first-party",
+  "local-folder",
+  "tests",
+  "examples"
+]
+
+[tool.ruff.lint.isort.sections]
+tests = ["tests"]
+examples = ["examples"]
+
+[tool.ruff.lint]
+extend-select = [
+    "A002",
+    "A003",
+    "B006",
+    "B009",
+    "B905",
+    "BLE001",
+    "C4",
+    "COM",
+    "D202",
+    "D207",
+    "D419",
+    "DOC102",
+    "DOC202",
+    "DOC403",
+    "DOC502",
+    "DTZ",
+    "E1",
+    "E203",
+    "E204",
+    "E223",
+    "E224",
+    "E225",
+    "E226",
+    "E227",
+    "E227",
+    "E231",
+    "E251",
+    "E252",
+    "E4",
+    "E502",
+    "E7",
+    "E9",
+    "ERA001",
+    "EXE",
+    "F",
+    "FA",
+    "FBT001",
+    "FIX",
+    "FURB110",
+    "FURB166",
+    "I",
+    "INT",
+    "ISC",
+    "NPY002",
+    "PERF",
+    "PGH",
+    "PIE",
+    "PLC02",
+    "PLE",
+    "PLR62",
+    "PT00",
+    "PT017",
+    "PT02",
+    "PT03",
+    "PYI",
+    "RET",
+    "RSE",
+    "RUF",
+    "S110",
+    "SIM101",
+    "SIM103",
+    "SIM105",
+    "SIM112",
+    "SIM113",
+    "SIM20",
+    "SIM21",
+    "SIM300",
+    "SIM9",
+    "SLOT",
+    "TID",
+    "TRY002",
+    "TRY004",
+    "TRY2",
+    "TRY4",
+    "UP006",
+    "UP007",
+    "UP009",
+    "UP012",
+    "UP015",
+    "UP017",
+    "UP020",
+    "UP028",
+    "UP030",
+    "UP031",
+    "UP032",
+    "UP034",
+    "UP036",
+    "UP037",
+    "UP039",
+    "UP040",
+    "UP041",
+    "UP045",
+    "W",
+    "YTT",
+]
+ignore = [
+    "RUF005",
+    "RUF018",
+]
+
+[tool.pylint.main]
+fail-on = [
+    "I",
+]
+fail-under = 10
+
+[tool.pylint."messages control"]
+enable = [
+    "useless-suppression",
+]
+disable = [
+    "c-extension-no-member",
+    "line-too-long",
+    "logging-fstring-interpolation",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-locals",
+    "too-many-positional-arguments",
+]
+
+[tool.cibuildwheel]
+build = []
+archs = []
+
+build-verbosity = 1
+
+test-command = [
+    "python -m pytest {package}/tests/test_extensibility.py",
+]
+test-requires = "pytest==9.0.2"
+
+[tool.cibuildwheel.windows]
+# Improve cl.exe error messages for debugging mypyc-generated C code.
+environment = { CL = "/diagnostics:caret" }
