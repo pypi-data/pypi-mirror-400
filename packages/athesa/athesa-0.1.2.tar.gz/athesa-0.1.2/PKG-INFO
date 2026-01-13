@@ -1,0 +1,186 @@
+Metadata-Version: 2.4
+Name: athesa
+Version: 0.1.2
+Summary: State-driven web automation framework for complex workflows
+Author: Athesa Contributors
+License: MIT
+Project-URL: Homepage, https://github.com/ixmb/athesa
+Project-URL: Documentation, https://github.com/ixmb/athesa#readme
+Project-URL: Repository, https://github.com/ixmb/athesa
+Project-URL: Issues, https://github.com/ixmb/athesa/issues
+Keywords: automation,web,selenium,playwright,state-machine,workflow
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: selenium>=4.0.0
+Requires-Dist: undetected-chromedriver>=3.5.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Provides-Extra: playwright
+Requires-Dist: playwright>=1.40.0; extra == "playwright"
+Dynamic: license-file
+
+# Athesa
+
+[![PyPI version](https://img.shields.io/pypi/v/athesa.svg?v=2)](https://pypi.org/project/athesa/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/ixmb/athesa/actions/workflows/tests.yml/badge.svg)](https://github.com/ixmb/athesa/actions)
+
+**State-driven web automation framework for complex workflows**
+
+Athesa is a protocol-oriented Python framework for building maintainable web automation processes using state machines, screen detection, and declarative action sequences.
+
+---
+
+## ✨ Features
+
+- 🎯 **State Machine Architecture** - Clear workflow definition with explicit state transitions
+- 🔍 **Smart Screen Detection** - Robust page state detection with multiple strategies
+- 🔌 **Pluggable Adapters** - Support for Selenium, Playwright, and custom automation tools
+- 📦 **Protocol-Oriented** - Duck typing with Python protocols, no forced inheritance
+- 🎪 **Event System** - Built-in event emitter (no PyQt/GUI dependencies)
+- 🏭 **Process Factory** - Registry for managing and discovering automation processes
+-  **Testable** - Clean separation of concerns, easy to unit test
+
+---
+
+##  Quick Start
+
+### Installation
+
+```bash
+pip install athesa
+```
+
+### Basic Example
+
+```python
+from athesa import ProcessRunner, ProcessContext
+from athesa.adapters.selenium import SeleniumBridge
+from selenium import webdriver
+
+# Setup browser
+driver = webdriver.Chrome()
+bridge = SeleniumBridge(driver)
+
+# Create context
+context = ProcessContext(
+    credentials={'username': 'user@example.com', 'password': 'secret'}
+)
+
+# Run process
+from my_processes import LoginProcess
+process = LoginProcess()
+runner = ProcessRunner(process, context, bridge)
+outcome = runner.run()
+
+print(f"Result: {outcome}")  # 'success', 'failure', or 'retry'
+driver.quit()
+```
+
+---
+
+## 📖 Documentation
+
+- **[Getting Started](docs/README.md)** - Introduction and setup
+- **[API Reference](docs/API.md)** - Complete API documentation
+- **[Quick Reference](docs/QUICK_REFERENCE.md)** - Common patterns and snippets
+- **[Examples](examples/)** - Working examples
+
+---
+
+## 🎓 Core Concepts
+
+### Process
+A complete workflow from start to finish. Defines screens, handlers, states, and transitions.
+
+### State
+A step in your workflow. Each state knows what screens to expect.
+
+### Screen
+A detectable page state using selectors and verification criteria.
+
+### Handler
+Actions to perform when a screen is detected.
+
+### Bridge
+Abstraction layer for browser automation (Selenium, Playwright, custom).
+
+---
+
+## 💡 Why Athesa?
+
+**Problem**: Web automation is brittle. Pages change, flows have edge cases, errors are hard to debug.
+
+**Solution**: Athesa uses explicit state machines and screen detection:
+- ✅ Clear state transitions make debugging easy
+- ✅ Multiple detection strategies handle dynamic pages
+- ✅ Process registry allows flow composition
+- ✅ Event system provides observability
+- ✅ Protocol-based (no forced inheritance)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────┐
+│         Your Process Definition         │
+│  (States, Screens, Handlers)           │
+└──────────────┬──────────────────────────┘
+               │
+       ┌───────▼────────┐
+       │ ProcessRunner  │
+       └───────┬────────┘
+               │
+    ┌──────────┼──────────┐
+    │          │          │
+┌───▼───┐  ┌──▼──┐  ┌───▼────┐
+│State  │  │Page │  │Action  │
+│Machine│  │Det. │  │Executor│
+└───┬───┘  └──┬──┘  └───┬────┘
+    │         │         │
+    └─────────┼─────────┘
+              │
+        ┌─────▼─────┐
+        │  Bridge   │
+        │ (Selenium)│
+        └───────────┘
+```
+
+---
+
+##  Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+
+---
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) file
+
+---
+
+##  Acknowledgments
+
+Built with ❤️ for the automation community.
+
+---
+
+**Athesa** - *Smooth automation flows, state by state.*
