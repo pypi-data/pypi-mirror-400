@@ -1,0 +1,92 @@
+Metadata-Version: 2.3
+Name: envmix
+Version: 0.1.2
+Summary: Pydantic v2 mixin to load settings from environment variables with robust casting
+Keywords: pydantic,environment,config,settings,dotenv
+License: MIT License
+         
+         Copyright (c) 2025
+         
+         Permission is hereby granted, free of charge, to any person obtaining a copy
+         of this software and associated documentation files (the "Software"), to deal
+         in the Software without restriction, including without limitation the rights
+         to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+         copies of the Software, and to permit persons to whom the Software is
+         furnished to do so, subject to the following conditions:
+         
+         The above copyright notice and this permission notice shall be included in all
+         copies or substantial portions of the Software.
+         
+         THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+         IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+         FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+         AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+         LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+         SOFTWARE.
+         
+         
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Dist: pydantic>=2.0
+Requires-Dist: python-dotenv>=1.2.1
+Requires-Python: >=3.9
+Project-URL: Homepage, https://github.com/c0sogi/envmix
+Project-URL: Issues, https://github.com/c0sogi/envmix/issues
+Description-Content-Type: text/markdown
+
+envmix
+=====
+
+Typed environment loader for Pydantic v2 models.
+
+Features
+- **Simple**: `from_env()` fills fields from overrides > env vars > defaults
+- **Typed**: ships `py.typed`; works nicely with type checkers
+- **Robust casting**: JSON-first via TypeAdapter; CSV and k=v fallbacks
+
+Install
+```bash
+pip install envmix
+```
+
+Quick start
+```python
+from pydantic import BaseModel
+from envmix import EnvMixModel
+
+class DB(BaseModel):
+    host: str
+    port: int
+
+class Settings(EnvMixModel):
+    __env_prefix__ = "APP_"
+    host: str = "127.0.0.1"
+    port: int = 8080
+    debug: bool = False
+
+# export APP_PORT=5000 APP_DEBUG=true
+s = Settings.from_env()
+print(s.port)  # 5000
+print(s.debug) # True
+```
+
+Custom env key per field
+```python
+from pydantic import Field
+
+class Settings(EnvMixModel):
+    server_host: str = Field("0.0.0.0", json_schema_extra={"env": "SERVER_HOST"})
+```
+
+License
+MIT
