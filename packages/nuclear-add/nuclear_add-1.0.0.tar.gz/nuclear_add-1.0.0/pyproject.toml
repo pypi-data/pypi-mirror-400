@@ -1,0 +1,125 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nuclear-add"
+version = "1.0.0"
+description = "The most paranoid addition ever created"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Nuclear Add Contributors", email = "nuclear-add@example.com"}
+]
+keywords = [
+    "math",
+    "addition",
+    "precision",
+    "numerical-computing",
+    "interval-arithmetic",
+    "autodiff",
+    "kahan-summation",
+    "overkill"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+numpy = ["numpy>=1.24.0"]
+# GPU support is optional - CuPy requires CUDA which may not be available
+# Users should install cupy manually if they have CUDA
+gpu = []  # Empty by default - users install cupy manually if needed
+jit = ["numba>=0.58.0"]
+units = ["pint>=0.23"]
+symbolic = ["sympy>=1.12"]
+all = [
+    "numpy>=1.24.0",
+    "numba>=0.58.0",
+    "pint>=0.23",
+    "sympy>=1.12",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/example/nuclear-add"
+"Bug Tracker" = "https://github.com/example/nuclear-add/issues"
+Documentation = "https://nuclear-add.readthedocs.io"
+
+[project.scripts]
+nuclear-add-demo = "nuclear_add.demo:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nuclear_add"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "D", "UP", "ANN", "B", "C4", "SIM"]
+ignore = [
+    "ANN201",
+    "ANN204",
+    "ANN401",
+    "D100",
+    "D104",
+    "D105",
+    "D107",
+    "D203",  # Incompatible with D211
+    "D213",  # Incompatible with D212
+]
+per-file-ignores = { "tests/**/*.py" = ["ANN201", "ANN202"] }
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=src/nuclear_add --cov-report=term-missing --cov-report=html"
+
+[tool.coverage.run]
+source = ["src/nuclear_add"]
+omit = [
+    "*/demo.py",  # Demo script, not production code
+    "*/__pycache__/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
