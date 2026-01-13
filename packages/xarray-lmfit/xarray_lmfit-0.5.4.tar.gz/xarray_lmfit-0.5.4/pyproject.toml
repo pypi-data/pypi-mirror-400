@@ -1,0 +1,226 @@
+[project]
+name = "xarray-lmfit"
+version = "0.5.4"
+description = "Fit lmfit models to xarray objects."
+readme = "README.md"
+authors = [{ name = "Kimoon Han", email = "khan@kaist.ac.kr" }]
+requires-python = ">=3.11"
+keywords = ["lmfit", "xarray", "fitting"]
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "lazy-loader>=0.4",
+    "lmfit>=1.3.2",
+    "numpy>=1.26.0",
+    "xarray>=2024.10.0",
+]
+
+[project.optional-dependencies]
+progress = ["tqdm>=4.66.2"]
+
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "cz-changeup>=1.1.2",
+    "dask[distributed]>=2025.2.0",
+    "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.5",
+    "mypy>=1.15.0",
+    "pre-commit>=4.1.0",
+    "pytest>=9.0.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.9.7",
+]
+docs = [
+    "matplotlib>=3.10.0",
+    "myst-nb>=1.2.0",
+    "pydata-sphinx-theme>=0.15.4",
+    "sphinx>=8.0.0",
+    "sphinx-autosummary-accessors>=2025.3.1",
+    "sphinx-copybutton>=0.5.2",
+    "sphinxcontrib-googleanalytics>=0.4",
+]
+
+[project.urls]
+Documentation = "https://xarray-lmfit.readthedocs.io"
+Repository = "https://github.com/kmnhan/xarray-lmfit.git"
+Issues = "https://github.com/kmnhan/xarray-lmfit/issues"
+
+[build-system]
+requires = ["uv_build>=0.8.13"]
+build-backend = "uv_build"
+
+[tool.commitizen]
+change_type_map = { "BREAKING CHANGE" = "💥 Breaking Changes", "feat" = "✨ Features", "fix" = "🐞 Bug Fixes", "perf" = "⚡️ Performance", "refactor" = "♻️ Code Refactor" }
+major_version_zero = true
+version_provider = "uv"
+update_changelog_on_bump = true
+tag_format = "v$version"
+changelog_merge_prerelease = true
+name = 'cz_changeup'
+change_type_order = [
+    "💥 Breaking Changes",
+    "✨ Features",
+    "🐞 Bug Fixes",
+    "⚡️ Performance",
+    "♻️ Code Refactor",
+]
+# cz-changeup configuration
+changeup_repo_base_url = "https://github.com/kmnhan/xarray-lmfit"
+changeup_show_body = true
+changeup_body_indent = 2
+changeup_link_issues = true
+changeup_scope_prefix = "**"
+changeup_scope_suffix = ""
+changeup_scope_separator = ":** "
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "I",
+    "D",
+    "UP",
+    "YTT",
+    "ASYNC",
+    "S",
+    # "FBT",
+    "B",
+    "A",
+    "C4",
+    # "DTZ",
+    "FA",
+    "ICN",
+    "LOG",
+    "G",
+    "PIE",
+    # "T20",
+    "PYI",
+    "PT",
+    "Q",
+    "RSE",
+    "RET",
+    "SIM",
+    "TID",
+    "TC",
+    "INT",
+    # "ARG",
+    # "PTH",
+    # "FIX",
+    # "PLC",
+    # "PLE",
+    # "PLW",
+    "TRY",
+    "FLY",
+    "NPY",
+    "PERF",
+    "FURB",
+    "RUF",
+]
+ignore = [
+    "S101",    # Use of assert
+    "S301",    # Suspicious pickle usage
+    "S603",    # `subprocess` call
+    "S607",    # Starting a process with a partial executable path
+    "PLW2901", # Outer variable overwritten by inner target
+    "ICN001",  # Import conventions
+    "TRY003",  # Long exception messages
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D104",    # Missing docstring in public package
+    "D105",    # Missing docstring in magic method
+]
+extend-select = []
+allowed-confusables = [
+    "×",
+    "−",
+    "𝑎",
+    "𝒂",
+    "𝑏",
+    "𝒃",
+    "𝑐",
+    "𝑥",
+    "𝑦",
+    "𝑧",
+    "𝛼",
+    "γ",
+    "𝛾",
+    "ν",
+    "α",
+]
+exclude = ["*.ipynb"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.flake8-builtins]
+builtins-allowed-modules = ["array", "io"]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+[tool.pytest]
+addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
+    "--import-mode=importlib",
+]
+pythonpath = ["src"]
+testpaths = ["tests"]
+minversion = "9.0"
+log_cli_level = "INFO"
+xfail_strict = true
+filterwarnings = ["always"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+concurrency = ["multiprocessing", "thread"]
+parallel = true
+sigterm = true
+patch = ["execv", "_exit", "fork"]
+
+
+[tool.coverage.report]
+exclude_also = ["if typing.TYPE_CHECKING:"]
+
+[tool.mypy]
+plugins = []
+strict = false
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+allow_redefinition = true
+check_untyped_defs = false
+exclude = ['^docs/', '^tests/', '^build/']
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+disable_error_code = ["import-untyped"]
+pretty = true
