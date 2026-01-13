@@ -1,0 +1,189 @@
+Metadata-Version: 2.4
+Name: mcp-test-kits
+Version: 0.0.5
+Summary: A comprehensive MCP testing server for debugging and testing MCP clients
+Author: midodimori
+License: MIT
+Keywords: ai,llm,mcp,model-context-protocol,testing
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.13
+Requires-Dist: fastmcp>=2.0.0
+Requires-Dist: pydantic>=2.0
+Requires-Dist: pyjwt>=2.8.0
+Requires-Dist: starlette>=0.40.0
+Requires-Dist: uvicorn>=0.30.0
+Description-Content-Type: text/markdown
+
+# MCP Test Kits - Python
+
+Build from source using FastMCP.
+
+## Build
+
+```bash
+cd python
+uv sync
+```
+
+---
+
+## stdio
+
+```json
+{
+  "mcpServers": {
+    "mcp-test-kits": {
+      "command": "uv",
+      "args": ["run", "mcp-test-kits"],
+      "cwd": "/path/to/mcp-test-kits/python",
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+---
+
+## HTTP
+
+Start server:
+```bash
+uv run mcp-test-kits --transport http --port 3000
+```
+
+MCP client config:
+```json
+{
+  "mcpServers": {
+    "mcp-test-kits": {
+      "url": "http://localhost:3000/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+### With OAuth
+
+Start server:
+```bash
+uv run mcp-test-kits --transport http --port 3000 --enable-oauth
+# or auto-approve for testing
+uv run mcp-test-kits --transport http --port 3000 --enable-oauth --oauth-auto-approve
+```
+
+MCP client config (OAuth discovery automatic):
+```json
+{
+  "mcpServers": {
+    "mcp-test-kits": {
+      "url": "http://localhost:3000/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+Or with pre-obtained token:
+```json
+{
+  "mcpServers": {
+    "mcp-test-kits": {
+      "url": "http://localhost:3000/mcp",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer YOUR_ACCESS_TOKEN"
+      }
+    }
+  }
+}
+```
+
+---
+
+## SSE
+
+Start server:
+```bash
+uv run mcp-test-kits --transport sse --port 3000
+```
+
+MCP client config:
+```json
+{
+  "mcpServers": {
+    "mcp-test-kits": {
+      "url": "http://localhost:3000/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+### With OAuth
+
+Start server:
+```bash
+uv run mcp-test-kits --transport sse --port 3000 --enable-oauth
+# or auto-approve for testing
+uv run mcp-test-kits --transport sse --port 3000 --enable-oauth --oauth-auto-approve
+```
+
+MCP client config (OAuth discovery automatic):
+```json
+{
+  "mcpServers": {
+    "mcp-test-kits": {
+      "url": "http://localhost:3000/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+Or with pre-obtained token:
+```json
+{
+  "mcpServers": {
+    "mcp-test-kits": {
+      "url": "http://localhost:3000/sse",
+      "transport": "sse",
+      "headers": {
+        "Authorization": "Bearer YOUR_ACCESS_TOKEN"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Test with MCP Inspector
+
+```bash
+# stdio
+npx @modelcontextprotocol/inspector uv run mcp-test-kits
+
+# HTTP (start server first: uv run mcp-test-kits --transport http --port 3000)
+npx @modelcontextprotocol/inspector --transport http --server-url http://localhost:3000/mcp
+
+# SSE (start server first: uv run mcp-test-kits --transport sse --port 3000)
+npx @modelcontextprotocol/inspector --transport sse --server-url http://localhost:3000/sse
+```
+
+---
+
+## Development
+
+```bash
+uv sync --all-extras
+uv run pytest
+uv run mypy src --check-untyped-defs
+uv run ruff check src
+```
