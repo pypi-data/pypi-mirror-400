@@ -1,0 +1,88 @@
+Metadata-Version: 2.3
+Name: t4racker
+Version: 0.1.0
+Summary: Transparent Time-Travel Tracker: trace object states over time
+License: MIT
+Keywords: tracking,debugging,time-travel,state,replay,tracing
+Author: Roman Zubov
+Author-email: romazu@protonmail.com
+Requires-Python: >=3.8,<4.0
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development :: Debuggers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Project-URL: Repository, https://github.com/romazu/t4racker
+Description-Content-Type: text/markdown
+
+# t4racker
+
+[![PyPI](https://img.shields.io/pypi/v/t4racker)](https://pypi.org/project/t4racker/)
+[![Tests](https://img.shields.io/github/actions/workflow/status/romazu/t4racker/tests.yml?branch=main)](https://github.com/romazu/t4racker/actions?query=branch%3Amain)
+
+Transparent time-travel tracker for Python objects. Records mutations to dicts, sets, lists, and custom objects—then replay state at any step.
+
+## Install
+
+```bash
+pip install t4racker
+```
+
+## Usage
+
+```python
+from t4racker import TTTTracker, TrackReplayer
+
+
+class Algorithm:
+    def __init__(self):
+        self.visited = set()
+        self.path = []
+
+
+tracker = TTTTracker()
+algo = Algorithm()
+tracker.track(algo, tracked_fields=['visited', 'path'])
+tracker.capture_snapshot('start')
+
+algo.visited.add('A')
+algo.path.append('A')
+algo.visited.add('B')
+algo.path.append('B')
+
+# Export
+data = tracker.to_dict()
+
+# Replay
+replayer = TrackReplayer(data)
+state = replayer.state_at(2)  # State after step 2
+print(state)  # {'visited': {'A', 'B'}, 'path': ['A']}
+```
+
+## What it tracks
+
+- **dict**: `__setitem__`, `__delitem__`
+- **set**: `add`, `remove`, `discard`
+- **list**: `append`, `pop`, `__setitem__`, `clear`, `extend`
+- **Custom objects**: attribute assignments
+
+Nested containers are tracked recursively.
+
+## Tests
+
+```bash
+pytest
+```
+
+## License
+
+MIT
+
