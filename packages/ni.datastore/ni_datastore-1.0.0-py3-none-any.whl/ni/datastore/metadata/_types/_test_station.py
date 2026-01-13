@@ -1,0 +1,117 @@
+"""Test Station data type for the Data Store Client."""
+
+from __future__ import annotations
+
+from typing import Mapping, MutableMapping
+
+from ni.datastore.metadata._grpc_conversion import (
+    populate_extension_value_message_map,
+    populate_from_extension_value_message_map,
+)
+from ni.measurements.metadata.v1.metadata_store_pb2 import (
+    TestStation as TestStationProto,
+)
+
+
+class TestStation:
+    """Represents the metadata of a test station.
+
+    A test station contains information about the physical location or setup
+    where testing is performed, including its name and asset identifier for
+    tracking and inventory purposes.
+
+
+    """
+
+    __slots__ = (
+        "_id",
+        "name",
+        "asset_identifier",
+        "link",
+        "_extension",
+        "schema_id",
+    )
+
+    @property
+    def extension(self) -> MutableMapping[str, str]:
+        """The extension of the test station."""
+        return self._extension
+
+    @property
+    def id(self) -> str:
+        """The string id of the test station."""
+        return self._id
+
+    def __init__(
+        self,
+        *,
+        name: str = "",
+        asset_identifier: str = "",
+        link: str = "",
+        extension: Mapping[str, str] | None = None,
+        schema_id: str = "",
+    ) -> None:
+        """Initialize a TestStation instance.
+
+        Args:
+            name: The name of the test station.
+            asset_identifier: The asset identifier of the test station.
+            link: A link to a resource that describes the test station. This
+                value is expected to be a valid URI.
+            extension: Any extensions to be associated with the test station.
+            schema_id: The unique identifier of the schema that applies to this
+                instance's extension. If any extension is associated with this
+                instance, a schema_id must be provided, unless the test station
+                is created within the context of a test result, in which case
+                the test result must have a schema_id.
+        """
+        self._id = ""
+        self.name = name
+        self.asset_identifier = asset_identifier
+        self.link = link
+        self._extension: MutableMapping[str, str] = dict(extension) if extension is not None else {}
+        self.schema_id = schema_id
+
+    @staticmethod
+    def from_protobuf(test_station_proto: TestStationProto) -> "TestStation":
+        """Create a TestStation instance from a protobuf TestStation message."""
+        test_station = TestStation(
+            name=test_station_proto.name,
+            asset_identifier=test_station_proto.asset_identifier,
+            link=test_station_proto.link,
+            schema_id=test_station_proto.schema_id,
+        )
+        populate_from_extension_value_message_map(
+            test_station.extension, test_station_proto.extension
+        )
+        test_station._id = test_station_proto.id
+        return test_station
+
+    def to_protobuf(self) -> TestStationProto:
+        """Convert this TestStation to a protobuf TestStation message."""
+        test_station_proto = TestStationProto(
+            id=self.id,
+            name=self.name,
+            asset_identifier=self.asset_identifier,
+            link=self.link,
+            schema_id=self.schema_id,
+        )
+        populate_extension_value_message_map(test_station_proto.extension, self.extension)
+        return test_station_proto
+
+    def __eq__(self, other: object) -> bool:
+        """Determine equality."""
+        if not isinstance(other, TestStation):
+            return NotImplemented
+        return (
+            self.id == other.id
+            and self.name == other.name
+            and self.asset_identifier == other.asset_identifier
+            and self.link == other.link
+            and self.extension == other.extension
+            and self.schema_id == other.schema_id
+        )
+
+    def __str__(self) -> str:
+        """Return a string representation of the TestStation."""
+        return str(self.to_protobuf())

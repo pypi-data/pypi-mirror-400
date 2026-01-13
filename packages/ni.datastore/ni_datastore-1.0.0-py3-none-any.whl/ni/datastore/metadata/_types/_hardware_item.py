@@ -1,0 +1,143 @@
+"""Hardware Item data type for the Data Store Client."""
+
+from __future__ import annotations
+
+from typing import Mapping, MutableMapping
+
+from ni.datastore.metadata._grpc_conversion import (
+    populate_extension_value_message_map,
+    populate_from_extension_value_message_map,
+)
+from ni.measurements.metadata.v1.metadata_store_pb2 import (
+    HardwareItem as HardwareItemProto,
+)
+
+
+class HardwareItem:
+    """Represents the metadata of a hardware item used to take measurements.
+
+    A hardware item contains information about physical test equipment
+    including manufacturer, model, serial number, calibration dates, and asset
+    tracking information.
+    """
+
+    __slots__ = (
+        "_id",
+        "manufacturer",
+        "model",
+        "serial_number",
+        "part_number",
+        "asset_identifier",
+        "calibration_due_date",
+        "link",
+        "_extension",
+        "schema_id",
+    )
+
+    @property
+    def extension(self) -> MutableMapping[str, str]:
+        """The extension of the hardware item."""
+        return self._extension
+
+    @property
+    def id(self) -> str:
+        """The string id of the hardware item."""
+        return self._id
+
+    def __init__(
+        self,
+        *,
+        manufacturer: str = "",
+        model: str = "",
+        serial_number: str = "",
+        part_number: str = "",
+        asset_identifier: str = "",
+        calibration_due_date: str = "",
+        link: str = "",
+        extension: Mapping[str, str] | None = None,
+        schema_id: str = "",
+    ) -> None:
+        """Initialize a HardwareItem instance.
+
+        Args:
+            manufacturer: The manufacturer of the hardware item.
+            model: The model of the hardware item.
+            serial_number: The serial number of the hardware item.
+            part_number: The part number of the hardware item.
+            asset_identifier: The asset identifier of the hardware item.
+            calibration_due_date: The calibration due date of the hardware item.
+            link: A link to a resource that describes the hardware item. This
+                value is expected to be a valid URI.
+            extension: Any extensions to be associated with the hardware item.
+            schema_id: The unique identifier of the schema that applies to this
+                instance's extension. If any extension is associated with this
+                instance, a schema_id must be provided, unless the hardware item
+                is created within the context of a test result, in which case
+                the test result must have a schema_id.
+        """
+        self._id = ""
+        self.manufacturer = manufacturer
+        self.model = model
+        self.serial_number = serial_number
+        self.part_number = part_number
+        self.asset_identifier = asset_identifier
+        self.calibration_due_date = calibration_due_date
+        self.link = link
+        self._extension: MutableMapping[str, str] = dict(extension) if extension is not None else {}
+        self.schema_id = schema_id
+
+    @staticmethod
+    def from_protobuf(hardware_item_proto: HardwareItemProto) -> "HardwareItem":
+        """Create a HardwareItem instance from a protobuf HardwareItem message."""
+        hardware_item = HardwareItem(
+            manufacturer=hardware_item_proto.manufacturer,
+            model=hardware_item_proto.model,
+            serial_number=hardware_item_proto.serial_number,
+            part_number=hardware_item_proto.part_number,
+            asset_identifier=hardware_item_proto.asset_identifier,
+            calibration_due_date=hardware_item_proto.calibration_due_date,
+            link=hardware_item_proto.link,
+            schema_id=hardware_item_proto.schema_id,
+        )
+        populate_from_extension_value_message_map(
+            hardware_item.extension, hardware_item_proto.extension
+        )
+        hardware_item._id = hardware_item_proto.id
+        return hardware_item
+
+    def to_protobuf(self) -> HardwareItemProto:
+        """Convert this HardwareItem to a protobuf HardwareItem message."""
+        hardware_item_proto = HardwareItemProto(
+            id=self.id,
+            manufacturer=self.manufacturer,
+            model=self.model,
+            serial_number=self.serial_number,
+            part_number=self.part_number,
+            asset_identifier=self.asset_identifier,
+            calibration_due_date=self.calibration_due_date,
+            link=self.link,
+            schema_id=self.schema_id,
+        )
+        populate_extension_value_message_map(hardware_item_proto.extension, self.extension)
+        return hardware_item_proto
+
+    def __eq__(self, other: object) -> bool:
+        """Determine equality."""
+        if not isinstance(other, HardwareItem):
+            return NotImplemented
+        return (
+            self.id == other.id
+            and self.manufacturer == other.manufacturer
+            and self.model == other.model
+            and self.serial_number == other.serial_number
+            and self.part_number == other.part_number
+            and self.asset_identifier == other.asset_identifier
+            and self.calibration_due_date == other.calibration_due_date
+            and self.link == other.link
+            and self.extension == other.extension
+            and self.schema_id == other.schema_id
+        )
+
+    def __str__(self) -> str:
+        """Return a string representation of the HardwareItem."""
+        return str(self.to_protobuf())
