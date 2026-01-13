@@ -1,0 +1,69 @@
+# agentgog
+
+AI message classifier that categorizes messages into CALENDAR, TASK, MEMO, or OTHER using OpenRouter API.
+
+## Features
+
+- Classify messages into categories
+- Extract details and integrate with external services:
+  - **CALENDAR**: Add events to Google Calendar
+  - **TASK**: Add tasks to Google Tasks
+  - **MEMO**: Save notes to Simplenote
+
+## Installation
+
+```bash
+uv tool install agentgog
+```
+
+## Usage
+
+```bash
+# Calendar event
+agentgog "Meeting with Alice tomorrow at 10am"
+
+# Task
+agentgog "Buy groceries on the way home"
+
+# Memo
+agentgog "Remember that my passport number is 123456789"
+```
+
+## Logging
+
+All runs are logged to `~/agentgog.log` with timestamps and classification results.
+
+## Configuration
+
+### Google Services (Calendar, Tasks)
+
+Place Google credentials in `~/.config/google/`:
+- `credentials.json` - OAuth client ID from Google Cloud Console
+- `token.json` - Created automatically on first run
+
+### Simplenote (Memos)
+
+Set in `~/.config/google/`:
+- `simplenote_user` - Your Simplenote email
+- `simplenote_password` - Your Simplenote password
+
+### Notifications (ntfy)
+
+For push notifications, configure ntfy client at `~/.config/ntfy/client.yml`:
+
+```yaml
+default-host: https://ntfy.sh
+default-user: phill
+default-password: mypass
+
+subscribe:
+- topic: echo-this
+    command:'$HOME/.local/bin/agentgog "$message"'
+```
+
+Run subscriber perpetually:
+```bash
+ntfy sub --from-config
+```
+
+See [ntfy documentation](https://doc.ntfy.sh) for setup details.
