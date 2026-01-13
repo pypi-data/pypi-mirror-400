@@ -1,0 +1,172 @@
+Metadata-Version: 2.4
+Name: django-msaccess
+Version: 0.1.1
+Summary: Microsoft Access backend for django.
+Author-email: AccessToWebApp <AccessToWebApp@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/AccessToWebApp/
+Project-URL: Repository, https://github.com/AccessToWebApp/django-msaccess.git
+Project-URL: Source, https://github.com/AccessToWebApp/django-msaccess/
+Project-URL: Issues, https://github.com/AccessToWebApp/django-msaccess/issues
+Project-URL: Changelog, https://github.com/AccessToWebApp/django-msaccess/blob/master/CHANGELOG.md
+Project-URL: Download Link, https://github.com/AccessToWebApp/django-msaccess/archive/refs/heads/develop.zip
+Keywords: django,access,msaccess,database,backend
+Classifier: Development Status :: 3 - Alpha
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Framework :: Django
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: django>3.1.14
+Dynamic: license-file
+
+# =============================
+# Microsoft Access backend for django
+# =============================
+
+This project implements a MS Access / MS ACE backend for django.  
+The database file extension is assumed to be ".accdb".  
+
+I thought it would be useful to be able to use Microsoft Access for the purpose of learning django.  
+
+In django 5.2.9 and django 6.0.0, we ran the  
+&nbsp;&nbsp;&nbsp;&nbsp;"python manage.py runserver"  
+command and confirmed that the administrator login operation at  
+&nbsp;&nbsp;&nbsp;&nbsp;http://localhost:8000/admin/  
+works.  
+
+However, before running the  
+&nbsp;&nbsp;&nbsp;&nbsp;"python manage.py createsuperuser"  
+command, you need to change the value required attributes such as  
+the [last_login] column in the [auth_user] table.  
+
+
+Do not integrate this software into a production django environment.
+
+SQL statements that do not work will result in an ODBC error.
+If any SQL statements don't work, please contact me and I'll patch them to make them work. Many SQL statements may not work yet.
+&nbsp;  
+&nbsp;  
+# Modifications
+This project was originally cloned via hg clone  
+&nbsp;&nbsp;&nbsp;&nbsp;https://github.com/18F/django-pyodbc-access/  
+I investigated the reason why it wasn't working by looking at the debug output and applied a patch.
+There is debug output embedded in the program."DEBUG:True" enables debug output. Normally it is False.There are many _DebugOutput functions in the source program.
+&nbsp;  
+&nbsp;  
+# "inspectdb command" doesn't work.
+The command "python manage.py inspectdb" does not work.
+The Access database tables must be manually changed into the Django models.py file.
+&nbsp;  
+&nbsp;  
+# Please change the column attributes of the [auth_user]table before executing the createsuperuser command.
+
+When I run the "python manage.py createsuperuser" command, an ODBC ERROR is displayed.
+
+```
+C:\Users\Myname\work>python manage.py createsuperuser  
+Username (leave blank to use 'Myname'): DjangoAdmin  
+Email address: DjangoAdmin@example.com  
+Password:  
+Password (again):  
+
+*** [ODBC ERROR(2)] ***  
+[CursorWrapper.execute(base.py)]  
+sql=INSERT INTO [auth_user] ([password], [last_login], [is_superuser], [username], [first_name], [last_name], [email], [is_staff], [is_active], [date_joined]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)  
+params=( ... )  
+('HY000', "[HY000] [Microsoft][ODBC Microsoft Access Driver] 'auth_user.last_login' )
+
+Superuser created successfully.  
+```
+
+The screen will say "success", but in reality it has failed.  
+&nbsp;  
+Immediately after creating the django system tables inside your Access database, you need to make some modifications.  
+Changes are required in columns [last_login], [first_name], and [last_name] of the [auth_user] table.  
+Please allow us to store "NULL values" as defined in database terms.  
+You can make it nullable by running the following VBScript:  
+```
+Dim DAO  
+Dim dbs  
+'  
+' HKEY_CLASSES_ROOT\DAO.DBEngine.120  
+'  
+Set DAO = WScript.CreateObject("DAO.DBEngine.120")  
+Set dbs = DAO.OpenDatabase("C:\Users\Myname\work\MyDatabase.accdb")  
+
+dbs.TableDefs("auth_user").Fields("last_login").Required = False  
+dbs.TableDefs("auth_user").Fields("first_name").Required = False  
+dbs.TableDefs("auth_user").Fields("last_name").Required = False  
+
+dbs.Close  
+Set dbs = Nothing  
+Set DAO = Nothing  
+```
+&nbsp;  
+&nbsp;  
+# Transaction statements cannot be executed.
+SQL statements "SAVEPOINT" and "RELEASE SAVEPOINT" cannot be executed.  
+These commands are ignored.  
+Do not include any processing that requires a rollback.  
+&nbsp;  
+&nbsp;  
+# There is a limit to the length of constraint names.
+Constraint names can be up to 64 characters long.  
+Names longer than 64 characters can be truncated.  
+If the truncation is not performed, an error occurs.  
+This truncation function is not efficient enough to truncate all names longer than 64 characters. It's a lacking feature and needs to be improved.  
+If the ODBC error is due to a constraint name exceeding 64 characters, please let me know and I'll fix it.
+&nbsp;  
+&nbsp;  
+# Install 
+    pip install django-msaccess  
+"pyodbc" also needs to be installed.
+&nbsp;  
+&nbsp;  
+# Edit your settings.py file for your project.
+
+change your DATABASES settings::  
+```
+DATABASES = {  
+    'default': {  
+        'ENGINE': 'django-msaccess',  
+        'ODBC': '{Microsoft Access Driver (*.mdb, *.accdb)}',  
+        'PATH': 'This is the accdb file. Please enter the full path.',  
+        'DEBUG': False,  
+        'TRUNCATENAME': True,  
+    },
+}
+```
+The definition of  
+&nbsp;&nbsp;&nbsp;&nbsp;'TRUNCATENAME':True  
+truncates the name. However, it is insufficient.
+
+If you want to create an empty database file, you can use the following VBScript command:  
+```
+Dim Cat  
+Dim DBPath  
+DBPath = "C:\work\MyNewDatabase.accdb"  
+Set Cat = CreateObject("ADOX.Catalog")  
+Cat.Create "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & DBPath & ";"  
+Set Cat = Nothing  
+```
+
+# Use it to learn django.
+Do not select Access as a production database.  
+Once you've finished learning django, it's time to switch to a full-fledged database.  
+
+Thank you for your interest in this software.  
+
+
+# Lisence
+This project is licensed under the MIT License, see the LICENSE file for details.
+
+
+
+
+
