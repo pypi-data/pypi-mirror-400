@@ -1,0 +1,286 @@
+# fitz_ai/cli/commands/query.py
+"""
+Query command - Engine-agnostic query interface.
+
+Uses the default engine (set via 'fitz engine'). Override with --engine.
+
+Usage:
+    fitz query                          # Interactive mode
+    fitz query "What is RAG?"           # Direct query
+    fitz query -c my_collection         # Specify collection
+    fitz query --engine clara           # Use CLaRa engine
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+import typer
+
+from fitz_ai.cli.context import CLIContext
+from fitz_ai.cli.ui import display_answer, ui
+from fitz_ai.core import Query
+from fitz_ai.logging.logger import get_logger
+from fitz_ai.runtime import create_engine, get_default_engine, get_engine_registry
+
+logger = get_logger(__name__)
+
+
+# =============================================================================
+# Main Command
+# =============================================================================
+
+
+def command(
+    question: Optional[str] = typer.Argument(
+        None,
+        help="Question to ask (will prompt if not provided).",
+    ),
+    collection: Optional[str] = typer.Option(
+        None,
+        "--collection",
+        "-c",
+        help="Collection to query (fitz_rag only).",
+    ),
+    engine: Optional[str] = typer.Option(
+        None,
+        "--engine",
+        "-e",
+        help="Engine to use. Uses default from 'fitz engine' if not specified.",
+    ),
+) -> None:
+    """
+    Query your knowledge base.
+
+    Uses the default engine (set via 'fitz engine'). Override with --engine.
+
+    Examples:
+        fitz query                         # Interactive mode
+        fitz query "What is RAG?"          # Direct query
+        fitz query "question" -e clara     # Use CLaRa engine
+        fitz query "question" -c my_coll   # Specify collection (fitz_rag)
+    """
+    # =========================================================================
+    # Header
+    # =========================================================================
+
+    ui.header("Fitz Query", "Query your knowledge base")
+
+    # =========================================================================
+    # Engine selection (use default if not specified)
+    # =========================================================================
+
+    registry = get_engine_registry()
+
+    if engine is None:
+        engine = get_default_engine()
+    elif engine not in registry.list():
+        ui.error(f"Unknown engine: '{engine}'. Available: {', '.join(registry.list())}")
+        raise typer.Exit(1)
+
+    ui.info(f"Engine: {engine}")
+
+    # =========================================================================
+    # Capabilities-based routing
+    # =========================================================================
+
+    caps = registry.get_capabilities(engine)
+
+    # Engines that need documents loaded first can't do standalone queries
+    if caps.requires_documents_at_query:
+        _show_documents_required_message(engine, caps)
+        raise typer.Exit(0)
+
+    # Engines with persistent ingest support (graphrag, clara)
+    if caps.supports_persistent_ingest:
+        _run_persistent_ingest_query(question, collection, engine)
+    # Engines with collection support use collection-based query
+    elif caps.supports_collections:
+        _run_collection_query(question, collection, engine)
+    else:
+        # Engines without collections use generic runtime path
+        _run_generic_query(question, engine)
+
+
+def _show_documents_required_message(engine_name: str, caps) -> None:
+    """Show message for engines that require documents at query time."""
+    if caps.cli_query_message:
+        ui.warning(caps.cli_query_message)
+    else:
+        ui.warning(f"Engine '{engine_name}' requires documents to be loaded first.")
+        ui.info(
+            f"Use 'fitz quickstart <folder> \"question\" --engine {engine_name}' for one-off queries."
+        )
+    print()
+    ui.info("Or use the Python API:")
+    print()
+    print("  from fitz_ai.runtime import create_engine")
+    print("  from fitz_ai.core import Query")
+    print()
+    print(f"  engine = create_engine('{engine_name}')")
+    print("  engine.add_documents(['doc1...', 'doc2...'])")
+    print("  answer = engine.answer(Query(text='your question'))")
+    print()
+
+
+def _warn_if_collection_missing(collection: str, typed_config) -> None:
+    """
+    Check if collection exists and warn with helpful suggestions if not.
+
+    This prevents the confusing "I don't know" answer when the user simply
+    hasn't ingested any documents yet, or is using the wrong collection name.
+    """
+    from fitz_ai.vector_db.registry import get_vector_db_plugin
+
+    try:
+        # Get vector DB client from config
+        vdb_config = typed_config.vector_db
+        client = get_vector_db_plugin(vdb_config.plugin_name, **vdb_config.kwargs)
+
+        # Get available collections
+        collections = client.list_collections()
+
+        if not collections:
+            print()
+            ui.warning("No collections found in vector database.")
+            ui.info("Run 'fitz ingest ./docs' first to ingest documents.")
+            raise typer.Exit(0)
+
+        if collection not in collections:
+            print()
+            ui.warning(f"Collection '{collection}' not found.")
+            ui.info(f"Available collections: {', '.join(collections)}")
+            ui.info("Use -c <collection> to specify another, or run 'fitz ingest' to create it.")
+            raise typer.Exit(0)
+
+        # Check if collection is empty
+        try:
+            count = client.count(collection)
+            if count == 0:
+                print()
+                ui.warning(f"Collection '{collection}' is empty (0 documents).")
+                ui.info("Run 'fitz ingest ./docs' to add documents.")
+                raise typer.Exit(0)
+        except Exception:
+            # count() may not be supported by all backends, skip check
+            pass
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        # Connection errors are handled elsewhere - log and continue
+        logger.debug(f"Could not check collection: {e}")
+
+
+def _run_persistent_ingest_query(
+    question: Optional[str], collection: Optional[str], engine_name: str
+) -> None:
+    """Run query using an engine with persistent ingest support (graphrag, clara)."""
+
+    # Get list of available collections via registry (no hardcoded imports)
+    registry = get_engine_registry()
+    collections = registry.get_list_collections(engine_name)
+
+    if not collections:
+        ui.warning(f"No {engine_name} collections found.")
+        ui.info(f"Run 'fitz ingest ./docs -e {engine_name}' first to ingest documents.")
+        raise typer.Exit(0)
+
+    # Collection selection
+    if collection is None:
+        if len(collections) == 1:
+            collection = collections[0]
+            ui.info(f"Using collection: {collection}")
+        else:
+            print()
+            collection = ui.prompt_numbered_choice("Collection", collections, collections[0])
+    elif collection not in collections:
+        ui.error(f"Collection '{collection}' not found. Available: {', '.join(collections)}")
+        raise typer.Exit(1)
+
+    # Prompt for question if not provided
+    if question is None:
+        question_text = ui.prompt_text("Question")
+    else:
+        question_text = question
+
+    print()
+    ui.info(f"Engine: {engine_name} | Collection: {collection}")
+    print()
+
+    # Create engine, load collection, and query
+    try:
+        engine_instance = create_engine(engine_name)
+
+        ui.info("Loading collection...")
+        engine_instance.load(collection)
+
+        ui.info("Querying...")
+        query = Query(text=question_text)
+        answer = engine_instance.answer(query)
+        display_answer(answer)
+    except Exception as e:
+        ui.error(f"Query failed: {e}")
+        logger.exception("Query error")
+        raise typer.Exit(1)
+
+
+def _run_collection_query(
+    question: Optional[str], collection: Optional[str], engine_name: str
+) -> None:
+    """Run query using an engine with collection support."""
+
+    # Load config via CLIContext (always succeeds with defaults)
+    ctx = CLIContext.load()
+    typed_config = ctx.require_typed_config()
+
+    # Prompt for question if not provided
+    if question is None:
+        question_text = ui.prompt_text("Question")
+    else:
+        question_text = question
+
+    # Collection selection (keeps ctx and typed_config in sync)
+    ctx.select_collection(collection, require=False)
+
+    # Check if collection exists and warn if empty/missing
+    _warn_if_collection_missing(ctx.retrieval_collection, typed_config)
+
+    # Display info
+    print()
+    ui.info(ctx.info_line())
+    print()
+
+    # Execute query using runtime
+    try:
+        engine_instance = create_engine(engine_name, config=typed_config)
+        query = Query(text=question_text)
+        answer = engine_instance.answer(query)
+        display_answer(answer)
+    except Exception as e:
+        ui.error(f"Query failed: {e}")
+        logger.exception("Query error")
+        raise typer.Exit(1)
+
+
+def _run_generic_query(question: Optional[str], engine_name: str) -> None:
+    """Run query using generic runtime path."""
+    # Prompt for question if not provided
+    if question is None:
+        question_text = ui.prompt_text("Question")
+    else:
+        question_text = question
+
+    print()
+    ui.info(f"Using engine: {engine_name}")
+    print()
+
+    try:
+        engine_instance = create_engine(engine_name)
+        query = Query(text=question_text)
+        answer = engine_instance.answer(query)
+        display_answer(answer)
+    except Exception as e:
+        ui.error(f"Query failed: {e}")
+        logger.exception("Query error")
+        raise typer.Exit(1)
