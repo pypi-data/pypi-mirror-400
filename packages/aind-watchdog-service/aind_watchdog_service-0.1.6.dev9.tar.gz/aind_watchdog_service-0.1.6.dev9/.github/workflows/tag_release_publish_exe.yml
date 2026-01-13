@@ -1,0 +1,219 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+jobs: 
+  extract_info:
+    runs-on: eng-tools
+    outputs:
+      project_name: ${{ steps.get_info.outputs.PACKAGE_NAME }}
+      project_version: ${{ steps.get_info.outputs.PACKAGE_VERSION }}
+      project_name_underscores: ${{ steps.get_info.outputs.PACKAGE_NAME_UNDERSCORES }}
+      tag_already_exists: ${{ steps.check_existing_tag.outputs.exists }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Get package name and version
+      id: get_info
+      run: |
+        $version = uvx --from=toml-cli toml get --toml-path=pyproject.toml project.version
+        $package_name = uvx --from=toml-cli toml get --toml-path=pyproject.toml project.name
+        echo "PACKAGE_VERSION=$version" >> $env:GITHUB_OUTPUT
+        echo "PACKAGE_NAME=$package_name" >> $env:GITHUB_OUTPUT
+        echo "PACKAGE_NAME_UNDERSCORES=$package_name".Replace('-', '_') >> $env:GITHUB_OUTPUT
+        
+    - name: Check if tag exists
+      id: check_existing_tag
+      uses: mukunku/tag-exists-action@v1.6.0
+      with:
+        tag: v${{ steps.get_info.outputs.PACKAGE_VERSION }}
+
+
+  tag:
+    needs: extract_info
+    if: needs.extract_info.outputs.tag_already_exists == 'false'
+    runs-on: eng-tools
+    steps:
+    - uses: actions/checkout@v4
+    - uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Install dependencies
+      run: uv sync
+        
+    - name: Create Git tag
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a v${{ needs.extract_info.outputs.project_version }} -m "v${{ needs.extract_info.outputs.project_version }}"
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        git push origin v${{ needs.extract_info.outputs.project_version }}
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ needs.extract_info.outputs.project_version }}
+        name: Release v${{ needs.extract_info.outputs.project_version }}
+        generate_release_notes: true
+        prerelease: ${{ github.ref != 'refs/heads/main' }}
+
+  build_and_release:
+    needs: [extract_info, tag]
+    runs-on: eng-tools
+    steps:
+    - uses: actions/checkout@v4
+    - uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Build executable
+      run: |
+        make exe
+
+    - name: Test executable
+      timeout-minutes: 1
+      run: |
+        make test_exe
+
+    # - name: Create zip
+    #   run: |
+    #     Compress-Archive -Path "dist\${{ needs.extract_info.outputs.project_name }}\*" -DestinationPath "${{ needs.extract_info.outputs.project_name }}.zip"
+
+    - name: Add executable to release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ needs.extract_info.outputs.project_version }}
+        fail_on_unmatched_files: true
+        files: |
+          dist/${{ needs.extract_info.outputs.project_name_underscores }}.exe
+          CHANGELOG.md
+
+  call-api:
+    runs-on: eng-tools
+    needs: [extract_info, build_and_release]
+    steps: 
+      - name: Trigger gh-pull-agent to pull latest release from this repo on eng-tools
+        run: |
+          $project_name = '${{ needs.extract_info.outputs.project_name_underscores }}'
+          $project_version = '${{ needs.extract_info.outputs.project_version }}'
+          $owner_name = '"${{ github.repository_owner }}"'
+          $repo_name = '"${{ github.event.repository.name }}"'
+          $tag_name = '"v${{ needs.extract_info.outputs.project_version }}"'
+          $json = @{
+            '"owner_name"' = $owner_name
+            '"repo_name"' = $repo_name
+            '"tag_name"' = $tag_name
+          } | ConvertTo-Json -Compress
+          & curl.exe -X PUT "http://eng-tools/gh-pull-agent/api/v1beta/releases/$project_name/$project_version" `
+            -H "accept: application/json" `
+            -H "Content-Type: application/json" `
+            -d $json
+          exit $LASTEXITCODE
+
+  release-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Build release distributions
+        run: |
+          # NOTE: put your own distribution build steps here.
+          python -m pip install build
+          python -m build
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+  pypi-publish:
+    runs-on: ubuntu-latest
+    needs:
+      - call-api
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+
+    # Dedicated environments with protections for publishing are strongly recommended.
+    # For more information, see: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment#deployment-protection-rules
+    environment:
+      name: pypi
+      # OPTIONAL: uncomment and update to include your PyPI project URL in the deployment status:
+      # url: https://pypi.org/p/YOURPROJECT
+      #
+      # ALTERNATIVE: if your GitHub Release name is the PyPI project version string
+      # ALTERNATIVE: exactly, uncomment the following line instead:
+      # url: https://pypi.org/project/YOURPROJECT/${{ github.event.release.name }}
+
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+      - name: Publish release distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          password: ${{ secrets.AIND_PYPI_TOKEN }}
+  
+  # build-docs:
+  #   needs: extract_info
+  #   runs-on: eng-tools
+  #   environment:
+  #     name: github-pages
+  #     url: ${{ steps.deployment.outputs.page_url }}
+  #   permissions:
+  #     pages: write
+  #     id-token: write
+  #     actions: write       # Necessary to cancel workflow executions
+  #     checks: write        # Necessary to write reports
+  #     pull-requests: write # Necessary to comment on PRs
+  #     contents: read
+  #     packages: write
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   - uses: astral-sh/setup-uv@v5
+  #     with:
+  #       enable-cache: true
+
+  #   - name: Install dependencies
+  #     run: uv sync
+
+  #   - name: Build docs
+  #     run: make docs
+
+  #   - name: Upload artifact
+  #     uses: actions/upload-pages-artifact@v3
+  #     with:
+  #       path: docs/public_html
+        
+  #   - name: Deploy to GitHub Pages
+  #     id: deployment
+  #     uses: actions/deploy-pages@v4
+
+    # - name: Deploy to GitHub Pages
+    #   uses: peaceiris/actions-gh-pages@v3
+    #   with:
+    #     github_token: ${{ secrets.GITHUB_TOKEN }}
+    #     publish_dir: ./docs/_build/html
+    #     user_name: github-actions[bot]
+    #     user_email: github-actions[bot]@users.noreply.github.com
+    #     commit_message: "Update docs for v${{ needs.extract_info.outputs.project_version }}"
