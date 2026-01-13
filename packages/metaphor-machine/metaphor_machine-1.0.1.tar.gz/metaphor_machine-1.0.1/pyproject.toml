@@ -1,0 +1,126 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "metaphor-machine"
+version = "1.0.1"
+description = "Algorithmic generation and optimization of AI music style prompts"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Konstantin Boyandin", email = "developer@boyandin.com" }
+]
+keywords = [
+    "ai-music",
+    "prompt-engineering",
+    "generative-ai",
+    "suno",
+    "music-generation",
+    "optimization",
+    "genetic-algorithm",
+    "bayesian-optimization",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "click>=8.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+    "types-PyYAML",
+]
+optimization = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+embedding = [
+    "sentence-transformers>=2.2",
+]
+llm = [
+    "anthropic>=0.18",
+    "openai>=1.0",
+]
+audio = [
+    "librosa>=0.10",
+    "soundfile>=0.12",
+]
+all = [
+    "metaphor-machine[dev,optimization,embedding,llm,audio]",
+]
+
+[project.scripts]
+metaphor = "metaphor_machine.cli.main:cli"
+mm = "metaphor_machine.cli.main:cli"
+
+[project.urls]
+Homepage = "https://github.com/stayen/metaphor-machine"
+Repository = "https://github.com/stayen/metaphor-machine"
+Documentation = "https://github.com/stayen/metaphor-machine#readme"
+Developer = "https://boyandin.com"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/metaphor_machine"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+strict_optional = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.isort]
+known-first-party = ["metaphor_machine"]
+
+[tool.coverage.run]
+source = ["src/metaphor_machine"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
