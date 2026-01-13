@@ -1,0 +1,204 @@
+#!/bin/bash
+# DaVinci Resolve CLI Controller
+# Usage: resolve <command> [args]
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PYTHON="${SCRIPT_DIR}/../.venv/bin/python"
+
+case "$1" in
+    # App control
+    launch|open)
+        osascript -e 'tell application "DaVinci Resolve" to activate'
+        echo "Resolve launched"
+        ;;
+    quit|close)
+        osascript -e 'tell application "DaVinci Resolve" to quit'
+        echo "Resolve quit"
+        ;;
+    status)
+        if pgrep -x "Resolve" > /dev/null; then
+            echo "Running"
+        else
+            echo "Not running"
+        fi
+        ;;
+
+    # Page navigation
+    media)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "2" using shift down'
+        echo "→ Media page"
+        ;;
+    cut)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "3" using shift down'
+        echo "→ Cut page"
+        ;;
+    edit)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "4" using shift down'
+        echo "→ Edit page"
+        ;;
+    fusion)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "5" using shift down'
+        echo "→ Fusion page"
+        ;;
+    color)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "6" using shift down'
+        echo "→ Color page"
+        ;;
+    fairlight|audio)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "7" using shift down'
+        echo "→ Fairlight page"
+        ;;
+    deliver|export)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "8" using shift down'
+        echo "→ Deliver page"
+        ;;
+
+    # Playback
+    play|pause)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke space'
+        ;;
+    stop)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "k"'
+        ;;
+    forward)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "l"'
+        ;;
+    reverse)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "j"'
+        ;;
+
+    # Editing
+    in)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "i"'
+        echo "Marked In"
+        ;;
+    out)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "o"'
+        echo "Marked Out"
+        ;;
+    blade|split)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "b"'
+        echo "Cut made"
+        ;;
+    delete)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to key code 51'
+        echo "Deleted"
+        ;;
+    undo)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "z" using command down'
+        echo "Undone"
+        ;;
+    redo)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "z" using {command down, shift down}'
+        echo "Redone"
+        ;;
+    save)
+        osascript -e 'tell app "DaVinci Resolve" to activate' -e 'tell app "System Events" to keystroke "s" using command down'
+        echo "Saved"
+        ;;
+
+    # Console
+    console)
+        osascript << 'EOF'
+tell application "DaVinci Resolve" to activate
+delay 0.3
+tell application "System Events"
+    tell process "Resolve"
+        keystroke "5" using shift down
+        delay 0.5
+        click menu item "Console" of menu "Workspace" of menu bar 1
+    end tell
+end tell
+EOF
+        echo "Console opened"
+        ;;
+
+    # Run Fusion script
+    script)
+        if [ -z "$2" ]; then
+            echo "Usage: resolve script <script_name>"
+            echo "Available scripts:"
+            ls ~/Library/Application\ Support/Blackmagic\ Design/DaVinci\ Resolve/Fusion/Scripts/Comp/*.lua 2>/dev/null | xargs -n1 basename | sed 's/.lua$//'
+            exit 1
+        fi
+        osascript << EOF
+tell application "DaVinci Resolve" to activate
+delay 0.5
+tell application "System Events"
+    tell process "Resolve"
+        keystroke "5" using shift down
+        delay 0.8
+        click menu bar item "Workspace" of menu bar 1
+        delay 0.3
+    end tell
+end tell
+EOF
+        echo "Opening scripts menu... Select: Workspace > Scripts > Comp > $2"
+        ;;
+
+    # Type in console
+    type)
+        if [ -z "$2" ]; then
+            echo "Usage: resolve type 'lua code'"
+            exit 1
+        fi
+        echo "$2" | pbcopy
+        osascript << 'EOF'
+tell application "DaVinci Resolve" to activate
+delay 0.3
+tell application "System Events"
+    tell process "Resolve"
+        keystroke "v" using command down
+        delay 0.2
+        key code 36
+    end tell
+end tell
+EOF
+        echo "Typed and executed: $2"
+        ;;
+
+    # Help
+    help|--help|-h|"")
+        echo "DaVinci Resolve CLI Controller"
+        echo ""
+        echo "App Control:"
+        echo "  resolve launch       - Launch Resolve"
+        echo "  resolve quit         - Quit Resolve"
+        echo "  resolve status       - Check if running"
+        echo ""
+        echo "Pages:"
+        echo "  resolve media        - Go to Media page"
+        echo "  resolve cut          - Go to Cut page"
+        echo "  resolve edit         - Go to Edit page"
+        echo "  resolve fusion       - Go to Fusion page"
+        echo "  resolve color        - Go to Color page"
+        echo "  resolve fairlight    - Go to Fairlight page"
+        echo "  resolve deliver      - Go to Deliver page"
+        echo ""
+        echo "Playback:"
+        echo "  resolve play         - Play/Pause"
+        echo "  resolve stop         - Stop"
+        echo "  resolve forward      - Play forward"
+        echo "  resolve reverse      - Play reverse"
+        echo ""
+        echo "Editing:"
+        echo "  resolve in           - Mark In point"
+        echo "  resolve out          - Mark Out point"
+        echo "  resolve blade        - Cut at playhead"
+        echo "  resolve delete       - Delete selected"
+        echo "  resolve undo         - Undo"
+        echo "  resolve redo         - Redo"
+        echo "  resolve save         - Save project"
+        echo ""
+        echo "Fusion:"
+        echo "  resolve console      - Open Fusion console"
+        echo "  resolve script NAME  - Run Fusion script"
+        echo "  resolve type 'code'  - Type Lua code in console"
+        ;;
+
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'resolve help' for usage"
+        exit 1
+        ;;
+esac
