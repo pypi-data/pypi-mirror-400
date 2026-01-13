@@ -1,0 +1,389 @@
+"""
+This module overrides FastMCP.add_tool() to improve conversion of tool function docstrings
+into tool descriptions.
+It also provides a decorator that MCP tool functions can use to inject session state into their Context parameter
+and other utilities for the MCP server.
+"""
+
+import asyncio
+import dataclasses
+import logging
+import textwrap
+from collections.abc import Awaitable, Callable, Iterable
+from dataclasses import dataclass
+from typing import Any, TypeVar
+from unittest.mock import MagicMock
+
+import toon_format
+from fastmcp import Context, FastMCP
+from fastmcp.exceptions import ToolError
+from fastmcp.server import middleware as fmw
+from fastmcp.server.dependencies import get_http_request
+from fastmcp.server.middleware import CallNext, MiddlewareContext
+from fastmcp.tools import Tool
+from mcp import types as mt
+from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+from pydantic import BaseModel
+from pydantic_core import to_json
+from starlette.requests import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+from keboola_mcp_server.clients.client import KeboolaClient
+from keboola_mcp_server.config import Config, ServerRuntimeInfo
+from keboola_mcp_server.oauth import ProxyAccessToken
+from keboola_mcp_server.workspace import WorkspaceManager
+
+LOG = logging.getLogger(__name__)
+CONVERSATION_ID = 'conversation_id'
+
+R = TypeVar('R')
+T = TypeVar('T')
+
+DEFAULT_CONCURRENCY = 10
+
+
+@dataclass(frozen=True)
+class ServerState:
+    config: Config
+    runtime_info: ServerRuntimeInfo
+
+    @classmethod
+    def from_context(cls, ctx: Context) -> 'ServerState':
+        server_state = ctx.request_context.lifespan_context
+        if not isinstance(server_state, ServerState):
+            raise ValueError('ServerState is not available in the context.')
+        return server_state
+
+
+class ForwardSlashMiddleware:
+    def __init__(self, app: ASGIApp):
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        LOG.debug(f'ForwardSlashMiddleware: scope={scope}')
+
+        if scope['type'] == 'http':
+            path = scope['path']
+            if path in ['/sse', '/messages', '/mcp']:
+                scope = dict(scope)
+                scope['path'] = f'{path}/'
+
+        await self._app(scope, receive, send)
+
+
+class KeboolaMcpServer(FastMCP):
+    def add_tool(self, tool: Tool) -> None:
+        """Applies `textwrap.dedent()` function to the tool's docstring, if no explicit description is provided."""
+        update = {}
+        if tool.description:
+            description = textwrap.dedent(tool.description).strip()
+            if description != tool.description:
+                update['description'] = description
+        if not tool.serializer:
+            update['serializer'] = _exclude_none_serializer
+
+        if update:
+            tool = tool.model_copy(update=update)
+
+        super().add_tool(tool)
+
+
+def get_http_request_or_none() -> Request | None:
+    try:
+        return get_http_request()
+    except RuntimeError:
+        return None
+
+
+class SessionStateMiddleware(fmw.Middleware):
+    """
+    FastMCP middleware that manages session state in the Context parameter.
+
+    This middleware sets up the session state containing instances of `KeboolaClient` and `WorkspaceManager`
+    in the tool function's Context. These are initialized using the MCP server configuration, which is
+    composed of the following parameter sources:
+
+    * Initial configuration obtained from CLI parameters when starting the server
+    * Environment variables
+    * HTTP headers
+    * URL query parameters
+
+    Note: HTTP headers and URL query parameters are only used when the server runs on HTTP-based transport.
+    """
+
+    async def on_request(
+        self,
+        context: fmw.MiddlewareContext[mt.Request[Any, Any]],
+        call_next: fmw.CallNext[mt.Request[Any, Any], Any],
+    ) -> Any:
+        """
+        Manages session state in the Context parameter. This middleware sets up the session state for all the other
+        MCP functions down the chain. It is called for each tool, prompt, resource, etc. calls.
+
+        In fastmcp 2.13.0+, this must run in on_request rather than on_message because ctx.session
+        requires the request context to be available.
+
+        :param context: Middleware context containing FastMCP context.
+        :param call_next: Next middleware in the chain to call.
+        :returns: Result from executing the middleware chain.
+        """
+        # Skip session setup for initialize request - session state is only needed for actual operations
+        if context.method == 'initialize':
+            return await call_next(context)
+
+        ctx = context.fastmcp_context
+        assert isinstance(ctx, Context), f'Expecting Context, got {type(ctx)}.'
+
+        if not isinstance(ctx.session, MagicMock):
+            server_state = ServerState.from_context(ctx)
+            config: Config = server_state.config
+            runtime_info: ServerRuntimeInfo = server_state.runtime_info
+
+            # IMPORTANT: Since mcp 1.12.4 and fastmcp 2.11 the fastmcp.server.dependencies.get_http_request()
+            #   returns the same object as ctx.request_context.request.
+
+            if http_rq := get_http_request_or_none():
+                LOG.debug(f'Injecting headers: http_rq={http_rq}, headers={http_rq.headers}')
+                config = config.replace_by(http_rq.headers)
+
+                if user := http_rq.scope.get('user'):
+                    LOG.debug(f'Injecting bearer and SAPI tokens: user={user}, access_token={user.access_token}')
+                    assert isinstance(user, AuthenticatedUser), f'Expecting AuthenticatedUser, got: {type(user)}'
+                    assert isinstance(
+                        user.access_token, ProxyAccessToken
+                    ), f'Expecting ProxyAccessToken, got: {type(user.access_token)}'
+                    config = dataclasses.replace(
+                        config,
+                        storage_token=user.access_token.sapi_token,
+                        bearer_token=user.access_token.delegate.token,
+                    )
+
+            # TODO: We could probably get rid of the 'state' attribute set on ctx.session and just
+            #  pass KeboolaClient and WorkspaceManager instances to a tool as extra parameters.
+            state = self._create_session_state(config, runtime_info)
+            ctx.session.state = state
+
+        try:
+            return await call_next(context)
+        finally:
+            # NOTE: This line is commented following a bug related to session state clearance in Claude client
+            # ctx.session.state = {}
+            pass
+
+    @classmethod
+    def _get_headers(cls, runtime_info: ServerRuntimeInfo) -> dict[str, Any]:
+        """
+        :param runtime_info: Runtime information
+        :return: Additional headers for the requests used for tracing the MCP server
+        """
+        return {
+            'User-Agent': (
+                f'Keboola MCP Server/{runtime_info.server_version} app_env={runtime_info.app_env} '
+                f'transport={runtime_info.transport}'
+            ),
+            'MCP-Server-Transport': runtime_info.transport or 'NA',
+            'MCP-Server-Versions': (
+                f'keboola-mcp-server/{runtime_info.server_version} mcp/{runtime_info.mcp_library_version} '
+                f'fastmcp/{runtime_info.fastmcp_library_version}'
+            ),
+        }
+
+    @classmethod
+    def _create_session_state(cls, config: Config, runtime_info: ServerRuntimeInfo) -> dict[str, Any]:
+        """Creates `KeboolaClient` and `WorkspaceManager` instances and returns them in the session state."""
+        LOG.info(f'Creating SessionState from config: {config}.')
+
+        state: dict[str, Any] = {}
+        try:
+            if not config.storage_token:
+                raise ValueError('Storage API token is not provided.')
+            if not config.storage_api_url:
+                raise ValueError('Storage API URL is not provided.')
+            client = KeboolaClient(
+                storage_api_url=config.storage_api_url,
+                storage_api_token=config.storage_token,
+                bearer_token=config.bearer_token,
+                branch_id=config.branch_id,
+                headers=cls._get_headers(runtime_info),
+            )
+            state[KeboolaClient.STATE_KEY] = client
+            LOG.info('Successfully initialized Storage API client.')
+        except Exception as e:
+            LOG.error(f'Failed to initialize Keboola client: {e}')
+            raise
+
+        try:
+            workspace_manager = WorkspaceManager(client, config.workspace_schema)
+            state[WorkspaceManager.STATE_KEY] = workspace_manager
+            LOG.info('Successfully initialized Storage API Workspace manager.')
+        except Exception as e:
+            LOG.error(f'Failed to initialize Storage API Workspace manager: {e}')
+            raise
+
+        state[CONVERSATION_ID] = config.conversation_id
+        return state
+
+
+class ToolsFilteringMiddleware(fmw.Middleware):
+    """
+    This middleware filters out tools that are not available in the current project. The filtering is based on the
+    project features.
+
+    The middleware intercepts the `on_list_tools()` call and removes the unavailable tools
+    from the list. The AI assistants should not even see the tools that are not available in the current project.
+
+    The middleware also intercepts the `on_call_tool()` call and raises an exception if a call is attempted to a tool
+    that is not available in the current project.
+    """
+
+    @staticmethod
+    async def get_project_features(ctx: Context) -> set[str]:
+        assert isinstance(ctx, Context), f'Expecting Context, got {type(ctx)}.'
+        client = KeboolaClient.from_state(ctx.session.state)
+        token_info = await client.storage_client.verify_token()
+        return set(filter(None, token_info.get('owner', {}).get('features', [])))
+
+    async def on_list_tools(
+        self, context: MiddlewareContext[mt.ListToolsRequest], call_next: CallNext[mt.ListToolsRequest, list[Tool]]
+    ) -> list[Tool]:
+        tools = await call_next(context)
+        features = await self.get_project_features(context.fastmcp_context)
+
+        if 'hide-conditional-flows' in features:
+            tools = [t for t in tools if t.name != 'create_conditional_flow']
+        else:
+            tools = [t for t in tools if t.name != 'create_flow']
+
+        return tools
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[mt.CallToolRequestParams],
+        call_next: CallNext[mt.CallToolRequestParams, mt.CallToolResult],
+    ) -> mt.CallToolResult:
+        tool = await context.fastmcp_context.fastmcp.get_tool(context.message.name)
+        features = await self.get_project_features(context.fastmcp_context)
+
+        if 'hide-conditional-flows' in features:
+            if tool.name == 'create_conditional_flow':
+                raise ToolError(
+                    'The "create_conditional_flow" tool is not available in this project. '
+                    'Please ask Keboola support to enable "Conditional Flows" feature '
+                    'or use "create_flow" tool instead.'
+                )
+        else:
+            if tool.name == 'create_flow':
+                raise ToolError(
+                    'The "create_flow" tool is not available in this project. '
+                    'This project uses "Conditional Flows", '
+                    'please use"create_conditional_flow" tool instead.'
+                )
+
+        return await call_next(context)
+
+
+def _to_python(data: Any, exclude_none: bool = True) -> Any | None:
+    if isinstance(data, BaseModel):
+        return data.model_dump(exclude_none=exclude_none, by_alias=False)
+    elif isinstance(data, (list, tuple)):
+        # Handle sequences of BaseModels
+        cleaned = []
+        for item in data:
+            if isinstance(item, BaseModel):
+                cleaned.append(item.model_dump(exclude_none=exclude_none, by_alias=False))
+            elif item is not None:
+                cleaned.append(_to_python(item, exclude_none=exclude_none))
+            elif not exclude_none:
+                cleaned.append(None)
+        return cleaned
+    elif isinstance(data, dict):
+        # Handle dictionaries that might contain BaseModels
+        cleaned = {}
+        for key, value in data.items():
+            if isinstance(value, BaseModel):
+                cleaned[key] = value.model_dump(exclude_none=exclude_none, by_alias=False)
+            elif value is not None:
+                cleaned[key] = _to_python(value, exclude_none=exclude_none)
+            elif not exclude_none:
+                cleaned[key] = None
+        return cleaned
+    elif data is not None:
+        return data
+    else:
+        return None
+
+
+def _exclude_none_serializer(data: Any) -> str:
+    if (cleaned := _to_python(data)) is not None:
+        return to_json(cleaned, fallback=str).decode('utf-8')
+    else:
+        return ''
+
+
+def toon_serializer(data: Any) -> str:
+    return toon_format.encode(_to_python(data, exclude_none=False))
+
+
+async def process_concurrently(
+    items: Iterable[T],
+    afunc: Callable[[T], Awaitable[R]],
+    max_concurrency: int = DEFAULT_CONCURRENCY,
+) -> list[R | BaseException]:
+    """
+    Asynchronously process a collection of items with a specified concurrency limit.
+
+    :param items: The collection of items to process.
+    :param afunc: An asynchronous function to apply to each item.
+    :param max_concurrency: The maximum number of concurrent executions allowed.
+    :return: A list of results or exceptions from processing each item.
+             The order of results corresponds to the order of the input items.
+    """
+    if max_concurrency <= 0:
+        raise ValueError('max_concurrency must be a positive integer.')
+
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def process_item_with_semaphore(item: T) -> R:
+        async with semaphore:
+            return await afunc(item)
+
+    tasks = [asyncio.create_task(process_item_with_semaphore(item)) for item in items]
+
+    return await asyncio.gather(*tasks, return_exceptions=True)
+
+
+class AggregateError(Exception):
+    """Exception that aggregates multiple exceptions (Python 3.10 compatible alternative to ExceptionGroup)."""
+
+    def __init__(self, message: str, exceptions: Iterable[BaseException]):
+        self.message = message
+        self.exceptions = list(exceptions)
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        error_details = '; '.join(f'{type(e).__name__}: {e}' for e in self.exceptions)
+        return f'{self.message} ({len(self.exceptions)} errors): {error_details}'
+
+
+def unwrap_results(results: Iterable[R | BaseException], message: str = 'Multiple errors occurred') -> list[R]:
+    """
+    Unwrap results from process_concurrently, raising an AggregateError if any exceptions occurred.
+
+    :param results: List of results or exceptions from process_concurrently.
+    :param message: Message for the AggregateError if exceptions are present.
+    :return: List of successful results.
+    :raises AggregateError: If any results are exceptions.
+    """
+    successes: list[R] = []
+    exceptions: list[BaseException] = []
+
+    for result in results:
+        if isinstance(result, BaseException):
+            exceptions.append(result)
+        else:
+            successes.append(result)
+
+    if exceptions:
+        raise AggregateError(message, exceptions)
+
+    return successes
