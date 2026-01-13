@@ -1,0 +1,113 @@
+# bigfoot-video-generator
+
+A Python library designed to demonstrate the capabilities of the bigfoot-video-generator and facilitate integration with the Supermaker AI platform. This package offers a simplified interface for generating engaging video content.
+
+## Installation
+
+To install the `bigfoot-video-generator` package, use pip:
+bash
+pip install bigfoot-video-generator
+
+## Basic Usage
+
+Here are a few examples demonstrating how to use the `bigfoot-video-generator` library:
+
+**1. Generating a simple promotional video:**
+python
+from bigfoot_video_generator import VideoGenerator
+
+generator = VideoGenerator(api_key="YOUR_API_KEY") # Replace with your Supermaker AI API key
+
+video_data = {
+    "title": "Amazing New Product!",
+    "description": "Check out our revolutionary product that will change your life.",
+    "images": ["image1.jpg", "image2.png", "image3.jpeg"],
+    "music": "uplifting_music.mp3",
+    "video_length": 30  # seconds
+}
+
+video_path = generator.create_promotional_video(video_data)
+
+print(f"Video created successfully at: {video_path}")
+
+**2. Creating a video from text and images:**
+python
+from bigfoot_video_generator import VideoGenerator
+
+generator = VideoGenerator(api_key="YOUR_API_KEY") # Replace with your Supermaker AI API key
+
+script = """
+Scene 1: A beautiful landscape.
+Scene 2: Our product in action.
+Scene 3: Customer testimonials.
+"""
+
+image_map = {
+    "Scene 1": "landscape.jpg",
+    "Scene 2": "product_action.png",
+    "Scene 3": "customer_testimonial.jpeg"
+}
+
+video_path = generator.create_video_from_script(script, image_map)
+
+print(f"Video created successfully at: {video_path}")
+
+**3. Assembling a video from pre-existing clips:**
+python
+from bigfoot_video_generator import VideoGenerator
+
+generator = VideoGenerator(api_key="YOUR_API_KEY") # Replace with your Supermaker AI API key
+
+clip_paths = ["clip1.mp4", "clip2.mov", "clip3.avi"]
+transition_type = "fade"
+
+video_path = generator.assemble_video_clips(clip_paths, transition_type)
+
+print(f"Video created successfully at: {video_path}")
+
+**4. Generating a video with dynamic text overlays:**
+python
+from bigfoot_video_generator import VideoGenerator
+
+generator = VideoGenerator(api_key="YOUR_API_KEY") # Replace with your Supermaker AI API key
+
+video_data = {
+    "background_video": "background.mp4",
+    "text_overlays": [
+        {"text": "Welcome!", "start_time": 2, "end_time": 5, "position": "top-left"},
+        {"text": "Special Offer!", "start_time": 10, "end_time": 15, "position": "bottom-right"}
+    ]
+}
+
+video_path = generator.create_video_with_text(video_data)
+
+print(f"Video created successfully at: {video_path}")
+
+**5. Converting a slideshow of images into a video:**
+python
+from bigfoot_video_generator import VideoGenerator
+
+generator = VideoGenerator(api_key="YOUR_API_KEY") # Replace with your Supermaker AI API key
+
+image_paths = ["image1.jpg", "image2.png", "image3.jpeg", "image4.gif"]
+duration_per_image = 5  # seconds
+
+video_path = generator.create_video_from_slideshow(image_paths, duration_per_image)
+
+print(f"Video created successfully at: {video_path}")
+
+## Features
+
+*   **Simplified Video Generation:** Provides a streamlined interface for creating videos.
+*   **Promotional Video Creation:** Easily generate promotional videos from provided data.
+*   **Script-Based Video Generation:** Create videos using a text script and corresponding images.
+*   **Video Clip Assembly:** Combine pre-existing video clips into a cohesive video.
+*   **Dynamic Text Overlays:** Add text overlays to videos with customizable positions and timings.
+*   **Slideshow to Video Conversion:** Convert a series of images into a video slideshow.
+*   **API Integration:** Seamlessly connects with the Supermaker AI platform.
+
+## License
+
+MIT
+
+This project is a gateway to the bigfoot-video-generator ecosystem. For advanced features and full capabilities, please visit: https://supermaker.ai/video/bigfoot-video-generator/
