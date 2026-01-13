@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Insyt Secure Audit Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Insyt Secure</h1>
+            <p class="text-gray-600">Audit Dashboard</p>
+        </div>
+        
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                <input type="text" id="username" name="username" required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+            </div>
+            
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <input type="password" id="password" name="password" required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+            </div>
+            
+            <div id="errorMessage" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm"></div>
+            
+            <button type="submit" id="loginButton"
+                class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold py-3 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition duration-200">
+                Sign In
+            </button>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <button id="forgotPasswordBtn" class="text-sm text-purple-600 hover:text-purple-700">
+                Forgot your password?
+            </button>
+        </div>
+    </div>
+    
+    <!-- Password Reset Modal -->
+    <div id="resetModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Reset Password</h2>
+            
+            <div id="resetStep1" class="space-y-4">
+                <p class="text-gray-600 mb-4">Enter your username to receive a reset code.</p>
+                <input type="text" id="resetUsername" placeholder="Username"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <div id="resetError1" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm"></div>
+                <div class="flex gap-3">
+                    <button id="sendCodeBtn"
+                        class="flex-1 bg-purple-600 text-white font-semibold py-2 rounded-lg hover:bg-purple-700">
+                        Send Code
+                    </button>
+                    <button id="cancelResetBtn"
+                        class="flex-1 bg-gray-300 text-gray-700 font-semibold py-2 rounded-lg hover:bg-gray-400">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+            
+            <div id="resetStep2" class="hidden space-y-4">
+                <p class="text-green-600 mb-4">✓ Reset code sent to project admins!</p>
+                <input type="text" id="resetCode" placeholder="6-digit code"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    maxlength="6" pattern="[0-9]{6}">
+                <input type="password" id="newPassword" placeholder="New password"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <div id="resetError2" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm"></div>
+                <div class="flex gap-3">
+                    <button id="completeResetBtn"
+                        class="flex-1 bg-purple-600 text-white font-semibold py-2 rounded-lg hover:bg-purple-700">
+                        Reset Password
+                    </button>
+                    <button id="cancelReset2Btn"
+                        class="flex-1 bg-gray-300 text-gray-700 font-semibold py-2 rounded-lg hover:bg-gray-400">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Login form handling
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMessage');
+            const button = document.getElementById('loginButton');
+            
+            button.disabled = true;
+            button.textContent = 'Signing in...';
+            errorDiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = '/dashboard';
+                } else {
+                    errorDiv.textContent = data.error || 'Invalid credentials';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.classList.remove('hidden');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Sign In';
+            }
+        });
+        
+        // Password reset modal handling
+        const resetModal = document.getElementById('resetModal');
+        const resetStep1 = document.getElementById('resetStep1');
+        const resetStep2 = document.getElementById('resetStep2');
+        
+        document.getElementById('forgotPasswordBtn').addEventListener('click', () => {
+            resetModal.classList.remove('hidden');
+            resetStep1.classList.remove('hidden');
+            resetStep2.classList.add('hidden');
+            document.getElementById('resetUsername').value = '';
+            document.getElementById('resetError1').classList.add('hidden');
+        });
+        
+        document.getElementById('cancelResetBtn').addEventListener('click', () => {
+            resetModal.classList.add('hidden');
+        });
+        
+        document.getElementById('cancelReset2Btn').addEventListener('click', () => {
+            resetModal.classList.add('hidden');
+        });
+        
+        document.getElementById('sendCodeBtn').addEventListener('click', async () => {
+            const username = document.getElementById('resetUsername').value;
+            const errorDiv = document.getElementById('resetError1');
+            const button = document.getElementById('sendCodeBtn');
+            
+            if (!username) {
+                errorDiv.textContent = 'Please enter your username';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            button.disabled = true;
+            button.textContent = 'Sending...';
+            errorDiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/reset-password/initiate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resetStep1.classList.add('hidden');
+                    resetStep2.classList.remove('hidden');
+                } else {
+                    errorDiv.textContent = data.error || 'Failed to send reset code';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.classList.remove('hidden');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Send Code';
+            }
+        });
+        
+        document.getElementById('completeResetBtn').addEventListener('click', async () => {
+            const username = document.getElementById('resetUsername').value;
+            const code = document.getElementById('resetCode').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const errorDiv = document.getElementById('resetError2');
+            const button = document.getElementById('completeResetBtn');
+            
+            if (!code || !newPassword) {
+                errorDiv.textContent = 'Please enter code and new password';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            if (code.length !== 6) {
+                errorDiv.textContent = 'Code must be 6 digits';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            button.disabled = true;
+            button.textContent = 'Resetting...';
+            errorDiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/reset-password/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, code, new_password: newPassword })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resetModal.classList.add('hidden');
+                    const successDiv = document.getElementById('errorMessage');
+                    successDiv.classList.remove('bg-red-50', 'text-red-600');
+                    successDiv.classList.add('bg-green-50', 'text-green-600');
+                    successDiv.textContent = 'Password reset successful! Please login.';
+                    successDiv.classList.remove('hidden');
+                } else {
+                    errorDiv.textContent = data.error || 'Failed to reset password';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.classList.remove('hidden');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Reset Password';
+            }
+        });
+    </script>
+</body>
+</html>

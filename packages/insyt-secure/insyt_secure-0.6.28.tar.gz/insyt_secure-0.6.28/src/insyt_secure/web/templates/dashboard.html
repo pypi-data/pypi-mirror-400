@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Dashboard - Insyt Secure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <!-- Phosphor Icons for modern, clean icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        /* Custom scrollbar for code blocks */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* Smooth transitions */
+        .transition-height {
+            transition: max-height 0.3s ease-in-out;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full" x-data="dashboardApp()">
+    
+    <!-- Top Navigation -->
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="bg-primary-600 text-white p-1.5 rounded-lg">
+                        <i class="ph ph-shield-check text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900 tracking-tight">Insyt Secure</h1>
+                        <p class="text-xs text-gray-500 font-medium">AUDIT DASHBOARD</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-4">
+                    <!-- Project Selector -->
+                    <div class="relative group">
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 hover:border-primary-500 transition-colors">
+                            <i class="ph ph-briefcase text-gray-400"></i>
+                            <select id="projectSelector"
+                                    x-model="selectedProject" 
+                                    @change="onProjectChange()" 
+                                    class="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 cursor-pointer min-w-[150px]"
+                                    :disabled="!availableFilters.project_ids || availableFilters.project_ids.length === 0">
+                                <option value="">All Projects</option>
+                                <template x-for="projectId in availableFilters.project_ids" :key="projectId">
+                                    <option :value="projectId" x-text="getProjectDisplayName(projectId)"></option>
+                                </template>
+                            </select>
+                            <span x-show="availableFilters.project_ids && availableFilters.project_ids.length > 0" 
+                                  class="bg-gray-200 text-gray-600 text-xs px-1.5 py-0.5 rounded-full"
+                                  x-text="availableFilters.project_ids.length"></span>
+                        </div>
+                    </div>
+
+                    <div class="h-6 w-px bg-gray-200"></div>
+
+                    <div class="flex items-center gap-3">
+                        <a href="/settings" class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors" title="Settings">
+                            <i class="ph ph-gear text-xl"></i>
+                        </a>
+                        <div class="flex items-center gap-2 pl-2">
+                            <div class="w-8 h-8 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center font-bold text-sm">
+                                <span x-text="username.charAt(0).toUpperCase()"></span>
+                            </div>
+                            <span class="text-sm font-medium text-gray-700" x-text="username"></span>
+                        </div>
+                        <a href="/logout" class="ml-2 text-sm font-medium text-red-600 hover:text-red-700">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        <!-- Analytics Header & Controls -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900">Overview</h2>
+                <p class="text-sm text-gray-500 mt-1">Performance metrics and execution trends.</p>
+            </div>
+            
+            <div class="bg-white p-1 rounded-xl border border-gray-200 shadow-sm inline-flex">
+                <button @click="setAnalyticsPeriod('today')" 
+                    :class="analyticsPeriod === 'today' ? 'bg-primary-50 text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'"
+                    class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">Today</button>
+                <button @click="setAnalyticsPeriod('week')"
+                    :class="analyticsPeriod === 'week' ? 'bg-primary-50 text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'"
+                    class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">Week</button>
+                <button @click="setAnalyticsPeriod('month')"
+                    :class="analyticsPeriod === 'month' ? 'bg-primary-50 text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'"
+                    class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">Month</button>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Total Executions -->
+            <div class="bg-white rounded-xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-gray-100 relative overflow-hidden group hover:border-primary-200 transition-all">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <i class="ph ph-terminal-window text-6xl text-primary-600"></i>
+                </div>
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                        <i class="ph ph-lightning text-xl"></i>
+                    </div>
+                    <span class="text-sm font-medium text-gray-500">Total Executions</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <h3 class="text-3xl font-bold text-gray-900" x-text="analytics.total_executions || 0"></h3>
+                </div>
+                <div class="mt-2 flex items-center text-xs font-medium" 
+                     :class="(analytics.trends?.total || 0) >= 0 ? 'text-green-600' : 'text-red-600'">
+                    <i :class="(analytics.trends?.total || 0) >= 0 ? 'ph-arrow-up-right' : 'ph-arrow-down-right'" class="ph mr-1"></i>
+                    <span x-text="Math.abs(analytics.trends?.total || 0).toFixed(1) + '%'"></span>
+                    <span class="text-gray-400 ml-1">vs last period</span>
+                </div>
+            </div>
+
+            <!-- Success Rate -->
+            <div class="bg-white rounded-xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-gray-100 relative overflow-hidden group hover:border-green-200 transition-all">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <i class="ph ph-chart-pie-slice text-6xl text-green-600"></i>
+                </div>
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="p-2 bg-green-50 text-green-600 rounded-lg">
+                        <i class="ph ph-check-circle text-xl"></i>
+                    </div>
+                    <span class="text-sm font-medium text-gray-500">Success Rate</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <h3 class="text-3xl font-bold text-gray-900" x-text="(analytics.success_rate || 0).toFixed(1) + '%'"></h3>
+                </div>
+                <div class="mt-2 flex items-center text-xs font-medium"
+                     :class="(analytics.trends?.rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'">
+                    <i :class="(analytics.trends?.rate || 0) >= 0 ? 'ph-arrow-up-right' : 'ph-arrow-down-right'" class="ph mr-1"></i>
+                    <span x-text="Math.abs(analytics.trends?.rate || 0).toFixed(1) + ' pts'"></span>
+                    <span class="text-gray-400 ml-1">vs last period</span>
+                </div>
+            </div>
+
+            <!-- Successful Count -->
+            <div class="bg-white rounded-xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-gray-100 relative overflow-hidden group hover:border-green-200 transition-all">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <i class="ph ph-thumbs-up text-6xl text-green-600"></i>
+                </div>
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="p-2 bg-green-50 text-green-600 rounded-lg">
+                        <i class="ph ph-thumbs-up text-xl"></i>
+                    </div>
+                    <span class="text-sm font-medium text-gray-500">Successful</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <h3 class="text-3xl font-bold text-gray-900" x-text="analytics.success_count || 0"></h3>
+                </div>
+                <div class="mt-2 flex items-center text-xs font-medium"
+                     :class="(analytics.trends?.success || 0) >= 0 ? 'text-green-600' : 'text-red-600'">
+                    <i :class="(analytics.trends?.success || 0) >= 0 ? 'ph-arrow-up-right' : 'ph-arrow-down-right'" class="ph mr-1"></i>
+                    <span x-text="Math.abs(analytics.trends?.success || 0).toFixed(1) + '%'"></span>
+                    <span class="text-gray-400 ml-1">vs last period</span>
+                </div>
+            </div>
+
+            <!-- Failed Count -->
+            <div class="bg-white rounded-xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-gray-100 relative overflow-hidden group hover:border-red-200 transition-all">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <i class="ph ph-warning-circle text-6xl text-red-600"></i>
+                </div>
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="p-2 bg-red-50 text-red-600 rounded-lg">
+                        <i class="ph ph-warning-circle text-xl"></i>
+                    </div>
+                    <span class="text-sm font-medium text-gray-500">Failed</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <h3 class="text-3xl font-bold text-gray-900" x-text="analytics.failed_count || 0"></h3>
+                </div>
+                <div class="mt-2 flex items-center text-xs font-medium"
+                     :class="(analytics.trends?.failed || 0) <= 0 ? 'text-green-600' : 'text-red-600'">
+                    <i :class="(analytics.trends?.failed || 0) <= 0 ? 'ph-arrow-down-right' : 'ph-arrow-up-right'" class="ph mr-1"></i>
+                    <span x-text="Math.abs(analytics.trends?.failed || 0).toFixed(1) + '%'"></span>
+                    <span class="text-gray-400 ml-1">vs last period</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts & Lists Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-stretch">
+            <!-- Execution Trends Chart -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-2 flex flex-col h-full">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold text-gray-900">Execution Activity</h3>
+                    <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Last <span x-text="analytics.execution_trends?.length || 0"></span> days</span>
+                </div>
+                
+                <div class="flex-1 w-full min-h-[300px]">
+                    <template x-if="analytics.execution_trends && analytics.execution_trends.length > 0">
+                        <div class="w-full h-full flex flex-col">
+                            <div class="flex-1 flex items-end justify-between gap-2 px-2 relative">
+                                <!-- Grid lines -->
+                                <div class="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                                    <div class="border-t border-gray-100 w-full h-0"></div>
+                                    <div class="border-t border-gray-100 w-full h-0"></div>
+                                    <div class="border-t border-gray-100 w-full h-0"></div>
+                                    <div class="border-t border-gray-100 w-full h-0"></div>
+                                </div>
+                                
+                                <template x-for="(trend, index) in analytics.execution_trends" :key="trend.date">
+                                    <div class="flex-1 flex flex-col items-center gap-2 group relative z-10">
+                                        <!-- Tooltip -->
+                                        <div class="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-20 pointer-events-none">
+                                            <span x-text="trend.date"></span>: <span class="font-bold" x-text="trend.count"></span>
+                                        </div>
+                                        
+                                        <!-- Bar -->
+                                        <div class="w-full max-w-[40px] bg-primary-100 hover:bg-primary-500 rounded-t-md transition-all duration-300 relative group-hover:shadow-lg"
+                                             :style="`height: ${Math.max((trend.count / Math.max(...analytics.execution_trends.map(t => t.count))) * 100, 5)}%`">
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- X-axis -->
+                            <div class="flex justify-between gap-2 px-2 pt-3 border-t border-gray-100">
+                                <template x-for="(trend, index) in analytics.execution_trends" :key="trend.date">
+                                    <div class="flex-1 text-[10px] text-gray-400 text-center truncate" 
+                                         x-show="index % Math.ceil(analytics.execution_trends.length / 7) === 0"
+                                         x-text="new Date(trend.date).toLocaleDateString(undefined, {month:'short', day:'numeric'})">
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="!analytics.execution_trends || analytics.execution_trends.length === 0" 
+                         class="h-full flex flex-col items-center justify-center text-gray-400">
+                        <i class="ph ph-chart-bar text-4xl mb-2 opacity-20"></i>
+                        <span class="text-sm">No activity data available</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Users & Groups -->
+            <div class="flex flex-col gap-6 h-full">
+                <!-- Top Users -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">Top Users</h3>
+                    <div class="space-y-4">
+                        <template x-for="(user, index) in analytics.top_users?.slice(0, 4)" :key="user.user">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600"
+                                         x-text="index + 1"></div>
+                                    <span class="text-sm font-medium text-gray-700 truncate max-w-[120px]" x-text="user.user"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-primary-500 rounded-full"
+                                             :style="`width: ${(user.count / (analytics.top_users[0].count || 1)) * 100}%`"></div>
+                                    </div>
+                                    <span class="text-xs font-medium text-gray-500 w-8 text-right" x-text="user.count"></span>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="!analytics.top_users?.length" class="text-center py-4 text-gray-400 text-sm">No user data</div>
+                    </div>
+                </div>
+
+                <!-- Top Groups -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">Top Groups</h3>
+                    <div class="space-y-3">
+                        <template x-for="group in analytics.top_groups?.slice(0, 4)" :key="group.group">
+                            <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                                <div class="flex items-center gap-2">
+                                    <i class="ph ph-users text-gray-400"></i>
+                                    <span class="text-sm text-gray-700" x-text="group.group"></span>
+                                </div>
+                                <span class="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full text-xs font-medium" x-text="group.count"></span>
+                            </div>
+                        </template>
+                        <div x-show="!analytics.top_groups?.length" class="text-center py-4 text-gray-400 text-sm">No group data</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <!-- Header & Filters Toggle -->
+            <div class="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900">Execution Logs</h2>
+                    <p class="text-sm text-gray-500">Detailed record of all code executions.</p>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="showFilters = !showFilters" 
+                            class="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                            :class="showFilters ? 'bg-gray-50 ring-2 ring-gray-100' : ''">
+                        <i class="ph ph-faders"></i>
+                        Filters
+                        <span x-show="activeFilterCount > 0" class="bg-primary-600 text-white text-[10px] px-1.5 py-0.5 rounded-full" x-text="activeFilterCount"></span>
+                    </button>
+                    <button @click="loadLogs()" class="p-2 text-gray-500 hover:text-primary-600 transition-colors" title="Refresh">
+                        <i class="ph ph-arrow-clockwise text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Collapsible Filters -->
+            <div x-show="showFilters" x-collapse class="bg-gray-50 border-b border-gray-200">
+                <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Users</label>
+                        <select multiple x-model="filters.users" class="w-full border-gray-300 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500 h-32">
+                            <template x-for="user in availableFilters.users" :key="user">
+                                <option :value="user" x-text="user"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Groups</label>
+                        <select multiple x-model="filters.groups" class="w-full border-gray-300 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500 h-32">
+                            <template x-for="group in availableFilters.groups" :key="group">
+                                <option :value="group" x-text="group"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</label>
+                        <div class="space-y-2">
+                            <template x-for="status in availableFilters.statuses" :key="status">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" :value="status" x-model="filters.statuses" class="rounded text-primary-600 focus:ring-primary-500">
+                                    <span class="text-sm text-gray-700 capitalize" x-text="status"></span>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Date Range</label>
+                            <div class="space-y-2">
+                                <input type="date" x-model="filters.date_from" class="w-full border-gray-300 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500">
+                                <input type="date" x-model="filters.date_to" class="w-full border-gray-300 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+                        </div>
+                        <div class="flex gap-2 pt-2">
+                            <button @click="applyFilters()" class="flex-1 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors">Apply</button>
+                            <button @click="clearFilters()" class="px-4 py-2 text-gray-600 hover:text-gray-900 text-sm font-medium">Clear</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">User / Group</th>
+                            <th x-show="!selectedProject" class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Project</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Query Preview</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        <template x-for="log in logs" :key="log.id">
+                            <tr class="hover:bg-gray-50 transition-colors group">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="{
+                                        'bg-green-100 text-green-700 border-green-200': log.status === 'success',
+                                        'bg-red-100 text-red-700 border-red-200': log.status !== 'success'
+                                    }" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize">
+                                        <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="log.status === 'success' ? 'bg-green-500' : 'bg-red-500'"></span>
+                                        <span x-text="log.status"></span>
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <div x-text="new Date(log.timestamp).toLocaleDateString()"></div>
+                                    <div class="text-xs text-gray-400" x-text="new Date(log.timestamp).toLocaleTimeString()"></div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 mr-3">
+                                            <span x-text="log.user.charAt(0).toUpperCase()"></span>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-medium text-gray-900" x-text="log.user"></div>
+                                            <div class="text-xs text-gray-500" x-text="log.group || 'Ungrouped'"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td x-show="!selectedProject" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800" 
+                                          x-text="getProjectDisplayName(log.project_id)"></span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="text-sm text-gray-600 font-mono bg-gray-50 rounded px-2 py-1 max-w-xs truncate" x-text="log.query_preview"></div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button @click="viewDetails(log.id)" class="text-gray-400 hover:text-primary-600 transition-colors">
+                                        <i class="ph ph-eye text-xl"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <div class="text-sm text-gray-500">
+                    Showing <span class="font-medium" x-text="((pagination.page - 1) * pagination.per_page) + 1"></span> 
+                    to <span class="font-medium" x-text="Math.min(pagination.page * pagination.per_page, pagination.total)"></span>
+                    of <span class="font-medium" x-text="pagination.total"></span> results
+                </div>
+                <div class="flex gap-2">
+                    <button @click="prevPage()" :disabled="pagination.page === 1"
+                        class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        Previous
+                    </button>
+                    <button @click="nextPage()" :disabled="pagination.page >= pagination.total_pages"
+                        class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div x-show="detailModal.show" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 overflow-y-auto" 
+         style="display: none;">
+        
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity" @click="detailModal.show = false"></div>
+
+        <!-- Modal Panel -->
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl">
+                
+                <!-- Header -->
+                <div class="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div :class="detailModal.data?.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'" 
+                             class="p-2 rounded-lg">
+                            <i :class="detailModal.data?.status === 'success' ? 'ph-check-circle' : 'ph-warning-circle'" class="ph text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">Execution Details</h3>
+                            <p class="text-xs text-gray-500" x-text="detailModal.data?.id"></p>
+                        </div>
+                    </div>
+                    <button @click="detailModal.show = false" class="text-gray-400 hover:text-gray-500">
+                        <i class="ph ph-x text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div class="px-6 py-6 max-h-[calc(100vh-200px)] overflow-y-auto custom-scrollbar">
+                    
+                    <!-- Meta Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Time</div>
+                            <div class="text-sm font-medium text-gray-900" x-text="formatTimestamp(detailModal.data?.timestamp)"></div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">User</div>
+                            <div class="text-sm font-medium text-gray-900" x-text="detailModal.data?.user"></div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Group</div>
+                            <div class="text-sm font-medium text-gray-900" x-text="detailModal.data?.group || '—'"></div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Project</div>
+                            <div class="text-sm font-medium text-gray-900" x-text="getProjectDisplayName(detailModal.data?.project_id)"></div>
+                        </div>
+                    </div>
+
+                    <!-- Query -->
+                    <div class="mb-8">
+                        <h4 class="text-sm font-bold text-gray-900 mb-2">Natural Language Query</h4>
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 text-sm font-medium">
+                            <i class="ph ph-chat-text text-gray-400 mr-2"></i>
+                            <span x-text="detailModal.data?.query"></span>
+                        </div>
+                    </div>
+
+                    <!-- Error Banner -->
+                    <div x-show="detailModal.data?.error_message" class="mb-8 bg-red-50 border border-red-100 rounded-lg p-4 flex gap-3">
+                        <i class="ph ph-warning text-red-500 text-xl flex-shrink-0"></i>
+                        <div>
+                            <h4 class="text-sm font-bold text-red-800">Execution Error</h4>
+                            <p class="text-sm text-red-600 mt-1 font-mono" x-text="detailModal.data?.error_message"></p>
+                        </div>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div class="border-b border-gray-200 mb-0">
+                        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                            <button @click="detailModal.activeTab = 'code'"
+                                :class="detailModal.activeTab === 'code' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2">
+                                <i class="ph ph-code"></i> Python Code
+                            </button>
+                            <button @click="detailModal.activeTab = 'data'"
+                                :class="detailModal.activeTab === 'data' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2">
+                                <i class="ph ph-database"></i> Extracted Data
+                                <span x-show="!detailModal.data?.extracted_data" class="bg-gray-100 text-gray-500 text-[10px] px-1.5 rounded-full">Empty</span>
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Tab Content -->
+                    <div class="bg-gray-900 rounded-b-lg shadow-inner min-h-[300px]">
+                        <!-- Code Tab -->
+                        <div x-show="detailModal.activeTab === 'code'" class="p-4">
+                            <pre class="text-sm font-mono text-gray-300 overflow-x-auto custom-scrollbar"><code x-text="detailModal.data?.python_code"></code></pre>
+                        </div>
+                        
+                        <!-- Data Tab -->
+                        <div x-show="detailModal.activeTab === 'data'" class="p-4">
+                            <pre x-show="detailModal.data?.extracted_data" class="text-sm font-mono text-blue-300 overflow-x-auto custom-scrollbar"><code x-text="detailModal.data?.extracted_data"></code></pre>
+                            <div x-show="!detailModal.data?.extracted_data" class="flex flex-col items-center justify-center h-64 text-gray-500">
+                                <i class="ph ph-database text-4xl mb-2 opacity-50"></i>
+                                <p class="text-sm">No data returned</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function dashboardApp() {
+            return {
+                logs: [],
+                analytics: {},
+                availableFilters: { users: [], groups: [], project_ids: [], statuses: [] },
+                projectAliases: {},
+                filters: { users: [], groups: [], statuses: [], date_from: '', date_to: '' },
+                selectedProject: '',
+                pagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
+                analyticsPeriod: 'month',
+                detailModal: { show: false, data: null, activeTab: 'code' },
+                showFilters: false,
+                username: '{{ username }}', // Injected by Flask
+                
+                get activeFilterCount() {
+                    let count = 0;
+                    if (this.filters.users.length) count++;
+                    if (this.filters.groups.length) count++;
+                    if (this.filters.statuses.length) count++;
+                    if (this.filters.date_from || this.filters.date_to) count++;
+                    return count;
+                },
+
+                async init() {
+                    await this.loadFilters();
+                    await this.loadProjectAliases();
+                    await this.loadAnalytics();
+                    await this.loadLogs();
+                },
+                
+                onProjectChange() {
+                    this.pagination.page = 1;
+                    this.loadAnalytics();
+                    this.loadLogs();
+                },
+                
+                async loadFilters() {
+                    try {
+                        const response = await fetch('/api/filters');
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        this.availableFilters = await response.json();
+                    } catch (error) {
+                        console.error('Failed to load filters:', error);
+                    }
+                },
+                
+                async loadProjectAliases() {
+                    try {
+                        if (!this.availableFilters.project_ids || this.availableFilters.project_ids.length === 0) return;
+                        
+                        const response = await fetch('/api/project-aliases', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ project_ids: this.availableFilters.project_ids })
+                        });
+                        
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const data = await response.json();
+                        this.projectAliases = data.aliases || {};
+                    } catch (error) {
+                        console.error('Failed to load project aliases:', error);
+                        this.projectAliases = {};
+                    }
+                },
+                
+                getProjectDisplayName(projectId) {
+                    if (!projectId) return 'Unknown';
+                    const alias = this.projectAliases[projectId];
+                    return alias ? `${alias} (${projectId})` : projectId;
+                },
+                
+                async loadAnalytics() {
+                    try {
+                        const params = new URLSearchParams();
+                        const { date_from, date_to } = this.getAnalyticsDates();
+                        if (date_from) params.append('date_from', date_from);
+                        if (date_to) params.append('date_to', date_to);
+                        if (this.selectedProject) params.append('project_ids[]', this.selectedProject);
+                        
+                        const response = await fetch(`/api/analytics?${params}`);
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        this.analytics = await response.json();
+                    } catch (error) {
+                        console.error('Failed to load analytics:', error);
+                    }
+                },
+                
+                async loadLogs() {
+                    try {
+                        const params = new URLSearchParams({
+                            page: this.pagination.page,
+                            per_page: this.pagination.per_page
+                        });
+                        
+                        if (this.selectedProject) params.append('project_ids[]', this.selectedProject);
+                        this.filters.users.forEach(u => params.append('users[]', u));
+                        this.filters.groups.forEach(g => params.append('groups[]', g));
+                        this.filters.statuses.forEach(s => params.append('statuses[]', s));
+                        if (this.filters.date_from) params.append('date_from', this.filters.date_from + 'T00:00:00');
+                        if (this.filters.date_to) params.append('date_to', this.filters.date_to + 'T23:59:59');
+                        
+                        const response = await fetch(`/api/logs?${params}`);
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const data = await response.json();
+                        
+                        this.logs = data.logs;
+                        this.pagination = { ...this.pagination, ...data };
+                    } catch (error) {
+                        console.error('Failed to load logs:', error);
+                    }
+                },
+                
+                async viewDetails(logId) {
+                    try {
+                        const response = await fetch(`/api/logs/${logId}`);
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        this.detailModal.data = await response.json();
+                        this.detailModal.activeTab = 'code';
+                        this.detailModal.show = true;
+                    } catch (error) {
+                        console.error('Failed to load log details:', error);
+                    }
+                },
+                
+                applyFilters() {
+                    this.pagination.page = 1;
+                    this.loadLogs();
+                },
+                
+                clearFilters() {
+                    this.filters = { users: [], groups: [], statuses: [], date_from: '', date_to: '' };
+                    this.pagination.page = 1;
+                    this.loadLogs();
+                },
+                
+                nextPage() {
+                    if (this.pagination.page < this.pagination.total_pages) {
+                        this.pagination.page++;
+                        this.loadLogs();
+                    }
+                },
+                
+                prevPage() {
+                    if (this.pagination.page > 1) {
+                        this.pagination.page--;
+                        this.loadLogs();
+                    }
+                },
+                
+                setAnalyticsPeriod(period) {
+                    this.analyticsPeriod = period;
+                    this.loadAnalytics();
+                },
+                
+                getAnalyticsDates() {
+                    const now = new Date();
+                    let date_from = null;
+                    
+                    if (this.analyticsPeriod === 'today') {
+                        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+                        date_from = today.toISOString();
+                    } else if (this.analyticsPeriod === 'week') {
+                        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                        date_from = weekAgo.toISOString();
+                    } else if (this.analyticsPeriod === 'month') {
+                        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                        date_from = monthAgo.toISOString();
+                    }
+                    
+                    return { date_from, date_to: new Date().toISOString() };
+                },
+                
+                formatTimestamp(timestamp) {
+                    if (!timestamp) return '';
+                    return new Date(timestamp).toLocaleString();
+                }
+            };
+        }
+    </script>
+</body>
+</html>
