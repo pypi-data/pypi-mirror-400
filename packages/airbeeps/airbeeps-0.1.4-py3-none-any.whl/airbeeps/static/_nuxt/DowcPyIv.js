@@ -1,0 +1,1 @@
+import{a4 as a,E as l,k as n}from"./dgvVcRbD.js";const c=a("unsavedChanges",()=>{const e=l({}),s=n(()=>Object.keys(e.value).length>0);return{dirtySources:e,isDirty:s,setDirty:(t,r)=>{t&&(r?e.value[t]=!0:delete e.value[t])},clearAll:()=>{e.value={}}}});export{c as u};
