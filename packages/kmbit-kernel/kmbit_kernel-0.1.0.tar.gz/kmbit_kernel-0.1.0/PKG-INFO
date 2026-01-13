@@ -1,0 +1,185 @@
+Metadata-Version: 2.4
+Name: kmbit-kernel
+Version: 0.1.0
+Summary: The AI Filesystem Kernel - Route queries to agents like a filesystem routes to files
+Project-URL: Homepage, https://humotica.com
+Project-URL: Repository, https://github.com/jaspertvdm/kmbit-kernel
+Project-URL: Documentation, https://humotica.com/docs/kmbit
+Author-email: Jasper van de Meent <info@humotica.com>, Root AI <root_ai@humotica.nl>
+License: MIT
+Keywords: agentic-ai,agents,ai,filesystem,humotica,kernel,llm,multi-agent,orchestration,routing
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: System :: Operating System Kernels
+Requires-Python: >=3.10
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# KmBiT Kernel
+
+**The AI Filesystem - Route queries like a filesystem routes files.**
+
+```
+┌────────────────────────────────────────┐
+│           KmBiT KERNEL                 │
+│       (non-conversational)             │
+│                                        │
+│   Query → Pattern Match → Path         │
+│                                        │
+│   No reasoning. No LLM calls.          │
+│   Just routing. Fast. Deterministic.   │
+└────────────────────────────────────────┘
+```
+
+## The Insight
+
+A filesystem doesn't store files - it stores the **index** to files.
+
+KmBiT doesn't store knowledge - it stores the **index** to knowledge.
+
+```
+Traditional OS:              AI OS:
+/home/user/docs/file.txt    /agents/claude (for complex code)
+/bin/program                /agents/gemini (for vision)
+/etc/config                 /memory/vector (for recall)
+```
+
+## Installation
+
+```bash
+pip install kmbit-kernel
+```
+
+## Quick Start
+
+```python
+from kmbit_kernel import Kernel
+
+# Initialize the kernel
+kernel = Kernel()
+
+# Route queries to the right agent
+path = kernel.resolve("review this code for bugs")
+# → "/agents/claude"
+
+path = kernel.resolve("what's in this image?")
+# → "/agents/gemini"
+
+path = kernel.resolve("quick validation check")
+# → "/agents/kit"
+
+# Explain routing decisions
+print(kernel.which("analyze this complex problem"))
+```
+
+## The AI Filesystem
+
+```
+/                           # root
+├── /agents                 # who can do what
+│   ├── claude              # complex reasoning, code
+│   ├── gemini              # vision, research
+│   ├── codex               # analysis (no code gen)
+│   ├── kit                 # local, fast, cheap
+│   └── sentinel            # security, validation
+│
+├── /memory                 # where knowledge lives
+│   ├── vector/             # embeddings
+│   ├── graph/              # relations
+│   └── session/            # temporary
+│
+├── /trust                  # TIBET provenance
+│   ├── actors/             # who did it
+│   ├── actions/            # what was done
+│   └── chains/             # full provenance
+│
+└── /routes                 # routing rules
+```
+
+## CLI Interface
+
+```bash
+# Where does this query route?
+kmbit which "review my code"
+
+# List agents
+kmbit ls /agents
+
+# Show filesystem tree
+kmbit tree
+
+# Kernel statistics
+kmbit stats
+```
+
+## Core Operations
+
+All operations complete in < 10ms. No LLM calls. No external requests.
+
+```python
+# Resolve query to path
+kernel.resolve("query")         # → "/agents/..."
+
+# Filesystem operations
+kernel.ls("/agents")            # → ["claude", "gemini", ...]
+kernel.stat("/agents/claude")   # → {metadata}
+kernel.tree("/")                # → tree view
+
+# Custom routing
+kernel.add_route(
+    pattern=r"deploy.*production",
+    destination="/agents/sentinel",
+    priority=100
+)
+
+# Index operations
+kernel.index_add("api_key", "/memory/secrets")
+kernel.lookup("api_key")        # → "/memory/secrets"
+```
+
+## Performance
+
+The kernel is designed for speed:
+
+| Operation | Target | Actual |
+|-----------|--------|--------|
+| resolve() | < 10ms | ~2ms |
+| lookup() | < 1ms | ~0.1ms |
+| ls() | < 1ms | ~0.05ms |
+
+## Philosophy
+
+This is **not** a chatbot. This is the operating system underneath.
+
+- **Non-conversational**: No chat, no reasoning, just routing
+- **Deterministic**: Same input → same output
+- **Fast**: Milliseconds, not seconds
+- **Auditable**: Every route decision is traceable
+
+The conversation happens in Claude/Gemini/GPT.
+The **kernel** is silent and fast.
+
+## Part of HumoticaOS
+
+KmBiT Kernel is the core of [HumoticaOS](https://humotica.com):
+
+- **KmBiT Kernel**: This package - the routing layer
+- **TIBET**: Trust and provenance
+- **AInternet**: Agent networking (.aint domains)
+- **Sentinel**: Hardware validation
+- **REFLUX**: Out-of-band communication
+
+## License
+
+MIT License - Part of HumoticaOS
+
+**One Love, One fAmIly!** 💙
