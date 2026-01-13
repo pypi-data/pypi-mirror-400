@@ -1,0 +1,170 @@
+[project]
+# For more information on how to specify metadata, see
+# https://packaging.python.org/en/latest/specifications/declaring-project-metadata/
+name = "not-my-board"
+description = "Tool to setup, manage and use a board farm "
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE.txt"}
+authors = [
+    {name = "Simon Holesch", email = "simon@holesch.de"},
+]
+keywords = ["board-farm", "embedded", "testing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Embedded Systems",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "asgineer",
+    "async-timeout ~= 5.0; python_version < '3.11'",
+    "colorlog",
+    "h11",
+    "pyjwt[crypto]",
+    "tabulate",
+    "tomli; python_version < '3.11'",
+    "uvicorn",
+    "websockets",
+]
+dynamic = ["version"]
+
+[project.urls]
+Documentation = "http://not-my-board.readthedocs.io"
+Issues = "https://github.com/holesch/not-my-board/issues"
+Source = "https://github.com/holesch/not-my-board"
+
+[project.scripts]
+not-my-board = "not_my_board.cli:main"
+
+[project.optional-dependencies]
+test = [
+    "black",
+    "codespell",
+    "isort",
+    "mypy",
+    "pytest",
+    "pytest-asyncio ~= 0.21.2",
+    "pytest-cov",
+    "ruff",
+]
+docs = [
+    "furo",
+    "myst-parser",
+    "sphinx",
+    "sphinx-copybutton",
+    "sphinxext-opengraph",
+]
+
+[build-system]
+build-backend = "mesonpy"
+requires = ["meson-python"]
+
+[tool.pytest.ini_options]
+addopts = ["--quiet"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff.lint]
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle
+    "E", "W",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade
+    "UP",
+    # flake8-2020
+    "YTT",
+    # flake8-async
+    "ASYNC",
+    # flake8-bandit
+    "S",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    # flake8-comprehensions
+    "C4",
+    # flake8-implicit-str-concat
+    "ISC",
+    # flake8-logging
+    "LOG",
+    # flake8-logging-format
+    "G",
+    # flake8-pie
+    "PIE",
+    # flake8-print
+    "T20",
+    # flake8-pytest-style
+    "PT",
+    # flake8-raise
+    "RSE",
+    # flake8-simplify
+    "SIM",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # Pylint
+    "PL",
+    # flynt
+    "FLY",
+    # refurb
+    "FURB",
+    # Ruff-specific rules
+    "RUF",
+]
+ignore = [
+    # "Async functions should not open files with blocking methods like open"
+    # -> doesn't seem to be a problem now, might revisit later
+    "ASYNC230",
+    # "Line too long"
+    # -> complains for long strings, rely on black
+    "E501",
+    # "for loop variable overwritten by assignment target"
+    "PLW2901",
+    # "open() should be replaced by Path.open()"
+    # -> just creating a Path object to open a file is overkill
+    "PTH123",
+    # "subprocess call: check for execution of untrusted input"
+    # -> false positives
+    "S603",
+    # "Use ternary operator instead of if-else-block"
+    # -> can make the code less readable
+    "SIM108",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+    # "{name} imported but unused"
+    # -> modules are imported in __init__.py to re-export them
+    "F401",
+]
+"tests/**.py" = [
+    # "Magic value used in comparison"
+    # -> magic values are OK for tests
+    "PLR2004",
+    # "pytest.raises() block should contain a single simple statement"
+    # -> there are a few cases, that catch the exception raised in a context
+    #    manager (util.background_task)
+    "PT012",
+    # "Use of assert detected"
+    # -> usage is expected in tests
+    "S101",
+]

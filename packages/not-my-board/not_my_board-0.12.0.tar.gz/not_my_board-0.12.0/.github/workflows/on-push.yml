@@ -1,0 +1,88 @@
+name: on-push
+
+on: [push]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.14
+    - name: Install dependencies
+      run: |
+        pip install .[docs]
+    - name: Build Sphinx documentation
+      run: sphinx-build -n -W --keep-going doc doc/_build
+  static_checks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.14
+    - name: Install dependencies
+      run: |
+        pip install .[test]
+    - name: Lint with Ruff
+      run: ruff check not_my_board tests doc
+    - name: Check format with Black
+      run: black --check not_my_board tests doc
+    - name: Check import statement order with isort
+      run: isort --check not_my_board tests
+    - name: Check spelling
+      run: git ls-files -z | xargs -0 -- codespell
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Create test VM image
+      run: sudo ./scripts/vmctl makeimg
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install \
+          qemu-system \
+          openssl \
+          tinyproxy \
+          ;
+        pip install .[test]
+    - name: Allow kvm usage
+      run: |
+        sudo chmod o+rw /dev/kvm || :
+    - name: Run tests
+      run: pytest -s
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.14
+    - name: Install dependencies
+      run: |
+        # python3-build is broken on 22.04:
+        # https://bugs.launchpad.net/ubuntu/+source/python-build/+bug/1992108
+        # install everything from pip instead
+        pip install build twine
+    - name: Build dist packages
+      run: |
+        export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+        python3 -m build
+    - name: Upload to PyPi
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      if: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && env.TWINE_PASSWORD != '' }}
+      run: twine upload --non-interactive dist/*
