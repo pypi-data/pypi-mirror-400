@@ -1,0 +1,122 @@
+Metadata-Version: 2.4
+Name: excel-graph-api
+Version: 1.0.0
+Summary: Read and write Excel files in OneDrive using Microsoft Graph API
+Author: Maxspike Capital
+License: MIT
+Project-URL: Homepage, https://github.com/maxspike/excel-graph-api
+Keywords: excel,onedrive,microsoft,graph,api,spreadsheet
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Office/Business :: Office Suites
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Dynamic: license-file
+
+# Excel Graph API
+
+Read and write Excel files stored in OneDrive using Microsoft Graph API.
+
+## Installation
+
+```bash
+pip install excel-graph-api
+```
+
+## Setup
+
+1. Get an access token from [Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer)
+2. Sign in and consent to **Files.ReadWrite.All** permission
+3. Create a `config.json` file:
+
+```json
+{
+    "access_token": "YOUR_TOKEN_HERE",
+    "default_file": "Book.xlsx"
+}
+```
+
+## Usage
+
+### Read from Excel
+
+```python
+from excel_graph_api import ExcelClient
+
+client = ExcelClient()
+data = client.read_range("Book.xlsx", "Sheet1", "A1:C10")
+print(data)
+```
+
+### Write to Excel
+
+```python
+from excel_graph_api import ExcelClient
+
+client = ExcelClient()
+client.write_range("Book.xlsx", "Sheet1", "A1:B2", [
+    ["Name", "Score"],
+    ["Alice", 95]
+])
+```
+
+### Append to Table
+
+```python
+from excel_graph_api import ExcelClient
+
+client = ExcelClient()
+client.append_to_table("Book.xlsx", "SalesTable", [
+    ["2024-01-05", "Product A", 100]
+])
+```
+
+### Import from JSON/CSV
+
+```python
+import json
+from excel_graph_api import ExcelClient
+
+client = ExcelClient()
+
+# Read JSON
+with open("data.json") as f:
+    data = json.load(f)
+
+# Convert to rows and write
+headers = list(data[0].keys())
+rows = [headers] + [[item[h] for h in headers] for item in data]
+client.write_range("Book.xlsx", "Sheet1", "A1:C4", rows)
+```
+
+## Available Methods
+
+| Method | Description |
+|--------|-------------|
+| `list_excel_files()` | List all Excel files in OneDrive |
+| `list_worksheets(file)` | List sheets in a file |
+| `read_range(file, sheet, range)` | Read cell values |
+| `write_range(file, sheet, range, values)` | Write cell values |
+| `list_tables(file)` | List tables in a file |
+| `read_table(file, table)` | Read table rows |
+| `append_to_table(file, table, rows)` | Add rows to table |
+| `get_table_headers(file, table)` | Get table headers |
+
+## Token Expiry
+
+Access tokens expire after ~1 hour. Refresh from Graph Explorer when you get authentication errors.
+
+## License
+
+MIT
