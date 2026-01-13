@@ -1,0 +1,752 @@
+Metadata-Version: 2.4
+Name: NeuroEvolution
+Version: 1.0.0
+Summary: Neuro-evolution and model optimization toolkit
+Author: Romain Amigon
+License: MIT
+Requires-Python: >=3.0
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: torch
+Requires-Dist: scikit-learn
+Requires-Dist: mealpy
+Requires-Dist: torchvision
+
+# NeuroEvolution
+NeuroEvolution: Evolutionary Neural Architecture Search & Weight Optimization
+NeuroEvolution is a high-level Python library designed to explore the intersection of Deep Learning and Metaheuristic Optimization. It allows users to optimize neural network weights using Swarm Intelligence (SI) and Evolutionary Algorithms (EA) instead of traditional Gradient Descent, and performs Neural Architecture Search (NAS) to discover efficient model structures dynamically.
+
+Built on top of PyTorch and Mealpy.
+
+
+---
+## Key Features
+Gradient-Free Optimization: Train neural networks without backpropagation using algorithms like Genetic Algorithms (GA), Particle Swarm Optimization (PSO), Grey Wolf Optimizer (GWO), and more.
+
+Dynamic Architecture Search (NAS): Automatically evolve network architectures (add/remove layers, adjust neurons/kernels) to find the best trade-off between performance and complexity.
+
+Hybrid Training Strategy Combine the global search capabilities of Metaheuristics with the local precision of Gradient Descent (Adam) to overcome the "curse of dimensionality" in deep networks.
+
+Hardware-Aware Evaluation: Optimize models not just for accuracy/loss, but also for Inference Latency using multi-objective fitness functions.
+
+Plug-and-Play: Seamless integration with Scikit-Learn style API (fit/predict paradigm).
+
+Wide Algorithm Support: Access to 10+ state-of-the-art metaheuristics via Mealpy.
+
+Skip connection
+
+
+
+
+NeuroEvolution supports hardware-aware and multi-criteria optimization, including:
+
+Accuracy / Loss
+
+Inference latency
+
+Parameter count
+
+FLOPs
+
+Training time
+
+Using Pareto dominance, the framework can identify optimal trade-offs instead of a single solution.
+
+
+
+Partial Optimization Experiment: In an attempt to mitigate the curse of dimensionality, we tested applying metaheuristic algorithms solely to the last layer and randomly selected intermediate layers. This strategy proved suboptimal, producing results inferior to full-model training.
+
+---
+## Installation
+
+```bash
+pip install NeuroEvolution
+```
+---
+## Use
+
+** Matérial used for benchmark :NVIDIA GeForce RTX 3060 Laptop GPU, 5 years old **
+
+### Layers
+- `Conv2dCfg`
+- `DropoutCfg`
+- `FlattenCfg`
+- `LinearCfg`
+- `MaxPool2dCfg`
+- `GlobalAvgPoolCfg`
+
+### Methods
+- `search_weights` : only weights of a model
+- `search_linear_model` : only for MLP
+- `hybrid_search` : use various algorithms for weights search
+- `search_model` : search model + possibility of hybrid search if list `hybrid` not empty
+- `search_model_evolutionary`: evolutionnary search model + possibility of hybrid search if list `hybrid` not empty
+
+
+---
+
+Supported Algorithms
+
+`NeuroOptimizer` wraps powerful metaheuristics provided by Mealpy.
+
+| Code | Algorithm Name | Best Use Case |
+| :--- | :--- | :--- |
+| **Adam** | Adaptive Moment Estimation | Baseline. Large networks, images, high-dim data. |
+| **GWO** | Grey Wolf Optimizer | Balanced exploration/exploitation. General purpose. |
+| **PSO** | Particle Swarm Optimization | Fast convergence on simple landscapes. |
+| **DE** | Differential Evolution | Robust for noisy functions and regression. |
+| **GA** | Genetic Algorithm | Classic evolutionary approach. Very robust. |
+| **WOA** | Whale Optimization Algorithm | Escaping local minima via spiral search. |
+| **SMA** | Slime Mould Algorithm | High precision, adaptive weights. |
+| **ABC** | Artificial Bee Colony | Strong local search (fine-tuning). |
+---
+
+## Example
+
+```python
+import torch.nn as nn
+from sklearn.datasets import make_moons
+from NeuroEvolution import NeuroOptimizer
+from NeuroEvolution.layer_classes import LinearCfg
+
+# 1. Prepare Data
+X, y = make_moons(n_samples=1000, noise=0.1, random_state=42)
+
+# 2. Define Architecture (Manually)
+# A simple MLP: Input(2) -> Linear(16) -> ReLU -> Linear(2)
+my_layers = [
+    LinearCfg(in_features=2, out_features=16, activation=nn.ReLU),
+    LinearCfg(in_features=16, out_features=2, activation=None) # Output dim = classes
+]
+
+# 3. Initialize Optimizer
+optimizer = NeuroOptimizer(
+    X, y, 
+    Layers=my_layers, 
+    task="classification"
+)
+
+# 4. Search for Weights using GWO (Grey Wolf Optimizer)
+print("Optimizing weights with GWO...")
+model = optimizer.search_weights(
+    optimizer_name='GWO', 
+    epochs=10, 
+    population=20,
+    verbose=True
+)
+
+# 5. Evaluate
+score = optimizer.evaluate(model, verbose=True)
+print(f"Final Accuracy: {-score:.2%}") # Note: Evaluate returns negative acc for minimization
+```
+
+```python
+import numpy as np
+from sklearn.datasets import make_moons
+from NeuroEvolution import NeuroOptimizer
+
+# 1. Define the Custom "Pareto" Function
+# The optimizer minimizes the returned value.
+# We want to MAXIMIZE accuracy and MINIMIZE latency.
+def pareto_time_importance(accuracy, inference_time):
+    """
+    Combines accuracy and inference time into a single score.
+    Penalizes models that are slower than a specific threshold.
+    """
+    # Threshold: We aim for inference under 2ms (0.002s)
+    target_latency = 0.002 
+    
+    # Penalty Weight: How strictly do we punish slowness?
+    # Higher alpha = Speed is more important than small accuracy gains.
+    alpha = 10.0 
+
+    # Calculate Penalty
+    # If time > 2ms, penalty increases. If time < 2ms, penalty is 0.
+    latency_penalty = max(0, (inference_time - target_latency) * alpha)
+
+    # Final Score Calculation:
+    # We minimize (-Accuracy + Penalty).
+    # Examples:
+    # Model A: Acc=0.99, Time=0.010s -> Score = -0.99 + (0.008 * 10) = -0.91 (Worse)
+    # Model B: Acc=0.98, Time=0.001s -> Score = -0.98 + 0            = -0.98 (Better)
+    return -accuracy + latency_penalty
+
+# 2. Load Data
+X, y = make_moons(n_samples=1000, noise=0.2, random_state=42)
+
+# 3. Initialize Optimizer
+optimizer = NeuroOptimizer(X, y, task="classification")
+
+# 4. Run NAS with the Time Constraint
+print("Starting NAS with Latency-Aware Optimization...")
+best_model = optimizer.search_model(
+    epochs=15,
+    train_time=600,
+    optimizer_name_weights='GWO',
+    epochs_weights=5,
+    verbose=True,
+    
+    # Pass your custom function here
+    time_importance=pareto_time_importance 
+)
+
+print(f"\nBest 'Efficient' Model Architecture:\n{best_model}")
+```
+
+```python
+from sklearn.datasets import make_circles
+from NeuroEvolution import NeuroOptimizer, LinearCfg
+import torch.nn as nn
+
+X, y = make_circles(n_samples=500, noise=0.05, factor=0.5)
+
+layers = [LinearCfg(2, 32, nn.ReLU), LinearCfg(32, 2, None)]
+optimizer = NeuroOptimizer(X, y, Layers=layers)
+
+# Hybrid Strategy:
+# 1. GWO finds a good starting region (Exploration)
+# 2. Adam fine-tunes the weights (Exploitation)
+model = optimizer.hybrid_search(
+    optimizers=['GWO', 'Adam'],
+    epochs=[10, 20],        # 10 epochs GWO, then 20 epochs Adam
+    populations=25,         # Only applies to GWO
+    learning_rate=0.01,     # Only applies to Adam
+    verbose=True
+)
+```
+
+```python
+# Skip Connection
+layers = []
+
+layers.append(Conv2dCfg(in_channels=0, out_channels=16, kernel_size=3, padding=1, activation=nn.ReLU))
+layers.append(BatchNorm2dCfg(num_features=16)) 
+for _ in range(depth):
+
+    sub_block = [
+        Conv2dCfg(in_channels=0, out_channels=16, kernel_size=3, padding=1, activation=nn.ReLU),
+        BatchNorm2dCfg(num_features=16),
+        Conv2dCfg(in_channels=0, out_channels=16, kernel_size=3, padding=1, activation=None) 
+    ]
+        
+
+    layers.append(ResBlockCfg(sub_layers=sub_block))
+    layers.append(BatchNorm2dCfg(num_features=16)) 
+
+
+        
+layers.append(GlobalAvgPoolCfg())
+layers.append(LinearCfg(in_features=0, out_features=2, activation=None))
+```
+
+```python
+# Evolutionnary search model
+best_model = opt.search_model_evolutionary(
+    epochs=epochs,                
+    population_size=10,            
+    epochs_weights=40,          
+    optimizer_name_weights='Adam',
+    learning_rate_weights=0.01,
+    accuracy_target=target_acc,
+    verbose=True
+)
+```
+
+---
+## Benchmark : Classification 
+### Iris, Wine & Breast Cancer
+
+```md
+Layers = [LinearCfg(self.n_features, 16, nn.ReLU), LinearCfg(16, self.output_dim, None)  ]
+model = neuro_opt.search_weights(optimizer_name=algo_choice, epochs=30, population=20)
+====================================================================================================
+Benchmarks
+====================================================================================================
+      Dataset Algorithm  Accuracy (%)  Train Time (s)  Latency (ms)  Params (k)  FLOPs (M)
+         Iris      Adam         93.33            0.04        0.0652        0.13     0.0001
+         Wine      Adam        100.00            0.05        0.0701        0.28     0.0003
+Breast Cancer      Adam         98.25            0.04        0.0752        0.53     0.0005
+         Iris       GWO        100.00            0.74        0.0552        0.13     0.0001
+         Wine       GWO         94.44            0.71        0.0500        0.28     0.0003
+Breast Cancer       GWO         97.37            0.80        0.0501        0.53     0.0005
+         Iris       PSO         90.00            0.79        0.0500        0.13     0.0001
+         Wine       PSO         83.33            0.56        0.0451        0.28     0.0003
+Breast Cancer       PSO         92.11            0.69        0.0551        0.53     0.0005
+         Iris        DE         96.67            0.82        0.0652        0.13     0.0001
+         Wine        DE         91.67            0.79        0.0712        0.28     0.0003
+Breast Cancer        DE         92.98            1.41        0.0703        0.53     0.0005
+         Iris       WOA         93.33            0.59        0.0752        0.13     0.0001
+         Wine       WOA         94.44            0.59        0.0804        0.28     0.0003
+Breast Cancer       WOA         96.49            0.64        0.0451        0.53     0.0005
+         Iris        GA        100.00            0.66        0.0516        0.13     0.0001
+         Wine        GA        100.00            0.84        0.0700        0.28     0.0003
+Breast Cancer        GA         96.49            0.83        0.0651        0.53     0.0005
+         Iris       ABC         86.67            1.29        0.0451        0.13     0.0001
+         Wine       ABC         91.67            1.36        0.0900        0.28     0.0003
+Breast Cancer       ABC         94.74            1.88        0.0853        0.53     0.0005
+         Iris       SMO         96.67            1.52        0.0600        0.13     0.0001
+         Wine       SMO         91.67            1.24        0.0500        0.28     0.0003
+Breast Cancer       SMO         96.49            1.41        0.0400        0.53     0.0005
+         Iris       SMA         93.33            2.56        0.0653        0.13     0.0001
+         Wine       SMA         91.67            9.16        0.0951        0.28     0.0003
+Breast Cancer       SMA         83.33            7.81        0.0361        0.53     0.0005
+         Iris       HHO         90.00            0.95        0.0551        0.13     0.0001
+         Wine       HHO         80.56            0.96        0.0801        0.28     0.0003
+Breast Cancer       HHO         94.74            1.33        0.0801        0.53     0.0005
+====================================================================================================
+```
+
+```md
+
+model = neuro_opt.search_linear_model(optimizer_name_weights=algo_choice, epochs=30)
+====================================================================================================
+Benchmarks
+====================================================================================================
+      Dataset Algorithm  Accuracy (%)  Train Time (s)  Latency (ms)  Params (k)  FLOPs (M)
+         Iris      Adam        100.00            0.60        0.1403        5.81     0.0057
+         Wine      Adam        100.00            0.38        0.0601        1.75     0.0017
+Breast Cancer      Adam         98.25            0.31        0.0500        1.52     0.0015
+         Iris       GWO        100.00            9.33        0.0752        1.32     0.0012
+         Wine       GWO        100.00            8.76        0.0702        0.79     0.0007
+Breast Cancer       GWO         97.37            3.64        0.0350        0.53     0.0005
+         Iris       PSO         96.67           10.75        0.0652        0.51     0.0005
+         Wine       PSO         94.44            9.51        0.0811        1.23     0.0012
+Breast Cancer       PSO         97.37           15.65        0.0651        5.17     0.0051
+         Iris        DE         96.67            5.61        0.0451        0.19     0.0002
+         Wine        DE         94.44            3.70        0.0351        0.09     0.0001
+Breast Cancer        DE         97.37            6.90        0.0752        2.12     0.0021
+         Iris       WOA         96.67            3.37        0.0500        0.16     0.0001
+         Wine       WOA         88.89            3.08        0.0400        0.17     0.0002
+Breast Cancer       WOA         92.98           10.04        0.1051        2.72     0.0026
+         Iris        GA         96.67            3.97        0.0551        0.15     0.0001
+         Wine        GA         91.67            7.45        0.0801        0.67     0.0006
+Breast Cancer        GA         95.61            7.85        0.0351        0.53     0.0005
+         Iris       ABC         96.67            8.71        0.0551        0.13     0.0001
+         Wine       ABC         97.22            9.77        0.0501        0.70     0.0007
+Breast Cancer       ABC         96.49           10.79        0.0502        1.42     0.0014
+         Iris       SMO         96.67           17.23        0.0601        1.30     0.0012
+         Wine       SMO         94.44           11.62        0.0502        0.19     0.0002
+Breast Cancer       SMO         96.49           12.82        0.0400        0.96     0.0009
+         Iris       SMA        100.00          169.17        0.0601        0.71     0.0007
+         Wine       SMA         97.22          190.23        0.0500        0.26     0.0002
+Breast Cancer       SMA         96.49          165.34        0.0451        0.30     0.0003
+         Iris       HHO         93.33            7.78        0.0451        0.13     0.0001
+         Wine       HHO         88.89            8.97        0.0451        0.28     0.0003
+Breast Cancer       HHO         96.49            7.70        0.0700        0.53     0.0005
+====================================================================================================
+```
+```md
+model = neuro_opt.search_model(
+    hybrid=['GWO','Adam'],  hybrid_epochs=[10,10],
+    epochs=10,                   
+    train_time=60,             
+    epochs_weights=10,          
+    population_weights=20, 
+)
+====================================================================================================
+Benchmarks
+====================================================================================================
+      Dataset  Algorithm  Accuracy (%)  Train Time (s)  Latency (ms)  Params (k)  FLOPs (M)
+         Iris   GWO+Adam        100.00            0.16        0.0400        0.13     0.0001
+         Wine   GWO+Adam        100.00            0.36        0.0453        0.43     0.0004
+Breast Cancer   GWO+Adam         97.37            1.81        0.0400        1.06     0.0010
+====================================================================================================
+```
+
+### make_moons (n=2000, noise=0.3) | 20 Runs Average
+```python
+X, y = make_moons(n_samples=2000, noise=0.3)
+neuro_opt = NeuroOptimizer(X, y, task="classification")
+for opt in NeuroOptimizer.get_available_optimizers():
+    model = neuro_opt.search_linear_model(
+        optimizer_name_weights=opt, 
+        epochs=5,                   
+        train_time=60,             
+        epochs_weights=10,          
+        population_weights=20,              
+    )
+```
+```md
+====================================================================================================
+ALGORITHM       | AVG ACCURACY    | STD DEV    | AVG INF TIME (ms)    | BEST ACC  
+----------------------------------------------------------------------------------------------------
+GWO             |   87.28%        | ±1.49%   |     0.2502 ms        |  89.95%
+WOA             |   86.48%        | ±1.35%   |     0.5262 ms        |  90.15%
+PSO             |   86.29%        | ±1.41%   |     0.2500 ms        |  88.75%
+DE              |   86.06%        | ±1.49%   |     0.3985 ms        |  89.95%
+SMO             |   85.78%        | ±1.37%   |     0.3003 ms        |  89.80%
+ABC             |   85.78%        | ±1.03%   |     0.2485 ms        |  87.55%
+HHO             |   85.04%        | ±1.57%   |     0.4988 ms        |  88.80%
+GA              |   85.01%        | ±1.97%   |     0.3985 ms        |  89.40%
+SMA             |   84.79%        | ±2.12%   |     0.6004 ms        |  89.25%
+Adam            |   83.88%        | ±1.87%   |     0.3001 ms        |  88.05%
+====================================================================================================
+```
+```python
+model = neuro_opt.search_linear_model(
+    optimizer_name_weights=opt, 
+    epochs=10,                   
+    train_time=60,             
+    epochs_weights=10,          
+    population_weights=20, 
+   
+)
+```
+```md
+====================================================================================================
+ALGORITHM       | AVG ACCURACY    | STD DEV    | AVG INF TIME (ms)    | BEST ACC  
+----------------------------------------------------------------------------------------------------
+GWO             |   88.32%        | ±1.28%   |     0.8899 ms        |  91.05%
+PSO             |   87.51%        | ±1.19%   |     0.7262 ms        |  89.80%
+SMO             |   87.00%        | ±1.45%   |     0.6778 ms        |  90.30%
+ABC             |   86.96%        | ±0.90%   |     0.4767 ms        |  88.85%
+GA              |   86.84%        | ±1.21%   |     0.4511 ms        |  89.35%
+DE              |   86.78%        | ±1.42%   |     0.6773 ms        |  89.45%
+WOA             |   86.27%        | ±1.64%   |     1.7371 ms        |  89.70%
+HHO             |   85.86%        | ±1.31%   |     0.6460 ms        |  88.90%
+SMA             |   85.37%        | ±1.85%   |     0.6266 ms        |  88.65%
+Adam            |   84.99%        | ±1.00%   |     0.6017 ms        |  87.05%
+====================================================================================================
+
+```
+
+
+```md
+model = neuro_opt.search_model(
+    hybrid=['GWO','Adam'],  hybrid_epochs=[10,10],
+    epochs=10,                   
+    train_time=60,             
+    epochs_weights=10,          
+    population_weights=20, 
+    
+)
+====================================================================================================
+ALGORITHM       | AVG ACCURACY    | STD DEV    | AVG INF TIME (ms)    | BEST ACC  
+----------------------------------------------------------------------------------------------------
+GWO  + Adam           |   90.40%        | ±0.85%   |     0.4511 ms        |  91.45%
+====================================================================================================
+```
+
+```python
+neuro_opt = NeuroOptimizer(X, y, task="classification")
+for opt in ['Adam','GWD']:
+    model=neuro_opt.search_linear_model(optimizer_name_weights=opt, epochs=20,  train_time=60,
+                                    epochs_weights=20, population_weights=20,
+                                    time_importance=time_importance)
+```
+![alt text](image-1.png)
+![alt text](image-2.png)
+
+## Benchmark : Regression
+
+cos(x)+gauss(0,0.1)
+```python
+x = torch.linspace(-1, 1, 100).unsqueeze(1)
+y = torch.cos( x) + torch.randn(100,1)*0.1
+
+xtest= torch.linspace(0, 1, 100).unsqueeze(1)
+
+Layers = [
+    LinearCfg(1, 32, nn.Tanh),
+    LinearCfg(32, 32, nn.Tanh),
+    LinearCfg(32, 1, None)
+]
+neuro_opt = NeuroOptimizer(x, y, task="regression", Layers=Layers, activation=nn.Tanh)
+model = neuro_opt.search_linear_model(optimizer_name_weights='Adam', epochs=50,  train_time=10*60,
+                                epochs_weights=200, population_weights=20,
+                                verbose=True)
+with torch.no_grad():
+    pred = model(xtest)
+
+```
+![alt text](image.png)
+
+### fetch_california_housing, load_diabetes, make_friedman1
+
+```md
+=========================================================================================================
+DATASET                   | ALGO       | R² SCORE (Max 1.0)   | MSE             | INF TIME (ms)  
+---------------------------------------------------------------------------------------------------------
+California Housing (2k)   | Adam       | 0.7754               | 0.2052          | 1.0002         
+California Housing (2k)   | GWO        | 0.6756               | 0.2963          | 0.0000         
+California Housing (2k)   | PSO        | -0.0324              | 0.9431          | 0.0000         
+California Housing (2k)   | DE         | 0.5069               | 0.4504          | 0.0000         
+California Housing (2k)   | WOA        | 0.3165               | 0.6244          | 0.0000         
+California Housing (2k)   | GA         | 0.5918               | 0.3729          | 0.0000         
+California Housing (2k)   | ABC        | 0.3652               | 0.5799          | 0.0000         
+California Housing (2k)   | SMO        | 0.6208               | 0.3464          | 0.0000         
+California Housing (2k)   | SMA        | 0.5682               | 0.3944          | 0.0000         
+California Housing (2k)   | HHO        | 0.3607               | 0.5840          | 0.0000         
+Diabetes                  | Adam       | 0.1371               | 4571.8247       | 0.0000         
+Diabetes                  | GWO        | 0.3713               | 3331.1218       | 0.0000         
+Diabetes                  | PSO        | 0.0974               | 4782.2788       | 1.0004         
+Diabetes                  | DE         | 0.2826               | 3800.8921       | 0.0000         
+Diabetes                  | WOA        | -0.1124              | 5893.6045       | 0.0000         
+Diabetes                  | GA         | 0.3249               | 3576.7546       | 0.0000         
+Diabetes                  | ABC        | 0.2084               | 4193.9717       | 1.0002         
+Diabetes                  | SMO        | 0.2716               | 3859.1201       | 0.0000         
+Diabetes                  | SMA        | 0.3340               | 3528.4121       | 0.0000         
+Diabetes                  | HHO        | 0.1961               | 4259.2891       | 1.0011         
+Friedman Non-Linear       | Adam       | 0.6277               | 8.6988          | 0.0000         
+Friedman Non-Linear       | GWO        | 0.6134               | 9.0339          | 0.0000         
+Friedman Non-Linear       | PSO        | 0.0281               | 22.7096         | 0.0000         
+Friedman Non-Linear       | DE         | 0.4986               | 11.7168         | 0.0000         
+Friedman Non-Linear       | WOA        | 0.1627               | 19.5654         | 0.0000         
+Friedman Non-Linear       | GA         | 0.3862               | 14.3419         | 0.0000         
+Friedman Non-Linear       | ABC        | 0.1274               | 20.3887         | 0.0000         
+Friedman Non-Linear       | SMO        | 0.3631               | 14.8830         | 0.0000         
+Friedman Non-Linear       | SMA        | 0.5366               | 10.8274         | 0.0000         
+Friedman Non-Linear       | HHO        | -0.1552              | 26.9935         | 0.0000         
+=========================================================================================================
+```
+
+
+## Classification Image
+
+### MNIST
+```python
+Layers = [
+    Conv2dCfg(1, 1, 3),
+    FlattenCfg(),
+    LinearCfg(36, 10, None)
+]
+
+for opt in NeuroOptimizer.get_available_optimizers():
+    neuro_opt = NeuroOptimizer(X, y, task="classification",Layers=Layers)
+    model=neuro_opt.search_weights(optimizer_name=opt, epochs=50, population=40)
+    model=neuro_opt.search_model(epochs=20,optimizer_name_weights=opt, epochs_weights=50, population_weights=40)
+```
+```md
+Model     search_weights      search_model
+Adam        0.9443              0.9649
+GWO         0.3077              0.4140
+PSO         0.1163              0.1268
+DE          0.3127              0.4023
+WOA         0.1013              0.1903
+GA          0.3823              0.4452
+ABC         0.1747              0.2460
+SMO         0.2332              0.2454
+SMA         0.2532              0.2627
+HHO         0.2721              0.1358
+```
+``` md
+====================================================================================================
+BENCHMARK
+====================================================================================================
+             Dataset Algo            Mode  Accuracy  Train Time (s)  Inf Time (ms)
+        Digits (8x8)  ABC   NAS (Evolved)    0.1111          7.1849         1.0071
+        Digits (8x8)  ABC Weights (Fixed)    0.1056          6.4637         0.9966
+
+        Digits (8x8) Adam   NAS (Evolved)    0.9583          0.1828         0.0000
+        Digits (8x8) Adam Weights (Fixed)    0.9583          0.1626         1.0056
+
+        Digits (8x8)   DE   NAS (Evolved)    0.1028          3.4276         1.0009
+        Digits (8x8)   DE Weights (Fixed)    0.1278          3.3676         1.0014
+
+        Digits (8x8)   GA   NAS (Evolved)    0.1361          3.8615         1.5094
+        Digits (8x8)   GA Weights (Fixed)    0.0806          3.6658         0.0000
+        
+        Digits (8x8)  GWO   NAS (Evolved)    0.1667          4.2136         1.0002
+        Digits (8x8)  GWO Weights (Fixed)    0.3500          4.6753         2.0032
+
+        Digits (8x8)  HHO   NAS (Evolved)    0.1222          6.7114         1.0071
+        Digits (8x8)  HHO Weights (Fixed)    0.1250          6.2650         0.9999
+
+        Digits (8x8)  PSO   NAS (Evolved)    0.1333          6.6804         0.0000
+        Digits (8x8)  PSO Weights (Fixed)    0.0972          5.9419         0.0000
+
+        Digits (8x8)  SMA   NAS (Evolved)    0.1861        188.2196         1.0016
+        Digits (8x8)  SMA Weights (Fixed)    0.2056        179.5234         0.0000
+
+        Digits (8x8)  SMO   NAS (Evolved)    0.0806          8.1273         2.0084
+        Digits (8x8)  SMO Weights (Fixed)    0.1389          7.4610         1.0035
+
+        Digits (8x8)  WOA   NAS (Evolved)    0.0944          3.6672         0.0000
+        Digits (8x8)  WOA Weights (Fixed)    0.2000          4.3089         2.9955
+
+FashionMNIST (28x28)  ABC   NAS (Evolved)    0.0725         58.2891         8.0380
+FashionMNIST (28x28)  ABC Weights (Fixed)    0.1150         57.6505         6.0019
+
+FashionMNIST (28x28) Adam   NAS (Evolved)    0.7875          1.8577         7.5350
+FashionMNIST (28x28) Adam Weights (Fixed)    0.7675          1.9463         5.0027
+
+FashionMNIST (28x28)   DE   NAS (Evolved)    0.1375         28.8300         3.5248
+FashionMNIST (28x28)   DE Weights (Fixed)    0.0925         29.7496         5.5254
+
+FashionMNIST (28x28)   GA   NAS (Evolved)    0.1975         37.2505         6.5241
+FashionMNIST (28x28)   GA Weights (Fixed)    0.0950         35.5957         5.0051
+
+FashionMNIST (28x28)  GWO   NAS (Evolved)    0.1225         34.8034         5.5251
+FashionMNIST (28x28)  GWO Weights (Fixed)    0.3350         34.4230         4.5180
+
+FashionMNIST (28x28)  PSO   NAS (Evolved)    0.0825         47.7354         4.0159
+FashionMNIST (28x28)  PSO Weights (Fixed)    0.0475         54.5541         4.9982
+
+FashionMNIST (28x28)  SMO   NAS (Evolved)    0.1025         83.0668         5.0015
+FashionMNIST (28x28)  SMO Weights (Fixed)    0.1450         81.2067         6.0298
+
+FashionMNIST (28x28)  WOA   NAS (Evolved)    0.1850         28.9955         5.0030
+FashionMNIST (28x28)  WOA Weights (Fixed)    0.0775         26.7720         6.5250
+
+====================================================================================================
+```
+
+```python
+LAYERS = [
+    Conv2dCfg(1, 8, 3, padding=1),
+    Conv2dCfg(8, 8, 3, padding=1),
+    Conv2dCfg(8, 8, 3, padding=1),
+    FlattenCfg(),
+    LinearCfg(X.shape[2]*X.shape[3]*X.shape[1]*8, 10, None) 
+]
+```
+
+```md
+====================================================================================================
+ BENCHMARK
+====================================================================================================
+             Dataset Algo            Mode  Accuracy  Train Time (s)  Inf Time (ms)
+        Digits (8x8)  ABC   NAS (Evolved)    0.1139          1.8717         3.9964
+        Digits (8x8)  ABC Weights (Fixed)    0.1250          1.6242         2.0325
+
+        Digits (8x8) Adam   NAS (Evolved)    0.9833          0.9938        23.0863
+        Digits (8x8) Adam Weights (Fixed)    0.9722          0.9804         4.0231
+
+        Digits (8x8)   DE   NAS (Evolved)    0.1556          2.0961         2.0087
+        Digits (8x8)   DE Weights (Fixed)    0.1111          0.9968         1.0011
+
+        Digits (8x8)   GA   NAS (Evolved)    0.1111          1.3131         1.0011
+        Digits (8x8)   GA Weights (Fixed)    0.0250          2.4344         4.0030
+
+        Digits (8x8)  GWO   NAS (Evolved)    0.0639          0.8758         1.9996
+        Digits (8x8)  GWO Weights (Fixed)    0.1806          1.2347         1.5016
+
+        Digits (8x8)  HHO   NAS (Evolved)    0.1333          1.5475         3.0150
+        Digits (8x8)  HHO Weights (Fixed)    0.0917          2.4058         2.1415
+
+        Digits (8x8)  PSO   NAS (Evolved)    0.1417          2.6542         2.0010
+        Digits (8x8)  PSO Weights (Fixed)    0.1333          1.7392         2.0003
+
+        Digits (8x8)  SMA   NAS (Evolved)    0.0778        154.5960         1.5140
+        Digits (8x8)  SMA Weights (Fixed)    0.0917         18.4968         0.9997
+
+        Digits (8x8)  SMO   NAS (Evolved)    0.0861          1.9286         1.5068
+        Digits (8x8)  SMO Weights (Fixed)    0.1278          2.8755         0.9689
+
+        Digits (8x8)  WOA   NAS (Evolved)    0.0556          1.0074         3.0093
+        Digits (8x8)  WOA Weights (Fixed)    0.0306          1.1385         2.5125
+
+FashionMNIST (28x28)  ABC   NAS (Evolved)    0.1200          2.0240        16.5219
+FashionMNIST (28x28)  ABC Weights (Fixed)    0.0925          2.5769        22.5620
+
+FashionMNIST (28x28) Adam   NAS (Evolved)    0.8400          7.9745        23.0608
+FashionMNIST (28x28) Adam Weights (Fixed)    0.8450          8.7450        34.7574
+
+FashionMNIST (28x28)   DE   NAS (Evolved)    0.0750          1.3014        27.2593
+FashionMNIST (28x28)   DE Weights (Fixed)    0.0950         10.5563        24.0796
+
+FashionMNIST (28x28)   GA   NAS (Evolved)    0.1000          1.2839        21.5788
+FashionMNIST (28x28)   GA Weights (Fixed)    0.1350          1.9806        21.0924
+
+FashionMNIST (28x28)  GWO   NAS (Evolved)    0.1175          1.1394        17.0500
+FashionMNIST (28x28)  GWO Weights (Fixed)    0.1350          1.4528        41.0292
+
+FashionMNIST (28x28)  HHO   NAS (Evolved)    0.0825          1.6817        17.5858
+FashionMNIST (28x28)  HHO Weights (Fixed)    0.0975          1.7816        21.0438
+
+FashionMNIST (28x28)  PSO   NAS (Evolved)    0.1200          1.8998        16.5281
+FashionMNIST (28x28)  PSO Weights (Fixed)    0.0700          1.7432        20.5402
+
+FashionMNIST (28x28)  SMA   NAS (Evolved)    0.1150         22.3150        28.6043
+FashionMNIST (28x28)  SMA Weights (Fixed)    0.0700          3.2801        21.5473
+
+FashionMNIST (28x28)  SMO   NAS (Evolved)    0.1575         39.5106        18.0459
+FashionMNIST (28x28)  SMO Weights (Fixed)    0.1025          2.7280        20.4964
+
+FashionMNIST (28x28)  WOA   NAS (Evolved)    0.0700          1.8454        30.6456
+FashionMNIST (28x28)  WOA Weights (Fixed)    0.0925          1.5019        36.1836
+
+====================================================================================================
+```
+
+
+
+```md
+    LAYERS = [
+        Conv2dCfg(1, 32, 3, padding=1),
+        Conv2dCfg(32, 32, 3, padding=1),
+        Conv2dCfg(32, 32, 3, padding=1),
+        FlattenCfg(),
+        LinearCfg(X.shape[2]*X.shape[3]*X.shape[1]*32, 10, None) 
+    ]
+    
+=====================
+ RÉSULTATS STATISTIQUES FINAUX
+========================================================================================================================
+             Dataset Algo  Runs Accuracy (Mean ± Std)  Acc Max  Train Time Mean (s)  Inf Time Mean (ms)
+        Digits (8x8) Adam    20        98.64% ± 0.53% 0.994444            15.851734           22.440183
+FashionMNIST (28x28) Adam    20        83.00% ± 0.81% 0.847500           189.154225          213.330531
+
+========================================================================================================================
+
+
+
+    
+LAYERS = [
+    Conv2dCfg(in_channels=1, out_channels=32, kernel_size=3, padding=1, activation=nn.ReLU),
+    MaxPool2dCfg(kernel_size=2, stride=2),
+    Conv2dCfg(in_channels=32, out_channels=64, kernel_size=3, padding=1, activation=nn.ReLU),
+    MaxPool2dCfg(kernel_size=2, stride=2),
+    FlattenCfg(),
+    LinearCfg(in_features=(X.shape[2] // 4) * (X.shape[3] // 4) * 64, out_features=128, activation=nn.ReLU),
+    DropoutCfg(p=0.4), 
+    LinearCfg(in_features=128, out_features=10, activation=None)
+]
+========================================================================================================================
+ RÉSULTATS STATISTIQUES FINAUX
+========================================================================================================================
+             Dataset Algo  Runs Accuracy (Mean ± Std)  Acc Max  Train Time Mean (s)  Inf Time Mean (ms)
+        Digits (8x8) Adam    50        98.62% ± 0.63%   1.0000             3.693523            5.815082
+FashionMNIST (28x28) Adam    50        84.46% ± 1.56%   0.8775            47.100273           74.207230
+
+========================================================================================================================
+
+```
+
+
+```python
+best_model = opt.search_model_evolutionary(
+    epochs=10,                
+    population_size=10,           
+    epochs_weights=40,             
+    optimizer_name_weights='Adam',
+    learning_rate_weights=0.01,
+    verbose=True
+)
+```
+
+```
+--- RESULTATS Digits (Image Classification) ---
+train time NAS : 10.14s
+Accuracy  : 91.39%
+Architecture :
+DynamicNet(
+  (net): Sequential(
+    (0): Flatten(start_dim=1, end_dim=-1)
+    (1): Linear(in_features=64, out_features=10, bias=True)
+  )
+)
+
+--- RESULTATS California Housing (Regression) ---
+train time NAS : 3.07s
+MSE Final       : 1.6875
+Architecture :
+DynamicNet(
+  (net): Sequential(
+    (0): Linear(in_features=8, out_features=5, bias=True)
+    (1): ReLU()
+    (2): Linear(in_features=5, out_features=1, bias=True)
+  )
+)
+
+
