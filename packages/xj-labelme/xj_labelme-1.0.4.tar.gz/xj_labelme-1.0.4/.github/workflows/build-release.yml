@@ -1,0 +1,110 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: xj-labelme.exe
+            asset_name: xj-labelme-windows.exe
+          - os: ubuntu-latest
+            artifact_name: xj-labelme
+            asset_name: xj-labelme-linux
+          - os: macos-latest
+            artifact_name: xj-labelme
+            asset_name: xj-labelme-macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libegl1 libgl1 libxkbcommon0 libdbus-1-3
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pyinstaller
+          pip install -e .
+
+      - name: Build with PyInstaller (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $vcDlls = @(
+            "C:\Windows\System32\msvcp140.dll",
+            "C:\Windows\System32\vcruntime140.dll",
+            "C:\Windows\System32\vcruntime140_1.dll"
+          )
+          $addBinaryArgs = ""
+          foreach ($dll in $vcDlls) {
+            if (Test-Path $dll) {
+              $addBinaryArgs += " --add-binary `"$dll;.`""
+            }
+          }
+          $cmd = "pyinstaller --onefile --windowed --name xj-labelme " +
+            "--splash labelme/icons/icon.png " +
+            "--collect-all osam " +
+            "--collect-all labelme " +
+            "--collect-all onnxruntime " +
+            "--add-data `"labelme/translate;labelme/translate`" " +
+            "--hidden-import PIL._tkinter_finder " +
+            "--hidden-import onnxruntime " +
+            $addBinaryArgs + " " +
+            "labelme/__main__.py"
+          Invoke-Expression $cmd
+
+      - name: Build with PyInstaller (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          pyinstaller --onefile --windowed --name xj-labelme \
+            --collect-all osam \
+            --collect-all labelme \
+            --collect-all onnxruntime \
+            --add-data "labelme/translate:labelme/translate" \
+            --hidden-import PIL._tkinter_finder \
+            --hidden-import onnxruntime \
+            labelme/__main__.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.artifact_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            xj-labelme-windows.exe/xj-labelme.exe
+            xj-labelme-linux/xj-labelme
+            xj-labelme-macos/xj-labelme
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

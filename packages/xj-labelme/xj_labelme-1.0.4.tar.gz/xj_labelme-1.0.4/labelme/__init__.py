@@ -1,0 +1,24 @@
+import logging
+
+__appname__ = "Labelme"
+
+# Semantic Versioning 2.0.0: https://semver.org/
+# 1. MAJOR version when you make incompatible API changes;
+# 2. MINOR version when you add functionality in a backwards-compatible manner;
+# 3. PATCH version when you make backwards-compatible bug fixes.
+# e.g., 1.0.0a0, 1.0.0a1, 1.0.0b0, 1.0.0rc0, 1.0.0, 1.0.0.post0
+__version__ = "5.10.0"
+
+# XXX: has to be imported before PyQt5 to load dlls in order on Windows
+# https://github.com/wkentaro/labelme/issues/1564
+# 设为可选导入，AI 功能不可用时不影响基本标注功能
+try:
+    import onnxruntime
+    ONNX_AVAILABLE = True
+except (ImportError, OSError) as e:
+    ONNX_AVAILABLE = False
+    logging.warning(f"onnxruntime not available: {e}. AI features will be disabled.")
+
+from labelme import testing
+from labelme import utils
+from labelme._label_file import LabelFile
