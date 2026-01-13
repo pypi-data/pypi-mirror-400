@@ -1,0 +1,1 @@
+import{C as i,a8 as f,h as c,a3 as m,t as e,f as l,J as h,a9 as p}from"../chunks/tJ-1PvYF.js";const v=""+new URL("../assets/favicon.DFEIifsl.ico",import.meta.url).href;var _=l('<link rel="icon"/>');function u(o,r){var a=i();f("12qhfyh",s=>{var t=_();h(()=>p(t,"href",v)),e(s,t)});var n=c(a);m(n,()=>r.children),e(o,a)}export{u as component};
