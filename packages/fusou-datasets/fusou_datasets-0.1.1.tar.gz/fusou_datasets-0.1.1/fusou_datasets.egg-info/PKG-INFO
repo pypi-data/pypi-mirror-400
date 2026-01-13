@@ -1,0 +1,95 @@
+Metadata-Version: 2.4
+Name: fusou-datasets
+Version: 0.1.1
+Summary: Secure data loader for FUSOU research datasets with Device Trust authentication
+Author-email: FUSOU Team <dev@fusou.dev>
+License: MIT
+Project-URL: Homepage, https://github.com/tsukasa-u/FUSOU
+Project-URL: Documentation, https://github.com/tsukasa-u/FUSOU/docs
+Project-URL: Repository, https://github.com/tsukasa-u/FUSOU
+Project-URL: Bug Tracker, https://github.com/tsukasa-u/FUSOU/issues
+Keywords: fusou,datasets,avro,pandas,research,kancolle
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.25.0
+Requires-Dist: pandas>=1.3.0
+Requires-Dist: fastavro>=1.4.0
+Requires-Dist: tqdm>=4.60.0
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: pytest-cov>=2.0; extra == "dev"
+
+# Fusou Datasets
+
+Secure data loader for FUSOU research datasets.
+
+## Installation
+
+```bash
+pip install fusou-datasets
+```
+
+Or from source:
+
+```bash
+pip install -e packages/fusou-datasets/python
+```
+
+## Quick Start
+
+```python
+import fusou_datasets
+
+# API key loaded automatically from FUSOU_API_KEY env var
+tables = fusou_datasets.list_tables()
+df = fusou_datasets.load("ship_type")
+```
+
+## Configuration
+
+```bash
+# Set API key (recommended)
+export FUSOU_API_KEY="your_key"
+```
+
+Or save to config:
+
+```python
+fusou_datasets.save_api_key("your_key")
+```
+
+## API
+
+| Function                           | Description                |
+| ---------------------------------- | -------------------------- |
+| `list_tables()`                    | Get available table names  |
+| `list_period_tags()`               | Get period tags and latest |
+| `load(table, period_tag="latest")` | Load data as DataFrame     |
+
+## Period Tags
+
+```python
+df = fusou_datasets.load("ship_type")  # latest
+df = fusou_datasets.load("ship_type", period_tag="2024-12")
+df = fusou_datasets.load("ship_type", period_tag="all")
+```
+
+## CLI
+
+```bash
+fusou-datasets --tables
+fusou-datasets --period-tags
+fusou-datasets --client-id
+```
