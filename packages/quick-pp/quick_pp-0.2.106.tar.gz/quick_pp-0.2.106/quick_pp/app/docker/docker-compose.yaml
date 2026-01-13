@@ -1,0 +1,118 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - ${POSTGRES_PORT:-5432}:5432
+    networks:
+      - qpp-network
+  
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - qpp-network
+
+  celery-worker:
+    image: imranfadhil86/quick_pp-backend:latest
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - QPP_DATABASE_URL=${QPP_DATABASE_URL}
+    command: celery -A quick_pp.app.backend.task_queue.celery_app.celery_app worker --loglevel=info --concurrency=1
+    restart: unless-stopped
+    volumes:
+      - ../../../uploads:/code/uploads
+    networks:
+      - qpp-network
+
+  flower:
+    image: mher/flower:latest
+    depends_on:
+      - redis
+    environment:
+      - BROKER_URL=redis://redis:6379/0
+    command: celery flower --broker=redis://redis:6379/0 --port=5555 --address=0.0.0.0
+    ports:
+      - "5555:5555"
+    restart: unless-stopped
+    networks:
+      - qpp-network
+
+  qpp-backend:
+    image: imranfadhil86/quick_pp-backend:latest
+    depends_on:
+      - postgres
+    environment:
+      - QPP_DATABASE_URL=${QPP_DATABASE_URL}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "6312:6312"
+    volumes:
+      - ../../../uploads:/code/uploads
+    networks:
+      - qpp-network
+
+  qpp-frontend:
+    image: node:20-alpine
+    working_dir: /app
+    restart: unless-stopped
+    # mount the frontend source so local edits reflect inside container
+    volumes:
+      - ../frontend:/app:delegated
+      - /app/node_modules
+    ports:
+      - "5469:5469"
+    depends_on:
+      - qpp-backend
+    environment:
+      - VITE_BACKEND_URL=http://localhost:6312
+      - HOST=0.0.0.0
+      - PORT=5469
+      - NODE_OPTIONS=--max-old-space-size=4096
+    # Install deps, build the app, and run the production server
+    command: sh -c "npm install && npm run build && node build"
+    networks:
+      - qpp-network
+
+  langflow:
+    profiles:
+      - langflow  # enable with `--profile langflow` on docker-compose command line
+    image: langflowai/langflow:latest  # or another version tag on https://hub.docker.com/r/langflowai/langflow
+    restart: unless-stopped
+    pull_policy: always  # set to 'always' when using 'latest' image
+    ports:
+      - "7860:7860"
+    depends_on:
+      - qpp-backend
+    environment:
+      - LANGFLOW_DATABASE_URL=${QPP_DATABASE_URL}
+      - LANGFLOW_SECRET_KEY=${LANGFLOW_SECRET_KEY}
+      - LANGFLOW_SKIP_AUTH_AUTO_LOGIN=${LANGFLOW_SKIP_AUTH_AUTO_LOGIN}
+      - LANGFLOW_SUPERUSER=${LANGFLOW_SUPERUSER}
+      - LANGFLOW_SUPERUSER_PASSWORD=${LANGFLOW_SUPERUSER_PASSWORD}
+      # This variable defines where the logs, file storage, monitor data and secret keys are stored.
+      - LANGFLOW_CONFIG_DIR=app/langflow
+    volumes:
+      - ./data/langflow:/app/langflow
+    networks:
+      - qpp-network
+
+networks:
+  qpp-network:
+    driver: bridge
