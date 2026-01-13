@@ -1,0 +1,141 @@
+# Dipolar Network
+
+Lekka i wydajna biblioteka Python do konstruowania **Dipolowych Hiperpłaszczyzn Separujących** (Dipolar Separating Hyperplanes). Biblioteka wykorzystuje algorytm konstruktywny do tworzenia odcinkami liniowych granic decyzyjnych dla zadań klasyfikacji binarnej.
+
+Narzędzie oferuje zarówno czyste **API w Pythonie** do integracji z własnymi skryptami, jak również **Interfejs Wiersza Poleceń (CLI)** do szybkiego użycia w terminalu.
+
+## 📦 Instalacja
+
+Możesz zainstalować bibliotekę bezpośrednio z repozytorium PyPI:
+
+```bash
+pip install dipolar-network
+```
+
+## 🚀 Szybki Start (Terminal / CLI)
+
+Po zainstalowaniu biblioteki, komenda dipolar-network jest dostępna globalnie w systemie. Pozwala ona na szybkie trenowanie sieci na plikach CSV i eksportowanie wyników do formatu JSON.
+
+---
+**Podstawowe użycie**  
+Wytrenuj sieć na pliku dane.csv i zapisz parametry modelu do wyniki.json (używając domyślnych ustawień):
+```bash
+dipolar-network dane.csv wyniki.json
+```
+
+---
+**Użycie zaawansowane**  
+Dostosuj proces treningu, definiując maksymalną liczbę warstw, neuronów oraz limity czasowe i dokładność:
+```bash
+dipolar-network dane.csv model.json -l 5 -n 8 -t 15.0 -a 0.98
+```
+
+---
+
+**Dostępne argumenty:**
+
+| Argument | Flaga (Skrót) | Typ | Domyślnie | Opis |
+| :--- | :--- | :--- | :--- | :--- |
+| **Input CSV** | (Pozycyjny) | `str` | *Wymagane* | Ścieżka do pliku wejściowego z danymi (.csv). |
+| **Output JSON** | (Pozycyjny) | `str` | *Wymagane* | Ścieżka, gdzie zostanie zapisany wynikowy plik (.json). |
+| **Layers** | `-l`, `--layers` | `int` | `3` | Maksymalna liczba warstw (głębokość sieci). |
+| **Neurons** | `-n`, `--neurons` | `int` | `10` | Liczba neuronów na jedną warstwę. |
+| **Time Limit** | `-t`, `--time` | `float` | `10.0` | Limit czasu obliczeń na jedną warstwę (w sekundach). |
+| **Accuracy** | `-a`, `--accuracy` | `float` | `1.0` | Docelowa dokładność treningu (wartość od 0.0 do 1.0). |
+
+
+## 🐍 Użycie w kodzie Python (API)
+Bibliotekę można łatwo zintegrować z istniejącym kodem w Pythonie, np. w ramach analizy danych w Jupyter Notebook.
+
+```python
+import numpy as np
+from dipolar.network import DipolarNetwork
+
+# 1. Przygotowanie danych 
+# X: macierz cech (współrzędne punktów)
+# y: wektor etykiet (0 lub 1, ewentualnie -1 lub 1)
+X = np.array([[1.2, 3.4], [2.1, 0.5], [-1.0, 2.2]])
+y = np.array([0, 0, 1])
+
+# 2. Inicjalizacja modelu
+# Konfigurujemy maksymalną strukturę sieci
+model = DipolarNetwork(max_layers=5, neurons_per_layer=3)
+
+# 3. Trening
+# time_limit określa czas (w sekundach) na optymalizację jednej warstwy
+model.fit(X, y, time_limit=5.0, target_accuracy=1.0)
+
+# 4. Pobranie parametrów modelu
+# Zwraca listę warstw z wagami, biasem i sformatowanym równaniem
+params = model.get_parameters()
+
+# 5. Wyświetlenie struktury
+for i, layer in enumerate(params):
+    print(f"Warstwa {i+1}:")
+    for neuron in layer:
+        print(f"  -> {neuron['equation']}")
+```
+
+## 📂 Formaty danych
+
+**Plik wejściowy (CSV)**
+
+Biblioteka oczekuje pliku tekstowego oddzielonego przecinkami. Plik może (ale nie musi) zawierać nagłówka. Wymagane są co najmniej 3 kolumny:
+
+1. Cecha 1 (współrzędna x)
+2. Cecha 2 (współrzędna y)
+3. Etykieta klasy (-1/1)
+
+**Przykład** (dane.csv):
+```csv
+x1,x2,label
+-1.96163,-0.89869,-1.00000
+-0.52919,0.66772,-1.00000
+2.34700,0.81597,1.00000
+1.51935,0.59442,1.00000
+```
+
+---
+
+**Plik Wynikowy (JSON)**
+
+Plik wyjściowy zawiera pełną matematyczną definicję granic decyzyjnych. Dane są zorganizowane jako lista warstw, gdzie każda warstwa zawiera listę neuronów (hiperpłaszczyzn).
+
+```json
+[
+    [
+        {
+            "weights": [0.95, 0.09],
+            "bias": -0.12,
+            "equation": "0.950x + 0.090y + -0.120 = 0"
+        }
+    ],
+    [
+        {
+            "weights": [-0.5, 1.2],
+            "bias": 0.5,
+            "equation": "-0.500x + 1.200y + 0.500 = 0"
+        }
+    ]
+]
+```
+## 🔄 Historia Zmian
+
+### v0.2.1 (2024-01-06)
+* 📊 **Rozszerzone raportowanie:** Plik JSON zawiera teraz szczegółowe statystyki (czas, dokładność %) oraz informacje o danych (liczba próbek, liczebność klas).
+* 🖥️ **Ulepszone CLI:** Terminal po zakończeniu treningu wyświetla teraz faktyczną skuteczność i czas, zamiast ogólnego komunikatu o sukcesie.
+* 🔧 **Refaktoryzacja:** Centralizacja logiki statystyk wewnątrz klasy `DipolarNetwork` (ułatwia integrację z GUI).
+* 📝 **Lepsze formatowanie:** Poprawiono generowanie napisów równań (obsługa znaków +/- i dodanie symbolu mnożenia `*`).
+
+### v0.2.0 (2024-01-06)
+* 🎉 Dodano obsługę N-wymiarowych danych (nie tylko 2D!).
+* 🐛 Naprawiono błąd z metodą `predict` w klasie Neuron.
+* ✨ Nowe formatowanie równań (np. `0.5*x1 - 0.2*x2...`).
+* 📂 Automatyczne wykrywanie liczby kolumn w pliku CSV.
+
+### v0.1.2
+* Dodano obsługę terminala (CLI).
+
+
+## 📄 Licencja
+Ten projekt jest udostępniany na licencji **MIT License**.
