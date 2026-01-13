@@ -1,0 +1,157 @@
+import enum
+import typing
+import logging
+import uuid
+
+from PyQt6.QtCore import QSettings
+
+APP_NAME = "Buzz"
+
+
+class Settings:
+    def __init__(self, application=""):
+        self.settings = QSettings(APP_NAME, application)
+        self.settings.sync()
+
+    class Key(enum.Enum):
+        RECORDING_TRANSCRIBER_TASK = "recording-transcriber/task"
+        RECORDING_TRANSCRIBER_MODEL = "recording-transcriber/model"
+        RECORDING_TRANSCRIBER_LANGUAGE = "recording-transcriber/language"
+        RECORDING_TRANSCRIBER_TEMPERATURE = "recording-transcriber/temperature"
+        RECORDING_TRANSCRIBER_INITIAL_PROMPT = "recording-transcriber/initial-prompt"
+        RECORDING_TRANSCRIBER_ENABLE_LLM_TRANSLATION = "recording-transcriber/enable-llm-translation"
+        RECORDING_TRANSCRIBER_LLM_MODEL = "recording-transcriber/llm-model"
+        RECORDING_TRANSCRIBER_LLM_PROMPT = "recording-transcriber/llm-prompt"
+        RECORDING_TRANSCRIBER_EXPORT_ENABLED = "recording-transcriber/export-enabled"
+        RECORDING_TRANSCRIBER_EXPORT_FOLDER = "recording-transcriber/export-folder"
+        RECORDING_TRANSCRIBER_MODE = "recording-transcriber/mode"
+
+        PRESENTATION_WINDOW_TEXT_COLOR = "presentation-window/text-color"
+        PRESENTATION_WINDOW_BACKGROUND_COLOR = "presentation-window/background-color"
+        PRESENTATION_WINDOW_TEXT_SIZE = "presentation-window/text-size"
+        PRESENTATION_WINDOW_THEME = "presentation-window/theme"
+
+        FILE_TRANSCRIBER_TASK = "file-transcriber/task"
+        FILE_TRANSCRIBER_MODEL = "file-transcriber/model"
+        FILE_TRANSCRIBER_LANGUAGE = "file-transcriber/language"
+        FILE_TRANSCRIBER_TEMPERATURE = "file-transcriber/temperature"
+        FILE_TRANSCRIBER_INITIAL_PROMPT = "file-transcriber/initial-prompt"
+        FILE_TRANSCRIBER_ENABLE_LLM_TRANSLATION = "file-transcriber/enable-llm-translation"
+        FILE_TRANSCRIBER_LLM_MODEL = "file-transcriber/llm-model"
+        FILE_TRANSCRIBER_LLM_PROMPT = "file-transcriber/llm-prompt"
+        FILE_TRANSCRIBER_WORD_LEVEL_TIMINGS = "file-transcriber/word-level-timings"
+        FILE_TRANSCRIBER_EXPORT_FORMATS = "file-transcriber/export-formats"
+
+        DEFAULT_EXPORT_FILE_NAME = "transcriber/default-export-file-name"
+        CUSTOM_OPENAI_BASE_URL = "transcriber/custom-openai-base-url"
+        OPENAI_API_MODEL = "transcriber/openai-api-model"
+        CUSTOM_FASTER_WHISPER_ID = "transcriber/custom-faster-whisper-id"
+        HUGGINGFACE_MODEL_ID = "transcriber/huggingface-model-id"
+
+        SHORTCUTS = "shortcuts"
+
+        FONT_SIZE = "font-size"
+
+        UI_LOCALE = "ui-locale"
+
+        USER_IDENTIFIER = "user-identifier"
+
+        TRANSCRIPTION_TASKS_TABLE_COLUMN_VISIBILITY = (
+            "transcription-tasks-table/column-visibility"
+        )
+        TRANSCRIPTION_TASKS_TABLE_COLUMN_ORDER = (
+            "transcription-tasks-table/column-order"
+        )
+        TRANSCRIPTION_TASKS_TABLE_COLUMN_WIDTHS = (
+            "transcription-tasks-table/column-widths"
+        )
+        TRANSCRIPTION_TASKS_TABLE_SORT_STATE = (
+            "transcription-tasks-table/sort-state"
+        )
+
+        MAIN_WINDOW = "main-window"
+        TRANSCRIPTION_VIEWER = "transcription-viewer"
+
+        AUDIO_PLAYBACK_RATE = "audio/playback-rate"
+
+        FORCE_CPU = "force-cpu"
+        REDUCE_GPU_MEMORY = "reduce-gpu-memory"
+
+    def get_user_identifier(self) -> str:
+        user_id = self.value(self.Key.USER_IDENTIFIER, "")
+        if not user_id:
+            user_id = str(uuid.uuid4())
+            self.set_value(self.Key.USER_IDENTIFIER, user_id)
+        return user_id
+
+    def set_value(self, key: Key, value: typing.Any) -> None:
+        self.settings.setValue(key.value, value)
+
+    def save_custom_model_id(self, model) -> None:
+        from buzz.model_loader import ModelType
+        match model.model_type:
+            case ModelType.FASTER_WHISPER:
+                self.set_value(
+                    Settings.Key.CUSTOM_FASTER_WHISPER_ID,
+                    model.hugging_face_model_id,
+                )
+            case ModelType.HUGGING_FACE:
+                self.set_value(
+                    Settings.Key.HUGGINGFACE_MODEL_ID,
+                    model.hugging_face_model_id,
+                )
+
+    def load_custom_model_id(self, model) -> str:
+        from buzz.model_loader import ModelType
+        match model.model_type:
+            case ModelType.FASTER_WHISPER:
+                return self.value(
+                    Settings.Key.CUSTOM_FASTER_WHISPER_ID,
+                    "",
+                )
+            case ModelType.HUGGING_FACE:
+                return self.value(
+                    Settings.Key.HUGGINGFACE_MODEL_ID,
+                    "",
+                )
+
+        return ""
+
+    def value(
+            self,
+            key: Key,
+            default_value: typing.Any,
+            value_type: typing.Optional[type] = None,
+    ) -> typing.Any:
+        val = self.settings.value(
+            key.value,
+            default_value,
+            value_type if value_type is not None else type(default_value),
+        )
+        if (value_type is bool or isinstance(default_value, bool)):
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, str):
+                return val.lower() in ("true", "1", "yes", "on")
+            if isinstance(val, int):
+                return val != 0
+            return bool(val)
+        return val
+
+    def clear(self):
+        self.settings.clear()
+
+    def begin_group(self, group: Key) -> None:
+        self.settings.beginGroup(group.value)
+
+    def end_group(self) -> None:
+        self.settings.endGroup()
+
+    def sync(self):
+        self.settings.sync()
+
+    def get_default_export_file_template(self) -> str:
+        return self.value(
+            Settings.Key.DEFAULT_EXPORT_FILE_NAME,
+            "{{ input_file_name }} ({{ task }}d on {{ date_time }})",
+        )
