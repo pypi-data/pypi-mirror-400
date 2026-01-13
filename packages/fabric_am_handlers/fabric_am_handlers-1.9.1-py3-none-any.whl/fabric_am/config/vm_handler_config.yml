@@ -1,0 +1,95 @@
+# MIT License
+#
+# Copyright (c) 2020 FABRIC Testbed
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+#
+# Author: Komal Thareja (kthare10@renci.org)
+ansible:
+  ansible_python_interpreter: /usr/bin/python3.6
+runtime:
+  # Attach Floating IP should be disabled for Sites which only allow IPV6 Address as (Global Unicast Address)
+  # Refer https://docs.openstack.org/liberty/networking-guide/adv-config-ipv6.html  for more details
+  disable_fip: False
+  ssh_retries: 10
+  delete_retries: 5
+  # Uncomment for EDUKY to limit the maximum size of the VM
+  #max_flavor: fabric.c4.m8.d10
+  images:
+    default_centos8_stream: centos
+    default_centos9_stream: cloud-user
+    default_centos10_stream: cloud-user
+    default_debian_11: debian
+    default_debian_12: debian
+    default_debian_13: debian
+    default_fedora_39: fedora
+    default_fedora_40: fedora
+    default_freebsd_13_zfs: freebsd
+    default_freebsd_14_zfs: freebsd
+    default_fedora_41: fedora
+    default_kali: kali
+    default_openbsd_7: openbsd
+    default_rocky_8: rocky
+    default_rocky_9: rocky
+    default_rocky_10: rocky
+    default_ubuntu_20: ubuntu
+    default_ubuntu_22: ubuntu
+    default_ubuntu_24: ubuntu
+    default_ubuntu_25: ubuntu
+    docker_rocky_8: rocky
+    docker_rocky_9: rocky
+    docker_rocky_10: rocky
+    docker_ubuntu_20: ubuntu
+    docker_ubuntu_22: ubuntu
+    docker_ubuntu_24: ubuntu
+    docker_ubuntu_25: ubuntu
+    dpu_ubuntu_24: ubuntu
+    attestable_bmv2_ubuntu_20: ubuntu
+playbooks:
+  location: fabric_am/playbooks
+  inventory_location: fabric_am/playbooks/inventory
+  admin_ssh_key: /root/.ssh/id_rsa_nova
+  VM: head_vm_provisioning.yml
+  GPU: worker_pci_provisioning.yml
+  SmartNIC: worker_pci_provisioning.yml
+  SharedNIC: worker_pci_provisioning.yml
+  FPGA: fpga_provisioning.yml
+  FPGA_Xilinx-SN1022: sn1022_fpga_provisioning.yml
+  NVME: worker_pci_provisioning.yml
+  Storage: head_volume_provisioning.yml
+  SharedNIC-OpenStack-vNIC: head_port_provisioning.yml
+  operation:
+    cpuinfo: worker_libvirt_operations.yml
+    cpupin: worker_libvirt_operations.yml
+    numainfo: worker_libvirt_operations.yml
+    numatune: worker_libvirt_operations.yml
+    reboot: head_vm_provisioning.yml
+    delete: worker_libvirt_operations.yml
+    is_deleted: worker_libvirt_operations.yml
+    rescan: pci_rescan.yml
+  config:
+    post_boot: head_vm_post_boot_config.yml
+    SmartNIC: nmcli_config_nw_interface.yml
+    SharedNIC: nmcli_config_nw_interface.yml
+    Storage: storage_config.yml
+    ssh_keys: ssh_keys_config.yml
+  cleanup:
+    NVME: nvme_cleanup.yml
+    ALL: head_vm_provisioning.yml
