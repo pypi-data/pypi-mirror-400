@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+service Medusa {
+  rpc Backup(BackupRequest) returns (BackupResponse);
+
+  rpc AsyncBackup(BackupRequest) returns (BackupResponse);
+
+  rpc BackupStatus(BackupStatusRequest) returns (BackupStatusResponse);
+
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+
+  rpc GetBackup(GetBackupRequest) returns (GetBackupResponse);
+
+  rpc GetBackups(GetBackupsRequest) returns (GetBackupsResponse);
+
+  rpc PurgeBackups(PurgeBackupsRequest) returns (PurgeBackupsResponse);
+
+  rpc PrepareRestore(PrepareRestoreRequest) returns (PrepareRestoreResponse);
+}
+
+enum StatusType {
+  IN_PROGRESS = 0;
+  SUCCESS = 1;
+  FAILED = 2;
+  UNKNOWN = 3;
+}
+
+message BackupRequest {
+  string name = 1;
+  enum Mode {
+    DIFFERENTIAL = 0;
+    FULL = 1;
+  }
+  Mode   mode = 2;
+}
+
+message BackupResponse {
+  string           backupName = 1;
+  StatusType       status = 2;
+}
+
+message BackupStatusRequest {
+  string backupName = 1;
+}
+
+message BackupStatusResponse {
+  string           startTime = 1;
+  string           finishTime = 2;
+  StatusType       status = 3;
+}
+
+message DeleteBackupRequest {
+  string name = 1;
+}
+
+message DeleteBackupResponse {
+  string name = 1;
+  StatusType status = 2;
+}
+
+message GetBackupRequest {
+  string backupName = 1;
+}
+
+message GetBackupResponse {
+  BackupSummary backup = 1;
+  StatusType    status = 2;
+}
+
+message GetBackupsRequest {
+}
+
+message GetBackupsResponse {
+  repeated BackupSummary backups = 1;
+  StatusType overallStatus = 2;
+}
+
+message BackupSummary {
+  string              backupName = 1;
+  int64               startTime = 2;
+  int64               finishTime = 3;
+  int32               totalNodes = 4;
+  int32               finishedNodes = 5;
+  repeated BackupNode nodes = 6;
+  StatusType          status = 7;
+  string              backupType = 8;
+  int64               totalSize = 9;
+  int64               totalObjects = 10;
+}
+
+message BackupNode {
+  string         host = 1;
+  repeated int64 tokens = 2;
+  string         datacenter = 3;
+  string         rack = 4;
+}
+
+message PurgeBackupsRequest {
+}
+
+message PurgeBackupsResponse {
+  int32     nbBackupsPurged = 1;
+  int32     nbObjectsPurged = 2;
+  int64     totalPurgedSize = 3;
+  int32     totalObjectsWithinGcGrace = 4;
+}
+
+message PrepareRestoreRequest {
+  string backupName = 1;
+  string datacenter = 2;
+  string restoreKey = 3;
+}
+
+message PrepareRestoreResponse {
+}
