@@ -1,0 +1,51 @@
+[tool.poetry]
+name = "pipen-board"
+version = "1.1.0"
+description = "Visualization configuration and running of pipen pipelines on the web"
+authors = ["pwwang <pwwang@pwwang.com>"]
+license = "MIT"
+readme = "README.md"
+exclude = ["pipen_board/frontend/[!build]*", "pipen_board/frontend/index.html"]
+
+[tool.poetry.build]
+generate-setup-file = true
+
+[tool.poetry.dependencies]
+python = "^3.9"
+quart = "^0.20"
+psutil = "^7"
+websocket-client = "^1.8"
+python-slugify = "^8.0"
+pipen-args = "^1.1"
+pipen-log2file = "^1.1"
+# markers = "python_version < \"3.11\"" can not be recognized by poetry
+taskgroup = { version = "^0.2", python = "<3.11" }
+pipen-report = { version = "^1.1", optional = true }
+pipen-diagram = { version = "^1.1", optional = true }
+pipen-filters = { version = "^1.1", optional = true }
+
+[tool.poetry.extras]
+report = ["pipen-report"]
+diagram = ["pipen-diagram"]
+filters = ["pipen-filters"]
+all = ["pipen-report", "pipen-diagram", "pipen-filters"]
+
+[tool.poetry.group.dev.dependencies]
+cloudsh = "^0.3"
+python-dotenv = "^1"
+panpath = {version = "^0.4", extras = ["gs", "async-gs"]}
+
+[tool.poetry.plugins.pipen]
+board = "pipen_board:pipen_board_plugin"
+
+[tool.poetry.plugins.pipen_cli]
+cli-board = "pipen_board:PipenCliBoardPlugin"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'

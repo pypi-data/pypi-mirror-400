@@ -1,0 +1,294 @@
+from __future__ import annotations
+
+import logging
+import json
+import sys
+import selectors
+from typing import TYPE_CHECKING
+
+import websocket
+from panpath import PanPath
+from pipen.utils import get_marked, get_logger
+from pipen.pluginmgr import plugin
+
+from .version import __version__
+from .defaults import (
+    NAME,
+    SECTION_PROCESSES,
+    SECTION_PROCGROUPS,
+    SECTION_DIAGRAM,
+    SECTION_REPORTS,
+)
+
+if TYPE_CHECKING:
+    from pipen import Pipen, Proc
+    from pipen.job import Job
+
+logger = get_logger(NAME)
+
+
+class PipenBoardPlugin:
+    name = NAME
+    # Let other plugins run first
+    priority = 9999
+    __version__ = __version__
+
+    def __init__(self):
+        self.ws = None
+
+    def _send(self, data, log=None):
+        if self.ws:
+            data["client"] = "pipeline"
+            try:
+                self.ws.send(json.dumps(data))
+            except BrokenPipeError:
+                pass
+
+            logdata = str(data)
+            if len(logdata) > 100:
+                logdata = logdata[:100] + "..."
+            logmsg = f"SENDING {logdata}"
+            if log is None:
+                logger.debug(logmsg)
+            else:
+                log("debug", logmsg, logger=logger)
+
+    def _connect(self):
+        """Connect to pipen-board server"""
+        if not sys.stdin.readable():
+            self.ws = None
+            logger.debug("Stdin is not readable, skip.")
+            return
+
+        sel = selectors.DefaultSelector()
+        try:
+            # nohup fails
+            sel.register(sys.stdin, selectors.EVENT_READ)
+        except PermissionError:
+            self.ws = None
+            logger.debug("No permission to access selectors, skip.")
+            return
+
+        if not sel.select(timeout=1):
+            self.ws = None
+            logger.debug("Receiving data from stdin timeout (1s), skip.")
+            return
+
+        port = sys.stdin.readline().strip()
+        if not port.startswith("pipen-board:"):
+            self.ws = None
+            logger.debug("Not spawned by pipen-board server, skip.")
+            return
+
+        # Now that we are spawned by pipen-board
+        port = int(port[12:])
+        self.ws = websocket.WebSocket()
+        self.ws.connect(f"ws://localhost:{port}/ws")
+        logger.info(f"Connected to pipen-board at ws://localhost:{port}/ws")
+        self._send({"type": "connect", "client": "pipeline"})
+
+    def _disconnect(self):
+        if self.ws:
+            self.ws.close()
+            self.ws = None
+
+    @plugin.impl
+    async def on_start(self, pipen: Pipen):
+        logger.setLevel(
+            getattr(logging, pipen.config.get("loglevel", "INFO").upper())
+        )
+        self._connect()
+        if not self.ws:
+            return
+
+        data = {}
+        diagram = PanPath(pipen.outdir).joinpath("diagram.svg")
+        if await diagram.a_is_file():
+            data[SECTION_DIAGRAM] = await diagram.a_read_text()
+
+        for proc in pipen.procs:
+            pg = get_marked(proc, "procgroup")
+            if pg:
+                group = data.setdefault(SECTION_PROCGROUPS, {})
+                group.setdefault(pg.name, []).append(proc.name)
+            else:
+                data.setdefault(SECTION_PROCESSES, []).append(proc.name)
+
+        self._send({"type": "on_start", "data": data})
+
+    @plugin.impl
+    async def on_complete(self, pipen: Pipen, succeeded: bool):
+        data = {"succeeded": succeeded}
+        if succeeded:
+            reports_dir = PanPath(pipen.outdir).joinpath("REPORTS")
+            if (
+                await reports_dir.joinpath("index.html").a_is_file()
+                and await reports_dir.joinpath("pages").a_is_dir()
+                and [p async for p in reports_dir.joinpath("pages").a_iterdir()]
+            ):
+                data[SECTION_REPORTS] = str(reports_dir.parent)
+
+        self._send({"type": "on_complete", "data": data})
+        self._disconnect()
+
+    @plugin.impl
+    async def on_proc_start(self, proc: Proc):
+        group = get_marked(proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_proc_start",
+                "data": {
+                    "proc": proc.name,
+                    "procgroup": group,
+                    "njobs": proc.size,
+                },
+            },
+            log=proc.log,
+        )
+
+    @plugin.impl
+    async def on_proc_done(self, proc: Proc, succeeded: bool):
+        group = get_marked(proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_proc_done",
+                "data": {
+                    "proc": proc.name,
+                    "procgroup": group,
+                    "succeeded": succeeded,
+                },
+            },
+            log=proc.log,
+        )
+
+    @plugin.impl
+    async def on_job_queued(self, job: Job):
+        group = get_marked(job.proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_job_queued",
+                "data": {
+                    "proc": job.proc.name,
+                    "procgroup": group,
+                    "job": job.index,
+                },
+            },
+            log=job.log,
+        )
+
+    @plugin.impl
+    async def on_job_submitted(self, job: Job):
+        group = get_marked(job.proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_job_submitted",
+                "data": {
+                    "proc": job.proc.name,
+                    "procgroup": group,
+                    "job": job.index,
+                },
+            },
+            log=job.log,
+        )
+
+    @plugin.impl
+    async def on_job_started(self, job: Job):
+        group = get_marked(job.proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_job_running",
+                "data": {
+                    "proc": job.proc.name,
+                    "procgroup": group,
+                    "job": job.index,
+                },
+            },
+            log=job.log,
+        )
+
+    @plugin.impl
+    async def on_job_killed(self, job: Job):
+        group = get_marked(job.proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_job_killed",
+                "data": {
+                    "proc": job.proc.name,
+                    "procgroup": group,
+                    "job": job.index,
+                },
+            },
+            log=job.log,
+        )
+
+    @plugin.impl
+    async def on_job_succeeded(self, job: Job):
+        group = get_marked(job.proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_job_succeeded",
+                "data": {
+                    "proc": job.proc.name,
+                    "procgroup": group,
+                    "job": job.index,
+                },
+            },
+            log=job.log,
+        )
+
+    @plugin.impl
+    async def on_job_failed(self, job: Job):
+        group = get_marked(job.proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_job_failed",
+                "data": {
+                    "proc": job.proc.name,
+                    "procgroup": group,
+                    "job": job.index,
+                },
+            },
+            log=job.log,
+        )
+
+    @plugin.impl
+    async def on_job_cached(self, job: Job):
+        group = get_marked(job.proc, "procgroup")
+        if group:
+            group = group.name
+
+        self._send(
+            {
+                "type": "on_job_cached",
+                "data": {
+                    "proc": job.proc.name,
+                    "procgroup": group,
+                    "job": job.index,
+                },
+            },
+            log=job.log,
+        )
