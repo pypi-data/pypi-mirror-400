@@ -1,0 +1,542 @@
+Metadata-Version: 2.4
+Name: glyphs-info-mcp
+Version: 1.3.0
+Summary: Unified MCP server for Glyphs handbook and API queries
+Project-URL: Homepage, https://github.com/yintzuyuan/glyphs-info-mcp
+Project-URL: Repository, https://github.com/yintzuyuan/glyphs-info-mcp
+Project-URL: Issues, https://github.com/yintzuyuan/glyphs-info-mcp/issues
+Author-email: TzuYuan Yin <yintzuyuan@erikyin.net>
+License: MIT
+License-File: LICENSE
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Requires-Dist: httpx[http2]>=0.28.0
+Requires-Dist: markdown-it-py>=3.0.0
+Requires-Dist: markdownify>=1.1.0
+Requires-Dist: mcp[cli]>=1.9.0
+Requires-Dist: pathlib2>=2.3.7; python_version < '3.9'
+Requires-Dist: platformdirs>=4.0.0
+Requires-Dist: pydantic-settings>=2.8.0
+Requires-Dist: pydantic>=2.10.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: pyyaml>=6.0.0
+Requires-Dist: readabilipy>=0.3.0
+Requires-Dist: rich>=13.9.0
+Requires-Dist: typer>=0.15.0
+Requires-Dist: typing-extensions>=4.12.0
+Provides-Extra: dev
+Requires-Dist: black>=24.0.0; extra == 'dev'
+Requires-Dist: mypy>=1.8.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.6.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Requires-Dist: types-beautifulsoup4>=4.12.0; extra == 'dev'
+Requires-Dist: types-pyyaml>=6.0.0; extra == 'dev'
+Provides-Extra: docs
+Requires-Dist: mkdocs-material>=9.0.0; extra == 'docs'
+Requires-Dist: mkdocs>=1.5.0; extra == 'docs'
+Requires-Dist: mkdocstrings[python]>=0.24.0; extra == 'docs'
+Provides-Extra: test
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'test'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'test'
+Requires-Dist: pytest-mock>=3.12.0; extra == 'test'
+Requires-Dist: pytest>=8.0.0; extra == 'test'
+Description-Content-Type: text/markdown
+
+**English** | [繁體中文](README.zh-TW.md)
+
+# Glyphs info MCP
+
+A unified MCP server integrating Glyphs handbook queries and API reference lookups for [Glyphs](https://glyphsapp.com/) font design software.
+
+## 🚀 Quick Start
+
+### Requirements
+
+- **Python 3.10+**
+- **uv package manager** - MCP officially recommended
+- **Claude Desktop** - For running the MCP server
+- **macOS**
+
+### Installation
+
+#### Method 1: Using uvx (Recommended)
+
+**Step 1: Install uv**
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Step 2: Configure Claude Desktop**
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "glyphs-info": {
+      "command": "uvx",
+      "args": ["glyphs-info-mcp"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop and you're ready to go!
+
+---
+
+#### Method 2: Install from Source (Developers)
+
+**Prerequisites**: uv installed (see Method 1 Step 1)
+
+```bash
+# Clone with submodules
+git clone --recursive https://github.com/yintzuyuan/glyphs-info-mcp.git
+cd glyphs-info-mcp
+
+# Install dependencies
+uv sync
+```
+
+Configure Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "glyphs-info-mcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/username/glyphs-info-mcp",
+        "run",
+        "glyphs-info-mcp"
+      ]
+    }
+  }
+}
+```
+
+> [!IMPORTANT]
+> Replace `/Users/username/glyphs-info-mcp` with your actual **absolute path**.
+
+---
+
+### Verify Installation
+
+```bash
+uv run glyphs-info-mcp
+```
+
+You should see:
+
+```
+✅ Glyphs info MCP Server initialized with 8 unified tools
+```
+
+## ✨ Features
+
+- 🔍 **Unified Search** - Smart query routing with automatic content type detection
+- 🌏 **Multilingual UI Terms** - Support for Glyphs UI terminology in 14 languages
+- 📚 **Complete Handbook** - All Glyphs official handbook content
+- 🔌 **Full API Reference** - Python and Objective-C API documentation
+- 🧠 **Smart Cross-referencing** - Automatic linking of related content
+- 🛠️ **MCP Protocol Compatible** - Standardized tool interface
+- 📦 **Plugin Templates as Resources** - Python and Xcode templates for plugin development
+
+## 🎁 MCP Resources
+
+MCP resources provide direct access to plugin development templates through Claude Desktop.
+
+### Python Plugin Templates (Issue #33)
+
+8 Python templates for converting scripts to plugins:
+
+- `glyphs://plugin-template/filter_without_dialog` - Filter without UI
+- `glyphs://plugin-template/filter_dialog_with_vanilla` - Filter with Vanilla UI
+- `glyphs://plugin-template/filter_dialog_with_xib` - Filter with XIB UI
+- `glyphs://plugin-template/reporter_without_dialog` - Reporter plugin
+- `glyphs://plugin-template/palette_with_vanilla` - Palette with Vanilla
+- `glyphs://plugin-template/general_without_dialog` - General plugin
+- `glyphs://plugin-template/fileformat` - File format plugin
+- `glyphs://plugin-template/selecttool` - SelectTool plugin
+
+### Xcode Plugin Templates (Issue #34)
+
+7 Xcode templates for native Objective-C plugin development:
+
+- `glyphs://xcode-template/reporter` - Reporter plugins (.glyphsReporter)
+- `glyphs://xcode-template/filter` - Filter plugins (.glyphsFilter)
+- `glyphs://xcode-template/palette` - Palette plugins (.glyphsPalette)
+- `glyphs://xcode-template/tool` - Tool plugins (.glyphsTool)
+- `glyphs://xcode-template/file_format` - File format plugins
+- `glyphs://xcode-template/plugin` - General plugins
+- `glyphs://xcode-template/plugin_base` - Base template
+
+**Access Methods**:
+
+- **Via Claude Desktop**: Resources automatically appear in the MCP resources list
+- **Via Tools**:
+  - Python: `sdk(action='list_python_templates')` and `sdk(action='get_python_template', template_id='...')`
+  - Xcode: `sdk(action='list_xcode_templates')` and `sdk(action='get_xcode_template', template_id='...')`
+
+**Placeholder Formats**:
+
+- Python: `____PluginClassName____`, `____PluginName____`, `____PluginMenuName____`
+- Xcode: `___PACKAGENAMEASIDENTIFIER___`, `___FILENAME___`, `___PACKAGENAME___`, `___FULLUSERNAME___`
+
+### Python Plugin Samples (Issue #37)
+
+6 complete Python plugin examples with source code:
+
+- `glyphs://python-sample/callback_for_context_menu` - Context menu callback example
+- `glyphs://python-sample/document_exported` - Document export hook
+- `glyphs://python-sample/multipletools` - Multiple tools in one plugin
+- `glyphs://python-sample/plugin_preferences` - Plugin preferences handling
+- `glyphs://python-sample/plugin_with_window` - Plugin with custom window
+- `glyphs://python-sample/smiley_panel_plugin` - Panel plugin example
+
+### Xcode Plugin Samples (Issue #37)
+
+4 complete Xcode/Objective-C plugin examples:
+
+- `glyphs://xcode-sample/custom_parameter_ui` - Custom parameter UI
+- `glyphs://xcode-sample/inspector_demo` - Inspector panel demo
+- `glyphs://xcode-sample/photo_font` - PhotoFont plugin
+- `glyphs://xcode-sample/plugin_with_window` - Plugin with window
+
+**Access Methods for Samples**:
+
+- **Via Claude Desktop**: Resources automatically appear in the MCP resources list
+- **Via Tools**:
+  - Python: `sdk(action='list_python_samples')` and `sdk(action='get_python_sample', sample_name='...')`
+  - Xcode: `sdk(action='list_samples')` and `sdk(action='get_sample', sample_name='...')`
+
+## 📋 Feature Overview
+
+### Operating Requirements
+
+| Module | Out-of-box | Network | Glyphs Required |
+|--------|:----------:|:-------:|:---------------:|
+| Handbook | ✅ | First cache build | - |
+| API (Python) | ✅ | - | - |
+| API (Obj-C Headers) | - | - | ✅ |
+| SDK Documentation | ✅ | - | - |
+| mekkablue Scripts | ✅ | - | - |
+| Light Table API | ✅ | - | - |
+| Vocabulary | - | - | ✅ |
+| Plugins (Local) | - | - | ✅ |
+| Plugins (Official) | - | ✅ | - |
+| News/Tutorials | - | ✅ | - |
+
+> [!TIP]
+> **Out-of-box**: Uses bundled GlyphsSDK submodule data, no extra setup needed.
+> **Network**: Handbook only needs network for initial cache, then works offline.
+> **Glyphs Required**: Reads from local Glyphs app (Headers from GlyphsCore.framework).
+
+### MCP Tools (8 Unified Entry Points)
+
+The server provides 8 unified tools with action-based routing, reducing context token cost by ~85%:
+
+- **handbook** - Glyphs Handbook operations
+- **vocabulary** - UI terminology translation (14 languages)
+- **api** - Python and Objective-C API reference
+- **plugins** - Local and official plugin management
+- **scripts** - mekkablue script collection (358+)
+- **sdk** - SDK documentation and Xcode templates
+- **news** - Forum, tutorials, and news search
+- **lighttable** - Light Table version control API
+
+<details>
+<summary>Expand full tool list</summary>
+
+#### handbook
+
+| Action | Description |
+|--------|-------------|
+| `search` | Search handbook content |
+| `get` | Get chapter content by filename |
+| `toc` | Get table of contents |
+| `children` | Get chapter children |
+| `parameter` | Get custom parameter details |
+| `list_parameters` | List all custom parameters |
+| `cache` | Cache management (info/update) |
+
+#### vocabulary
+
+| Action | Description |
+|--------|-------------|
+| `translate` | Translate UI term |
+| `search` | Search UI terms |
+| `mapping` | Get multi-locale translations |
+| `categories` | List vocabulary categories |
+
+#### api
+
+| Action | Description |
+|--------|-------------|
+| `search_python` | Search Python API |
+| `get_class` | Get Python class info |
+| `get_member` | Get class member info |
+| `search_objc` | Search Obj-C headers |
+| `get_header` | Get Obj-C header content |
+| `list_protocols` | List plugin protocols |
+| `get_protocol` | Get protocol methods |
+| `convert_objc` | Convert Obj-C to Python name |
+| `convert_python` | Convert Python to Obj-C name |
+| `identify_method` | Identify method type |
+| `get_template` | Get method implementation template |
+| `search_vanilla` | Search Vanilla UI components |
+| `get_vanilla` | Get Vanilla UI component |
+| `list_vanilla` | List all Vanilla UI components |
+| `hierarchy` | Get class hierarchy |
+| `relationships` | Get class relationships |
+| `navigate` | Navigate class structure |
+
+#### plugins
+
+| Action | Description |
+|--------|-------------|
+| `search_local` | Search local plugins |
+| `search_official` | Search official registry |
+| `get_info` | Get plugin details |
+| `scan` | Scan repositories directory |
+| `categories` | List plugin categories |
+
+#### scripts
+
+| Action | Description |
+|--------|-------------|
+| `search` | Search scripts |
+| `get` | Get script details |
+| `categories` | List script categories |
+| `list` | List scripts in category |
+
+#### sdk
+
+| Action | Description |
+|--------|-------------|
+| `search` | Search SDK content |
+| `get` | Get SDK file content |
+| `list_xcode_templates` | List Xcode templates |
+| `get_xcode_template` | Get Xcode template |
+| `list_python_templates` | List Python templates |
+| `get_python_template` | Get Python template |
+| `list_samples` | List Xcode samples |
+| `get_sample` | Get Xcode sample |
+| `list_python_samples` | List Python samples |
+| `get_python_sample` | Get Python sample |
+
+#### news
+
+| Action | Description |
+|--------|-------------|
+| `search_forum` | Search forum discussions |
+| `search_tutorials` | Search tutorials |
+| `fetch_tutorial` | Fetch tutorial content |
+| `fetch_forum` | Fetch forum post |
+| `search_posts` | Search news posts |
+| `fetch_content` | Fetch news content |
+
+#### lighttable
+
+| Action | Description |
+|--------|-------------|
+| `search` | Search Light Table API |
+| `get_enum` | Get enum details |
+| `list_enums` | List all enums |
+| `list_all` | List all API items |
+
+</details>
+
+## 📖 Usage Guide
+
+### Usage Examples
+
+```python
+# Handbook queries
+handbook(action="search", query="kerning")
+handbook(action="get", filename="anchors.md")
+
+# API queries
+api(action="search_python", query="GSFont")
+api(action="get_class", class_name="GSGlyph")
+
+# UI terminology
+vocabulary(action="translate", term="Cancel", target="zh-Hant")
+```
+
+### Search Best Practices
+
+- Use core English terminology words
+- Prefer single concept keywords
+- Utilize automatic query type detection
+- Refer to the terminology reference for translations
+
+## 🛠️ Development
+
+### Setup
+
+```bash
+# Install development dependencies
+uv sync --extra dev
+
+# Install test dependencies
+uv sync --extra test
+```
+
+### Code Quality
+
+```bash
+uv run black src/ tests/      # Formatting
+uv run ruff check src/ --fix  # Linting
+uv run mypy src/              # Type checking
+```
+
+### Testing
+
+```bash
+uv run pytest                              # All tests
+uv run pytest tests/test_specific.py       # Specific tests
+uv run pytest --cov=src/glyphs_info_mcp    # Coverage
+```
+
+## 📚 Background
+
+### Development Approach
+
+This project was largely built using **Vibe Coding** iterative development, focusing on rapid feature implementation and practicality.
+
+### Data Sources
+
+- **API Reference**: Converted from [Glyphs official GitHub SDK](https://github.com/schriftgestalt/GlyphsSDK) code
+- **Handbook Content**: Scraped from [Glyphs official handbook](https://handbook.glyphsapp.com/) using an internal parser
+- **Terminology Translation**: Extracted from Glyphs app localization string files (.strings)
+
+### Recommended Model
+
+After testing, this project works best with **Claude models**. We recommend using it in the Claude Desktop environment for the best experience.
+
+## ❓ FAQ
+
+<details>
+<summary>Cannot find uv command</summary>
+
+Restart your terminal, or run `source ~/.zshrc`
+
+</details>
+
+<details>
+<summary>Claude Desktop cannot load the MCP server</summary>
+
+1. Ensure the path is an **absolute path** (not relative or using `~`)
+2. Check for JSON syntax errors
+3. Restart Claude Desktop
+
+</details>
+
+<details>
+<summary>Server fails to start</summary>
+
+```bash
+uv sync --reinstall
+python --version  # Requires 3.10+
+```
+
+</details>
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+All paths are auto-detected. Only set these if using non-standard locations:
+
+```bash
+# export GLYPHS_APP_PATH=/Applications/Glyphs 3.app
+# export GLYPHS_APP_HEADERS_PATH=/Applications/Glyphs\ 3.app/Contents/Frameworks/GlyphsCore.framework/Versions/A/Headers
+# export GLYPHS_REPOSITORIES_PATH=~/Library/Application\ Support/Glyphs\ 3/Repositories
+```
+
+Or use the `env` field in Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "glyphs-info": {
+      "command": "uvx",
+      "args": ["glyphs-info-mcp"],
+      "env": {
+        "GLYPHS_APP_PATH": "/Applications/Glyphs 3.app"
+      }
+    }
+  }
+}
+```
+
+### Module Enable/Disable
+
+By default, all modules are enabled. To control specific modules, use environment variables:
+
+**Available modules**: `vocabulary`, `handbook`, `api`, `glyphs_plugins`, `glyphs_news`, `glyphs_sdk`, `light_table_api`, `mekkablue_scripts`
+
+**Whitelist mode** (enable only specified modules):
+
+```json
+{
+  "mcpServers": {
+    "glyphs-info": {
+      "command": "uvx",
+      "args": ["glyphs-info-mcp"],
+      "env": {
+        "GLYPHS_ENABLED_MODULES": "handbook,api"
+      }
+    }
+  }
+}
+```
+
+**Blacklist mode** (disable specified modules):
+
+```json
+{
+  "mcpServers": {
+    "glyphs-info": {
+      "command": "uvx",
+      "args": ["glyphs-info-mcp"],
+      "env": {
+        "GLYPHS_DISABLED_MODULES": "glyphs_news,glyphs_plugins"
+      }
+    }
+  }
+}
+```
+
+> If both whitelist and blacklist are set, whitelist takes precedence.
+
+## 🔗 Resources
+
+- [Glyphs Official Website](https://glyphsapp.com/)
+- [Glyphs Handbook](https://handbook.glyphsapp.com/)
+- [Glyphs Forum](https://forum.glyphsapp.com/)
+- [GlyphsSDK](https://github.com/schriftgestalt/GlyphsSDK)
+- [MCP Protocol](https://modelcontextprotocol.io/)
+- [Report Issues](https://github.com/yintzuyuan/glyphs-info-mcp/issues)
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file.
+
+---
+
+**Glyphs info MCP** - Making Glyphs knowledge queries simple and powerful
+
+*Last updated: 2026-01-05*
