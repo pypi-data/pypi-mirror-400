@@ -1,0 +1,47 @@
+## MaterialX for MkDocs
+
+<br />
+
+**MaterialX**, the next generation of mkdocs-material, is based on `mkdocs-material-9.7.0` and is named `X`. It continues to be maintained by individual developers (since mkdocs-material will cease maintenance) to keep the MkDocs ecosystem alive!
+
+<br />
+<br />
+
+<p align="center">
+  <img src="docs/assets/screenshots/m-sample1.png" width="700" />
+  <img src="docs/assets/screenshots/m-sample4.png" width="700" />
+</p>
+
+
+
+## Quick start
+
+Installation:
+
+``` sh
+pip install mkdocs-materialx
+```
+
+Add the following lines to `mkdocs.yml`:
+
+``` yaml
+theme:
+  name: materialx
+```
+
+> [!NOTE]
+> The theme name is `materialx`, not material. Everything else is the same as when using material.
+
+<br />
+
+For detailed installation instructions, configuration options, and a demo, visit [jaywhj.github.io/mkdocs-materialx](https://jaywhj.github.io/mkdocs-materialx/)
+
+<br />
+
+## Chat Group
+
+**Discord**: https://discord.gg/cvTfge4AUy
+
+**Wechat**: 
+
+<img src="docs/assets/images/wechat-group.jpg" width="140" />
