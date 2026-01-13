@@ -1,0 +1,94 @@
+[project]
+name = "iflow-mcp_aywengo_kafka-schema-registry-mcp"
+version = "2.0.0"
+description = "A Model Context Protocol (MCP) server for Kafka Schema Registry - enables AI assistants to interact with Kafka schemas through a standardized interface"
+authors = [
+    {name = "Kafka Schema Registry MCP Team", email = ""},
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "aiofiles>=23.2.1,<25.0.0",
+    "httpx>=0.25.2",
+    "fastmcp>=2.14.0",
+    "mcp>=1.23.0",  # CVE-2025-66416: DNS rebinding protection
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "aiohttp>=3.12.13",
+    "jsonschema>=4.24.0",
+    "PyJWT>=2.10.0",
+    "cryptography>=45.0.0",
+    "avro-python3>=1.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/aywengo/kafka-schema-reg-mcp"
+Repository = "https://github.com/aywengo/kafka-schema-reg-mcp"
+Issues = "https://github.com/aywengo/kafka-schema-reg-mcp/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = [
+    "oauth_provider.py",
+    "schema_registry_common.py",
+    "core_registry_tools.py",
+    "batch_operations.py",
+    "statistics_tools.py",
+    "export_tools.py",
+    "comparison_tools.py",
+    "migration_tools.py",
+    "mcp_prompts.py",
+    "kafka_schema_registry_unified_mcp.py",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    ".",
+]
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.isort]
+profile = "black"
+line_length = 120
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true 
+[project.scripts]
+kafka-schema-registry-mcp = "kafka_schema_registry_unified_mcp:main"
