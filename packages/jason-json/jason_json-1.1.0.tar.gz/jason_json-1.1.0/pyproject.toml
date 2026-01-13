@@ -1,0 +1,93 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = [ "hatchling", "uv-dynamic-versioning" ]
+
+[project]
+name = "jason-json"
+description = "Jason (https://jason.co.jp) JSON Builder"
+readme = "README.md"
+keywords = [
+  "japanese",
+  "jason",
+  "json",
+  "scraping",
+]
+license = { text = "MIT" }
+authors = [ { name = "eggplants", email = "w10776e8w@yahoo.co.jp" } ]
+requires-python = ">=3.10,<4"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+dynamic = [ "version" ]
+dependencies = [
+  "beautifulsoup4>=4.12.3,<5",
+  "lxml>=5.3,<7",
+  "typed-argument-parser>=1.10.1,<2",
+  "types-beautifulsoup4>=4.12.0.20241020,<5",
+]
+
+urls.repository = "https://github.com/eggplants/jason-json"
+scripts.jason-json = "jason_json.main:main"
+scripts."jason.json" = "jason_json.main:main"
+
+[dependency-groups]
+dev = [
+  "pymarkdownlnt>=0.9.33",
+  "pyproject-fmt>=2.11.1",
+  "pytest>=9.0.2",
+  "pytest-asyncio>=1.3",
+  "pytest-cov>=7",
+]
+docs = [
+  "pdoc>=16",
+]
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.hatch.build.targets.sdist]
+include = [ "jason_json" ]
+
+[tool.hatch.build.targets.wheel]
+include = [ "jason_json" ]
+
+[tool.uv]
+preview = true
+default-groups = [
+  "dev",
+  "docs",
+]
+exclude-newer = "P7D"
+
+[tool.ruff]
+line-length = 120
+format.indent-style = "space"
+format.quote-style = "double"
+lint.select = [
+  "ALL",
+]
+lint.ignore = [
+  "COM812",
+  "D203",
+  "D213",
+]
+lint.per-file-ignores."tests/*.py" = [
+  "D",
+  "S101", #    Use of assert detected
+]
+lint.allowed-confusables = [ "～" ]
+lint.mccabe.max-complexity = 18
+lint.pydocstyle.convention = "google"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "semver"
+fallback-version = "0.0.0"
