@@ -1,0 +1,123 @@
+Metadata-Version: 2.4
+Name: pymolresponse
+Version: 0.3.1
+Summary: Molecular frequency-dependent response properties for arbitrary operators
+Author-email: Eric Berquist <eric.berquist@gmail.com>
+License: BSD 3-Clause License
+        
+        Copyright (c) 2017, Eric Berquist
+        All rights reserved.
+        
+        Redistribution and use in source and binary forms, with or without
+        modification, are permitted provided that the following conditions are met:
+        
+        * Redistributions of source code must retain the above copyright notice, this
+          list of conditions and the following disclaimer.
+        
+        * Redistributions in binary form must reproduce the above copyright notice,
+          this list of conditions and the following disclaimer in the documentation
+          and/or other materials provided with the distribution.
+        
+        * Neither the name of the copyright holder nor the names of its
+          contributors may be used to endorse or promote products derived from
+          this software without specific prior written permission.
+        
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+        AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+        IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+        FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+        DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+        SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+        CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+        OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        
+Project-URL: Bug Tracker, https://github.com/berquist/pymolresponse/issues
+Project-URL: Documentation, https://berquist.github.io/pymolresponse_docs/
+Project-URL: Homepage, https://github.com/berquist/pymolresponse
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: attrs<25,>=24.3.0
+Requires-Dist: cclib<2,>=1.8.1
+Requires-Dist: periodictable<3,>=2.0.2
+Provides-Extra: test
+Requires-Dist: coverage; extra == "test"
+Requires-Dist: daltools; extra == "test"
+Requires-Dist: pyscf; extra == "test"
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: pytest-ruff; extra == "test"
+Provides-Extra: docs
+Requires-Dist: numpydoc; extra == "docs"
+Requires-Dist: sphinx; extra == "docs"
+Requires-Dist: sphinx_rtd_theme; extra == "docs"
+Provides-Extra: dev
+Requires-Dist: pymolresponse[docs,test]; extra == "dev"
+Dynamic: license-file
+
+# pymolresponse
+
+Molecular frequency-dependent response properties for arbitrary operators.
+
+[![build status](https://github.com/berquist/pymolresponse/actions/workflows/test.yml/badge.svg)](https://github.com/berquist/pymolresponse/blob/main/.github/workflows/test.yml)
+[![codecov](https://codecov.io/gh/berquist/pymolresponse/branch/main/graph/badge.svg)](https://codecov.io/gh/berquist/pymolresponse)
+[![license](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg?style=flat)](https://github.com/berquist/pymolresponse/blob/main/LICENSE)
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/berquist/pymolresponse/main.svg)](https://results.pre-commit.ci/latest/github/berquist/pymolresponse/main)
+
+For documentation, go to https://berquist.github.io/pymolresponse/.
+
+Currently, the goal is to provide:
+
+1. a pedagogical example of a working molecular orbital response program as an almost direct translation from equations to code,
+2. an implementation that gives "exact" results for testing, and
+3. an example of testing and documenting scientific code using modern software development tools.
+
+## Installation
+
+To set up a conda environment with all dependencies for running, testing, and building the documentation, look under `devtools`.
+
+## Requirements
+
+* Python >= 3.9 (because of type annotations)
+* [pyscf](https://github.com/pyscf/pyscf)
+* [Psi4](https://psicode.org/)
+
+## Testing
+
+```bash
+just test
+```
+
+## Caveats
+
+* RHF and UHF references only; no ROHF yet.
+* Hartree-Fock and DFT only; no post-HF methods yet.
+* Real orbitals only; no complex or generalized orbitals yet.
+* Because the dimensioning of all arrays is based around the ov/vo space, methods that have non-zero contributions from the oo space (specifically derivatives of GIAOs/London orbitals w.r.t. the B-field) are not currently possible.
+* An iterative solver exists for response properties, not transition properties, where only explicit formation and then diagonalization of the orbital Hessian is available.
+* Linear response and single residues only.
+* _unrestricted diagonalization-based properties are not implemented/working_
+
+## Desired features (in no specific order)
+
+* Non-orthogonal orbitals. Requires switch from using MO energies to full Fock matrices.
+* ROHF reference (compare against DALTON). Requires equations for the ROHF orbital Hessian.
+* Post-HF support: MP2, CCSD, and CIS. Requires constriction of a Lagrangian.
+* Support for GIAOs. Only requires re-dimensioning as long as AO matrix elements are available??
+* At least one iterative method for each property type, for example DIIS for inversion and Davidson for diagonalization. Requires matrix-vector products.
+* Quadratic response and associated single residues (needed for phosphorescence) and double residues (excited state expectation values and transition moments of linear operators). Requires permutation of linear response solution vectors.
+
+### Desired features that don't fix the caveats
+
+* Open-ended response: see [Ringholm, Jonsson, and Ruud](https://doi.org/10.1002/jcc.23533).
+* Finite-difference for testing and higher-order response.
+* Interface to [PyQuante](https://github.com/berquist/pyquante) and/or [pyquante2](https://github.com/rpmuller/pyquante2).
+* Jupyter Notebook-based tutorials.
+
+## References
+
+Forthcoming...
