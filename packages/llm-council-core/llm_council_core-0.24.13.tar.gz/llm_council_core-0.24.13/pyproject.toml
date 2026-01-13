@@ -1,0 +1,111 @@
+[project]
+name = "llm-council-core"
+dynamic = ["version"]
+description = "Multi-LLM council system with peer review and synthesis"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Amiable" }]
+maintainers = [{ email = "contact@amiable.dev" }]
+keywords = [
+    "llm",
+    "ai",
+    "openrouter",
+    "council",
+    "multi-model",
+    "claude",
+    "gpt",
+    "gemini",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies - minimal for library usage
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "httpx>=0.27.0",
+    "pyyaml>=6.0.3",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+# HTTP server dependencies - install with: pip install "llm-council-core[http]"
+http = ["fastapi>=0.100.0", "uvicorn>=0.20.0"]
+# MCP server dependencies - install with: pip install "llm-council-core[mcp]"
+mcp = ["mcp>=1.22.0"]
+# Secure key storage via system keychain - install with: pip install "llm-council-core[secure]"
+secure = ["keyring>=23.0.0"]
+# Ollama local LLM support via LiteLLM - install with: pip install "llm-council-core[ollama]"
+ollama = ["litellm>=1.50.0"]
+# All server dependencies
+all = ["llm-council-core[http,mcp]"]
+# Development dependencies
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21.0", "ruff>=0.1.0", "pytest-cov>=4.0.0", "tomli>=2.0.0; python_version<'3.11'", "pytest-recording>=0.13.0", "vcrpy>=6.0.0", "mypy>=1.0.0"]
+# Documentation dependencies
+docs = ["mkdocs-material>=9.5.0", "mkdocs>=1.5.0"]
+
+[project.urls]
+Homepage = "https://github.com/amiable-dev/llm-council"
+Repository = "https://github.com/amiable-dev/llm-council"
+Issues = "https://github.com/amiable-dev/llm-council/issues"
+Documentation = "https://llm-council.dev"
+
+[project.scripts]
+llm-council = "llm_council.cli:main"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/llm_council/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_council"]
+# Include non-Python files in skills/bundled
+artifacts = ["src/llm_council/skills/bundled/**"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = [
+    "E501",   # Line too long (handled by formatter)
+    "E402",   # Module level import not at top (intentional for config-before-import pattern)
+    "E741",   # Ambiguous variable name - false positives on loop vars
+    "F401",   # Unused imports - common in __init__.py re-exports and tests
+    "F541",   # f-string without placeholders - harmless
+    "F811",   # Redefinition - common in tests and intentional re-imports
+    "F821",   # Undefined name - false positives on forward references
+    "F841",   # Local variable assigned but never used (common in tests for setup)
+    "I001",   # Import sorting - auto-fix causes circular imports, so ignore
+    "N806",   # Variable in function should be lowercase (COUNCIL_MODELS is intentional)
+    "N818",   # Exception name should end with Error (TransportFailure is intentional)
+    "W291",   # Trailing whitespace - cosmetic
+    "W293",   # Blank line contains whitespace - cosmetic
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401"]  # Unused imports in tests are often for fixtures
