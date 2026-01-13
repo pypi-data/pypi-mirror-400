@@ -1,0 +1,96 @@
+{% extends "afat/base.html" %}
+
+{% load evelinks %}
+{% load i18n %}
+
+{% block page_title %}
+    {% translate "Fleet Activity Tracking statistics" as page_title %}
+    {{ alliance }} {{ page_title|title }}
+{% endblock %}
+
+{% block afat_header %}
+    {% translate "Statistics" as site_title %}
+    {% include "framework/header/page-header.html" with title=site_title sub_title=alliance %}
+{% endblock %}
+
+{% block afat_body %}
+    {% if month == 1 %}
+        {% url "afat:statistics_alliance" ally.alliance_id year_prev 12 as url_previous_month %}
+    {% else %}
+        {% url "afat:statistics_alliance" ally.alliance_id year month_prev as url_previous_month %}
+    {% endif %}
+
+    {% if month == 12 %}
+        {% url "afat:statistics_alliance" ally.alliance_id year_next 1 as url_next_month %}
+        {% url "afat:statistics_alliance" ally.alliance_id year_current month_current as url_current_month %}
+    {% else %}
+        {% url "afat:statistics_alliance" ally.alliance_id year month_next as url_next_month %}
+        {% url "afat:statistics_alliance" ally.alliance_id year_current month_current as url_current_month %}
+    {% endif %}
+
+    {% include "afat/partials/common/navigation/month-navigation.html" with url_previous_month=url_previous_month url_next_month=url_next_month url_current_month=url_current_month %}
+    {% include "afat/partials/statistics/alliance/tabs-navigation.html" %}
+
+    <div class="tab-content">
+        {% include "afat/partials/statistics/alliance/tabs/graphs.html" %}
+        {% include "afat/partials/statistics/alliance/tabs/corporations.html" %}
+    </div>
+{% endblock %}
+
+{% block extra_css %}
+    {% include "afat/bundles/datatables-2-css.html" with extColumnControl=True %}
+    {% include "afat/bundles/afat-css.html" %}
+{% endblock %}
+
+{% block extra_javascript %}
+    {% include "bundles/chart-js.html" %}
+    {% include "afat/bundles/afat-js.html" %}
+    {% include "afat/bundles/afat-statistics-js.html" %}
+    {% include "afat/bundles/datatables-2-js.html" with extColumnControl=True %}
+    {% include "bundles/moment-js.html" %}
+
+    <script>
+        /* global _removeSearchFromColumnControl, _removeColumnControl, _afatBootstrapTooltip, drawChart */
+
+        $(document).ready(() => {
+            const elementTableMemberCorps = $('#member-corps');
+
+            // DataTables
+            const dt = new DataTable(elementTableMemberCorps, {
+                ...afatSettings.dataTables,
+                order: [
+                    [0, 'asc']
+                ],
+                columnDefs: [
+                    {
+                        targets: [1, 2],
+                        columnControl: _removeSearchFromColumnControl(),
+                    },
+                    {
+                        targets: 3,
+                        columnControl: _removeColumnControl(),
+                        width: 50
+                    }
+                ],
+                initComplete: () => {
+                    const dt = elementTableMemberCorps.DataTable();
+
+                    _afatBootstrapTooltip({selector: '#member-corps'});
+
+                    dt.on('draw', () => {
+                        _afatBootstrapTooltip({selector: '#member-corps'});
+                    });
+                }
+            });
+
+            // Chart rendering
+            if (chartInfo.length > 0) {
+                chartInfo.forEach((chart) => {
+                    drawChart(chart.element, chart.type, chart.data, chart.options);
+                });
+            }
+
+            _afatBootstrapTooltip({namespace: 'afat'});
+        });
+    </script>
+{% endblock %}
