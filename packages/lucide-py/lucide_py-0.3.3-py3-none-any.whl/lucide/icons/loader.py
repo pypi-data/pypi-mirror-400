@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def Loader(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-loader'], 'items': [{'path': {'d': 'M12 2v4'}}, {'path': {'d': 'm16.2 7.8 2.9-2.9'}}, {'path': {'d': 'M18 12h4'}}, {'path': {'d': 'm16.2 16.2 2.9 2.9'}}, {'path': {'d': 'M12 18v4'}}, {'path': {'d': 'm4.9 19.1 2.9-2.9'}}, {'path': {'d': 'M2 12h4'}}, {'path': {'d': 'm4.9 4.9 2.9 2.9'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield
