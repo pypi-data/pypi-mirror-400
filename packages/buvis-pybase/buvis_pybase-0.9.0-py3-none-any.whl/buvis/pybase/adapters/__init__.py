@@ -1,0 +1,23 @@
+import os
+
+from .console.console import console, logging_to_console
+from .jira.jira import JiraAdapter
+from .shell.shell import ShellAdapter
+from .uv.uv import UvAdapter
+from .uv.uv_tool import UvToolManager
+
+__all__ = [
+    "JiraAdapter",
+    "ShellAdapter",
+    "UvAdapter",
+    "UvToolManager",
+    "console",
+    "logging_to_console",
+]
+
+if os.name == "nt":
+    from .outlook_local.outlook_local import (
+        OutlookLocalAdapter as OutlookLocalAdapter,
+    )
+
+    __all__.append("OutlookLocalAdapter")

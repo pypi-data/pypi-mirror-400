@@ -1,0 +1,92 @@
+Metadata-Version: 2.4
+Name: buvis-pybase
+Version: 0.9.0
+Summary: Foundation of BUVIS python projects
+Author-email: Tomáš Bouška <tomas@buvis.net>
+License-Expression: MIT
+License-File: LICENSE
+Requires-Python: <4.0,>=3.12
+Requires-Dist: click<9,>=8.1.0
+Requires-Dist: inflection<1,>=0.5.1
+Requires-Dist: jira<4,>=3.10.5
+Requires-Dist: pexpect<5,>=4.9.0
+Requires-Dist: pydantic-settings<3,>=2.0
+Requires-Dist: pydantic<3,>=2.0
+Requires-Dist: pywin32==311; sys_platform == 'win32'
+Requires-Dist: pyyaml<7,>=6.0.3
+Requires-Dist: rake-nltk<2,>=1.0.6
+Requires-Dist: rich<15,>=14.2.0
+Requires-Dist: torch<3,>=2.9.1
+Requires-Dist: transformers<5,>=4.57.3
+Requires-Dist: tzlocal<6,>=5.3.1
+Requires-Dist: xattr<2,>=1.3.0; sys_platform != 'win32'
+Description-Content-Type: text/markdown
+
+# buvis-pybase
+
+Foundation library for BUVIS Python projects. Provides configuration management, filesystem utilities, adapters for external tools, and string manipulation.
+
+## Install
+
+```bash
+pip install buvis-pybase
+```
+
+## Features
+
+- **Configuration** - Pydantic settings with Click helpers (`buvis_options`, `get_settings`)
+- **Adapters** - Shell, UV, Poetry, JIRA, Console wrappers
+- **Filesystem** - Cross-platform file metadata, directory operations
+- **Formatting** - String slugify, abbreviations, case conversion
+
+## Usage
+
+```python
+import click
+from buvis.pybase.configuration import buvis_options, get_settings, GlobalSettings
+from buvis.pybase.adapters import ShellAdapter, ConsoleAdapter
+from buvis.pybase.filesystem import DirTree
+from buvis.pybase.formatting import StringOperator
+
+# Config via Click (adds --debug/--log-level/--config-dir/--config)
+@click.command()
+@buvis_options  # Use settings_class=CustomSettings for tool-specific models
+@click.pass_context
+def main(ctx: click.Context) -> None:
+    settings = get_settings(ctx)  # GlobalSettings by default
+    click.echo(f"Debug: {settings.debug}")
+
+# Shell commands
+shell = ShellAdapter()
+stderr, stdout = shell.exe("ls -la")
+
+# Console output
+console = ConsoleAdapter()
+console.success("Done")
+
+# Filesystem
+DirTree.remove_empty_directories("/path/to/clean")
+
+# Strings
+slug = StringOperator.slugify("Hello World!")  # "hello-world"
+```
+
+## Development
+
+```bash
+uv sync --all-groups                        # install deps
+pre-commit install --hook-type pre-commit --hook-type post-commit  # setup hooks
+uv run pytest                               # run tests
+```
+
+## Release
+
+```bash
+./dev/bin/bmv bump patch  # bumps version, tags, pushes
+```
+
+Tags trigger PyPI publish via GitHub Actions.
+
+## License
+
+MIT
