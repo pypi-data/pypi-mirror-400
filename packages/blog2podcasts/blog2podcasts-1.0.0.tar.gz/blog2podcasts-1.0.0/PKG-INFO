@@ -1,0 +1,306 @@
+Metadata-Version: 2.4
+Name: blog2podcasts
+Version: 1.0.0
+Summary: AI-powered tool to convert blog articles into podcast audio with optional voice cloning
+Author-email: QuantBender <quantbender@users.noreply.github.com>
+Maintainer-email: QuantBender <quantbender@users.noreply.github.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/QuantBender/blog2podcasts
+Project-URL: Documentation, https://github.com/QuantBender/blog2podcasts#readme
+Project-URL: Repository, https://github.com/QuantBender/blog2podcasts.git
+Project-URL: Issues, https://github.com/QuantBender/blog2podcasts/issues
+Project-URL: Changelog, https://github.com/QuantBender/blog2podcasts/blob/main/CHANGELOG.md
+Keywords: podcast,blog,tts,text-to-speech,voice-cloning,ai,llm,ollama,audio,content-creation
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Multimedia :: Sound/Audio :: Speech
+Classifier: Topic :: Internet :: WWW/HTTP :: Indexing/Search
+Classifier: Topic :: Text Processing :: Linguistic
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: trafilatura>=1.6.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: beautifulsoup4>=4.12.0
+Requires-Dist: ollama>=0.1.0
+Requires-Dist: edge-tts>=6.1.0
+Requires-Dist: pydub>=0.25.1
+Requires-Dist: yt-dlp>=2023.12.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: rich>=13.0.0
+Provides-Extra: voice-cloning
+Requires-Dist: TTS>=0.22.0; extra == "voice-cloning"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: build>=1.0.0; extra == "dev"
+Requires-Dist: twine>=4.0.0; extra == "dev"
+Dynamic: license-file
+
+# 🎙️ Blog2Podcasts
+
+[![PyPI version](https://badge.fury.io/py/blog2podcasts.svg)](https://badge.fury.io/py/blog2podcasts)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+An AI-powered tool that converts any blog article into a podcast audio file with **optional voice cloning from YouTube**.
+
+## Features
+
+- **🌐 Web Scraping**: Extracts main content from any blog URL using trafilatura
+- **🤖 AI Summarization**: Converts articles into engaging podcast scripts using local LLMs (Ollama)
+- **🎵 Text-to-Speech**: Generates high-quality audio using Microsoft Edge TTS (free)
+- **🎤 Voice Cloning**: Clone voices from YouTube videos using Coqui TTS (XTTS-v2)
+
+## Installation
+
+### From PyPI
+
+```bash
+pip install blog2podcasts
+```
+
+### From Source
+
+```bash
+git clone https://github.com/QuantBender/blog2podcasts.git
+cd blog2podcasts
+pip install -e .
+```
+
+### With Voice Cloning Support
+
+```bash
+pip install blog2podcasts[voice-cloning]
+```
+
+### Prerequisites
+
+#### 1. Install Ollama
+
+```bash
+# Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# macOS
+brew install ollama
+
+# Start Ollama service
+ollama serve
+```
+
+#### 2. Pull an LLM Model
+
+```bash
+# Recommended: Llama 3.2 (fast and capable)
+ollama pull llama3.2
+
+# Alternative options:
+ollama pull mistral      # Fast, good quality
+ollama pull llama3.1     # More capable, slower
+ollama pull phi3         # Small, fast
+```
+
+#### 3. Install ffmpeg (for audio processing)
+
+```bash
+# Ubuntu/Debian
+sudo apt install ffmpeg
+
+# macOS
+brew install ffmpeg
+
+# Windows
+# Download from https://ffmpeg.org/download.html
+```
+
+## Usage
+
+### Command Line
+
+```bash
+# Convert a blog to podcast
+blog2podcasts https://example.com/blog-article
+
+# Use a different voice
+blog2podcasts https://example.com/blog --voice en-GB-RyanNeural
+
+# Use a different LLM model
+blog2podcasts https://example.com/blog --model mistral
+
+# Adjust script length (words)
+blog2podcasts https://example.com/blog --length 1200
+
+# Preview script without generating audio
+blog2podcasts https://example.com/blog --preview
+
+# List available voices
+blog2podcasts --list-voices
+
+# Custom output name
+blog2podcasts https://example.com/blog -o my_podcast
+
+# Adjust speech rate
+blog2podcasts https://example.com/blog --rate "+10%"
+```
+
+### 🎤 Voice Cloning from YouTube
+
+Clone any voice from YouTube videos and use it for your podcasts!
+
+```bash
+# Clone voice from a YouTube video
+blog2podcasts --clone-voice "https://www.youtube.com/watch?v=VIDEO_ID" --voice-name "my_host"
+
+# Generate podcast with cloned voice
+blog2podcasts https://example.com/blog --use-cloned-voice my_host
+```
+
+### Python API
+
+```python
+from blog2podcasts import BlogScraper, ContentSummarizer, AudioGenerator
+from blog2podcasts.cli import BlogToPodcastAgent, PodcastConfig
+
+# Create agent with custom config
+config = PodcastConfig(
+    voice="en-US-JennyNeural",  # Female US voice
+    model="llama3.2",           # Ollama model
+    script_length=1000,         # Target words
+    output_dir="podcasts",      # Output folder
+)
+
+agent = BlogToPodcastAgent(config)
+
+# Convert blog to podcast
+result = agent.convert("https://example.com/interesting-article")
+
+print(f"Audio: {result['audio_path']}")
+print(f"Script: {result['script_path']}")
+```
+
+### Use Individual Components
+
+```python
+from blog2podcasts import BlogScraper, ContentSummarizer, AudioGenerator
+import asyncio
+
+# Just scrape a blog
+scraper = BlogScraper()
+content = scraper.scrape("https://example.com/blog")
+print(content.title, content.text)
+
+# Just create a podcast script
+summarizer = ContentSummarizer(model="llama3.2")
+script = summarizer.generate_podcast_script(content.text, content.title)
+
+# Just generate audio
+generator = AudioGenerator(voice="en-US-GuyNeural")
+asyncio.run(generator.generate_audio(script, "output.mp3"))
+```
+
+## Available Voices
+
+### Recommended Podcast Voices
+
+| Voice | ID | Style |
+|-------|----|----|
+| 🇺🇸 Guy (Male) | `en-US-GuyNeural` | Professional, clear |
+| 🇺🇸 Jenny (Female) | `en-US-JennyNeural` | Friendly, warm |
+| 🇬🇧 Ryan (Male) | `en-GB-RyanNeural` | British, authoritative |
+| 🇬🇧 Sonia (Female) | `en-GB-SoniaNeural` | British, professional |
+| 🇦🇺 William (Male) | `en-AU-WilliamNeural` | Australian, casual |
+| 🇦🇺 Natasha (Female) | `en-AU-NatashaNeural` | Australian, friendly |
+
+Run `blog2podcasts --list-voices` to see all available voices.
+
+## Tech Stack
+
+| Component | Tool | Why |
+|-----------|------|-----|
+| Scraping | [Trafilatura](https://github.com/adbar/trafilatura) | Best-in-class article extraction |
+| LLM | [Ollama](https://ollama.ai) | Free, local, private LLM inference |
+| TTS | [Edge-TTS](https://github.com/rany2/edge-tts) | High-quality, free Microsoft voices |
+| Voice Cloning | [Coqui TTS](https://github.com/coqui-ai/TTS) | Open-source XTTS-v2 voice cloning |
+| YouTube Download | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Extract audio from YouTube videos |
+
+## Project Structure
+
+```
+blog2podcasts/
+├── pyproject.toml        # Package configuration
+├── LICENSE              # MIT License
+├── README.md            # This file
+├── CHANGELOG.md         # Version history
+├── blog2podcasts/
+│   ├── __init__.py      # Package exports
+│   ├── cli.py           # Command-line interface
+│   ├── scraper.py       # Blog content extraction
+│   ├── summarizer.py    # LLM-based script generation
+│   ├── audio_generator.py # Text-to-speech (Edge TTS)
+│   └── voice_cloner.py  # YouTube voice extraction & cloning
+├── voices/              # Saved voice profiles
+└── output/              # Generated podcasts
+```
+
+## How It Works
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Blog URL  │ -> │   Scraper   │ -> │ Summarizer  │ -> │  Edge TTS   │
+│             │    │ (trafilatura)│    │  (Ollama)   │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                          │                  │                  │
+                          v                  v                  v
+                    Blog Content      Podcast Script      Audio (.mp3)
+```
+
+## Troubleshooting
+
+### "Ollama not available"
+```bash
+# Start Ollama service
+ollama serve
+
+# Check if running
+curl http://localhost:11434/api/tags
+```
+
+### "Model not found"
+```bash
+# Pull the model
+ollama pull llama3.2
+
+# List available models
+ollama list
+```
+
+### "Content extraction failed"
+- Some sites block scraping - try a different blog
+- Check if the URL is accessible
+- The fallback scraper will try BeautifulSoup
+
+## License
+
+MIT License - Use freely for personal and commercial projects.
+
+## Contributing
+
+Pull requests welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Links
+
+- [PyPI Package](https://pypi.org/project/blog2podcasts/)
+- [GitHub Repository](https://github.com/QuantBender/blog2podcasts)
+- [Issue Tracker](https://github.com/QuantBender/blog2podcasts/issues)
