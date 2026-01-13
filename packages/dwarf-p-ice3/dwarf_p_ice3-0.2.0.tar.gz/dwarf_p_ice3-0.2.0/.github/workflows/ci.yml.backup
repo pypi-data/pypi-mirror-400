@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: write
+
+env:
+  BENCHER_PROJECT: dwarf-p-ice3
+  BENCHER_ADAPTER: python_pytest
+  BENCHER_TESTBED: ubuntu-latest
+
+jobs:
+  validate:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Check PR title follows conventional commits
+      uses: amannn/action-semantic-pull-request@v5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        types: |
+          feat
+          fix
+          docs
+          style
+          refactor
+          perf
+          test
+          build
+          ci
+          chore
+        requireScope: false
+        subjectPattern: ^(?![A-Z]).+$
+        subjectPatternError: |
+          The subject "{subject}" found in the pull request title "{title}"
+          didn't match the configured pattern. Please ensure that the subject
+          doesn't start with an uppercase character.
+
+  test:
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Configure Git Credentials
+      run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: uv sync locked --all-extras --dev
+      
+    - name: Unit reproducibility test
+      run: uv run pytest tests/repro -m debug
+      
+    - name: Component reproducibility tests
+      run: uv run pytest tests/components -m debug
+      
+    - name: CPU performance tests
+      run: uv run pytest tests/components -m cpu
+      
+    - name: GPU performance tests
+      run: uv run pytest pytest tests/components -m gpu
+
+    - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+    - uses: actions/cache@v4
+      with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+
+    - name: Deploy docs
+      run: uv run mkdocs gh-deploy --force
+    
