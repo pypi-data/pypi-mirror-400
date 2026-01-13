@@ -1,0 +1,75 @@
+[package]
+name = "hope_core"
+version = "2.5.0"
+edition = "2021"
+authors = ["Máté Róbert <stratosoiteam@gmail.com>"]
+description = "Enterprise AI Safety: TEE, Post-Quantum Crypto, FHE, Mechanistic Interpretability - Quantum-Ready, Hardware-Secured"
+license = "MIT"
+repository = "https://github.com/silentnoisehun/Hope_Genome"
+keywords = ["ai-safety", "cryptography", "audit", "blockchain", "ethics"]
+categories = ["cryptography", "science"]
+readme = "README.md"
+
+[dependencies]
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.132"
+sha2 = "0.10.8"
+rand = "0.8"
+chrono = { version = "0.4.38", features = ["serde"] }
+thiserror = "2.0.3"
+hex = "0.4.3"
+unicode-normalization = "0.1.24"
+uuid = { version = "1.0", features = ["v4"] }
+
+# v1.6.0: M-1 - Canonical Action Serialization
+bincode = "1.3"    # Deterministic binary serialization
+
+# v1.4.1: Ed25519 Hardening (CISA CPG 2.0 compliance)
+# Migration from ed25519-dalek to ed25519-compact for enhanced API safety
+ed25519-compact = "2.1"
+signature = "2.2"
+
+# v1.4.2: Red Team Audit P3 Fixes
+subtle = "2.6"     # Constant-time comparisons (P3.2)
+zeroize = { version = "1.8", features = ["derive"] }    # Memory zeroing on drop (P3.3)
+
+# v1.8.0: Advanced Security Features ("Betonozás")
+# ZKP support - Schnorr-based zero-knowledge proofs
+curve25519-dalek = { version = "4.1", features = ["digest"] }
+# BFT support - threshold signatures
+parking_lot = "0.12"  # Fast mutexes for concurrent access
+
+# v1.4.0: Persistent Nonce Store (optional backends)
+rocksdb = { version = "0.22", optional = true }
+redis = { version = "0.25", optional = true }
+
+# v1.4.0: HSM Support (PKCS#11 integration)
+cryptoki = { version = "0.6", optional = true }
+
+# v1.4.0: TEE Support (Intel SGX / ARM TrustZone)
+# Note: Full SGX requires Intel SGX SDK and specific build environment
+# For now, we provide the trait interface and software fallback
+sgx_types = { version = "1.1.2", optional = true }
+
+# v1.5.0: Python Bindings (PyO3)
+pyo3 = { version = "0.24.1", features = ["extension-module"], optional = true }
+base64 = "0.22.1"
+
+[dev-dependencies]
+tempfile = "3.8"
+
+[features]
+default = ["memory-nonce-store"]
+memory-nonce-store = []
+rocksdb-nonce-store = ["rocksdb"]
+redis-nonce-store = ["redis"]
+hsm-support = ["cryptoki"]
+tee-support = ["sgx_types"]
+python-bindings = ["pyo3"]
+all-backends = ["rocksdb-nonce-store", "redis-nonce-store", "hsm-support", "tee-support"]
+full = ["all-backends", "python-bindings"]
+
+[lib]
+name = "_hope_core"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
