@@ -1,0 +1,106 @@
+.. image:: https://img.shields.io/pypi/v/nisystemlink-clients.svg
+    :target: https://pypi.org/project/nisystemlink-clients
+    :alt: PyPI version
+
+
+.. image:: https://img.shields.io/pypi/pyversions/nisystemlink-clients.svg
+    :target: https://pypi.org/project/nisystemlink-clients
+    :alt: Python versions
+
+
+.. image:: https://img.shields.io/pypi/l/nisystemlink-clients.svg
+    :target: https://github.com/ni/nisystemlink-clients-python/blob/master/LICENSE
+    :alt: License
+
+
+.. image:: https://img.shields.io/pypi/dm/nisystemlink-clients.svg
+    :target: https://pypi.org/project/nisystemlink-clients
+    :alt: Downloads
+
+
+About
+=====
+The **nisystemlink-clients** package contains an API (Application Programming
+Interface) for `SystemLink <https://ni.com/systemlink>`_ that uses HTTP to
+interact with a SystemLink Server. The package is implemented in Python. NI
+created and supports this package.
+
+
+===========  ====================================================
+Info         NI SystemLink API Clients for Python
+Author       National Instruments
+===========  ====================================================
+
+Requirements
+============
+**nisystemlink-clients** has the following requirements:
+
+* Access to a SystemLink Server or SystemLink Enterprise installation
+* CPython 3.10+
+
+.. _installation_section:
+
+Installation
+============
+To install **nisystemlink-clients**, use one of the following methods:
+
+1. `pip <https://pypi.python.org/pypi/pip>`_::
+
+   $ python -m pip install nisystemlink-clients
+
+2. **easy_install** from `setuptools <https://pypi.python.org/pypi/setuptools>`_::
+
+   $ python -m easy_install nisystemlink-clients
+
+Optional Arrow (pyarrow) Support
+--------------------------------
+The base install does not pull in ``pyarrow``. Arrow ``RecordBatch`` ingestion via
+``DataFrameClient.append_table_data`` is available starting in
+``nisystemlink-clients`` version 2.19.0. Install that version (or newer) with the
+optional extra:
+
+   $ python -m pip install "nisystemlink-clients[pyarrow]>=2.19.0"
+
+If you already have an older version installed, upgrade with:
+
+   $ python -m pip install --upgrade "nisystemlink-clients[pyarrow]>=2.19.0"
+
+Without the extra (or when using a package version earlier than 2.19.0),
+Arrow-specific code paths will raise a ``RuntimeError`` when attempting to
+append ``pyarrow.RecordBatch`` instances.
+
+.. _usage_section:
+
+Usage
+=====
+Refer to the `documentation <https://python-docs.systemlink.io>`_
+for detailed information on how to use **nisystemlink-clients**.
+
+.. _support_section:
+
+Support / Feedback
+==================
+The **nisystemlink-clients** package is supported by NI. For support for
+**nisystemlink-clients**, open a request through the NI support portal at
+`ni.com <https://www.ni.com>`_.
+
+Bugs / Feature Requests
+=======================
+To report a bug or submit a feature request, please use the
+`GitHub issues page <https://github.com/ni/nisystemlink-clients-python/issues>`_.
+
+Documentation
+=============
+To view the documentation, visit the
+`nisystemlink.clients Documentation Page <https://python-docs.systemlink.io>`_.
+
+Changelog
+=============
+To view the changelog, visit the
+`GitHub repository CHANGELOG <https://github.com/ni/nisystemlink-clients-python/blob/master/CHANGELOG.md>`_.
+
+License
+=======
+**nisystemlink-clients** is licensed under an MIT-style license (see `LICENSE
+<LICENSE>`_).  Other incorporated projects may be licensed under different
+licenses. All licenses allow for non-commercial and commercial use.
