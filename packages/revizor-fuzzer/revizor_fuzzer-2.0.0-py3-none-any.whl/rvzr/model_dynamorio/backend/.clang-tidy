@@ -1,0 +1,59 @@
+# Reasoning behind excluding some checks:
+# - `misc-include-cleaner`: This is incompatible with the DR headers, where dr_api.h is
+#   expected to be included in all source files.
+# - `modernize-use-trailing-return-type`: This style diverges from the rest of the code base
+#   (e.g., the source of `executor_km`), so it is excluded for uniformity.
+# - `readability-braces-around-statements`: This style diverges from the rest of the code base
+#   (e.g., the source of `executor_km`), so it is excluded for uniformity.
+# - `cppcoreguidelines-pro-type-vararg`: Incompatible with the DR API, such as dr_printf
+# - `cppcoreguidelines-pro-type-union-access`: Incompatible with dr_mcontext_t
+# - `cppcoreguidelines-pro-type-cstyle-cast`: C-style casts are necessary for DR API
+# - `coreguidelines-non-private-member-variables-in-classes`: Accessors make code unreasonably verbose
+# - `cppcoreguidelines-non-private-member-variables-in-classes`: Alias of the above
+# - `llvm-header-guard`: Checks for "LLVM-style" include guards, we want to use #pragma once instead
+# - `modernize-use-using`: This style diverges from the rest of the code base
+# - `readability-convert-member-functions-to-static`: This makes code less uniform with the rest of the code base
+# - `bugprone-easily-swappable-parameters`: DR has many C APIs, and this check causes many false positives
+# - `performance-enum-size`: The enum size in the backend is often dictated by the serialization formats, and it causes false positives on this check
+# - `cppcoreguidelines-avoid-magic-numbers`: Duplicate of readability-magic-numbers; excluded for consistency
+Checks: >
+    -*,
+    bugprone-*,
+    cppcoreguidelines-*,
+    llvm-*,
+    misc-*,
+    modernize-*,
+    performance-*,
+    readability-*,
+    -misc-include-cleaner,
+    -misc-use-anonymous-namespace,
+    -modernize-use-trailing-return-type,
+    -readability-braces-around-statements,
+    -cppcoreguidelines-pro-type-vararg,
+    -cppcoreguidelines-pro-type-union-access,
+    -cppcoreguidelines-pro-type-reinterpret-cast,
+    -cppcoreguidelines-pro-type-cstyle-cast,
+    -performance-no-int-to-ptr,
+    -misc-non-private-member-variables-in-classes,
+    -cppcoreguidelines-non-private-member-variables-in-classes,
+    -llvm-header-guard,
+    -modernize-use-using,
+    -readability-convert-member-functions-to-static,
+    -bugprone-easily-swappable-parameters,
+    -performance-enum-size,
+    -cppcoreguidelines-avoid-magic-numbers
+
+# Turn all the warnings from the checks above into errors.
+WarningsAsErrors: "*"
+
+HeaderFilterRegex: "^backend/include/.*$"
+
+CheckOptions:
+    - key: readability-identifier-length.IgnoredVariableNames
+      value: "pc|mc|bb|dc|it"
+    - key: readability-identifier-length.IgnoredParameterNames
+      value: "pc|mc|bb|dc|it"
+    - key: bugprone-easily-swappable-parameters.IgnoredParameterNames
+      value: '"";drcontext;wrapctx;;user_data;xflags;max_nesting_'
+    - key: readability-magic-numbers.IgnoredIntegerValues
+      value: '0;1;2;4;8;-1;-0x1ULL'
