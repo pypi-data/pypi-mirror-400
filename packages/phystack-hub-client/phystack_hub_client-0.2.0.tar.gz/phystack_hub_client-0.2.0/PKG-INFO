@@ -1,0 +1,174 @@
+Metadata-Version: 2.4
+Name: phystack-hub-client
+Version: 0.2.0
+Summary: Python client for PhyHub - events, actions, DataChannel, and MediaStream
+Project-URL: Homepage, https://github.com/phystack/phystack-pypi
+Project-URL: Documentation, https://docs.phystack.com
+Project-URL: Repository, https://github.com/phystack/phystack-pypi
+Author-email: Phystack <dev@phystack.com>
+License-Expression: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: aiortc>=1.6.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: opencv-python>=4.8.0
+Requires-Dist: python-socketio[asyncio-client]>=5.10.0
+Provides-Extra: dev
+Requires-Dist: black>=23.0.0; extra == 'dev'
+Requires-Dist: mypy>=1.5.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.4.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Phystack Hub Client (Python)
+
+Python client for PhyHub that provides:
+- Events and Actions via twin messaging
+- WebRTC DataChannel for P2P data
+- WebRTC MediaStream for P2P video/audio (with webcam support)
+
+## Installation
+
+```bash
+pip install phystack-hub-client
+```
+
+Or install from source:
+
+```bash
+pip install -e .
+```
+
+## Usage
+
+### Basic Connection
+
+```python
+import asyncio
+from phystack.hub_client import PhyHubClient
+
+async def main():
+    # Create client from environment variables
+    async with PhyHubClient.from_env() as client:
+        instance = await client.get_instance()
+        print(f"Connected as twin: {instance.id}")
+
+asyncio.run(main())
+```
+
+### Environment Variables
+
+- `DEVICE_ID` or `PHYGRID_DEVICE_ID`: Device identifier
+- `ACCESS_KEY` or `PHYGRID_DEVICE_KEY`: Access key
+- `PHYHUB_URL` or `PHYHUB_REGION`: Server URL or region (eu, us, etc.)
+- `TWIN_ID` or `INSTANCE_ID`: Optional specific twin ID
+
+### Events
+
+```python
+# Listen for events
+instance.on("my-event", lambda data, respond: print(f"Received: {data}"))
+
+# Send events to a peer
+instance.to(peer_twin_id).emit("my-event", {"message": "hello"})
+```
+
+### Actions (Request-Response)
+
+```python
+def on_result(result):
+    print(f"Response: {result.status} - {result.message}")
+
+# Send action with callback
+instance.to(peer_twin_id).emit("my-action", {"command": "process"}, callback=on_result)
+
+# Handle actions
+def handle_action(data, respond):
+    if respond:
+        respond(TwinMessageResult(
+            status=TwinMessageResultStatus.SUCCESS,
+            message="Processed",
+            data={"result": "done"}
+        ))
+
+instance.on("my-action", handle_action)
+```
+
+### WebRTC DataChannel
+
+```python
+# Create DataChannel connection
+dc = await client.create_data_channel(peer_twin_id, is_initiator=True)
+
+# Send data
+dc.send({"message": "hello via WebRTC"})
+
+# Receive data
+dc.on_message(lambda data: print(f"Received: {data}"))
+
+# Close when done
+dc.close()
+```
+
+### WebRTC MediaStream (with Webcam)
+
+```python
+# Create MediaStream connection (streams from webcam)
+stream = await client.create_media_stream(peer_twin_id, is_initiator=True)
+
+# Check if streaming
+print(f"Streaming: {stream.is_open()}")
+print(f"Has video: {stream.video_track is not None}")
+
+# Close when done
+stream.close()
+```
+
+## Testing
+
+### Python-Node Interoperability Test
+
+Test communication between Python and Node.js hub-client implementations:
+
+```bash
+# Setup credentials
+./scripts/python-node-test.sh setup
+
+# Run test (Python initiator, Node.js responder)
+./scripts/python-node-test.sh run
+
+# Run reversed (Node.js initiator, Python responder)
+./scripts/python-node-test.sh run-rev
+```
+
+### Browser Test Backend
+
+Use the Python client as initiator for the browser-based responder:
+
+```bash
+export DEVICE_ID=your-device-id
+export ACCESS_KEY=your-access-key
+export PEER_TWIN_ID=browser-responder-twin-id
+export PHYHUB_REGION=eu
+
+python examples/browser_test_backend.py
+```
+
+## Dependencies
+
+- `python-socketio[asyncio]` - Socket.IO client
+- `aiortc` - WebRTC implementation
+- `opencv-python` - Webcam capture
+- `aiohttp` - HTTP client
+
+## License
+
+MIT
