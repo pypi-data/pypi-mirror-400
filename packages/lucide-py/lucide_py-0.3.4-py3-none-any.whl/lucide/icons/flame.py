@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def Flame(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-flame'], 'items': [{'path': {'d': 'M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield
