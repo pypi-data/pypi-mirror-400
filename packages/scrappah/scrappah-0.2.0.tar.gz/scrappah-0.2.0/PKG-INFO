@@ -1,0 +1,473 @@
+Metadata-Version: 2.4
+Name: scrappah
+Version: 0.2.0
+Summary: Video dataset toolkit for research - download, extract frames, and transcribe
+Project-URL: Homepage, https://github.com/yourusername/scrappah
+Project-URL: Documentation, https://github.com/yourusername/scrappah#readme
+Project-URL: Repository, https://github.com/yourusername/scrappah
+Project-URL: Changelog, https://github.com/yourusername/scrappah/blob/main/CHANGELOG.md
+Project-URL: Bug Tracker, https://github.com/yourusername/scrappah/issues
+Author: Scrappah Contributors
+License: MIT
+License-File: LICENSE
+Keywords: dataset,deep-learning,frame-extraction,machine-learning,research,scraper,transcription,video,whisper,youtube,yt-dlp
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Multimedia :: Video
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Image Processing
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Requires-Dist: aiosqlite>=0.19.0
+Requires-Dist: numba>=0.60.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: openai-whisper>=20240930
+Requires-Dist: opencv-python>=4.8
+Requires-Dist: pillow>=10.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: rich>=13.7.0
+Requires-Dist: typer>=0.9.0
+Requires-Dist: yt-dlp>=2024.1.0
+Provides-Extra: decord
+Requires-Dist: decord>=0.6; extra == 'decord'
+Provides-Extra: dev
+Requires-Dist: mypy>=1.13; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest-cov>=6.0; extra == 'dev'
+Requires-Dist: pytest>=8.0; extra == 'dev'
+Requires-Dist: ruff>=0.8; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Scrappah
+
+[![PyPI version](https://badge.fury.io/py/scrappah.svg)](https://pypi.org/project/scrappah/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+A Python toolkit for building video datasets from online sources. Download videos, extract frames, and transcribe audio with a clean API designed for ML researchers and developers.
+
+## Features
+
+- **Video Downloading** - Download from YouTube (videos, playlists, channels) via yt-dlp
+- **Frame Extraction** - Extract frames at configurable FPS using Decord (fast) or OpenCV (compatible)
+- **Audio Transcription** - Transcribe with OpenAI Whisper (multiple model sizes)
+- **Async Pipeline** - Concurrent processing with progress tracking
+- **Storage Management** - SQLite index with organized directory structure
+- **Typed API** - Full type hints for IDE support
+
+## Installation
+
+### Quick Install
+
+```bash
+pip install scrappah
+```
+
+This installs everything you need: video downloading, frame extraction (OpenCV), and transcription (Whisper).
+
+### With GPU Acceleration (Optional)
+
+```bash
+# Add Decord for faster GPU-accelerated frame extraction
+pip install "scrappah[decord]"
+```
+
+### Platform-Specific Instructions
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+#### 1. Install FFmpeg (required for audio processing)
+
+**Option A: Using winget (Windows 11+)**
+```powershell
+winget install ffmpeg
+```
+
+**Option B: Using Chocolatey**
+```powershell
+choco install ffmpeg
+```
+
+**Option C: Using Scoop**
+```powershell
+scoop install ffmpeg
+```
+
+#### 2. Install scrappah
+
+```powershell
+pip install scrappah
+```
+
+#### Notes for Windows
+
+- **GPU acceleration**: For faster frame extraction, optionally add Decord (requires Visual C++ Build Tools):
+  ```powershell
+  pip install "scrappah[decord]"
+  ```
+- **Long paths**: Enable long path support in Windows if you encounter path-related errors:
+  ```powershell
+  # Run as Administrator
+  reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
+  ```
+
+</details>
+
+<details>
+<summary><strong>macOS</strong></summary>
+
+#### 1. Install FFmpeg
+
+```bash
+brew install ffmpeg
+```
+
+#### 2. Install scrappah
+
+```bash
+pip install scrappah
+```
+
+#### Notes for Apple Silicon (M1/M2/M3/M4)
+
+Whisper runs faster with Metal acceleration. PyTorch should automatically use MPS (Metal Performance Shaders) when available.
+
+To verify Metal is being used:
+```python
+import torch
+print(torch.backends.mps.is_available())  # Should print True
+```
+
+</details>
+
+<details>
+<summary><strong>Linux (Ubuntu/Debian)</strong></summary>
+
+#### 1. Install system dependencies
+
+```bash
+sudo apt update
+sudo apt install ffmpeg python3-dev
+```
+
+#### 2. Install scrappah
+
+```bash
+pip install scrappah
+```
+
+</details>
+
+<details>
+<summary><strong>Linux (Fedora/RHEL)</strong></summary>
+
+#### 1. Install system dependencies
+
+```bash
+sudo dnf install ffmpeg python3-devel
+```
+
+#### 2. Install scrappah
+
+```bash
+pip install scrappah
+```
+
+#### SSL Workaround (Fedora)
+
+Fedora users with strict OpenSSL 3.x policies may encounter SSL errors. The CLI handles this automatically. For library usage, set the environment variable before importing:
+
+```bash
+export OPENSSL_CONF=/dev/null
+```
+
+Or in Python:
+```python
+import os
+os.environ["OPENSSL_CONF"] = "/dev/null"
+
+from scrappah import download_video
+```
+
+</details>
+
+<details>
+<summary><strong>Linux (Arch)</strong></summary>
+
+#### 1. Install system dependencies
+
+```bash
+sudo pacman -S ffmpeg python
+```
+
+#### 2. Install scrappah
+
+```bash
+pip install scrappah
+```
+
+</details>
+
+## Quick Start
+
+### Synchronous API (Simple)
+
+For quick scripts and notebooks:
+
+```python
+from scrappah import download_video, download_playlist
+
+# Single video - one line
+result = download_video("https://youtube.com/watch?v=dQw4w9WgXcQ")
+print(f"Downloaded: {result.title} ({result.frame_count} frames)")
+
+# Playlist
+results = download_playlist(
+    "https://youtube.com/playlist?list=...",
+    max_videos=10,
+    fps=0.5,  # 1 frame every 2 seconds
+)
+successful = [r for r in results if r.success]
+print(f"Downloaded {len(successful)} videos")
+```
+
+### Async API (Full Control)
+
+For production applications:
+
+```python
+import asyncio
+from scrappah import DatasetPipeline, PipelineOptions
+
+async def main():
+    options = PipelineOptions(
+        output_dir="./my_dataset",
+        fps=1.0,                    # 1 frame per second
+        extract_frames=True,
+        transcribe=True,
+        whisper_model="base",       # tiny, base, small, medium, large
+        max_concurrent=2,           # Parallel downloads
+    )
+
+    async with DatasetPipeline(options) as pipeline:
+        # Single video
+        result = await pipeline.process_video("https://youtube.com/watch?v=...")
+        print(f"Processed: {result.title}")
+        print(f"  Frames: {result.frame_count}")
+        print(f"  Duration: {result.duration:.1f}s")
+
+        # Playlist
+        results = await pipeline.process_playlist(
+            "https://youtube.com/playlist?list=...",
+            max_videos=50,
+        )
+
+        # Channel
+        results = await pipeline.process_channel(
+            "https://youtube.com/@channelname",
+            max_videos=100,
+        )
+
+asyncio.run(main())
+```
+
+### Command Line Interface
+
+```bash
+# Single video
+scrappah video "https://youtube.com/watch?v=..." -o ./dataset
+
+# Playlist (max 50 videos, 2 FPS)
+scrappah playlist "https://youtube.com/playlist?list=..." --max-videos 50 --fps 2.0
+
+# Channel
+scrappah channel "https://youtube.com/@channel" --max-videos 100
+
+# Batch from file (one URL per line)
+scrappah batch urls.txt -o ./dataset --concurrent 3
+
+# View dataset stats
+scrappah stats -o ./dataset
+
+# List processed videos
+scrappah list -o ./dataset
+
+# Search videos by title
+scrappah search "machine learning" -o ./dataset
+```
+
+## Using Individual Components
+
+Use components independently for custom workflows:
+
+```python
+from pathlib import Path
+from scrappah import (
+    VideoDownloader,
+    extract_frames,
+    Transcriber,
+    ExtractionOptions,
+    TranscriptionOptions,
+)
+
+# Download only
+downloader = VideoDownloader()
+metadata = await downloader.download_video(
+    "https://youtube.com/watch?v=...",
+    Path("./videos"),
+)
+print(f"Downloaded: {metadata.title}")
+
+# Extract frames only
+options = ExtractionOptions(fps=2.0, quality=90)
+frame_count = extract_frames(
+    Path("video.mp4"),
+    Path("./frames"),
+    options,
+)
+print(f"Extracted {frame_count} frames")
+
+# Transcribe only
+with Transcriber() as transcriber:
+    transcriber.load_model("base")
+    result = transcriber.transcribe(Path("video.mp4"))
+    print(result.text)
+    for segment in result.segments:
+        print(f"[{segment.start:.1f}s] {segment.text}")
+```
+
+## Output Structure
+
+```
+dataset/
+├── dataset.db              # SQLite index
+├── videos/
+│   ├── dQw4w9WgXcQ.mp4
+│   └── ...
+├── frames/
+│   ├── dQw4w9WgXcQ/
+│   │   ├── frame_000000.jpg
+│   │   ├── frame_000001.jpg
+│   │   └── ...
+│   └── ...
+└── transcripts/
+    ├── dQw4w9WgXcQ.json
+    └── ...
+```
+
+### Transcript Format
+
+```json
+{
+  "metadata": {
+    "source_file": "dQw4w9WgXcQ.mp4",
+    "transcribed_at": "2024-01-15T10:30:00",
+    "model": "base",
+    "device": "cuda"
+  },
+  "result": {
+    "text": "Full transcript text...",
+    "language": "en",
+    "duration": 212.5,
+    "segments": [
+      {"start": 0.0, "end": 4.2, "text": "First segment..."},
+      {"start": 4.2, "end": 8.1, "text": "Second segment..."}
+    ]
+  }
+}
+```
+
+## Configuration Options
+
+### PipelineOptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `output_dir` | `str \| Path` | `"dataset"` | Output directory |
+| `fps` | `float` | `1.0` | Frames per second to extract |
+| `extract_frames` | `bool` | `True` | Enable frame extraction |
+| `transcribe` | `bool` | `True` | Enable transcription |
+| `whisper_model` | `str` | `"base"` | Whisper model size |
+| `max_concurrent` | `int` | `2` | Concurrent downloads |
+
+### Whisper Models
+
+| Model | Size | Speed | Quality | VRAM |
+|-------|------|-------|---------|------|
+| `tiny` | 39M | Fastest | Basic | ~1GB |
+| `base` | 74M | Fast | Good | ~1GB |
+| `small` | 244M | Medium | Better | ~2GB |
+| `medium` | 769M | Slow | Great | ~5GB |
+| `large` | 1550M | Slowest | Best | ~10GB |
+
+## Requirements
+
+- Python 3.11+
+- FFmpeg (for audio processing)
+- Optional: CUDA-capable GPU (for faster Whisper transcription)
+
+## Legal Notice
+
+This tool is intended for **research purposes only**. Users are responsible for:
+
+- Complying with YouTube's Terms of Service
+- Respecting copyright and fair use guidelines
+- Not redistributing downloaded content
+- Using collected data ethically and legally
+
+The authors are not responsible for misuse of this tool.
+
+## Citation
+
+If you use scrappah in your research, please cite:
+
+```bibtex
+@software{scrappah,
+  title = {Scrappah: Video Dataset Toolkit for Research},
+  year = {2024},
+  url = {https://github.com/yourusername/scrappah}
+}
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+Built on excellent open-source tools:
+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Video downloading
+- [Decord](https://github.com/dmlc/decord) - Fast video decoding
+- [OpenCV](https://opencv.org/) - Computer vision
+- [OpenAI Whisper](https://github.com/openai/whisper) - Speech recognition
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Development Setup
+
+```bash
+git clone https://github.com/yourusername/scrappah.git
+cd scrappah
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linter
+ruff check src/
+
+# Run type checker
+mypy src/scrappah/
+```
