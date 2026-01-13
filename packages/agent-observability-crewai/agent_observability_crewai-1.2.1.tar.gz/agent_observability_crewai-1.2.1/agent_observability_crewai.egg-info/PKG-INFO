@@ -1,0 +1,204 @@
+Metadata-Version: 2.4
+Name: agent-observability-crewai
+Version: 1.2.1
+Summary: CrewAI integration for Agent Observability - multi-agent logging, cost tracking, and compliance
+Home-page: https://api-production-0c55.up.railway.app
+Author: Agent Observability Team
+Author-email: hello@agentobs.io
+Project-URL: Homepage, https://api-production-0c55.up.railway.app
+Project-URL: Documentation, https://api-production-0c55.up.railway.app/docs
+Keywords: crewai,multi-agent,observability,logging,compliance,ai-agent,cost-tracking,crew
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Monitoring
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: agent-observability>=1.1.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: crewai
+Requires-Dist: crewai>=0.28.0; extra == "crewai"
+Requires-Dist: crewai-tools>=0.2.0; extra == "crewai"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Agent Observability for CrewAI
+
+[![PyPI version](https://badge.fury.io/py/agent-observability-crewai.svg)](https://pypi.org/project/agent-observability-crewai/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Multi-agent observability for CrewAI — track costs, tasks, and delegations across your crew.
+
+## Installation
+
+```bash
+pip install agent-observability-crewai
+```
+
+With CrewAI dependencies:
+
+```bash
+pip install agent-observability-crewai[crewai]
+```
+
+## Quick Start
+
+### 1. Get API Key
+
+```bash
+curl -X POST https://api-production-0c55.up.railway.app/v1/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id":"my-crew"}'
+```
+
+### 2. Set Environment Variable
+
+```bash
+export AGENT_OBS_API_KEY=ao_live_your_key_here
+```
+
+### 3. Add to Your Crew
+
+```python
+from crewai import Agent, Task, Crew
+from agent_observability_crewai import AgentObservabilityTool
+
+# Create tool for each agent
+obs_tool = AgentObservabilityTool(crew_id="research-crew")
+
+researcher = Agent(
+    role="Researcher",
+    goal="Find accurate information",
+    tools=[obs_tool],
+    verbose=True
+)
+
+writer = Agent(
+    role="Writer",
+    goal="Create compelling content",
+    tools=[AgentObservabilityTool(crew_id="research-crew", agent_role="writer")],
+    verbose=True
+)
+
+# Create and run crew
+crew = Crew(
+    agents=[researcher, writer],
+    tasks=[...]
+)
+
+result = crew.kickoff()
+```
+
+## Automatic Callback (Alternative)
+
+For fully automatic logging without giving agents the tool:
+
+```python
+from crewai import Crew
+from agent_observability_crewai import ObservabilityCallback
+
+callback = ObservabilityCallback(crew_id="my-crew")
+
+crew = Crew(
+    agents=[...],
+    tasks=[...],
+    callbacks=[callback]  # Logs automatically
+)
+```
+
+## What Gets Tracked
+
+| Event | Description |
+|-------|-------------|
+| `task_started` | When a task begins |
+| `task_complete` | Task finished with duration |
+| `delegation` | Task delegated between agents |
+| `tool_use` | Agent uses a tool |
+| `api_call` | External API calls |
+| `error` | Errors and failures |
+
+## CrewAI-Specific Features
+
+### Per-Agent Cost Tracking
+
+```python
+# Each agent logs with their role
+obs = AgentObservabilityTool(
+    crew_id="sales-crew",
+    agent_role="lead-qualifier"
+)
+
+# Query later: "Show me costs for lead-qualifier role"
+```
+
+### Task Delegation Logging
+
+```python
+obs_tool.log_delegation(
+    from_agent="Manager",
+    to_agent="Researcher",
+    task="Find competitor pricing",
+    reason="Requires web search expertise"
+)
+```
+
+### Task Completion with Metrics
+
+```python
+obs_tool.log_task_complete(
+    task_description="Research competitors",
+    output="Found 5 competitors...",
+    cost_usd=0.15,
+    duration_ms=45000
+)
+```
+
+## Pricing
+
+| Tier | Logs/Month | Price |
+|------|------------|-------|
+| **Free** | 100,000 | $0 |
+| **Starter** | 1,000,000 | $29/month |
+| **Professional** | 10,000,000 | $199/month |
+
+## Why Use This for CrewAI?
+
+Multi-agent systems need observability more than single agents:
+
+- **Which agent costs the most?** Track per-role spending
+- **Where are bottlenecks?** See task durations per agent
+- **Delegation chains** Audit who delegated what to whom
+- **Debug failures** Trace errors back through agent interactions
+
+## Related Packages
+
+- **[agent-observability](https://pypi.org/project/agent-observability/)** — Core Python SDK
+- **[agent-observability-langchain](https://pypi.org/project/agent-observability-langchain/)** — LangChain integration
+- **[agent-observability-autogpt](https://pypi.org/project/agent-observability-autogpt/)** — AutoGPT plugin
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+## Links
+
+- [API Documentation](https://api-production-0c55.up.railway.app/docs)
+
