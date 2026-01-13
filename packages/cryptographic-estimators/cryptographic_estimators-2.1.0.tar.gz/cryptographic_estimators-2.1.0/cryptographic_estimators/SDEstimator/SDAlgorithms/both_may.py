@@ -1,0 +1,238 @@
+# ****************************************************************************
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ****************************************************************************
+
+
+from ...base_algorithm import optimal_parameter
+from ...SDEstimator.sd_algorithm import SDAlgorithm
+from ...SDEstimator.sd_problem import SDProblem
+from ...SDEstimator.sd_helper import (
+    _gaussian_elimination_complexity,
+    _mem_matrix,
+    _indyk_motwani_complexity,
+    binom,
+    log2,
+    inf,
+    ceil,
+)
+from types import SimpleNamespace
+from ..sd_constants import *
+from ..SDWorkfactorModels import BothMayScipyModel
+
+
+class BothMay(SDAlgorithm):
+    def __init__(self, problem: SDProblem, **kwargs):
+        """Complexity estimate of Both-May algorithm in depth 2 using Indyk-Motwani and/or MitM for NN search.
+
+        For further reference see [BM18]_.
+
+        Expected weight distribution:
+
+            +-------------------+---------+-------------------+-------------------+
+            | <--+ n - k - l+-->|<-+ l +->|<----+ k / 2 +---->|<----+ k / 2 +---->|
+            |     w - w2 - 2p   |    w2   |         p         |         p         |
+            +-------------------+---------+-------------------+-------------------+
+
+        Args:
+            problem (SDProblem): SDProblem object including all necessary parameters.
+
+        Examples:
+            >>> from cryptographic_estimators.SDEstimator.SDAlgorithms import BothMay
+            >>> from cryptographic_estimators.SDEstimator import SDProblem
+            >>> BothMay(SDProblem(n=100,k=50,w=10))
+            Both-May estimator in depth 2 for syndrome decoding problem with (n,k,w) = (100,50,10) over Finite Field of size 2
+        """
+        super(BothMay, self).__init__(problem, **kwargs)
+        self._name = "Both-May"
+        self.initialize_parameter_ranges()
+        self.scipy_model = BothMayScipyModel
+
+    def initialize_parameter_ranges(self):
+        """Initialize the parameter ranges for p, p1, p2, and l to start the optimization process."""
+        self.set_parameter_ranges("p", 0, 20)
+        self.set_parameter_ranges("p1", 0, 15)
+        self.set_parameter_ranges("l", 0, 160)
+        self.set_parameter_ranges("w1", 0, 5)
+        self.set_parameter_ranges("w2", 0, 4)
+
+    @optimal_parameter
+    def l(self):
+        """Return the optimal parameter $l$ used in the algorithm optimization.
+
+        Examples:
+            >>> from cryptographic_estimators.SDEstimator.SDAlgorithms import BothMay
+            >>> from cryptographic_estimators.SDEstimator import SDProblem
+            >>> A = BothMay(SDProblem(n=100,k=50,w=10))
+            >>> A.l()
+            2
+        """
+        return self._get_optimal_parameter("l")
+
+    @optimal_parameter
+    def p(self):
+        """Return the optimal parameter $p$ used in the algorithm optimization.
+
+        Examples:
+            >>> from cryptographic_estimators.SDEstimator.SDAlgorithms import BothMay
+            >>> from cryptographic_estimators.SDEstimator import SDProblem
+            >>> A = BothMay(SDProblem(n=100,k=50,w=10))
+            >>> A.p()
+            2
+        """
+        return self._get_optimal_parameter("p")
+
+    @optimal_parameter
+    def p1(self):
+        """Return the optimal parameter $p1$ used in the algorithm optimization.
+
+        Examples:
+            >>> from cryptographic_estimators.SDEstimator.SDAlgorithms import BothMay
+            >>> from cryptographic_estimators.SDEstimator import SDProblem
+            >>> A = BothMay(SDProblem(n=100,k=50,w=10))
+            >>> A.p1()
+            1
+        """
+        return self._get_optimal_parameter("p1")
+
+    @optimal_parameter
+    def w1(self):
+        """Return the optimal parameter $w1$ used in the algorithm optimization.
+
+        Examples:
+            >>> from cryptographic_estimators.SDEstimator.SDAlgorithms import BothMay
+            >>> from cryptographic_estimators.SDEstimator import SDProblem
+            >>> A = BothMay(SDProblem(n=100,k=50,w=10))
+            >>> A.w1()
+            0
+        """
+        return self._get_optimal_parameter("w1")
+
+    @optimal_parameter
+    def w2(self):
+        """Return the optimal parameter $w2$ used in the algorithm optimization.
+
+        Examples:
+            >>> from cryptographic_estimators.SDEstimator.SDAlgorithms import BothMay
+            >>> from cryptographic_estimators.SDEstimator import SDProblem
+            >>> A = BothMay(SDProblem(n=100,k=50,w=10))
+            >>> A.w2()
+            0
+        """
+        return self._get_optimal_parameter("w2")
+
+    def _are_parameters_invalid(self, parameters: dict):
+        """Returns whether the given parameter set is invalid.
+
+        Args:
+            parameters (dict): The parameter set to be checked.
+
+        Returns:
+            bool: True if the parameter set is invalid, False otherwise.
+        """
+        n, k, w = self.problem.get_parameters()
+        par = SimpleNamespace(**parameters)
+        k1 = k // 2
+        if par.p > w // 2 or k1 < par.p or par.w1 >= min(w, par.l + 1) \
+                or par.w2 > min(w - 2 * par.p, par.l, 2 * par.w1) or par.p1 < (par.p + 1) // 2 or par.p1 > w \
+                or n - k - par.l < w - par.w2 - 2 * par.p or par.p1 > k1:
+            return True
+        return False
+
+    def _valid_choices(self):
+        """Generator which yields on each call a new set of valid parameters based on the `_parameter_ranges` and already set parameters in `_optimal_parameters`."""
+        new_ranges = self._fix_ranges_for_already_set_parameters()
+        n, k, w = self.problem.get_parameters()
+
+        for p in range(new_ranges["p"]["min"], min(w // 2, new_ranges["p"]["max"]) + 1, 2):
+            for l in range(
+                new_ranges["l"]["min"],
+                min(n - k - (w - 2 * p), new_ranges["l"]["max"]) + 1,
+            ):
+                for w1 in range(new_ranges["w1"]["min"], new_ranges["w1"]["max"] + 1):
+                    for w2 in range(new_ranges["w2"]["min"], new_ranges["w2"]["max"] + 1, 2):
+                        for p1 in range(
+                            max(new_ranges["p1"]["min"], (p + 1) // 2),
+                            new_ranges["p1"]["max"] + 1,
+                        ):
+                            indices = {
+                                "p": p,
+                                "w1": w1,
+                                "w2": w2,
+                                "p1": p1,
+                                "l": l,
+                                "r": self._optimal_parameters["r"],
+                            }
+                            if self._are_parameters_invalid(indices):
+                                continue
+                            yield indices
+
+    def _time_and_memory_complexity(self, parameters: dict, verbose_information=None):
+        """Computes the expected runtime and memory consumption for a given parameter set."""
+        n, k, w = self.problem.get_parameters()
+        par = SimpleNamespace(**parameters)
+        k1 = k // 2
+
+        solutions = self.problem.nsolutions
+        memory_bound = self.problem.memory_bound
+
+        reps = (
+            (binom(par.p, par.p / 2) * binom(k1 - par.p, par.p1 - par.p / 2)) ** 2
+            * binom(par.w2, par.w2 / 2)
+            * binom(par.l - par.w2, par.w1 - par.w2 / 2)
+        )
+        reps = 1 if reps == 0 else reps
+        L1 = binom(k1, par.p1)
+
+        if self._is_early_abort_possible(log2(L1)):
+            return inf, inf
+
+        L12 = max(1, L1**2 * binom(par.l, par.w1) // 2**par.l)
+
+        memory = log2((2 * L1 + L12) + _mem_matrix(n, k, par.r))
+        if memory > memory_bound:
+            return inf, inf
+
+        Tp = max(
+            log2(binom(n, w))
+            - log2(binom(n - k - par.l, w - par.w2 - 2 * par.p))
+            - 2 * log2(binom(k1, par.p))
+            - log2(binom(par.l, par.w2))
+            - solutions,
+            0,
+        )
+        Tg = _gaussian_elimination_complexity(n, k, par.r)
+
+        first_level_nn = _indyk_motwani_complexity(L1, par.l, par.w1, self._hmap)
+        second_level_nn = _indyk_motwani_complexity(L12, n - k - par.l, w - 2 * par.p - par.w2, self._hmap)
+        T_tree = 2 * first_level_nn + second_level_nn
+        T_rep = int(ceil(2 ** max(0, par.l - log2(reps))))
+
+        time = Tp + log2(Tg + T_rep * T_tree)
+        if verbose_information is not None:
+            verbose_information[VerboseInformation.CONSTRAINTS.value] = [par.l]
+            verbose_information[VerboseInformation.PERMUTATIONS.value] = Tp
+            verbose_information[VerboseInformation.TREE.value] = log2(T_rep * T_tree)
+            verbose_information[VerboseInformation.GAUSS.value] = log2(Tg)
+            verbose_information[VerboseInformation.REPRESENTATIONS.value] = reps
+            verbose_information[VerboseInformation.LISTS.value] = [log2(L1), log2(L12)]
+
+        return time, memory
+
+    def __repr__(self):
+        rep = "Both-May estimator in depth 2 for " + str(self.problem)
+        return rep
