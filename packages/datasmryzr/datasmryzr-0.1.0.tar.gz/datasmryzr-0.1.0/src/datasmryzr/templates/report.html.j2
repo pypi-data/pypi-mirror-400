@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <title>{{title}}</title>
+ 
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    
+    <!-- Icon -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.3/css/bootstrap.css" rel="stylesheet">
+       
+    <link href="https://unpkg.com/tabulator-tables/dist/css/tabulator.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables/dist/js/tabulator.min.js"></script>
+    
+    
+    <style type="text/css">
+    body {
+        background-color: #f7f9fa;
+      }
+		h3, h6 {
+			color: {{ background_color }};
+		}
+		
+		{% for key,val in colors_css.items() %}
+		.{{ key }} {
+			background-color: {{ val }};
+			height: 10px;
+			width: 10px;
+		}
+		{% endfor %}
+    h2, h3 {
+      padding:10px;
+    }
+    header {
+            background-color: {{ background_color }};
+            color: {{ font_color }};
+    }
+    canvas.marks {
+     width: 100%;
+     max-width: 100%;
+     }
+
+    .hidden-graph{
+      margin: 2em;
+    }
+    .activeisolate {
+      fill:{{ background_color }};
+      font-size: larger;
+
+    }
+    @media (min-width: 768px) {
+    .modal-xl {
+    max-width: 90%; 
+            }
+    }
+    .details {
+            display: none;
+    }
+    .btn-outline-primary {
+      color: {{ background_color }};
+      border-color: {{ background_color }};
+    }
+		.dropdown-item.active, .dropdown-item:active {
+		  background-color: {{ font_color }};
+		  color: {{ background_color }};
+      
+		}
+
+    .btn-outline-primary:hover {
+      background-color:  {{ background_color }};
+      color: {{ font_color }};
+    }
+    .tabulator {
+      border: none;
+      background-color: white;
+    }
+    .btn-outline-primary:not(:disabled):not(.disabled).active {
+      background-color:  {{ background_color }};
+      color: {{ font_color }};
+    }
+
+    #current-table {
+      margin-top:20px;
+      border:none;
+      background-color:white;
+      border-radius: 4px;
+    }
+    .nav-link {
+      color: #343a40;
+    }
+    .btn-outline-secondary {
+      color: {{ background_color }};
+      border-color: {{ background_color }};
+    }
+
+    .btn-outline-secondary:hover {
+      background-color:  {{ background_color }};
+      color: {{ font_color }};
+    }
+
+    .btn-outline-secondary:not(:disabled):not(.disabled).active {
+      background-color:  {{ background_color }};
+      color: {{ font_color }};
+    }
+    .page-link {
+      color:{{ background_color }};
+      
+    }
+    .page-item.active .page-link{
+      background-color:  {{ background_color }};
+      border-color:{{ background_color }};
+      color: {{ font_color }};
+    }
+    .tabulator-col-content {
+      background-color:{{ background_color }};
+    }
+
+    /*Theme the header*/
+    #current-table .tabulator-header {
+        background-color:#fff;
+        color:#fff;
+        border-bottom: 0px solid #fff;
+    }
+
+    /*Allow column header names to wrap lines*/
+    #current-table .tabulator-col {
+        white-space: normal;
+        background-color: {{ background_color }};
+    }
+
+    /*Color the table rows*/
+    #current-table .tabulator-tableHolder .tabulator-table .tabulator-row{
+        color:#fff;
+        background-color: #666;
+    }
+
+    /*Color even rows*/
+        #current-table .tabulator-tableHolder .tabulator-table .tabulator-row:nth-child(even) {
+        background-color: #444;
+    }
+    .italic-column {
+    font-style: italic;
+}
+
+      </style> 
+  </head>
+  <body>
+    <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
+        <h2 class="left" style="margin:5px;">{{title}}</h2>
+        <button class="navbar-toggler position-right d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#navbarTogglerDemo03" aria-controls="navbarTogglerDemo03" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div id="summary-dashboard" style = "width:60%; margin: 20px; padding: 20px; ">
+          <!-- dashborad header block -->
+              <div id= "workflow-summary" style = "display: none; flex-wrap: wrap; align-items: center; margin-bottom: 20px;">
+                <h4 >Workflow summary</h4>
+                <button class="btn btn-sm btn-outline-secondary" id="workflow-summary-toggle" style = "margin-left: 10px;"><i style = "color:white;" class="bi bi-chevron-bar-contract"></i></button>
+              </div>
+              <!-- workflow summary content -->
+              <dl id = "workflow-summary-content" style = "display: flex; flex-wrap: wrap; margin: 5px;border: 1px solid lightgray; padding: 5px;">
+                <div class="col-md-2">
+                  <dt>User</dt>
+                  <dd>{{ user }}</dd>
+                </div>
+                <div class="col-md-2">
+                  <dt>Run Date</dt>
+                  <dd>{{ date }}</dd>
+                </div>
+                <div class="col-md-2">
+                  <dt>Isolates</dt>
+                  <dd>{{ num_isos }}</dd>
+                </div>
+                {% if pipeline_name != 'not provided' %}
+                <div class="col-md-2">
+                  <dt>Workflow</dt>
+                  <dd>{{ pipeline_name }}</dd>
+                </div>
+                {% endif %}
+                {% if pipeline_version != 'not provided' %} 
+                <div class="col-md-2">
+                  <dt>Pipeline Version</dt>
+                  <dd>{{ pipeline_version}}</dd>
+                </div>
+                {% endif %}
+              </dl>
+            </div>
+    </header>
+
+      <div class="container-fluid">
+        <div class = "row">
+          <nav  class="navbar navbar-expand-lg bg-body-tertiary" style="background-color:white;">
+              <!-- set up a sticky menu -->
+              <div class="collapse navbar-collapse" id="navbarTogglerDemo03">
+                <!-- unordered list for the menu on the left -->
+                <ul class="navbar-nav">
+                    
+                <!-- unordered list for the menu on the left -->
+                <ul class="nav">
+                    {% if phylo == 'phylo' %}
+                      <li class="nav-item active">
+                        <a class="nav-link tree-button" href="#">Tree</a>
+                      </li>
+                    {% endif %}
+                    {% for t in menu %}
+                      <li class="nav-item">
+                        <a class="nav-link detail-button {{t.link}}-button" href="#">{{t.name}}</a>
+                      </li>
+                    {% endfor %}
+                </ul>
+              </div>
+            </nav>
+          <main class="col-md-1 ms-sm-auto col-lg-12 px-md-4" id = "main-content">
+          <!-- summary dashboard -->
+          
+          <!-- Phylo divs -->
+          {% if phylo == 'phylo' %}
+  
+              <div id = "tree">
+                <h3 class="">Tree</h3>
+                <p style="font-size:small;">{{numvarsites}}</p>
+                <div id="tree_string" style="display: none;">
+                      {{ newick }}
+                </div>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                  <div class="btn-group me-2">
+                    <div class="hidden-nav-phylo btn-group" id = "hidden-nav-phylo"  style = "float:right; ">
+                            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Annotate</button>
+                                <div class="dropdown-menu" id="annotate">
+                                  {% for metadata_column in metadata_columns %}
+                                    <a class="dropdown-item annotate-tree active" href="#">{{metadata_column}}</a>
+                                  {% endfor %}
+                                  <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item annotate-tree" href="#">All</a>
+                                  <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item annotate-tree" href="#">Clear</a>
+                                </div>
+                          
+                            <button class="btn btn-sm btn-outline-secondary legend-button" id = "toggle-legend" href="#">Toggle legend</button>
+                            <button class="btn btn-sm btn-outline-secondary reset-tree-button" href="#">Reset</button>
+                            <button class="btn btn-sm btn-outline-secondary download-tree-button" href="#">Download newick</button>
+                            <button class="btn btn-sm btn-outline-secondary export-tree-button" href="#">Download image</button> 
+                    </div>
+                  </div>
+                  
+                </div>
+
+                <div id = "phylocanvas" class = "tree" style = "width: 100%; margin:5px; border: 1px solid lightgray; float:left; background-color: white;">
+                  
+                  <!-- Placeholder for phylogenetic tree -->
+                </div>
+                
+            </div>
+            <div id = "legend" class = "tree" style = " width: 90%; margin:5px;  display: none ;flex-wrap: wrap; ">
+              {% for category in legend %}
+              <div class = "legend-{{category}}" style = "border:1px dotted lightgray;">
+              <h6 style="margin: 10px;">{{category}}</h6>
+                {% for lg in legend[category] %}
+                <table style="margin: 20px;" >
+                {% for key,val in lg.items() %}
+                  <tr>
+                    <td > <div class = "square {{val}}"></div> </td> 
+                    <td> <div >{{key}}</div>  </td>
+                  </tr>	
+                {% endfor %}
+                </table>
+                {% endfor %}
+              </div>
+              {% endfor %}
+              
+              
+            </div>
+
+            {% endif %}
+           
+        <!-- div for tables -->
+                <div id = "current-table" class = "table-div" style = "display: none; margin: 20px; padding: 20px; border: 1px solid lightgray;">
+                  <div id = "table-header" style = "display: flex; justify-content: space-between; align-items: center;">
+                    <h3 id = "sect-title">Current Table</h3>
+                    <div id = "table-buttons">
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="tables-button" data-bs-toggle="collapse" data-bs-target="#table"><i class="bi bi-table" style = "font-size: 1.2rem;"></i> Table</button>
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="toggle-width-button" data-bs-toggle="collapse" data-bs-target="#table-toggle"><i class="bi bi-aspect-ratio-fill" style = "font-size: 1.2rem;"></i> Fit to window</button>
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="graphs-button" data-bs-toggle="collapse" data-bs-target="#graphs"><i class="bi bi-file-bar-graph" style = "font-size: 1.2rem;"></i> Graph</button>
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="graphs-heatmap-button" data-bs-toggle="collapse" data-bs-target="#graphs-heatmap"><i class="bi bi-file-bar-graph" style = "font-size: 1.2rem;"></i> Graph - heatmap</button>
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="graphs-distribution-button" data-bs-toggle="collapse" data-bs-target="#graphs-distribution"><i class="bi bi-file-bar-graph" style = "font-size: 1.2rem;"></i> Graph - distribution</button>
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="graphs-density-button" data-bs-toggle="collapse" data-bs-target="#graphs-density"><i class="bi bi-file-bar-graph" style = "font-size: 1.2rem;"></i> Graph - density</button>
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="graphs-statistics-button" data-bs-toggle="collapse" data-bs-target="#graphs-statistics"><i class="bi bi-file-bar-graph" style = "font-size: 1.2rem;"></i> Graph - statistics</button>
+                      {% if no_downloadable_tables == 'false' %}
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="download-button" data-bs-toggle="collapse" data-bs-target="#download-tables"><i class="bi bi-download" style = "font-size: 1.2rem;"></i> Download</button>
+                      {% endif %}
+                      <button class="btn btn-sm btn-outline-secondary" style= "margin:2px;" id="information-button" data-bs-toggle="collapse" data-bs-target=""><i class="bi bi-info-circle" style = "font-size: 1.2rem;"></i> Info</button>
+                    </div>
+                  </div>
+                  <div id = "graph-container" >
+                    <div id = "summary-graph" class = "hidden-graph" style="display:none">  <!-- placeholder for graphs  --> </div>
+                    <div id = "core-genome-stats-graph" class = "hidden-graph" style="display:none">  <!-- placeholder for graphs  --> </div>
+                    <div id = "core-genome-density-graph" class = "hidden-graph" style="display:none">  <!-- placeholder for graphs  --> </div>
+                    <div id = "pangenome-graph" class = "hidden-graph" style="display:none">  <!-- placeholder for graphs  --> </div>
+                    <div id = "distances-distribution-graph" class = "hidden-graph" style="display:none">  <!-- placeholder for graphs  --> </div>
+                    <div id = "distances-heatmap-graph" class = "hidden-graph" style="display:none;">  <!-- placeholder for graphs  --> </div>
+                    <div id = "clusters-graph" class = "hidden-graph" style="display:none;">  <!-- placeholder for graphs  --> </div>
+                  </div>
+                  
+                  <div id="table-container" style= "overflow-x:auto; width:100%;">
+
+                  </div>
+                  <div id = "for_information" style = "display: none;">
+                    <div id = "comment"></div>
+                </div>
+                <!-- end div for tables -->
+                <!-- modals -->
+                <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                  <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="exampleModalLabel">Modal title</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                        <div id="clusters">
+
+                      </div>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+
+
+          </main>
+        </div>
+      </div>
+
+  
+  
+             
+
+<script src="https://unpkg.com/@phylocanvas/phylocanvas.gl@latest/dist/bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega@5.20.2"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-lite@5.1.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@6.12.2"></script>
+
+
+
+
+<script>
+
+    var table_dict = {{tables | tojson}};
+    var column_dict = {{ columns | tojson }};
+    var comment = {{ comment | tojson }}
+    var distance_dict = {{ distdict | tojson }};
+    
+    var snp_distance_chart = {{ snp_distances | safe }};
+          vegaEmbed('#distances-distribution-graph', snp_distance_chart).then(function(result){
+            
+          });
+
+    var snp_density_chart = {{ snp_density | safe }};
+      vegaEmbed('#core-genome-density-graph', snp_density_chart).then(function(result){
+      
+    });
+
+    var heatmap_chart = {{ snp_heatmap | safe }};
+      vegaEmbed('#distances-heatmap-graph', heatmap_chart).then(function(result){
+      
+    });
+
+    var pangenome_chart = {{ pangenome | safe }};
+      vegaEmbed('#pangenome-graph', pangenome_chart).then(function(result){
+      
+    });
+
+    var summary_chart = {{ summary_graph | safe }};
+      vegaEmbed('#summary-graph', summary_chart).then(function(result){
+      
+    });
+
+    var core_stats_chart = {{ core_stats | safe }};
+          vegaEmbed('#core-genome-stats-graph', core_stats_chart).then(function(result){
+            
+          });
+    var cluster_stats_chart = {{ cluster_stats | safe }};
+          vegaEmbed('#clusters-graph', cluster_stats_chart).then(function(result){
+            
+          });
+function displayWindowSize(){
+        // Get width and height of the window excluding scrollbars
+        var w = document.documentElement.clientWidth;
+        var h = document.documentElement.clientHeight;
+        // var div = document.getElementById("phylocanvas");
+        // // Set the height of the phylocanvas to be 50% of the window height
+        // var phylocanvas = document.getElementById("phylocanve");
+        // var phylocanvas = document.getElementById("phylocanvas");
+        // phylocanvas.style.height = (h*1.5) + "px";
+        console.log("Window size: " + w + "x" + h);
+        return h
+    }
+    function displayWindowWidth(){
+        // Get width and height of the window excluding scrollbars
+        var w = document.documentElement.clientWidth;
+        var h = document.documentElement.clientHeight;
+        // var div = document.getElementById("phylocanvas");
+        // // Set the height of the phylocanvas to be 50% of the window height
+        // var phylocanvas = document.getElementById("phylocanve");
+        // var phylocanvas = document.getElementById("phylocanvas");
+        // phylocanvas.style.height = (h*1.5) + "px";
+        console.log("Window size: " + w + "x" + h);
+        return w
+    }
+    // functions for getting annotation for the tree
+    var annot=[];
+    var annot_all = {{ metadata_columns | tojson }};
+    function updateAnnot(val, annot){
+        console.log("val : ");
+        console.log(val[0].classList);
+        console.log("annot : ");
+        console.log(annot);
+        if (val.hasClass("active") && val.hasClass("annotate-tree") && !val[0].innerHTML.includes("Clear") && !val[0].innerHTML.includes("All")) {
+            console.log("added " + val[0].innerHTML);
+            if( !annot.includes(val[0].innerHTML) ){
+                val.addClass("active");
+                annot.push(val[0].innerHTML);
+            }
+            
+        } else if (val[0].innerHTML == "All" && val.hasClass("annotate-tree")){
+            annot = annot_all;
+            val.removeClass("active");
+            other = document.getElementsByClassName("annotate-tree");
+            // console.log(other);
+            for (var i = 0; i < other.length; i++){
+              console.log(other[i].innerHTML);
+                if (other[i].innerHTML != "Clear" && other[i].innerHTML != "All"){
+                    other[i].classList.add("active");
+                }
+            }
+
+        } else if (val[0].innerHTML == "Clear"){	 
+            val.removeClass("active");
+            other = document.getElementsByClassName("annotate-tree");
+            // console.log(other);
+            for (var i = 0; i < other.length; i++){
+              console.log(other[i].innerHTML);
+                if (other[i].innerHTML != "Clear" && other[i].innerHTML != "All"){
+                    other[i].classList.remove("active");
+                }
+            }
+            annot = [];
+        } else {
+            var index = annot.indexOf(val[0].innerHTML);
+            if (index > -1) {
+                annot.splice(index, 1);
+            }
+        }
+        console.log(annot);
+        return annot;
+    }
+              // function for drawing the tree
+    function drawTree(annot, height){
+      var tree_root = ["1"];
+      var num_nodes = 4;
+      // $("#phylocanvas").height(displayWindowSize()/2);
+      var tree_string = document.getElementById('tree_string');
+      // console.log(tree_string);
+      // console.log(document.querySelector("#tree").getBoundingClientRect().width);
+      if( tree_string ){
+      tree_string  = tree_string.innerHTML;
+      $('#phylocanvas').empty();
+      var tree = new phylocanvas.PhylocanvasGL(
+                  document.querySelector("#phylocanvas"),
+                      { 
+                      // size: document.querySelector("#phylocanvas").getBoundingClientRect(),
+                      treeToCanvasRatio:0.5,
+                      showBlockHeaders:true,
+                      blocks: annot,
+                      blockLength: 48, // block size in pixels
+                      blockPadding: 2, // the gap size between blocks in pixels
+                      blockHeaderFontSize:15,
+                      metadata :{{ metadata_tree | tojson }},
+                      source: tree_string,
+                      type: phylocanvas.TreeTypes.Rectangular,
+                      nodeSize:6,
+                      showLabels: true,
+                      showLeafLabels: true,
+                      showInternalLabels: true,
+                      alignLabels:true,
+                      interactive:true,
+                      size : {
+                          width:document.querySelector("#tree").getBoundingClientRect().width,
+                          height:height
+                        }
+                      },
+                      [
+                        phylocanvas.plugins.scalebar,
+                      ],
+                  );
+                  
+                return tree;
+                }
+    }
+    // function for downloading the tree as a newick file
+    function downloadString(text, fileType, fileName) {
+      var blob = new Blob([text], { type: fileType });
+
+      var a = document.createElement('a');
+      a.download = fileName;
+      a.href = URL.createObjectURL(blob);
+      a.dataset.downloadurl = [fileType, a.download, a.href].join(':');
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1500);
+    }
+    // capitalize first letter of a string
+    function capitalizeFirstLetter(val) {
+        return String(val).charAt(0).toUpperCase() + String(val).slice(1);
+    }
+    // function for drawring a table
+    function drawTable(table_id, data, columns, layout = "fitColumns", cluster = false) {
+        console.log("drawing table");
+        console.log(data);
+        if (cluster){
+                    var makebutton = function(cell, formatterParams, onRendered){
+                      var button = document.createElement("button");
+                      button.innerHTML = "<i class='bi bi-eye' style = 'font-size: 1.2rem;'></i> View";
+                      button.classList.add("btn");
+                      button.classList.add("btn-sm");
+                      button.classList.add("btn-outline-secondary");
+                      button.setAttribute('data-bs-toggle', 'modal'); 
+                      button.setAttribute('data-bs-target', '#exampleModal'); 
+                      button.addEventListener("click", function(){
+                          var cl = document.getElementById("clusters");
+                          var modal_title = document.getElementById("exampleModalLabel")
+                          modal_title.innerHTML = "SNP distances for cluster : " +  cell.getRow().getData()['Cluster ID'];
+                          var disttable = new Tabulator("#clusters", {
+                              data: distance_dict[cell.getRow().getData()['Cluster ID']]['table'],
+                              columns: distance_dict[cell.getRow().getData()['Cluster ID']]['columns'],
+                              layout: "fitColumns",
+                              pagination: "local",
+                              paginationSize: 10,
+                              paginationSizeSelector: [5, 10, 20, 50],
+                              height: "400px",
+                          });
+                          console.log("Button clicked for row ID: " + cell.getRow().getData()['Cluster ID']);
+                      });
+                      return button;
+                    }
+                    
+                    columns = [
+                      {title:"Cluster ID", field:"Cluster ID"},
+                      {title:"Num seqs", field:"Num seqs"},
+                      {title:"Distances", formatter:makebutton, hozAlign:"center"},
+                      
+                    ]
+                    }
+        // console.log(columns);
+        // console.log(options);
+        var table = new Tabulator("#" + table_id, {
+            dataTree:true,
+            dataTreeStartExpanded:true,
+            data: data,
+            columns: columns,
+            layout: layout,
+            pagination: "local",
+            paginationSize: 10,
+            paginationSizeSelector: [5, 10, 20, 50],
+            height: "100%",
+            movableColumns: true
+            // ...options
+        });
+        return table;
+    }
+    function setupTableDiv( section, layout = "fitDataTable") {
+      console.log(section);
+      $("#tree").removeClass("active");
+      $(".detail-button").removeClass("active");
+      $("#download-button").show();
+      $(".hidden-graph").hide();
+      $("#graphs-distribution-button").hide();
+      $("#graphs-heatmap-button").hide();
+      $("#graphs-button").hide();
+      console.log('detail button clicked');
+      console.log($(this).text());
+      // a spot to add check for has_graph if yes show graph button if no hide graph button
+      $("#tree").hide();
+      console.log(table_dict[section]["tables"])
+      // $(this).addClass("active");
+      // var section = $(this).text().replace(/\s/g,'-').toLowerCase();
+      console.log(section);
+      var new_title = capitalizeFirstLetter(section.replace(/-/g, ' ')).replace("amr", "AMR");
+      if (new_title == "Mlst"){
+        new_title = "MLST";
+      }
+      var secttitle = document.getElementById("sect-title");
+      secttitle.innerHTML = new_title;
+      if (section == "distances"){
+        $("#graphs-distribution-button").show();
+        $("#graphs-heatmap-button").show();
+        $("#graphs-button").hide();
+        $("#graphs-density-button").hide();
+        $("#graphs-statistics-button").hide();
+      } else if (section == "{{core_genome}}"){
+        $("#graphs-button").hide();
+        $("#graphs-density-button").show();
+        $("#graphs-statistics-button").show();
+      } else if (table_dict[section]["has_graph"] == "true"){
+        $("#graphs-button").show();
+        $("#graphs-distribution-button").hide();
+        $("#graphs-heatmap-button").hide();
+        $("#graphs-density-button").hide();
+        $("#graphs-statistics-button").hide();
+      } else {
+        $("#graphs-button").hide();
+        $("#graphs-distribution-button").hide();
+        $("#graphs-heatmap-button").hide();
+        $("#graphs-density-button").hide();
+        $("#graphs-statistics-button").hide();
+      }
+      $("#comment").empty();
+      $("#comment").append("<p style='margin:5px; '>" + comment[section] + ".</p>");
+      var modal_title = document.getElementById("exampleModalLabel")
+      modal_title.innerHTML = "Information about " + new_title + " analysis";
+      $("#current-table").show();
+      // $("#current-table").html("<h3>" + section.replace(/-/g, ' ') + "</h3>");
+      
+      // $("#current-table").append("<div id='table-container' style = 'margin-top:10px;'></div>");
+      if (section == "clusters"){
+        var cluster = true;
+      } else {
+        var cluster = false;
+      }
+      table= drawTable(table_id = "table-container", 
+          data = table_dict[section]["tables"], 
+          columns = column_dict[section],
+        layout =layout,
+        cluster = cluster
+        );
+      $("#download-button").click(function(){
+      console.log('clicking download button')
+        table.download("csv", "{{download_prefix}}_" + table_dict[section]["link"]+".csv", {delimiter:","});
+      });
+      window.addEventListener('resize', function() {
+        console.log("resizing graph");
+        w = displayWindowWidth();
+        console.log(summary_chart["vconcat"][3]["width"]);    
+        // summary_chart["vconcat"][3]["width"] = w * 0.8;   
+        // console.log(summary_chart["vconcat"][3]["width"]); 
+      });
+       
+  
+
+    }
+          // set up menu
+  var menus = document.getElementsByClassName("nav-link");
+  for ( var i = 0; i < menus.length; i++){
+      //console.log(menus[i].innerHTML);
+      if( menus[i].innerHTML == "mlst" ){
+        var new_menu = menus[i].innerHTML.toUpperCase();
+      } else {
+      var new_menu = capitalizeFirstLetter(menus[i].innerHTML.replace("amr", "AMR"));
+    }
+      menus[i].innerHTML = new_menu;
+    }
+  // do for tree drawing
+  h = displayWindowSize();
+  console.log("Height: " + h);
+  var tree = drawTree(annot_all, displayWindowSize()/2);
+  console.log("Rendering the tree")
+  // for tree redraw on window resize
+  window.addEventListener('resize', function() {
+    console.log("resizing tree");
+    tree = drawTree(annot_all, displayWindowSize()/2);        
+    });
+
+  
+    $("#workflow-summary-toggle").click(function(){
+      console.log('workflow summary toggle clicked');
+      var content = document.getElementById("workflow-summary-content");
+      if (content.style.display === "none") {
+          content.style.display = "flex";
+          this.innerHTML = '<i style="color:white;" class="bi bi-chevron-bar-contract"></i>';
+      } else {
+          content.style.display = "none";
+          this.innerHTML = '<i style="color:white;" class="bi bi-chevron-bar-expand"></i>';
+      }
+  });
+  // tree button click to show tree
+  $(".tree-button").click(function(){
+      console.log('tree button clicked');
+      $(".detail-button").removeClass("active");
+      $("#tree").show();      
+      $(this).addClass("active");
+      $("#current-table").hide();
+  });
+  // button clicks for updating tree annotation
+  $(".annotate-tree").on("click", function() {
+      $(this).toggleClass("active");
+      annot = updateAnnot(val = $(this), annot = annot);
+      console.log(annot);
+      tree = drawTree(annot, displayWindowSize()/2);
+  });
+
+  $("#phylocanvas").hover(function(){
+    
+    var hn = tree.getHighlightedNode();
+    console.log(hn)
+  });
+  // clikc on tree for zoom to subtree
+  $("#phylocanvas").click(function(event){
+    console.log('tree div clicked');
+    var hn = tree.getHighlightedNode();
+    // console.log(tree.getNodeById("0"));
+    console.log(hn);
+    tree.setRoot(hn.id);
+    tree_root.push(hn.id);
+    // console.log(tree_root);
+  
+  });
+        // button click for resetting tree
+  $(".reset-tree-button").click(function(){
+    console.log('resetting tree');
+    console.log(tree_root);
+    // tree.setRoot(tree_root[0]);
+    // console.log(tree.findNodeById("1"));
+    tree_root = ["1"];
+    tree.setRoot("0");
+  });
+  // button for tree as newick file
+  $(".download-tree-button").click(function(){
+    console.log('downloading newick');
+    var tree_name = "{{download_prefix}}_".replace(/\s/g, '_').toLowerCase();
+    var nwk_download = tree.exportNewick();
+    var filename = tree_name + '.nwk'
+    downloadString(nwk_download,'text',filename);
+  });
+  // button for exporting tree as png
+  $(".export-tree-button").click(function(){
+    console.log('export');
+    var png = tree.exportPNG();
+    var filename = 'bohra.png';
+    var download = document.createElement('a');
+    download.href = png;
+    download.download = filename;
+    download.click();
+  });
+  // button for toggling tree legend
+  $(".legend-button").click(function(){
+    console.log('toggle legend');
+    var legend = document.getElementById("legend");
+    
+    if (legend.style.display === "flex") {
+    legend.style.display = "none";
+    } else  {
+    legend.style.display = "flex";
+    } 
+  });
+
+  // buttons for tables and graphs
+  {% if phylo != 'phylo' %}
+  setupTableDiv(section = {{menu[0]["link"] | tojson }});
+  {% endif %}
+  // buttons for tables and graphs
+  
+   $(".detail-button").click(function(){
+      $("#toggle-width-button").text(" Fit to window");
+      $("#toggle-width-button").prepend("<i class='i bi-aspect-ratio-fill' style = 'font-size: 1.2rem;'></i>");
+      var section = $(this).text().replace(/\s/g,'-').toLowerCase();
+      setupTableDiv(section = section);
+      $(this).addClass("active");
+      
+  });
+
+  $("#toggle-width-button").click(function(){
+      var section = $(".detail-button.active").text().replace(/\s/g,'-').toLowerCase();
+      console.log("selected menu: " + section);
+      var current_layout = $(this).text();
+      if( current_layout == " Fit to window"){
+        console.log("Will need to change table to fitColumns");
+        
+        setupTableDiv(section = section, layout = "fitColumns");
+        $("." + section + "-button").addClass("active");
+        $(this).text(" Fit to data");
+        $(this).prepend("<i class='i bi-aspect-ratio' style = 'font-size: 1.2rem;'></i>");
+      } else {
+        console.log("Will need to change table to fitData");
+        $("." + section + "-button").addClass("active");
+        setupTableDiv(section = section, layout = "fitDataTable");
+        $("." + section + "-button").addClass("active");
+        $(this).text(" Fit to window");
+        $(this).prepend("<i class='i bi-aspect-ratio-fill' style = 'font-size: 1.2rem;'></i>");
+      }
+      console.log(current_layout);
+  });
+
+  $("#graphs-button").click(function(){
+      console.log('graphs button clicked');
+      $("#table-container").hide();
+      $(".hidden-graph").hide();
+      // $("#graphs-button").hide();
+      // $("tables-button").show();
+      $("#for_information").hide();
+      console.log("selected menu: " + $(".detail-button.active").text());
+      var section = $(".detail-button.active").text().replace(/\s/g,'-').toLowerCase();
+      console.log(section);
+      $("#" + section + "-graph").show();
+      $("#download-button").hide();
+  });
+  $("#graphs-heatmap-button").click(function(){
+      console.log('graphs heatmap button clicked');
+      $("#table-container").hide();
+      $(".hidden-graph").hide();
+      // $("#graphs-button").hide();
+      // $("tables-button").show();
+      $("#for_information").hide();
+      console.log("selected menu: " + $(".detail-button.active").text());
+      var section = $(".detail-button.active").text().replace(/\s/g,'-').toLowerCase();
+      console.log(section);
+      $("#" + section + "-heatmap-graph").show();
+      $("#download-button").hide();
+  });
+  $("#graphs-distribution-button").click(function(){
+      console.log('graphs heatmap button clicked');
+      $(".hidden-graph").hide();
+      $("#table-container").hide();
+      // $("#graphs-button").hide();
+      // $("tables-button").show();
+      $("#for_information").hide();
+      console.log("selected menu: " + $(".detail-button.active").text());
+      var section = $(".detail-button.active").text().replace(/\s/g,'-').toLowerCase();
+      console.log(section);
+      $("#" + section + "-distribution-graph").show();
+      $("#download-button").hide();
+  });
+  $("#graphs-statistics-button").click(function(){
+      console.log('graphs heatmap button clicked');
+      $("#table-container").hide();
+      $(".hidden-graph").hide();
+      // $("#graphs-button").hide();
+      // $("tables-button").show();
+      $("#for_information").hide();
+      console.log("selected menu: " + $(".detail-button.active").text());
+      var section = $(".detail-button.active").text().replace(/\s/g,'-').toLowerCase();
+      console.log(section);
+      $("#core-genome-stats-graph").show();
+      $("#download-button").hide();
+
+  });
+  $("#graphs-density-button").click(function(){
+      console.log('graphs heatmap button clicked');
+      $("#table-container").hide();
+      $(".hidden-graph").hide();
+      // $("#graphs-button").hide();
+      // $("tables-button").show();
+      $("#for_information").hide();
+      console.log("selected menu: " + $(".detail-button.active").text());
+      var section = $(".detail-button.active").text().replace(/\s/g,'-').toLowerCase();
+      console.log(section);
+      $("#core-genome-density-graph").show();
+      $("#download-button").hide();
+
+  });
+  $("#information-button").click(function(){
+      console.log('graphs button clicked');
+      var section = $(".detail-button.active").text().replace(/\s/g,'-').toLowerCase();
+      console.log("selected menu: " + section);
+      $("#table-container").hide();
+      $("#for_information").show();
+      $("#download-button").show();
+      // $("#tables-button").hide();
+      // $("#graphs-button").show();
+      $("#" + section + "-graph").hide(); 
+      $(".hidden-graph").hide();
+  });
+
+  $("#tables-button").click(function(){
+      console.log('graphs button clicked');
+      var section = $(".detail-button.active").text().replace(/\s/g,'-').toLowerCase();
+      console.log("selected menu: " + section);
+      $("#table-container").show();
+      $("#download-button").show();
+      $("#for_information").hide();
+      // $("#tables-button").hide();
+      // $("#graphs-button").show();
+      $("#" + section + "-graph").hide(); 
+      $(".hidden-graph").hide();
+  });
+
+
+  </script>
+</body>
+</html>
