@@ -1,0 +1,101 @@
+"""Fetches ERA5 data from the Google ARCO Store."""
+import xarray as xr
+from nuthatch import cache
+from nuthatch.processors import timeseries
+
+from sheerwater.utils import dask_remote, regrid, roll_and_agg
+from sheerwater.interfaces import data as sheerwater_data, spatial
+
+
+@dask_remote
+@timeseries()
+@spatial()
+@cache(cache=False,
+       cache_args=['variable'])
+def cbam_raw(start_time, end_time, variable, mask=None, region='global'):  # noqa ARG001
+    """CBAM raw data with some renaming/averaging."""
+    ds = xr.open_zarr('gs://sheerwater-datalake/cbam-data/gap/cbam_20241021.zarr',
+                      chunks={'time': 50, 'latitude': 500, 'longitude': 500})
+
+    ds = ds.rename({'date': 'time', 'total_rainfall': 'precip'})
+    ds['tmp2m'] = (ds['min_total_temperature'] + ds['max_total_temperature'])/2
+
+    # Raw latitudes are in descending order
+    ds = ds.sortby('lat')
+    ds = ds[[variable]]
+
+    return ds
+
+
+@dask_remote
+@timeseries()
+@spatial()
+@cache(cache_args=['variable', 'grid'], backend_kwargs={'chunking': {"lat": 721, "lon": 1440, "time": 30}})
+def cbam_gridded(start_time, end_time, variable, grid="global1_5", mask=None, region='global'):
+    """Aggregates the hourly ERA5 data into daily data.
+
+    Args:
+        start_time (str): The start date to fetch data for.
+        end_time (str): The end date to fetch.
+        variable (str): The weather variable to fetch.
+        grid (str): The grid resolution to fetch the data at. One of:
+            - global1_5: 1.5 degree global grid
+            - global0_25: 0.25 degree global grid
+        mask (str): The mask to apply to the data.
+        region (str): The region to clip the data to.
+    """
+    # Read and combine all the data into an array
+    ds = cbam_raw(start_time, end_time, variable, mask=mask, region=region)
+    ds = regrid(ds, grid, base='base180', method='conservative', output_chunks={"lat": 721, "lon": 1440}, region=region)
+    return ds
+
+
+@dask_remote
+@timeseries()
+@spatial()
+@cache(cache_args=['variable', 'agg_days', 'grid'],
+       cache_disable_if={'agg_days': 1},
+       backend_kwargs={
+           'chunking': {"lat": 721, "lon": 1440, "time": 30}
+})
+def cbam_rolled(start_time, end_time, variable, agg_days=7, grid="global1_5", mask=None, region='global'):
+    """Aggregates the hourly ERA5 data into daily data and rolls.
+
+    Args:
+        start_time (str): The start date to fetch data for.
+        end_time (str): The end date to fetch.
+        variable (str): The weather variable to fetch.
+        agg_days (int): The aggregation period, in days.
+        grid (str): The grid resolution to fetch the data at. One of:
+            - global1_5: 1.5 degree global grid
+            - global0_25: 0.25 degree global grid
+        mask (str): The mask to apply to the data.
+        region (str): The region to clip the data to.
+    """
+    # Read and combine all the data into an array
+    ds = cbam_gridded(start_time, end_time, variable, grid=grid, mask=mask, region=region)
+    if agg_days == 1:
+        return ds
+    ds = roll_and_agg(ds, agg=agg_days, agg_col="time", agg_fn="mean")
+    return ds
+
+
+@dask_remote
+@sheerwater_data()
+@cache(cache=False, cache_args=['variable', 'agg_days', 'grid', 'mask', 'region'],
+       backend_kwargs={'chunking': {'lat': 300, 'lon': 300, 'time': 365}})
+def cbam(start_time, end_time, variable, agg_days, grid='global0_25', mask='lsm', region='global'):  # noqa: ARG001
+    """Standard format task data for ERA5 Reanalysis.
+
+    Args:
+        start_time (str): The start date to fetch data for.
+        end_time (str): The end date to fetch.
+        variable (str): The weather variable to fetch.
+        agg_days (int): The aggregation period, in days.
+        grid (str): The grid resolution to fetch the data at.
+        mask (str): The mask to apply to the data.
+        region (str): The region to clip the data to.
+    """
+    # Get daily data
+    ds = cbam_rolled(start_time, end_time, variable, agg_days=agg_days, grid=grid, mask=mask, region=region)
+    return ds
