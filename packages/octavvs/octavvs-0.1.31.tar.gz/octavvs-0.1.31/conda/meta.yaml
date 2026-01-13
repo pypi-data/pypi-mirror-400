@@ -1,0 +1,84 @@
+#{% set data = load_setup_py_data() %}
+{% set name = "octavvs" %}
+{% set version = "0.1.31" %}
+#{% set version = data.get('version') %}
+
+package:
+  name: "{{ name|lower }}"
+  version: "{{ version }}"
+
+source:
+  - url: https://pypi.io/packages/source/p/pyshortcuts/pyshortcuts-1.7.tar.gz
+    sha1: 0002ea9659827dfaa66496e73100ab02a22a3137
+    folder: .
+#  - git_url: https://github.com/newville/pyshortcuts
+#    git_rev: 1.7.1
+#    git_depth: 1
+  - url: https://files.pythonhosted.org/packages/eb/81/28b05a08dcce2c0fd21ec54084532708ae0aa73e4d89bdef1393e6356303/pymatreader-0.0.21.tar.gz
+    sha1: 371f387e103aec79b39c3fba0014a3cb5a9083b1
+    folder: .
+#  - git_url: https://gitlab.com/obob/pymatreader
+#    git_rev: 0.0.21
+#    git_depth: 1
+  - path: ..
+#    url: http://cbbp.thep.lu.se/~carl/octavvs-dist/{{ name }}-{{ version }}.tar.gz
+#    url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
+
+build:
+  number: 0
+  noarch: python
+  entry_points:
+    - oct_preprocessing = octavvs.preprocessing:main
+    - oct_decomposition = octavvs.decomposition:main
+    - oct_mcr_als = octavvs.mcr_als:main
+    - oct_clustering = octavvs.clustering:main
+    - oct_make_icons = octavvs.make_icons:main
+  script: "{{ PYTHON }} -m pip install . --no-deps --ignore-installed -vv "
+
+requirements:
+  host:
+    - pip
+    - python>=3.7
+  run:
+    - matplotlib
+    - numpy>=1.17
+    - pyqt
+    - pandas
+    - pillow
+    - python>=3.7
+    - scipy
+    - scikit-learn
+    - scikit-image
+    - statsmodels
+    - xlwt
+    - dill
+    - h5py
+    - threadpoolctl
+
+test:
+  imports:
+    - octavvs
+  commands:
+    - oct_preprocessing --help
+    - oct_decomposition --help
+    - oct_mcr_als --help
+    - oct_clustering --help
+    - oct_make_icons --help
+
+about:
+  home: https://github.com/ctroein/octavvs
+  license: MIT
+  license_family: MIT
+  license_file: 
+  summary: Open Chemometrics Toolkit for Analysis and Visualization of Vibrational Spectroscopy data
+  doc_url: 
+  dev_url: 
+#  description: '{{ data.get('long_description').replace("'", "''") }}'
+  description: 'OCTAVVS is a set of graphical tools for high-throughput preprocessing and analysis of vibrational spectroscopy data.
+  
+                More information can be found on the [OCTAVVS PyPI page](https://pypi.org/project/octavvs).
+                '
+
+extra:
+  recipe-maintainers:
+    - ctroein
