@@ -1,0 +1,43 @@
+
+services:
+  lskypro:
+    container_name: ks_sky
+    image: ${IMAGE:-registry.cn-shenzhen.aliyuncs.com/ksmain/kskypro:v13}
+    restart: unless-stopped
+    hostname: lskypro
+    environment:
+      - WEB_PORT=8089
+      - INSTALL=${INSTALL:-true}
+    volumes:
+      # - ./web:/var/www/html/
+      - ./env.conf:/var/www/html/.env
+      - ./thumbnails:/var/www/html/public/thumbnails
+      - ./logs:/var/www/html/storage/logs
+    ports:
+      - "9080:8089"
+    # networks:
+    #   - lsky-net
+
+  # 注：arm64的无法使用该镜像，请选择sqlite或自建数据库
+#   mysql-lsky:
+#     container_name: mysql-lsky
+#     image: mysql:5.7.44
+#     restart: unless-stopped
+#     hostname: mysql-lsky
+#     # command: --default-authentication-plugin=mysql_native_password
+#     volumes:
+#       - ./mysql/data:/var/lib/mysql
+#       # - ./mysql/conf:/etc/mysql
+#       - ./mysql/log:/var/log/mysql
+#     ports:
+#       - "3306:3306"
+#     environment:
+#       MYSQL_ROOT_PASSWORD: KS123456!
+#       MYSQL_DATABASE: ks_sky
+#     networks:
+#       - lsky-net
+
+# networks:
+#   lsky-net: {}
+
+

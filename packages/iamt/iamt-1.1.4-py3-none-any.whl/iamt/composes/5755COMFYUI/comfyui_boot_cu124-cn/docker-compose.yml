@@ -1,0 +1,31 @@
+services:
+  comfyui:
+    init: true
+    container_name: comfyui124-cn 
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: "yanwk/comfyui-boot:cu124-cn-20250519"
+    restart: always
+    command: /bin/bash /runner-scripts/minimal-start.sh
+    ports:
+      - "8189:8188"
+    # network_mode: "host"   
+    volumes:
+      - "./storage:/root"
+    environment:
+      - CLI_ARGS= --fast --reserve-vram 3.0
+      - PIP_INDEX_URL="https://mirrors.cernet.edu.cn/pypi/web/simple"
+      - HF_ENDPOINT="https://hf-mirror.com"
+    security_opt:
+      - "label=type:nvidia_container_t"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+
+# CLI_ARGS 加参数的时候一定不能带引号 

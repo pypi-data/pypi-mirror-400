@@ -1,0 +1,46 @@
+services:
+  sonarqube:
+    image: sonarqube:lts-community
+    restart: always
+    depends_on:
+      - sonar_db
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar_db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+      JAVA_OPTS: -Xmx2g -Xms1g -Dcom.sun.net.ssl.checkRevocation=false -Dtrust_all_cert=true
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: true
+    ports:
+      - "9001:9000"
+    volumes:
+      - ./gitlab.crt:/tmp/gitlab.crt
+      - sonarqube_conf:/opt/sonarqube/conf
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_temp:/opt/sonarqube/temp
+
+  sonar_db:
+    image: postgres:13
+    restart: always
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar_db:/var/lib/postgresql
+      - sonar_db_data:/var/lib/postgresql/data
+
+volumes:
+  sonarqube_conf:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonarqube_temp:
+  sonar_db:
+  sonar_db_data:
+
+
+# 文件夹映射有权限问题
+# 本地测试也很麻烦 因为如果搞成host网络模式会导致找不到数据库
+# 不过最终这个问题被我解决了 见 compose4.yml 

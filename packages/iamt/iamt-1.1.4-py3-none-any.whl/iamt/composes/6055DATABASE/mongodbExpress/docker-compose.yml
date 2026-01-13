@@ -1,0 +1,24 @@
+networks:
+    DMLT-network:
+        external: true
+services:
+    mongo-express:
+        container_name: ${CONTAINER_NAME}
+        deploy:
+            resources:
+                limits:
+                    cpus: ${CPUS}
+                    memory: ${MEMORY_LIMIT}
+        environment:
+            ME_CONFIG_BASICAUTH: true
+            ME_CONFIG_BASICAUTH_PASSWORD: ${BASICAUTH_PASSWORD}
+            ME_CONFIG_BASICAUTH_USERNAME: ${BASICAUTH_USERNAME}
+            ME_CONFIG_MONGODB_URL: mongodb://${PANEL_DB_ROOT_USER}:${PANEL_DB_ROOT_PASSWORD}@${MONGO_HOST}:27017
+        image: mongo-express:1.0.2-20
+        labels:
+            createdBy: Apps
+        networks:
+            - DMLT-network
+        ports:
+            - ${HOST_IP}:${PANEL_APP_PORT_HTTP}:8081
+        restart: unless-stopped
