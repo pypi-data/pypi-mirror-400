@@ -1,0 +1,351 @@
+# Unsiloed Python SDK
+
+The official Python SDK for [Unsiloed](https://unsiloed.ai) - a powerful document processing platform that enables you to parse, extract, classify, and split documents with ease.
+
+## Features
+
+- **Parse**: Extract structured content from documents (PDFs, images, etc.)
+- **Extract**: Extract specific data using JSON schemas with citations
+- **Classify**: Classify documents into predefined categories
+- **Split**: Split document pages based on categories
+- **Both Sync & Async**: Choose the client that fits your application
+
+## Installation
+
+```bash
+pip install unsiloed-sdk
+```
+
+## Quick Start
+
+### Synchronous Usage
+
+Perfect for scripts, notebooks, and traditional Python applications:
+
+```python
+from unsiloed_sdk import UnsiloedClient
+
+with UnsiloedClient(api_key="your-api-key-here") as client:
+    result = client.parse_and_wait(file="document.pdf")
+    print(f"Total chunks: {result.total_chunks}")
+```
+
+### Async Usage
+
+Perfect for FastAPI apps and concurrent processing:
+
+```python
+import asyncio
+from unsiloed_sdk import AsyncUnsiloedClient
+
+async def main():
+    async with AsyncUnsiloedClient(api_key="your-api-key-here") as client:
+        result = await client.parse_and_wait(file="document.pdf")
+        print(f"Total chunks: {result.total_chunks}")
+
+asyncio.run(main())
+```
+
+## Authentication
+
+Get your API key from the [Unsiloed Dashboard](https://www.unsiloed.ai/login).
+
+```python
+from unsiloed_sdk import UnsiloedClient
+
+client = UnsiloedClient(api_key="your-api-key-here")
+```
+
+Set as environment variable:
+
+```bash
+export UNSILOED_API_KEY="your-api-key"
+```
+
+```python
+import os
+from unsiloed_sdk import UnsiloedClient
+
+client = UnsiloedClient(api_key=os.getenv("UNSILOED_API_KEY"))
+```
+
+## Usage Examples
+
+### Parse Documents
+
+Extract structured content from any document:
+
+```python
+from unsiloed_sdk import UnsiloedClient
+
+# Initialize the client
+with UnsiloedClient(api_key="your-api-key") as client:
+    # Parse a document and wait for results
+    result = client.parse_and_wait(file="document.pdf")
+    
+    # Access the parsed content
+    print(f"Total chunks: {result.total_chunks}")
+    
+    # Get the embed content
+    for chunk in result.chunks:
+        print(f"\n--- {chunk['embed'][:100]} ---")
+```
+
+### Extract Data with Schema
+
+Define exactly what data you need using JSON schema. The property names are the fields you want to extract, and descriptions specify what type of data to look for:
+
+```python
+from unsiloed_sdk import UnsiloedClient
+
+schema = {
+    "type": "object",
+    "properties": {
+        "invoice_number": {
+            "type": "string",
+            "description": "Invoice number from the document"
+        },
+        "date": {
+            "type": "string",
+            "description": "Invoice date"
+        },
+        "total_amount": {
+            "type": "number",
+            "description": "Total amount"
+        }
+    },
+    "required": ["invoice_number", "date", "total_amount"],
+    "additionalProperties": False
+}
+
+with UnsiloedClient(api_key="your-api-key") as client:
+    result = client.extract_and_wait(
+        file="invoice.pdf",
+        schema=schema
+    )
+
+    # Results include confidence scores
+    print(f"Invoice #: {result.result['invoice_number']['value']}")
+    print(f"Confidence: {result.result['invoice_number']['score']}")
+    print(f"Total: ${result.result['total_amount']['value']}")
+```
+
+**Advanced Example - Extracting shareholding data:**
+
+```python
+from unsiloed_sdk import UnsiloedClient
+
+schema = {
+    "type": "object",
+    "properties": {
+        "Individuals": {
+            "type": "string",
+            "description": "Percentage Holding"
+        },
+        "LIC of India": {
+            "type": "string",
+            "description": "No of Shares Held"
+        },
+        "United bank of india": {
+            "type": "string",
+            "description": "No of shares held by United bank of india"
+        }
+    },
+    "required": ["Individuals", "LIC of India", "United bank of india"],
+    "additionalProperties": False
+}
+
+with UnsiloedClient(api_key="your-api-key") as client:
+    result = client.extract_and_wait(
+        file="shareholding.pdf",
+        schema=schema
+    )
+
+    for field, data in result.result.items():
+        print(f"{field}: {data['value']} (confidence: {data['score']:.2%})")
+```
+
+### Classify Documents
+
+Automatically categorize your documents:
+
+```python
+from unsiloed_sdk import UnsiloedClient
+
+with UnsiloedClient(api_key="your-api-key") as client:
+    result = client.classify_and_wait(
+        file="document.pdf",
+        categories=["Invoice", "Receipt", "Contract", "Letter"]
+    )
+
+    print(f"Type: {result.result['classification']}")
+    print(f"Confidence: {result.result['confidence']}")
+```
+
+### Split Documents
+
+Separate multi-document files by page type:
+
+```python
+from unsiloed_sdk import UnsiloedClient, Category
+
+categories = [
+    Category(name="Cover Page", description="Document cover or title page"),
+    Category(name="Main Content", description="Primary document content and body text")
+]
+
+with UnsiloedClient(api_key="your-api-key") as client:
+    result = client.split_and_wait(
+        file="report.pdf",
+        categories=categories
+    )
+
+    # Check if split was successful
+    if result.result['success']:
+        print(f"✓ {result.result['message']}")
+
+        # Access the generated split files
+        for file_info in result.result['files']:
+            print(f"File: {file_info['name']}")
+            print(f"  Confidence: {file_info['confidence_score']:.2%}")
+            print(f"  Download: {file_info['full_path']}")
+    else:
+        print(f"Split failed: {result.result['message']}")
+```
+
+## Async Examples
+
+### Concurrent Processing
+
+Process multiple documents at once with async:
+
+```python
+import asyncio
+from unsiloed_sdk import AsyncUnsiloedClient
+
+async def main():
+    async with AsyncUnsiloedClient(api_key="your-api-key") as client:
+        # Process 3 documents concurrently
+        results = await asyncio.gather(
+            client.parse_and_wait(file="doc1.pdf"),
+            client.parse_and_wait(file="doc2.pdf"),
+            client.parse_and_wait(file="doc3.pdf"),
+        )
+
+        for i, result in enumerate(results, 1):
+            print(f"Document {i}: {result.total_chunks} chunks")
+
+asyncio.run(main())
+```
+
+### Async Extract
+
+```python
+import asyncio
+from unsiloed_sdk import AsyncUnsiloedClient
+
+async def main():
+    schema = {
+        "type": "object",
+        "properties": {
+            "company": {
+                "type": "string",
+                "description": "Company name"
+            },
+            "amount": {
+                "type": "number",
+                "description": "Total amount"
+            }
+        },
+        "required": ["company", "amount"],
+        "additionalProperties": False
+    }
+
+    async with AsyncUnsiloedClient(api_key="your-api-key") as client:
+        result = await client.extract_and_wait(
+            file="invoice.pdf",
+            schema=schema
+        )
+
+        # Access extracted values with confidence scores
+        print(f"Company: {result.result['company']['value']}")
+        print(f"Amount: {result.result['amount']['value']}")
+
+asyncio.run(main())
+```
+
+## Error Handling
+
+```python
+from unsiloed_sdk import (
+    UnsiloedClient,
+    AuthenticationError,
+    QuotaExceededError,
+    InvalidRequestError
+)
+
+try:
+    with UnsiloedClient(api_key="your-api-key") as client:
+        result = client.parse_and_wait(file="document.pdf")
+except AuthenticationError:
+    print("Invalid API key")
+except QuotaExceededError as e:
+    print(f"Quota exceeded. Remaining: {e.response_data}")
+except InvalidRequestError as e:
+    print(f"Invalid request: {e.message}")
+```
+
+## Which Client Should I Use?
+
+| Use Case | Client | Example |
+|----------|--------|---------|
+| Scripts, notebooks | `UnsiloedClient` | `client.parse_and_wait(file="doc.pdf")` |
+| Flask, Django | `UnsiloedClient` | `client.extract_and_wait(file="invoice.pdf", schema=schema)` |
+| FastAPI, async apps | `AsyncUnsiloedClient` | `await client.classify_and_wait(file="doc.pdf", categories=[...])` |
+| Concurrent processing | `AsyncUnsiloedClient` | `await asyncio.gather(...)` |
+
+## API Methods
+
+Both `UnsiloedClient` (sync) and `AsyncUnsiloedClient` (async) have the same methods:
+
+**Parse:**
+- `parse()` - Start parse job
+- `get_parse_result(job_id)` - Check job status
+- `parse_and_wait()` - Parse and wait for completion ⭐ Most common
+
+**Extract:**
+- `extract()` - Start extract job
+- `get_extract_result(job_id)` - Check job status
+- `extract_and_wait()` - Extract and wait for completion ⭐ Most common
+
+**Classify:**
+- `classify()` - Start classify job
+- `get_classify_result(job_id)` - Check job status
+- `classify_and_wait()` - Classify and wait for completion ⭐ Most common
+
+**Split:**
+- `split()` - Start split job
+- `get_split_result(job_id)` - Check job status
+- `split_and_wait()` - Split and wait for completion ⭐ Most common
+
+> **Tip:** Use the `*_and_wait()` methods for simpler code. They handle polling automatically.
+
+## Examples
+
+Check the [`examples/`](examples/) directory for complete working examples:
+
+- `parse_example.py` - Document parsing
+- `extract_example.py` - Data extraction
+- `classify_example.py` - Document classification
+- `split_example.py` - Document splitting
+
+## Support
+
+- **Documentation:** https://docs.unsiloed.ai/
+- **API Reference:** https://docs.unsiloed.ai/api-reference
+- **Support Email:** support@unsiloed.com
+- **Issues:** https://github.com/unsiloed/unsiloed-sdk-python/issues
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
