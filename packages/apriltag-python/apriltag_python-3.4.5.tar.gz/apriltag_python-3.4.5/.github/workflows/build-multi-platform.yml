@@ -1,0 +1,61 @@
+# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
+name: build on multi-platform
+
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    branches: [ "develop" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
+      fail-fast: false
+
+      # Matrix strategy: Creates a full combination of Python versions × Platform configs
+      # Total jobs: 5 Python versions × 10 os = 50 jobs
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, ubuntu-22.04, ubuntu-22.04-arm, ubuntu-slim, macos-26, macos-15, macos-14, windows-2025, windows-2022]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Set reusable strings
+      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+
+    - name: Display build configuration
+      shell: bash
+      run: |
+        echo "Building for:"
+        echo "  OS: ${{ matrix.os }}"
+        echo "  Python: ${{ matrix.python-version }}"
+        uname -m || echo "uname not available"
+
+    - name: setup Windows CL
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install apriltag-opencv
+      run: |
+        pip install .
+    
+        
+    - name: Test Python Module Import
+      run: |
+        python -c "import apriltag; print('Successfully imported apriltag'); detector = apriltag.apriltag(family='tag36h11'); print(f'Created detector: {detector}')"
