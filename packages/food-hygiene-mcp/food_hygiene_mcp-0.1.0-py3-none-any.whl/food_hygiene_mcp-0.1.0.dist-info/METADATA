@@ -1,0 +1,137 @@
+Metadata-Version: 2.4
+Name: food-hygiene-mcp
+Version: 0.1.0
+Summary: MCP server for querying UK food hygiene ratings via the FSA API
+License-Expression: MIT
+Keywords: mcp,food-hygiene,fsa,uk,api,claude
+Classifier: Development Status :: 4 - Beta
+Classifier: Programming Language :: Python :: 3.14
+Requires-Python: >=3.14
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: mcp[cli]>=1.25.0
+Dynamic: license-file
+
+# Food Hygiene MCP Server
+
+Query UK food hygiene ratings from Claude.
+
+[![PyPI](https://img.shields.io/pypi/v/food-hygiene-mcp.svg)](https://pypi.org/project/food-hygiene-mcp/)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MCP](https://img.shields.io/badge/MCP-Server-green.svg)](https://modelcontextprotocol.io)
+
+<!--
+## Demo
+
+![Demo GIF](demo.gif)
+
+TODO: Record a ~10 second GIF showing Claude Desktop answering "What's the hygiene rating for Dishoom in London?"
+-->
+
+## Quick Start
+
+Add to your Claude Desktop config:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+### Option 1: Via PyPI (recommended)
+
+```json
+{
+  "mcpServers": {
+    "food-hygiene": {
+      "command": "uvx",
+      "args": ["food-hygiene-mcp"]
+    }
+  }
+}
+```
+
+### Option 2: From source
+
+```bash
+git clone https://github.com/w4sspr/food-hygiene-mcp.git
+cd food-hygiene-mcp
+uv sync
+```
+
+```json
+{
+  "mcpServers": {
+    "food-hygiene": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/food-hygiene-mcp", "food-hygiene-mcp"]
+    }
+  }
+}
+```
+
+> **Troubleshooting:** If you get `spawn uvx ENOENT` or `spawn uv ENOENT`, Claude Desktop can't find the executable. Use the full path instead (run `which uvx` or `which uv` to find it, e.g., `/Users/you/.local/bin/uvx`).
+
+Restart Claude Desktop, then try:
+
+> "What's the hygiene rating for Dishoom in London?"
+
+## Example Prompts
+
+- "What's the hygiene rating for Dishoom in London?"
+- "Find restaurants in Manchester with at least a 4-star rating"
+- "Show me takeaways in SW1A 1AA"
+- "Get full inspection details for establishment 1662145"
+- "Find cafes within 2 miles of 51.5074, -0.1278"
+
+## Tools
+
+### `search_establishments`
+
+Search for food establishments by name, location, or rating.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | string | Business name (partial match) |
+| `address` | string | Street or area |
+| `postcode` | string | UK postcode |
+| `latitude` | float | Latitude for geo-search |
+| `longitude` | float | Longitude for geo-search |
+| `radius_miles` | float | Max distance in miles (default: 1) |
+| `business_type` | string | "restaurant", "takeaway", "pub", "cafe", "hotel", etc. |
+| `min_rating` | int | Minimum hygiene rating (0-5) |
+| `max_rating` | int | Maximum hygiene rating (0-5) |
+
+### `get_establishment_details`
+
+Get full details for a specific establishment by FHRS ID.
+
+Returns: rating breakdown (hygiene, structural, confidence in management), inspection date, local authority info.
+
+## Limitations
+
+- **England, Wales, and Northern Ireland only** — Scotland uses a different system
+- **No aggregate statistics** — can't calculate "% of 5-star restaurants" without fetching all data
+- **Limited business types** — ~15 common types mapped; niche categories may not work
+- **Geo-search requires coordinates** — city names alone won't trigger distance filtering
+
+## Roadmap
+
+- [ ] `get_local_authority_stats` — aggregate ratings by area (requires pagination through all establishments)
+- [ ] Scotland support via FHIS API
+- [ ] Cache business type mappings
+
+## Why I Built This
+
+Built to demonstrate MCP integration with UK public sector data for my FDE application.
+
+## See Also
+
+- [uk-charities-mcp](https://github.com/w4sspr/uk-charities-mcp) — Query the Charity Commission register
+
+## Data Source
+
+[FSA Food Hygiene Rating Scheme API](https://api.ratings.food.gov.uk/Help) — free, public, no authentication required.
+
+## License
+
+MIT
