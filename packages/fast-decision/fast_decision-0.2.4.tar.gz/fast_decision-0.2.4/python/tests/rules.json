@@ -1,0 +1,165 @@
+{
+  "categories": {
+    "Pricing": {
+      "stop_on_first": true,
+      "rules": [
+        {
+          "id": "R1_Platinum",
+          "priority": 1,
+          "conditions": {
+            "user.tier": {"$equals": "Platinum"}
+          },
+          "action": "apply_platinum_discount",
+          "metadata": {
+            "source": "Pricing Rules v2.3",
+            "tags": ["platinum", "discount", "premium"],
+            "discount_percent": 20,
+            "created_by": "pricing_team"
+          }
+        },
+        {
+          "id": "R2_Gold",
+          "priority": 10,
+          "conditions": {
+            "user.tier": {"$equals": "Gold"}
+          },
+          "action": "apply_gold_discount",
+          "metadata": {
+            "source": "Pricing Rules v2.3",
+            "tags": ["gold", "discount"],
+            "discount_percent": 10
+          }
+        },
+        {
+          "id": "R3_Silver",
+          "priority": 20,
+          "conditions": {
+            "user.tier": {"$equals": "Silver"}
+          },
+          "action": "apply_silver_discount"
+        }
+      ]
+    },
+    "Fraud": {
+      "stop_on_first": false,
+      "rules": [
+        {
+          "id": "F1_HighAmount",
+          "priority": 1,
+          "conditions": {
+            "transaction.amount": {"$greater-than": 10000}
+          },
+          "action": "flag_high_amount"
+        }
+      ]
+    },
+    "Membership": {
+      "stop_on_first": true,
+      "rules": [
+        {
+          "id": "M1_VIP_Tier",
+          "priority": 1,
+          "conditions": {
+            "user.tier": {"$in": ["Platinum", "Diamond", "Elite"]}
+          },
+          "action": "grant_vip_access"
+        },
+        {
+          "id": "M2_Blocked_Status",
+          "priority": 2,
+          "conditions": {
+            "user.status": {"$not-in": ["banned", "suspended", "inactive"]}
+          },
+          "action": "allow_access"
+        }
+      ]
+    },
+    "StringOps": {
+      "stop_on_first": false,
+      "rules": [
+        {
+          "id": "S1_Contains_Premium",
+          "priority": 1,
+          "conditions": {
+            "description": {"$contains": "premium"}
+          },
+          "action": "flag_premium"
+        },
+        {
+          "id": "S2_Starts_With_Dr",
+          "priority": 2,
+          "conditions": {
+            "user.name": {"$starts-with": "Dr."}
+          },
+          "action": "flag_doctor"
+        },
+        {
+          "id": "S3_Ends_With_Domain",
+          "priority": 3,
+          "conditions": {
+            "user.email": {"$ends-with": "@company.com"}
+          },
+          "action": "flag_internal"
+        }
+      ]
+    },
+    "Validation": {
+      "stop_on_first": true,
+      "rules": [
+        {
+          "id": "V1_Email_Valid",
+          "priority": 1,
+          "conditions": {
+            "user.email": {"$regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"}
+          },
+          "action": "email_valid"
+        },
+        {
+          "id": "V2_Phone_Valid",
+          "priority": 2,
+          "conditions": {
+            "user.phone": {"$regex": "^\\+?[1-9]\\d{1,14}$"}
+          },
+          "action": "phone_valid"
+        }
+      ]
+    },
+    "Comparison": {
+      "stop_on_first": false,
+      "rules": [
+        {
+          "id": "C1_NotEqual",
+          "priority": 1,
+          "conditions": {
+            "status": {"$not-equals": "inactive"}
+          },
+          "action": "status_active"
+        },
+        {
+          "id": "C2_LessThan",
+          "priority": 2,
+          "conditions": {
+            "age": {"$less-than": 18}
+          },
+          "action": "minor"
+        },
+        {
+          "id": "C3_GreaterThanOrEquals",
+          "priority": 3,
+          "conditions": {
+            "age": {"$greater-than-or-equals": 65}
+          },
+          "action": "senior"
+        },
+        {
+          "id": "C4_LessThanOrEquals",
+          "priority": 4,
+          "conditions": {
+            "score": {"$less-than-or-equals": 50}
+          },
+          "action": "low_score"
+        }
+      ]
+    }
+  }
+}
