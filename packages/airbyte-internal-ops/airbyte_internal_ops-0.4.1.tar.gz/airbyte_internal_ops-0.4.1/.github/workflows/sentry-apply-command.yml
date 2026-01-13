@@ -1,0 +1,300 @@
+name: Sentry Apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/sentry/**'
+      - '.github/workflows/sentry-apply-command.yml'
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR Number (for slash command)'
+        type: string
+        required: false
+      comment-id:
+        description: 'Comment ID (for slash command)'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+env:
+  STATE_ARTIFACT_NAME: pulumi-sentry-state
+  WORKING_DIRECTORY: infra/sentry
+  # Directory where Pulumi stores stack state (for artifact-based state storage)
+  # Note: This is the backend storage location, NOT PULUMI_HOME (which is for CLI config)
+  PULUMI_BACKEND_DIR: ${{ github.workspace }}/infra/sentry/.pulumi-state
+
+# Ensure only one Sentry apply runs at a time to prevent state conflicts
+concurrency:
+  group: sentry-prod-deploy
+  cancel-in-progress: false  # Queue instead of cancel to avoid losing deployments
+
+jobs:
+  sentry-apply:
+    name: Sentry Apply
+    runs-on: ubuntu-latest
+    # Use environment for applies to enable approval gates
+    environment:
+      name: Sentry (Prod)
+      url: https://airbytehq.sentry.io/settings/projects/
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+    steps:
+      - name: Resolve trigger context
+        id: context
+        run: |
+          # Determine trigger type and set appropriate variables
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "trigger=push-to-main" >> $GITHUB_OUTPUT
+            echo "ref=${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "has_pr=false" >> $GITHUB_OUTPUT
+            echo "Triggered by push to main branch"
+          else
+            # workflow_dispatch - could be slash command or manual
+            if [ -n "${{ github.event.inputs.pr }}" ]; then
+              echo "trigger=slash-command" >> $GITHUB_OUTPUT
+              echo "has_pr=true" >> $GITHUB_OUTPUT
+              echo "Triggered by slash command on PR #${{ github.event.inputs.pr }}"
+            else
+              echo "trigger=manual" >> $GITHUB_OUTPUT
+              echo "ref=${{ github.ref }}" >> $GITHUB_OUTPUT
+              echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+              echo "has_pr=false" >> $GITHUB_OUTPUT
+              echo "Triggered by manual workflow dispatch"
+            fi
+          fi
+        working-directory: .
+
+      - name: Authenticate as GitHub App
+        uses: actions/create-github-app-token@v2
+        id: get-app-token
+        with:
+          app-id: ${{ secrets.OCTAVIA_BOT_APP_ID }}
+          private-key: ${{ secrets.OCTAVIA_BOT_PRIVATE_KEY }}
+
+      - name: Get PR info (slash command only)
+        if: steps.context.outputs.has_pr == 'true'
+        id: pr-info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ github.event.inputs.pr || 0 }}
+            });
+            
+            // Security: Only allow on non-forked PRs
+            const isFork = pr.head.repo.full_name !== pr.base.repo.full_name;
+            if (isFork) {
+              core.setFailed('Security: /sentry-apply is not allowed on PRs from forks');
+              return;
+            }
+            
+            core.setOutput('ref', pr.head.ref);
+            core.setOutput('sha', pr.head.sha);
+            core.info(`PR #${{ github.event.inputs.pr }} from branch: ${pr.head.ref}`);
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr-info.outputs.ref || github.ref }}
+          token: ${{ steps.get-app-token.outputs.token }}
+
+      - name: Append comment with job run link
+        if: github.event.inputs.comment-id
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ github.event.inputs.comment-id }}
+          body: |
+            > **Sentry Apply Job Info**
+            >
+            > Running `pulumi up` to apply Sentry IaC changes from this PR.
+            > This will update the Sentry configuration and save state.
+
+            > Job started... [Check job output.](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+
+      - name: Install base Pulumi dependency
+        run: |
+          pip install "pulumi>=3.147.0,<4.0.0"
+
+      - name: Generate Sentry provider SDK
+        run: |
+          pulumi package add terraform-provider jianyuan/sentry 0.14.5
+
+      - name: Install generated SDK
+        run: |
+          pip install sdks/sentry
+
+      - name: Download state artifact
+        id: download-state
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: ${{ env.STATE_ARTIFACT_NAME }}
+          path: ${{ env.PULUMI_BACKEND_DIR }}
+          # Download from this workflow's previous successful runs on main
+          workflow: sentry-apply-command.yml
+          branch: main
+          workflow_conclusion: success
+          search_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: Initialize local backend
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        run: |
+          # Ensure backend directory exists
+          mkdir -p "$PULUMI_BACKEND_DIR"
+          
+          # Login to local filesystem backend at specific directory
+          # Note: file:// URL tells Pulumi WHERE to store state (not --local which uses ~/.pulumi)
+          pulumi login "file://$PULUMI_BACKEND_DIR"
+          
+          # Verify backend location
+          echo "Backend URL: $(pulumi whoami -v 2>/dev/null | grep -i backend || echo 'file://$PULUMI_BACKEND_DIR')"
+          
+          if [ -d "$PULUMI_BACKEND_DIR/.pulumi/stacks" ]; then
+            echo "State restored from artifact"
+            ls -la "$PULUMI_BACKEND_DIR/.pulumi/stacks/" || true
+          else
+            echo "No existing state found, starting fresh"
+          fi
+
+      - name: Select stack
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        run: |
+          pulumi stack select prod --create
+
+      - name: Pulumi Preview (Summary)
+        id: preview
+        shell: bash
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_READWRITE }}
+        run: |
+          set -o pipefail
+
+          # Run preview before apply for audit trail (summary view)
+          echo "=== Pre-apply Preview (Summary) ==="
+          set +e
+          pulumi preview --stack prod 2>&1 | tee /tmp/pulumi-preview.txt
+          pulumi_exit=${PIPESTATUS[0]}
+          set -e
+
+          echo "preview_output<<EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/pulumi-preview.txt >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          exit "$pulumi_exit"
+
+      - name: Pulumi Preview (Detailed Diff)
+        id: preview_diff
+        shell: bash
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_READWRITE }}
+        run: |
+          set -o pipefail
+
+          # Run preview with --diff for detailed property-level changes
+          echo "=== Pre-apply Preview (Detailed Diff) ==="
+          set +e
+          pulumi preview --stack prod --diff 2>&1 | tee /tmp/pulumi-preview-diff.txt
+          pulumi_exit=${PIPESTATUS[0]}
+          set -e
+
+          echo "preview_diff_output<<EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/pulumi-preview-diff.txt >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          exit "$pulumi_exit"
+
+      - name: Pulumi Up (Apply)
+        id: pulumi-up
+        shell: bash
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_READWRITE }}
+        run: |
+          set -o pipefail
+
+          set +e
+          pulumi up --stack prod --yes 2>&1 | tee /tmp/pulumi-up.txt
+          pulumi_exit=${PIPESTATUS[0]}
+          set -e
+
+          echo "output<<EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/pulumi-up.txt >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          exit "$pulumi_exit"
+
+      - name: Upload state artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.STATE_ARTIFACT_NAME }}
+          path: ${{ env.PULUMI_BACKEND_DIR }}
+          retention-days: 90
+          overwrite: true
+          include-hidden-files: true  # Required to include .pulumi directory
+
+      - name: Append success comment
+        if: success() && github.event.inputs.comment-id
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ github.event.inputs.comment-id }}
+          reactions: hooray
+          body: |
+            > Pulumi up completed successfully.
+            
+            <details><summary>Preview Summary (before apply)</summary>
+            
+            ```
+            ${{ steps.preview.outputs.preview_output }}
+            ```
+            
+            </details>
+            
+            <details><summary>Preview Detailed Diff (before apply)</summary>
+            
+            ```diff
+            ${{ steps.preview_diff.outputs.preview_diff_output }}
+            ```
+            
+            </details>
+            
+            <details><summary>Apply Output</summary>
+            
+            ```
+            ${{ steps.pulumi-up.outputs.output }}
+            ```
+            
+            </details>
+
+      - name: Append failure comment
+        if: failure() && github.event.inputs.comment-id
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ github.event.inputs.comment-id }}
+          reactions: confused
+          body: |
+            > Pulumi up failed. Check the [job output](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
