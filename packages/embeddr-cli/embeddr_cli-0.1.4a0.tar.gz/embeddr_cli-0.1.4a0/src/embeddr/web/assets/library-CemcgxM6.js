@@ -1,0 +1,1 @@
+import{B as t}from"./index-D87ilqMg.js";async function a(){const r=await fetch(`${t}/workspace/paths`);if(!r.ok)throw new Error("Failed to fetch library paths");return r.json()}const o=a;export{a,o as f};
