@@ -1,0 +1,1 @@
+import{r as t,bf as u}from"./index-4cf586ed.js";function c(e){const[o,a]=t.useState(null),r=t.useMemo(()=>u.getHandler("Celery"),[]);return t.useEffect(()=>{function s(n){e!=null&&e.includes(n.type)&&a(n)}return r.addListener(s),()=>{r.removeListener(s)}},[e]),o}export{c as u};
