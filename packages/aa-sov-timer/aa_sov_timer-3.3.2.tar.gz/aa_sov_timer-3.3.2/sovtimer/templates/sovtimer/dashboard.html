@@ -1,0 +1,35 @@
+{% extends "sovtimer/base.html" %}
+
+{% load i18n %}
+
+{% block sovtimer_body %}
+    {% include "sovtimer/partials/dashboard/table.html" %}
+{% endblock %}
+
+{% block extra_css %}
+    {% include "sovtimer/bundles/datatables-2-css.html" with extColumnControl=True %}
+    {% include "sovtimer/bundles/aa-sov-timer-css.html" %}
+{% endblock %}
+
+{% block extra_javascript %}
+    {% translate "Yes" as yes %}
+    {% translate "No" as no %}
+
+    <script>
+        const sovtimerJsSettingsOverride = {
+            url: {
+                ajaxUpdate: '{% url "sovtimer:dashboard_data" %}'
+            },
+            translation: {
+                yes: '{{ yes|escapejs }}',
+                no: '{{ no|escapejs }}',
+            },
+            upcomingTimerThreshold: 4 * 60 * 60, // 4 hours in seconds
+        };
+    </script>
+
+    {% include "bundles/moment-js.html" with locale=True %}
+    {% include "sovtimer/bundles/datatables-2-js.html" with extColumnControl=True %}
+    {% include "bundles/filterdropdown-js.html" %}
+    {% include "sovtimer/bundles/aa-sov-timer-js.html" %}
+{% endblock %}
