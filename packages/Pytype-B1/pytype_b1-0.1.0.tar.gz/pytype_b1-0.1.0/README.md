@@ -1,0 +1,134 @@
+# Pytype - Terminal Typing Speed Test
+
+A fast, minimal terminal-based typing speed test written in Python. Test your typing speed and accuracy right from your terminal.
+
+
+
+## Features
+
+- **Real-time typing test** with live WPM and accuracy feedback
+- **Color-coded visual feedback** - Green for correct characters, red for mistakes
+- **Customizable test duration** (default 60 seconds)
+- **Simple terminal UI** using Python's curses library
+- **Cross-platform support** (Linux, macOS, Windows with WSL)
+- **Multiple test prompts** to prevent memorization
+
+## Installation
+
+### From Source
+
+```bash
+git clone https://github.com/basanta-bhandari/Pytype.git
+cd Pytype
+pip install -e .
+```
+
+
+
+## Quick Start
+
+Run the typing test directly:
+
+```bash
+python3 main.py
+```
+
+## How to Use
+
+1. **Start the application** - You'll see a welcome screen with instructions
+2. **Press 's'** to begin a 60-second typing test
+3. **Type the displayed text** as quickly and accurately as you can
+4. **Use Backspace** to correct any mistakes
+5. **Test ends** when you complete the text or time runs out
+6. **View your results** - See your WPM, accuracy percentage, and character count
+7. **Press 'r'** to retry or **'q'** to quit
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| `s` | Start test |
+| `q` | Quit application |
+| `Backspace` | Delete last character |
+| `Enter` | Finish typing (optional) |
+| `r` | Retry after results |
+| `ESC` | Exit test |
+
+## Metrics
+
+- **WPM (Words Per Minute)** - Calculated as characters typed / 5 / minutes elapsed
+- **Accuracy** - Percentage of correctly typed characters
+- **Typed** - Total characters typed
+
+## Requirements
+
+- Python 3.7 or higher
+- `curses` module (included on Linux/macOS)
+- `windows-curses` (automatically installed on Windows)
+
+## Installation by OS
+
+### Linux / macOS
+
+```bash
+python3 -m pip install -e .
+typing-test
+```
+
+### Windows
+
+```bash
+pip install windows-curses
+python3 main.py
+```
+
+## Dependencies
+
+- **windows-curses** (Windows only) - Terminal control library for Windows
+
+
+
+## Development
+
+To contribute or modify the code:
+
+1. Clone the repository
+2. Make your changes
+3. Test with `python3 main.py`
+4. Submit a pull request
+
+
+
+## Known Limitations
+
+- Curses library behavior may vary slightly across different terminal emulators
+- Windows support requires WSL or the windows-curses package
+- Custom test durations are not yet available via CLI arguments
+
+## Troubleshooting
+
+**"The curses module is required" error on Windows:**
+```bash
+pip install windows-curses
+```
+
+**Terminal display issues:**
+- Try resizing your terminal window
+- Ensure your terminal supports color output
+- Use a modern terminal emulator (iTerm2, Windows Terminal, GNOME Terminal, etc.)
+
+**No text appearing:**
+- Check that your terminal width is at least 60 characters
+- Verify curses is properly installed
+
+## Feedback
+
+Found a bug? Have a feature request? Open an issue on GitHub.
+
+## Future Enhancements
+
+- [ ] Custom test duration via CLI arguments
+- [ ] Difficulty levels (easy, medium, hard)
+- [ ] Score history tracking
+- [ ] Theme customization
+- [ ] Using Pypi for convinience
