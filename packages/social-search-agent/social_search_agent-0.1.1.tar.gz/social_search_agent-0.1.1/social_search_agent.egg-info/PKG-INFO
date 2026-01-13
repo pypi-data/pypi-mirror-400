@@ -1,0 +1,112 @@
+Metadata-Version: 2.4
+Name: social-search-agent
+Version: 0.1.1
+Summary: Research agent using GPT-5.2 to search Reddit and Bluesky
+Author: Social Search
+License: MIT
+Project-URL: Homepage, https://github.com/TanushV/social-search
+Project-URL: Repository, https://github.com/TanushV/social-search
+Keywords: reddit,bluesky,research,agent,openai,gpt
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: praw>=7.7.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: atproto>=0.0.50
+Requires-Dist: requests>=2.31.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: rich>=13.0.0
+Dynamic: license-file
+
+# Social Search
+
+Research agent that searches Reddit and Bluesky using GPT-5.2 with high reasoning.
+
+## How It Works
+
+1. **Stage 1**: Generates 3 search queries for your task
+2. **Stage 2**: Runs 3 parallel LLM instances, each making tool calls to search and gather data
+3. **Stage 3**: Compiles findings into a comprehensive report
+
+## Setup
+
+```bash
+# Clone
+git clone https://github.com/yourusername/social-search.git
+cd social-search
+
+# Install
+pip install -r requirements.txt
+
+# Configure
+cp example.env .env
+# Edit .env with your credentials
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| `REDDIT_CLIENT_ID` | For Reddit | Reddit app client ID |
+| `REDDIT_CLIENT_SECRET` | For Reddit | Reddit app client secret |
+| `REDDIT_USERNAME` | For Reddit | Reddit username |
+| `REDDIT_PASSWORD` | For Reddit | Reddit password |
+| `BLUESKY_HANDLE` | For Bluesky | e.g., `user.bsky.social` |
+| `BLUESKY_PASSWORD` | For Bluesky | App password from Settings |
+
+## Usage
+
+### CLI
+
+```bash
+# Reddit only (default)
+python agent.py "What are Python best practices in 2024?"
+
+# Both sources
+python agent.py "AI trends" --sources reddit bluesky
+
+# No TUI (for scripts)
+python agent.py "Query" --no-tui
+```
+
+### Interactive
+
+```bash
+python agent.py
+# Prompts for task and sources
+```
+
+### Programmatic
+
+```python
+from agent import run_agent
+
+report = run_agent(
+    "What are Python best practices?",
+    sources=["reddit"],
+    show_tui=False
+)
+print(report)
+```
+
+## Tools Available
+
+| Tool | Description |
+|------|-------------|
+| `search_reddit` | Search posts in a subreddit |
+| `get_reddit_post_with_comments` | Get post + comments (2k word limit) |
+| `search_bluesky` | Search Bluesky (needs auth) |
+| `get_bluesky_thread` | Get thread + replies (2k word limit) |
+
+## License
+
+MIT
+
