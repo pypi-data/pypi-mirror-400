@@ -1,0 +1,110 @@
+
+CAManager stands for Certificate Authority Manager. This is a simple tool for managing a certification authority.
+
+With to this tool, you can :
+
+- list and view the metadata of all your certificates
+- generate a new certificate
+- sign a Certificate Signing Request
+- export a certificate in PEM or PCKS#12 format (.p12)
+- renew a certificate
+- make a backup or a restore of the CA vault
+- generate a CRL
+
+# Important remark
+
+Please use a venv. This tool is updated without providing the code necessary to upgrade to the new version each time.
+
+# Installation
+
+    pip3 install camanager
+
+# Recommendations for use
+
+The tool was developed to meet a specific need. Here is how it is used:
+
+- This script runs on a server with access restricted to administrators.
+- A root CA has been generated and deployed on the clients. The private key is stored offline (not present on the server)
+- A CRL Signing Certificate is generated whose sole purpose (and authorization) is to sign the CRL. The private key is 
+not stored encrypted, which means that the CRL can be generated periodically without user input.
+- You can use the `update_crl.sh` script to upload the update the `crl.pem` to a remote server (CRL/OCSP)
+
+See ([the guide to create the CA](CREATE_CA_AND_INTERMDIATE.md)).
+
+# Security
+
+- If you generate a certificate with the tool, the private key is kept in the vault. However, this is not good 
+practice: the correct way to do this is to generate a key and a CSR on the server and have the CSR signed by this tool.
+- The vault is a SQLite3 DB, all private keys are encrypted with AES-256. The master key is encrypted with a derived 
+password of the user (PBKDF2-SHA512) 
+- Passwords are requested via secure input
+- No network communication
+
+# Initial setup for the first usage
+
+This tool doesn't generate the Certificate Authority. You must already have one or generate a new one.
+
+Once you have the Certificate Authority private and public keys, run `camanager setup`:
+
+    $ python -m camanager setup
+    Enter the password that will be used to encrypt the CA vault : [secure input, nothing will appear]
+    Confirm it : [same]
+    Paste your CA certificate in PEM format :
+    [paste here]
+    Paste your CA key in PEM format :
+    [paste here]
+    
+
+The tool verifies that the keys match. If the private key is encrypted using a passphrase, you will be prompted for it.
+
+The vault is saved in the "ca.vault" file of the directory you are in. You must therefore run `camanager` each time 
+from the same directory if you want to use the same vault.
+
+# Usage
+
+You can still provide information via arguments. If information is missing, an interactive prompt will occur.
+
+## Backup the vault
+
+    python -m camanager backup
+
+## Restore a backup vault
+
+    python -m camanager restore
+
+Please note that certificates generated since the last backup will no longer be managed, which will cause security 
+issues.
+
+## List certificates
+
+    python -m camanager list [--all | --soon-expired]
+
+- `--all` : show also the revoked/expired/renewed certificates
+- `--soon-expired` : show only soon expired (less than 1 month) certificates
+
+## Generate a new certificate
+
+**Warning :** a certificate is normally generated on the server and a Certificate Signing Request is generated for 
+the CA. It is not advisable to generate the certificate and its key from this tool.
+
+    python -m camanager newcert 
+
+## Sign a CSR
+
+    python -m camanager --sign [csr_file]
+
+- `csr_file` : the Certificate Signin Request file
+
+If `csr_file` is not specified, the CSR will be requested on stdin.
+
+## Export
+
+    python -m camanager export --pem|--p12 [--out output_file] [certificate CN or ID]
+
+- `--pem` or `--p12` : the output format
+- `--out` : the output file
+- `certificate CN or ID` : the Common Name or certificate ID that you want to export
+
+## Generate the CRL
+
+    python -m camanager crl
