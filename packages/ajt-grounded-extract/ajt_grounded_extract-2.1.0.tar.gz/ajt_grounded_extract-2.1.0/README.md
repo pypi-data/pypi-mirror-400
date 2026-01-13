@@ -1,0 +1,246 @@
+# AJT Grounded Extract
+
+**Judgment-first grounded extraction engine.**
+**Returns ACCEPT with evidence or STOP with proof. Nothing in between.**
+
+---
+
+## STOP Is Not Failure
+
+**STOP is a judgment.**
+**STOP is an audit artifact.**
+**STOP is how this system succeeds when evidence is insufficient.**
+
+Most systems explain answers. **This one explains why it stopped.**
+
+---
+
+## Status
+
+**v2.1.0** — Audit-ready | Constitution: Frozen | Attack Tests: 10/10 blocked
+
+---
+
+## Installation
+
+```bash
+pip install ajt-grounded-extract
+```
+
+**Zero dependencies.** Pure Python stdlib.
+
+---
+
+## Core Principle
+
+**Extract structured data only when it can be proven; otherwise stop—and prove that you stopped.**
+
+> **Most systems explain answers. This one explains why it stopped.**
+
+---
+
+## Philosophy: STOP-first
+
+- **This project does not aim to extract everything.**
+- **Extraction occurs only when evidence is sufficient.**
+- **When evidence is insufficient, the system stops and proves why.**
+- **Evidence Integrity > Recall**: Only extract values with verifiable document evidence
+- **Default: STOP**: When evidence is insufficient, conflicting, or missing → stop extraction
+- **Negative Proof**: Every STOP includes explicit reason + preserved artifacts
+- **No Fine-tuning**: Rule-based + LLM extraction without training pipelines
+- **Local Execution**: Runs entirely on local machine
+
+---
+
+## What This Is NOT
+
+**This system is blocked-by-design, not secure-by-claim.**
+
+- ❌ Multi-domain rule engine
+- ❌ Enterprise extraction with thresholds
+- ❌ Training/fine-tuning pipeline
+- ❌ High-recall extraction system
+- ❌ "Secure" or "safe" (we demonstrate how attacks are blocked, not claim safety)
+
+**What we guarantee**:
+- ✅ Stoppability (DEFAULT: STOP)
+- ✅ Traceability (decision_maker required)
+- ✅ Audit trail (write-once logs)
+
+---
+
+## Architecture
+
+```
+Document → Ingest → Extract → Ground → Judge → Archive
+           ↓        ↓         ↓        ↓        ↓
+           Hash     Candidates Evidence STOP?   Artifacts
+```
+
+### Pipeline Stages
+
+1. **Ingest**: Load document, compute hash, build line index
+2. **Extract**: Find candidate values (rule-based or LLM)
+3. **Ground**: Map each value to exact document span (quote + offsets)
+4. **Judge**: STOP-first decision: `ACCEPT | STOP | NEED_REVIEW`
+5. **Archive**: Write-once artifacts with timestamps + integrity hashes
+
+### Decision Taxonomy
+
+- **ACCEPT**: Evidence found, confidence sufficient, integrity verified
+- **STOP**: No candidates, conflict, low confidence, or integrity failure
+- **NEED_REVIEW**: Edge cases requiring human judgment
+
+---
+
+## Quick Start
+
+### Run Extraction
+
+```bash
+# ACCEPT case (has clear "Effective Date: 01/15/2025")
+python run.py examples/accept_example.txt
+
+# STOP case (no explicit effective date)
+python run.py examples/stop_example.txt
+```
+
+### View Results
+
+Open generated HTML viewer:
+```bash
+open viewer/accept_example_viewer.html
+open viewer/stop_example_viewer.html
+```
+
+---
+
+## Output Format
+
+### JSON Result
+```json
+{
+  "field_name": "effective_date",
+  "decision": "ACCEPT",
+  "value": "01/15/2025",
+  "evidence": {
+    "quote": "01/15/2025",
+    "start": 245,
+    "end": 255,
+    "line": 12,
+    "context": "...Effective Date: 01/15/2025..."
+  },
+  "confidence": 0.9
+}
+```
+
+### STOP Event
+```json
+{
+  "field_name": "effective_date",
+  "decision": "STOP",
+  "value": null,
+  "stop_reason": "no_candidates_found",
+  "stop_proof": {
+    "searched": true,
+    "candidates_found": 0
+  }
+}
+```
+
+---
+
+## HTML Viewer Features
+
+- **Evidence Highlighting**: Green (ACCEPT) / Red (STOP)
+- **Navigation Sidebar**: Jump to extracted fields
+- **"Why Stopped" Panel**: Explicit reasons with proof artifacts
+- **Offset Mapping**: Click evidence span → see exact document location
+
+---
+
+## Directory Structure
+
+```
+ajt-grounded-extract/
+├── schema/              # Field definitions
+├── engine/              # Core extraction modules
+│   ├── ingest.py
+│   ├── extract.py
+│   ├── ground.py
+│   ├── judge.py
+│   └── archive.py
+├── viewer/              # HTML viewer generator
+├── evidence/            # Write-once artifacts (JSONL + manifests)
+├── examples/            # Demo documents
+└── run.py               # CLI entry point
+```
+
+---
+
+## Evidence Requirements
+
+All extractions must satisfy:
+
+- ✅ `require_exact_quote`: Value must appear verbatim in document
+- ✅ `require_offset_mapping`: Quote mapped to byte offsets
+- ✅ `stop_on_conflict`: Multiple conflicting values → STOP
+- ✅ `min_confidence`: Below threshold → STOP
+
+---
+
+## Acceptance Criteria
+
+- [x] Demo shows at least one ACCEPT and one STOP
+- [x] STOP includes explicit reason and preserved artifacts
+- [x] Viewer navigates evidence spans correctly
+- [x] Non-goals stated explicitly
+
+---
+
+## Regulatory Mapping & Review
+
+This system includes industry-specific regulatory risk mappings for:
+- **Financial Services** — Authorization scope, customer isolation, advisory vs execution separation
+- **Healthcare** — Patient data isolation, complete clinical evidence requirements, clinician traceability
+- **Legal Practice** — Attorney responsibility, client-matter isolation, conflict-of-interest prevention
+
+**Navigation**: See [REGULATORY_REVIEW_GUIDE.md](REGULATORY_REVIEW_GUIDE.md) for audience-specific entry points.
+
+**Key documents**:
+- [REGULATORY_META_MAP.md](REGULATORY_META_MAP.md) — Cross-industry risk-control mappings
+- [docs/REG_MAP_FINANCE.md](docs/REG_MAP_FINANCE.md) — Financial services mapping
+- [docs/REG_MAP_HEALTHCARE.md](docs/REG_MAP_HEALTHCARE.md) — Healthcare mapping
+- [docs/REG_MAP_LEGAL.md](docs/REG_MAP_LEGAL.md) — Legal practice mapping
+- [COMPLIANCE_GUIDE.md](COMPLIANCE_GUIDE.md) — Audit artifact generation
+- [ATTACK_TEST.md](ATTACK_TEST.md) — Adversarial verification results
+
+**Principle**: This project demonstrates how specified risks are blocked. It does not claim regulatory compliance.
+
+---
+
+## Reference
+
+### Normative Specification
+
+This implementation follows the **AJT (Adjudicative Judgment Trace)** constitutional framework:
+- **Spec Repository**: [ajt-spec](https://github.com/Nick-heo-eg/ajt-spec) — Normative rules and judgment structure
+- **Reference Implementation**: This repository (ajt-grounded-extract) — Executable proof of concept
+
+**Relationship**:
+- `ajt-spec`: Constitutional rules (what must be proven)
+- `ajt-grounded-extract`: Execution + case law (how it's proven in practice)
+
+---
+
+### Motivation
+
+**Motivated by [ajt-negative-proof-sim](https://github.com/anthropics/ajt-negative-proof-sim) (sealed reference).**
+
+Core principle: **Prove extraction succeeded OR prove why you stopped.**
+
+---
+
+## License
+
+MIT
