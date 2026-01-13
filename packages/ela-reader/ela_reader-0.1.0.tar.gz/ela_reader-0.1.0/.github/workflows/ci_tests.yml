@@ -1,0 +1,47 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+env:
+  PYTEST_ADDOPTS: "--color=yes"
+
+jobs:
+    test:
+        name: PyTest
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                 python-version: "3.10"
+                 cache: 'pip'
+            - name: Install dependencies
+              run: pip install -r requirements.txt
+
+            - name: Run tests
+              run: python -m pytest
+    
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                 python-version: "3.10"
+                 cache: 'pip'
+            - name: Install dependencies
+              run: pip install -r requirements.txt
+
+            - name: Lint source files
+              run: flake8 ./ela_reader --count --show-source --statistics
+
+            - name: Lint tests files
+              run: flake8 ./tests --count --show-source --statistics
