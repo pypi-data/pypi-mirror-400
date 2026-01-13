@@ -1,0 +1,94 @@
+lrsystem_architectures:
+  specific_source: lir.config.lrsystem_architectures.specific_source
+  score_based: lir.config.lrsystem_architectures.score_based
+  two_level: lir.config.lrsystem_architectures.two_level
+experiment_strategies:
+  single_run: lir.config.experiment_strategies.SingleRunStrategy
+  grid: lir.config.experiment_strategies.GridStrategy
+  optuna: lir.config.experiment_strategies.OptunaStrategy
+data_strategies:
+  binary_train_test_split: lir.data.data_strategies.BinaryTrainTestSplit
+  binary_cross_validation: lir.data.data_strategies.BinaryCrossValidation
+  multiclass_train_test_split: lir.data.data_strategies.MulticlassTrainTestSplit
+  multiclass_cross_validation: lir.data.data_strategies.MulticlassCrossValidation
+  predefined_train_test_split: lir.data.data_strategies.PredefinedTrainTestSplit
+data_providers:
+  synthesized_normal_binary: lir.data.datasets.synthesized_normal_binary.synthesized_normal_binary
+  synthesized_normal_multiclass: lir.data.datasets.synthesized_normal_multiclass.synthesized_normal_multiclass
+  glass: lir.data.datasets.glass.GlassData
+  feature_data_csv_file: lir.data.datasets.feature_data_csv.FeatureDataCsvFileParser
+  feature_data_csv_http: lir.data.datasets.feature_data_csv.feature_data_csv_http_parser
+modules:
+  # pipelines
+  pipeline: lir.transform.pipeline.pipeline
+  logging_pipeline: lir.transform.pipeline.logging_pipeline
+  bootstrap: lir.algorithms.bootstraps.bootstrap
+
+  # transformations
+  standard_scaler:
+    class: sklearn.preprocessing.StandardScaler
+    wrapper: lir.config.numpy_wrapper
+  probabilities_to_odds:
+    class: lir.util.probability_to_odds
+    wrapper: lir.config.numpy_wrapper
+  probabilities_to_logodds:
+    class: lir.util.probability_to_logodds
+    wrapper: lir.config.numpy_wrapper
+
+  # comparisons
+  abs_diff: lir.transform.distance.AbsDiffTransformer
+
+  # utility modules
+  tee: lir.config.util.TeeParser
+  csv_writer: lir.config.transform.csv_writer
+
+  # classifiers
+  logistic_regression:
+    class: sklearn.linear_model.LogisticRegression
+    wrapper: lir.config.numpy_wrapper
+  svm:
+    class: sklearn.svm.SVC
+    wrapper: lir.config.numpy_wrapper
+
+  # calibrators
+  kde:
+    class: lir.algorithms.kde.KDECalibrator
+    wrapper: lir.config.numpy_wrapper
+  isotonic_calibrator:
+    class: lir.algorithms.isotonic_regression.IsotonicRegression
+    wrapper: lir.config.numpy_wrapper
+
+  # bounders
+  static_bounder:
+    class: lir.bounding.StaticBounder
+    wrapper: lir.config.numpy_wrapper
+  elub_bounder:
+    class: lir.algorithms.bayeserror.ELUBBounder
+    wrapper: lir.config.numpy_wrapper
+  iv_bounder: 
+    class: lir.algorithms.invariance_bounds.IVBounder
+    wrapper: lir.config.numpy_wrapper
+metric:
+  cllr: lir.metrics.cllr
+  cllr_min: lir.metrics.cllr_min
+  cllr_cal: lir.metrics.cllr_cal
+  llr_lower_bound: lir.metrics.llr_lower_bound
+  llr_upper_bound: lir.metrics.llr_upper_bound
+output:
+  metrics: lir.aggregation.metrics_csv
+  pav: lir.aggregation.plot_pav
+  ece: lir.aggregation.plot_ece
+  lr_histogram: lir.aggregation.plot_lr_histogram
+  llr_interval: lir.aggregation.plot_llr_interval
+  llr_overestimation: lir.aggregation.plot_llr_overestimation
+  nbe: lir.aggregation.plot_nbe
+  tippett: lir.aggregation.plot_tippett
+  save_model: lir.persistence.parse_save_model
+pairing:
+  instance_pairs: lir.transform.pairing.InstancePairing
+  source_pairs: lir.transform.pairing.SourcePairing
+hyperparameter_types:
+  categorical: lir.config.substitution.parse_categorical
+  cluster: lir.config.substitution.parse_clustered
+  constant: lir.config.substitution.parse_constant
+  float: lir.config.substitution.parse_float
