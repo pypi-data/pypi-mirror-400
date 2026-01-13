@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        exclude:
+          # Reduce matrix for faster CI - skip older Python on non-Linux
+          - os: windows-latest
+            python-version: "3.9"
+          - os: macos-latest
+            python-version: "3.9"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+
+    - name: Create virtual environment
+      run: uv venv --python ${{ matrix.python-version }}
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        uv add --dev maturin[patchelf] pytest pytest-cov pytest-asyncio
+
+    - name: Install dependencies (Windows/macOS)
+      if: runner.os != 'Linux'
+      run: |
+        uv add --dev maturin pytest pytest-cov pytest-asyncio
+
+    - name: Build package
+      run: uv run maturin develop
+
+    - name: Run tests with coverage
+      run: |
+        uv run pytest tests/ -v --cov=fast_litellm --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+
+    - name: Create virtual environment
+      run: uv venv --python 3.11
+
+    - name: Install Python linting tools
+      run: |
+        uv add --dev black isort flake8 mypy
+
+    - name: Check Python formatting
+      run: uv run black --check fast_litellm/ tests/ scripts/ examples/
+
+    - name: Check Python imports
+      run: uv run isort --check-only fast_litellm/ tests/ scripts/ examples/
+
+    - name: Lint Python
+      run: uv run flake8 fast_litellm/ tests/
+
+    - name: Type check Python
+      run: uv run mypy fast_litellm/
+
+    - name: Format Rust code
+      run: cargo fmt --all -- --check
+
+    - name: Lint Rust code
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+
+    - name: Run security audit
+      run: cargo audit
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Create virtual environment
+      run: uv venv --python 3.11
+
+    - name: Install pip-audit
+      run: uv add --dev pip-audit
+
+    - name: Run Python security check
+      run: uv run pip-audit
