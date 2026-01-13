@@ -1,0 +1,98 @@
+[project]
+name = "OptiGen"
+version = "0.1.2"
+description = "OptiGen is a tool for automatically generating optimization projects from natural language."
+authors = [
+    { name = "Amir Rajabi", email = "amir@optigen.io" },
+]
+license = { text = "Apache-2.0" }
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Intended Audience :: Developers",
+    "Development Status :: 4 - Beta",
+]
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "langgraph>=1.0.0",
+    "langchain-openai>=0.1.22",
+    "langchain-anthropic>=0.1.23",
+    "langchain>=0.2.14",
+    "langchain-fireworks>=0.1.7",
+    "python-dotenv>=1.0.1",
+    "langchain-tavily>=0.1",
+    "deepagents>=0.3.0",
+    "rich>=14.2.0",
+    "prompt-toolkit>=3.0.52",
+    "tavily>=1.1.0",
+    "pyomo>=6.9.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/OptigenIO/OptiGen-core"
+Repository = "https://github.com/OptigenIO/OptiGen-core"
+Issues = "https://github.com/OptigenIO/OptiGen-core/issues"
+
+[project.scripts]
+optigen = "deepagents_cli.main:cli_main"
+
+
+[project.optional-dependencies]
+dev = ["mypy>=1.11.1", "ruff>=0.6.1", "pytest>=8.3.5"]
+
+[build-system]
+requires = ["setuptools>=73.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Automatically discover all packages and subpackages in src/
+packages = {find = {where = ["src"]}}
+[tool.setuptools.package-dir]
+"" = "src"
+"langgraph.templates.react_agent" = "src/react_agent"
+
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[tool.ruff]
+exclude = [
+    "src/deepagents_cli",
+]
+lint.select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",
+]
+lint.ignore = [
+    "UP006",
+    "UP007",
+    # We actually do want to import from typing_extensions
+    "UP035",
+    # Relax the convention by _not_ requiring documentation for every function parameter.
+    "D417",
+    "E501",
+    "E402",
+    "F401",
+]
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "UP"]
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+exclude = [
+    "src/deepagents_cli/.*",
+]
+
+[dependency-groups]
+dev = [
+    "anyio>=4.7.0",
+    "langgraph-cli[inmem]>=0.4.7",
+    "pytest>=8.3.5",
+]
