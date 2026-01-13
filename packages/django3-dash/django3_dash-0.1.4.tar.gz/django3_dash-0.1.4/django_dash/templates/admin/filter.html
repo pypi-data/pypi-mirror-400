@@ -1,0 +1,21 @@
+{% load dash_tags %}
+{% load i18n %}
+<li class="filter-card p-3 overflow-visible" data-filter-card
+    data-filter-text="{{ title|lower }}">
+    <div class="flex items-center justify-between">
+        <b class="text-sm font-semibold capitalize">
+            {% blocktranslate with filter_title=title %}{{ filter_title }}{% endblocktranslate %}
+        </b>
+        <span class="badge badge-ghost badge-sm">{% trans "Filter" %}</span>
+    </div>
+    <div class="mt-2">
+        <select {% is_multiple_filter_choice spec %} class="filter-select select select-bordered w-full"
+                data-keys="{% get_filter_keys spec %}">
+            {% for choice in choices %}
+                <option {% is_active_choice choice spec request %} value="{% get_choice_value spec choice %}">
+                    {{ choice.display }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+</li>

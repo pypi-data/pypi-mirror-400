@@ -1,0 +1,218 @@
+
+## ⚙️ Compatibility
+
+- **Django:** 3.2 - 5.1.1 fully supported
+- **Python:** 3.8+
+
+---
+
+## 📦 Installation
+
+### Quick Install (PyPI)
+
+```bash
+pip install django3-dash
+```
+
+
+### Configuration
+
+Add to your `INSTALLED_APPS` in `settings.py`:
+
+```python
+INSTALLED_APPS = [
+    'django_dash',
+    'django.contrib.admin',
+    'django.contrib.humanize',  # Required
+    # ... your other apps
+]
+```
+
+That's it! Your admin now has a modern, beautiful interface.
+
+---
+
+## 🎨 Customization
+
+<details>
+<summary><strong>App Configuration (apps.py)</strong></summary>
+
+Customize individual app appearance in the sidebar:
+
+```python
+class PollsConfig(AppConfig):
+    name = 'polls'
+    icon = 'fa fa-square-poll-vertical'  # FontAwesome icon
+    divider_title = "Apps"  # Section divider title
+    priority = 0  # Sidebar ordering (higher = top)
+    hide = False  # Hide from sidebar
+```
+
+</details>
+
+<details>
+<summary><strong>Global Settings (settings.py)</strong></summary>
+
+Configure site-wide appearance and behavior:
+
+```python
+DASH_SETTINGS = {
+    # Branding
+    'SITE_TITLE': 'Django Admin',
+    'SITE_HEADER': 'Administration',
+    'INDEX_TITLE': 'Hi, welcome to your dashboard',
+    'SITE_LOGO': '/static/admin/img/daisyui-logomark.svg',
+    
+    # Customization
+    'EXTRA_STYLES': [],  # Additional CSS files
+    'EXTRA_SCRIPTS': [],  # Additional JS files
+    'LOAD_FULL_STYLES': False,  # Load complete DaisyUI library
+    'SHOW_CHANGELIST_FILTER': False,  # Auto-open filter sidebar
+    'DONT_SUPPORT_ME': False,  # Hide GitHub link
+    'SIDEBAR_FOOTNOTE': '',  # Custom sidebar footer text
+    
+    # Theme Configuration
+    'DEFAULT_THEME': None,  # e.g., 'corporate', 'dark'
+    'DEFAULT_THEME_DARK': None,  # Dark mode default
+    'SHOW_THEME_SELECTOR': True,  # Show/hide theme dropdown
+    'THEME_LIST': [
+        {'name': 'Light', 'value': 'light'},
+        {'name': 'Dark', 'value': 'dark'},
+        # Add custom themes...
+    ],
+    
+    # Third-Party App Customization
+    'APPS_REORDER': {
+        'auth': {
+            'icon': 'fa-solid fa-person-military-pointing',
+            'name': 'Authentication',
+            'hide': False,
+            'divider_title': "Auth",
+        },
+    },
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Theme Configuration Examples</strong></summary>
+
+**Single Default Theme:**
+```python
+DASH_SETTINGS = {
+    'DEFAULT_THEME': 'corporate',  # Always use this theme
+}
+```
+
+**Separate Light/Dark Themes:**
+```python
+DASH_SETTINGS = {
+    'DEFAULT_THEME': 'light',      # Light mode default
+    'DEFAULT_THEME_DARK': 'dim',   # Dark mode default
+}
+```
+
+**Enforce Theme (No User Choice):**
+```python
+DASH_SETTINGS = {
+    'DEFAULT_THEME': 'corporate',
+    'SHOW_THEME_SELECTOR': False,  # Hide selector
+}
+```
+
+**Custom Theme List:**
+```python
+DASH_SETTINGS = {
+    'THEME_LIST': [
+        {'name': 'Light', 'value': 'light'},
+        {'name': 'Corporate', 'value': 'corporate'},
+        {'name': 'Luxury', 'value': 'luxury'},
+    ],
+}
+```
+
+> **Note:** For custom DaisyUI themes, enable `LOAD_FULL_STYLES: True` to load all theme styles.
+
+</details>
+
+---
+
+## 🔧 Advanced Features
+
+<details>
+<summary><strong>Tabbed Inline Admin</strong></summary>
+
+Create tabbed inline interfaces for related objects:
+
+```python
+from django_dash.mixins import NavTabMixin
+
+class ChoiceInline(admin.TabularInline, NavTabMixin):
+    model = Choice
+    extra = 1
+
+@admin.register(Poll)
+class PollAdmin(admin.ModelAdmin):
+    inlines = [ChoiceInline]
+```
+
+</details>
+
+<details>
+<summary><strong>Tabbed Fieldsets</strong></summary>
+
+Convert fieldsets into navigation tabs:
+
+```python
+@admin.register(MyModel)
+class MyModelAdmin(admin.ModelAdmin):
+    fieldsets = (
+        (None, {
+            'fields': ('username', 'password')
+        }),
+        ('Personal Info', {
+            'fields': ('first_name', 'last_name', 'email'),
+            'classes': ('navtab',),  # Creates a tab
+        }),
+        ('Permissions', {
+            'fields': ('is_active', 'is_staff', 'is_superuser'),
+        }),
+    )
+```
+
+</details>
+
+<details>
+<summary><strong>Language Switching</strong></summary>
+
+Enable language selection in the admin panel:
+
+**1. Add URL pattern (`urls.py`):**
+```python
+urlpatterns = [
+    path("i18n/", include("django.conf.urls.i18n")),
+    # ... other patterns
+]
+```
+
+**2. Enable middleware (`settings.py`):**
+```python
+MIDDLEWARE = [
+    'django.middleware.locale.LocaleMiddleware',
+    # ... other middleware
+]
+```
+
+**3. Define languages (`settings.py`):**
+```python
+LANGUAGES = [
+    ('en', 'English'),
+    ('fa', 'Farsi'),
+    # Add more languages...
+]
+```
+
+</details>
+
+---

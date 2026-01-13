@@ -1,0 +1,103 @@
+{% load i18n %}
+<div id="sidebar" class="daisy-sidebar flex flex-col justify-between sidebar bg-base-100 border-base-200 border-e w-72 lg:w-56 lg:static lg:translate-x-0">
+    <div class="sidebar-header border-base-200 border-b p-4">
+        <a class="flex items-center gap-3" href="{% url 'admin:index' %}">
+            <div class="sidebar-logo flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                {% if logo %}
+                    <img loading="lazy" class="max-h-8 max-w-8" src="{{ logo }}" alt="{{ site_title }}">
+                {% else %}
+                    <i class="fa-solid fa-sparkles"></i>
+                {% endif %}
+            </div>
+            <div class="flex flex-col">
+                <span class="text-[0.65rem] uppercase tracking-[0.3em] text-base-content/50">
+                    {% trans "Admin Panel" %}
+                </span>
+                <span class="text-lg font-semibold leading-tight">
+                    {{ site_title|default:'Django Dash' }}
+                </span>
+            </div>
+        </a>
+    </div>
+
+    <div class="px-3 pt-4">
+        <label class="input input-bordered input-sm flex items-center gap-2 bg-base-100">
+            <i class="fa fa-search text-base-content/50"></i>
+            <input id="sidebar-search" type="text" class="grow" placeholder="{% trans 'Search menu' %}">
+        </label>
+    </div>
+
+    <!-- Sidebar menu -->
+    <ul class="menu rounded-box mb-auto w-full px-2 pb-4 pt-3 max-sm:text-xs sidebar-menu">
+        <!-- Dashboard link -->
+        <li data-menu-item data-menu-text="dashboard">
+            <a href="{% url 'admin:index' %}" class="menu-item-link">
+                <i class="fa fa-th"></i>
+                {% trans 'Dashboard' %}
+            </a>
+        </li>
+
+        <!-- App list -->
+        {% for app in app_list %}
+
+            {% if app.divider_title %}
+                <div class="divider text-base-content/40 menu-title divider-start">{{ app.divider_title|safe }}</div>
+            {% endif %}
+
+            {% if app.models|length == 1 %}
+                <li data-menu-item data-menu-text="{{ app.name|lower }}">
+                    <a class="menu-item-link {% if app.models.0.admin_url in request.path|urlencode %} menu-active{% endif %}"
+                       href="{{ app.models.0.admin_url }}">
+                        <i class="{{ app.icon }}"></i>
+                        {{ app.name }}
+                    </a>
+                </li>
+
+            {% else %}
+                <li class="mb-2" data-menu-group data-menu-text="{{ app.name|lower }}">
+                    <details {% if app.app_url in request.path|urlencode %} open {% endif %}>
+                        <summary class="menu-item-link">
+                            <i class="{{ app.icon }}"></i>
+                            {{ app.name }}
+                        </summary>
+                        <ul>
+                            {% for model in app.models %}
+                                <li class="model-{{ model.object_name|lower }}" data-menu-item
+                                    data-menu-text="{{ model.name|lower }}">
+                                    <a class="menu-item-link {% if model.admin_url in request.path|urlencode %} menu-active {% endif %}"
+                                       href="{{ model.admin_url }}">
+                                        {{ model.name }}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                </li>
+            {% endif %}
+        {% endfor %}
+    </ul>
+
+    {% if not app_list %}
+        <ul class="menu rounded-box w-56">
+            <li>{% translate 'You don’t have permission to view or edit anything.' %}</li>
+        </ul>
+    {% endif %}
+
+    <div class="sidebar-footer text-center text-xs px-4 pb-4">
+        <div class="flex items-center justify-center gap-2 rounded-xl border border-base-200 bg-base-100/80 px-3 py-2">
+            <div class="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase">
+                {{ user.get_short_name|default:user.username|slice:":1" }}
+            </div>
+            <div class="text-start">
+                <div class="text-xs font-semibold">{{ user.get_short_name|default:user.username }}</div>
+                <div class="text-[0.65rem] text-base-content/50">{% trans "Signed in" %}</div>
+            </div>
+        </div>
+        <span class="block mt-3">
+            {{ SIDEBAR_FOOTNOTE|safe }}
+        </span>
+        <span class="block p-2 text-base-content/70">
+            Developed by Mazn Qazeh
+        </span>
+    </div>
+</div>
