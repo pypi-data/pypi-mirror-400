@@ -1,0 +1,122 @@
+# 📦 HoHu CLI
+
+**HoHu CLI** 是一款为 `hohu-admin` 生态量身打造的现代化命令行工具。它集成了项目脚手架生成、自动化环境初始化和多语言切换功能，旨在提升全栈开发者的生产力。
+
+---
+
+## ✨ 特性
+
+* 🚀 **极速启动**：基于 `uv` 开发，响应速度极快。
+* 🛠️ **智能初始化**：后端自动执行 `uv sync`，前端及 APP 自动执行 `pnpm install`。
+* 📂 **上下文感知**：通过项目级 `.hohu` 配置，在项目内任何路径执行 `init` 均可识别。
+* 🌍 **多语言支持**：完美支持中英文切换，自动跟随系统语言。
+* 🎨 **精美交互**：基于 `Rich` 和 `Questionary` 打造，提供极致的视觉与交互体验。
+
+---
+
+## 🏗️ 项目架构流
+
+## 📥 安装
+
+使用 `uv` (推荐) 或 `pip` 进行全局安装：
+
+```bash
+# 使用 uv
+uv tool install hohu
+
+# 或使用 pip
+pip install hohu
+
+```
+
+---
+
+## 🚀 快速开始
+
+### 1. 创建新项目
+
+你可以直接运行 `create`。如果不提供名称，将默认创建名为 `hohu-admin` 的文件夹。
+
+```bash
+hohu admin create my-project
+
+```
+
+系统会提示你选择需要安装的组件（后端、前端、APP）。
+
+### 2. 初始化环境
+
+进入项目目录后，直接运行 `init`。工具会自动识别项目配置并安装所有依赖。
+
+```bash
+cd my-project
+hohu admin init
+
+```
+
+### 3. 切换语言
+
+随时随地切换你偏好的交互语言：
+
+```bash
+hohu lang
+
+```
+
+---
+
+## 🛠️ 命令详解
+
+| 命令 | 描述 |
+| --- | --- |
+| `hohu admin create [NAME]` | 创建项目目录并克隆选定的仓库模板 |
+| `hohu admin init` | 自动化安装子项目的依赖 (uv/pnpm) |
+| `hohu lang`,`hohu system lang`| 切换 CLI 显示语言 (zh/en/auto) |
+| `hohu info`,`hohu system info`| 查看 CLI 当前详细配置信息 |
+| `hohu --version`,`-v` | 显示当前版本号 |
+| `hohu --help` | 查看帮助信息 |
+
+---
+
+## 📂 推荐目录结构
+
+执行 `hohu admin create` 后的项目结构：
+
+```text
+my-project/
+├── .hohu/            # HoHu 项目追踪配置
+├── hohu-admin/       # 后端项目 (FastAPI/uv)
+├── hohu-admin-web/   # 前端项目 (Vue3/pnpm)
+└── hohu-admin-app/   # APP 项目 (Uni-app/pnpm)
+
+```
+
+---
+
+## 🤝 贡献指南
+
+我们非常欢迎 Issue 和 Pull Request！
+
+1. Fork 本仓库。
+2. 创建你的特性分支 (`git checkout -b feature/AmazingFeature`)。
+3. 提交你的更改 (`git commit -m 'Add some AmazingFeature'`)。
+4. 推送到分支 (`git push origin feature/AmazingFeature`)。
+5. 开启一个 Pull Request。
+
+---
+
+## 📄 开源协议
+
+本项目采用 [MIT](https://www.google.com/search?q=LICENSE) 协议。
+
+---
+
+### 💡 开发者备注
+
+如果你在发布到 PyPI 时遇到资源文件（JSON）丢失的问题，请确保你的 `pyproject.toml` 包含以下配置：
+
+```toml
+[tool.hatch.build]
+artifacts = ["hohu/locales/*.json"]
+
+```
