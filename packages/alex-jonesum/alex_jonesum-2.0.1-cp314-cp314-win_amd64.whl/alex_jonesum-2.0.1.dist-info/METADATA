@@ -1,0 +1,338 @@
+Metadata-Version: 2.4
+Name: alex-jonesum
+Version: 2.0.1
+Summary: Alex Jones Ipsum generator with C core and Python bindings
+Home-page: https://github.com/emboiko/alex_jonesum
+Author: Emboiko
+Author-email: Emboiko <ed@emboiko.com>
+Project-URL: Homepage, https://github.com/emboiko/alex_jonesum
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: C
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+Dynamic: author
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-python
+
+# Alex Jonesum
+
+A meme lorem-ipsum generator that produces “Alex Jones Ipsum”.
+
+This repo is intentionally a **bindings demo**:
+
+- **C core**: the actual generator logic lives in [`src/jonesum.c`](src/jonesum.c)
+- **Python bindings**: a Python C-extension in [`python/alex_jonesum/_jonesum.c`](python/alex_jonesum/_jonesum.c)
+- **Node.js bindings**: an N-API addon in [`node/src/addon.cc`](node/src/addon.cc)
+
+## API
+
+The public API is intentionally small: you call `rant()`.
+
+Internally, `rant()` concatenates multiple sentences produced by “pontification”.
+
+- In C, `jonesum_rant()` calls `jonesum_pontificate()` repeatedly.
+- In Python and Node.js, only `rant()` is exposed (no public `pontificate()` method).
+
+### Python
+
+Install (from repo root in this case):
+
+```bash
+cd python
+pip install .
+```
+
+Use:
+
+```python
+from alex_jonesum import AlexJones
+
+alex = AlexJones()
+print(alex.rant())
+print(alex.rant(6))
+```
+
+### Node.js
+
+Install (from repo root in this case):
+
+```bash
+cd node
+npm install
+```
+
+Use:
+
+```js
+const AlexJones = require("alex-jonesum")
+
+const alex = new AlexJones()
+console.log(alex.rant())
+console.log(alex.rant(6))
+```
+
+## Vocabulary
+
+- **Source of truth**: `src/vocabulary.txt`
+- **Packaging**:
+  - Python copies it into `python/alex_jonesum/vocabulary.txt` during build (overwrites)
+  - Node copies it into `node/vocabulary.txt` during `npm install` / `npm pack` (overwrites)
+
+To extend vocabulary, just append new lines to `src/vocabulary.txt`.
+
+## Repo layout
+
+```
+alex_jonesum/
+├── src/                     # C core + vocabulary
+│   ├── jonesum.c
+│   ├── jonesum.h
+│   └── vocabulary.txt
+├── python/                  # Python package (pip)
+│   ├── alex_jonesum/
+│   ├── pyproject.toml
+│   └── setup.py
+├── node/                    # Node package (npm)
+│   ├── src/
+│   ├── binding.gyp
+│   └── package.json
+```
+
+## Building (developers)
+
+### C core (standalone)
+
+```bash
+make
+```
+
+This produces `libjonesum.a` (useful for validating the C compilation independently).
+
+To clean build artifacts:
+
+```bash
+make clean
+```
+
+### Python (editable install)
+
+```bash
+cd python
+pip install -e .
+```
+
+This installs the package in "editable" mode, so changes to Python code take effect immediately. The C extension is compiled during installation.
+
+You need Python development headers available (on Windows this usually means installing Python from python.org and building with MSVC).
+
+**Testing the Python package:**
+
+```bash
+cd python
+python -c "from alex_jonesum import AlexJones; alex = AlexJones(); print(alex.rant(3))"
+```
+
+### Node.js
+
+```bash
+cd node
+npm install
+```
+
+This uses `node-gyp` to compile the native addon. On Windows you'll typically need:
+
+- Visual Studio Build Tools (C++ workload)
+- a supported Python for node-gyp
+
+**Windows troubleshooting:**
+
+**Visual Studio 2026 (Build Tools 18) is not yet supported by `node-gyp` v11.2.0.** If you're using VS 2026, you have two options:
+
+1. **Install VS 2022 Build Tools alongside 2026** (recommended):
+
+   - Install "Desktop development with C++" workload from VS 2022 Build Tools
+   - `node-gyp` will automatically detect and use VS 2022
+
+2. **Wait for `node-gyp` to add support for VS 2026**, or use an older Node.js version that might work with different build tools.
+
+**Testing the Node.js package:**
+
+```bash
+cd node
+npm test
+```
+
+Or manually:
+
+```bash
+cd node
+node -e "const AlexJones=require('./src/jonesum');const alex=new AlexJones();console.log(alex.rant(3));"
+```
+
+## How compilation works for end users
+
+### npm packages (Node.js)
+
+When someone runs `npm install alex-jonesum`:
+
+1. **npm downloads the package** from the registry (includes source code in the tarball)
+2. **npm runs the `install` script** (defined in `package.json`), which executes:
+   - `preinstall`: copies `vocabulary.txt` to the package directory
+   - `install`: runs `node-gyp rebuild`, which:
+     - Reads `binding.gyp` to understand what to compile
+     - Compiles `src/addon.cc` (C++) and `../src/jonesum.c` (C) into a native addon
+     - Produces `build/Release/jonesum.node` (or `build/Debug/jonesum.node` in debug mode)
+3. **The compiled `.node` file** is platform-specific (Windows `.node`, Linux `.node`, macOS `.node`)
+
+**Key point**: npm packages with native modules **compile on the user's machine** during installation. The source code is included in the npm package, and users need build tools installed.
+
+### pip packages (Python)
+
+When someone runs `pip install alex-jonesum`, there are two scenarios:
+
+#### Source distribution (sdist)
+
+If you publish only a source distribution:
+
+1. **pip downloads the `.tar.gz`** from PyPI
+2. **pip extracts and runs `setup.py`**, which:
+   - Compiles the C extension (`_jonesum.c` + `jonesum.c`) using the user's compiler
+   - Copies `vocabulary.txt` into the package
+   - Installs the compiled extension
+3. **Users need build tools** (MSVC on Windows, GCC/clang on Linux/macOS)
+
+#### Wheel (pre-compiled)
+
+If you publish wheels (`.whl` files):
+
+1. **pip downloads the pre-compiled wheel** for the user's platform
+2. **No compilation happens** — the C extension is already compiled
+3. **Users don't need build tools** — installation is much faster
+
+**Best practice**: Publish both source distributions (for compatibility) and wheels (for convenience). You can build wheels with:
+
+```bash
+cd python
+python -m build  # Creates both sdist and wheels
+```
+
+### What gets included in packages?
+
+**npm package** (`node/package.json` `files` field):
+
+- `src/` (JavaScript + native source code)
+- `vocabulary.txt` (copied during `prepack`)
+- `README.md` (copied during `prepack`)
+- `binding.gyp` (build configuration)
+- **Not included**: `node_modules/`, `build/` (compiled artifacts)
+
+**Why does Node use both `prepare` and `prepack`?**
+
+- **`prepack`** runs right before `npm pack` / `npm publish`. We use it to copy repo assets
+  (C core source/header, `vocabulary.txt`, and `README.md`) into the package so the published
+  tarball is self-contained and npm can render the README.
+- **`prepare`** runs when installing from a git URL and in some local/dev flows. It points to
+  the same script so the package is usable without requiring a separate manual “copy assets”
+  step during development.
+
+**Python package** (`python/setup.py` + `MANIFEST.in`):
+
+- Source code (`.py`, `.c` files)
+- `vocabulary.txt` (copied during build)
+- **Not included**: `build/`, `dist/`, `*.egg-info/` (build artifacts)
+
+The C core source (`src/jonesum.c`, `src/jonesum.h`) is included in both packages because it needs to be compiled as part of the native module.
+
+## Windows toolchains (why MSVC?)
+
+### Node.js native addons
+
+On Windows, **node-gyp expects MSVC** (Visual Studio Build Tools). While it’s possible to use MinGW in some setups, it’s not the canonical path and is a common source of “it builds on my machine” problems.
+
+### Python C extensions
+
+On Windows, Python extensions are typically built with **MSVC** to match the toolchain used to build CPython. If you want to publish wheels, MSVC is the standard approach.
+
+## “Why do we `cd node` to build?” (monorepo dev vs real usage)
+
+This repo contains _two packages_ (one under `python/`, one under `node/`). When you run:
+
+- `cd node && npm install`
+
+you are **building this package locally** (and compiling the native addon). You are not “installing the package into itself as a dependency”.
+
+When you actually _use_ the package in another project, you would either:
+
+- Install from npm:
+  - `npm install alex-jonesum`
+- Or for local testing from this repo:
+  - `npm install /path/to/this/repo/node`
+
+Same idea for Python:
+
+- Installing from PyPI:
+  - `pip install alex-jonesum`
+- Or local testing from this repo:
+  - `pip install /path/to/this/repo/python`
+
+## Extending the project (beyond vocabulary)
+
+You’ll typically make changes in this order:
+
+1. **Update the C core** in [`src/jonesum.c`](src/jonesum.c) / [`src/jonesum.h`](src/jonesum.h)
+2. **Expose new core functions to Python** in [`python/alex_jonesum/_jonesum.c`](python/alex_jonesum/_jonesum.c)
+3. **Expose new core functions to Node** in [`node/src/addon.cc`](node/src/addon.cc)
+4. **Decide the public API** in:
+   - Python: [`python/alex_jonesum/__init__.py`](python/alex_jonesum/__init__.py)
+   - Node: [`node/src/jonesum.js`](node/src/jonesum.js)
+
+The wrappers often look “similar” because they both do the same job: convert native language types to/from the C API and manage memory.
+
+## Releasing (manual process)
+
+This repo is a monorepo, but **npm and PyPI releases are separate**. Keep versions in sync manually for now.
+
+**Versioning policy**: we keep **Node and Python versions in lockstep** (same version number),
+even if a given patch only changes one side. This avoids confusion and makes it easy to know
+which releases correspond across registries.
+
+### 1) Update versions (must match)
+
+- Node: [`node/package.json`](node/package.json) `version`
+- Python: [`python/pyproject.toml`](python/pyproject.toml) `project.version`
+- Python: [`python/setup.py`](python/setup.py) `version`
+
+### 2) Publish to npm
+
+```bash
+cd node
+npm publish
+```
+
+### 3) Publish to PyPI
+
+```bash
+cd python
+python -m build
+python -m twine upload dist/*
+```
+
+### 4) Tag the release (recommended)
+
+Tag in git after publishing (example):
+
+```bash
+git tag v2.0.1
+git push --tags
+```
