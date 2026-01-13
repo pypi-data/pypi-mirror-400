@@ -1,0 +1,51 @@
+name: Python application
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.13"
+            deploy-gh-pages: true
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        python-version: ${{ matrix.python-version }}
+        enable-cache: true
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --dev
+    - name: Pre-commit checks
+      run: |
+        uv run pre-commit run --all-files
+    - name: Run tests
+      run: |
+        uv run pytest
+    - name: Sphinx documentation build
+      if: ${{ matrix.os != 'windows-latest' }}
+      run: |
+        make docs
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.deploy-gh-pages }}
+      with:
+        publish_branch: gh-pages
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: docs/build/html/
+        force_orphan: true
