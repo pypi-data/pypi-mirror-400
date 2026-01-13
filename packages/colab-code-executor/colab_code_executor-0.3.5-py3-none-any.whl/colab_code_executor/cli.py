@@ -1,0 +1,112 @@
+"""Command-line interface for Colab Code Executor."""
+
+import os
+import sys
+import argparse
+import uvicorn
+from .server import Settings, StructuredLogger
+
+
+def main():
+    """Main CLI entry point."""
+    parser = argparse.ArgumentParser(
+        description="Colab Code Executor - FastAPI server for remote Jupyter kernel management",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Start with default settings (requires JUPYTER_SERVER_URL env var)
+  colab-code-executor
+
+  # Start with custom Jupyter server URL
+  colab-code-executor --server-url http://localhost:8888
+
+  # Start with authentication token
+  colab-code-executor --server-url http://localhost:8888 --token mytoken123
+
+  # Start with debug logging
+  colab-code-executor --log-level DEBUG
+
+  # Custom host and port
+  colab-code-executor --host 127.0.0.1 --port 9000
+
+Environment Variables:
+  JUPYTER_SERVER_URL    - Jupyter server URL (default: http://127.0.0.1:8080)
+  JUPYTER_TOKEN         - Jupyter authentication token
+  JUPYTER_LOG_LEVEL     - Log level (DEBUG, INFO, WARN, ERROR)
+        """
+    )
+
+    parser.add_argument(
+        "--server-url",
+        type=str,
+        help="Jupyter server URL (env: JUPYTER_SERVER_URL)"
+    )
+
+    parser.add_argument(
+        "--token",
+        type=str,
+        help="Jupyter authentication token (env: JUPYTER_TOKEN)"
+    )
+
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARN", "ERROR"],
+        help="Logging level (env: JUPYTER_LOG_LEVEL)"
+    )
+
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0)"
+    )
+
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to (default: 8000)"
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s 0.1.0"
+    )
+
+    args = parser.parse_args()
+
+    # Set environment variables from CLI args to ensure they take precedence
+    # This ensures Settings() in server.py picks up CLI args
+    if args.server_url:
+        os.environ["JUPYTER_SERVER_URL"] = args.server_url
+    if args.token:
+        os.environ["JUPYTER_TOKEN"] = args.token
+    if args.log_level:
+        os.environ["JUPYTER_LOG_LEVEL"] = args.log_level
+
+    # Load settings to validate and display startup info
+    try:
+        settings = Settings()
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print(f"Error loading settings: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Display startup info
+    logger = StructuredLogger(min_level=settings.log_level)
+    logger.info("cli", f"Starting Colab Code Executor on {args.host}:{args.port}")
+    logger.info("cli", f"Jupyter server: {settings.server_url}")
+    logger.info("cli", f"Log level: {settings.log_level}")
+
+    # Start server
+    uvicorn.run(
+        "colab_code_executor.server:app",
+        host=args.host,
+        port=args.port,
+        log_level=settings.log_level.lower()
+    )
+
+
+if __name__ == "__main__":
+    main()
