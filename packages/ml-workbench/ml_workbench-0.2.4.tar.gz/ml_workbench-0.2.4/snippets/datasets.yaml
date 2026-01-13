@@ -1,0 +1,84 @@
+# Parameters default values - can be overridden via attributes to catalog loader (usually supplied in CLI)
+defaults:
+  s3_path: s3://your-bucket/your-path
+  third_party_path: /Volumes/third_party/cgm/awesomecgm/
+  catalog: pheno
+  schema: ml
+
+## Dataset definition (examples)
+datasets:
+  # example of Delta table as a dataset source
+  pheno_silver_cgm_dataset:
+    description: "This is the silver cgm dataset for the pheno project, explicit type = databricks"
+    path: "pheno.v2.cgm_all"
+    format: "delta"
+    type: "databricks"
+  pheno_cgm_timeseries_dataset:
+    description: "Clean CGM timeseries datset from HPP and third parties datasets, implied type = databricks"
+    path: "pheno.ml.cgm_v2_timeseries"
+    format: "delta"
+  pheno_metadata_dataset:
+    description: "Metadata dataset for the pheno project associated with CGM timeseries dataset, implied type = databricks"
+    path: "{catalog}.ml.cgm_metadata"
+    format: "delta"
+  handgrip_dataset:
+    description: "Handgrip dataset"
+    path: "pheno.ml.handgrip"
+    format: "delta"
+    type: "databricks"
+  # example of CSV file as a dataset source
+  chase2025_cgm_dataset:
+    description: "CGM dataset from Chase2005, implied type = databricks"
+    path: "/Volumes/third_party/cgm/awesomecgm/Chase2005/DataTables/tblCDataCGMS.csv" # file pass starts from /Volumes/.., implied databricks type
+    format: "csv"
+  # example of TXT file as a dataset source with meta-parameters interpolation
+  aleppo2017_dataset:
+    description: "CGM dataset from Aleppo2017"
+    path: "{third_party_path}Aleppo2017/Data Tables/HDeviceCGM.txt" # use curly braces to use meta-parameters (from default or CLI)
+    format: "txt"
+  # direct S3 path as a dataset source
+  s3_cgm_dataset:
+    description: "CGM dataset from Samsung Health Platform - direct S3 access"
+    path: "s3://datasets-development/samsung_health/hpp_data/cgm.parquet"
+    format: "parquet"   # can be skipped if the path extension is clear, implied type = local
+    type: "s3"
+  local_cgm_dataset:
+    description: "CGM dataset from local file system, implied type = local"
+    path: "../Chase2005/DataTables/tblCDataCGMS.csv" # note - file path did not start from /Volumes/...
+    format: "csv"
+  # example of combined dataset
+  # Note: this is a VERY large dataset (~200/5/000 rows)
+  cgm_combined_dataset:
+    description: "Composite dataset from multiple datasets"
+    merge_specs:
+      pheno_cgm_timeseries_dataset:
+        left_on: [pia_uuid, participant_uuid]
+        how: "inner"  # valid options: inner, left, right, outer, cross
+      pheno_metadata_dataset:
+        right_on: [pia_uuid, participant_uuid]
+  ####
+  #  Test Databricks datasets
+  #  They are used to test the combined dataset
+  ####
+  test_users:
+    description: "Test users dataset in DataBricks"
+    path: "pheno.test.users"
+  test_users_metadata:
+    description: "Test users metadata dataset in DataBricks"
+    path: "pheno.test.user_metadata"
+  test_users_combined_left_join:
+    description: "Composite dataset from multiple datasets using left join"
+    merge_specs:
+      test_users:
+        left_on: participant_uuid
+        how: left
+      test_users_metadata:
+        right_on: participant_uuid
+  test_users_combined_inner_join:
+    description: "Composite dataset from multiple datasets using inner join"
+    merge_specs:
+      test_users:
+        left_on: participant_uuid
+        how: inner
+      test_users_metadata:
+        right_on: participant_uuid

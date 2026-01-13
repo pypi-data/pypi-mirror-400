@@ -1,0 +1,193 @@
+defaults:
+  path: "s3://datasets-development/samsung_health/hpp_data"
+
+datasets:
+  baseline_az:
+    description: "Baseline dataset for az"
+    path: "{path}/baseline_az.parquet"
+    format: parquet
+  az_databricks_iglu_features:
+    description: "Iglu features dataset for az"
+    path: "{path}/az_databricks_iglu_features.parquet"
+    format: parquet
+  az_target_hba1c_within_6_months:
+    description: "Target dataset for hba1c within 6 months"
+    path: "{path}/az_target_hba1c_within_6_months.parquet"
+    format: parquet
+  az_gluformer_embeddings:
+    description: "Gluformer embeddings dataset for az"
+    path: "{path}/az_gluformer_embeddings.parquet"
+    format: parquet
+
+  combined_iglu_hba1c:
+    description: "Combined dataset with iglu features and hba1c within 6 months"
+    merge_specs:
+      baseline_az:
+        left_on: participant_id
+        how: inner
+      az_databricks_iglu_features:
+        right_on: participant_id
+        left_on: participant_id
+        how: inner
+      az_target_hba1c_within_6_months:
+        right_on: participant_id
+        how: inner
+  combined_gluformer_hba1c:
+    description: "Combined dataset with gluformer embeddings and hba1c within 6 months"
+    merge_specs:
+      baseline_az:
+        left_on: participant_id
+        how: inner
+      az_databricks_iglu_features:
+        right_on: participant_id
+        left_on: participant_id
+        how: inner
+      az_gluformer_embeddings:
+        right_on: participant_id
+        left_on: participant_id
+        how: inner
+      az_target_hba1c_within_6_months:
+        right_on: participant_id
+        how: inner
+
+features:
+  az_target_hba1c_within_6_months:
+    description: "Feature set with target hba1c within 6 months - used as a model label"
+    dataset: combined_iglu_hba1c
+    numerical:
+      # from baseline_az.yaml
+      - "age"
+      - "bmi"
+      # from az_databricks_iglu_features.yaml
+      # - "iglu_1st_quartile"
+      # - "iglu_3rd_quartile"
+      # - "iglu_above_140"
+      # - "iglu_above_180"
+      # - "iglu_above_250"
+      # - "iglu_below_54"
+      # - "iglu_below_70"
+      # - "iglu_in_range_63_140"
+      # - "iglu_in_range_70_180"
+      # - "iglu_adrr"
+      - "iglu_auc"
+      - "iglu_cogi"
+      - "iglu_grade"
+      - "iglu_grade_eugly"
+      - "iglu_grade_hyper"
+      - "iglu_grade_hypo"
+      # - "iglu_gvp"
+      # - "iglu_hbgi"
+      # - "iglu_hyper_index"
+      # - "iglu_hypo_index"
+      # - "iglu_igc"
+      - "iglu_iqr"
+      # - "iglu_modd"
+      # - "iglu_range"
+      # - "iglu_sd"
+      # - "iglu_sd_roc"
+      # - "iglu_sdb"
+      # - "iglu_sdbdm"
+      # - "iglu_sddm"
+      # - "iglu_sdhhmm"
+      # - "iglu_sdw"
+      # - "iglu_sdwsh"
+      # - "iglu_conga"
+      # - "iglu_cv_measures_mean"
+      # - "iglu_cv_measures_sd"
+      # - "iglu_ea1c"
+      # - "iglu_lbgi"
+      # - "iglu_m_value"
+      # - "iglu_mad"
+      # - "iglu_mag"
+      # - "iglu_median"
+      - "iglu_mean"
+      # - "iglu_cv"
+      # - "iglu_mage"
+      # - "iglu_gmi"
+      # - "iglu_j_index"
+    categorical:
+      # from baseline_az.yaml
+      - "sex"
+
+models:
+  ridge:
+    # from models/ridge.yaml
+    description: "Linear regression with L2 regularization"
+    type: "sklearn.linear_model.Ridge"
+
+    # Default parameters
+    params:
+      alpha: 80  # using the alpha=80 from gluformer paper
+      random_state: 42  # For reproducibility
+      max_iter: 1000  # Maximum iterations for solvers
+      tol: 0.001  # Convergence tolerance
+      solver: "auto"  # Let sklearn choose the best solver
+
+    # Hyperparameter tuning
+    tuning:
+      method: "grid_search"  # Exhaustive search over parameter grid
+      inner_cv: 3
+      outer_cv: 3  # 3-fold CV given small sample size
+      scoring: "neg_mean_squared_error"
+      param_grid:
+        alpha: [0.1, 1.0, 5.0, 10.0, 20.0, 50.0, 80.0, 100.0, 150.0]  # Range including the alpha=80 from research
+        solver: ["auto", "svd", "cholesky", "lsqr"]  # Different optimization algorithms
+        #solver: ["svd"]
+
+    # Configuration rationale:
+    # - Alpha range covers light to heavy regularization, including alpha=80 used in GluFormer research
+    # - Multiple solvers tested as performance can vary with data characteristics
+    # - 3-fold CV balances validation quality with training samples in smaller datasets
+    # - Grid search ensures thorough exploration of hyperparameter space  
+
+  lasso:
+    description: "Linear regression with L1 regularization"
+    type: "sklearn.linear_model.Lasso"
+
+    # Default parameters
+    params:
+      # alpha: 1.0  # Consider starting with a higher value like 5.0 or 10.0
+      random_state: 42
+      max_iter: 100000   # Increased to ensure convergence with stronger regularization
+      tol: 0.0001
+      # selection: "cyclic"
+
+    # Hyperparameter tuning
+    tuning:
+      method: "grid_search"  # Consider "random_search" if grid is too computationally expensive
+      inner_cv: 3
+      outer_cv: 3 # Consider reducing to 3-fold CV given small sample size
+      scoring: "neg_mean_squared_error"  # for the inner loop for hyperparameter tuning
+      param_grid:
+        alpha: [0.001, 0.01, 0.1, 1.0, 5.0, 10.0, 50.0, 75.0, 100.0]  #current will be overwritten
+        # logspace:
+        #   start: -4
+        #   stop: 2
+        #   num: 50
+      n_iter: 30 # parameter for random search choosing the number of models to train
+
+# Experiment tracking
+mlflow:
+  enabled: true
+  type: databricks # or local or databricks . ifnot defined, use value from MLFLOW_TRACKING_URI environment variable
+  experiment_name_prefix: "/Shared/"  # prefix for the experiment name, result will be /Shared/az_target_hba1c_within_6_months
+
+  tags:
+    environment: "development"
+    data_version: "v1"
+
+experiments:
+  az_target_hba1c_within_6_months:
+    description: "Experiment for hba1c within 6 months"
+    dataset: combined_iglu_hba1c
+    target: "bt__hba1c_float_value"
+    features: az_target_hba1c_within_6_months
+    do_not_split_by: [participant_id]   # split/hold_out by this column to keep all data for each participant in the same set
+    drop_outliers: 3.0 # whether to drop outliers from the dataset, default threshold is 3.0. Set to 0.0 or "false" to disable.
+    models: [lasso,ridge]
+    metrics: [r2,mse,rmse,mae]  # the first metrics ot be used to select the best model if multiple specified
+
+    hold_out:
+      fraction: 0.3  # Set to 0.0 to disable hold-out set
+      random_state: 42
+      stratify: false  # whether to stratify by target (for classification)
