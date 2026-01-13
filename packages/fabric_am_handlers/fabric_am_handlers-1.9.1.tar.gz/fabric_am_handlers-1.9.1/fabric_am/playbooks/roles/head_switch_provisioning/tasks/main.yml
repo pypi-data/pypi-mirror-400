@@ -1,0 +1,179 @@
+---
+# MIT License
+#
+# Copyright (c) 2020 FABRIC Testbed
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+#
+# Author: Komal Thareja (kthare10@renci.org)
+# /tasks/main.yml
+#
+- name: Get hostname from the host
+  command: hostname
+  register: hostname_output
+  changed_when: false
+
+- name: Append hostname to /etc/hosts for 127.0.0.1
+  lineinfile:
+    path: /etc/hosts
+    regexp: '^127.0.0.1'
+    line: "127.0.0.1 {{ hostname_output.stdout }}"
+    backrefs: yes
+
+- name: Reboot the switch
+  reboot:
+    reboot_timeout: 1500
+  when: operation == "reboot"
+
+- name: Ensure /mnt/onie-boot directory exists (for reinstall)
+  file:
+    path: /mnt/onie-boot
+    state: directory
+    mode: '0755'
+  when: operation == "create"
+
+- name: Mount /dev/sda2 to /mnt/onie-boot (for reinstall)
+  mount:
+    path: /mnt/onie-boot
+    src: /dev/sda2
+    fstype: auto
+    state: mounted
+  when: operation == "create"
+
+- name: Set grub to reboot into ONIE mode (for reinstall)
+  command: grub-reboot ONIE
+  when: operation == "create"
+
+- name: Run ONIE boot mode install (for reinstall)
+  command: /mnt/onie-boot/onie/tools/bin/onie-boot-mode -o install
+  when: operation == "create"
+
+- name: Unmount /mnt/onie-boot (for reinstall)
+  mount:
+    path: /mnt/onie-boot
+    state: unmounted
+  when: operation == "create"
+
+# Add your additional tasks for updating the system and installing Docker
+- name: Add nameservers from inventory to /etc/resolv.conf
+  lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver {{ item }}"
+    state: present
+    create: yes
+  with_items: "{{ nameservers.split(',') }}"
+  when: nameservers is defined and operation == 'config'
+  become: true
+
+- name: Update package list
+  shell: apt update -y
+  when: operation == "config"
+  become: true
+
+- name: Install Firewalld
+  shell: apt -y install firewalld
+  when: operation == "config"
+  become: true
+
+- name: Enable and start Firewalld
+  systemd:
+    name: firewalld
+    enabled: yes
+    state: started
+  when: operation == "config"
+
+- name: Remove SSH service from public zone
+  command: firewall-cmd --permanent --zone=public --remove-service=ssh
+  changed_when: false
+  when: operation == "config"
+
+- name: Allow SSH from specific addresses
+  command: >
+    firewall-cmd --permanent --zone=public --add-rich-rule='rule family="{{ item.family }}"
+    source address="{{ item.address }}" port port="22" protocol="tcp" accept'
+  loop: "{{ allowed_ssh_sources }}"
+  when: operation == "config"
+
+- name: Allow ICMP for specific subnets
+  command: >
+    firewall-cmd --permanent --zone=public --add-rich-rule='rule family="{{ item.family }}"
+    source address="{{ item.address }}" protocol value="icmp" accept'
+  loop: "{{ allowed_subnets }}"
+  when: operation == "config"
+
+- name: Set the management interface to the public zone
+  command: firewall-cmd --zone=public --change-interface={{ management_interface }} --permanent
+  changed_when: false
+  when: operation == "config"
+
+- name: Enable ICMP block inversion
+  command: firewall-cmd --add-icmp-block-inversion
+  changed_when: false
+  when: operation == "config"
+
+- name: Reload firewalld
+  command: firewall-cmd --reload
+  changed_when: false
+  when: operation == "config"
+
+- name: Check if freerouter service exists
+  shell: systemctl list-unit-files | grep freerouter.service
+  register: freerouter_service_check
+  ignore_errors: true
+  when: operation == 'config'
+
+# Stop the freerouter service
+- name: Stop freerouter.service
+  shell: systemctl stop freerouter.service
+  when: operation == 'config' and freerouter_service_check.rc == 0
+
+# Disable the freerouter service
+- name: Disable freerouter.service
+  shell: systemctl disable freerouter.service
+  when: operation == 'config' and freerouter_service_check.rc == 0
+
+- name: Add authorized SSH key for the user
+  lineinfile:
+    path: "/home/{{ new_user }}/.ssh/authorized_keys"
+    line: "{{ sshkey }}"
+    create: yes
+    owner: "{{ new_user }}"
+    group: "{{ new_user }}"
+    mode: '0600'
+  when: operation == 'config'
+
+- name: Remove SSH key from authorized_keys
+  lineinfile:
+    path: "/home/{{ new_user }}/.ssh/authorized_keys"
+    state: absent
+    line: "{{ sshkey }}"
+  when: operation == 'delete'
+
+- name: Lock the user account
+  user:
+    name: "{{ new_user }}"
+    state: present
+    password_lock: yes
+  when: operation == 'delete'
+
+- name: Kill active SSH sessions for the user
+  shell: pkill -u "{{ new_user }}"
+  ignore_errors: true
+  when: operation == 'delete'
