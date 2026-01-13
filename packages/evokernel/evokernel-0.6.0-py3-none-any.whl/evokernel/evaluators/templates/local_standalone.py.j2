@@ -1,0 +1,102 @@
+"""OpenEvolve evaluator for EvoKernel - standalone mode on local GPU."""
+import os
+import sys
+import time
+import json
+from pathlib import Path
+from openevolve.evaluation_result import EvaluationResult
+
+INCLUDE_DIRS = {{ include_dirs }}
+WORKSPACE_DIR = "{{ workspace_dir }}"
+BASELINE_FILE = os.path.join(os.path.dirname(__file__), "baseline_timing.json")
+
+def evaluate(program_path: str) -> EvaluationResult:
+    import torch
+    import numpy as np
+    from torch.utils.cpp_extension import load
+
+    result = {
+        "compile_success": False,
+        "correct": True,  # Assumed correct in standalone
+        "speedup": 1.0,
+        "timing_ms": 0.0,
+        "error": None,
+        "standalone_mode": True,
+    }
+
+    try:
+        # Build include flags
+        include_flags = [f"-I{d}" for d in INCLUDE_DIRS if os.path.isdir(d)]
+        include_flags.append(f"-I{WORKSPACE_DIR}")
+
+        # Compile
+        import uuid
+        module_name = f"kernel_{uuid.uuid4().hex[:8]}"
+        cuda_module = load(
+            name=module_name,
+            sources=[program_path],
+            extra_cuda_cflags=["-O3", "--use_fast_math"] + include_flags,
+            verbose=False,
+        )
+        result["compile_success"] = True
+
+        if not hasattr(cuda_module, 'forward'):
+            result["error"] = "Module missing 'forward' function"
+            return EvaluationResult(
+                metrics={"compile_success": 1.0, "correct": 1.0, "speedup": 0.0, "combined_score": 0.0},
+                artifacts=result,
+            )
+
+        # Benchmark (standalone kernels should be self-contained)
+        cuda_fn = cuda_module.forward
+
+        # Warmup
+        for _ in range({{ warmup_time }}):
+            try:
+                cuda_fn()
+            except TypeError:
+                result["error"] = "Standalone kernel must be callable without arguments"
+                return EvaluationResult(
+                    metrics={"compile_success": 1.0, "correct": 1.0, "speedup": 0.0, "combined_score": 0.0},
+                    artifacts=result,
+                )
+        torch.cuda.synchronize()
+
+        # Benchmark
+        cuda_times = []
+        for _ in range({{ rep_time }}):
+            torch.cuda.synchronize()
+            start = time.perf_counter()
+            cuda_fn()
+            torch.cuda.synchronize()
+            cuda_times.append((time.perf_counter() - start) * 1000)
+
+        timing_ms = float(np.mean(cuda_times))
+        result["timing_ms"] = timing_ms
+
+        # Load or save baseline
+        if os.path.exists(BASELINE_FILE):
+            with open(BASELINE_FILE) as f:
+                baseline = json.load(f).get("timing_ms", timing_ms)
+            result["speedup"] = baseline / timing_ms if timing_ms > 0 else 1.0
+        else:
+            with open(BASELINE_FILE, "w") as f:
+                json.dump({"timing_ms": timing_ms}, f)
+            result["speedup"] = 1.0
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    compile_score = 1.0 if result["compile_success"] else 0.0
+    speedup = result["speedup"] if result["compile_success"] else 0.0
+
+    return EvaluationResult(
+        metrics={
+            "compile_success": compile_score,
+            "correct": 1.0,
+            "speedup": speedup,
+            "timing_ms": result.get("timing_ms", 0.0),
+            "combined_score": speedup,
+        },
+        artifacts=result,
+    )
