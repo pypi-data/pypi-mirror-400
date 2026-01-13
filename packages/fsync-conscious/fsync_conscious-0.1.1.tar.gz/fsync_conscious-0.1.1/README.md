@@ -1,0 +1,354 @@
+
+# fsync-conscious
+
+> Conscious filesystem diff, audit & sync tool  
+> Explicit > Blind  
+> Auditable > Convenient  
+> Engineering > Copy & paste
+
+---
+
+## 📌 What is it?
+
+`fsync-conscious` is a **conscious directory diff, audit, and sync tool**.
+
+It exists because **copying and pasting folders is a blind operation**.
+
+This project is built on a simple principle:
+
+> **Never sync what you don’t understand.**
+
+Before applying any change, fsync:
+- computes explicit diffs
+- classifies risks
+- detects real filesystem errors
+- generates auditable reports
+- fails honestly when needed
+
+---
+
+## 🎯 Problem it solves
+
+Common tools (`cp`, GUIs, copy/paste):
+
+- silently overwrite files
+- don’t explain what changed
+- don’t detect unreadable files
+- break on sockets, permissions, and mounts
+- are not auditable
+
+`fsync-conscious` treats the **filesystem as state**, not just a pile of files.
+
+---
+
+## 🧠 Philosophy
+
+- Explicit diff before sync  
+- Clear policy > implicit behavior  
+- Failures are classified, not hidden  
+- Dry-run must produce the **SAME report** as a real sync  
+- Hashing is optional, not dogma  
+- Nothing is renamed or “fixed” automatically  
+
+---
+
+## 📦 Installation
+
+### From PyPI (recommended)
+
+```bash
+pip install fsync-conscious
+````
+
+This installs the `fsync` CLI globally.
+
+---
+
+### Development / editable install
+
+```bash
+git clone https://github.com/<your-user>/fsync-conscious.git
+cd fsync-conscious
+pip install -e .
+```
+
+---
+
+## 🚀 Basic usage
+
+All commands follow this pattern:
+
+```bash
+fsync <mode> <A> <B> [options]
+```
+
+Where:
+
+* **A** → source directory (source of truth)
+* **B** → destination directory (backup / mirror)
+
+---
+
+## 🔧 Operation modes
+
+### 1️⃣ `diff` — Difference exploration
+
+Shows **what is different** between A and B.
+Does not create, copy, or delete anything.
+
+```bash
+fsync diff A B
+```
+
+Detects:
+
+* missing directories
+* new files
+* modified files
+* extra files in the destination
+
+---
+
+### 2️⃣ `sync` — Conscious synchronization
+
+Updates **B based on A**.
+
+```bash
+fsync sync A B
+```
+
+By default:
+
+* nothing is deleted
+* only new or updated files are copied
+* invalid entities are ignored
+* execution continues even if some errors occur
+
+---
+
+### 3️⃣ `check` — Equality validation
+
+Verifies whether A and B are equivalent.
+
+```bash
+fsync check A B
+```
+
+* exit code `0` → identical
+* exit code `1` → differences found
+
+Ideal for CI, sanity checks, and automated audits.
+
+---
+
+## 🔍 Comparison strategies
+
+### 📅 Default: `mtime`
+
+By default, comparison is based on:
+
+* file existence
+* modification timestamp (`mtime`)
+
+```bash
+fsync sync A B
+```
+
+#### Advantages
+
+* fast
+* low I/O
+* no need for file read permissions
+* robust for **99% of real-world cases**
+
+---
+
+### 🔐 `--hash` (SHA256)
+
+Enables content-based comparison.
+
+```bash
+fsync diff A B --hash
+```
+
+Behavior:
+
+* reads full file contents
+* detects any real content change
+* unreadable files are marked as `UNREADABLE`
+
+⚠️ **Hashing is opt-in by design.**
+
+---
+
+## 🧪 Safety modes
+
+### `--dry-run`
+
+Simulates the entire operation **without writing anything**.
+
+```bash
+fsync sync A B --dry-run
+```
+
+**Important:**
+
+* the generated report is **IDENTICAL** to a real sync
+* only side effects are suppressed
+
+---
+
+### `--strict-fs`
+
+Any error becomes a **fatal error**.
+
+```bash
+fsync sync A B --strict-fs
+```
+
+Aborts on:
+
+* unreadable files
+* invalid filenames for the target filesystem
+* write errors
+* mount incompatibilities
+
+Ideal for **CI** and **critical backups**.
+
+---
+
+## 🧾 Audit mode
+
+### `--audit-only`
+
+Generates a final report + explicit exit code.
+
+```bash
+fsync sync A B --dry-run --audit-only
+```
+
+Example output:
+
+```
+AUDIT REPORT
+copied: 214
+skipped: 0
+unreadable: 2
+invalid: 1
+```
+
+---
+
+## 📊 Event classification
+
+fsync classifies everything into four categories:
+
+| Category     | Meaning                                           |
+| ------------ | ------------------------------------------------- |
+| `copied`     | files copied (or that would be copied in dry-run) |
+| `skipped`    | ignored by policy                                 |
+| `unreadable` | could not be read                                 |
+| `invalid`    | invalid name/path for the destination filesystem  |
+
+👉 **Nothing is silent.**
+
+---
+
+## 🚦 Exit codes
+
+Inspired by `rsync`:
+
+| Code | Meaning                     |
+| ---- | --------------------------- |
+| `0`  | total success               |
+| `1`  | differences found           |
+| `2`  | sync applied                |
+| `10` | skipped files               |
+| `20` | unreadable files            |
+| `30` | invalid files               |
+| `99` | fatal error (`--strict-fs`) |
+
+---
+
+## 🧹 Full mirroring
+
+```bash
+fsync sync A B --delete
+```
+
+Removes from the destination everything that no longer exists in the source.
+
+⚠️ **Use with caution.**
+
+---
+
+## 🔄 Reverse direction
+
+```bash
+fsync diff A B --reverse
+```
+
+Equivalent to:
+
+```
+B → A
+```
+
+---
+
+## 🚫 What fsync ignores by design
+
+* sockets (`mysql.sock`)
+* FIFOs
+* device files
+* broken symlinks
+* files removed during scan
+
+Filesystems are heterogeneous.
+The tool explicitly assumes this.
+
+---
+
+## 🧠 Real-world use cases
+
+* conscious incremental backups
+* backup validation
+* laptop ↔ external drive
+* staging ↔ production
+* data audits
+* CI/CD pipelines
+* Docker environments
+* mounted volumes
+* critical data sets
+
+---
+
+## ❌ When NOT to use
+
+* one-off disposable copies
+* trivial tasks
+* non-technical users
+* when convenience > control
+
+---
+
+## 🧠 Final insight
+
+> Copy & paste solves an action.
+> **fsync solves a process.**
+
+This tool exists for people who need to:
+
+* understand what is happening
+* take responsibility
+* audit decisions
+* avoid silent data loss
+
+---
+
+## 📄 License
+
+MIT — use, modify, and distribute freely.
+But **understand what you are doing**.
+
+
