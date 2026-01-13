@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=78.1.1", "setuptools_scm>=8.0", "Cython"]
+build-backend = "build_backend"
+backend-path = ["util"]
+
+[project]
+name = "pyfuse3"
+dynamic = ["version"]
+description = "Python 3 bindings for libfuse 3 with async I/O support"
+readme = "README.rst"
+requires-python = ">=3.10"
+license = "LGPL-2.1-or-later"
+authors = [
+    {name = "Nikolaus Rath", email = "Nikolaus@rath.org"}
+]
+keywords = ["FUSE", "python"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Filesystems",
+    "Operating System :: POSIX :: Linux",
+    "Typing :: Typed",
+]
+dependencies = [
+    "trio >= 0.15",
+]
+
+[project.urls]
+Homepage = "https://github.com/libfuse/pyfuse3"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.407",
+    "mypy>=1.19.1",
+    "pytest >= 3.4.0",
+    "pytest-trio",
+    "ruff>=0.14.10",
+    "sphinx",
+    "twine",
+]
+
+[tool.setuptools_scm]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pyfuse3 = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = [
+    "developer-notes/",
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+case-sensitive = false
+
+
+[tool.ruff.lint]
+ignore = [
+    "E731",  # Do not assign a lambda expression, use a def
+]
+extend-select = [
+  'RUF100',  # Warn about unused suppressions
+  'I', # Import ordering
+]
+
+[tool.mypy]
+exclude = [ "^util/.+", "^rst/conf.py$" ]
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.pyright]
+typeCheckingMode = "standard"
+exclude = [ "**/__pycache__",
+            "**/.*",
+           "util/",
+           "rst/conf.py" ]
+
+# Need for pyright to resolve tests importing tests/util.py (when pytest runs the
+# test, it adds the tests/ directory to sys.path)
+extraPaths = ['test']
+
+[tool.ruff.format]
+quote-style = "preserve"
