@@ -1,0 +1,88 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/doc_gen"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/doc_gen", "start.py"]
+
+[project]
+name = "doc-gen-pro"
+version = "0.1.1"
+description = "一个支持多语言的源代码文档生成器。"
+readme = "README.md"
+requires-python = ">=3.9, <3.14"
+license = { text = "MIT" }
+authors = [
+    { name = "JFeng2048", email = "JFeng2048@zohomail.cn" }
+]
+maintainers = [
+    { name = "JFeng2048", email = "JFeng2048@zohomail.cn" }
+]
+keywords = [
+    "documentation", "generator", "source-code", "streamlit", "mermaid",
+    "文档生成器", "代码文档", "源代码"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "streamlit>=1.28.0",
+    "jinja2>=3.1.0",
+    "streamlit-mermaid>=0.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+]
+
+[project.scripts]
+doc-gen = "doc_gen.cli:main"
+
+[tool.uv.sources]
+doc_gen = { path = "src" }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pyinstaller>=6.17.0",
+]
+
+[tool.pyinstaller]
+# PyInstaller 配置部分
+# 主脚本文件
+main_script = "start.py"
+# 输出目录
+output_dir = "dist"
+# 可执行文件名
+executable_name = "doc-gen"
+# 包含的数据文件
+data_files = [
+    "src/doc_gen/templates",
+    "src/doc_gen/app/static",
+    ".streamlit",
+]
