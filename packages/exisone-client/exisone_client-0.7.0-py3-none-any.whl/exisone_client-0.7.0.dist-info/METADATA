@@ -1,0 +1,243 @@
+Metadata-Version: 2.4
+Name: exisone-client
+Version: 0.7.0
+Summary: Python client SDK for ExisOne Software Activation System
+Author-email: "Exis, LLC" <support@exisone.com>
+Maintainer-email: "Exis, LLC" <support@exisone.com>
+License: MIT
+Project-URL: Homepage, https://www.exisone.com
+Project-URL: Documentation, https://www.exisone.com/docs-sdk.html
+Project-URL: Repository, https://github.com/ExisLLC/SoftwareActivationProject
+Project-URL: Issues, https://github.com/ExisLLC/SoftwareActivationProject/issues
+Keywords: license,activation,exisone,exis,software licensing,license management,software activation
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Software Distribution
+Classifier: Typing :: Typed
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Requires-Dist: cryptography>=3.4.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: types-requests>=2.25.0; extra == "dev"
+Dynamic: license-file
+
+# ExisOne Python Client SDK
+
+Official Python client SDK for the [ExisOne Software Activation System](https://www.exisone.com).
+
+## Installation
+
+```bash
+pip install exisone-client
+```
+
+## Quick Start
+
+```python
+from exisone import ExisOneClient, ExisOneClientOptions
+
+# Initialize the client
+options = ExisOneClientOptions(
+    base_url="https://www.exisone.com",
+    access_token="your-api-token"
+)
+client = ExisOneClient(options)
+
+# Generate a hardware fingerprint for this machine
+hardware_id = client.generate_hardware_id()
+
+# Activate a license
+result = client.activate(
+    activation_key="XXXX-XXXX-XXXX-XXXX",
+    email="user@example.com",
+    hardware_id=hardware_id,
+    product_name="MyProduct"
+)
+
+if result.success:
+    print("License activated successfully!")
+else:
+    print(f"Activation failed: {result.error_message}")
+```
+
+## Features
+
+- **License Activation** - Activate licenses on specific hardware
+- **License Validation** - Validate licenses online or offline
+- **Smart Validation** - Auto-detects offline vs online keys with fallback
+- **Hardware ID Generation** - Cross-platform hardware fingerprinting
+- **Offline Support** - Validate licenses without internet using RSA signatures
+- **Type Hints** - Full type annotation support (PEP 561)
+
+## API Reference
+
+### ExisOneClientOptions
+
+Configuration options for the client:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `base_url` | `str` | Base URL for the ExisOne API (must use HTTPS) |
+| `access_token` | `str` | API access token for authentication |
+| `offline_public_key` | `str` | RSA public key (PEM) for offline validation |
+| `allowed_base_url_hosts` | `list[str]` | Restrict base_url to specific hosts |
+| `timeout` | `int` | Request timeout in seconds (default: 30) |
+
+### ExisOneClient Methods
+
+#### `generate_hardware_id() -> str`
+
+Generate a cross-platform hardware fingerprint for this machine.
+
+```python
+hardware_id = client.generate_hardware_id()
+# Returns: "A1B2C3D4E5F6..." (64-char hex string)
+```
+
+#### `activate(activation_key, email, hardware_id, product_name, version=None) -> ActivationResult`
+
+Activate a license on this machine.
+
+```python
+result = client.activate(
+    activation_key="XXXX-XXXX-XXXX-XXXX",
+    email="user@example.com",
+    hardware_id=hardware_id,
+    product_name="MyProduct",
+    version="1.0.0"  # Optional: your app version
+)
+
+if result.success:
+    print(f"Server version: {result.server_version}")
+else:
+    print(f"Error: {result.error_code} - {result.error_message}")
+```
+
+#### `validate(activation_key, hardware_id, product_name=None, version=None) -> ValidationResult`
+
+Validate a license online.
+
+```python
+result = client.validate(
+    activation_key="XXXX-XXXX-XXXX-XXXX",
+    hardware_id=hardware_id
+)
+
+if result.is_valid:
+    print(f"License valid until: {result.expiration_date}")
+    print(f"Features: {', '.join(result.features)}")
+```
+
+#### `validate_smart(key_or_code, hardware_id, product_name=None) -> SmartValidationResult`
+
+Smart validation that auto-detects offline vs online keys.
+
+```python
+# Works with both online keys and offline codes
+result = client.validate_smart(
+    activation_key_or_offline_code="XXXX-XXXX-XXXX-XXXX",
+    hardware_id=hardware_id
+)
+
+print(f"Valid: {result.is_valid}")
+print(f"Was offline: {result.was_offline}")
+```
+
+#### `deactivate(activation_key, hardware_id, product_name) -> bool`
+
+Deactivate a license.
+
+```python
+success = client.deactivate(
+    activation_key="XXXX-XXXX-XXXX-XXXX",
+    hardware_id=hardware_id,
+    product_name="MyProduct"
+)
+```
+
+#### `validate_offline(offline_code, hardware_id) -> OfflineValidationResult`
+
+Validate an offline activation code locally (requires `offline_public_key`).
+
+```python
+options = ExisOneClientOptions(
+    base_url="https://www.exisone.com",
+    access_token="your-token",
+    offline_public_key="""-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
+-----END PUBLIC KEY-----"""
+)
+client = ExisOneClient(options)
+
+result = client.validate_offline(
+    offline_code="ABCD-EFGH-1234-5678-...",
+    hardware_id=hardware_id
+)
+
+if result.is_valid:
+    print(f"Product: {result.product_name}")
+    print(f"Expires: {result.expiration_date}")
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `EXISONE_BASEURL` | Default base URL if not specified in options |
+
+## Error Handling
+
+```python
+from exisone import ExisOneClient, ExisOneClientOptions
+import requests
+
+client = ExisOneClient(options)
+
+try:
+    result = client.validate(activation_key, hardware_id)
+except requests.HTTPError as e:
+    print(f"HTTP error: {e.response.status_code}")
+except requests.RequestException as e:
+    print(f"Network error: {e}")
+```
+
+## Compatibility
+
+- Python 3.8+
+- Windows, Linux, macOS
+
+## Dependencies
+
+- `requests` - HTTP client
+- `cryptography` - RSA signature verification for offline validation
+
+## Documentation
+
+- [API Documentation](https://www.exisone.com/docs.html)
+- [SDK Integration Guide](https://www.exisone.com/docs-sdk.html)
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Support
+
+- Email: support@exisone.com
+- Documentation: https://www.exisone.com/docs.html
+- Issues: https://github.com/ExisLLC/SoftwareActivationProject/issues
