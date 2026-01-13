@@ -1,0 +1,116 @@
+# Dash Dock View
+
+A flexible, professional-grade docking layout system for Dash applications. Build complex, resizable, and rearrangeable panel layouts with ease.
+
+[![PyPI version](https://badge.fury.io/py/dash-dock-view.svg)](https://pypi.org/project/dash-dock-view/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Installation
+
+```bash
+pip install dash-dock-view
+```
+
+## Features
+
+- **4 Layout Components**: DashDockLayout, DashGridLayout, DashSplitLayout, DashPaneLayout
+- **Drag & Drop**: Drag tabs between groups to reorganize
+- **Panel Positioning**: Place panels at left, right, top, bottom, or center
+- **Floating Panels**: Popout windows support
+- **Layout Persistence**: Save and restore layouts via JSON
+- **Theming**: Light, dark, and Apple Liquid Glass themes
+- **Full Dash Integration**: Render any Dash component inside panels
+
+## Quick Start
+
+```python
+from dash import Dash, html
+from dash_dock_view import DashDockLayout
+
+app = Dash(__name__)
+
+app.layout = html.Div([
+    DashDockLayout(
+        id="my-dock",
+        panels=[
+            {"id": "panel-1", "title": "Editor", "position": "center"},
+            {"id": "panel-2", "title": "Console", "position": "bottom", "size": 200},
+            {"id": "panel-3", "title": "Explorer", "position": "left", "size": 250},
+        ],
+        children=[
+            html.Div(id="panel-1", children="Main content here"),
+            html.Div(id="panel-2", children="Console output"),
+            html.Div(id="panel-3", children="File explorer"),
+        ],
+        theme="dockview-theme-dark",
+        height="600px",
+    )
+])
+
+if __name__ == "__main__":
+    app.run(debug=True)
+```
+
+## Layout Components
+
+### DashDockLayout
+Full-featured docking system with tabs, floating panels, and drag-and-drop.
+
+### DashGridLayout
+Grid-based resizable panel system for structured layouts.
+
+### DashSplitLayout
+Simple split panel layout with horizontal or vertical orientation.
+
+### DashPaneLayout
+Collapsible accordion-style panes for organized content.
+
+## Themes
+
+- `dockview-theme-light` - Classic light theme
+- `dockview-theme-dark` - Classic dark theme
+- `dockview-theme-liquid-glass-light` - Apple Liquid Glass (light)
+- `dockview-theme-liquid-glass-dark` - Apple Liquid Glass (dark)
+
+## Panel Options
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| id | string | required | Unique panel identifier |
+| title | string | id value | Display title in tab |
+| position | string | 'center' | 'left', 'right', 'top', 'bottom', 'center' |
+| size | number | auto | Initial size in pixels |
+| visible | boolean | True | Whether panel is visible |
+| active | boolean | False | Whether panel is active on load |
+| collapsed | boolean | False | Start collapsed (click to expand) |
+
+## Component Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| panels | array | [] | Panel configurations |
+| children | node | None | Dash components for panels |
+| theme | string | 'dockview-theme-light' | Theme class |
+| height | string | '600px' | Container height |
+| locked | boolean | False | Lock layout modifications |
+| hideCloseButtons | boolean | False | Hide close buttons on tabs |
+| showAddButton | boolean | True | Show add panel button |
+| disableDnd | boolean | False | Disable drag-and-drop |
+
+## Documentation
+
+Run the demo app for full documentation:
+
+```bash
+python app.py
+```
+
+Visit http://localhost:8050 to see interactive examples.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+## License
+
+MIT License - see [LICENSE](./LICENSE)
