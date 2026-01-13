@@ -1,0 +1,8 @@
+from django.urls import path
+from . import views
+
+
+urlpatterns = [
+    path("sso/login/", views.sso_login, name="sso_login"),
+    path("sso/logout/", views.sso_logout, name="sso_logout"),
+]
