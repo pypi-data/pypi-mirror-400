@@ -1,0 +1,26 @@
+
+rule:
+    name: "foo_rule"
+    message: "Running foo_step implementation: foo_imp"
+    input:
+        dummy_container_main_input_file_paths=['foo'],
+        dummy_container_secondary_input_file_paths=['bar'],
+        validations=['bar'],
+    output: ['some/file.txt']
+    log: "spam/foo_rule-output.log"
+    container: "Multipolarity.sif"
+    resources:
+        slurm_partition='slurmpart',
+        mem_mb=5120,
+        runtime=1,
+        cpus_per_task=1337,
+        slurm_extra="--output 'spam/foo_rule-slurm-%j.log'"
+    shell:
+        '''
+        export OUTPUT_PATHS=some/file.txt
+        export DIAGNOSTICS_DIRECTORY=spam
+        export DUMMY_CONTAINER_MAIN_INPUT_FILE_PATHS=foo
+        export DUMMY_CONTAINER_SECONDARY_INPUT_FILE_PATHS=bar
+        export eggs=coconut
+        echo hello world > {log} 2>&1
+        '''
