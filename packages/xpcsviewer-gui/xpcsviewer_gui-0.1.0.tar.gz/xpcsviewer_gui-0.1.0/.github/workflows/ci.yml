@@ -1,0 +1,403 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main, develop ]
+    paths-ignore:
+      - '*.md'
+      - '*.rst'
+      - 'docs/**'
+      - 'CHANGELOG*'
+      - 'HISTORY*'
+      - 'LICENSE*'
+  pull_request:
+    branches: [ master, main, develop ]
+    paths-ignore:
+      - '*.md'
+      - '*.rst'
+      - 'docs/**'
+      - 'CHANGELOG*'
+      - 'HISTORY*'
+      - 'LICENSE*'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual CI run'
+        required: false
+        default: 'Manual testing'
+      test_level:
+        description: 'Test level to run'
+        required: false
+        default: 'core'
+        type: choice
+        options:
+          - 'smoke'
+          - 'core'
+          - 'full'
+          - 'performance'
+
+# Cancel previous runs on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_CACHE_DIR: .uv-cache
+  UV_SYSTEM_PYTHON: 1
+
+jobs:
+  # Quick smoke tests for fast feedback
+  smoke-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+
+    - name: Set up Python 3.13
+      run: uv python install 3.13
+
+    - name: Install dependencies
+      run: |
+        uv sync
+        echo "[OK] Dependencies installed with uv"
+
+    - name: Cache pre-commit environments
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+        restore-keys: |
+          pre-commit-${{ runner.os }}-
+
+    - name: Fast quality checks
+      shell: bash
+      run: |
+        echo "[INFO] Running fast quality checks..."
+        # Quick ruff checks for immediate feedback
+        uv run ruff check --output-format=github .
+        uv run ruff format --check .
+
+        # Run critical pre-commit hooks only for PRs
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          uv run pre-commit run --files $(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }}..HEAD)
+        fi
+
+    - name: Run smoke tests
+      run: |
+        # Ultra-fast smoke tests with minimal overhead
+        uv run pytest -m "smoke" --tb=line --disable-warnings -q \
+          --maxfail=1 --no-header --no-summary --no-cov
+
+  # Main test matrix
+  test:
+    runs-on: ${{ matrix.os }}
+    needs: smoke-test
+    if: always() && (needs.smoke-test.result == 'success' || github.event_name != 'pull_request')
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.12", "3.13"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.13"
+            test-type: "comprehensive"
+        exclude:
+          - os: windows-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.13"
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          libgl1-mesa-dri libegl1-mesa-dev libxrandr2 libxss1 \
+          libxcursor1 libxcomposite1 libasound2t64 libxi6 libxtst6 \
+          xvfb
+
+    - name: Install dependencies
+      run: |
+        uv sync
+        # Verify critical test dependencies
+        uv run python -c "import pytest, xdist, pytest_cov; print('[OK] Test dependencies installed')"
+
+    - name: Type check with mypy (comprehensive)
+      if: matrix.python-version == '3.13' && matrix.os == 'ubuntu-latest'
+      run: |
+        uv run mypy xpcsviewer --ignore-missing-imports --show-error-codes --pretty
+      continue-on-error: true
+
+    - name: Determine test level
+      id: test-level
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "level=core" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event.inputs.test_level }}" != "" ]; then
+          echo "level=${{ github.event.inputs.test_level }}" >> $GITHUB_OUTPUT
+        else
+          echo "level=full" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Test with pytest
+      env:
+        QT_QPA_PLATFORM: offscreen
+        DISPLAY: ":99"
+        PYTHONIOENCODING: utf-8
+        PYTHONUTF8: 1
+      shell: bash
+      run: |
+        # Start virtual display for GUI tests on Linux
+        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          Xvfb :99 -screen 0 1024x768x24 &
+          sleep 2
+        fi
+
+        # Run tests based on level with optimized settings
+        case "${{ steps.test-level.outputs.level }}" in
+          "smoke")
+            echo "[INFO] Running smoke tests..."
+            uv run pytest -m "smoke" --tb=short -q --maxfail=3 \
+              --disable-warnings --no-cov \
+              || (echo "[ERROR] Smoke tests failed" && exit 1)
+            ;;
+          "core")
+            echo "[INFO] Running core tests (unit + integration, non-slow, excluding GUI)..."
+            uv run pytest -m "(unit or integration) and not slow and not gui" \
+              --cov=xpcsviewer --cov-report=xml --cov-report=term-missing \
+              --cov-context=test --tb=short --maxfail=5 --cov-fail-under=11 \
+              -n auto --dist=worksteal \
+              || (echo "[ERROR] Core tests failed" && exit 1)
+            ;;
+          "performance")
+            echo "[INFO] Running performance tests..."
+            uv run pytest -m "performance and not stress" --benchmark-only \
+              --benchmark-warmup=on --benchmark-warmup-iterations=2 \
+              || (echo "[ERROR] Performance tests failed" && exit 1)
+            ;;
+          *)
+            echo "[INFO] Running full test suite (excluding stress, system-dependent, and GUI tests)..."
+            uv run pytest -m "not (stress or system_dependent or gui)" \
+              --cov=xpcsviewer --cov-report=xml --cov-report=term-missing \
+              --cov-context=test --tb=short --durations=10 --maxfail=10 --cov-fail-under=11 \
+              -n auto --dist=worksteal \
+              || (echo "[ERROR] Full test suite failed" && exit 1)
+            ;;
+        esac
+
+        # Offscreen golden snapshot check
+        echo "[INFO] Running offscreen golden snapshot check..."
+        uv run pytest tests/gui_interactive/test_offscreen_snapshot.py --tb=short -q --disable-warnings --no-cov
+
+        echo "[SUCCESS] Test execution completed successfully"
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && (steps.test-level.outputs.level == 'core' || steps.test-level.outputs.level == 'full')
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        fail_ci_if_error: false
+        flags: ${{ matrix.os }}-py${{ matrix.python-version }}
+
+    - name: Test package installation
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+      env:
+        PYTHONIOENCODING: utf-8
+        PYTHONUTF8: 1
+      run: |
+        uv run python -c "
+        try:
+            import xpcsviewer
+            print(f'[OK] XPCS Viewer {xpcsviewer.__version__} imported successfully')
+            from xpcsviewer.file_locator import FileLocator
+            print('[OK] Core modules accessible')
+        except ImportError as e:
+            print(f'[ERROR] Import failed: {e}')
+            exit(1)
+        except Exception as e:
+            print(f'⚠️  Basic test failed: {e}')
+            exit(1)
+        "
+
+    - name: Generate test summary
+      if: always()
+      shell: bash
+      run: |
+        echo "## [SUMMARY] Test Summary for ${{ matrix.os }} Python ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **OS**: ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Python**: ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Test Level**: ${{ steps.test-level.outputs.level }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+
+  # Fast parallel build job
+  build:
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    if: always() && (needs.smoke-test.result == 'success' || github.event_name != 'pull_request')
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+
+    - name: Set up Python
+      run: uv python install 3.13
+
+    - name: Install system dependencies for Qt
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          libgl1-mesa-dri libegl1-mesa-dev libxrandr2 libxss1 \
+          libxcursor1 libxcomposite1 libasound2t64 libxi6 libxtst6
+
+    - name: Build package
+      run: |
+        uv build
+        echo "[OK] Package built successfully"
+
+    - name: Check package metadata
+      run: |
+        # Validate package with twine using uvx
+        uvx twine check dist/* --strict
+
+        # Verify package contents
+        echo "[INFO] Package contents:"
+        ls -la dist/
+
+        # Test wheel installation in clean environment (override UV_SYSTEM_PYTHON)
+        uv venv test_env
+        UV_SYSTEM_PYTHON=0 uv pip install --python test_env/bin/python dist/*.whl
+        export QT_QPA_PLATFORM=offscreen
+        export DISPLAY=:99
+        export PYXPCS_SUPPRESS_QT_WARNINGS=1
+        test_env/bin/python -c "import xpcsviewer; print('[OK] XPCS Viewer imported'); print(f'[INFO] Version: {xpcsviewer.__version__}')"
+        rm -rf test_env
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ github.sha }}
+        path: dist/
+        retention-days: 7
+
+
+  # Security scanning - parallel with tests
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+        enable-cache: true
+
+    - name: Set up Python
+      run: uv python install 3.13
+
+    - name: Install project for security scanning
+      run: uv sync
+
+    - name: Run bandit security scan
+      run: |
+        uvx bandit -r xpcsviewer -f json -o bandit-report.json || true
+        uvx bandit -r xpcsviewer --severity-level medium
+
+    - name: Run pip-audit for dependency vulnerabilities
+      run: |
+        uvx pip-audit --desc --format=json --output=pip-audit-report.json --ignore-vuln GHSA-4xh5-x5gv-qwph || true
+        uvx pip-audit --desc --ignore-vuln GHSA-4xh5-x5gv-qwph
+
+    - name: Check dependencies with safety
+      run: |
+        uvx safety check --json --output safety-report.json || echo "Safety check completed with warnings"
+        uvx safety check --short-report || echo "Safety check completed with warnings"
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-reports-${{ github.sha }}
+        path: |
+          bandit-report.json
+          pip-audit-report.json
+          safety-report.json
+        retention-days: 30
+
+  # Status check job - always runs
+  status:
+    runs-on: ubuntu-latest
+    needs: [smoke-test, test, build, security]
+    if: always()
+
+    steps:
+    - name: Check workflow status
+      shell: bash
+      run: |
+        echo "## 🎯 CI/CD Pipeline Status Report" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status | Duration |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|----------|" >> $GITHUB_STEP_SUMMARY
+        echo "| [SMOKE] Tests | ${{ needs.smoke-test.result }} | Fast feedback |" >> $GITHUB_STEP_SUMMARY
+        echo "| [MAIN] Tests | ${{ needs.test.result }} | Cross-platform |" >> $GITHUB_STEP_SUMMARY
+        echo "| [BUILD] Build | ${{ needs.build.result }} | Package validation |" >> $GITHUB_STEP_SUMMARY
+        echo "| [SECURITY] Security | ${{ needs.security.result }} | Vulnerability scan |" >> $GITHUB_STEP_SUMMARY
+
+        # Check critical paths
+        if [ "${{ needs.smoke-test.result }}" = "failure" ]; then
+          echo "[ERROR] Smoke tests failed - blocking merge"
+          echo "::error::Smoke tests failed - critical path blocked"
+          exit 1
+        elif [ "${{ needs.test.result }}" = "failure" ]; then
+          echo "[ERROR] Main tests failed - blocking merge"
+          echo "::error::Main test suite failed - merge blocked"
+          exit 1
+        elif [ "${{ needs.build.result }}" = "failure" ]; then
+          echo "[ERROR] Build failed - blocking merge"
+          echo "::error::Package build failed - merge blocked"
+          exit 1
+        else
+          echo "[SUCCESS] All critical checks passed - ready for merge"
+          echo "[INFO] Security scan: ${{ needs.security.result }}"
+          echo "::notice::CI/CD pipeline completed successfully"
+        fi

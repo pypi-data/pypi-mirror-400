@@ -1,0 +1,152 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ master, main, develop ]
+    paths:
+      - 'docs/**'
+      - 'xpcsviewer/**/*.py'
+      - 'README.rst'
+      - 'README.md'
+      - 'pyproject.toml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ master, main, develop ]
+    paths:
+      - 'docs/**'
+      - 'xpcsviewer/**/*.py'
+      - 'README.rst'
+      - 'README.md'
+      - 'pyproject.toml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual docs build'
+        required: false
+        default: 'Manual documentation testing'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_CACHE_DIR: .uv-cache
+  UV_SYSTEM_PYTHON: 1
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+
+    - name: Set up Python
+      run: uv python install 3.13
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          libgl1-mesa-dri libegl1-mesa-dev libxrandr2 libxss1 \
+          libxcursor1 libxcomposite1 libasound2t64 libxi6 libxtst6 \
+          pandoc graphviz
+
+    - name: Install dependencies
+      run: |
+        uv sync --group docs
+        echo "[OK] Documentation dependencies installed"
+
+    - name: Build documentation with Sphinx
+      env:
+        SPHINXOPTS: "-W --keep-going -j auto"
+      run: |
+        cd docs
+        uv run make clean
+        uv run make html
+
+        echo "Built on $(date)" > _build/html/build_info.txt
+        echo "Commit: ${{ github.sha }}" >> _build/html/build_info.txt
+
+    - name: Check documentation
+      run: |
+        ls -la docs/_build/html/
+        echo "📚 Documentation files:"
+        find docs/_build/html/ -name "*.html" | head -10
+
+    - name: Upload docs artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: docs-build-${{ github.sha }}
+        path: docs/_build/html
+        retention-days: 30
+
+    - name: Upload docs artifacts (PR preview)
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: docs-preview-pr-${{ github.event.number }}
+        path: docs/_build/html
+        retention-days: 7
+
+  link-check:
+    runs-on: ubuntu-latest
+    needs: build-docs
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+    - name: Download built docs
+      uses: actions/download-artifact@v5
+      with:
+        name: ${{ github.event_name == 'pull_request' && format('docs-preview-pr-{0}', github.event.number) || format('docs-build-{0}', github.sha) }}
+        path: _site
+
+    - name: Link Checker
+      uses: lycheeverse/lychee-action@v2
+      with:
+        args: --verbose --no-progress '_site/**/*.html' --base _site --exclude-mail
+        fail: false
+        format: markdown
+        output: link-check-report.md
+
+    - name: Upload link check report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: link-check-report-${{ github.sha }}
+        path: link-check-report.md
+        retention-days: 7
+
+  docs-status:
+    runs-on: ubuntu-latest
+    needs: [build-docs, link-check]
+    if: always()
+
+    steps:
+    - name: Documentation Status
+      run: |
+        echo "📚 Documentation Workflow Summary"
+        echo "================================="
+        echo "🏗️ Build: ${{ needs.build-docs.result }}"
+        echo "🔗 Link Check: ${{ needs.link-check.result || 'skipped' }}"
+
+        if [ "${{ needs.build-docs.result }}" = "failure" ]; then
+          echo "❌ Documentation build failed"
+          exit 1
+        else
+          echo "✅ Documentation workflow completed"
+        fi
