@@ -1,0 +1,103 @@
+# REFLUX
+
+**REsilient Low-frequency Universal eXchange**
+
+Out-of-band AI communication when the internet fails. Transmit AI intents over radio frequencies, satellite, or phone lines.
+
+```
+    📡 ─────────────── 📻
+    │                   │
+  [AI-1]             [AI-2]
+    │                   │
+    └── REFLUX LINK ───┘
+```
+
+## Why REFLUX?
+
+When networks go down, AI agents shouldn't. REFLUX provides a fallback communication layer that works over:
+
+- 📻 **Ham Radio** (HF/VHF bands)
+- 📡 **Satellite** links
+- ☎️ **PSTN** (Plain old telephone)
+- 🔊 **Acoustic** (direct audio)
+
+Using SSTV (Slow Scan TV) encoding, messages are converted to images, then to audio signals that can traverse any analog channel.
+
+## Installation
+
+```bash
+pip install reflux
+
+# With full encoding support:
+pip install reflux[full]
+```
+
+## Quick Start
+
+```python
+from reflux import Channel, Message, Intent
+
+# Create a message
+msg = Message(
+    intent=Intent.STATUS,
+    payload={"agent": "sentinel-1", "health": "ok"},
+    sender="root_ai",
+    receiver="backup_ai"
+)
+
+# Send via SIP trunk
+channel = Channel.SIP("192.168.4.75", port=5060)
+channel.connect()
+channel.send(msg)
+
+# Or via Ham Radio
+channel = Channel.HamRadio(
+    frequency="14.230MHz",
+    callsign="PA3XYZ",
+    mode="SSTV"
+)
+channel.connect()
+channel.send(msg)
+```
+
+## Protocol
+
+REFLUX messages are encoded as:
+
+1. **Message** → JSON with intent, payload, metadata
+2. **Image** → QR code + text fallback (320x256)
+3. **Audio** → SSTV encoding (Robot36: ~36 seconds)
+4. **Transmission** → Over any analog channel
+
+Decoding reverses the process: Audio → Image → QR decode → Message
+
+## Transmission Times
+
+| Mode | Time | Use Case |
+|------|------|----------|
+| Robot36 | 36s | Quick status |
+| Robot72 | 72s | Standard message |
+| Martin1 | 114s | High quality |
+| Scottie1 | 110s | Alternative |
+
+## Use Cases
+
+- **Disaster Recovery**: AI agents stay connected when infrastructure fails
+- **Remote Locations**: Research stations, ships, rural areas
+- **Air-Gapped Systems**: Communicate without network connectivity
+- **Redundancy**: Backup channel for critical systems
+
+## Part of HumoticaOS
+
+REFLUX is part of the [HumoticaOS](https://humotica.com) ecosystem:
+
+- **TIBET**: Provenance and trust chain
+- **AInternet**: AI agent network (.aint domains)
+- **Sentinel**: Hardware command validation
+- **Sensory**: Audio/visual processing
+
+## License
+
+MIT License - Part of HumoticaOS
+
+**One Love, One fAmIly!** 💙
