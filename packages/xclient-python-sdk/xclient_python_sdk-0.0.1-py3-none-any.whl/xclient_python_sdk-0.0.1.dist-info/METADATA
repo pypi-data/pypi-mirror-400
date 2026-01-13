@@ -1,0 +1,78 @@
+Metadata-Version: 2.3
+Name: xclient-python-sdk
+Version: 0.0.1
+Summary: XClient Python SDK for XCloud Service API
+License: MIT
+Author: xclient
+Author-email: xclient@example.com
+Requires-Python: >=3.9,<4.0
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Dist: attrs (>=23.2.0)
+Requires-Dist: httpx (>=0.27.0,<1.0.0)
+Requires-Dist: packaging (>=24.1)
+Requires-Dist: python-dateutil (>=2.8.2)
+Requires-Dist: typing-extensions (>=4.1.0)
+Project-URL: Bug Tracker, https://github.com/xclient-service/xclient/issues
+Project-URL: Homepage, https://xclient.cloud/
+Project-URL: Repository, https://github.com/xcloud-service/xclient
+Description-Content-Type: text/markdown
+
+# XClient
+
+[XClient](https://xclient.cloud) Python SDK for XCloud Service API. Manage and execute jobs with confidence.
+
+## Run your first XClient Job
+
+### 1. Install [xclient-python-sdk](https://pypi.org/project/xclient-python-sdk/)
+
+```bash
+pip install xclient-python-sdk
+```
+
+### 2. Setup your XClient API key
+
+1. Sign up to [XClient](https://xcloud-service.com)
+2. Manage your [API key](https://xcloud-service.com/home/api-keys)
+3. Create API key, and set environment variable with your API key
+
+```
+export XCLIENT_API_KEY=xck_******
+export XCLIENT_DOMAIN=localhost:8090  # optional, default is localhost:8090
+```
+
+### 3. Execute code with XClient Job
+
+```python
+from xclient import Job
+
+job = Job(api_key="xck_******")
+
+# Submit a job
+result = job.submit(
+    name="my-training-job",
+    script="#!/bin/bash\necho 'Hello World'",
+    cluster_id=1,
+    resources={"cpu": 4, "gpu": 1, "memory": "8GB"}
+)
+
+# Get job details
+job_info = job.get(job_id=result.job_id, cluster_id=1)
+
+# List jobs
+from xclient.api.client.models.job_status import JobStatus
+running_jobs = job.list(status=JobStatus.RUNNING, page=1, page_size=20)
+
+# Cancel a job
+job.cancel(job_id=result.job_id)
+```
+
+### 4. Documents
+
+Visit [XClient Documents](https://xclient.cloud/docs)
+
