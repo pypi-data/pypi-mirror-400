@@ -1,0 +1,33 @@
+import asyncio
+import os
+
+from onepassword import Client
+
+
+async def main():
+    # Gets your service account token from the OP_SERVICE_ACCOUNT_TOKEN environment variable.
+    token = os.getenv("OP_SERVICE_ACCOUNT_TOKEN")
+
+    # Connects to 1Password. Fill in your own integration name and version.
+    client = await Client.authenticate(
+        auth=token,
+        integration_name="My 1Password Integration",
+        integration_version="v1.0.0",
+    )
+
+    # Retrieves a secret from 1Password. Takes a secret reference as input and returns the secret to which it points.
+    value = await client.secrets.resolve(
+        "op://optexity_automation/Password112/username"
+    )
+    # value = await client.secrets.resolve("op://optexity_automation/Password11/username")
+    # use value here
+    print(value)
+    value = await client.secrets.resolve(
+        "op://optexity_automation/Password112/password"
+    )
+    value = await client.secrets.resolve("op://vault/item/field")
+    print(value)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
