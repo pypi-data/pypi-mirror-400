@@ -1,0 +1,92 @@
+Metadata-Version: 2.4
+Name: data7
+Version: 1.0.0
+Summary: Data7 streams CSV/Parquet datasets over HTTP from SQL queries.
+Project-URL: Homepage, https://jmaupetit.github.io/data7/
+Project-URL: Repository, https://github.com/jmaupetit/data7
+Project-URL: Documentation, https://jmaupetit.github.io/data7/
+Author-email: Julien Maupetit <julien@maupetit.net>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: CSV,HTTP,Parquet,SQL,database,dataset
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Topic :: Database
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
+Requires-Python: >=3.11
+Requires-Dist: dynaconf>=3.2.12
+Requires-Dist: pandas>=2.3.3
+Requires-Dist: pyarrow>=22.0.0
+Requires-Dist: pyinstrument>=5.1.2
+Requires-Dist: sentry-sdk[starlette]>=2.48.0
+Requires-Dist: sqlalchemy>=2.0.45
+Requires-Dist: starlette>=0.50.0
+Requires-Dist: typer>=0.21.0
+Requires-Dist: uvicorn[standard]>=0.40.0
+Description-Content-Type: text/markdown
+
+# Data7 ⚡ Open your data in minutes
+
+> Pronounced data·set (**7** like **sept** in French).
+
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/jmaupetit/data7/quality.yml)
+![PyPI - Version](https://img.shields.io/pypi/v/data7)
+
+## The idea 💡
+
+**TL;DR** Data7 is a high performance web server that generates dynamic datasets
+(in [CSV](https://en.wikipedia.org/wiki/Comma-separated_values) or
+[Parquet](https://en.wikipedia.org/wiki/Apache_Parquet) formats) from existing
+databases and streams them over HTTP 🎉
+
+## A quick example
+
+Let say you have a `restaurant` table in your PostgreSQL database, and you want
+to make this table an always-up-to-date dataset that can be easily used by the
+rest of the world.
+
+All you have to do is to initialize your project:
+
+```sh
+data7 init
+```
+
+✍️ Edit configuration files:
+
+```yaml
+# settings.yaml
+production:
+  host: "https://data7.wonderful-places.org"
+  port: 80
+
+# .secrets.yaml
+production:
+  DATABASE_URL: "postgresql+asyncpg://user:pass@server:port/wonderful-places"
+
+# data7.yaml
+production:
+  datasets:
+    - basename: restaurants
+      query: "SELECT * FROM restaurant"
+```
+
+🏎️ Fire up the `data7` server:
+
+```sh
+data7 run
+```
+
+💥 Your dataset is available at:
+
+- [https://data7.wonderful-places.org/d/restaurants.csv](https://data7.wonderful-places.org/d/restaurants.csv)
+  (CSV)
+- [https://data7.wonderful-places.org/d/restaurants.parquet](https://data7.wonderful-places.org/d/restaurants.parquet)
+  (Parquet)
+
+## Documentation
+
+The complete documentation of the project is avaiable at:
+[https://jmaupetit.github.io/data7/](https://jmaupetit.github.io/data7/)
+
+## License
+
+This work is released under the MIT License.
