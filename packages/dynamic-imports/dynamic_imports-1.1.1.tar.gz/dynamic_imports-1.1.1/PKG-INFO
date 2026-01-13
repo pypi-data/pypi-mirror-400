@@ -1,0 +1,202 @@
+Metadata-Version: 2.4
+Name: dynamic-imports
+Version: 1.1.1
+Summary: 
+Author: Dan Kelleher
+Author-email: kelleherjdan@gmail.com
+Requires-Python: >=3.8
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Description-Content-Type: text/markdown
+
+# Dynamic Imports
+
+A Python library for dynamically discovering and importing modules, classes, and functions at runtime.
+
+## Features
+
+- **Dynamic Module Import**: Import modules by name or file path
+- **Attribute Access**: Import specific attributes (functions, classes) from modules
+- **Module Discovery**: Find all modules within packages and subpackages
+- **Class Discovery**: Find all subclasses of a base class across modules
+- **Instance Discovery**: Find all instances of a class type within modules
+- **Flexible Input**: Works with module objects, module names, and file paths
+- **Caching**: Built-in caching for improved performance
+
+## Installation
+
+```bash
+pip install dynamic-imports
+```
+
+## Quick Start
+
+### Import a module dynamically
+
+```python
+from dynamic_imports import import_module
+
+# Import by module name
+module = import_module('my_package.my_module')
+
+# Import by file path
+module = import_module('/path/to/my_module.py')
+```
+
+### Import a specific attribute from a module
+
+```python
+from dynamic_imports import import_module_attr
+
+# Get a function from a module
+my_function = import_module_attr('my_package.my_module', 'my_function')
+
+# Get a class from a module file
+MyClass = import_module_attr('/path/to/my_module.py', 'MyClass')
+```
+
+## Advanced Usage
+
+### Discover all modules in a package
+
+```python
+from dynamic_imports import find_modules
+import my_package
+
+# Get all modules as objects (default)
+modules = find_modules(
+    package=my_package,  # Can also use string 'my_package'
+    search_subpackages=True,  # Include nested packages
+    names_only=False  # Return module objects (default)
+)
+
+# Get only module names
+module_names = find_modules(
+    package='my_package',
+    search_subpackages=True,
+    names_only=True  # Return strings instead of module objects
+)
+```
+
+### Find all instances of a class
+
+```python
+from dynamic_imports import find_instances
+from my_package.my_module import MyClass
+import my_package
+
+# Find instances in a specific module
+instances = find_instances(
+    class_type=MyClass,
+    search_in='my_package', # or my_package
+    search_subpackages=False
+)
+
+# Find instances across all subpackages
+all_instances = find_instances(
+    class_type=MyClass,
+    search_in=my_package, # or 'my_package'
+    search_subpackages=True
+)
+```
+
+### Find all subclasses of a base class
+
+```python
+from dynamic_imports import find_subclasses
+from my_package.base import BaseClass
+import my_package
+
+# Find subclasses in a specific module
+subclasses = find_subclasses(
+    base_class=BaseClass,  # Can also use string 'BaseClass'
+    search_in=my_package,
+    search_subpackages=False,
+)
+
+# Find subclasses across all subpackages
+all_subclasses = find_subclasses(
+    base_class=BaseClass,
+    search_in=my_package,  # Search entire package
+    search_subpackages=True
+)
+```
+
+### Import-Free Discovery with `names_only=True`
+
+When using the discovery functions (`find_modules` and `find_subclasses`) with `names_only=True`, the library leverages Python's built-in `pyclbr` (Python class browser) module to perform static analysis of Python source files without executing them, avoiding performance overhead of actual imports.
+
+```python
+from dynamic_imports import find_subclasses
+
+plugin_names = find_subclasses(
+    base_class='BasePlugin',
+    search_in='plugins',
+    search_subpackages=True,
+    names_only=True  # Uses pyclbr for static analysis
+)
+```
+
+## API Reference
+
+### Core Functions
+
+#### `import_module(name_or_path: Union[Path, str]) -> ModuleType`
+
+Import a module by its name or file path.
+
+- **Parameters:**
+  - `name_or_path`: Module name (e.g., `'os.path'`) or file path (e.g., `'/path/to/module.py'`)
+- **Returns:** The imported module object
+- **Note:** Results are cached using LRU cache for performance
+
+#### `import_module_attr(module_name_or_path: Union[Path, str], attr_name: str) -> Any`
+
+Import a specific attribute from a module.
+
+- **Parameters:**
+  - `module_name_or_path`: Module name or file path
+  - `attr_name`: Name of the attribute to import
+- **Returns:** The requested attribute
+- **Raises:** `AttributeError` if the attribute doesn't exist
+
+### Discovery Functions
+
+#### `find_modules(package: Union[ModuleType, str], search_subpackages: bool = True, names_only: bool = False) -> Union[List[str], List[ModuleType]]`
+
+Discover all modules within a package.
+
+- **Parameters:**
+  - `package`: Package object or name to search in
+  - `search_subpackages`: Whether to search nested packages (default: `True`)
+  - `names_only`: Return module names instead of objects (default: `False`). When `True`, avoids importing modules
+- **Returns:** List of module objects or names
+
+#### `find_subclasses(base_class: Union[Type, str], search_in: Union[ModuleType, str], search_subpackages: bool = True, names_only: bool = False) -> Union[List[str], List[Type]]`
+
+Find all subclasses of a base class.
+
+- **Parameters:**
+  - `base_class`: Base class object or name
+  - `search_in`: Module, package, or path to search in
+  - `search_subpackages`: Whether to search nested packages (default: `True`)
+  - `names_only`: Return class names instead of objects (default: `False`). When `True`, uses `pyclbr` for import-free static analysis
+- **Returns:** List of subclass objects or names
+
+#### `find_instances(class_type: Type, search_in: Union[ModuleType, str], search_subpackages: bool = True) -> List[Any]`
+
+Find all instances of a specific class type.
+
+- **Parameters:**
+  - `class_type`: The class to find instances of
+  - `search_in`: Module, package, or path to search in
+  - `search_subpackages`: Whether to search nested packages (default: `True`)
+- **Returns:** List of unique instances (deduplicated by object ID)
+
+
