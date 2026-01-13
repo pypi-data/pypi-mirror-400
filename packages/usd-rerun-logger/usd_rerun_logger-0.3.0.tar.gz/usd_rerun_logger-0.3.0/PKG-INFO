@@ -1,0 +1,81 @@
+Metadata-Version: 2.3
+Name: usd-rerun-logger
+Version: 0.3.0
+Summary: Python package for visualizing OpenUSD based simulations (like NVIDIA Isaac Sim) with Rerun.io
+Keywords: USD,OpenUSD,Rerun,visualization,Isaac Sim,Isaac Lab,Omniverse
+Author: AGC, TN
+Author-email: AGC <andras@artefacts.com>, TN <tomo@artefacts.com>
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Scientific/Engineering
+Classifier: Typing :: Typed
+Requires-Dist: gymnasium[other]>=1.2.3
+Requires-Dist: pillow>=11.2.1
+Requires-Dist: rerun-sdk>=0.23.1
+Requires-Python: >=3.11
+Project-URL: Homepage, https://github.com/art-e-fact/usd-rerun-logger
+Project-URL: Issues, https://github.com/art-e-fact/usd-rerun-logger/issues
+Project-URL: Source, https://github.com/art-e-fact/usd-rerun-logger
+Description-Content-Type: text/markdown
+
+# Rerun.io logger for USD and NVIDIA Omniverse apps
+
+[![Documentation](https://img.shields.io/badge/docs-online-blue)](https://art-e-fact.github.io/usd-rerun-logger/)
+[![PyPI](https://img.shields.io/pypi/v/usd-rerun-logger)](https://pypi.org/project/usd-rerun-logger/)
+
+### :construction: Development preview. Work in progress.
+
+## Usage examples:
+
+### Logging plain USD scene
+```py
+rr.init("orange_example", spawn=True)
+stage = Usd.Stage.Open("robot.usd"))
+logger = UsdRerunLogger(stage)
+logger.log_stage()
+```
+
+
+### Logging Isaac Sim scene:
+```py
+world = World()
+
+rr.init()
+logger = UsdRerunLogger(world.stage, path_filter=["!*BlackGrid*"])
+
+while app_running:
+    world.step()
+    rr.set_time(timeline="sim", duration=sim_time)
+    logger.log_stage()
+```
+
+### Logging Isaac Lab environment:
+```py
+rr.init()
+logger = IsaacLabRerunLogger(env.scene)
+while looping:
+    env.step(action)
+    rr.set_time(
+        timeline="sim",
+        duration=env.common_step_counter * env.step_dt,
+    )
+    logger.log_scene()
+```
+
+
+### Logging Gymnasium environment:
+```py
+env = gym.make("Isaac-Reach-Franka-v0", cfg=FrankaReachEnvCfg())
+rr.init("franka_example", spawn=True)
+env = LogRerun(env)
+env.reset()
+for _ in range(100):
+    action_np = env.action_space.sample()
+    action = torch.as_tensor(action_np)
+    env.step(action)
+```
