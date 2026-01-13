@@ -1,0 +1,147 @@
+Metadata-Version: 2.4
+Name: dingtalk-client-rick
+Version: 0.1.0
+Summary: Add your description here
+Author-email: LH <276069869@qq.com>
+Requires-Python: >=3.13
+Requires-Dist: cachetools>=6.2.4
+Requires-Dist: jsonpath-ng>=1.7.0
+Requires-Dist: python-dotenv>=1.2.1
+Requires-Dist: requests>=2.32.5
+Requires-Dist: tqdm>=4.67.1
+Description-Content-Type: text/markdown
+
+# DingTalk Client Rick
+
+一个基于 Python 的钉钉开放平台 API 客户端，封装了常用的功能模块，支持自动 Token 管理、消息发送、多维表格操作以及文件上传等功能。
+
+## 功能特性
+
+- **自动鉴权**：内置 Token 缓存与自动刷新机制，无需手动管理 Access Token。
+- **用户管理**：支持用户搜索、详情查询及 UnionID 获取。
+- **消息推送**：封装了机器人单聊消息发送（支持文本、Markdown 格式）。
+- **多维表格**：提供对钉钉多维表格（Aitable）的完整操作支持（增删改查）。
+- **文件上传**：支持小文件直传和大文件分片上传，自动识别媒体类型。
+
+## 安装说明
+
+本项目使用 `uv` 进行依赖管理。
+
+```bash
+# 克隆项目
+git clone <repository_url>
+cd dingtalk_client_rick
+
+# 安装依赖
+uv sync
+```
+
+## 配置指南
+
+在项目根目录下创建 `.env` 文件，并配置你的钉钉应用凭证：
+
+```env
+AppKey=你的AppKey
+AppSecret=你的AppSecret
+```
+
+## 使用示例
+
+### 1. 初始化客户端
+
+```python
+from dingtalk_client_rick.base import DingTalk
+
+# 方式一：自动读取环境变量中的 AppKey 和 AppSecret
+client = DingTalk()
+
+# 方式二：手动传入凭证
+client = DingTalk(app_key="your_key", app_secret="your_secret")
+```
+
+### 2. 用户管理
+
+```python
+from dingtalk_client_rick.user import User
+
+user_client = User()
+
+# 搜索用户
+users = user_client.get_user_info("张三")
+
+# 获取用户详情及 UnionID
+user_info = user_client.get_union_id("张三")
+print(f"User UnionID: {user_info.get('unionid')}")
+```
+
+### 3. 多维表格操作
+
+```python
+from dingtalk_client_rick.table import AiRecord
+
+# 初始化记录操作客户端
+record_client = AiRecord(
+    sheetIdOrName="你的工作表名称或ID",
+    baseId="你的应用BaseID",
+    unionId="操作人的UnionID"
+)
+
+# 获取记录详情
+detail = record_client.detail(recordId="记录ID")
+
+# 更新记录
+record_client.update([
+    {
+        "id": "记录ID",
+        "fields": {
+            "字段名": "新值",
+            "状态": "已完成"
+        }
+    }
+])
+```
+
+### 4. 文件上传
+
+```python
+from dingtalk_client_rick.uploadfile import AiUploadFile
+
+# 初始化上传客户端
+uploader = AiUploadFile(
+    docId="你的文档/BaseID",
+    unionId="操作人的UnionID"
+)
+
+# 上传文件
+file_path = "/path/to/your/image.jpg"
+result = uploader.upload_file_complete(file_path)
+
+if result["status"] == "success":
+    print(f"上传成功，资源链接: {result['url']}")
+```
+
+### 5. 发送消息
+
+```python
+from dingtalk_client_rick.bot import Bot
+from dingtalk_client_rick.message import TextMessage
+
+bot = Bot()
+
+# 发送文本消息
+msg = TextMessage(content="你好，这是来自 Python 客户端的消息")
+bot.send_text_message(userids=["用户ID列表"], message=msg)
+```
+
+## 依赖列表
+
+- python >= 3.13
+- requests
+- python-dotenv
+- cachetools
+- jsonpath-ng
+- tqdm
+
+## 许可证
+
+MIT License
