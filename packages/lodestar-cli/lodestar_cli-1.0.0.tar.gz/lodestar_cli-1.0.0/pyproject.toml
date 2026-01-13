@@ -1,0 +1,108 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lodestar-cli"
+version = "1.0.0"
+description = "Agent-native repo orchestration for multi-agent coordination in Git repositories"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13"
+authors = [{ name = "Lodestar Team" }]
+keywords = ["cli", "agents", "coordination", "git", "ai"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "portalocker>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "atomicwrites>=1.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-anyio>=0.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.0.0",
+    "types-PyYAML>=6.0.0",
+    "pre-commit>=4.0.0",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+]
+mcp = [
+    "mcp>=1.0.0",
+]
+
+[project.scripts]
+lodestar = "lodestar.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/ThomasRohde/lodestar"
+Documentation = "https://github.com/ThomasRohde/lodestar#readme"
+Repository = "https://github.com/ThomasRohde/lodestar.git"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lodestar"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "ARG"]
+ignore = [
+    "E501",    # Line too long (handled by formatter)
+    "B008",    # Function call in default argument (Typer pattern)
+    "B904",    # Raise from in except (not always needed for typer.Exit)
+    "ARG001",  # Unused function argument (CLI options are intentional)
+    "ARG002",  # Unused method argument (database params may be for future use)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+# atomicwrites library doesn't have type stubs
+[[tool.mypy.overrides]]
+module = "atomicwrites"
+ignore_missing_imports = true
+
+# Relax strictness for MCP module due to incomplete type stubs in mcp SDK
+[[tool.mypy.overrides]]
+module = "lodestar.mcp.*"
+disallow_untyped_decorators = false
+warn_return_any = false
+disable_error_code = ["attr-defined", "type-arg", "assignment", "arg-type", "index"]
+
+[[tool.mypy.overrides]]
+module = "lodestar.cli.commands.mcp"
+disallow_untyped_decorators = false
+disable_error_code = ["return-value"]

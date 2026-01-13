@@ -1,0 +1,60 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --extra dev --extra mcp
+
+      - name: Run tests
+        run: uv run pytest -v
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: Test lodestar doctor
+        run: uv run lodestar doctor
+        env:
+          PYTHONIOENCODING: utf-8
+
+  test-concurrent-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --extra dev --extra mcp
+
+      - name: Run concurrent verification tests
+        run: uv run pytest tests/test_concurrent_verification.py -v
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: Run retry tests
+        run: uv run pytest tests/test_retry.py -v
+        env:
+          PYTHONIOENCODING: utf-8
