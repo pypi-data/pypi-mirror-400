@@ -1,0 +1,112 @@
+Metadata-Version: 2.4
+Name: distributed_a2a
+Version: 0.1.4
+Summary: A library for building A2A agents with routing capabilities
+Home-page: https://github.com/Barra-Technologies/distributed-a2a
+Author: Fabian Bell
+Author-email: Fabian Bell <fabian.bell@barrabytes.com>
+License: MIT
+Project-URL: Homepage, https://github.com/Barra-Technologies/distributed-a2a
+Project-URL: Repository, https://github.com/Barra-Technologies/distributed-a2a
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: langchain>=0.1.0
+Requires-Dist: langchain-core>=0.1.0
+Requires-Dist: langchain-openai>=0.0.5
+Requires-Dist: langgraph>=0.0.20
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: boto3>=1.28.0
+Requires-Dist: a2a>=0.1.0
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# A2A Agent Library
+
+A Python library for building A2A (Agent-to-Agent) agents with routing capabilities, DynamoDB-backed registry, and LangChain integration.
+
+## Features
+
+- **StatusAgent**: Base agent implementation with status tracking and structured responses
+- **RoutingAgentExecutor**: Agent executor with intelligent routing capabilities
+- **DynamoDB Registry**: Dynamic agent card registry with heartbeat mechanism
+- **Server Utilities**: FastAPI application builder with A2A protocol support
+- **LangChain Integration**: Built on LangChain for flexible model integration
+
+## Installation
+
+```bash
+pip install distributed-a2a
+```
+
+## Quick Start
+
+1. Start a server with your agent application:
+```python
+from distributed_a2a import load_app
+from a2a.types import AgentSkill
+
+# Define your agent's skills
+skills = [
+    AgentSkill(
+        id='example_skill',
+        name='Example Skill',
+        description='An example skill',
+        tags=['example']
+    )
+]
+
+# Create your agent application
+app = load_app(
+    name="MyAgent",
+    description="My specialized agent",
+    skills=skills,
+    api_key="your-api-key",
+    system_prompt="You are a helpful assistant...",
+    host="http://localhost:8000"
+)
+```
+
+2. Send a request with the client
+```python
+from uuid import uuid4
+
+from distributed_a2a import RoutingA2AClient
+
+if __name__ == "__main__":
+    import asyncio
+
+    request = "Tell me the weather in Bonn"
+    client = RoutingA2AClient("http://localhost:8000")
+    response: str = asyncio.run(client.send_message(request, str(uuid4())))
+    print(response)
+```
+
+## Requirements
+
+- Python 3.10+
+- langchain
+- langchain-core
+- langchain-openai
+- langgraph
+- pydantic
+- boto3
+- a2a
+
+## License
+
+MIT
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
