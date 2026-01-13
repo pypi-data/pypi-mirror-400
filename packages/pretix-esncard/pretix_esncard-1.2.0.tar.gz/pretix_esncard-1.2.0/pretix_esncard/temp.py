@@ -1,0 +1,27 @@
+{
+    "csrfmiddlewaretoken": [
+        "LNrkeeV9NKwX2gRsuoXWGBluT6MaQT1dstDrBs7lxF8MNELzV2ZgGkeLw1DOt9hj"
+    ],
+    "email": ["example@gmail.com"],
+    "is_business": ["individual"],
+    "company": [""],
+    "name_parts_0": [""],
+    "name_parts_1": [""],
+    "street": [""],
+    "zipcode": [""],
+    "city": [""],
+    "country": ["AF"],
+    "state": [""],
+    "internal_reference": [""],
+    "transmission_type": ["email"],
+    "transmission_peppol_participant_id": [""],
+    "transmission_it_sdi_codice_fiscale": [""],
+    "transmission_it_sdi_pec": [""],
+    "transmission_it_sdi_recipient_code": [""],
+    "4-attendee_name_parts_0": ["John"],
+    "4-attendee_name_parts_1": ["Smith"],
+    "4-question_1": ["2066413GJEF"],
+    "5-attendee_name_parts_0": ["Jane"],
+    "5-attendee_name_parts_1": ["Smith"],
+    "5-question_1": ["2066413GJE5"],
+}
