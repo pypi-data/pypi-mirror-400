@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package app4.plugin;
+
+option go_package = "gitlab.com/app4ai/app4-plugin-sdk/go/proto";
+
+// PluginService - Every plugin implements this service
+service PluginService {
+    // Plugin identity and capabilities
+    rpc GetManifest(Empty) returns (Manifest);
+
+    // Action execution
+    rpc ExecuteAction(ActionRequest) returns (ActionResponse);
+
+    // List all actions provided by this plugin
+    rpc ListActions(Empty) returns (ActionList);
+
+    // Provider lifecycle
+    rpc InitProvider(ProviderConfig) returns (ProviderResponse);
+    rpc CloseProvider(ProviderName) returns (ProviderResponse);
+
+    // Health check
+    rpc Health(Empty) returns (HealthResponse);
+
+    // Graceful shutdown
+    rpc Shutdown(Empty) returns (Empty);
+
+    // Detailed plugin status (resources, stats, uptime)
+    rpc GetStatus(Empty) returns (PluginStatus);
+}
+
+// Empty message for requests with no parameters
+message Empty {}
+
+// Manifest describes plugin identity and capabilities
+message Manifest {
+    string name = 1;
+    string version = 2;
+    string description = 3;
+    string author = 4;
+    string homepage = 5;
+    string license = 6;
+    repeated string capabilities = 7;  // "provider", "actions", "hooks"
+    bytes analyzer_rules_json = 8;     // AnalyzerRules as JSON for meta-model validation
+}
+
+// ActionRequest contains everything needed to execute an action
+message ActionRequest {
+    string action_name = 1;
+    string trace_id = 2;
+    bytes data_json = 3;      // Input data as JSON
+    bytes config_json = 4;    // Action config as JSON
+    bytes context_json = 5;   // Execution context as JSON
+    string app_id = 6;        // Application ID (for connection tracking)
+    string app_name = 7;      // Application name (optional)
+}
+
+// ActionResponse contains the result of action execution
+message ActionResponse {
+    bool success = 1;
+    bytes result_json = 2;    // Result data as JSON
+    string error = 3;
+    string error_code = 4;    // Optional error code for categorization
+}
+
+// ActionMeta describes an action's metadata for Studio UI
+message ActionMeta {
+    string name = 1;
+    string category = 2;
+    string description = 3;
+    repeated string tags = 4;
+    bytes inputs_json = 5;    // map[string]ParamSchema as JSON
+    bytes outputs_json = 6;   // map[string]ParamSchema as JSON
+    bytes examples_json = 7;  // []ActionExample as JSON
+}
+
+// ActionList contains all actions from a plugin
+message ActionList {
+    repeated ActionMeta actions = 1;
+}
+
+// ProviderConfig for initializing a provider instance
+message ProviderConfig {
+    string name = 1;          // Provider instance name (e.g., "default", "analytics")
+    bytes config_json = 2;    // Provider-specific config as JSON
+}
+
+// ProviderName identifies a provider instance
+message ProviderName {
+    string name = 1;
+}
+
+// ProviderResponse for provider operations
+message ProviderResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// HealthResponse for health checks
+message HealthResponse {
+    bool healthy = 1;
+    string message = 2;
+    map<string, string> details = 3;  // Additional health info
+}
+
+// PluginStatus - Detailed status for monitoring and debugging
+message PluginStatus {
+    Manifest manifest = 1;
+    int64 uptime_seconds = 2;
+    repeated PluginResource resources = 3;
+    PluginStats stats = 4;
+}
+
+// PluginResource - Generic resource (provider, connection, cache, queue, etc.)
+message PluginResource {
+    string type = 1;       // "provider", "connection", "cache", "queue", "consumer", "producer"
+    string name = 2;       // "default", "analytics", "events"
+    string status = 3;     // "connected", "disconnected", "error", "idle"
+    map<string, string> info = 4;  // Plugin-specific details
+}
+
+// PluginStats - Execution statistics
+message PluginStats {
+    int64 total_executions = 1;
+    int64 successful = 2;
+    int64 failed = 3;
+    double avg_latency_ms = 4;
+    map<string, int64> action_counts = 5;  // {"find": 1520, "insert": 340}
+}
