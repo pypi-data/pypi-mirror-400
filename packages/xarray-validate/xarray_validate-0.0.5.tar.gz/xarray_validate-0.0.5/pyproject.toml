@@ -1,0 +1,109 @@
+[project]
+name = "xarray-validate"
+version = "0.0.5"
+description = "A lightweight xarray validation library"
+authors = [{ name = "Vincent Leroy", email = "vincent.leroy@rayference.eu" }]
+dependencies = ["attrs", "numpy", "xarray"]
+readme = "README.md"
+requires-python = ">= 3.8"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Homepage = "https://github.com/leroyvn/xarray-validate/"
+Documentation = "https://xarray-validate.readthedocs.io/"
+Changelog = "https://github.com/leroyvn/xarray-validate/blob/main/CHANGELOG.md"
+Issues = "https://github.com/leroyvn/xarray-validate/issues/"
+Repository = "https://github.com/leroyvn/xarray-validate/"
+
+[project.optional-dependencies]
+dask = ["dask"]
+yaml = ["ruamel-yaml"]
+units = ["pint"]
+
+[dependency-groups]
+lint = ["ruff>=0.14.0"]
+docs = [
+  "autodocsumm>=0.2.14",
+  "furo",
+  "sphinx-autobuild>=2021",
+  "sphinx-copybutton>=0.5.2",
+  "sphinx>=7",
+]
+test = ["pytest-cov", "pytest", "xdoctest"]
+dev = [
+  "ipykernel",
+  "nbclient>=0.10.1",
+  "rich",
+  "setuptools", # Required for PyCharm to be happy
+  "taskipy",
+  { include-group = "docs" },
+  { include-group = "lint" },
+  { include-group = "test" },
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.coverage.html]
+directory = "./reports/coverage/html"
+
+[tool.coverage.json]
+output = "./reports/coverage/coverage.json"
+
+[tool.coverage.paths]
+equivalent = ["src/", "__pypackages__/"]
+
+[tool.coverage.report]
+omit = ["src/*/__init__.py", "src/*/_version.py"]
+precision = 2
+show_missing = true
+skip_covered = true
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["src/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src", "docs"]
+addopts = [
+  "--tb=short",
+  "--xdoctest",
+  "--xdoctest-glob=*.rst",
+  "--xdoctest-options=+ELLIPSIS,+NORMALIZE_WHITESPACE,+IGNORE_EXCEPTION_DETAIL",
+]
+norecursedirs = [".git", ".env", "dist", "__pypackages__"]
+python_files = ["test_*.py", "*_test.py", "tests.py"]
+
+[tool.ruff.lint]
+select = ["I", "E", "F"]
+
+[tool.ruff.lint.isort]
+relative-imports-order = "closest-to-furthest"
+
+[tool.taskipy.tasks]
+docs = "sphinx-build -b html docs docs/_build/html"
+docs-clean = "rm -rf docs/_build/"
+docs-serve = "sphinx-autobuild docs docs/_build/html"
+docs-lock = "uv export --frozen --no-hashes --no-annotate --all-extras --dev --output-file docs/requirements.txt"
+test = "pytest"
+test-cov = "pytest --cov=src"
+test-cov-report = "pytest --cov=src --cov-report=html"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xarray_validate"]
