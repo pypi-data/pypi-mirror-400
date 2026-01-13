@@ -1,0 +1,44 @@
+services:
+  changedetection:
+    container_name: ChangeDetection
+    image: dgtlmoon/changedetection.io:latest
+    security_opt:
+      - no-new-privileges:true
+    restart: on-failure:5
+    networks:
+      - changedetectionnet
+    ports:
+      - 5000:5000
+    volumes:
+      - ./datastore:/datastore:rw
+    environment:
+     - PLAYWRIGHT_DRIVER_URL=ws://playwright-chrome:3000/?stealth=1&--disable-web-security=true
+     #- PLAYWRIGHT_DRIVER_URL=ws://playwright-chrome:3000/chrome?stealth=1&--disable-web-security=true&blockAds=true - blockAds was causing a few websites to time out
+     # - BASE_URL=x.x.x.x:1891
+    depends_on:
+      playwright-chrome:
+          condition: service_started
+  # https://www.browserless.io/docs/docker
+  playwright-chrome:
+    hostname: playwright-chrome
+    container_name: playwright-chrome
+    #image: ghcr.io/browserless/chrome:latest
+    image: ghcr.io/browserless/chromium:latest
+    restart: unless-stopped
+    networks:
+      - changedetectionnet
+    expose:
+      - 3000
+    environment:
+      - SCREEN_WIDTH=1920
+      - SCREEN_HEIGHT=1024
+      - SCREEN_DEPTH=16
+      - ENABLE_DEBUGGER=false
+      - TIMEOUT=60000 #60 seconds
+      - CONCURRENT=4
+
+networks:
+  changedetectionnet:
+    name: changedetectionnet
+    driver: bridge
+
