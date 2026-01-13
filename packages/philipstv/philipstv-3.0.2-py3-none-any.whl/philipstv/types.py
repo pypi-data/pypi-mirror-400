@@ -1,0 +1,1 @@
+Credentials = tuple[str, str]
