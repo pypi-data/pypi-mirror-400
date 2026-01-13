@@ -1,0 +1,117 @@
+import inspect
+import datetime
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from forloop_modules.utils.definitions import JSON_SERIALIZABLE_TYPES, REDIS_STORED_TYPES
+
+
+def is_value_serializable(value) -> bool:
+    is_value_serializable = type(value) in JSON_SERIALIZABLE_TYPES
+    return is_value_serializable
+
+
+def is_value_redis_compatible(value) -> bool:
+    is_value_redis_compatible = type(value) in REDIS_STORED_TYPES
+    is_value_callable = inspect.isfunction(value)
+    is_value_class = inspect.isclass(value)
+    return is_value_redis_compatible or is_value_callable or is_value_class
+
+
+def is_list_of_strings(var) -> bool:
+    """Check for list[str] variable type."""
+    return isinstance(var, list) and all(isinstance(v, str) for v in var)
+
+
+def serialize_if_dataframe_to_api(variable_series: pd.Series) -> Any:
+    """
+    Cast a DF into a dict format used by the API if the input Variable/Result is of type 'DataFrame'
+    This functions is to be used only with pd.DataFrame.apply() method, hence the input is a
+    pd.Series.
+
+    :param variable_series: pd.Series holding a Variable
+    :type variable_series: pd.Series
+    :return: modified pd.Series holding a Variable
+    :rtype: Any
+    """
+    if variable_series['type'] == 'DataFrame':
+        variable_series["value"] = serialize_dataframe_to_api(variable_series["value"])
+    return variable_series
+
+
+def serialize_dataframe_to_api(variable_value_df: pd.DataFrame) -> dict:
+    """
+    Serialize a DF into the dict format used by API.
+
+    :param variable_value_df: a Variable's value attribute as a DataFrame
+    :type variable_value_df: pd.DataFrame
+    :return: Variable's value serialized as a dict
+    :rtype: dict
+    """
+    df = variable_value_df.copy()
+    df = df.replace(np.nan, None)
+
+    # Extract logical_types from attrs if available
+    logical_types = getattr(df, "attrs", {}).get("logical_types", {})
+    
+    # Create column_metadata array with separate name and dtype
+    column_metadata = [
+        {
+            "name": col,
+            "dtype": logical_types.get(col, str(dtype))
+        }
+        for col, dtype in zip(df.columns, df.dtypes)
+    ]
+
+    result = {
+        "columns": list(df.columns), 
+        "values": df.values.tolist(),
+        "attrs": df.attrs,
+        "column_metadata": column_metadata
+    }
+    return result
+
+
+def parse_if_dataframe_from_db(variable_series: pd.Series) -> Any:
+    """
+    Parse a DF from a dict format used in the DB if the input Variable/Result is of type 'DataFrame'
+    This functions is to be used only with pd.DataFrame.apply() method, hence the input is a
+    pd.Series.
+
+    :param variable_series: pd.Series holding a Variable
+    :type variable_series: pd.Series
+    :return: modified pd.Series holding a Variable
+    :rtype: Any
+    """
+    if variable_series['type'] == 'DataFrame':
+        df_dict = variable_series["value"]
+        df = pd.DataFrame(df_dict["data"], index=df_dict["index"], columns=df_dict["columns"])
+        df.attrs = df_dict["attrs"]
+        variable_series["value"] = df
+    return variable_series
+
+
+def serialize_if_dataframe_to_db(variable_series: pd.Series) -> Any:
+    """
+    Cast a DF into a dict format used in the DB if the input Variable/Result is of type 'DataFrame'.
+    This functions is to be used only with pd.DataFrame.apply() method, hence the input is a
+    pd.Series.
+
+    :param variable_series: pd.Series holding a Variable
+    :type variable_series: pd.Series
+    :return: modified pd.Series holding a Variable
+    :rtype: Any
+    """
+    if variable_series['type'] == 'DataFrame':
+        df = variable_series["value"]
+        df_dict = df.to_dict(orient="split")
+        df_dict["attrs"] = df.attrs
+        variable_series["value"] = df_dict
+    return variable_series
+
+def parse_datetime_to_api_format(datetime_value: datetime.datetime):
+    parsed_value = datetime_value.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    return parsed_value
