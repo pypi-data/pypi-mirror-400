@@ -1,0 +1,145 @@
+name: SDK Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sdk_legacy/**'
+      - 'sdk-ts/**'
+      - 'sdk-go/**'
+      - 'sdk-rust/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'sdk_legacy/**'
+      - 'sdk-ts/**'
+      - 'sdk-go/**'
+      - 'sdk-rust/**'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  # ============================================
+  # Python SDK
+  # ============================================
+  python-sdk:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install SDK
+        run: |
+          cd sdk_legacy/python
+          pip install -e .
+      
+      - name: Test Import
+        run: |
+          python -c "from qwed import QwedClient; print('✅ Python SDK: Import OK')"
+      
+      - name: Check Types (optional)
+        run: |
+          pip install mypy
+          cd sdk_legacy/python
+          mypy qwed --ignore-missing-imports || true
+
+  # ============================================
+  # TypeScript SDK
+  # ============================================
+  typescript-sdk:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: |
+          cd sdk-ts
+          npm install
+      
+      - name: Build
+        run: |
+          cd sdk-ts
+          npm run build
+      
+      - name: Lint (optional)
+        run: |
+          cd sdk-ts
+          npm run lint || true
+
+  # ============================================
+  # Go SDK
+  # ============================================
+  go-sdk:
+    name: Go SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Download Dependencies
+        run: |
+          cd sdk-go
+          go mod download
+      
+      - name: Build
+        run: |
+          cd sdk-go
+          go build -v .
+      
+      - name: Vet
+        run: |
+          cd sdk-go
+          go vet ./...
+
+  # ============================================
+  # Rust SDK
+  # ============================================
+  rust-sdk:
+    name: Rust SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Build
+        run: |
+          cd sdk-rust
+          cargo build --verbose
+      
+      - name: Clippy (Lint)
+        run: |
+          cd sdk-rust
+          cargo clippy -- -D warnings || true
+
+  # ============================================
+  # Summary
+  # ============================================
+  summary:
+    name: SDK Test Summary
+    needs: [python-sdk, typescript-sdk, go-sdk, rust-sdk]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check Results
+        run: |
+          echo "=== SDK Test Results ==="
+          echo "Python:     ${{ needs.python-sdk.result }}"
+          echo "TypeScript: ${{ needs.typescript-sdk.result }}"
+          echo "Go:         ${{ needs.go-sdk.result }}"
+          echo "Rust:       ${{ needs.rust-sdk.result }}"

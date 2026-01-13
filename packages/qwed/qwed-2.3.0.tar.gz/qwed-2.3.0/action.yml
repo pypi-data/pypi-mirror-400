@@ -1,0 +1,60 @@
+name: 'QWED Neurosymbolic Verification'
+description: 'Verify LLM outputs with deterministic proof in your CI/CD pipeline. Neural Networks + Symbolic Reasoning = Verifiable AI'
+author: 'Rahul Dass (QWED-AI)'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  query:
+    description: 'Query to verify (e.g., "What is the derivative of x^2?")'
+    required: true
+  
+  provider:
+    description: 'LLM provider: openai, anthropic, gemini, or custom base_url'
+    required: false
+    default: 'openai'
+  
+  api-key:
+    description: 'LLM API key (use GitHub secrets!)'
+    required: false
+  
+  model:
+    description: 'LLM model name (e.g., gpt-4o-mini, claude-3-haiku)'
+    required: false
+    default: 'gpt-4o-mini'
+  
+  mask-pii:
+    description: 'Enable PII masking for privacy (true/false)'
+    required: false
+    default: 'false'
+  
+  verification-type:
+    description: 'Type of verification: auto, math, logic, or code'
+    required: false
+    default: 'auto'
+
+outputs:
+  verified:
+    description: 'Verification result (true/false)'
+  
+  value:
+    description: 'Verified value or result'
+  
+  confidence:
+    description: 'Confidence score (0.0-1.0)'
+  
+  evidence:
+    description: 'JSON evidence of verification process'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    QWED_QUERY: ${{ inputs.query }}
+    QWED_PROVIDER: ${{ inputs.provider }}
+    QWED_API_KEY: ${{ inputs.api-key }}
+    QWED_MODEL: ${{ inputs.model }}
+    QWED_MASK_PII: ${{ inputs.mask-pii }}
+    QWED_TYPE: ${{ inputs.verification-type }}
