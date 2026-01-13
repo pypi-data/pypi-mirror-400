@@ -1,0 +1,516 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.4.0] - 2026-01-02
+
+### Added
+
+- **Statistical Robustness Utilities (statistical_utils.py)** - Comprehensive module for statistical validity and confidence
+  - **Assumption Validation Functions**:
+    - `check_normality()`: Shapiro-Wilk normality test with automatic fallback for large samples
+    - `check_homogeneity_of_variance()`: Levene's test for equal variances across groups
+    - `validate_sample_size()`: Sample size requirements validation for statistical tests
+    - `check_chi2_expected_frequencies()`: Chi-square assumption checks (expected frequencies ≥5)
+
+  - **Effect Size Calculations**:
+    - `cohens_d()`: Cohen's d effect size for t-tests with interpretation (small/medium/large)
+    - `eta_squared()`: Eta-squared (η²) effect size for ANOVA
+    - `cramers_v()`: Cramér's V effect size for chi-square tests
+    - `pearson_r_to_d()`: Convert Pearson correlation to Cohen's d
+
+  - **Multiple Testing Corrections**:
+    - `apply_multiple_testing_correction()`: Benjamini-Hochberg FDR and Bonferroni corrections
+    - Controls false positive rates when testing multiple hypotheses
+
+  - **Confidence Intervals**:
+    - `calculate_mean_ci()`: Parametric confidence intervals for means (t-distribution)
+    - `calculate_correlation_ci()`: Fisher Z-transformation for correlation confidence intervals
+    - `bootstrap_ci()`: Non-parametric bootstrap confidence intervals for any statistic
+
+- **Enhanced TargetAnalyzer Methods** - Optional statistical rigor for all statistical tests
+  - **analyze_feature_target_relationship()** enhancements:
+    - `check_assumptions=True`: Validates normality, homogeneity of variance, sample size
+    - `report_effect_sizes=True`: Includes Cohen's d, eta-squared, Cramér's V
+    - `correct_multiple_tests='fdr_bh'`: FDR or Bonferroni correction for multiple features
+    - Non-parametric fallback: Automatic Kruskal-Wallis when ANOVA assumptions violated
+
+  - **analyze_class_wise_statistics()** enhancements:
+    - `include_ci=True`: Adds 95% confidence intervals for class means
+    - `confidence_level=0.95`: Customizable confidence level (default 95%)
+
+  - **analyze_feature_correlations()** enhancements:
+    - `include_ci=True`: Fisher Z-transformation confidence intervals for correlations
+    - `check_linearity=True`: Validates linear relationship assumption
+    - `confidence_level=0.95`: Customizable confidence level (default 95%)
+
+### Changed
+
+- **TargetAnalyzer Statistical Methods** - Enhanced with opt-in statistical validation
+  - All statistical tests now support comprehensive assumption checking
+  - Effect sizes automatically calculated and interpreted when requested
+  - Multiple testing corrections applied when analyzing multiple features
+  - Non-parametric alternatives used when parametric assumptions violated
+
+### Improved
+
+- **Statistical Reliability** - Ensures valid, trustworthy statistical inferences
+  - Prevents misuse of parametric tests when assumptions violated
+  - Quantifies practical significance through effect sizes
+  - Controls false discovery rates in multiple comparisons
+  - Provides uncertainty quantification through confidence intervals
+
+- **Code Quality**
+  - New statistical_utils module with 11 well-tested utility functions
+  - Clear documentation and examples for all statistical methods
+  - All 211 tests passing - 100% backward compatibility maintained
+
+### Tests
+
+- Added 29 comprehensive tests in test_statistical_utils.py
+  - 4 tests for normality checks (normal/non-normal data, sample size handling)
+  - 3 tests for homogeneity of variance (equal/unequal variances, edge cases)
+  - 2 tests for sample size validation (sufficient/insufficient data)
+  - 2 tests for chi-square expected frequencies (valid/invalid tables)
+  - 5 tests for effect sizes (Cohen's d, eta-squared, Cramér's V, conversions)
+  - 2 tests for multiple testing corrections (FDR, Bonferroni)
+  - 5 tests for confidence intervals (mean, correlation, bootstrap with custom statistics)
+  - 3 tests for edge cases (NaN handling, zero variance, insufficient bootstrap data)
+  - 3 integration tests (ANOVA, chi-square, correlation workflows)
+
+All 211 tests pass successfully.
+
+## [2.3.0] - 2025-12-10
+
+### Added
+
+- **Architecture Refactoring** - Major internal improvements for better maintainability
+  - **FeatureEngineeringBase Class**: New base class for all toolkit classes
+    - Shared `__init__()` method with DataFrame validation and copying
+    - Shared `get_dataframe()` method
+    - All 5 main classes (DataPreprocessor, FeatureEngineer, DataAnalyzer, TargetAnalyzer, FeatureSelector) now inherit from common base
+
+  - **Utility Functions Module (utils.py)**: Centralized validation and column selection
+    - `validate_and_copy_dataframe()`: DataFrame validation and copying
+    - `validate_columns()`: Column existence validation with options
+    - `get_numeric_columns()`: Extract numeric columns from DataFrame
+    - `validate_numeric_columns()`: Validate and filter numeric columns
+    - `get_string_columns()`: Extract string/object columns
+    - `get_feature_columns()`: Get feature columns with exclusions
+    - Eliminates ~250 lines of duplicate validation code across modules
+
+  - **@inplace_transform Decorator**: Available for future method simplification
+
+- **Benchmarking Infrastructure**
+  - New `benchmarks/` directory with comprehensive benchmark suite
+  - `benchmark_suite.py`: Performance testing for critical operations
+  - `baseline_results.json`: Baseline performance measurements
+  - `OPTIMIZATION_PLAN.md`: Detailed optimization strategy and results
+
+### Changed
+
+- **Performance Optimizations** - Significant speed improvements across the library
+  - **Class-wise statistics 7x faster** (969ms → 138ms, 86% improvement)
+    - Replaced nested filtering loops with single `groupby` operations
+    - Eliminates N+1 query pattern in TargetAnalyzer
+
+  - **Outlier detection 45% faster** (221ms → 120ms)
+    - Accumulate rows to remove instead of removing in loop
+    - Eliminates index alignment issues
+    - Single removal operation at end
+
+  - **Pre-computed aggregations**: Mean/median calculations optimized for large datasets
+  - **Optimized string validation**: Set-based column existence checks
+
+- **Code Reduction** - ~300 lines of redundant code eliminated (6.5% of codebase)
+  - Single source of truth for validation operations
+  - Consistent validation patterns across all classes
+  - Outlier detection consolidated (DataPreprocessor delegates to DataAnalyzer)
+
+### Improved
+
+- **Code Quality**
+  - Better separation of concerns (shared utilities vs domain logic)
+  - Improved maintainability (changes to validation made once)
+  - Cleaner, more organized codebase structure
+  - All 182 tests passing - 100% backward compatibility maintained
+
+- **Documentation**
+  - Updated CLAUDE.md with refactoring details
+  - Added OPTIMIZATION_PLAN.md with performance benchmarks
+  - Comprehensive documentation of new architecture
+
+### Technical Details
+
+**Files Added**:
+- `feature_engineering_tk/base.py`: Base class and decorators
+- `feature_engineering_tk/utils.py`: Shared utility functions
+- `benchmarks/benchmark_suite.py`: Benchmark infrastructure
+- `benchmarks/__init__.py`: Package initialization
+- `OPTIMIZATION_PLAN.md`: Optimization documentation
+
+**Files Modified**:
+- `feature_engineering_tk/preprocessing.py`: Uses base class and utilities, optimized outlier detection
+- `feature_engineering_tk/feature_engineering.py`: Uses base class and utilities
+- `feature_engineering_tk/data_analysis.py`: Uses base class and utilities, optimized N+1 patterns
+- `feature_engineering_tk/feature_selection.py`: Uses base class and utilities
+
+**Benefits**:
+- Significantly faster statistical analysis (7x improvement for class-wise statistics)
+- Improved code maintainability and consistency
+- Single source of truth for validation logic
+- Better performance for large datasets
+- Cleaner architecture with clear separation of concerns
+
+All 182 tests pass successfully.
+
+## [2.2.0] - 2025-12-07
+
+### Added
+
+- **DataAnalyzer Enhancements** - Column type detection and binning suggestions
+
+  - **Column Type Detection**
+    - `detect_misclassified_categorical()`: Identifies numeric columns that should be categorical
+    - Detects binary/flag columns (exactly 2 unique values)
+    - Finds low cardinality numeric columns (≤10 unique values by default)
+    - Identifies columns with very low unique ratios (many repeated values)
+    - Catches integer columns with moderate cardinality (≤20 values)
+
+  - **Binning Suggestions**
+    - `suggest_binning()`: Recommends binning strategies based on distribution characteristics
+    - Quantile binning for skewed distributions (abs(skewness) > 1.0)
+    - Uniform binning for relatively uniform distributions
+    - Handles outlier-heavy columns appropriately
+    - Suggests appropriate number of bins (requires min 20 unique values)
+
+  - **Enhanced `quick_analysis()` Function**
+    - New "MISCLASSIFIED CATEGORICAL COLUMNS" section
+    - New "BINNING SUGGESTIONS" section with actionable tips
+    - Helps identify data type misclassifications during EDA
+    - Provides intelligent binning recommendations without requiring a target column
+
+- **DataPreprocessor Enhancements** - Major quality-of-life improvements
+
+  - **Method Chaining Support**
+    - All preprocessing methods now return `self` when `inplace=True` (previously returned `self.df`)
+    - Enables fluent API pattern for cleaner, more readable code
+    - Example: `preprocessor.method1(inplace=True).method2(inplace=True).method3(inplace=True)`
+
+  - **Operation History Tracking**
+    - Automatic logging of all preprocessing operations when `inplace=True`
+    - `_operation_history`: Internal list tracking all operations with timestamps, parameters, and shape changes
+    - `get_preprocessing_summary()`: Returns formatted text summary of all operations
+    - `export_summary(filepath, format)`: Export preprocessing history to text/markdown/JSON formats
+    - Enables full reproducibility and documentation of preprocessing pipelines
+
+  - **String Preprocessing Methods (3 new methods)**
+    - `clean_string_columns()`: Clean string columns with 7 operations (strip, lower, upper, title, remove_punctuation, remove_digits, remove_extra_spaces)
+    - `handle_whitespace_variants()`: Standardize whitespace variants in categorical columns
+    - `extract_string_length()`: Create length features from string columns
+
+  - **Data Validation Methods (3 new methods)**
+    - `validate_data_quality()`: Comprehensive data quality report (missing values, constant columns, infinite values, duplicate count)
+    - `detect_infinite_values()`: Detect np.inf/-np.inf in numeric columns
+    - `create_missing_indicators()`: Create binary indicator columns for missing values
+
+  - **Enhanced Error Handling**
+    - Better parameter validation across all preprocessing methods
+    - Warnings for destructive operations (e.g., removing >30% of data)
+    - Enhanced logging throughout preprocessing methods
+
+### Changed
+
+- **Breaking Change**: `DataPreprocessor` methods now return `self` when `inplace=True` instead of `self.df`
+  - **Impact**: Code that assigns the return value when using `inplace=True` will now receive the preprocessor object instead of a DataFrame
+  - **Benefit**: Enables method chaining
+  - **Migration**: Use `.df` attribute to access DataFrame, or use method chaining
+  - Example:
+    ```python
+    # Before v2.2.0:
+    result = preprocessor.handle_missing_values(inplace=True)  # result was DataFrame
+
+    # After v2.2.0:
+    result = preprocessor.handle_missing_values(inplace=True)  # result is DataPreprocessor
+    df = result.df  # Access DataFrame via .df attribute
+
+    # Or use method chaining (recommended):
+    preprocessor.method1(inplace=True).method2(inplace=True)
+    ```
+
+### Tests
+
+- Added 51 comprehensive tests for new features (now 182 total tests)
+  - **DataAnalyzer**: 9 tests for column type detection and binning suggestions
+  - **DataPreprocessor**: 42 tests
+    - 7 tests for string preprocessing
+    - 6 tests for data validation
+    - 6 tests for enhanced error handling
+    - 6 tests for method chaining
+    - 17 tests for operation history tracking
+
+All 182 tests pass successfully.
+
+## [2.1.1] - 2025-11-30
+
+### Fixed
+
+- **Critical Configuration Issues**
+  - Fixed version mismatch: Updated `setup.py` from 2.0.0 to match 2.1.1 across all configuration files
+  - Added missing `statsmodels>=0.14.0` dependency to `requirements.txt` and `setup.py`
+  - Fixed `.gitignore` pattern conflict: Removed `test_*.py` pattern that conflicted with tracked test files
+
+### Improved
+
+- **Code Quality**
+  - Removed unused `pointbiserialr` import from `data_analysis.py`
+  - Replaced inefficient `.iterrows()` with `.to_dict('records')` for better performance (2 instances in `data_analysis.py`)
+
+- **Documentation**
+  - Added comprehensive `FeatureSelector` class docstring with attributes and usage examples
+  - Added detailed `FeatureSelector.__init__()` docstring with Args/Raises sections
+  - Added input validation to `FeatureSelector.__init__()` (TypeError and empty DataFrame checks)
+
+- **Type Hints**
+  - Enhanced type hint imports in `feature_selection.py` (added Dict, Callable, Any)
+  - Updated `feature_scores` type hint from `dict` to `Dict[str, Dict[str, float]]`
+  - Added explicit type hints to `selected_features: List[str]`
+  - Improved `score_func` parameter type hint to `Optional[Union[str, Callable]]`
+
+- **Configuration Files**
+  - Fixed `MANIFEST.in` case sensitivity issue: `claude.md` → `CLAUDE.md`
+
+All 131 tests pass successfully. Changes maintain backward compatibility.
+
+## [2.1.0] - 2025-11-24
+
+### Added
+
+- **TargetAnalyzer Class** - Comprehensive target-aware statistical analysis for ML tasks
+  - **Auto Task Detection**: Automatically detects classification vs regression based on target column characteristics
+  - **Initialization**: `TargetAnalyzer(df, target_column, task='auto')` with intelligent task inference
+
+- **Phase 1: Core Infrastructure**
+  - `get_task_info()`: Get detected task type and target column information
+  - `analyze_class_distribution()`: Class counts, percentages, and imbalance ratios (classification)
+  - `get_class_imbalance_info()`: Detailed imbalance analysis with severity levels (mild/moderate/severe/extreme)
+  - `analyze_target_distribution()`: Comprehensive target statistics with optional normality tests (regression)
+  - `plot_class_distribution()`: Visualize class distribution with counts and percentages
+  - `plot_target_distribution()`: Target histogram with KDE and Q-Q plot for normality assessment
+  - `generate_summary_report()`: Legacy formatted text report for quick analysis
+  - Caching mechanism for expensive computations
+
+- **Phase 2: Classification Statistical Tests**
+  - `analyze_feature_target_relationship()`: Chi-square tests for categorical features, ANOVA F-tests for numeric features
+  - `analyze_class_wise_statistics()`: Mean, median, and std of numeric features per class
+  - `plot_feature_by_class()`: Box plots, violin plots, or histograms showing feature distributions by class
+
+- **Phase 3: Regression Analysis & Correlations**
+  - `analyze_feature_correlations()`: Pearson and Spearman correlations with target
+  - `analyze_mutual_information()`: Feature importance via mutual information (both classification and regression)
+  - `plot_feature_vs_target()`: Scatter plots with regression lines for top correlated features
+  - `analyze_residuals()`: Residual analysis with MAE, RMSE, R², and normality tests
+  - `plot_residuals()`: Residual plots (residuals vs predicted, Q-Q plot for residual normality)
+
+- **Phase 4: Data Quality & Recommendations**
+  - `analyze_data_quality()`: Comprehensive checks for missing values, constant features, duplicates
+  - Potential data leakage detection: Perfect correlations, suspicious p-values, zero variance features
+  - `calculate_vif()`: Multicollinearity detection using Variance Inflation Factor (delegates to DataAnalyzer, auto-excludes target)
+  - `generate_recommendations()`: Actionable recommendations with priority levels (high/medium/low) based on all analyses
+
+- **Phase 5: Report Generation & Export**
+  - `generate_full_report()`: Structured dictionary containing all analyses (distribution, relationships, MI scores, quality, VIF, recommendations)
+  - `export_report()`: Multi-format export with three options:
+    - **HTML**: Professional report with CSS styling, tables, and formatting
+    - **Markdown**: Well-structured markdown with tables for documentation/GitHub
+    - **JSON**: Machine-readable format for programmatic access
+  - Reports include all relevant analyses based on task type
+
+- **Phase 7: Feature Engineering Suggestions**
+  - `suggest_feature_engineering()`: Intelligent feature transformation recommendations
+  - **Skewness-based transforms**: Log, sqrt, or polynomial transforms for skewed distributions
+  - **Categorical encoding strategies**: One-hot (low cardinality), target encoding (medium), ordinal based on data characteristics
+  - **Scaling recommendations**: Based on feature value ranges and distributions
+  - **Non-linear relationships**: Polynomial feature suggestions for features with non-linear target relationships
+  - **Interaction terms**: Suggestions for correlated features that may benefit from interactions
+  - **Missing value indicators**: Binary flags for features with significant missing data
+  - **Binning suggestions**: For high-cardinality numeric features in classification tasks
+  - Priority-sorted suggestions (high/medium/low) with detailed reasoning
+
+- **Phase 8: Model Recommendations**
+  - `recommend_models()`: ML algorithm suggestions tailored to dataset characteristics
+  - **Classification models**: Handles class imbalance (SMOTE, class weights), dimensionality, binary vs multiclass
+  - **Regression models**: Considers outliers, target distribution, feature relationships, non-linearity
+  - **Dataset size awareness**: Different recommendations for small (<1000), medium, and large datasets
+  - **Model-specific guidance**: Hyperparameter tuning suggestions, regularization recommendations
+  - **Priority-sorted**: Random Forest, XGBoost, LightGBM, Linear models, Neural Networks based on data
+  - Practical considerations for each recommended model
+
+- **DataAnalyzer Enhancements**
+  - `calculate_vif()`: Variance Inflation Factor calculation for multicollinearity detection (VIF > 10 indicates high collinearity)
+  - Moved from TargetAnalyzer to DataAnalyzer for better separation of concerns (VIF is target-independent)
+  - TargetAnalyzer delegates to DataAnalyzer for VIF, automatically excluding target column
+
+- **Comprehensive Test Suite**
+  - 87 new tests for TargetAnalyzer (total: 131 tests across all modules)
+  - `test_target_analyzer.py`: Complete coverage of all 8 phases
+    - Initialization and task detection (7 tests)
+    - Classification analysis (6 tests)
+    - Regression analysis (5 tests)
+    - Summary reports and caching (4 tests)
+    - Edge cases (3 tests)
+    - Phase 2: Classification statistical tests (6 tests)
+    - Phase 3: Regression correlations and MI (9 tests)
+    - Phase 4: Data quality and recommendations (8 tests)
+    - Phase 2-4: Integration tests (2 tests)
+    - Phase 5: Report generation and export (9 tests)
+    - Phase 7: Feature engineering suggestions (10 tests)
+    - Phase 8: Model recommendations (10 tests)
+
+- **Documentation**
+  - Comprehensive README update with TargetAnalyzer usage examples
+  - API Reference documentation for all 30+ TargetAnalyzer methods
+  - Updated CLAUDE.md with architecture decisions and implementation details
+  - FEATURE_PLAN.md documenting the phased development approach
+
+### Changed
+
+- **Architecture Refactoring**
+  - VIF calculation relocated from TargetAnalyzer to DataAnalyzer
+  - Improved separation of concerns: general EDA (DataAnalyzer) vs target-specific analysis (TargetAnalyzer)
+  - TargetAnalyzer now delegates to DataAnalyzer for VIF with automatic target exclusion
+
+- **Dependencies**
+  - Added `statsmodels>=0.14.0` for VIF calculation and advanced statistical tests
+
+- **README**
+  - Updated header to "feature-engineering-tk v2.1.0" with professional badges
+  - Added Features section highlighting 8 key capabilities
+  - Added "What's New in v2.1.0" section with comprehensive TargetAnalyzer documentation
+  - Expanded API Reference with complete method categorization
+  - Added Contributing, Support, and Links sections
+
+### Fixed
+
+- Minor improvements to error handling in statistical tests for edge cases (constant features, small datasets)
+
+## [2.0.0] - 2025-11-22
+
+### Breaking Changes
+
+- **Inplace parameter default changed from `True` to `False`** for all methods in `DataPreprocessor` and `FeatureEngineer`
+  - This aligns with pandas conventions and prevents accidental data mutations
+  - Migration: Add `inplace=True` to existing method calls or refactor to use returned DataFrames
+  - See README.md for detailed migration guide
+
+### Added
+
+- **Transformer Persistence** (`FeatureEngineer`)
+  - New `save_transformers(filepath)` method to save fitted encoders and scalers
+  - New `load_transformers(filepath)` method to load previously fitted transformers
+  - Enables deployment of consistent transformations in production environments
+
+- **Custom Exception Hierarchy**
+  - `MLToolkitError` - Base exception class
+  - `ValidationError` - For validation failures
+    - `InvalidStrategyError` - Invalid strategy parameter
+    - `InvalidMethodError` - Invalid method parameter
+    - `ColumnNotFoundError` - Column not found in DataFrame
+    - `DataTypeError` - Invalid data type
+    - `EmptyDataFrameError` - Empty DataFrame error
+    - `InsufficientDataError` - Insufficient data for operation
+  - `TransformerNotFittedError` - Attempting to save unfitted transformers
+  - `ConstantColumnError` - Operation on constant column
+  - All exceptions provide clear, actionable error messages
+
+- **Comprehensive Logging System**
+  - Replaced ~40 `print()` statements with proper logging using Python's `logging` module
+  - Configurable log levels (DEBUG, INFO, WARNING, ERROR)
+  - Applied across all modules for production-ready error tracking
+
+- **Input Validation**
+  - Type checking for all method parameters
+  - Value range validation where applicable
+  - Clear error messages with valid options
+  - Prevents silent failures and data corruption
+
+- **Comprehensive Test Suite**
+  - 42 tests across 5 test files
+  - `test_preprocessing.py` - 12 tests
+  - `test_feature_engineering.py` - 13 tests
+  - `test_data_analysis.py` - 6 tests
+  - `test_exceptions.py` - 4 tests
+  - `test_plotting.py` - 8 tests
+  - Tests cover critical bugs, edge cases, and new features
+
+- **Enhanced Documentation**
+  - Comprehensive docstrings with Args/Returns/Raises sections
+  - Developer documentation in `claude.md`
+  - Migration guide in README.md
+
+### Changed
+
+- **Package Structure**
+  - Fixed broken package structure by moving all modules to `feature_engineering_tk/` directory
+  - Now properly installable via `pip install -e .`
+  - Corrected `setup.py` configuration using `find_packages()`
+
+- **Plotting Methods Return Values** (`DataAnalyzer`)
+  - `plot_missing_values()` now returns `matplotlib.figure.Figure` object (or `None` if no data)
+  - `plot_correlation_heatmap()` now returns `Figure` object (or `None` if insufficient data)
+  - `plot_distributions()` now returns `Figure` object (or `None` if no numeric columns)
+  - All plotting methods accept `show` parameter (default `True`)
+  - Enables programmatic plot manipulation and saving
+  - Example: `fig = analyzer.plot_missing_values(show=False); fig.savefig('plot.png')`
+
+### Fixed
+
+- **Critical: Inplace Operation Bugs** (9 methods affected)
+  - `DataPreprocessor.convert_dtypes()` - Now correctly updates `self.df` when `inplace=True`
+  - `DataPreprocessor.clip_values()` - Now correctly updates `self.df` when `inplace=True`
+  - `DataPreprocessor.apply_custom_function()` - Now correctly updates `self.df` when `inplace=True`
+  - `FeatureEngineer.encode_categorical_label()` - Fixed inplace behavior
+  - `FeatureEngineer.encode_categorical_onehot()` - Fixed inplace behavior
+  - `FeatureEngineer.encode_categorical_ordinal()` - Fixed inplace behavior
+  - `FeatureEngineer.scale_features()` - Fixed inplace behavior
+  - `FeatureEngineer.create_binning()` - Fixed inplace behavior
+  - `FeatureEngineer.create_log_transform()` - Fixed inplace behavior
+  - `FeatureEngineer.create_sqrt_transform()` - Fixed inplace behavior
+  - These bugs caused silent data loss when `inplace=False` and incorrect behavior when `inplace=True`
+
+- **Critical: Division by Zero Protection**
+  - `DataAnalyzer.detect_outliers_zscore()` - Skips columns with zero standard deviation
+  - `DataPreprocessor.handle_outliers()` (zscore method) - Skips constant columns
+  - Prevents crashes and provides clear warning messages
+
+- **Critical: Deprecated Pandas Methods**
+  - Replaced `fillna(method='ffill')` with `ffill()`
+  - Replaced `fillna(method='bfill')` with `bfill()`
+  - Ensures compatibility with pandas >=2.0
+
+### Development
+
+- Added development dependencies: pytest, pytest-cov, black, flake8, mypy
+- Set up proper package structure for pip installation
+- Configured non-interactive matplotlib backend for testing
+
+## [1.0.0] - 2025-11-20
+
+### Added
+
+- Initial release of Feature Engineering Toolkit
+- `DataAnalyzer` - Exploratory data analysis and visualization
+- `DataPreprocessor` - Data cleaning and preprocessing
+- `FeatureEngineer` - Feature transformation and creation
+- `FeatureSelector` - Feature selection methods
+- Basic documentation and examples
+
+[2.3.0]: https://github.com/bluelion1999/feature_engineering_tk/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/bluelion1999/feature_engineering_tk/compare/v2.1.1...v2.2.0
+[2.1.1]: https://github.com/bluelion1999/feature_engineering_tk/compare/v2.1.0...v2.1.1
+[2.1.0]: https://github.com/bluelion1999/feature_engineering_tk/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/bluelion1999/feature_engineering_tk/compare/v1.0.0...v2.0.0
+[1.0.0]: https://github.com/bluelion1999/feature_engineering_tk/releases/tag/v1.0.0
