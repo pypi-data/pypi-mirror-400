@@ -1,0 +1,104 @@
+name: LangGraph Compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      langgraph_branch:
+        description: 'LangGraph branch to test against'
+        required: false
+        default: 'main'
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  compatibility:
+    name: LangGraph Compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Build extension
+        run: uv run maturin develop --release
+
+      - name: Run compatibility tests
+        env:
+          LANGGRAPH_BRANCH: ${{ github.event.inputs.langgraph_branch || 'main' }}
+        run: |
+          # Run LangGraph tests with Fast LangGraph shim applied
+          # The script automatically ignores tests with complex fixture requirements
+          # Generates COMPATIBILITY.md report
+          python scripts/test_compatibility.py --branch $LANGGRAPH_BRANCH -v --keep -- -v -x
+
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-report
+          path: COMPATIBILITY.md
+          retention-days: 30
+
+      - name: Upload test environment
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-environment
+          path: .langgraph-test/
+          retention-days: 7
+
+  notify-failure:
+    name: Notify on Failure
+    needs: compatibility
+    runs-on: ubuntu-latest
+    if: failure() && github.event_name == 'schedule'
+    steps:
+      - name: Create Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'compatibility,automated',
+              state: 'open'
+            });
+
+            // Don't create duplicate issues
+            if (issues.data.length > 0) {
+              console.log('Issue already exists, skipping creation');
+              return;
+            }
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'LangGraph Compatibility Test Failed',
+              body: `The scheduled compatibility test failed on ${new Date().toISOString()}.
+
+            [View workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+
+            This may indicate breaking changes in LangGraph.`,
+              labels: ['bug', 'compatibility', 'automated']
+            });
