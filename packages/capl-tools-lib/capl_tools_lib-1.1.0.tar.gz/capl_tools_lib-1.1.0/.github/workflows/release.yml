@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Build, Release, and Publish
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. Setup uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5 # Using latest stable version
+
+      # 2. Build the package FIRST (so the files exist)
+      - name: Build Package
+        run: uv build
+
+      # 3. Extract the section from CHANGELOG.md
+      - name: Extract Release Notes
+        id: extract-release-notes
+        uses: ffurrer2/extract-release-notes@v2
+
+      # 4. Create the GitHub Release using logic that works on all versions
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NOTES=$(cat << 'EOF'
+          ${{ steps.extract-release-notes.outputs.release_notes }}
+          EOF
+          )
+          
+          # Check if release exists; if not, create it.
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "Release already exists. Updating notes..."
+            gh release edit "${{ github.ref_name }}" --notes "$NOTES"
+          else
+            echo "Creating new release..."
+            gh release create "${{ github.ref_name }}" \
+              --title "Release ${{ github.ref_name }}" \
+              --notes "$NOTES"
+          fi
+          
+          # Upload the built files from the dist/ folder
+          gh release upload "${{ github.ref_name }}" ./dist/* --clobber
+
+      # 5. Publish to PyPI
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
