@@ -1,0 +1,347 @@
+# Product Hunt SDK
+
+A Python SDK for the Product Hunt API. Track trending products, discover new launches, and monitor your own products.
+
+**[Live Demo](https://domoryonok.github.io/producthunt-sdk/)** - See today's top Product Hunt launches, updated every 5 minutes.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Authentication](#authentication)
+  - [Developer Token](#developer-token)
+  - [Client Credentials](#client-credentials)
+  - [OAuth](#oauth)
+  - [Token Caching](#token-caching)
+- [Usage Examples](#usage-examples)
+  - [Track Your Launch](#track-your-launch)
+  - [Find Trending Products](#find-trending-products)
+  - [Read Comments](#read-comments)
+  - [Monitor Topics](#monitor-topics)
+  - [Access Your Own Data](#access-your-own-data)
+  - [Async Support](#async-support)
+  - [Custom GraphQL](#custom-graphql)
+- [API Reference](#api-reference)
+  - [Available Methods](#available-methods)
+  - [Pagination](#pagination)
+  - [Configuration](#configuration)
+  - [Rate Limits](#rate-limits)
+  - [Error Handling](#error-handling)
+- [Data Access Limitations](#data-access-limitations)
+- [License](#license)
+
+## Installation
+
+```bash
+# With pip
+pip install producthunt-sdk
+
+# With uv
+uv add producthunt-sdk
+```
+
+**Requirements:** Python 3.13+
+
+## Quick Start
+
+```python
+from producthunt_sdk import ProductHuntClient, BearerAuth
+
+client = ProductHuntClient(auth=BearerAuth("your_developer_token"))
+
+# Get today's top products
+for post in client.get_posts(featured=True, first=5).nodes:
+    print(f"{post.name} - {post.votes_count} votes")
+```
+
+Get your token at [producthunt.com/v2/oauth/applications](https://www.producthunt.com/v2/oauth/applications)
+
+## Authentication
+
+Three authentication methods are available depending on your use case.
+
+### Developer Token
+
+The simplest way to get started. Get a token from your [Product Hunt dashboard](https://www.producthunt.com/v2/oauth/applications).
+
+```python
+from producthunt_sdk import ProductHuntClient, BearerAuth
+
+client = ProductHuntClient(auth=BearerAuth("your_developer_token"))
+posts = client.get_posts(featured=True)
+```
+
+Developer tokens provide full API access including user-specific data for your own account.
+
+### Client Credentials
+
+Use for server-side applications that don't need user context. No browser required.
+
+```python
+from producthunt_sdk import ProductHuntClient, ClientCredentials
+
+client = ProductHuntClient(auth=ClientCredentials(
+    client_id="your_client_id",
+    client_secret="your_client_secret",
+))
+
+# Access public data - token is fetched automatically
+posts = client.get_posts(featured=True)
+for post in posts.nodes:
+    print(f"{post.name}: {post.votes_count} votes")
+```
+
+**Limitations:** Client credentials only provide read access to public data. User-specific fields (`is_voted`, `viewer`, etc.) return default values.
+
+### OAuth
+
+Use when building apps that authenticate users. This gives you access to the authenticated user's own data.
+
+**Note:** Product Hunt requires HTTPS redirect URIs. Use [ngrok](https://ngrok.com) to tunnel to localhost for development.
+
+```python
+from producthunt_sdk import ProductHuntClient, OAuth2
+
+# OAuth flow runs automatically on first request
+client = ProductHuntClient(auth=OAuth2(
+    client_id="your_client_id",
+    client_secret="your_client_secret",
+    redirect_uri="https://your-app.ngrok.io/callback",
+))
+
+# This triggers the OAuth flow: opens browser, waits for callback, exchanges token
+viewer = client.get_viewer()
+print(f"Logged in as @{viewer.user.username}")
+
+# Token is cached - subsequent requests use the cached token
+posts = client.get_user_posts(username=viewer.user.username)
+```
+
+See `examples/oauth_flow.py` for a complete example.
+
+### Token Caching
+
+Tokens are cached in memory by default. For persistence across restarts:
+
+```python
+from producthunt_sdk import OAuth2, ClientCredentials, TokenCache
+
+# Use file-based cache
+OAuth2.token_cache = TokenCache("~/.producthunt_tokens.json")
+ClientCredentials.token_cache = TokenCache("~/.producthunt_tokens.json")
+```
+
+## Usage Examples
+
+### Track Your Launch
+
+```python
+post = client.get_post(slug="your-product")
+print(f"Votes: {post.votes_count}")
+print(f"Comments: {post.comments_count}")
+print(f"Rating: {post.reviews_rating}")
+```
+
+### Find Trending Products
+
+```python
+from datetime import datetime, timedelta, UTC
+from producthunt_sdk import PostsOrder
+
+# Top AI products from the last week
+posts = client.get_posts(
+    topic="artificial-intelligence",
+    posted_after=datetime.now(UTC) - timedelta(days=7),
+    order=PostsOrder.VOTES,
+    first=10
+)
+
+for post in posts.nodes:
+    print(f"{post.name}: {post.tagline}")
+```
+
+### Read Comments
+
+```python
+from producthunt_sdk import CommentsOrder
+
+comments = client.get_post_comments(
+    post_slug="chatgpt",
+    first=10,
+    order=CommentsOrder.VOTES_COUNT
+)
+for comment in comments.nodes:
+    print(f"{comment.body[:100]}...")
+```
+
+### Monitor Topics
+
+```python
+from producthunt_sdk import TopicsOrder
+
+topics = client.get_topics(order=TopicsOrder.FOLLOWERS_COUNT, first=10)
+for topic in topics.nodes:
+    print(f"{topic.name}: {topic.followers_count} followers, {topic.posts_count} products")
+```
+
+### Access Your Own Data
+
+```python
+# Get your profile (requires your token)
+viewer = client.get_viewer()
+print(f"Logged in as: @{viewer.user.username}")
+
+# Get your own posts
+my_posts = client.get_user_posts(username=viewer.user.username)
+for post in my_posts.nodes:
+    print(f"{post.name} - {post.votes_count} votes")
+```
+
+### Async Support
+
+For high-performance applications:
+
+```python
+import asyncio
+from producthunt_sdk import AsyncProductHuntClient, BearerAuth
+
+async def main():
+    async with AsyncProductHuntClient(auth=BearerAuth("your_token")) as client:
+        posts = await client.get_posts(featured=True)
+        print(f"Found {len(posts.nodes)} products")
+
+asyncio.run(main())
+```
+
+### Custom GraphQL
+
+Need something specific? Use raw GraphQL:
+
+```python
+data = client.graphql("""
+    query {
+        posts(first: 5, featured: true) {
+            edges {
+                node {
+                    name
+                    votesCount
+                }
+            }
+        }
+    }
+""")
+```
+
+## API Reference
+
+### Available Methods
+
+| Method | Description | Access |
+|--------|-------------|--------|
+| `get_post(id, slug)` | Get a single product | Public |
+| `get_posts(...)` | List products with filters | Public |
+| `get_topic(id, slug)` | Get a topic/category | Public |
+| `get_topics(...)` | List topics | Public |
+| `get_collection(id, slug)` | Get a curated collection | Public |
+| `get_collections(...)` | List collections | Public |
+| `get_collection_posts(...)` | Products in a collection | Public |
+| `get_post_comments(...)` | Comments on a product | Public (user info redacted) |
+| `get_post_votes(...)` | Votes on a product | Public (user info redacted) |
+| `get_comment(id)` | Get a single comment | Public (user info redacted) |
+| `get_viewer()` | Current authenticated user | Your data only |
+| `get_user(id, username)` | Get user profile | Your data only |
+| `get_user_posts(...)` | Products made by user | Your data only |
+| `get_user_voted_posts(...)` | Products user upvoted | Your data only |
+| `get_user_followers(...)` | User's followers | Your data only |
+| `get_user_following(...)` | Who user follows | Your data only |
+| `follow_user(user_id)` | Follow a user | Requires write scope |
+| `unfollow_user(user_id)` | Unfollow a user | Requires write scope |
+| `graphql(query, variables)` | Run custom GraphQL | Varies |
+
+### Pagination
+
+All list methods return paginated results:
+
+```python
+# First page
+page1 = client.get_posts(first=20)
+
+# Next page
+if page1.page_info.has_next_page:
+    page2 = client.get_posts(first=20, after=page1.page_info.end_cursor)
+
+# Iterate all items
+for post in page1.nodes:
+    print(post.name)
+```
+
+### Configuration
+
+```python
+from producthunt_sdk import ProductHuntClient, BearerAuth
+
+client = ProductHuntClient(
+    auth=BearerAuth("your_token"),
+    auto_wait_on_rate_limit=True,  # Wait instead of failing (default: True)
+    max_wait_seconds=900,           # Max wait time for rate limits (default: 15min)
+    timeout=30.0,                   # Request timeout (default: 30s)
+    max_retries=3,                  # Retry on network errors (default: 3)
+)
+```
+
+### Rate Limits
+
+The API allows 6,250 complexity points per 15 minutes. The SDK:
+
+- Tracks your usage automatically
+- Waits when you hit the limit (configurable)
+- Retries on network errors and server issues
+
+Check your usage:
+
+```python
+info = client.rate_limit_info
+print(f"Remaining: {info.remaining}/{info.limit}")
+print(f"Resets in: {info.seconds_until_reset:.0f}s")
+```
+
+### Error Handling
+
+```python
+from producthunt_sdk import (
+    ProductHuntError,
+    AuthenticationError,
+    RateLimitError,
+    GraphQLError,
+)
+
+try:
+    posts = client.get_posts()
+except AuthenticationError:
+    print("Check your API token")
+except RateLimitError as e:
+    print(f"Rate limited. Retry in {e.rate_limit_info.seconds_until_reset}s")
+except GraphQLError as e:
+    print(f"API error: {e.message}")
+except ProductHuntError as e:
+    print(f"Something went wrong: {e}")
+```
+
+## Data Access Limitations
+
+Product Hunt's API has privacy restrictions:
+
+| Data | Access |
+|------|--------|
+| Featured/trending posts | Full access |
+| Post details (votes, comments count) | Full access |
+| Topics and collections | Full access |
+| Comments on posts | Text only (commenter info redacted) |
+| **Your own** profile, posts, votes, followers | Full access |
+| **Other users'** profiles, posts, votes, followers | Redacted |
+
+For extended access to user data, contact Product Hunt at hello@producthunt.com.
+
+## License
+
+MIT
