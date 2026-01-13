@@ -1,0 +1,1066 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen" x-data="timelineApp()">
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm mb-6">
+        <a href="/jobs" class="text-slate-400 hover:text-white transition-colors">Jobs</a>
+        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <a href="/jobs/{{ job.id }}" class="text-slate-400 hover:text-white transition-colors">
+            {{ job.name or job.id[:8] }}
+        </a>
+        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <span class="text-white">Timeline</span>
+    </nav>
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+                <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                Timeline Analysis
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">{{ job.name or job.replication_group_id }} — <span x-text="formatNumber(summary?.total_commands || 0)"></span> commands</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="/jobs/{{ job.id }}" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                Overview
+            </a>
+            <span class="px-3 py-1.5 text-sm bg-purple-600 rounded-lg text-white flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                Timeline
+            </span>
+            <a href="/jobs/{{ job.id }}/shard-distribution" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7zm0 5h16" /></svg>
+                Shards
+            </a>
+            <a href="/jobs/{{ job.id }}/analysis" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                Analyze
+            </a>
+            <a href="/query?job_id={{ job.id }}" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                SQL
+            </a>
+        </div>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-6">
+        <!-- Main Content -->
+        <div class="flex-1 min-w-0 order-2 lg:order-1">
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="glass-card rounded-xl p-4">
+                    <div class="text-2xl font-bold text-white" x-text="formatNumber(summary?.total_commands || 0)"></div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wide">Total Commands</div>
+                </div>
+                <div class="glass-card rounded-xl p-4">
+                    <div class="text-2xl font-bold text-emerald-400" x-text="summary?.time_range?.split(' - ')[0] || '—'"></div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wide">Start Time</div>
+                </div>
+                <div class="glass-card rounded-xl p-4">
+                    <div class="text-2xl font-bold text-purple-400" x-text="chartData?.labels?.length || 0"></div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wide">Time Buckets</div>
+                </div>
+                <div class="glass-card rounded-xl p-4">
+                    <div class="text-2xl font-bold text-amber-400" x-text="chartData?.datasets?.length || 0"></div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wide" x-text="groupByLabel + 's'"></div>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="glass-card rounded-xl p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-white">Command Traffic Over Time</h3>
+                    <div class="flex items-center gap-3">
+                        <!-- Chart type buttons -->
+                        <div class="flex rounded-lg bg-slate-800/50 p-0.5" :class="loading && 'opacity-50 pointer-events-none'">
+                            <button @click="changeChartType('bar')" :disabled="loading"
+                                    :class="chartType === 'bar' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'"
+                                    class="px-3 py-1.5 text-xs font-medium rounded-md transition-all">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+                            </button>
+                            <button @click="changeChartType('line')" :disabled="loading"
+                                    :class="chartType === 'line' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'"
+                                    class="px-3 py-1.5 text-xs font-medium rounded-md transition-all">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                            </button>
+                            <button @click="changeChartType('area')" :disabled="loading"
+                                    :class="chartType === 'area' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'"
+                                    class="px-3 py-1.5 text-xs font-medium rounded-md transition-all">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            </button>
+                        </div>
+                        <!-- Share button -->
+                        <div x-data="{ sharing: false, copied: false, showTooltip: false }" class="relative">
+                            <button 
+                                @click="async () => { 
+                                    sharing = true; 
+                                    showTooltip = false;
+                                    const result = await UrlState.copyUrl(true); 
+                                    sharing = false; 
+                                    if (result.copied) { 
+                                        copied = true; 
+                                        setTimeout(() => copied = false, 2000); 
+                                    } 
+                                }"
+                                @mouseenter="showTooltip = true"
+                                @mouseleave="showTooltip = false"
+                                :disabled="sharing"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/50 text-slate-300 hover:text-white hover:bg-slate-700 transition-all disabled:opacity-50">
+                                <svg x-show="!sharing && !copied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                </svg>
+                                <svg x-show="sharing" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <svg x-show="copied" x-cloak class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span x-text="copied ? 'Copied!' : 'Share'"></span>
+                            </button>
+                            <!-- Tooltip -->
+                            <div x-show="showTooltip && !sharing && !copied" 
+                                 x-cloak
+                                 x-transition:enter="transition ease-out duration-150"
+                                 x-transition:enter-start="opacity-0 translate-y-1"
+                                 x-transition:enter-end="opacity-100 translate-y-0"
+                                 class="absolute top-full right-0 mt-2 w-56 z-50">
+                                <div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3 text-xs">
+                                    <p class="text-white font-medium mb-1">Share this view</p>
+                                    <p class="text-slate-400 leading-relaxed">Creates a short URL with your current filters, groupings, and chart settings.</p>
+                                    <div class="absolute -top-1.5 right-4 w-3 h-3 bg-slate-800 border-l border-t border-slate-700 rotate-45"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart Container - always visible -->
+                <div class="relative h-[350px]">
+                    <!-- Loading Overlay -->
+                    <div x-show="loading" class="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-10 rounded-lg">
+                        <div class="flex items-center gap-3 text-slate-400">
+                            <svg class="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Loading timeline data...</span>
+                        </div>
+                    </div>
+
+                    <!-- Error Overlay -->
+                    <div x-show="error && !loading" class="absolute inset-0 bg-slate-900/90 flex items-center justify-center z-10 rounded-lg">
+                        <div class="text-center">
+                            <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            <p class="text-red-400" x-text="error"></p>
+                        </div>
+                    </div>
+
+                    <!-- Canvas - always in DOM, use x-ref instead of id -->
+                    <canvas x-ref="timelineCanvas"></canvas>
+                </div>
+
+                <div x-show="!loading && !error" class="mt-3 text-xs text-slate-500 text-center">
+                    Click legend to focus • Shift+click to hide • Click chart to see breakdown
+                </div>
+            </div>
+
+            <!-- Spike Analysis Panel -->
+            <div x-show="selectedSpike" x-transition class="glass-card rounded-xl p-4 mb-6 border border-purple-500/30 bg-purple-500/5">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-purple-300 flex items-center gap-2">
+                        📊 Point Analysis: <span class="font-mono" x-text="selectedSpike?.time"></span>
+                    </h4>
+                    <button @click="selectedSpike = null" class="text-slate-400 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="grid grid-cols-4 gap-4 mb-4">
+                    <div>
+                        <div class="text-xs text-slate-400">Total Commands</div>
+                        <div class="text-xl font-bold text-white" x-text="selectedSpike?.total?.toLocaleString()"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400">Top Contributor</div>
+                        <div class="font-mono text-sm text-purple-300 truncate" x-text="selectedSpike?.topContributor" :title="selectedSpike?.topContributor"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400">Top %</div>
+                        <div class="text-lg font-bold text-white" x-text="selectedSpike?.topPercentage + '%'"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400">vs Average</div>
+                        <div class="text-lg font-bold" :class="selectedSpike?.deviation > 50 ? 'text-red-400' : selectedSpike?.deviation > 0 ? 'text-amber-400' : 'text-emerald-400'"
+                             x-text="(selectedSpike?.deviation > 0 ? '+' : '') + selectedSpike?.deviation?.toFixed(0) + '%'"></div>
+                    </div>
+                </div>
+                <div x-show="selectedSpike?.breakdown?.length > 0" class="pt-3 border-t border-slate-700">
+                    <div class="text-xs text-slate-400 mb-2">Breakdown:</div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        <template x-for="item in selectedSpike?.breakdown?.slice(0, 8)" :key="item.label">
+                            <div class="flex items-center justify-between bg-slate-800/50 rounded px-2 py-1.5">
+                                <span class="text-xs text-slate-300 truncate mr-2" x-text="item.label?.substring(0, 25)" :title="item.label"></span>
+                                <span class="text-xs font-mono text-white" x-text="item.value?.toLocaleString()"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Breakdown Table -->
+            <div class="glass-card rounded-xl overflow-hidden" x-show="breakdownData.length > 0">
+                <div class="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
+                    <h3 class="font-semibold text-white">
+                        <span x-text="groupByLabel"></span> Breakdown
+                        <span class="text-sm font-normal text-slate-400 ml-2">(<span x-text="breakdownData.length"></span> items)</span>
+                    </h3>
+                    <div class="text-sm text-slate-400">
+                        Showing top <span x-text="Math.min(breakdownData.length, 20)"></span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-slate-800/50">
+                            <tr class="text-left text-xs text-slate-400 uppercase tracking-wider">
+                                <th class="px-6 py-3 font-medium w-8">#</th>
+                                <th class="px-6 py-3 font-medium">
+                                    <span x-text="groupByLabel"></span>
+                                </th>
+                                <th class="px-6 py-3 font-medium text-right">Count</th>
+                                <th class="px-6 py-3 font-medium text-right">% of Total</th>
+                                <th class="px-6 py-3 font-medium w-32">Distribution</th>
+                                <th class="px-6 py-3 font-medium w-24"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/50">
+                            <template x-for="(item, idx) in breakdownData.slice(0, 20)" :key="item.label">
+                                <tr class="hover:bg-slate-800/30">
+                                    <td class="px-6 py-3 text-sm text-slate-500" x-text="idx + 1"></td>
+                                    <td class="px-6 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-3 h-3 rounded" :style="'background-color: ' + item.color"></div>
+                                            <span class="font-mono text-sm text-white truncate max-w-md" x-text="item.label" :title="item.label"></span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-3 text-right font-mono text-white" x-text="item.count.toLocaleString()"></td>
+                                    <td class="px-6 py-3 text-right text-slate-400" x-text="item.percentage.toFixed(1) + '%'"></td>
+                                    <td class="px-6 py-3">
+                                        <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                            <div class="h-full rounded-full" :style="'width: ' + item.percentage + '%; background-color: ' + item.color"></div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-3 text-right">
+                                        <button @click="filterValue = item.label; fetchData()" 
+                                                class="text-xs px-2 py-1 bg-purple-600/20 text-purple-400 hover:bg-purple-600/40 rounded transition-colors">
+                                            Filter
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Controls (AWS Cost Explorer style) -->
+        <div class="w-full lg:w-64 flex-shrink-0 space-y-4 order-1 lg:order-2">
+            <!-- Granularity -->
+            <div class="glass-card rounded-xl p-4" :class="loading && 'opacity-50 pointer-events-none'">
+                <h4 class="text-sm font-semibold text-white mb-3">Granularity</h4>
+                <select x-model="granularity" @change="changeGranularity()" :disabled="loading"
+                        class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    <option value="1">1 second</option>
+                    <option value="5">5 seconds</option>
+                    <option value="10">10 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="60">1 minute</option>
+                </select>
+            </div>
+
+            <!-- Group By (Dimension) -->
+            <div class="glass-card rounded-xl p-4" :class="loading && 'opacity-50 pointer-events-none'">
+                <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    Group By
+                    <svg x-show="loading" class="w-4 h-4 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </h4>
+                <div class="space-y-2">
+                    <button @click="changeGroupBy('command_signature')" :disabled="loading"
+                            class="w-full flex items-center gap-2 p-2 rounded-lg transition-colors text-left disabled:opacity-50"
+                            :class="groupBy === 'command_signature' ? 'bg-purple-600/20 border border-purple-500/30' : 'hover:bg-slate-800/50 border border-transparent'">
+                        <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center" :class="groupBy === 'command_signature' ? 'border-purple-500 bg-purple-500' : 'border-slate-500'">
+                            <span x-show="groupBy === 'command_signature'" class="w-2 h-2 rounded-full bg-white"></span>
+                        </span>
+                        <span class="text-sm text-slate-300">Command Signature</span>
+                    </button>
+                    <button @click="changeGroupBy('command')" :disabled="loading"
+                            class="w-full flex items-center gap-2 p-2 rounded-lg transition-colors text-left disabled:opacity-50"
+                            :class="groupBy === 'command' ? 'bg-purple-600/20 border border-purple-500/30' : 'hover:bg-slate-800/50 border border-transparent'">
+                        <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center" :class="groupBy === 'command' ? 'border-purple-500 bg-purple-500' : 'border-slate-500'">
+                            <span x-show="groupBy === 'command'" class="w-2 h-2 rounded-full bg-white"></span>
+                        </span>
+                        <span class="text-sm text-slate-300">Command Type</span>
+                    </button>
+                    <button @click="changeGroupBy('key_pattern')" :disabled="loading"
+                            class="w-full flex items-center gap-2 p-2 rounded-lg transition-colors text-left disabled:opacity-50"
+                            :class="groupBy === 'key_pattern' ? 'bg-purple-600/20 border border-purple-500/30' : 'hover:bg-slate-800/50 border border-transparent'">
+                        <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center" :class="groupBy === 'key_pattern' ? 'border-purple-500 bg-purple-500' : 'border-slate-500'">
+                            <span x-show="groupBy === 'key_pattern'" class="w-2 h-2 rounded-full bg-white"></span>
+                        </span>
+                        <span class="text-sm text-slate-300">Key Pattern</span>
+                    </button>
+                    <button @click="changeGroupBy('client_ip')" :disabled="loading"
+                            class="w-full flex items-center gap-2 p-2 rounded-lg transition-colors text-left disabled:opacity-50"
+                            :class="groupBy === 'client_ip' ? 'bg-purple-600/20 border border-purple-500/30' : 'hover:bg-slate-800/50 border border-transparent'">
+                        <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center" :class="groupBy === 'client_ip' ? 'border-purple-500 bg-purple-500' : 'border-slate-500'">
+                            <span x-show="groupBy === 'client_ip'" class="w-2 h-2 rounded-full bg-white"></span>
+                        </span>
+                        <span class="text-sm text-slate-300">Client IP</span>
+                    </button>
+                    <button @click="changeGroupBy('shard_name')" :disabled="loading"
+                            class="w-full flex items-center gap-2 p-2 rounded-lg transition-colors text-left disabled:opacity-50"
+                            :class="groupBy === 'shard_name' ? 'bg-purple-600/20 border border-purple-500/30' : 'hover:bg-slate-800/50 border border-transparent'">
+                        <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center" :class="groupBy === 'shard_name' ? 'border-purple-500 bg-purple-500' : 'border-slate-500'">
+                            <span x-show="groupBy === 'shard_name'" class="w-2 h-2 rounded-full bg-white"></span>
+                        </span>
+                        <span class="text-sm text-slate-300">Shard</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="glass-card rounded-xl p-4 overflow-visible relative z-30" :class="loading && 'opacity-60 pointer-events-none'">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-sm font-semibold text-white flex items-center gap-2">
+                        Filters
+                        <svg x-show="loading" class="w-3 h-3 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </h4>
+                    <button x-show="hasActiveFilters() && !loading" 
+                            @click="clearAllFilters()"
+                            class="text-xs text-purple-400 hover:text-purple-300">Clear all</button>
+                </div>
+
+                <div class="space-y-3">
+                    <!-- Shard Filter -->
+                    <div x-data="{ open: false, search: '' }" class="relative">
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Shard <span x-show="availableOptions.shards.length" class="text-slate-500" x-text="'(' + availableOptions.shards.length + ')'"></span></span>
+                            <button x-show="selectedShards.length > 0" @click.stop="clearShards()" class="text-purple-400 hover:text-purple-300">Clear</button>
+                        </label>
+                        <button @click="if(!loading) { open = !open; search = ''; $nextTick(() => $refs.shardSearch.focus()) }" type="button"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-left text-xs text-white flex items-center justify-between"
+                                :class="loading && 'opacity-50 cursor-not-allowed'">
+                            <span class="truncate" x-text="selectedShards.length === 0 ? 'All' : selectedShards.join(', ')"></span>
+                            <svg class="w-3 h-3 text-slate-400 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open && !loading" @click.away="open = false" x-transition
+                             class="absolute z-[100] mt-1 left-0 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+                            <div class="p-2 border-b border-slate-700">
+                                <input type="text" x-model="search" x-ref="shardSearch" placeholder="Search shards..." @click.stop
+                                       class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500">
+                            </div>
+                            <div class="max-h-48 overflow-y-auto">
+                                <template x-for="shard in availableOptions.shards" :key="shard">
+                                    <button x-show="shard.toLowerCase().includes(search.toLowerCase())"
+                                           @click.stop="toggleShard(shard)"
+                                           class="flex items-center w-full px-3 py-2 hover:bg-slate-700 cursor-pointer text-xs text-left">
+                                        <span class="w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center mr-2"
+                                              :class="selectedShards.includes(shard) ? 'bg-purple-500 border-purple-500' : 'border-slate-500'">
+                                            <svg x-show="selectedShards.includes(shard)" class="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                        </span>
+                                        <span x-text="shard"></span>
+                                    </button>
+                                </template>
+                                <div x-show="availableOptions.shards.length === 0" class="px-3 py-2 text-xs text-slate-500 italic">No shards available</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Command Filter -->
+                    <div x-data="{ open: false, search: '' }" class="relative">
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Command <span x-show="availableOptions.commands.length" class="text-slate-500" x-text="'(' + availableOptions.commands.length + ')'"></span></span>
+                            <button x-show="filters.command" @click.stop="clearFilter('command')" class="text-purple-400 hover:text-purple-300">Clear</button>
+                        </label>
+                        <button @click="if(!loading) { open = !open; search = ''; $nextTick(() => $refs.cmdSearch.focus()) }" type="button"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-left text-xs text-white flex items-center justify-between"
+                                :class="loading && 'opacity-50 cursor-not-allowed'">
+                            <span x-text="filters.command || 'All'"></span>
+                            <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open && !loading" @click.away="open = false" x-transition
+                             class="absolute z-[100] mt-1 left-0 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+                            <div class="p-2 border-b border-slate-700">
+                                <input type="text" x-model="search" x-ref="cmdSearch" placeholder="Search commands..." @click.stop
+                                       class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500">
+                            </div>
+                            <div class="max-h-48 overflow-y-auto">
+                                <template x-for="cmd in availableOptions.commands" :key="cmd">
+                                    <button x-show="cmd.toLowerCase().includes(search.toLowerCase())"
+                                            @click="applyFilter('command', cmd); open = false;"
+                                            class="block w-full text-left px-3 py-2 hover:bg-slate-700 text-xs" x-text="cmd"></button>
+                                </template>
+                                <div x-show="availableOptions.commands.length === 0" class="px-3 py-2 text-xs text-slate-500 italic">No commands match current filters</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Client IP Filter -->
+                    <div>
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Client IP</span>
+                            <button x-show="filters.client_ip" @click.stop="clearFilter('client_ip')" class="text-purple-400 hover:text-purple-300">Clear</button>
+                        </label>
+                        <input type="text" x-model="filters.client_ip" @input.debounce.500ms="applyClientIpFilter()"
+                               placeholder="e.g., 10.0.1.50" :disabled="loading"
+                               class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 disabled:opacity-50">
+                    </div>
+
+                    <!-- Key Pattern Filter -->
+                    <div x-data="{ open: false, search: '' }" class="relative">
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Key Pattern <span x-show="availableOptions.patterns.length" class="text-slate-500" x-text="'(' + availableOptions.patterns.length + ')'"></span></span>
+                            <button x-show="filters.key_pattern" @click.stop="clearFilter('key_pattern')" class="text-purple-400 hover:text-purple-300">Clear</button>
+                        </label>
+                        <button @click="if(!loading) { open = !open; search = ''; $nextTick(() => $refs.patternSearch.focus()) }" type="button"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-left text-xs text-white flex items-center justify-between truncate"
+                                :class="loading && 'opacity-50 cursor-not-allowed'">
+                            <span class="truncate" x-text="filters.key_pattern || 'All'"></span>
+                            <svg class="w-3 h-3 text-slate-400 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open && !loading" @click.away="open = false" x-transition
+                             class="absolute z-[100] mt-1 left-0 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+                            <div class="p-2 border-b border-slate-700">
+                                <input type="text" x-model="search" x-ref="patternSearch" placeholder="Search patterns..." @click.stop
+                                       class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500">
+                            </div>
+                            <div class="max-h-48 overflow-y-auto">
+                                <template x-for="pattern in availableOptions.patterns" :key="pattern">
+                                    <button x-show="pattern.toLowerCase().includes(search.toLowerCase())"
+                                            @click="applyFilter('key_pattern', pattern); open = false;"
+                                            class="block w-full text-left px-3 py-2 hover:bg-slate-700 text-xs truncate font-mono" 
+                                            :title="pattern" x-text="pattern.substring(0, 40) + (pattern.length > 40 ? '...' : '')"></button>
+                                </template>
+                                <div x-show="availableOptions.patterns.length === 0" class="px-3 py-2 text-xs text-slate-500 italic">No patterns match current filters</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Signature Filter -->
+                    <div x-data="{ open: false, search: '' }" class="relative">
+                        <label class="flex items-center justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>Signature <span x-show="availableOptions.signatures.length" class="text-slate-500" x-text="'(' + availableOptions.signatures.length + ')'"></span></span>
+                            <button x-show="filters.command_signature" @click.stop="clearFilter('command_signature')" class="text-purple-400 hover:text-purple-300">Clear</button>
+                        </label>
+                        <button @click="if(!loading) { open = !open; search = ''; $nextTick(() => $refs.sigSearch.focus()) }" type="button"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-left text-xs text-white flex items-center justify-between truncate"
+                                :class="loading && 'opacity-50 cursor-not-allowed'">
+                            <span class="truncate" x-text="filters.command_signature || 'All'"></span>
+                            <svg class="w-3 h-3 text-slate-400 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open && !loading" @click.away="open = false" x-transition
+                             class="absolute z-[100] mt-1 left-0 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+                            <div class="p-2 border-b border-slate-700">
+                                <input type="text" x-model="search" x-ref="sigSearch" placeholder="Search signatures..." @click.stop
+                                       class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500">
+                            </div>
+                            <div class="max-h-48 overflow-y-auto">
+                                <template x-for="sig in availableOptions.signatures" :key="sig">
+                                    <button x-show="sig.toLowerCase().includes(search.toLowerCase())"
+                                            @click="applyFilter('command_signature', sig); open = false;"
+                                            class="block w-full text-left px-3 py-2 hover:bg-slate-700 text-xs truncate font-mono" 
+                                            :title="sig" x-text="sig.substring(0, 40) + (sig.length > 40 ? '...' : '')"></button>
+                                </template>
+                                <div x-show="availableOptions.signatures.length === 0" class="px-3 py-2 text-xs text-slate-500 italic">No signatures match current filters</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="glass-card rounded-xl p-4 relative z-10" :class="loading && 'opacity-60 pointer-events-none'">
+                <h4 class="text-sm font-semibold text-white mb-3">Quick Actions</h4>
+                <div class="space-y-2">
+                    <button @click="changeGroupBy('command')" :disabled="loading"
+                            class="w-full text-left px-3 py-2 text-xs bg-slate-800 hover:bg-purple-600/20 rounded border border-slate-700 transition-colors flex items-center gap-2 disabled:opacity-50">
+                        <span class="text-purple-400">⚡</span> View by Command Type
+                    </button>
+                    <button @click="changeGroupBy('client_ip')" :disabled="loading"
+                            class="w-full text-left px-3 py-2 text-xs bg-slate-800 hover:bg-purple-600/20 rounded border border-slate-700 transition-colors flex items-center gap-2 disabled:opacity-50">
+                        <span class="text-cyan-400">🖥️</span> View by Client IP
+                    </button>
+                    <button @click="changeGroupBy('key_pattern')" :disabled="loading"
+                            class="w-full text-left px-3 py-2 text-xs bg-slate-800 hover:bg-purple-600/20 rounded border border-slate-700 transition-colors flex items-center gap-2 disabled:opacity-50">
+                        <span class="text-amber-400">📊</span> View by Key Pattern
+                    </button>
+                    <button @click="changeGroupBy('shard_name')" :disabled="loading"
+                            class="w-full text-left px-3 py-2 text-xs bg-slate-800 hover:bg-purple-600/20 rounded border border-slate-700 transition-colors flex items-center gap-2 disabled:opacity-50">
+                        <span class="text-emerald-400">💾</span> View by Shard
+                    </button>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-700">
+                    <div class="text-xs text-slate-400 mb-2">Common Commands</div>
+                    <div class="flex flex-wrap gap-1">
+                        {% for cmd in commands[:8] %}
+                        <button @click="applyFilter('command', '{{ cmd }}')" :disabled="loading"
+                                class="px-2 py-1 text-xs bg-slate-800 hover:bg-purple-600/30 hover:text-purple-300 rounded border border-slate-700 transition-colors disabled:opacity-50">
+                            {{ cmd }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function timelineApp() {
+    return {
+        jobId: '{{ job.id }}',
+        groupBy: 'command_signature',
+        granularity: 5,
+        selectedShards: [],
+        filters: {
+            command: '',
+            client_ip: '',
+            key_pattern: '',
+            command_signature: ''
+        },
+        filterValue: '',  // Legacy, kept for quick filter compatibility
+        chartType: 'bar',
+        loading: true,
+        error: null,
+        summary: null,
+        chart: null,
+        chartData: null,
+        selectedSpike: null,
+        breakdownData: [],
+        // Dynamic filter options
+        availableOptions: {
+            commands: {{ commands | tojson }},
+            patterns: {{ patterns | tojson }},
+            signatures: {{ signatures | tojson }},
+            shards: {{ shards | tojson }}
+        },
+        optionsLoading: false,
+
+        // URL State Schema for shareable links
+        stateSchema: {
+            groupBy: { param: 'group_by', default: 'command_signature' },
+            granularity: { param: 'granularity', default: 5, type: 'number' },
+            chartType: { param: 'chart_type', default: 'bar' },
+            selectedShards: { param: 'shards', array: true },
+            'filters.command': { param: 'filter_command' },
+            'filters.client_ip': { param: 'filter_client_ip' },
+            'filters.key_pattern': { param: 'filter_key_pattern' },
+            'filters.command_signature': { param: 'filter_signature' }
+        },
+
+        // Custom hydrate for nested filters object
+        hydrateFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            
+            // Simple properties
+            const groupBy = params.get('group_by');
+            if (groupBy) this.groupBy = groupBy;
+            
+            const granularity = params.get('granularity');
+            if (granularity) this.granularity = parseInt(granularity, 10) || 5;
+            
+            const chartType = params.get('chart_type');
+            if (chartType) this.chartType = chartType;
+            
+            const shards = params.get('shards');
+            if (shards) this.selectedShards = shards.split(',').filter(s => s);
+            
+            // Nested filters
+            const filterCommand = params.get('filter_command');
+            if (filterCommand) this.filters.command = filterCommand;
+            
+            const filterClientIp = params.get('filter_client_ip');
+            if (filterClientIp) this.filters.client_ip = filterClientIp;
+            
+            const filterKeyPattern = params.get('filter_key_pattern');
+            if (filterKeyPattern) this.filters.key_pattern = filterKeyPattern;
+            
+            const filterSignature = params.get('filter_signature');
+            if (filterSignature) this.filters.command_signature = filterSignature;
+        },
+
+        // Custom sync for nested filters object
+        syncToUrl(push = true) {
+            const params = new URLSearchParams();
+            
+            // Only add non-default values
+            if (this.groupBy && this.groupBy !== 'command_signature') {
+                params.set('group_by', this.groupBy);
+            }
+            if (this.granularity && this.granularity !== 5) {
+                params.set('granularity', this.granularity);
+            }
+            if (this.chartType && this.chartType !== 'bar') {
+                params.set('chart_type', this.chartType);
+            }
+            if (this.selectedShards.length > 0) {
+                params.set('shards', this.selectedShards.join(','));
+            }
+            if (this.filters.command) {
+                params.set('filter_command', this.filters.command);
+            }
+            if (this.filters.client_ip) {
+                params.set('filter_client_ip', this.filters.client_ip);
+            }
+            if (this.filters.key_pattern) {
+                params.set('filter_key_pattern', this.filters.key_pattern);
+            }
+            if (this.filters.command_signature) {
+                params.set('filter_signature', this.filters.command_signature);
+            }
+            
+            const queryString = params.toString();
+            const url = queryString ? `${location.pathname}?${queryString}` : location.pathname;
+            
+            if (push) {
+                history.pushState({ urlState: true }, '', url);
+            } else {
+                history.replaceState({ urlState: true }, '', url);
+            }
+        },
+
+        get groupByLabel() {
+            const labels = {
+                'command_signature': 'Signature',
+                'command': 'Command',
+                'client_ip': 'Client IP',
+                'key_pattern': 'Key Pattern',
+                'shard_name': 'Shard'
+            };
+            return labels[this.groupBy] || 'Group';
+        },
+
+        hasActiveFilters() {
+            return this.selectedShards.length > 0 || 
+                   this.filters.command || 
+                   this.filters.client_ip || 
+                   this.filters.key_pattern || 
+                   this.filters.command_signature ||
+                   this.filterValue;
+        },
+
+        requestId: 0,  // Track request order to prevent race conditions
+
+        async clearAllFilters() {
+            if (this.loading) return;
+            this.loading = true;
+            this.selectedShards = [];
+            this.filters = { command: '', client_ip: '', key_pattern: '', command_signature: '' };
+            this.filterValue = '';
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        init() {
+            this.loading = true;
+            // Hydrate state from URL on init
+            this.hydrateFromUrl();
+            this.refresh();
+            
+            // Handle browser back/forward navigation
+            window.addEventListener('popstate', () => {
+                this.hydrateFromUrl();
+                this.refresh();
+            });
+        },
+        
+        async changeGroupBy(newGroupBy) {
+            if (this.loading) return;
+            if (this.groupBy === newGroupBy) return;
+            this.loading = true;
+            this.groupBy = newGroupBy;
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async changeGranularity() {
+            if (this.loading) return;
+            this.loading = true;
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        changeChartType(type) {
+            if (this.chartType === type) return;
+            this.chartType = type;
+            this.syncToUrl(false);  // replaceState, don't push to history
+            this.$nextTick(() => this.updateChart());
+        },
+        
+        async refresh() {
+            try {
+                await this.fetchFilterOptions();
+                await this.fetchData();
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async fetchFilterOptions() {
+            this.optionsLoading = true;
+            const params = new URLSearchParams();
+            
+            if (this.filters.command) params.set('filter_command', this.filters.command);
+            if (this.filters.client_ip) params.set('filter_client_ip', this.filters.client_ip);
+            if (this.filters.key_pattern) params.set('filter_key_pattern', this.filters.key_pattern);
+            if (this.filters.command_signature) params.set('filter_command_signature', this.filters.command_signature);
+            if (this.selectedShards.length > 0) params.set('filter_shard', this.selectedShards.join(','));
+
+            try {
+                const response = await fetch(`/api/jobs/${this.jobId}/filter-options?${params}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.availableOptions = {
+                        commands: data.commands || [],
+                        patterns: data.patterns || [],
+                        signatures: data.signatures || [],
+                        shards: data.shards || []
+                    };
+                }
+            } catch (e) {
+                console.error('Failed to fetch filter options:', e);
+            }
+            this.optionsLoading = false;
+        },
+
+        async applyFilter(type, value) {
+            if (this.loading) return;
+            this.loading = true;
+            this.filters[type] = value;
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async toggleShard(shard) {
+            if (this.loading) return;
+            this.loading = true;
+            if (this.selectedShards.includes(shard)) {
+                this.selectedShards = this.selectedShards.filter(s => s !== shard);
+            } else {
+                this.selectedShards.push(shard);
+            }
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async clearShards() {
+            if (this.loading) return;
+            this.loading = true;
+            this.selectedShards = [];
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async clearFilter(filterName) {
+            if (this.loading) return;
+            this.loading = true;
+            this.filters[filterName] = '';
+            this.syncToUrl();
+            await this.refresh();
+        },
+
+        async applyClientIpFilter() {
+            if (this.loading) return;
+            this.loading = true;
+            await this.refresh();
+        },
+
+        async fetchData() {
+            this.error = null;
+            const currentRequest = ++this.requestId;  // Track this request
+            this.selectedSpike = null;
+
+            const params = new URLSearchParams({
+                group_by: this.groupBy,
+                granularity: this.granularity
+            });
+
+            if (this.selectedShards.length > 0) {
+                params.set('shards', this.selectedShards.join(','));
+            }
+            
+            // Add individual filters
+            if (this.filters.command) params.set('filter_command', this.filters.command);
+            if (this.filters.client_ip) params.set('filter_client_ip', this.filters.client_ip);
+            if (this.filters.key_pattern) params.set('filter_key_pattern', this.filters.key_pattern);
+            if (this.filters.command_signature) params.set('filter_command_signature', this.filters.command_signature);
+            
+            // Legacy filter value (for quick filters)
+            if (this.filterValue) params.set('filter_value', this.filterValue);
+
+            try {
+                const response = await fetch(`/api/jobs/${this.jobId}/timeline-data?${params}`);
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to fetch data');
+                }
+
+                const chartData = await response.json();
+                
+                // Only apply if this is still the latest request (prevents race conditions)
+                if (currentRequest !== this.requestId) return;
+                
+                this.chartData = chartData;
+                this.summary = this.chartData.summary;
+                this.calculateBreakdown();
+                
+                // Initialize chart once, then update in place
+                this.$nextTick(() => {
+                    if (currentRequest === this.requestId) {
+                        this.initChart();
+                        this.updateChart(currentRequest);
+                    }
+                });
+            } catch (e) {
+                if (currentRequest === this.requestId) {
+                    this.error = e.message;
+                }
+            }
+            // Note: loading state is managed by refresh()
+        },
+
+        calculateBreakdown() {
+            if (!this.chartData?.datasets) {
+                this.breakdownData = [];
+                return;
+            }
+
+            const totals = this.chartData.datasets.map(ds => ({
+                label: ds.label,
+                count: ds.data.reduce((a, b) => a + b, 0),
+                color: ds.backgroundColor?.replace('0.7', '1') || ds.borderColor || '#94a3b8'
+            }));
+
+            const grandTotal = totals.reduce((a, b) => a + b.count, 0);
+            
+            this.breakdownData = totals
+                .map(t => ({ ...t, percentage: grandTotal > 0 ? (t.count / grandTotal) * 100 : 0 }))
+                .sort((a, b) => b.count - a.count);
+        },
+
+        // Stable click handler - attached only once
+        handleChartClick(e) {
+            if (!this.chart || !this.chartData) return;
+            
+            const points = this.chart.getElementsAtEventForMode(
+                e,
+                'index',
+                { intersect: false },
+                false
+            );
+            
+            if (!points.length) return;
+            this.analyzePoint(points[0].index);
+        },
+
+        // Build styled datasets from raw data
+        buildDatasets() {
+            if (!this.chartData?.datasets) return [];
+            
+            const isLine = this.chartType === 'line';
+            const isArea = this.chartType === 'area';
+            
+            return this.chartData.datasets.map(ds => {
+                // Create new object without spread to avoid issues
+                return {
+                    label: ds.label,
+                    data: ds.data.slice(), // Clone array
+                    backgroundColor: ds.backgroundColor,
+                    borderColor: ds.borderColor,
+                    fill: isArea,
+                    tension: isLine || isArea ? 0.3 : 0,
+                    pointRadius: isLine ? 2 : 0,
+                    pointHoverRadius: isLine ? 5 : 0,
+                    borderWidth: isLine || isArea ? 2 : 1
+                };
+            });
+        },
+
+        // Always recreate chart - safest approach
+        renderChart(requestId = this.requestId) {
+            if (requestId !== this.requestId) return;
+            
+            const canvas = this.$refs.timelineCanvas;
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            // Destroy existing chart if any
+            if (this.chart) {
+                try { this.chart.destroy(); } catch (e) {}
+                this.chart = null;
+            }
+
+            if (!this.chartData?.datasets?.length) return;
+
+            const isLine = this.chartType === 'line';
+            const isArea = this.chartType === 'area';
+            const chartJsType = isArea ? 'line' : this.chartType;
+
+            try {
+                this.chart = new Chart(ctx, {
+                    type: chartJsType,
+                    data: {
+                        labels: this.chartData.labels.slice(), // Clone
+                        datasets: this.buildDatasets()
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        scales: {
+                            x: {
+                                stacked: this.chartType === 'bar' || isArea,
+                                grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                                ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 0 }
+                            },
+                            y: {
+                                stacked: this.chartType === 'bar' || isArea,
+                                grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                                ticks: { color: '#94a3b8', callback: (v) => this.formatNumber(v) },
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { 
+                                    color: '#e2e8f0', 
+                                    usePointStyle: true, 
+                                    padding: 15,
+                                    boxWidth: 8
+                                },
+                                onClick: (e, legendItem, legend) => {
+                                    const chart = legend.chart;
+                                    const ci = legendItem.datasetIndex;
+                                    const meta = chart.getDatasetMeta(ci);
+                                    
+                                    // Shift+click = toggle hide (original behavior)
+                                    if (e.native.shiftKey) {
+                                        meta.hidden = !meta.hidden;
+                                    } else {
+                                        // Single click = focus behavior
+                                        const allOthersHidden = chart.data.datasets.every((ds, i) => 
+                                            i === ci ? true : chart.getDatasetMeta(i).hidden
+                                        );
+                                        
+                                        if (allOthersHidden && !meta.hidden) {
+                                            // Clicking the only visible item -> show all
+                                            chart.data.datasets.forEach((ds, i) => {
+                                                chart.getDatasetMeta(i).hidden = false;
+                                            });
+                                        } else {
+                                            // Focus: show only clicked, hide all others
+                                            chart.data.datasets.forEach((ds, i) => {
+                                                chart.getDatasetMeta(i).hidden = (i !== ci);
+                                            });
+                                        }
+                                    }
+                                    chart.update();
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                titleColor: '#f8fafc',
+                                bodyColor: '#e2e8f0',
+                                borderColor: '#334155',
+                                borderWidth: 1,
+                                callbacks: {
+                                    label: (context) => `${context.dataset.label}: ${this.formatNumber(context.raw)}`
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Bind click handler ONCE per canvas
+                if (!this._chartClickBound) {
+                    this._chartClickBound = true;
+                    canvas.addEventListener('click', (e) => this.handleChartClick(e));
+                }
+            } catch (e) {
+                console.log('Chart creation failed:', e);
+            }
+        },
+
+        // Aliases for compatibility
+        initChart() {
+            // No-op, renderChart handles everything
+        },
+
+        updateChart(requestId = this.requestId) {
+            this.renderChart(requestId);
+        },
+
+        analyzePoint(dataIndex) {
+            const time = this.chartData.labels[dataIndex];
+            let total = 0;
+            let breakdown = [];
+
+            this.chart.data.datasets.forEach((ds, i) => {
+                const meta = this.chart.getDatasetMeta(i);
+                if (!meta.hidden) {
+                    const value = ds.data[dataIndex] || 0;
+                    total += value;
+                    breakdown.push({ label: ds.label, value: value });
+                }
+            });
+
+            breakdown.sort((a, b) => b.value - a.value);
+
+            // Calculate average
+            const allTotals = this.chartData.labels.map((_, i) => {
+                return this.chart.data.datasets.reduce((sum, ds, dsIdx) => {
+                    const meta = this.chart.getDatasetMeta(dsIdx);
+                    return sum + (meta.hidden ? 0 : (ds.data[i] || 0));
+                }, 0);
+            });
+            const avg = allTotals.reduce((a, b) => a + b, 0) / allTotals.length;
+            const deviation = avg > 0 ? ((total - avg) / avg) * 100 : 0;
+
+            this.selectedSpike = {
+                time,
+                total,
+                topContributor: breakdown[0]?.label || 'N/A',
+                topPercentage: total > 0 ? ((breakdown[0]?.value || 0) / total * 100).toFixed(1) : 0,
+                deviation,
+                breakdown
+            };
+        },
+
+        formatNumber(n) {
+            if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+            return n?.toLocaleString() || '0';
+        }
+    };
+}
+</script>
+{% endblock %}
