@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=61.0", "versioneer[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "b2aiprep"
+dynamic = ["version"]
+authors = [
+  {name = "Rahul Brito", email = "rfbrito@mit.edu"},
+  {name = "SenseIn Group", email = "sensein-social@mit.edu" },
+]
+description = """A small package to generate features from acoustic
+recordings for the Bridge2AI voice project."""
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10, <3.14"
+dependencies = [
+    "senselab[articulatory]~=1.3.0",
+    "matplotlib>=3.8.3",
+    "fhir.resources==7.1.0",
+    "streamlit>=1.42.2",
+    "av~=14.1.0",
+    "soundfile",
+    "pydra",
+    "torchaudio~=2.8.0",
+    "torch~=2.8.0",
+    "torchvision~=0.23.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"] # <-- this changed
+
+[tool.setuptools.package-data]
+"*" = ["*.*", ".gitkeep"] # <-- this changed
+
+[project.optional-dependencies]
+doc = [
+    "jupyterlab",
+    "jupytext",
+    "ipympl"
+]
+dev = [
+    "b2aiprep[doc]",
+    "pytest",
+    "pytest-benchmark",
+    "pre-commit",
+    "ruff",
+    "responses",
+    "senselab[audio]"
+]
+dashboard = [
+    "b2aiprep[doc]",
+    "streamlit>=1.42.2",
+    "senselab[audio]"
+]
+
+[project.scripts]
+b2aiprep-cli = "b2aiprep.cli:cli"
+b2aiprep-dashboard = "b2aiprep.dashboard.entrypoint:main"
+
+[project.urls]
+Homepage = "https://github.com/sensein/b2aiprep"
+Issues = "https://github.com/sensein/b2aiprep/issues"
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "src/b2aiprep/_version.py"
+versionfile_build = "b2aiprep/_version.py"
+tag_prefix = ""
+parentdir_prefix = "myproject-"
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
