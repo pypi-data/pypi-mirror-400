@@ -1,0 +1,171 @@
+Metadata-Version: 2.4
+Name: fit2SM
+Version: 0.1.0
+Summary: Python package for fitting a mean-field fitness-based two-star model (Fit2SM) for undirected binary networks (dcGM and UBCM are also available for comparisons).
+Author: Mattia Marzi
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/mattiamarzi/fit2SM
+Project-URL: Repository, https://github.com/mattiamarzi/fit2SM
+Project-URL: Issues, https://github.com/mattiamarzi/fit2SM/issues
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.23
+Requires-Dist: scipy>=1.10
+Requires-Dist: numba>=0.57
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Requires-Dist: coverage>=7.6.1; extra == "dev"
+Requires-Dist: ruff>=0.4.0; extra == "dev"
+Requires-Dist: black>=24.0; extra == "dev"
+Requires-Dist: pre-commit>=3.0; extra == "dev"
+Dynamic: license-file
+
+# fit2SM
+
+`fit2SM` is a lightweight research package for **reconstructing undirected binary networks from partial information**.
+
+In many economic and financial settings, the full adjacency matrix is unavailable, but **node-level “fitness proxies”**
+(e.g., aggregate activity, volumes, exposures, total trading amounts) are observable and provide reliable information on
+heterogeneity. `fit2SM` uses these proxies together with a small set of **global constraints** to build a faithful
+probabilistic reconstruction of the network.
+
+The package currently provides three solvers:
+
+- **dcGM** (density-corrected Gravity Model): matches the expected number of links $L$ using strengths as fitness proxies.
+- **UBCM** (Undirected Binary Configuration Model): matches the expected degrees $k_i$.
+- **Fit2SM** (Fitness-based Two-Star Model, mean-field): matches $(L, S)$ where
+  $S = \sum_i \binom{k_i}{2}$ is the total number of two-stars (wedges).
+
+Why two-stars?
+Matching $S$ allows Fit2SM to reproduce the **second moment** of the degree distribution (and hence its variance),
+a key ingredient for processes whose behavior depends on both $\langle k \rangle$ and $\langle k^2 \rangle$
+(e.g., epidemic thresholds, systemic-risk proxies, spectral indicators). See the accompanying paper for the model
+definition, motivation, and empirical validation:
+
+- M. Marzi, F. Giuffrida, D. Garlaschelli, T. Squartini,
+  *Reproducing the first and second moment of empirical degree distributions*,
+  arXiv:2505.10373 (v2), DOI: 10.48550/arXiv.2505.10373.
+
+## Installation
+
+The package is available on PyPI:
+
+```bash
+pip install fit2SM
+```
+
+For development:
+
+```bash
+git clone https://github.com/mattiamarzi/fit2SM
+cd fit2SM
+pip install -e ".[dev]"
+pytest -q
+```
+
+## Quick start (Fit2SM)
+
+The Fit2SM solver takes as input:
+
+- nonnegative fitness proxies `strengths`,
+- the target number of links `L`,
+- the target number of two-stars `S`.
+
+It returns the fitted parameters `(z, y)` and the reconstructed probability matrix $P=(p_{ij})$ (optionally).
+
+```python
+import numpy as np
+from fit2sm.fit2sm import Fit2SMModel
+
+# Example inputs (replace with your own)
+n = 200
+rng = np.random.default_rng(0)
+
+strengths = rng.lognormal(mean=0.0, sigma=1.0, size=n)  # nonnegative fitness proxies
+L_target = 1200.0                                       # expected number of links
+S_target = 45000.0                                      # expected number of two-stars
+
+model = Fit2SMModel(strengths=strengths, L=L_target, S=S_target)
+
+# "Single-iteration" (fast) reconstruction: kappa is initialized from dcGM and not iterated further.
+res = model.fit(outer_max_steps=1, inner_tol=1e-6, inner_max_iter=200, return_P=True)
+
+print("z =", res.z)
+print("y =", res.y)
+print("L_hat =", res.L_hat, "target =", res.L_target)
+print("S_hat =", res.S_hat, "target =", res.S_target)
+
+P = res.P  # fitted link probabilities
+```
+
+If you do not request `return_P=True`, you can still compute the probability matrix later:
+
+```python
+P = model.probabilities()
+```
+
+### If you have an observed adjacency matrix
+
+If you do have a binary adjacency matrix $A$, you can compute targets as:
+
+```python
+k_obs = A.sum(axis=1)
+L_obs = 0.5 * A.sum()
+S_obs = float(0.5 * np.sum(k_obs * (k_obs - 1.0)))
+```
+
+## Advanced options (Fit2SM)
+
+### Outer self-consistency on $\kappa$
+
+Fit2SM is defined in terms of hidden mean-field degrees $\kappa$. You can iterate them until self-consistency:
+
+```python
+res = model.fit(
+    outer_max_steps=25,
+    outer_tol=1e-6,
+    inner_tol=1e-8,
+)
+```
+
+### Fixing $\kappa$ to a supplied degree sequence (like the observed one)
+
+If you want to bypass the outer fixed point and keep $\kappa$ fixed, set `use_true_degrees=True` and pass `degrees=...`:
+
+```python
+res = model.fit(
+    use_true_degrees=True,
+    degrees=k_obs,
+)
+```
+
+## Other solvers
+
+You can also import and use dcGM and UBCM directly:
+
+```python
+from fit2sm.dcgm import DcGMModel
+from fit2sm.ubcm import UBCMModel
+
+# dcGM (matches L using strengths)
+dcgm = DcGMModel(strengths=strengths, L=L_target)
+dcgm_res = dcgm.fit()
+P_dcgm = dcgm_res.P
+
+# UBCM (matches expected degrees)
+ubcm = UBCMModel(degrees=k_obs)
+ubcm_res = ubcm.fit()
+P_ubcm = ubcm.probabilities()
+```
+
+## Documentation
+
+- `docs/usage.md`
+- `docs/api_quick_reference.md`
+- `docs/math.md`
+
+## License
+
+MIT, see `LICENSE`.
