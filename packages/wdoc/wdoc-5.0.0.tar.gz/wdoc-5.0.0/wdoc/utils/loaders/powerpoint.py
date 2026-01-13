@@ -1,0 +1,36 @@
+from pathlib import Path
+
+from beartype.typing import List, Union
+from langchain_core.documents import Document
+from langchain_community.document_loaders import UnstructuredPowerPointLoader
+
+from wdoc.utils.misc import doc_loaders_cache, optional_strip_unexp_args
+from wdoc.utils.loaders.shared import debug_return_empty
+
+
+@debug_return_empty
+@optional_strip_unexp_args
+@doc_loaders_cache.cache(ignore=["path"])
+def load_powerpoint(
+    path: Union[str, Path],
+    file_hash: str,
+) -> List[Document]:
+    path = Path(path)
+    assert path.exists(), f"file not found: '{path}'"
+    loader = UnstructuredPowerPointLoader(path)
+    content = loader.load()
+
+    if isinstance(content, str):
+        docs = [
+            Document(
+                page_content=content,
+                metadata={},
+            )
+        ]
+    elif isinstance(content, list) and all(isinstance(d, Document) for d in content):
+        docs = content
+    else:
+        raise TypeError(
+            f"loaded powerpoint content from path '{path}' was of unexpected type '{type(content)}'"
+        )
+    return docs
