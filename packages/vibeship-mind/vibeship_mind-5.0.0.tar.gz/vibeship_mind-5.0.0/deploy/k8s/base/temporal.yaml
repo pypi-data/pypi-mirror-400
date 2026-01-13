@@ -1,0 +1,142 @@
+# Temporal Server for Mind v5
+# Note: For production, consider using Temporal Cloud or a dedicated Temporal cluster
+# This manifest provides a basic single-node setup suitable for development/staging
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal
+  namespace: mind
+  labels:
+    app: temporal
+    app.kubernetes.io/name: temporal
+    app.kubernetes.io/component: workflow-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal
+  template:
+    metadata:
+      labels:
+        app: temporal
+    spec:
+      containers:
+        - name: temporal
+          image: temporalio/auto-setup:1.24.2
+          ports:
+            - name: grpc
+              containerPort: 7233
+              protocol: TCP
+          env:
+            - name: DB
+              value: "postgres12"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mind-secrets
+                  key: postgres-user
+            - name: POSTGRES_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: mind-secrets
+                  key: postgres-password
+            - name: POSTGRES_SEEDS
+              value: "postgres"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          livenessProbe:
+            exec:
+              command:
+                - temporal
+                - operator
+                - cluster
+                - health
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command:
+                - temporal
+                - operator
+                - cluster
+                - health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal
+  namespace: mind
+  labels:
+    app: temporal
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 7233
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app: temporal
+---
+# Temporal Web UI (optional, for debugging)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-ui
+  namespace: mind
+  labels:
+    app: temporal-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-ui
+  template:
+    metadata:
+      labels:
+        app: temporal-ui
+    spec:
+      containers:
+        - name: temporal-ui
+          image: temporalio/ui:2.26.2
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "temporal:7233"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-ui
+  namespace: mind
+  labels:
+    app: temporal-ui
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  selector:
+    app: temporal-ui

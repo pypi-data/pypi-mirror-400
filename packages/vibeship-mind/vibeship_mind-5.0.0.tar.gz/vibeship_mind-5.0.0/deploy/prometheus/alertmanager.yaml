@@ -1,0 +1,121 @@
+# Mind v5 Alertmanager Configuration
+
+global:
+  # Default SMTP settings
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alerts@mind.dev'
+  smtp_auth_username: 'alerts@mind.dev'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+
+  # Slack settings
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+  # PagerDuty settings
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# Route tree
+route:
+  # Default receiver
+  receiver: 'slack-notifications'
+
+  # Group alerts by alertname and severity
+  group_by: ['alertname', 'severity', 'slo']
+
+  # Wait before sending first notification
+  group_wait: 30s
+
+  # Wait before sending updated notification
+  group_interval: 5m
+
+  # Wait before re-sending
+  repeat_interval: 4h
+
+  # Child routes for specific severities
+  routes:
+    # Critical alerts go to PagerDuty immediately
+    - receiver: 'pagerduty-critical'
+      match:
+        severity: critical
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # SLO violations get their own channel
+    - receiver: 'slack-slo'
+      match_re:
+        slo: '.+'
+      group_by: ['slo']
+
+    # Warning alerts to Slack
+    - receiver: 'slack-notifications'
+      match:
+        severity: warning
+
+# Receivers
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: '#mind-alerts'
+        send_resolved: true
+        title: '{{ if eq .Status "firing" }}:fire:{{ else }}:white_check_mark:{{ end }} {{ .CommonAnnotations.summary }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ if .Annotations.dashboard }}*Dashboard:* {{ .Annotations.dashboard }}{{ end }}
+          {{ end }}
+        actions:
+          - type: button
+            text: 'Runbook'
+            url: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+          - type: button
+            text: 'Dashboard'
+            url: '{{ (index .Alerts 0).Annotations.dashboard }}'
+
+  - name: 'slack-slo'
+    slack_configs:
+      - channel: '#mind-slo'
+        send_resolved: true
+        title: '{{ if eq .Status "firing" }}:warning: SLO Violation{{ else }}:white_check_mark: SLO Recovered{{ end }}'
+        text: |
+          *SLO:* {{ .CommonLabels.slo }}
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          {{ end }}
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        severity: critical
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          firing: '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
+          resolved: '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
+          num_firing: '{{ .Alerts.Firing | len }}'
+          num_resolved: '{{ .Alerts.Resolved | len }}'
+
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'oncall@mind.dev'
+        send_resolved: true
+        headers:
+          Subject: '[Mind v5] {{ .Status | toUpper }}: {{ .CommonAnnotations.summary }}'
+
+# Inhibition rules - suppress less severe alerts when critical fires
+inhibit_rules:
+  # If critical is firing, suppress warning for same alert
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname']
+
+  # If API is down, suppress all other API-related alerts
+  - source_match:
+      alertname: 'APIAvailabilityCritical'
+    target_match_re:
+      alertname: 'API.*'
+    equal: []

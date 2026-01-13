@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mind-gardener
+  namespace: mind
+  labels:
+    app: mind-gardener
+    app.kubernetes.io/name: mind-gardener
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mind-gardener
+  template:
+    metadata:
+      labels:
+        app: mind-gardener
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: mind-api
+      containers:
+        - name: mind-gardener
+          image: mind-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "mind.workers.gardener.worker"]
+          ports:
+            - name: health
+              containerPort: 9091
+              protocol: TCP
+          env:
+            - name: MIND_ENVIRONMENT
+              value: "production"
+            - name: MIND_LOG_LEVEL
+              value: "INFO"
+            - name: MIND_POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: postgres-host
+            - name: MIND_POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: postgres-port
+            - name: MIND_POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mind-secrets
+                  key: postgres-user
+            - name: MIND_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mind-secrets
+                  key: postgres-password
+            - name: MIND_POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: postgres-db
+            - name: MIND_TEMPORAL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: temporal-host
+            - name: MIND_TEMPORAL_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: temporal-port
+            - name: MIND_TEMPORAL_NAMESPACE
+              value: "default"
+            - name: MIND_NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: nats-url
+            - name: MIND_QDRANT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: qdrant-url
+            - name: MIND_FALKORDB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: falkordb-host
+            - name: MIND_FALKORDB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: falkordb-port
+            - name: MIND_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mind-secrets
+                  key: openai-api-key
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: mind-gardener
+                topologyKey: kubernetes.io/hostname

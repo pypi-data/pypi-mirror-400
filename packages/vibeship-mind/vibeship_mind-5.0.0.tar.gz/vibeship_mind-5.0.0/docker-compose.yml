@@ -1,0 +1,204 @@
+services:
+  # Mind API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - MIND_ENVIRONMENT=development
+      - MIND_LOG_LEVEL=DEBUG
+      - MIND_API_HOST=0.0.0.0
+      - MIND_API_PORT=8080
+      - MIND_POSTGRES_HOST=postgres
+      - MIND_POSTGRES_PORT=5432
+      - MIND_POSTGRES_USER=mind
+      - MIND_POSTGRES_PASSWORD=mind
+      - MIND_POSTGRES_DB=mind
+      - MIND_NATS_URL=nats://nats:4222
+      - MIND_QDRANT_URL=http://qdrant:6333
+      - MIND_FALKORDB_HOST=falkordb
+      - MIND_FALKORDB_PORT=6379
+      - MIND_TEMPORAL_HOST=temporal
+      - MIND_TEMPORAL_PORT=7233
+      - MIND_TEMPORAL_NAMESPACE=default
+      - MIND_JWT_SECRET=dev-secret-change-in-production
+      - MIND_OPENAI_API_KEY=${MIND_OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      falkordb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - ./src:/app/src:ro  # For development hot-reload
+
+  # Event Consumers (causal graph updater, salience updater, pattern extractor)
+  consumers:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "mind.workers.consumers.runner"]
+    ports:
+      - "9092:9092"  # Health/metrics
+    environment:
+      - MIND_ENVIRONMENT=development
+      - MIND_LOG_LEVEL=DEBUG
+      - MIND_POSTGRES_HOST=postgres
+      - MIND_POSTGRES_PORT=5432
+      - MIND_POSTGRES_USER=mind
+      - MIND_POSTGRES_PASSWORD=mind
+      - MIND_POSTGRES_DB=mind
+      - MIND_NATS_URL=nats://nats:4222
+      - MIND_QDRANT_URL=http://qdrant:6333
+      - MIND_FALKORDB_HOST=falkordb
+      - MIND_FALKORDB_PORT=6379
+      - MIND_OPENAI_API_KEY=${MIND_OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      falkordb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9092/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Gardener Worker (Temporal workflows for memory lifecycle)
+  gardener:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "mind.workers.gardener.worker"]
+    ports:
+      - "9091:9091"  # Health/metrics
+    environment:
+      - MIND_ENVIRONMENT=development
+      - MIND_LOG_LEVEL=DEBUG
+      - MIND_POSTGRES_HOST=postgres
+      - MIND_POSTGRES_PORT=5432
+      - MIND_POSTGRES_USER=mind
+      - MIND_POSTGRES_PASSWORD=mind
+      - MIND_POSTGRES_DB=mind
+      - MIND_NATS_URL=nats://nats:4222
+      - MIND_QDRANT_URL=http://qdrant:6333
+      - MIND_FALKORDB_HOST=falkordb
+      - MIND_FALKORDB_PORT=6379
+      - MIND_TEMPORAL_HOST=temporal
+      - MIND_TEMPORAL_PORT=7233
+      - MIND_TEMPORAL_NAMESPACE=default
+      - MIND_OPENAI_API_KEY=${MIND_OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      nats:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL with pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5433:5432"  # Use 5433 to avoid conflict with native postgres
+    environment:
+      - POSTGRES_USER=mind
+      - POSTGRES_PASSWORD=mind
+      - POSTGRES_DB=mind
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mind -d mind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # NATS for event streaming
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+    command: ["--jetstream", "--store_dir=/data", "-m", "8222"]
+    volumes:
+      - nats_data:/data
+
+  # Qdrant for vector search
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+
+  # FalkorDB for causal knowledge graph
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6379:6379"  # Redis protocol
+    volumes:
+      - falkordb_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Temporal for workflow orchestration
+  temporal:
+    image: temporalio/auto-setup:1.24.2
+    ports:
+      - "7233:7233"  # gRPC frontend
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=mind
+      - POSTGRES_PWD=mind
+      - POSTGRES_SEEDS=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health --address $(grep $(hostname) /etc/hosts | cut -f1):7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # Temporal Web UI
+  temporal-ui:
+    image: temporalio/ui:2.26.2
+    ports:
+      - "8088:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      - temporal
+
+volumes:
+  postgres_data:
+  nats_data:
+  qdrant_data:
+  falkordb_data:

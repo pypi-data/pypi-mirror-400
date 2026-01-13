@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mind-api
+  namespace: mind
+  labels:
+    app: mind-api
+    app.kubernetes.io/name: mind-api
+    app.kubernetes.io/component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mind-api
+  template:
+    metadata:
+      labels:
+        app: mind-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: mind-api
+      containers:
+        - name: mind-api
+          image: mind-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+          env:
+            - name: MIND_ENV
+              value: "production"
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mind-secrets
+                  key: postgres-url
+            - name: QDRANT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: mind-config
+                  key: qdrant-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mind-secrets
+                  key: jwt-secret
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mind-secrets
+                  key: openai-api-key
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: mind-api
+                topologyKey: kubernetes.io/hostname

@@ -1,0 +1,112 @@
+# Mind v5 Production Pod Security Standards
+# Enforces restricted security profile
+
+---
+# Resource Quota for production namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: mind-production-quota
+  namespace: mind-production
+spec:
+  hard:
+    # Limit total resources
+    requests.cpu: "50"
+    requests.memory: "100Gi"
+    limits.cpu: "100"
+    limits.memory: "200Gi"
+
+    # Limit object counts
+    pods: "100"
+    services: "20"
+    secrets: "50"
+    configmaps: "50"
+    persistentvolumeclaims: "20"
+
+    # Limit storage
+    requests.storage: "500Gi"
+
+---
+# Limit Range for default resource limits
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mind-production-limits
+  namespace: mind-production
+spec:
+  limits:
+    # Default container limits
+    - type: Container
+      default:
+        cpu: "1"
+        memory: "1Gi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "256Mi"
+      min:
+        cpu: "10m"
+        memory: "32Mi"
+      max:
+        cpu: "4"
+        memory: "8Gi"
+
+    # Pod limits
+    - type: Pod
+      max:
+        cpu: "8"
+        memory: "16Gi"
+
+    # PVC limits
+    - type: PersistentVolumeClaim
+      min:
+        storage: "1Gi"
+      max:
+        storage: "100Gi"
+
+---
+# Pod Security Admission (K8s 1.25+)
+# Applied via namespace labels in namespace.yaml
+# This ConfigMap is for documentation/reference
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pod-security-reference
+  namespace: mind-production
+data:
+  policy-documentation: |
+    Mind v5 Production Security Policy
+    ===================================
+
+    This namespace enforces the "restricted" Pod Security Standard:
+
+    1. Privileged pods: DENIED
+       - No containers can run as privileged
+       - No privilege escalation allowed
+
+    2. Host namespaces: DENIED
+       - No hostPID, hostIPC, hostNetwork
+
+    3. Host paths: DENIED
+       - No hostPath volumes allowed
+
+    4. Capabilities: RESTRICTED
+       - Only NET_BIND_SERVICE allowed
+       - Must drop ALL capabilities
+
+    5. User/Group: REQUIRED
+       - Must run as non-root user
+       - Must specify runAsNonRoot: true
+       - Should specify explicit runAsUser >= 1000
+
+    6. Seccomp: REQUIRED
+       - Must use RuntimeDefault or Localhost profile
+
+    7. SELinux: RESTRICTED
+       - Cannot set custom SELinux options
+
+    Verification:
+      kubectl label --dry-run=server --overwrite ns mind-production \
+        pod-security.kubernetes.io/enforce=restricted
+
+    Debug failing pods:
+      kubectl get events -n mind-production --field-selector reason=FailedCreate

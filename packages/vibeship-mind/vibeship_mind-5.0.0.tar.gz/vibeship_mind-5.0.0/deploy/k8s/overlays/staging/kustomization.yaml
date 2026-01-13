@@ -1,0 +1,79 @@
+# Mind v5 Staging Environment Overlay
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mind-staging
+
+resources:
+  - ../../base
+  - namespace.yaml
+  - secrets.yaml
+
+# Environment-specific name prefix
+namePrefix: staging-
+
+# Common labels for staging
+commonLabels:
+  environment: staging
+  app.kubernetes.io/instance: staging
+
+# Staging-specific patches
+patches:
+  # Reduce replicas for staging
+  - target:
+      kind: Deployment
+      name: mind-api
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  # Reduce resources for staging
+  - target:
+      kind: Deployment
+      name: mind-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+  # Update HPA for staging
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: mind-api
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+
+# ConfigMap patches for staging
+configMapGenerator:
+  - name: mind-config
+    behavior: merge
+    literals:
+      - MIND_ENV=staging
+      - LOG_LEVEL=DEBUG
+      - OTEL_TRACES_SAMPLER=traceidratio
+      - OTEL_TRACES_SAMPLER_ARG=0.5
+      - NATS_URL=nats://staging-nats:4222
+      - POSTGRES_HOST=staging-postgres
+      - FALKORDB_HOST=staging-falkordb
+      - TEMPORAL_HOST=staging-temporal
+      - QDRANT_URL=http://staging-qdrant:6333
+
+images:
+  - name: mind-api
+    newName: ghcr.io/mind-ai/mind-api
+    newTag: staging
+  - name: mind-worker
+    newName: ghcr.io/mind-ai/mind-worker
+    newTag: staging

@@ -1,0 +1,173 @@
+version: "3.8"
+
+services:
+  # PostgreSQL with pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: mind-postgres
+    environment:
+      POSTGRES_USER: mind
+      POSTGRES_PASSWORD: mind
+      POSTGRES_DB: mind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mind -d mind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # NATS with JetStream
+  nats:
+    image: nats:2.10-alpine
+    container_name: mind-nats
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # Monitoring
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: mind-qdrant
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6333/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # FalkorDB Graph Database (for causal inference)
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: mind-falkordb
+    ports:
+      - "6379:6379"  # Redis protocol
+    volumes:
+      - falkordb_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Temporal Server (development mode)
+  temporal:
+    image: temporalio/auto-setup:1.22.6
+    container_name: mind-temporal
+    ports:
+      - "7233:7233"  # gRPC frontend
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=mind
+      - POSTGRES_PWD=mind
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # Temporal Web UI
+  temporal-ui:
+    image: temporalio/ui:2.22.3
+    container_name: mind-temporal-ui
+    ports:
+      - "8088:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      - temporal
+
+  # Mind API
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: mind-api
+    environment:
+      MIND_ENVIRONMENT: development
+      MIND_DEBUG: "true"
+      MIND_POSTGRES_HOST: postgres
+      MIND_POSTGRES_PORT: 5432
+      MIND_POSTGRES_USER: mind
+      MIND_POSTGRES_PASSWORD: mind
+      MIND_POSTGRES_DB: mind
+      MIND_NATS_URL: nats://nats:4222
+      MIND_QDRANT_URL: http://qdrant:6333
+      MIND_FALKORDB_HOST: falkordb
+      MIND_FALKORDB_PORT: 6379
+      MIND_TEMPORAL_HOST: temporal
+      MIND_TEMPORAL_PORT: 7233
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      falkordb:
+        condition: service_healthy
+    volumes:
+      - ../src:/app/src:ro  # Mount source for hot reload
+    command: ["mind", "serve", "--reload"]
+
+  # Gardener Worker
+  gardener:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: mind-gardener
+    environment:
+      MIND_ENVIRONMENT: development
+      MIND_DEBUG: "true"
+      MIND_POSTGRES_HOST: postgres
+      MIND_POSTGRES_PORT: 5432
+      MIND_POSTGRES_USER: mind
+      MIND_POSTGRES_PASSWORD: mind
+      MIND_POSTGRES_DB: mind
+      MIND_NATS_URL: nats://nats:4222
+      MIND_QDRANT_URL: http://qdrant:6333
+      MIND_FALKORDB_HOST: falkordb
+      MIND_FALKORDB_PORT: 6379
+      MIND_TEMPORAL_HOST: temporal
+      MIND_TEMPORAL_PORT: 7233
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      falkordb:
+        condition: service_healthy
+    volumes:
+      - ../src:/app/src:ro
+    command: ["mind", "worker", "gardener"]
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  falkordb_data:
