@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Bradley M. Bell <bradbell@seanet.com>
+# SPDX-FileContributor: 2024 Bradley M. Bell
+# ----------------------------------------------------------------------------
+# Use the following to verify yml syntax before commiting:
+# https://yamlchecker.com/
+#
+# The name for this workflow
+name: bash-workflow
+#
+# A short description of this workflow
+run-name: Test using bash on windows, ubuntu and macos.
+#
+# This worflow will be run on any push to the repository
+on:
+  push:
+    branches:
+      master
+#
+jobs:
+  #
+  check_install:
+    #
+    strategy:
+      matrix:
+        os: [ windows-latest, ubuntu-latest , macos-latest ]
+    #
+    runs-on: ${{ matrix.os }}
+    steps:
+      #
+      # checkout
+      - uses: actions/checkout@v4
+      #
+      # python
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      #
+      # install pytest
+      - name: install pytest
+        run: pip install .
+      #
+      - name: bin/check_install.sh
+        shell: bash -el {0}
+        run: |
+          echo 'matrix.os = ${{ matrix.os }}'
+          if [ '${{ matrix.os }}' == 'windows-latest' ]
+          then
+            sed -i -e 's|/bin:$PATH|/Scripts:$PATH|' bin/check_install.sh
+          fi
+          bin/check_install.sh

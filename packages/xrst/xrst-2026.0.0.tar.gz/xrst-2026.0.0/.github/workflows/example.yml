@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Bradley M. Bell <bradbell@seanet.com>
+# SPDX-FileContributor: 2024 Bradley M. Bell
+# ----------------------------------------------------------------------------
+# Use the following to verify yml syntax before commiting:
+# https://yamlchecker.com/
+#
+# The name for this workflow
+name: example-workflow
+#
+# A short description of this workflow
+run-name: This workflow was triggered by ${{ github.actor }}
+#
+# This worflow will be run on any push to the repository
+on:
+  push:
+    branches:
+      workflow
+#
+# env.varible_one. env.variable_two
+env:
+  variable_one: 1
+  variable_two: 2
+#
+jobs:
+  #
+  # example running on windows, ubuntu and mac
+  example_matrix:
+    #
+    strategy:
+      matrix:
+        os: [ windows-latest, ubuntu-latest , macos-latest ]
+    #
+    runs-on: ${{ matrix.os }}
+    steps:
+      #
+      - name: Using yml template variables
+        run: |
+          echo 'matrix.os    = ${{ matrix.os }}'
+          echo 'variable_one = ${{ env.variable_one }}'
+          echo 'variable_two = ${{ env.variable_two }}'
+      #
+      # actions
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      #
+      - name: Using bash
+        shell: bash -el {0}
+        run: |
+          echo "variable_one = $variable_one"
+          echo "variable_two = $variable_two"
+          echo "which python3 = $(which python3)"
+          echo "which pip     = $(which pip)"
+          printf "ls = \n$(ls)"
