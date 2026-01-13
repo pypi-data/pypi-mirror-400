@@ -1,0 +1,197 @@
+# AgentBenchKit
+### 1. 项目简介
+
+本项目是一个用于评估基于langchain架构的Agent或LLM的通用测试框架——`agentbenchkit`。
+它支持加载多种数据集，并对自定义的 AI Agent 进行benchmark测试与准确率分析。
+
+#### 特性：
+- 可基于api测试
+- 支持通过配置文件测试
+- 内置多种标准数据集加载器（如视觉benchmark：ERQA，文本benchmark：MMLU）
+- 可扩展的自定义数据加载器设计
+- 集成RAY 并行代理并收集答案
+- 内置评分机制（如 Exact Match, IOU 等）,且支持自定义评分逻辑
+- 可集成 LangFuse 实现追踪记录功能
+
+---
+
+### 2. 安装指南
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+### 3. 快速开始
+
+以下步骤展示如何为你的 AI Agent 编写测试脚本：
+
+
+#### 步骤一：定义构建函数
+
+你需要实现三个关键组件作为参数传递给 `BenchmarkRunner` 构造函数：
+
+##### （1）构造函数/API地址
+
+如返回一个可调用对象，其必须具有 `.ainvoke(state)` 方法来异步处理输入状态。
+
+```python
+#for demonstration
+import react_agent
+def build_agent():
+    agent = react_agent.AgentGraph(config_path="examples")
+    return agent
+```
+```python
+from langchain_openai import ChatOpenAI
+def build_llm():
+    llm = ChatOpenAI(model="model", base_url="base_url")
+    return llm
+```
+如使用api，仅需传输api地址：
+`http://127.0.0.1:8000/api/v1/agent/`
+
+##### （2）state_builder 函数
+
+接收从benchmark提取的问题数据，将其转换成 agent 所需的状态。
+对于llm，我们提供默认状态构建函数及配套的结果解析函数，如您需要自定义提示词，
+则需您自行实现相关函数。
+我们提供的问题格式为以下格式字典，问题对象名为 `example`：
+
+| 键名               | 类型                | 描述                 |
+|------------------|-------------------|--------------------|
+| `image`          | List[Image.Image] | 测试集中的图片列表          |
+| `question`       | str               | 测试集中的问题与选项及提示词（如有） |
+| `correct_answer` | any               | 测试集中的正确答案          |
+| `task_name`      | str               | 测试集中任务的类别名称（如有）    |
+| `sample_id`      | str               | 测试集中id，为测试集名称_idx  |
+
+```python
+def state_builder(example):
+    public_urls = ["",""]
+    initial_state = {
+        "question": example["question"],
+        "original_figure_url": public_urls,
+        "current_turn": 1,
+        "max_turns": 10,
+    }
+    return initial_state
+```
+
+##### （3）result_parser 函数
+
+解析 agent 输出的结果字符串，提取最终答案部分。
+
+```python
+def result_parser(raw_answer):
+    return raw_answer.content
+```
+
+#### 步骤二：新建一个`benchmarkrunner`对象，并传入您定义的函数及其它参数
+创建一个主程序文件，在其中完成相关设置：
+您可以通过list_dataset_loaders()函数查看当前支持的数据集。
+
+```python
+#  mock示例,请使用您的实际agent
+import os, sys
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(PROJECT_ROOT/"agentbenchkit"))
+import react_agent
+from agentbenchkit import BenchmarkRunner
+from agentbenchkit import print_dataset_loaders
+
+def state_builder(example):
+    public_urls = ["",""]
+    initial_state = {
+        "question": example["question"],
+        "original_figure_url": public_urls,
+        "current_turn": 1,
+        "max_turns": 10,
+    }
+    return initial_state
+
+def result_parser(raw_answer):
+    return raw_answer.content
+
+def build_agent():
+    agent = react_agent.AgentGraph()
+    return agent
+
+if __name__ == "__main__":
+    print_dataset_loaders()
+    runner = BenchmarkRunner(build_agent, "erqa", state_builder, result_parser, 2)
+    runner.run("results", 2)
+```
+
+---
+
+### 4. API文档说明
+
+#### `BenchmarkRunner(agent_factory, dataset_loader_name, state_builder_func, result_parser_func, num_workers)`
+
+| 参数                    | 类型               | 描述                         |
+|-----------------------|------------------|----------------------------|
+| `agent_factory`       | Callable or str  | 创建一个新的 agent/llm 实例,或api地址 |
+| `dataset_loader_name` | str              | 指定使用的数据集名称                 |
+| `state_builder_func`  | Callable         | 将原始样本转化为 agent 输入状态        |
+| `result_parser_func`  | Callable         | 解析 agent 回复获取最终答案          |
+| `evaluator`           | str or list[str] | 评估方式（集）                    |
+| `num_workers`         | int              | 并发工作线程数                    |
+
+#### `.run(results_dir, limit=None, indices=[1,2])`
+
+启动基准测试过程。
+
+| 参数            | 类型        | 描述                   |
+|---------------|-----------|----------------------|
+| `results_dir` | str       | 存放输出结果的目录路径          |
+| `limit`       | int       | 限制测试样本数量，默认无限制       |
+| `indices`     | list[int] | 指定运行的样本索引，优先级高于limit |
+---
+
+### 5. 结果输出说明
+
+每次运行将在指定目录生成如下文件：
+
+- `{benchmarkname}_results.json`: 包含benchmark下每个样本的预测结果与正确答案
+- `{benchmark}_evaluation.json`: 统计各benchmark下的准确率报告
+
+---
+
+### 6. 自定义扩展
+
+你可以注册方式添加新的数据集支持或评估逻辑：
+
+#### 添加新数据集
+
+#### 添加评分规则
+
+### 7.使用llm模型API评价agent结果
+直接使用大语言模型API比较agent答案与标准答案的一致性，通过 agentbenchkit/evaluator/llm_compare_config.yaml进行配置
+
+| 参数                     | 类型       | 描述                  |
+|-----------------------|----------|---------------------|
+| `llm_evaluator.type`  | str | general: 通识评价 |
+|  `1` |str|math: 数学评价 |
+|   `2` |str|default: 与general等价 |
+| `llm_evaluator.parameters.model` | str      | 你的模型名字 |
+| `llm_evaluator.parameters.base_url`  | str | 你的模型url |
+| `llm_evaluator.parameters.api_key`  | str | 你的API Key   |
+| `llm_evaluator.parameters.max_tokens`  | str      |最大token数      |
+
+### 8. 高级特性
+
+#### 使用 LangFuse 记录日志
+
+如果你希望记录每次交互详细信息，可以通过环境变量启用 LangFuse：
+
+```bash
+export LANGFUSE_PUBLIC_KEY=your_public_key
+export LANGFUSE_SECRET_KEY=your_secret_key
+export LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+
+---
