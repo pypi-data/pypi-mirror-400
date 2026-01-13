@@ -1,0 +1,59 @@
+name: Publish
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Set up Python
+      run: uv python install 3.12
+
+    - name: Check version
+      id: check-version
+      run: |
+        VERSION=$(grep '^version =' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        if curl -s "https://pypi.org/pypi/serp-mcp/$VERSION/json" > /dev/null; then
+          NEW_VERSION=$(echo $VERSION | awk -F. '{print $1"."$2"."($3+1)}')
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          sed -i "s/version = \"$VERSION\"/version = \"$NEW_VERSION\"/" pyproject.toml
+          git add pyproject.toml
+          git -c user.name='github-actions[bot]' -c user.email='github-actions[bot]@users.noreply.github.com' commit -m "Bump version to $NEW_VERSION [skip ci]"
+          git pull --rebase origin main
+          git push
+        else
+          echo "new_version=$VERSION" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Run tests
+      run: uv run pytest
+
+    - name: Run lint
+      run: uv run ruff check .
+
+    - name: Run ty
+      run: uv run ty check serp_mcp
+
+    - name: Build package
+      run: uv build
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        packages-dir: dist/
