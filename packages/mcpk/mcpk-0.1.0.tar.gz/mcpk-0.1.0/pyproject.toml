@@ -1,0 +1,104 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcpk"
+version = "0.1.0"
+description = "A transport-agnostic kernel for MCP servers"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    { name = "Adam Hopkins", email = "adam@amhopkins.com" },
+]
+keywords = ["mcp", "model-context-protocol", "server", "llm", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+validation = ["jsonschema>=4.0"]
+
+[project.urls]
+Homepage = "https://github.com/ahopkins/mcpk"
+Repository = "https://github.com/ahopkins/mcpk"
+Issues = "https://github.com/ahopkins/mcpk/issues"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "pyright>=1.1.390",
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "coverage>=7.6.0",
+    "poethepoet>=0.31.0",
+    "jsonschema>=4.0",
+    "types-jsonschema>=4.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcpk"]
+
+[tool.uv]
+package = true
+default-groups = ["dev"]
+
+[tool.poe.tasks]
+format = "ruff format ."
+fix = "ruff check --fix ."
+lint = "ruff check ."
+typecheck = ["pyright", "mypy"]
+pyright = "pyright src"
+mypy = "mypy src"
+test = "pytest tests -v"
+_cov-run = "coverage run -m pytest tests"
+_cov-report = "coverage report -m"
+test-cov = ["_cov-run", "_cov-report"]
+ci = ["lint", "typecheck", "test-cov"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = ["SIM102"]  # Nested ifs clearer in tutorials
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+include = ["src"]
+extraPaths = ["src"]
+venvPath = "."
+venv = ".venv"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/mcpk"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
