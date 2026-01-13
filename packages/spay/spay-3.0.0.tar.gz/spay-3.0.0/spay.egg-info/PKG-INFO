@@ -1,0 +1,82 @@
+Metadata-Version: 2.4
+Name: spay
+Version: 3.0.0
+Summary: Python SDK for Spay internet gateway
+Author: Saba Pardazesh
+Author-email: info@spay.ir
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.31.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# spay
+
+**SPAY Python SDK** for integrating the **SPAY Internet Payment Gateway (IPG)** into Python applications.
+
+This SDK provides a simple, structured interface to handle the full SPAY payment lifecycle:
+
+- Token generation
+- Payment request
+- Transaction verification
+
+It is designed for backend services such as **Django**, **FastAPI**, **Flask**, or any Python-based system.
+
+---
+
+## Installation
+
+Install the SDK using `pip`:
+
+```bash
+pip install spay
+```
+
+## Usage
+1. Create a Client Instance
+    First, instantiate the SpayClient class.
+
+    Required parameters:
+    merchant_id (str)
+    amount (int)
+
+    Optional parameters:
+    callback_url (str)
+    mobile (str)
+    email (str)
+    description (str)
+
+
+from spay import SpayClient
+
+client = SpayClient(
+    merchant_id="YOUR_MERCHANT_ID",
+    amount=500000,
+    callback_url="https://example.com/callback",
+    mobile="09123456789",
+    email="user@example.com",
+    description="Order payment"
+)
+
+2. Get Payment Token
+    Generate a payment token using the get_token method:
+
+    token = client.get_token()
+
+3. Request Payment
+
+    Use the generated token to request payment and receive the IPG URL:
+    ipg_url = client.request_payment()
+
+
+4. Verify Payment
+
+    After the payment process, SPay redirects the user to your callback_url.
+    Verify the transaction using the verify_payment method:
+    result = client.verify_payment(token)
+
