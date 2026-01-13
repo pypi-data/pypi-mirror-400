@@ -1,0 +1,310 @@
+Metadata-Version: 2.1
+Name: isage-edge
+Version: 0.2.4.0
+Summary: SAGE Edge aggregator shell - mounts LLM gateway under an optional prefix
+Author-email: IntelliStream Team <intellistream@github.com>
+License: MIT
+Project-URL: Homepage, https://github.com/intellistream/sage-edge
+Project-URL: Documentation, https://intellistream.github.io/SAGE-Pub/
+Project-URL: Repository, https://github.com/intellistream/sage-edge
+Project-URL: Issues, https://github.com/intellistream/sage-edge/issues
+Project-URL: Changelog, https://github.com/intellistream/sage-edge/blob/main/CHANGELOG.md
+Keywords: sage,edge,gateway,llm,openai
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: isage-llm-core>=0.2.0
+Requires-Dist: isage-llm-gateway>=0.1.0
+Requires-Dist: isage-common>=0.2.0
+Requires-Dist: fastapi<1.0.0,>=0.115.0
+Requires-Dist: uvicorn[standard]<1.0.0,>=0.34.0
+Provides-Extra: all
+Requires-Dist: isage-edge[dev,publish]; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: ruff==0.14.6; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+Provides-Extra: publish
+Requires-Dist: isage-pypi-publisher>=0.1.0; extra == "publish"
+Requires-Dist: build>=1.0.0; extra == "publish"
+Requires-Dist: twine>=4.0.0; extra == "publish"
+
+# SAGE Edge
+
+> Lightweight FastAPI aggregator shell for mounting SAGE LLM Gateway
+
+[![PyPI version](https://badge.fury.io/py/isage-edge.svg)](https://badge.fury.io/py/isage-edge)
+[![Python versions](https://img.shields.io/pypi/pyversions/isage-edge.svg)](https://pypi.org/project/isage-edge/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+## Overview
+
+**SAGE Edge** is an optional aggregator shell that mounts the entire [SAGE LLM Gateway](https://github.com/intellistream/SAGE) application, providing:
+
+- ✅ **Gateway Mounting**: Mount complete Gateway app (Control Plane, RAG Pipeline, Sessions) at `/` or custom prefix
+- ✅ **Path Preservation**: Keep `/v1/*` endpoints stable (OpenAI-compatible)
+- ✅ **Health Endpoints**: `/healthz` and `/readyz` at edge level
+- ✅ **Flexible Deployment**: Optional component - Gateway works standalone without Edge
+
+## Architecture
+
+```
+User Requests
+     ↓
+sage-edge (Port 8899)              ← Optional aggregator shell
+     ↓ (mounts at / or custom prefix)
+sage-llm-gateway (entire app)      ← Control Plane + RAG + Sessions + /v1/*
+     ↓
+LLM Engines (vLLM, etc.)
+```
+
+**What Edge Mounts**:
+- ✅ Control Plane management API
+- ✅ OpenAI-compatible `/v1/chat/completions`, `/v1/embeddings`
+- ✅ RAG Pipeline (retrieval, refinement, generation)
+- ✅ Session Management (NeuroMem VDB/KV/Graph backends)
+- ✅ Studio Backend routes
+
+## Installation
+
+### From PyPI (Recommended)
+
+```bash
+pip install isage-edge
+```
+
+### From Source
+
+```bash
+git clone https://github.com/intellistream/sage-edge.git
+cd sage-edge
+pip install -e .
+```
+
+## Quick Start
+
+### Default Usage (Mount at /)
+
+```bash
+# Start Edge server (mounts Gateway at /)
+sage-edge --port 8899
+
+# Gateway endpoints available directly
+curl http://localhost:8899/v1/models
+curl http://localhost:8899/healthz
+```
+
+### Custom Prefix
+
+```bash
+# Mount Gateway under /llm prefix
+sage-edge --port 8899 --llm-prefix /llm
+
+# Gateway endpoints now at /llm/v1/*
+curl http://localhost:8899/llm/v1/models
+curl http://localhost:8899/healthz  # Edge health (root level)
+```
+
+### Without LLM Gateway
+
+```bash
+# Start as minimal health check server
+sage-edge --port 8899 --no-llm
+```
+
+## Prerequisites
+
+SAGE Edge requires the following packages (auto-installed):
+
+- `isage-llm-gateway>=0.1.0` - SAGE LLM Gateway
+- `isage-llm-core>=0.2.0` - Control Plane client
+- `isage-common>=0.2.0` - Common utilities (ports, paths)
+- `fastapi>=0.115.0` - Web framework
+- `uvicorn[standard]>=0.34.0` - ASGI server
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# Edge server settings
+SAGE_EDGE_HOST=0.0.0.0           # Bind interface (default: 0.0.0.0)
+SAGE_EDGE_PORT=8899              # Port (default: 8899, from SagePorts.EDGE_DEFAULT)
+SAGE_EDGE_LLM_PREFIX=/llm        # Mount prefix (default: /)
+SAGE_EDGE_LOG_LEVEL=info         # Log level (debug, info, warning, error)
+```
+
+### CLI Options
+
+```bash
+sage-edge --help
+
+Options:
+  --host TEXT          Host interface to bind (default: 0.0.0.0)
+  --port INTEGER       Port to bind (default: 8899)
+  --llm-prefix TEXT    Mount prefix for Gateway (default: /)
+  --no-llm            Start without mounting Gateway
+  --log-level TEXT     Log level (default: info)
+```
+
+## Usage Examples
+
+### 1. Production Deployment
+
+```bash
+# Mount Gateway at root, production settings
+sage-edge \
+  --host 0.0.0.0 \
+  --port 8899 \
+  --log-level warning
+```
+
+### 2. Multi-Service Setup
+
+```bash
+# Edge as reverse proxy with custom prefix
+sage-edge \
+  --port 8899 \
+  --llm-prefix /api/llm
+
+# Access:
+# - Gateway: http://localhost:8899/api/llm/v1/*
+# - Edge health: http://localhost:8899/healthz
+```
+
+### 3. Development Mode
+
+```bash
+# Verbose logging for debugging
+sage-edge \
+  --port 8899 \
+  --log-level debug
+```
+
+## API Endpoints
+
+### Edge-Level Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/healthz` | GET | Health check (always available) |
+| `/readyz` | GET | Readiness check (always available) |
+
+**Response Example**:
+```json
+{
+  "status": "ok",
+  "service": "SAGE Edge",
+  "llm_mounted": true,
+  "llm_prefix": "/"
+}
+```
+
+### Gateway Endpoints (When Mounted)
+
+| Endpoint Pattern | Description |
+|-----------------|-------------|
+| `{prefix}/v1/chat/completions` | OpenAI-compatible chat |
+| `{prefix}/v1/embeddings` | OpenAI-compatible embeddings |
+| `{prefix}/v1/models` | List available models |
+| `{prefix}/v1/management/*` | Control Plane API |
+| `{prefix}/sessions/*` | Session management |
+
+**Note**: `{prefix}` is `/` by default or custom value from `--llm-prefix`.
+
+## When to Use SAGE Edge
+
+### ✅ Use Edge When:
+- You need custom mount paths (e.g., `/api/llm/v1/*`)
+- Deploying behind reverse proxy with path rewriting
+- Want separated edge-level health checks
+- Building multi-service aggregator
+
+### ⚠️ Use Gateway Directly When:
+- Default `/v1/*` paths are acceptable
+- Simpler deployment preferred
+- No custom prefix needed
+
+## Comparison: Edge vs Gateway
+
+| Feature | sage-edge | sage-llm-gateway |
+|---------|-----------|------------------|
+| **OpenAI `/v1/*`** | ✅ (via mount) | ✅ (native) |
+| **Custom Prefix** | ✅ | ❌ |
+| **Edge Health** | ✅ (`/healthz`, `/readyz`) | ✅ (built-in) |
+| **Control Plane** | ✅ (mounted) | ✅ (native) |
+| **RAG Pipeline** | ✅ (mounted) | ✅ (native) |
+| **Session Mgmt** | ✅ (mounted) | ✅ (native) |
+| **Deployment** | Optional shell | Core service |
+
+## Development
+
+### Running Tests
+
+```bash
+# Install dev dependencies
+pip install -e .[dev]
+
+# Run tests
+pytest tests/ -v
+
+# Run linting
+ruff check src/
+ruff format --check src/
+```
+
+### Project Structure
+
+```
+sage-edge/
+├── src/sage/edge/
+│   ├── __init__.py       # Public API
+│   ├── _version.py       # Version info
+│   ├── app.py            # FastAPI app factory
+│   └── server.py         # CLI entrypoint
+├── tests/                # Test suite
+├── pyproject.toml        # Package config
+└── README.md             # This file
+```
+
+## Links
+
+- **Main Repository**: [SAGE Framework](https://github.com/intellistream/SAGE)
+- **Gateway**: [isage-llm-gateway](https://pypi.org/project/isage-llm-gateway/)
+- **Documentation**: [SAGE Docs](https://intellistream.github.io/SAGE-Pub/)
+- **PyPI Package**: [isage-edge](https://pypi.org/project/isage-edge/)
+- **Issues**: [GitHub Issues](https://github.com/intellistream/sage-edge/issues)
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+See [CONTRIBUTING.md](https://github.com/intellistream/SAGE/blob/main/CONTRIBUTING.md) for detailed guidelines.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+SAGE Edge is part of the [SAGE](https://github.com/intellistream/SAGE) framework developed by the IntelliStream team.
+
+---
+
+**Questions?** Open an issue on [GitHub](https://github.com/intellistream/sage-edge/issues) or check the [documentation](https://intellistream.github.io/SAGE-Pub/).
