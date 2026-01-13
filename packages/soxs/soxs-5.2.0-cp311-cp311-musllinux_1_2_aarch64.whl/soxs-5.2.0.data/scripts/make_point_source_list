@@ -1,0 +1,47 @@
+#!python
+
+import argparse
+
+import numpy as np
+
+from soxs.background import make_point_source_list
+
+parser = argparse.ArgumentParser(
+    description="Make a list of point source properties "
+    "and write it to an ASCII table file."
+)
+parser.add_argument(
+    "output_file",
+    type=str,
+    help="The ASCII table file to write the source properties to.",
+)
+parser.add_argument("fov", help="The field of view on a side in arcminutes.")
+parser.add_argument(
+    "sky_center",
+    type=str,
+    help="The center RA, Dec coordinates of the "
+    "observation, in degrees, comma-separated.",
+)
+parser.add_argument(
+    "--overwrite",
+    action="store_true",
+    help="Overwrite an existing file with the same name.",
+)
+parser.add_argument(
+    "--drop_brightest",
+    type=int,
+    help="This many brightest sources will be dropped from the point sources.",
+)
+parser.add_argument(
+    "--random_seed",
+    type=int,
+    help="A constant integer random seed to produce a "
+    "consistent set of random numbers.",
+)
+
+args = parser.parse_args()
+
+sky_center = np.array(args.sky_center.split(",")).astype("float64")
+
+make_point_source_list(args.output_file, args.fov, sky_center, drop_brightest=args.drop_brightest,   overwrite=args.overwrite,
+prng=args.random_seed)
