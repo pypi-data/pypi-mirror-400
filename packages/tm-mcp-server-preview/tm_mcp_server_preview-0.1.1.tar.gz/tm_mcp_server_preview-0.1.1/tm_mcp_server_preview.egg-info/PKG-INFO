@@ -1,0 +1,260 @@
+Metadata-Version: 2.4
+Name: tm-mcp-server-preview
+Version: 0.1.1
+Summary: TrendMiner MCP Server (Preview) - AI assistant integration for TrendMiner
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/TrendMinerCS/sdk
+Project-URL: Documentation, https://github.com/TrendMinerCS/sdk#readme
+Project-URL: Repository, https://github.com/TrendMinerCS/sdk
+Project-URL: Issues, https://github.com/TrendMinerCS/sdk/issues
+Keywords: mcp,trendminer,ai,assistant,industrial,analytics
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Manufacturing
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: fastmcp>=2.14.0
+Requires-Dist: pandas>=2.3.3
+Requires-Dist: pandas-stubs~=2.3.3
+Requires-Dist: python-dotenv>=1.2.1
+Requires-Dist: cachetools<7.0,>=6.0
+Requires-Dist: isodate<0.8.0,>=0.7.2
+Requires-Dist: numpy<3.0,>=2.0
+Requires-Dist: python-dateutil<3.0.0,>=2.9.0
+Requires-Dist: pytz<2026.0,>=2023.2
+Requires-Dist: requests<3.0.0,>=2.28.0
+Requires-Dist: urllib3<3.0.0,>=1.0.0
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: starlette>=0.41.0
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: pydantic>=2.10.4
+Requires-Dist: pydantic-settings>=2.7.0
+
+# TrendMiner MCP Server (Preview)
+
+[![PyPI](https://img.shields.io/pypi/v/tm-mcp-server-preview)](https://pypi.org/project/tm-mcp-server-preview/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+
+An MCP (Model Context Protocol) server for integrating TrendMiner, an industrial AI analytics platform, with AI
+assistants like Claude, CoPilot and ChatGPT. This preview release allows you to interact with TrendMiner data using
+natural language through Claude Desktop, OpenAI ChatGPT and Microsoft CoPilot.
+
+## Prerequisites
+
+Install the following dependencies from your macOS terminal app:
+
+```bash
+brew install node
+brew install uv
+```
+
+## Quick Start
+
+### Automatic Setup (Recommended)
+
+The easiest way to get started - setup runs automatically on first use:
+
+```bash
+# 1. Create a working directory
+mkdir tm-mcp-server-preview && cd tm-mcp-server-preview
+
+# 2. Setup the server - it will guide you through setup on first run
+uvx tm-mcp-server-preview --setup
+```
+
+On first run, you'll be guided through an interactive setup wizard that configures:
+
+- TrendMiner server URL
+- OAuth authentication settings
+- Inspectr URL configuration
+
+The setup automatically creates `.env` and `.inspectr.yaml` files.
+
+## Start the Server
+
+After completing the setup, start the server:
+
+```bash
+npx @inspectr/inspectr
+```
+
+This single command will:
+
+- Launch the MCP server automatically (via configuration in `.inspectr.yaml`)
+- Start Inspectr proxy
+- Provide a public URL (e.g., "https://galaxy-mcp.in-spectr.dev/mcp")
+
+The server runs on http://localhost:8765 and logs are saved to `log-mcp-sessions/`.
+
+### Advanced Mode (Optional)
+
+For advanced users with separate log visibility, run services in two terminal windows:
+
+**Terminal 1 - MCP Server:**
+
+```bash
+uvx tm-mcp-server-preview
+```
+
+**Terminal 2 - Inspectr Proxy:**
+
+```bash
+npx @inspectr/inspectr
+```
+
+> **Note:** When running the MCP server manually, comment out these lines in `.inspectr.yaml`:
+> ```yaml
+> #command: uvx
+> #commandArgs:
+> #  - tm-mcp-server-preview
+> #commandLogFile: log-mcp-sessions/tm-mcp-server-process.log
+> ```
+
+### Manual Configuration (Advanced)
+
+If you prefer to configure manually or need custom settings:
+
+<details>
+<summary>Click to expand manual configuration steps</summary>
+
+1. Create a `.env` file in your working directory:
+
+```bash
+# ------------------------------------------------------------------------------
+# TrendMiner Server Configuration
+# ------------------------------------------------------------------------------
+TM_SERVER_URL=https://cs.trendminer.net
+# ------------------------------------------------------------------------------
+# OAuth Authentication
+# ------------------------------------------------------------------------------
+TM_MCP_AUTHORIZATION_SERVER=https://cs.trendminer.net
+TM_MCP_RESOURCE_SERVER=https://galaxy-mcp.in-spectr.dev
+```
+
+2. Create a `.inspectr.yaml` file:
+
+```yaml
+# Local Service Port
+listen: ":6080"
+# Fast MCP server
+backend: "http://localhost:8765"
+# Ingress Channel
+expose: true
+channel: "galaxy-mcp"
+channelCode: "8908DC9F"
+# App
+appPort: 4567
+# Command
+command: uvx
+commandArgs:
+  - tm-mcp-server-preview
+commandLogFile: log-mcp-sessions/tm-mcp-server-process.log
+# Export
+export: true
+exportDir: log-mcp-sessions
+```
+
+3. Start the services:
+
+```bash
+# Start Inspectr (which will launch the MCP server)
+npx @inspectr/inspectr
+```
+
+</details>
+
+### Connect to Claude Desktop
+
+Open Claude > Settings > Developer > Edit Config
+
+![![./docs/assets]](./docs/assets/claude-desktop-settings.png)
+
+Add this configuration to your Claude Desktop config file:
+
+- **macOS/Linux**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
+
+Use the public URL that is provided after starting the MCP server.
+
+```json
+{
+  "mcpServers": {
+    "trendminer": {
+      "command": "npx",
+      "args": [
+        "mcp-remote@0.1.37",
+        "https://galaxy-mcp.in-spectr.dev/mcp",
+        "--debug",
+        "--static-oauth-client-info",
+        "{\"client_id\":\"publicmcppreview\"}"
+      ]
+    }
+  }
+}
+```
+
+Restart Claude Desktop to activate the TrendMiner MCP connection.
+
+## Example Usage
+
+Once connected, you can ask Claude questions about your TrendMiner data:
+
+**Search for specific batches:**
+
+```
+Search for all ALPHA batches in my batch line
+```
+
+**Analyze data:**
+
+```
+Could you analyze my batch line? I had some low quality batches and would like to know the root cause
+```
+
+**Retrieve time-series data:**
+
+```
+Show me the temperature trends for reactor 3 over the last week
+```
+
+## Features
+
+- 🔍 **Tag Search** - Find tags by name pattern or asset hierarchy
+- 📊 **Data Retrieval** - Fetch time-series data for analysis
+- 🎯 **Value-based Search** - Find events based on tag values and conditions
+- 📈 **TrendHub Integration** - Create and share views in TrendMiner
+- 🔐 **OAuth Support** - Secure authentication
+
+## Troubleshooting
+
+### Server won't start
+
+- Make sure you have Python 3.13+ installed: `python --version`
+- Re-run setup to fix configuration: `uvx tm-mcp-server-preview --setup`
+- Verify your `.env` file is in the correct directory
+- Check that all required environment variables are set
+
+### Claude Desktop can't connect
+
+- Restart Claude Desktop after adding the configuration
+- Check the server is running: visit http://localhost:8765/mcp in your browser
+- Review logs in Claude Desktop: Help → View Logs
+
+### Authentication errors
+
+- Verify your TrendMiner credentials are correct
+- Ensure your TrendMiner server URL is accessible
+- Check that all credential variables are set in `.env`
+
+## About
+
+Developed by [TrendMiner](https://www.trendminer.com/) to enable AI-powered industrial analytics workflows.
+
+**License**: MIT
+**Python**: 3.13+
+**Status**: Preview Release
