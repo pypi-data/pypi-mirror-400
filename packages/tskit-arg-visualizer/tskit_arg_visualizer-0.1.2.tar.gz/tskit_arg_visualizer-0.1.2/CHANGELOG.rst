@@ -1,0 +1,108 @@
+--------------------
+[0.1.2] - 2026-01-06
+--------------------
+
+Mutation highlighting (#231)
+
+Clean up duplicate code (#226, #227, #235, #236)
+
+
+--------------------
+[0.1.1] - 2025-10-21
+--------------------
+
+Remove significant amounts of CSS styling and replace with SVG styling to solve a variety of issues (#127, #155, #219)
+
+`force_notebook` to `is_notebook` (#220)
+
+Dynamic mutation box text color based on fill lightness (#218)
+
+Y-axis titles (#213)
+
+
+--------------------
+[0.1.0] - 2025-07-03
+--------------------
+
+Finalized for manuscript
+
+Better JSON escaping (#205)
+
+Added HTML preamble (#199)
+
+
+--------------------
+[0.0.6] - 2025-06-04
+--------------------
+
+`degree` parameter in `draw_node()` changed to `depth`
+
+Setting and extracting x-axis node positions (#137)
+
+`node` parameter in `draw_node()` and `subset_graph()` changed to `seed_nodes`
+
+--------------------
+[0.0.5] - 2025-03-19
+--------------------
+
+More efficient graph collapsing algorithm
+
+Adjustable size for mutation labels (#162)
+
+Fixed `draw_genome_bar()` after require.js changes (#154)
+
+Faster reading in trees (#163)
+
+Tree highlighting region position labels (#150)
+
+Customizable y-axis ticks (#140)
+
+--------------------
+[0.0.4] - 2025-02-06
+--------------------
+
+Fixes require.js loading so that Jupyter Notebook header is not necessary (#131)
+
+Provide controls for hiding labels within JavaScript (removed controls from Python)
+
+Allow multi-line node labels (#129)
+
+`subset_graph()` now callable, returns a namedtuple (#133)
+
+Customizable stroke for mutations (#135)
+
+--------------------
+[0.0.3] - 2025-01-21
+--------------------
+
+Mutations (for `edge_type=line`)
+
+Genome bar standalone
+
+Loading JSON fixed (#90)
+
+Tutorial doc
+
+Support for RevealJS
+
+--------------------
+[0.0.2] - 2024-08-13
+--------------------
+
+Support for Google Colab notebooks
+
+Assisted node positioning
+
+Node view
+
+Option to ignore unattached nodes when building the D3ARG
+
+Major efficiency improvements necessary for large ARGs
+
+Added titles to plots
+
+--------------------
+[0.0.1] - 2023-11-03
+--------------------
+
+Early Alpha release made available via PyPI for community testing and evaluation.
