@@ -1,0 +1,64 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<ctype.h>
+#include<string.h>
+#define MAX 100
+char stk[MAX];
+char infix[] = "((A+B)*C-(D/E)*G+H)*(I-J/K+L*M)-(N+O*(P-Q/R))";
+char postfix[MAX];
+int top = -1;
+void push(char x)
+{
+    stk[++top] = x;
+}
+char pop()
+{
+    return stk[top--];
+}
+int priority(char x)
+{
+    if (x == '%') return 3;
+    else if (x == '*' || x == '/') return 2;
+    else if (x == '+' || x == '-') return 1;
+    return 0;
+}
+void infix_to_postfix()
+{
+    int i = 0, j = 0;
+    char x = 0, y = 0;
+    while(infix[i] != '\0')
+    {
+        x = infix[i];
+        if ( x == '(') push(x);
+        else if (isalnum(x)) postfix[j++] = x;
+        else if (x == ')')
+        {
+            while(stk[top] != '(')
+                postfix[j++] = pop();
+            y = pop();
+        }
+        else
+        {
+            if ( top == -1) push(x);
+            else if (priority(x) > priority(stk[top])) push(x);
+            else
+            {
+                while ( top != -1 && priority(x) <= priority(stk[top]) )
+                {
+                    postfix[j++] = pop();
+                }
+                push(x);
+            }
+        }
+        i++;
+    }
+    while ( top != -1 )
+        postfix[j++] = pop();
+    for ( i = 0; i < strlen(postfix); i++)
+        printf("%c", postfix[i]);
+}
+int main()
+{
+    infix_to_postfix();
+    return 0;
+}

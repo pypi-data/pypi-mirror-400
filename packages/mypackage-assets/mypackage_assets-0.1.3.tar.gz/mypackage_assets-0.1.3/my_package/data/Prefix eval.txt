@@ -1,0 +1,63 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<ctype.h>
+#include<string.h>
+#define MAX 100
+float stk[MAX];
+char prefix[] = "-*+923/84";
+char new_prefix[MAX];
+int top = -1;
+void push(float x)
+{
+    stk[++top] = x;
+}
+float pop()
+{
+    return stk[top--];
+}
+void operation()
+{
+    int j = 0, i = 0;
+    for(i = strlen(prefix) - 1; i >= 0 ; i--)
+        new_prefix[j++] = prefix[i];
+}
+void prefix_eval()
+{
+    int i = 0, j = 0;
+    int op1 = 0, op2 = 0;
+    float p = 0, result = 0;
+    char x = 0;
+    while( new_prefix[i] != '\0')
+    {
+        x = new_prefix[i];
+        if(isdigit(x))
+        {
+            p = (float)(x - '0');
+            push(p);
+        }
+        else
+        {
+            op1 = pop();
+            op2 = pop();
+            if ( x == '+' )
+                result = op1 + op2;
+            else if ( x == '-')
+                result = op1 - op2;
+            else if ( x == '*')
+                result = op1 * op2;
+            else if ( x == '/')
+                result = op1 / op2;
+            push(result);
+        }
+        i++;
+    }
+    printf("The result is: %d", (int)stk[top]);
+}
+
+
+int main()
+{
+    operation();
+    prefix_eval();
+    return 0;
+}

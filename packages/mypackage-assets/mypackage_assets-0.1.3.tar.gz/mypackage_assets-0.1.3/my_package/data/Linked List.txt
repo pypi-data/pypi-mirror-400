@@ -1,0 +1,118 @@
+#include<stdio.h>
+#include<stdlib.h>
+struct Node
+{
+    int data;
+    struct Node *next;
+}*start = NULL;
+void createLL()
+{
+    int n=0, data=0, i=0;
+    struct Node *temp, *newnode;
+    printf("Enter the number of nodes:\n");
+    scanf("%d", &n);
+    for(i = 0; i < n ; i++)
+    {
+        newnode = (struct Node *)malloc(sizeof(struct Node));
+        printf("Enter the data of the newnode: \n");
+        scanf("%d", &data);
+        newnode->data = data;
+        if(!start)
+            start = newnode;
+        else
+        {
+            temp = start;
+            while(temp->next != NULL)
+                temp = temp->next;
+            temp->next = newnode;
+        }
+    }
+}
+void insertBefore()
+{
+    int data = 0, val = 0;   
+    struct Node *temp, *par, *newnode;
+    printf("Enter the data of the node:\n");
+    scanf("%d", &data);
+    printf("Enter the value before which u wanna insert:\n");
+    scanf("%d", &val);
+    newnode = (struct Node *)malloc(sizeof(struct Node));
+    newnode->data = data;
+    temp = start;
+    while(temp->next!=NULL && temp->data != val)
+    {
+        par = temp;
+        temp = temp->next;
+    }
+    if(temp == start)
+    {
+        newnode->next = start;
+        start = newnode;
+    }
+    else
+    {
+        par->next = newnode;
+        newnode->next = temp;
+    }
+}
+void insertAfter()
+{
+    int data = 0, val = 0;   
+    struct Node *temp,*newnode;
+    printf("Enter the data of the node:\n");
+    scanf("%d", &data);
+    printf("Enter the value after which u wanna insert:\n");
+    scanf("%d", &val);
+    newnode = (struct Node *)malloc(sizeof(struct Node));
+    newnode->data = data;
+    temp = start;
+    while(temp->next!=NULL && temp->data != val)
+    {
+        temp = temp->next;
+    }
+    newnode->next = temp->next;
+    temp->next = newnode;
+}
+void delNode()
+{
+    int data = 0, val = 0;   
+    struct Node *temp, *par, *newnode;
+    printf("Enter the value u want to delete:\n");
+    scanf("%d", &val);
+    temp = start;
+    while(temp->data != val)
+    {
+        par = temp;
+        temp = temp->next;
+    }
+    if(!temp)
+	printf("Value not found");
+    else if(temp == start)
+        start = start->next;
+    else
+        par->next = temp->next;
+    free(temp);
+}
+void display()
+{
+    struct Node *temp = start;
+    while(temp)
+    {
+        printf("%d ", temp->data);
+        temp = temp->next;
+    }
+    printf("\n");
+}
+
+int main()
+{
+    createLL();
+    display();
+    insertBefore();
+    display();
+    insertAfter();
+    display();
+    delNode();
+    display();
+    return 0;
+}

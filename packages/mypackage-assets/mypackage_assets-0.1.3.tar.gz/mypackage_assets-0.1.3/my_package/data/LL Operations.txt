@@ -1,0 +1,96 @@
+#include<stdio.h>
+#include<stdlib.h>
+struct Node
+{
+    int data;
+    struct Node *next;
+}*start = NULL;
+void createLL()
+{
+    int n=0, data=0, i=0;
+    struct Node *temp, *newnode;
+    printf("Enter the number of nodes:\n");
+    scanf("%d", &n);
+    for(i = 0; i < n ; i++)
+    {
+        newnode = (struct Node *)malloc(sizeof(struct Node));
+        printf("Enter the data of the newnode: \n");
+        scanf("%d", &data);
+        newnode->data = data;
+        newnode->next = NULL;
+        if(!start)
+            start = newnode;
+        else
+        {
+            temp = start;
+            while(temp->next != NULL)
+                temp = temp->next;
+            temp->next = newnode;
+        }
+    }
+}
+int count_nodes()
+{
+    struct Node *temp = start;
+    int count = 0;
+    while(temp)
+    {
+        count++;
+        temp = temp->next;
+    }
+    return count;
+}
+void reverseLL()
+{
+    struct Node *prev = NULL, *temp = start, *next = NULL;
+    while(temp)
+    {
+        next = temp->next;
+        temp->next = prev;
+        prev = temp;
+        temp = next;
+    }
+    start = prev;
+}
+void display()
+{
+    struct Node *temp = start;
+    while(temp)
+    {
+        printf("%d ", temp->data);
+        temp = temp->next;
+    }
+    printf("\n");
+}
+void splitLL()
+{
+    struct Node *slow, *fast, *start2;
+
+    if(start == NULL || start->next == NULL)
+        return;
+
+    slow = start;
+    fast = start->next;
+
+    while(fast != NULL && fast->next != NULL)
+    {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+
+    start2 = slow->next;
+    slow->next = NULL;
+
+    // start  -> first half
+    // start2 -> second half
+}
+
+int main()
+{
+    createLL();
+    display();
+    reverseLL();
+    display();
+    printf("%d", count_nodes());
+
+}
