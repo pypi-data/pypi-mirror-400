@@ -1,0 +1,136 @@
+"""Generic python utilities."""
+
+import fnmatch
+import hashlib
+import os
+import shutil
+import stat
+from collections.abc import Generator, Iterator, Sequence
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Optional, Union
+
+from _hashlib import HASH
+
+
+def _remove_readonly(func: Any, path: str, _: Any) -> None:
+    if not os.access(path, os.W_OK):
+        os.chmod(path, stat.S_IWUSR)
+        func(path)
+    else:
+        raise  # pylint: disable=misplaced-bare-raise
+
+
+def find_non_matching_files(directory: str, patterns: Sequence[str]) -> Iterator[str]:
+    """Find files NOT matching the given patterns."""
+    for root, _, files in os.walk(directory):
+        for basename in files:
+            if not any(fnmatch.fnmatch(basename, pattern) for pattern in patterns):
+                yield os.path.join(root, basename)
+
+
+def find_matching_files(directory: str, patterns: Sequence[str]) -> Iterator[Path]:
+    """Find files matching the given pattern."""
+    directory_path = Path(directory)
+
+    for pattern in patterns:
+        if pattern.startswith("/"):
+            pattern = pattern[1:]
+        matching_paths = directory_path.rglob(pattern)
+
+        for path in matching_paths:
+            yield Path(path)
+
+
+def safe_rm(path: Union[str, Path]) -> None:
+    """Delete an file or directory safely."""
+    if os.path.isdir(path):
+        safe_rmtree(str(path))
+    else:
+        os.remove(path)
+
+
+def safe_rmtree(path: str) -> None:
+    """Delete an entire directory and all its subfolders and files."""
+    try:
+        shutil.rmtree(  # pylint: disable=deprecated-argument
+            path, onerror=_remove_readonly
+        )
+    except PermissionError as exc:
+        raise RuntimeError(
+            f"File or directory in use, cannot remove files at {path}, remove manually and retry"
+        ) from exc
+
+
+@contextmanager
+def in_directory(path: str) -> Generator[str, None, None]:
+    """Work temporarily in a given directory."""
+    pwd = os.getcwd()
+    if not os.path.isdir(path):
+        path = os.path.dirname(path)
+    os.chdir(path)
+    try:
+        yield path
+    finally:
+        os.chdir(pwd)
+
+
+@contextmanager
+def catch_runtime_exceptions(
+    exc_list: Optional[list[str]] = None,
+) -> Generator[list[str], None, None]:
+    """Catch all runtime errors and add it to list of strings."""
+    exc_list = exc_list or []
+    try:
+        yield exc_list
+    except RuntimeError as exc:
+        exc_list += [str(exc)]
+
+
+@contextmanager
+def prefix_runtime_exceptions(
+    prefix: str,
+) -> Generator[None, None, None]:
+    """Prefix any runtime error with given string."""
+    try:
+        yield None
+    except RuntimeError as exc:
+        raise RuntimeError(f"{prefix}: {exc}") from exc
+
+
+def find_file(name: str, path: str = ".") -> list[str]:
+    """Find all files with a specific name recursively in a directory."""
+    return [
+        os.path.join(root, name) for root, _, files in os.walk(path) if name in files
+    ]
+
+
+def hash_directory(path: str, skiplist: Optional[list[str]]) -> str:
+    """Hash a directory with all its files."""
+    digest = hashlib.md5(usedforsecurity=False)
+    skiplist = skiplist or []
+
+    for root, _, files in os.walk(path):
+        for name in files:
+            if name not in skiplist:
+                file_path = os.path.join(root, name)
+
+                # Hash the path and add to the digest to account for empty files/directories
+                digest.update(
+                    hashlib.md5(name.encode(), usedforsecurity=False).digest()
+                )
+                digest = hash_file(file_path, digest)
+
+    return digest.hexdigest()
+
+
+def hash_file(file_path: str, digest: HASH) -> HASH:
+    """Hash the file at path."""
+    if os.path.isfile(file_path):
+        with open(file_path, "rb") as f_obj:
+            buf = f_obj.read(1024 * 1024)
+            while buf:
+                digest.update(buf)
+                buf = f_obj.read(1024 * 1024)
+
+    return digest
