@@ -1,0 +1,258 @@
+Metadata-Version: 2.4
+Name: tratatez
+Version: 1.0
+Summary: Librería para manipulación avanzada de archivos de texto .txt enfocada para construir y simular una consola (preferiblemente utilizando el comando match de python)
+Home-page: https://github.com/Metal-Alcyone-zero/Prosigue
+Author: El Señor es el único eterno. Que la ciencia lo honre a Él.
+Author-email: from.colombia.to.all@gmail.com
+License: MPL-2.0
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)
+Requires-Python: >=3.11.3
+Description-Content-Type: text/markdown
+License-File: license.txt
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-python
+Dynamic: summary
+
+# Librería Tratatez
+
+Librería de Python para manipulación avanzada de archivos de texto (.txt).
+Enfocada para construir y simular una consola (preferiblemente utilizando el comando match de python)
+
+## Descripción
+
+`tratatez` es una librería completa que proporciona 30 operaciones diferentes para trabajar con archivos de texto, incluyendo operaciones básicas, manipulación de líneas, modificación de caracteres, cifrado y conversión a CSV.
+
+
+## Instalación
+
+Puedes usar la librería copiando la carpeta `tratatez` a tu proyecto y luego importándola:
+
+```python
+from tratatez import tratatez
+```
+
+## Uso Básico
+
+La función principal es `tratatez(dire, tipe, conte="", line=None, punt=None)`:
+
+- **dire**: Ruta del archivo .txt
+- **tipe**: Número de operación (0-29)
+- **conte**: Contenido/texto según la operación
+- **line**: Número de línea (base 0)
+- **punt**: Parámetro adicional según la operación
+
+### Ejemplos
+
+#### Operaciones Básicas (Tipos 0-13)
+
+```python
+from tratatez import tratatez
+
+# Tipo 1: Crear archivo vacío
+tratatez("mi_archivo.txt", 1)
+
+# Tipo 5: Escribir contenido
+tratatez("mi_archivo.txt", 5, "Línea 1\nLínea 2\nLínea 3")
+
+# Tipo 7: Leer contenido completo
+contenido = tratatez("mi_archivo.txt", 7)
+print(contenido)
+
+# Tipo 8: Leer como lista de líneas
+lineas = tratatez("mi_archivo.txt", 8)
+for i, linea in enumerate(lineas):
+    print(f"Línea {i}: {linea}")
+
+# Tipo 9: Leer línea específica
+linea_2 = tratatez("mi_archivo.txt", 9, line=2)
+print(f"Línea 2: {linea_2}")
+
+# Tipo 10: Reemplazar línea específica
+tratatez("mi_archivo.txt", 10, "Nueva línea 1", line=1)
+
+# Tipo 3: Copiar archivo
+tratatez("mi_archivo.txt", 3, "copia.txt", punt="./respaldo")
+
+# Tipo 2: Eliminar archivo
+tratatez("copia_temporal.txt", 2)
+```
+
+#### Manipulación de Líneas
+
+```python
+# Tipo 6, punt=1: Añadir nueva línea al final
+tratatez("mi_archivo.txt", 6, "Nueva línea al final", punt=1)
+
+# Tipo 6, punt=2: Añadir al inicio
+tratatez("mi_archivo.txt", 6, "Primera línea", punt=2)
+
+# Tipo 6, punt=3: Insertar debajo de línea específica
+tratatez("mi_archivo.txt", 6, "Insertada debajo de línea 1", line=1, punt=3)
+
+# Tipo 13, punt=0: Enumerar líneas
+tratatez("mi_archivo.txt", 13, "ITEM_", punt=0)
+
+# Tipo 13, punt=1: Quitar enumeración
+tratatez("mi_archivo.txt", 13, punt=1)
+```
+
+#### Operaciones de Caracteres (Tipos 14-23)
+
+```python
+# Tipo 14: Modificar un caracter específico (posición base 1)
+tratatez("archivo.txt", 14, "X", line=0, punt=5)  # Cambia posición 5 en línea 0
+
+# Tipo 15: Verificar si línea termina con texto
+resultado = tratatez("archivo.txt", 15, ".", line=2)
+print(f"¿Termina con punto?: {resultado}")
+
+# Tipo 16: Verificar si línea contiene texto
+resultado = tratatez("archivo.txt", 16, "palabra", line=1)
+print(f"¿Contiene 'palabra'?: {resultado}")
+
+# Tipo 17: Eliminar último(s) caracter(es)
+tratatez("archivo.txt", 17, "1", line=0)  # Elimina 1 caracter
+tratatez("archivo.txt", 17, "2", line=1)  # Elimina 2 caracteres
+
+# Tipo 18: Buscar posiciones de subcadena
+posiciones = tratatez("archivo.txt", 18, "la", line=0)
+print(f"Posiciones de 'la': {posiciones}")
+
+# Tipo 19: Contar tabs o espacios al inicio
+tabs = tratatez("archivo.txt", 19, "", line=0, punt=0)  # Contar tabs
+espacios = tratatez("archivo.txt", 19, "", line=0, punt=1)  # Contar espacios
+
+# Tipo 20: Poner/quitar tabulador o espacios
+tratatez("archivo.txt", 20, "0", line=0, punt=0)  # Poner tab
+tratatez("archivo.txt", 20, "1", line=0, punt=0)  # Poner espacio
+tratatez("archivo.txt", 20, "0", line=0, punt=1)  # Quitar tab
+tratatez("archivo.txt", 20, "1", line=0, punt=1)  # Quitar espacios
+
+# Tipo 21: Quitar espacios al final
+tratatez("archivo.txt", 21, "", line=0, punt=0)  # Línea específica
+tratatez("archivo.txt", 21, "", line=0, punt=1)  # Todas las líneas
+
+# Tipo 22: Extraer entre delimitadores
+# punt: 0:(), 1:[], 2:{}, 3:<>, 4://, 5:¿?, 6:¡!, 7:'', 8:**
+texto = tratatez("archivo.txt", 22, "0", line=0, punt=0)  # Entre paréntesis
+print(f"Texto entre paréntesis: {texto}")
+
+# Tipo 23: Extraer substring por índices
+texto = tratatez("archivo.txt", 23, "5", line=0, punt=10)  # Del índice 5 al 10
+print(f"Substring [5:10]: {texto}")
+```
+
+#### Cifrado y Conversión (Tipos 24, 27-29)
+
+```python
+# Tipo 24: Cifrado XOR
+# punt=1: Encriptar con XOR
+tratatez("archivo.txt", 24, "mi_clave_secreta", punt=1)
+
+# punt=0: Desencriptar con XOR
+tratatez("archivo_encriptado.txt", 24, "mi_clave_secreta", punt=0)
+
+# punt=2: Cifrado César
+# conte=dirección (1=adelante, 0=atrás), line=desplazamiento
+tratatez("archivo.txt", 24, "1", line=3, punt=2)  # César con desp=3, adelante
+
+# Tipo 27: Separar por punto y coma
+# punt=0: Todo el archivo
+lista_completa = tratatez("archivo.txt", 27, "", punt=0)
+
+# punt=1: Línea específica
+lista_linea = tratatez("archivo.txt", 27, "", line=0, punt=1)
+
+# Tipo 28: Unir lista con punto y coma
+mi_lista = ["elemento1", "elemento2", "elemento3"]
+
+# punt=0: Añadir al inicio
+tratatez("archivo.txt", 28, mi_lista, punt=0)
+
+# punt=1: Reemplazar línea
+tratatez("archivo.txt", 28, mi_lista, line=2, punt=1)
+
+# punt=2: Añadir al final
+tratatez("archivo.txt", 28, mi_lista, punt=2)
+
+# Tipo 29: Crear CSV desde TXT (delimitado por comas)
+tratatez("datos.txt", 29, "")  # Crea datos.csv
+```
+
+## Referencia Rápida de Operaciones
+
+### Módulo 1 (tratadocu-1.py): Tipos 0-13
+- **0**: Mostrar documentación
+- **1**: Crear archivo vacío
+- **2**: Eliminar archivo
+- **3**: Copiar archivo
+- **4**: Mover archivo
+- **5**: Reemplazar contenido completo
+- **6**: Añadir contenido (punt: 0=final línea, 1=nueva línea, 2=inicio, 3=debajo línea)
+- **7**: Leer contenido completo
+- **8**: Leer como lista de líneas
+- **9**: Leer línea específica
+- **10**: Reemplazar línea
+- **11**: Modificar palabra en línea
+- **12**: Añadir texto al final de línea
+- **13**: Enumerar/des-enumerar líneas
+
+### Módulo 2 (tratadocu-2.py): Tipos 14-23
+- **14**: Modificar caracter específico
+- **15**: Verificar si línea termina con texto
+- **16**: Verificar si línea contiene texto
+- **17**: Eliminar último(s) caracter(es)
+- **18**: Buscar posiciones de subcadena
+- **19**: Contar tabs/espacios al inicio
+- **20**: Poner/quitar tabs/espacios al inicio
+- **21**: Quitar espacios al final
+- **22**: Extraer entre delimitadores
+- **23**: Extraer substring por índices
+
+### Módulo 3 (tratadocu-3.py): Tipos 24, 27-29
+- **24**: Cifrado XOR/César (punt: 0=desc XOR, 1=enc XOR, 2=César)
+- **27**: Separar por ';' en lista
+- **28**: Unir lista con ';'
+- **29**: Crear CSV desde TXT
+
+## Notas Importantes
+
+1. Los números de línea son **base 0** (la primera línea es 0)
+2. En tipo 14, las posiciones de caracteres son **base 1** (primer caracter es 1)
+3. Los archivos se crean con codificación **UTF-8**
+4. Algunos tipos requieren que el archivo exista, otros lo crean automáticamente
+5. El tipo 24 con punt=1 (encriptar XOR) solo acepta contenido alfanumérico y espacios
+
+## Manejo de Errores
+
+La librería imprime mensajes de error descriptivos y retorna `None` en caso de error. Siempre verifica el resultado:
+
+```python
+contenido = tratatez("archivo.txt", 7)
+if contenido is not None:
+    print(f"Contenido leído: {contenido}")
+else:
+    print("Error al leer el archivo")
+```
+
+## Licencia
+
+Este proyecto es de uso libre.
+
+---
+
+Para más detalles sobre cada operación, llama a la función con tipo 0:
+```python
+tratatez("", 0)
+```
+Esto permitirá ver la documentación completa directamente en la consola.
+
