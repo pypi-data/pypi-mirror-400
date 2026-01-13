@@ -1,0 +1,186 @@
+import json
+from types import NoneType
+from typing import Annotated, Optional, Union
+
+from httpx import Auth
+from pydantic import BaseModel, Field
+from pydantic.fields import FieldInfo
+
+from ..base_model import Page, Service
+from ..http_client import HttpClient
+from ..models import *
+
+
+class Integrations(Service):
+    def __init__(
+        self, auth: Auth, base_url: str = "https://admin.api.crowdsec.net/v1"
+    ) -> None:
+        super().__init__(
+            base_url=base_url, auth=auth, user_agent="crowdsec_tracker_api/1.95.2"
+        )
+
+    def get_integrations(
+        self,
+        tag: Optional[list[str]] = None,
+    ) -> IntegrationGetResponsePage:
+        endpoint_url = "/integrations"
+        loc = locals()
+        headers = {}
+        params = json.loads(
+            IntegrationsGetIntegrationsQueryParameters(**loc).model_dump_json(
+                exclude_none=True
+            )
+        )
+        path_params = {}
+
+        response = self.http_client.get(
+            url=endpoint_url, path_params=path_params, params=params, headers=headers
+        )
+
+        return IntegrationGetResponsePage(_client=self, **response.json())
+
+    def create_integration(
+        self,
+        request: IntegrationCreateRequest,
+    ) -> IntegrationCreateResponse:
+        endpoint_url = "/integrations"
+        loc = locals()
+        headers = {}
+        params = {}
+        path_params = {}
+
+        payload = (
+            json.loads(request.model_dump_json(exclude_none=True))
+            if "request" in loc
+            else None
+        )
+        response = self.http_client.post(
+            url=endpoint_url,
+            path_params=path_params,
+            params=params,
+            headers=headers,
+            json=payload,
+        )
+
+        return IntegrationCreateResponse(**response.json())
+
+    def get_integration(
+        self,
+        integration_id: str,
+    ) -> IntegrationGetResponse:
+        endpoint_url = "/integrations/{integration_id}"
+        loc = locals()
+        headers = {}
+        params = {}
+        path_params = json.loads(
+            IntegrationsGetIntegrationPathParameters(**loc).model_dump_json(
+                exclude_none=True
+            )
+        )
+
+        response = self.http_client.get(
+            url=endpoint_url, path_params=path_params, params=params, headers=headers
+        )
+
+        return IntegrationGetResponse(**response.json())
+
+    def delete_integration(
+        self,
+        integration_id: str,
+        force: bool = False,
+    ):
+        endpoint_url = "/integrations/{integration_id}"
+        loc = locals()
+        headers = {}
+        params = json.loads(
+            IntegrationsDeleteIntegrationQueryParameters(**loc).model_dump_json(
+                exclude_none=True
+            )
+        )
+        path_params = json.loads(
+            IntegrationsDeleteIntegrationPathParameters(**loc).model_dump_json(
+                exclude_none=True
+            )
+        )
+
+        response = self.http_client.delete(
+            url=endpoint_url, path_params=path_params, params=params, headers=headers
+        )
+
+        return None
+
+    def update_integration(
+        self,
+        request: IntegrationUpdateRequest,
+        integration_id: str,
+    ) -> IntegrationUpdateResponse:
+        endpoint_url = "/integrations/{integration_id}"
+        loc = locals()
+        headers = {}
+        params = {}
+        path_params = json.loads(
+            IntegrationsUpdateIntegrationPathParameters(**loc).model_dump_json(
+                exclude_none=True
+            )
+        )
+
+        response = self.http_client.patch(
+            url=endpoint_url,
+            path_params=path_params,
+            params=params,
+            headers=headers,
+            json=json.loads(request.model_dump_json(exclude_unset=True)),
+        )
+
+        return IntegrationUpdateResponse(**response.json())
+
+    def get_integration_content(
+        self,
+        integration_id: str,
+        page: int = 1,
+        page_size: Optional[int] = None,
+    ) -> str:
+        endpoint_url = "/integrations/{integration_id}/content"
+        loc = locals()
+        headers = {}
+        params = json.loads(
+            IntegrationsGetIntegrationContentQueryParameters(**loc).model_dump_json(
+                exclude_none=True
+            )
+        )
+        path_params = json.loads(
+            IntegrationsGetIntegrationContentPathParameters(**loc).model_dump_json(
+                exclude_none=True
+            )
+        )
+
+        response = self.http_client.get(
+            url=endpoint_url, path_params=path_params, params=params, headers=headers
+        )
+
+        return response.text
+
+    def get_integration_content_stream(
+        self,
+        integration_id: str,
+        startup: bool = False,
+    ):
+        endpoint_url = "/integrations/{integration_id}/v1/decisions/stream"
+        loc = locals()
+        headers = {}
+        params = json.loads(
+            IntegrationsGetIntegrationContentStreamQueryParameters(
+                **loc
+            ).model_dump_json(exclude_none=True)
+        )
+        path_params = json.loads(
+            IntegrationsGetIntegrationContentStreamPathParameters(
+                **loc
+            ).model_dump_json(exclude_none=True)
+        )
+
+        response = self.http_client.get(
+            url=endpoint_url, path_params=path_params, params=params, headers=headers
+        )
+
+        return None
