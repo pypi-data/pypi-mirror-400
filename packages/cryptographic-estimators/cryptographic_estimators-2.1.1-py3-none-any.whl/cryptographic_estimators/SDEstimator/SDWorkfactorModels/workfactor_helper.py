@@ -1,0 +1,112 @@
+# ****************************************************************************
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ****************************************************************************
+
+
+from random import uniform as ru
+from math import log2
+from scipy.optimize import fsolve
+
+
+def inverse_binary_entropy(v: float):
+    """Compute the inverse binary entropy function.
+
+    Args:
+        v (float): The value for which the inverse binary entropy function should be computed.
+
+    Returns:
+        float: The unique value of x in the range [0, ..., 1/2] such that H^{-1}(x) = v.
+    """
+    if v == 1:
+        return 0.5
+    if v < 0.00001:
+        return 0
+
+    return fsolve(lambda x: v - (-x[0] * log2(x[0]) - (1 - x[0]) * log2(1 - x[0])), 0.0000001)[0]
+
+
+def binary_entropy(c: float):
+    """Computes the binary entropy function H."""
+    if c == 0. or c == 1.:
+        return 0.
+
+    if c < 0. or c > 1.:
+        return -1000
+
+    return -(c * log2(c) + (1 - c) * log2(1 - c))
+
+
+def binomial_approximation(n: float, k: float):
+    """Computes the binomial coefficient (n over k) via Sterlings approximation."""
+    if k > n or n == 0:
+        return 0
+    if k == n:
+        return 0
+    return n * binary_entropy(k / n)
+
+
+def wrap(f, g):
+    """Helper function for the SciPy optimization framework."""
+
+    def inner(x):
+        return f(g(*x))
+
+    return inner
+
+
+def list_of_random_tuples(x: float, y: float, z: int):
+    return [(ru(x, y)) for _ in range(z)]
+
+
+def may_ozerov_near_neighbor_time(list_size: float, vector_length: float, target_weight: float):
+    """Computes the asymptotic runtime of the Nearest Neighbour Algorithm by May-Ozerov [MO15]_."""
+    if vector_length <= 0 or list_size < 0:
+        return 100
+    normed_list_size = list_size / vector_length
+    if normed_list_size > 0.999999999:
+        normed_list_size = 0.999999999
+
+    normed_weight = target_weight / vector_length
+    if normed_weight > 0.5:
+        normed_weight = 1 - normed_weight
+
+    d = inverse_binary_entropy(1 - normed_list_size)
+
+    if normed_weight <= 2 * d * (1 - d):
+        mo_exp = (1 - normed_weight) * (1 - binary_entropy((d - normed_weight / 2) / (1 - normed_weight)))
+    else:
+        mo_exp = 2 * normed_list_size + binary_entropy(normed_weight) - 1
+    return max(
+        mo_exp * vector_length,
+        2 * list_size - vector_length + binomial_approximation(vector_length, target_weight),
+    )
+
+
+def representations_asymptotic(target_weight: float, weight_to_cancel: float, vector_length: float):
+    """Computes the asymptotic number of representations of a length-vector_length weight-target_weight vector constructed as sum of two length-vector_length weight-(target_weight/2 + weight_to_cancel) vectors.
+
+    Returns:
+        The asymptotic number of representations.
+    """
+    if target_weight == 0. or vector_length == 0.:
+        return 0
+    if vector_length < target_weight or vector_length - target_weight < weight_to_cancel:
+        return 0.0
+    return binomial_approximation(target_weight, target_weight / 2.0) + binomial_approximation(
+        vector_length - target_weight, weight_to_cancel
+    )

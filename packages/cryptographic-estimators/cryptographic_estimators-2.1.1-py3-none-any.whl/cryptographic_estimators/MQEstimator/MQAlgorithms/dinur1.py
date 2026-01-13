@@ -1,0 +1,235 @@
+# ****************************************************************************
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ****************************************************************************
+
+
+from ...base_algorithm import optimal_parameter
+from ...MQEstimator.mq_helper import sum_of_binomial_coefficients
+from ...MQEstimator.mq_algorithm import MQAlgorithm
+from ...MQEstimator.mq_problem import MQProblem
+from ...helper import ComplexityType
+from math import log2, floor
+
+
+class DinurFirst(MQAlgorithm):
+    def __init__(self, problem: MQProblem, **kwargs):
+        """Construct an instance of Dinur's first estimator.
+
+        The Dinur's first is a probabilistic algorithm to solve the MQ problem over GF(2) [Din21a]_. It computes the parity
+        of the number of solutions of many quadratic polynomial systems. These systems come from the specialization, in the
+        original system, of the values in a fixed set of variables.
+
+        Args:
+            problem (MQProblem): MQProblem object including all necessary parameters.
+            nsolutions (int): Number of solutions (default: 1).
+            h (int): External hybridization parameter (default: 0).
+
+        Examples:
+            >>> from cryptographic_estimators.MQEstimator.MQAlgorithms.dinur1 import DinurFirst
+            >>> from cryptographic_estimators.MQEstimator.mq_problem import MQProblem
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2))
+            >>> E
+            Dinur1 estimator for the MQ problem with 10 variables and 12 polynomials
+        """
+
+        if problem.order_of_the_field() != 2:
+            raise TypeError("q must be equal to 2")
+        super().__init__(problem, **kwargs)
+        self._name = "Dinur1"
+        self._k = floor(log2(2**self.problem.nsolutions + 1))
+        n, m, _ = self.get_reduced_parameters()
+        self.set_parameter_ranges("kappa", 1 / n, 1 / 3)
+        self.set_parameter_ranges("lambda_", 1 / (n - 1), 0.999)
+
+    @optimal_parameter
+    def lambda_(self):
+        """Return the optimal lambda\_.
+
+        Examples:
+            >>> from cryptographic_estimators.MQEstimator.MQAlgorithms.dinur1 import DinurFirst
+            >>> from cryptographic_estimators.MQEstimator.mq_problem import MQProblem
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2))
+            >>> E.lambda_()
+            0.2222222222222222
+        """
+        return self._get_optimal_parameter("lambda_")
+
+    @optimal_parameter
+    def kappa(self):
+        """Return the optimal kappa.
+
+        Examples:
+            >>> from cryptographic_estimators.MQEstimator.MQAlgorithms.dinur1 import DinurFirst
+            >>> from cryptographic_estimators.MQEstimator.mq_problem import MQProblem
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2))
+            >>> E.kappa()
+            0.3333333333333333
+        """
+        return self._get_optimal_parameter("kappa")
+
+    def _valid_choices(self):
+        """Generator which yields on each call a new set of valid parameters for the optimization routine based."""
+        new_ranges = self._fix_ranges_for_already_set_parameters()
+
+        n, m, _ = self.get_reduced_parameters()
+        n1_min = max(2, floor(new_ranges["kappa"]["min"] * (n - 1)))
+        n1_max = min(floor(new_ranges["kappa"]["max"] * (n - 1)), (n - 1) // 3 + 1)
+        n1 = n1_min
+        n2 = 1
+        kappa = n1 / (n - 1)
+        lambda_ = (n1 - n2) / (n - 1)
+        stop = False
+        while not stop:
+            yield {"kappa": kappa, "lambda_": lambda_}
+            n2 += 1
+            if n2 >= n1:
+                n2 = 1
+                n1 += 1
+                if n1 > n1_max:
+                    stop = True
+
+            kappa = n1 / (n - 1)
+            lambda_ = (n1 - n2) / (n - 1)
+
+    def _T(self, n: int, n1: int, w: int, lambda_: float):
+        t = 48 * n + 1
+        n2 = floor(n1 - lambda_ * n)
+        l = n2 + 2
+        k = self._k
+        m = self.npolynomials_reduced()
+
+        if n2 <= 0:
+            return n * sum_of_binomial_coefficients(n - n1, w) * 2**n1
+        else:
+            temp1 = self._T(n, n2, n2 + 4, lambda_)
+            temp2 = n * sum_of_binomial_coefficients(n - n1, w) * 2 ** (n1 - n2)
+            temp3 = n * sum_of_binomial_coefficients(n - n2, n2 + 4)
+            temp4 = l * (m + k + 2) * sum_of_binomial_coefficients(n, 2)
+            return t * (temp1 + temp2 + temp3 + temp4)
+
+    def _compute_time_complexity(self, parameters: dict):
+        """Compute the time complexity of the algorithm for the given parameters.
+    
+        Args:
+            parameters (dict): A dictionary containing the parameters.
+    
+        Tests:
+            >>> from cryptographic_estimators.MQEstimator.MQAlgorithms.dinur1 import DinurFirst
+            >>> from cryptographic_estimators.MQEstimator.mq_problem import MQProblem
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2))
+            >>> E.time_complexity(kappa=0.9, lambda_=0.9)
+            16.73237302312492
+
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2), bit_complexities=False)
+            >>> E.time_complexity()
+            26.81991353901186
+        """
+        lambda_ = parameters["lambda_"]
+        kappa = parameters["kappa"]
+        k = self._k
+        n = self.nvariables_reduced()
+
+        def w(i, kappa):
+            return floor((n - i) * (1 - kappa))
+
+        def n1(i, kappa):
+            return floor((n - i) * kappa)
+
+        time = (
+            8
+            * k
+            * log2(n)
+            * sum(
+                [
+                    self._T(n - i, n1(i, kappa), w(i, kappa), lambda_)
+                    for i in range(1, n)
+                ]
+            )
+        )
+        h = self._h
+        return h + log2(time)
+
+    def _compute_memory_complexity(self, parameters: dict):
+        """Compute the memory complexity of the algorithm for a given set of parameters.
+    
+        Args:
+            parameters (dict): A dictionary containing the parameters.
+
+        Tests:
+            >>> from cryptographic_estimators.MQEstimator.MQAlgorithms.dinur1 import DinurFirst
+            >>> from cryptographic_estimators.MQEstimator.mq_problem import MQProblem
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2), bit_complexities=False)
+            >>> E.memory_complexity(kappa=0.9, lambda_=0.9)
+            8.909893083770042
+
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2), bit_complexities=False)
+            >>> E.memory_complexity()
+            14.909893083770042
+        """
+        kappa = parameters["kappa"]
+        n = self.nvariables_reduced()
+        memory = log2(48 * n + 1) + floor((1 - kappa) * n)
+        return memory
+
+    def _compute_tilde_o_time_complexity(self, parameters: dict):
+        """Return the Ō time complexity of the algorithm for a given set of parameters.
+    
+        Args:
+            parameters (dict): A dictionary including the parameters.
+
+        Examples:
+            >>> from cryptographic_estimators.MQEstimator.MQAlgorithms.dinur1 import DinurFirst
+            >>> from cryptographic_estimators.MQEstimator.mq_problem import MQProblem
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2), complexity_type=1)
+            >>> E.time_complexity(kappa=0.9, lambda_=0.9)
+            6.9430000000000005
+
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2), complexity_type=1)
+            >>> E.time_complexity()
+            6.9430000000000005
+        """
+        n = self.nvariables_reduced()
+        h = self._h
+        return h + 0.6943 * n
+
+    def _compute_tilde_o_memory_complexity(self, parameters: dict):
+        """Computes the Ō memory complexity of the algorithm for a given set of parameters.
+    
+        Args:
+            parameters (dict): A dictionary of parameters.
+        """
+        kappa = parameters["kappa"]
+        n = self.nvariables_reduced()
+        memory = (1 - kappa) * n
+        return memory
+
+    def _find_optimal_tilde_o_parameters(self):
+        """Return the Ō time complexity of DinurFirst et al.'s algorithm.
+
+        Tests:
+            >>> from cryptographic_estimators.MQEstimator.MQAlgorithms.dinur1 import DinurFirst
+            >>> from cryptographic_estimators.MQEstimator.mq_problem import MQProblem
+            >>> E = DinurFirst(MQProblem(n=10, m=12, q=2), complexity_type=1)
+            >>> E.optimal_parameters()
+            {'kappa': 0.3057, 'lambda_': 0.3010299956639812}
+        """
+        n = self.nvariables_reduced()
+        lambda_ = 1 / log2(n)
+        kappa = 0.3057
+        self._optimal_parameters["kappa"] = kappa
+        self._optimal_parameters["lambda_"] = lambda_
