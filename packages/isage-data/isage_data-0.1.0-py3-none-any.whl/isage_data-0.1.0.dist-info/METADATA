@@ -1,0 +1,111 @@
+Metadata-Version: 2.4
+Name: isage-data
+Version: 0.1.0
+Summary: SAGE Data - Unified data loaders for memory benchmark datasets (LongMemEval, Locomo, MemAgentBench, etc.)
+Author-email: IntelliStream Team <shuhao_zhang@hust.edu.cn>
+License: Apache-2.0
+Project-URL: Homepage, https://github.com/intellistream/sageData
+Project-URL: Repository, https://github.com/intellistream/sageData
+Project-URL: Documentation, https://github.com/intellistream/sageData/blob/main/README.md
+Project-URL: Issues, https://github.com/intellistream/sageData/issues
+Keywords: dataset,benchmark,memory,ai,longmemeval,locomo,memagentbench,sage
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: isage-common>=0.2.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: numpy<2.3.0,>=1.26.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: datasets>=2.14.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Dynamic: license-file
+
+# SAGE Data ��
+
+**Dataset management module for SAGE benchmark suite**
+
+Provides unified access to multiple datasets through a two-layer architecture:
+- **Sources**: Physical datasets (qa_base, bbh, mmlu, gpqa, locomo, orca_dpo)
+- **Usages**: Logical views for experiments (rag, libamm, neuromem, agent_eval)
+
+## Quick Start
+
+```python
+from sage.data import DataManager
+
+manager = DataManager.get_instance()
+
+# Access datasets by logical usage profile
+rag = manager.get_by_usage("rag")
+qa_loader = rag.load("qa_base")  # already instantiated
+queries = qa_loader.load_queries()
+
+# Or fetch a specific data source directly
+bbh_loader = manager.get_by_source("bbh")
+tasks = bbh_loader.get_task_names()
+```
+
+## Available Datasets
+
+| Dataset | Description | Download Required | Storage |
+|---------|-------------|-------------------|---------|
+| **qa_base** | Question-Answering with knowledge base | ❌ No (included) | Local files |
+| **locomo** | Long-context memory benchmark | ✅ Yes (`python -m locomo.download`) | Local files (2.68MB) |
+| **bbh** | BIG-Bench Hard reasoning tasks | ❌ No (included) | Local JSON files |
+| **mmlu** | Massive Multitask Language Understanding | 📥 Optional (`python -m mmlu.download --all-subjects`) | On-demand or Local (~160MB) |
+| **gpqa** | Graduate-Level Question Answering | ✅ Auto (Hugging Face) | On-demand (~5MB cached) |
+| **orca_dpo** | Preference pairs for alignment/DPO | ✅ Auto (Hugging Face) | On-demand (varies) |
+
+See `examples/` for detailed usage examples.
+
+## 📖 Examples
+
+```bash
+python examples/qa_examples.py            # QA dataset usage
+python examples/locomo_examples.py        # LoCoMo dataset usage
+python examples/bbh_examples.py           # BBH dataset usage
+python examples/mmlu_examples.py          # MMLU dataset usage
+python examples/gpqa_examples.py          # GPQA dataset usage
+python examples/orca_dpo_examples.py      # Orca DPO dataset usage
+python examples/integration_example.py    # Cross-dataset integration
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file.
+
+## 🔗 Links
+
+- **Repository**: https://github.com/intellistream/sageData
+- **Issues**: https://github.com/intellistream/sageData/issues
+
+## ❓ Common Issues
+
+**Q: Where's the LoCoMo data?**  
+A: Run `python -m locomo.download` to download it (2.68MB from Hugging Face).
+
+**Q: How to download MMLU for offline use?**  
+A: Run `python -m mmlu.download --all-subjects` to download all subjects (~160MB).
+
+**Q: GPQA access error?**  
+A: You need to accept the dataset terms on Hugging Face: https://huggingface.co/datasets/Idavidrein/gpqa
+
+**Q: How to use Orca DPO for alignment research?**  
+A: Use `DataManager.get_by_source("orca_dpo")` to get the loader, then use `format_for_dpo()` to prepare data for training.
+
+---
+
+**Version**: 0.1.0 | **Last Updated**: December 2025
