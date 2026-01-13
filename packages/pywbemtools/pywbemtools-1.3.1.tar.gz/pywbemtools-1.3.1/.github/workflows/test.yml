@@ -1,0 +1,368 @@
+# This GitHub workflow will setup and run various kinds of tests with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: test
+
+on:
+  schedule:
+    # The schedule event always (and only) runs on the master branch.
+    - # cron (in UTC): minute hour day_of_month month day_of_week
+      cron: '00 00 * * SUN'
+  push:
+    branches: [ master, stable_* ]
+  pull_request:
+    branches: [ master, stable_* ]
+
+env:
+  # WBEM server image on Docker Hub as repository:tag.
+  # Keep the version in sync with the Makefile.
+  TEST_SERVER_IMAGE: kschopmeyer/openpegasus-server:0.1.3
+  # Base file name of local tarball created from WBEM server image
+  TEST_SERVER_IMAGE_TAR: openpegasus-server:0.1.3.tar.gz
+  # Local Docker image cache directory
+  DOCKER_CACHE_DIR: ~/docker-cache
+
+jobs:
+
+  set_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select_matrix.outputs.matrix }}
+    steps:
+    - name: "Select matrix"
+      id: select_matrix
+      # Select full matrix when scheduled or when releasing, and normal matrix
+      # otherwise. The matrix is defined as a JSON string.
+      # This This technique documented in:
+      #    https://stackoverflow.com/questions/65384420/how-to-make-a-github-action-matrix-element-conditional
+      # TODO: Find a way to define this with less escapes.
+      run: |
+        if [[ "${{ github.event_name }}" == "schedule" || "${{ github.head_ref }}" =~ ^release_ ]]; then \
+          echo "matrix={ \
+            \"os\": [ \"ubuntu-latest\", \"macos-latest\", \"windows-latest\" ], \
+            \"python-version\": [ \"3.6\", \"3.7\", \"3.8\", \"3.9\", \"3.10\", \"3.11\", \"3.12\" ], \
+            \"package_level\": [ \"minimum\", \"latest\" ], \
+            \"exclude\": [ \
+              { \
+                \"os\": \"ubuntu-latest\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"ubuntu-latest\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"minimum\" \
+              }, \
+              { \
+                \"os\": \"ubuntu-latest\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"ubuntu-latest\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"minimum\" \
+              }, \
+              { \
+                \"os\": \"macos-latest\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"macos-latest\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"minimum\" \
+              }, \
+              { \
+                \"os\": \"macos-latest\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"macos-latest\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"minimum\" \
+              } \
+            ], \
+            \"include\": [ \
+              { \
+                \"os\": \"ubuntu-22.04\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"ubuntu-22.04\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"minimum\" \
+              }, \
+              { \
+                \"os\": \"macos-13\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"macos-13\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"minimum\" \
+              }, \
+              { \
+                \"os\": \"macos-13\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"macos-13\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"minimum\" \
+              } \
+            ] \
+          }" >> $GITHUB_OUTPUT; \
+        else \
+          echo "matrix={ \
+            \"os\": [ \"ubuntu-latest\" ], \
+            \"python-version\": [ \"3.12\" ], \
+            \"package_level\": [ \"minimum\", \"latest\" ], \
+            \"include\": [ \
+              { \
+                \"os\": \"ubuntu-22.04\", \
+                \"python-version\": \"3.7\", \
+                \"package_level\": \"minimum\" \
+              }, \
+              { \
+                \"os\": \"ubuntu-latest\", \
+                \"python-version\": \"3.10\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"macos-13\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"minimum\" \
+              }, \
+              { \
+                \"os\": \"macos-13\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"macos-latest\", \
+                \"python-version\": \"3.8\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"macos-latest\", \
+                \"python-version\": \"3.11\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"macos-latest\", \
+                \"python-version\": \"3.12\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"windows-latest\", \
+                \"python-version\": \"3.6\", \
+                \"package_level\": \"latest\" \
+              }, \
+              { \
+                \"os\": \"windows-latest\", \
+                \"python-version\": \"3.12\", \
+                \"package_level\": \"latest\" \
+              } \
+            ] \
+          }" >> $GITHUB_OUTPUT; \
+        fi
+    - name: Show matrix in JSON
+      run: echo '${{ steps.select_matrix.outputs.matrix }}'
+
+  test:
+    needs: set_matrix
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJson(needs.set_matrix.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: 1
+      PIP_NO_PYTHON_VERSION_WARNING: 1
+    steps:
+    - name: Set run type (normal, scheduled, release)
+      id: set-run-type
+      uses: actions/github-script@v7
+      with:
+        result-encoding: string
+        script: |
+          var result
+          if ("${{ github.event_name }}" == "schedule") {
+            result = "scheduled"
+          } else if ("${{ github.head_ref }}".match(/^release_/)) {
+            result = "release"
+          } else {
+            result = "normal"
+          }
+          console.log(result)
+          return result
+    - name: Create local cache directory for Docker images
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version != '2.7' }}
+      run: |
+        mkdir -p ${{ env.DOCKER_CACHE_DIR }}
+    - name: Set up caching for local Docker image cache directory
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version != '2.7' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.DOCKER_CACHE_DIR }}
+        key: docker-cache-{hash}
+        restore-keys: |
+          docker-cache-
+    - name: Get WBEM server image from Docker Hub or local Docker image cache
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version != '2.7' }}
+      run: |
+        if [[ ! -f ${{ env.DOCKER_CACHE_DIR }}/${{ env.TEST_SERVER_IMAGE_TAR }} ]]; then \
+          echo "Pulling image from Docker Hub"; \
+          docker pull ${{ env.TEST_SERVER_IMAGE }}; \
+          echo "Saving image in local Docker image cache"; \
+          docker save -o ${{ env.DOCKER_CACHE_DIR }}/${{ env.TEST_SERVER_IMAGE_TAR }} ${{ env.TEST_SERVER_IMAGE }}; \
+        else \
+          echo "Loading image from local Docker image cache"; \
+          docker load -i ${{ env.DOCKER_CACHE_DIR }}/${{ env.TEST_SERVER_IMAGE_TAR }}; \
+        fi
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Set up Python ${{ matrix.python-version }}
+      if: ${{ matrix.python-version != '2.7' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Display initial Python packages
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        echo "Installed Python packages:"
+        make pip_list
+    - name: Install the package and its dependents
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make install
+    - name: Display Python packages
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        echo "Installed Python packages:"
+        make pip_list
+    - name: Development setup
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make develop
+    - name: Display Python packages
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        echo "Installed Python packages:"
+        make pip_list
+    - name: Display platform and env vars
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make platform env
+    - name: Show package dependency tree
+      run: |
+        echo "Package dependency tree of installed Python packages:"
+        python -m pipdeptree --all
+    - name: Run check_reqs
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make check_reqs
+    - name: Run build
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make build
+    - name: Run builddoc
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make builddoc
+    - name: Run check
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make check
+    - name: Run ruff
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make ruff
+    - name: Run pylint
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make pylint
+    - name: Run test
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+        # TESTCASES: test_class_cmds.py
+      run: |
+        make test
+    - name: Run end2end test with WBEM server Docker image
+      if: ${{ (matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-20.04') && matrix.python-version != '2.7' }}
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+        # Uses TEST_SERVER_IMAGE variable
+      run: |
+        make end2endtest
+    - name: Send coverage result to coveralls.io
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        COVERALLS_PARALLEL: true
+        COVERALLS_FLAG_NAME: "${{ matrix.os }},${{ matrix.python-version }},${{ matrix.package_level }}"
+        COVERALLS_SERVICE_NAME: github
+        COVERALLS_SERVICE_JOB_ID: "${{ github.run_id }}"
+        COVERALLS_SERVICE_NUMBER: "${{ github.workflow }}-${{ github.run_number }}"
+      run: |
+        coveralls
+    - name: Run installtest
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make installtest
+    - name: Run safety
+      env:
+        PACKAGE_LEVEL: ${{ matrix.package_level }}
+        RUN_TYPE: ${{ steps.set-run-type.outputs.result }}
+      run: |
+        make safety
+
+  test_finish:
+    needs: test
+    runs-on: ubuntu-latest
+    container: python:3-slim
+    steps:
+    - name: Install coveralls
+      run: |
+        pip3 install --upgrade coveralls
+    - name: Send coverage finish to coveralls.io
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        COVERALLS_SERVICE_NUMBER: "${{ github.workflow }}-${{ github.run_number }}"
+      run: |
+        coveralls --finish
