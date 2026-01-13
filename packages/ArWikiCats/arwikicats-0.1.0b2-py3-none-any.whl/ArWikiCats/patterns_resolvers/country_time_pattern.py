@@ -1,0 +1,48 @@
+"""
+
+This module provides functionality to translate category titles
+that follow a 'country-year' pattern. It uses a pre-configured
+bot (`yc_bot`) to handle the translation logic.
+"""
+
+import functools
+
+from ..helps import logger
+from ..translations import US_STATES, all_country_ar, COUNTRY_LABEL_OVERRIDES
+from ..translations_formats import MultiDataFormatterBaseYear, format_year_country_data
+from .categories_patterns.COUNTRY_YEAR import COUNTRY_YEAR_DATA
+
+# TODO: update countries_data with COUNTRY_LABEL_OVERRIDES after check any issues!
+
+
+@functools.lru_cache(maxsize=1)
+def load_bot() -> MultiDataFormatterBaseYear:
+    countries_data = all_country_ar | US_STATES
+
+    return format_year_country_data(
+        formatted_data=COUNTRY_YEAR_DATA,
+        data_list=countries_data,
+        key_placeholder="{country1}",
+        value_placeholder="{country1}",
+        key2_placeholder="{year1}",
+        value2_placeholder="{year1}",
+        text_after="",
+        text_before="the ",
+    )
+
+
+@functools.lru_cache(maxsize=10000)
+def resolve_country_time_pattern(category: str) -> str:
+    logger.debug(f"<<yellow>> start resolve_country_time_pattern: {category=}")
+
+    yc_bot = load_bot()
+    result = yc_bot.search_all_category(category)
+
+    logger.info_if_or_debug(f"<<yellow>> end resolve_country_time_pattern: {category=}, {result=}", result)
+    return result or ""
+
+
+__all__ = [
+    "resolve_country_time_pattern",
+    "load_bot",
+]
