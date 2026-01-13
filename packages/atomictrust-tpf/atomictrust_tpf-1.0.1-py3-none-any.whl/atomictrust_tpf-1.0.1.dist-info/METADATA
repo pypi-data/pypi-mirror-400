@@ -1,0 +1,218 @@
+Metadata-Version: 2.4
+Name: atomictrust-tpf
+Version: 1.0.1
+Summary: Free uncertainty quantification for diffusion language models
+Author-email: Rafael Velado <licensing@atomic-trust.com>
+Maintainer-email: Rafael Velado <licensing@atomic-trust.com>
+License: Apache-2.0
+Project-URL: Homepage, https://github.com/atomictrust/tpf-confidence
+Project-URL: Documentation, https://github.com/atomictrust/tpf-confidence#readme
+Project-URL: Repository, https://github.com/atomictrust/tpf-confidence
+Project-URL: Paper, https://doi.org/10.5281/zenodo.18111467
+Project-URL: LinkedIn, https://linkedin.com/in/rafael-velado-cissp-77337b30
+Keywords: diffusion,llm,uncertainty,confidence,tpf,tokens-per-forward,hallucination-detection,ai-safety,attention-verification,flashattention
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Security :: Cryptography
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: blake3>=0.3.0
+Provides-Extra: gpu
+Requires-Dist: torch>=2.1.0; extra == "gpu"
+Requires-Dist: triton>=2.1.0; extra == "gpu"
+Provides-Extra: full
+Requires-Dist: torch>=2.1.0; extra == "full"
+Requires-Dist: triton>=2.1.0; extra == "full"
+Requires-Dist: vllm>=0.3.0; extra == "full"
+Requires-Dist: transformers>=4.36.0; extra == "full"
+Requires-Dist: accelerate>=0.25.0; extra == "full"
+Requires-Dist: sentence-transformers>=2.2.0; extra == "full"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Dynamic: license-file
+
+# Atomic Trust™ TPF
+
+**Free uncertainty quantification for diffusion language models.**
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Patent](https://img.shields.io/badge/Patent-US%2063%2F951%2C960-green.svg)](https://atomic-trust.com)
+[![Paper](https://img.shields.io/badge/Paper-Zenodo-orange.svg)](https://doi.org/10.5281/zenodo.18111467)
+
+---
+
+## The Discovery
+
+**TPF (Tokens-Per-Forward)** reveals generation confidence in diffusion LLMs at **zero cost**.
+
+| Query | TPF | Interpretation |
+|-------|-----|----------------|
+| 7 × 8 = ? | **13.58** | High confidence (pattern retrieval) |
+| 23 × 17 = ? | **2.68** | Low confidence (active computation) |
+
+*Your model is telling you when it's uncertain. Listen.*
+
+**Correlation:** r = -0.88 (p < 0.001) between TPF and output entropy across 28 benchmarks.
+
+---
+
+## Inverse Signal: Hallucination Detection
+
+```
+Low TPF on uncertain query  → Expected (honest uncertainty)
+High TPF on uncertain query → Potential fabrication (flag for review)
+```
+
+This bidirectional signal is **structurally unavailable** in autoregressive models.
+
+---
+
+## FlashAPCE: Attention Verification
+
+**FlashAPCE** enables attention verification inside FlashAttention's tiled computation without materializing the O(n²) attention matrix.
+
+Verification signals extracted in-kernel:
+- Conservation deviation
+- Entropy fingerprint
+- Attention distribution metrics
+
+**Performance:** Sub-1% overhead on 7B+ parameter models.
+
+**Velado's Contradiction Theorem:** D(ε) × I(ε) ≥ κ
+
+Attacks cannot simultaneously achieve high impact AND low detectability. This is a mathematical bound, not a heuristic.
+
+---
+
+## Installation
+
+```bash
+pip install atomictrust-tpf
+```
+
+Optional GPU dependencies:
+```bash
+pip install atomictrust-tpf[gpu]   # torch + triton
+pip install atomictrust-tpf[full]  # + vllm, transformers
+```
+
+---
+
+## Quick Start
+
+```python
+from atomictrust_tpf import TPFRLMHybrid
+
+router = TPFRLMHybrid()
+result = router.generate("What is 23 × 17?")
+
+print(f"Answer: {result.text}")
+print(f"TPF: {result.tpf_metrics.tpf:.2f}")
+print(f"Route: {result.route.name}")
+```
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                 Atomic Trust™ TPF Router                │
+├─────────────────────────────────────────────────────────┤
+│  1. Semantic Pre-Filter                                 │
+│     └── Catches temporal/ambiguous queries              │
+├─────────────────────────────────────────────────────────┤
+│  2. Diffusion Generation                                │
+│     └── Extracts TPF + Entropy (zero-cost signals)      │
+├─────────────────────────────────────────────────────────┤
+│  3. Confidence-Based Routing                            │
+│     ├── High TPF → Direct response                      │
+│     ├── Low TPF  → Escalate for verification            │
+│     └── Anomalous TPF → Flag for review                 │
+├─────────────────────────────────────────────────────────┤
+│  4. FlashAPCE Verification                              │
+│     └── Velado's Theorem guarantee                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Validation
+
+```bash
+# Run test suite
+pytest tests/ -v
+
+# Quick validation
+python -c "from atomictrust_tpf import TPFRLMHybrid; print('OK')"
+```
+
+---
+
+## Citation
+
+If you use this work, please cite:
+
+```bibtex
+@article{velado2025tpf,
+    title   = {Parallel Decoding as Intrinsic Uncertainty:
+               Tokens-Per-Forward Reveals Generation Confidence
+               in Diffusion Language Models},
+    author  = {Velado, Rafael},
+    year    = {2025},
+    doi     = {10.5281/zenodo.18111467}
+}
+
+@article{velado2025contradiction,
+    title   = {Velado's Contradiction Theorem: Mathematical
+               Guarantees for Attention Verification},
+    author  = {Velado, Rafael},
+    year    = {2025},
+    doi     = {10.5281/zenodo.18079657}
+}
+```
+
+---
+
+## Patents
+
+This work is protected under US Provisional Patent Applications:
+
+- **US 63/951,960** — TPF-Based Confidence Routing (filed Dec 31, 2025)
+- **US 63/948,782** — FlashAPCE Attention Verification (filed Dec 26, 2025)
+
+Open source under Apache 2.0 for research and evaluation.
+Commercial licensing: [licensing@atomic-trust.com](mailto:licensing@atomic-trust.com)
+
+---
+
+## Author
+
+**Rafael Velado**
+[LinkedIn](https://linkedin.com/in/rafael-velado-cissp-77337b30) · [Atomic Trust™](https://atomic-trust.com)
+
+---
+
+## License
+
+Apache 2.0 with patent grant. See [LICENSE](LICENSE).
+
+---
+
+*Atomic Trust™ is a trademark of Rafael Velado.*
