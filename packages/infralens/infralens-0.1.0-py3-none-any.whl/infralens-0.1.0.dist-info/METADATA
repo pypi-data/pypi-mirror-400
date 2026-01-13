@@ -1,0 +1,214 @@
+Metadata-Version: 2.4
+Name: infralens
+Version: 0.1.0
+Summary: Terminal dashboard for cloud infrastructure - domains, hosting, and AI spend
+Project-URL: Homepage, https://github.com/HamedMP/infralens
+Project-URL: Repository, https://github.com/HamedMP/infralens
+Project-URL: Issues, https://github.com/HamedMP/infralens/issues
+Author: Hamed Mohammadpour
+License-Expression: MIT
+License-File: LICENSE
+Keywords: cli,cloud,dashboard,devops,domains,infrastructure,tui
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: System :: Monitoring
+Classifier: Topic :: System :: Systems Administration
+Requires-Python: >=3.12
+Requires-Dist: textual>=0.47.0
+Description-Content-Type: text/markdown
+
+# Infralens
+
+[![PyPI version](https://img.shields.io/pypi/v/infralens)](https://pypi.org/project/infralens/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/HamedMP/infralens)](https://github.com/HamedMP/infralens/stargazers)
+[![GitHub last commit](https://img.shields.io/github/last-commit/HamedMP/infralens)](https://github.com/HamedMP/infralens/commits/main)
+
+Terminal dashboard for cloud infrastructure - domains, hosting, and AI spend across multiple providers.
+
+![Infralens - Terminal dashboard for cloud infrastructure](assets/opengraph.png)
+
+## Installation
+
+```bash
+# Run directly with uvx (no install needed)
+uvx infralens
+
+# Or install globally
+uv tool install infralens
+```
+
+## Quick Start
+
+```bash
+# First run launches setup wizard
+infralens
+
+# After setup, fetch data from your providers
+infralens fetch
+
+# Launch the dashboard
+infralens
+```
+
+## Features
+
+- **Unified Dashboard** - Overview of domains, hosting, and AI spend
+- **Domain Management** - Track expiry dates across GoDaddy, Namecheap, Cloudflare
+- **DNS Zones** - View Cloudflare zones and status
+- **Hosting** - Monitor Vercel projects and Fly.io apps
+- **AI Spend** - Track OpenAI and Anthropic usage and costs
+- **Interactive Setup** - Guided wizard for API key configuration
+
+## Keyboard Navigation
+
+### Dashboard
+
+| Key     | Action              |
+| ------- | ------------------- |
+| `1-5`   | Jump to screen      |
+| `Tab`   | Next screen / panel |
+| `Enter` | Focus panels        |
+| `Esc`   | Exit panel focus    |
+| `r`     | Refresh data        |
+| `q`     | Quit                |
+
+### Setup Wizard
+
+| Key        | Action          |
+| ---------- | --------------- |
+| `Up/Down`  | Navigate fields |
+| `Tab`      | Next field      |
+| `Enter`    | Continue        |
+| `Esc`      | Back            |
+
+## Providers
+
+### Registrars (Domain Management)
+
+| Provider   | Auth Method                     | What You Get                                 |
+| ---------- | ------------------------------- | -------------------------------------------- |
+| GoDaddy    | API Key + Secret                | All domains, expiry dates, auto-renew status |
+| Namecheap  | API Key (requires IP whitelist) | Domain list, expiry, lock status             |
+| Cloudflare | API Token                       | Registrar domains, zones                     |
+
+### Hosting
+
+| Provider | Auth Method                 | What You Get              |
+| -------- | --------------------------- | ------------------------- |
+| Vercel   | CLI auth (`vercel login`)   | Projects, deployment URLs |
+| Fly.io   | CLI auth (`fly auth login`) | Apps, status              |
+
+### AI Providers
+
+| Provider  | Auth Method   | What You Get                       |
+| --------- | ------------- | ---------------------------------- |
+| OpenAI    | Admin API Key | Projects, usage, costs             |
+| Anthropic | Admin API Key | Workspaces, API keys, usage, costs |
+
+## Getting API Keys
+
+### GoDaddy
+
+1. Go to <https://developer.godaddy.com/keys>
+2. Create a **Production** API key
+3. Copy the Key and Secret
+
+### Cloudflare
+
+1. Go to <https://dash.cloudflare.com/profile/api-tokens>
+2. Create token with **Read all resources** template
+3. Copy the token (shown only once)
+
+### Namecheap
+
+1. Go to <https://ap.www.namecheap.com/settings/tools/apiaccess>
+2. Enable API access (may require support ticket for new accounts)
+3. **Important**: Add your public IP to the whitelist
+4. Copy your API Key
+
+### OpenAI
+
+1. Go to <https://platform.openai.com/settings/organization/admin-keys>
+2. Create new admin key (requires Owner role)
+3. Copy the key (starts with `sk-admin-`)
+
+### Anthropic
+
+1. Go to <https://console.anthropic.com/settings/admin-keys>
+2. Create new admin key (requires Admin role)
+3. Copy the key (starts with `sk-ant-admin-`)
+
+### Vercel & Fly.io
+
+These use CLI authentication - no API keys needed:
+
+```bash
+npm i -g vercel && vercel login
+brew install flyctl && fly auth login
+```
+
+## Configuration
+
+Credentials are stored in `~/.infralens/.env`:
+
+```env
+GODADDY_API_KEY=...
+GODADDY_API_SECRET=...
+CLOUDFLARE_API_TOKEN=...
+NAMECHEAP_API_KEY=...
+NAMECHEAP_USERNAME=...
+OPENAI_ADMIN_KEY=...
+ANTHROPIC_ADMIN_KEY=...
+```
+
+Run `infralens setup` anytime to reconfigure providers.
+
+## Requirements
+
+- Python 3.12+
+- uv or uvx
+- Vercel CLI (optional, for Vercel projects)
+- Fly CLI (optional, for Fly.io apps)
+
+## Roadmap
+
+### v0.2 - CLI Actions
+
+- [ ] `infralens domains` - List all domains with expiry
+- [ ] `infralens dns <domain>` - View/edit DNS records
+- [ ] `infralens hosting` - List all hosted projects
+
+### v0.3 - Project Linking
+
+- [ ] `.infralens` file in repos to link projects with domains/hosting
+- [ ] Auto-detect deployments and DNS connections
+- [ ] `infralens link` - Interactive project linking
+
+### v0.4 - Domain Operations
+
+- [ ] Search and purchase domains
+- [ ] Transfer domains between registrars
+- [ ] Bulk DNS record management
+- [ ] SSL certificate status
+
+### Future
+
+- [ ] Alerts via webhook/email for expiring domains
+- [ ] Cost forecasting and budgets
+- [ ] Team sharing via encrypted config
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=HamedMP/infralens&type=Date)](https://star-history.com/#HamedMP/infralens&Date)
+
+## License
+
+MIT
