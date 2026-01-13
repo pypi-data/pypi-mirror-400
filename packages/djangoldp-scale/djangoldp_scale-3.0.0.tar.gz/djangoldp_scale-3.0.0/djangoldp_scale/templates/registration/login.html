@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}
+  {% trans "Se connecter" %}
+{% endblock %}
+
+{% block content %}
+
+<div class="segment full whitespace-normal form">
+
+  {% if next %}
+    <div class="segment full whitespace-normal">
+      {% if user.is_authenticated %}
+      <h2 class="text-semibold text-color-primary" style="margin-top: 15px; margin-bottom: 15px; font-size: 1em">
+        Sorry, you cannot access this section. Please try to log in again or with another account.
+      </h2>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <form class="segment half sm-full whitespace-normal" method="post" action="{% url 'login' %}">
+    {% csrf_token %}
+    <div class="segment margin-bottom-medium full padding-right-small sm-padding-none text-small text-semibold text-uppercase text-color-heading">
+      <label for="id_username">EMAIL</label>
+      {{ form.username }}
+    </div>
+    <div class="segment margin-bottom-medium full padding-right-small sm-padding-none text-small text-semibold text-uppercase text-color-heading">
+      <label for="id_password">PASSWORD</label>
+      {{ form.password }}
+    </div>
+
+    {% if form.errors and not form.non_field_errors %}
+    <div class='segment full margin-bottom-xsmall whitespace-normal'>
+      <span class='text-bold text-color-primary'>{% if form.errors.items|length == 1 %}{% trans "Please correct the error below." %}{% else %}{% trans "Please correct the errors below." %}{% endif %}</span>
+    </div>
+    {% endif %}
+
+    {% if form.non_field_errors %}
+    {% for error in form.non_field_errors %}
+    <div class='segment full margin-bottom-xsmall whitespace-normal'>
+      <span class='text-bold text-color-primary'>{{ error }}</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="submit-button segment full margin-top-xsmall text-xsmall children-link-button children-button-icon children-link-text-bold children-link-text-uppercase color-secondary bordered children-icon-rocket children-icon-small children-icon-margin-right-xsmall">
+      <button style="background-color: var(--color-primary); color: white;" type="submit">LOG IN</button>
+    </div>
+    <div class="segment full margin-top-xsmall">
+      <a class="link" style="color: var(--color-primary); font-style: italic; font-size: 0.8em;" href="{% url 'password_reset' %}">{% trans "Mot de passe oublié ?" %}</a>
+    </div>
+    <input type="hidden" name="next" value="{{ next }}" />
+  </form>
+  <div class="segment full margin-top-large">
+    <a class="link" style="color: var(--color-primary); font-size: 0.8em;" href="https://bsgn.spacecoop.eu/legal_T&C.html">Terms & Conditions</a>&nbsp;-&nbsp;<a class="link" style="color: var(--color-primary); font-size: 0.8em;" href="https://bsgn.spacecoop.eu/legal_DPP.html">Privacy Policy</a>
+  </div>
+
+</div>
+{% endblock %}
