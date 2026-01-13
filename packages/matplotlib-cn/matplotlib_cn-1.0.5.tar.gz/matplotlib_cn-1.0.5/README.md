@@ -1,0 +1,66 @@
+# matplotlib_cn
+
+## Description
+
+`matplotlib_cn` is a Python package designed to simplify the use of Matplotlib for Chinese users. It provides localized documentation and examples to help users better understand and utilize Matplotlib for data visualization.
+
+## Features
+
+- Simplified setup for Matplotlib in Chinese environments.
+- Localized examples and documentation.
+- Compatible with Python 3.8.
+- Supports Google Colab and Jupyter Notebook!
+
+## Installation
+
+You can install the package using `pip`:
+
+```bash
+pip install matplotlib_cn
+```
+
+## Usage
+Here is a simple example of how to use `matplotlib_cn`:
+
+```python
+from matplotlib_cn import matplotlib_util
+
+matplotlib_util.enable_chinese()
+```
+
+```python
+# example 
+import numpy as np
+import matplotlib.pyplot as plt
+
+from matplotlib_cn import matplotlib_util
+matplotlib_util.enable_chinese()
+
+x = np.linspace(-10, 10, 100)
+y = x
+
+plt.plot(x, y)
+plt.title("中文标题：y = x")
+plt.xlabel("横轴（x）")
+plt.ylabel("纵轴（y）")
+plt.show()
+```
+
+
+## Build & upload to pypi (For Developers)
+
+prerequirement: twine is installed. If not, run the following command to install it:
+
+```bash
+pip install -U twine
+```
+
+build and upload:
+
+```bash
+## package
+python setup.py sdist
+
+## upload
+twine upload dist/*
+```
