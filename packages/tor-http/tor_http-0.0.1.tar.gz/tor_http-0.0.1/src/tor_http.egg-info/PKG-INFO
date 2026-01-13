@@ -1,0 +1,124 @@
+Metadata-Version: 2.1
+Name: tor-http
+Version: 0.0.1
+Summary: Async httpx wrapper that auto-manages a local Tor process (downloads Tor on first run).
+Author: S M Abrar Jahin
+License: MIT License
+        
+        Copyright (c) 2026
+        
+        Permission is hereby granted, free of charge, to any person or any organization obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+        
+Project-URL: Homepage, https://github.com/AbrarJahin/tor-http
+Project-URL: Issues, https://github.com/AbrarJahin/tor-http/issues
+Keywords: httpx,tor,stem,socks,async,privacy,proxy
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE.md
+Requires-Dist: httpx[socks]>=0.27.0
+Requires-Dist: stem>=1.8.2
+Requires-Dist: platformdirs>=4.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: ruff>=0.6; extra == "dev"
+Requires-Dist: mypy>=1.10; extra == "dev"
+
+# tor-http (auto-download Tor on first run)
+
+`tor-http` is a privacy-oriented async wrapper around **httpx** that routes requests through a **locally managed Tor process**.
+
+This package follows a **download-on-first-run** strategy (no bundled Tor binaries in the wheel/sdist):
+
+- ✅ No Tor binary redistribution in your PyPI artifact
+- ✅ Works cross-platform (Windows / Linux / macOS)
+- ✅ Uses the Tor Project “Tor Expert Bundle” as the source
+
+> Notes
+> - This library is intended for **privacy-oriented routing**. It does **not** guarantee a new Tor exit IP per request.
+> - Tor can be rate-limited or blocked on some networks.
+> - If your environment is air-gapped or blocks downloads, set an explicit `TORHTTP_TOR_CMD` (system Tor).
+
+## Install
+
+```bash
+pip install tor-http
+```
+
+## Quick start
+
+```python
+from tor_http import tor_http
+
+async def main():
+    r = await tor_http.get("https://httpbin.org/ip")
+    print(r.status_code, r.text)
+```
+
+## How Tor is obtained (Option A)
+
+On first use, `tor-http` will:
+
+1. Look for an explicit Tor binary (`TORHTTP_TOR_CMD` or `TorHttpOptions(tor_cmd=...)`)
+2. Otherwise, check the local cache (previous download)
+3. Otherwise, try `tor` from your system PATH
+4. Otherwise, **download** the Tor Expert Bundle from the Tor Project and cache it
+
+The downloaded bundle is cached in your user cache directory (via `platformdirs`), e.g.:
+
+- Windows: `%LOCALAPPDATA%\tor-http\tor\...`
+- macOS: `~/Library/Caches/tor-http/tor/...`
+- Linux: `~/.cache/tor-http/tor/...`
+
+## Environment variables
+
+- `TORHTTP_TOR_CMD` — path to an existing Tor binary (skips download)
+- `TORHTTP_TOR_URL` — override the download URL (advanced / mirrors / pinned versions)
+- `TORHTTP_TOR_SHA256` — expected SHA256 for the archive at `TORHTTP_TOR_URL` (recommended if you override the URL)
+
+## License
+
+This project is MIT licensed (see `LICENSE`).
+
+Tor is developed and distributed by The Tor Project. This project is not affiliated with or endorsed by The Tor Project.
+
+
+### Permissions
+
+This package does not require administrator or sudo privileges.
+Tor is downloaded (if needed) and executed entirely in user space.
+
+
+## Usage (module singleton)
+
+```python
+from tor_http import tor_http
+
+r = await tor_http.get("https://httpbin.org/get")
+print(r.status_code, r.json())
+```
+
+## Usage (class)
+
+```python
+from tor_http import TorHttp, TorHttpOptions
+
+client = TorHttp(TorHttpOptions(use_tor=True))
+r = await client.get("http://ip-api.com/json/")
+print(r.status_code)
+await client.close()
+```
+
+## Best-effort refresh
+
+```python
+ok = await tor_http.try_refresh()
+```
+
+This **restarts** Tor+client for reliability. It does **not** promise a new exit IP.
