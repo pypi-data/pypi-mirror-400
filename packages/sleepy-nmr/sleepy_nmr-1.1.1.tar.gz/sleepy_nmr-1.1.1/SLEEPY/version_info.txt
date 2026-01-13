@@ -1,0 +1,55 @@
+VERSION 1.1.1
+SLEEPY 1.1.1 is a minor update to version 1.1.0:
+    We correct the "tumbling" function in sl.Tools. The tumbling function
+    evaluates proximity of orientations in a powder average by taking the 
+    sum of squared arc lengths of vectors starting on the x,y, and z axes 
+    between pairs of orientations. This value is used to scale the rate of
+    exchange between orientations (see eq. 17 in paper,
+    https://doi.org/10.1038/s41467-025-65091-6).
+    
+    In version 1.1.0 (and prior versions), the arc length between the x and y 
+    vectors was inadvertently set to zero (Thanks to Wanli Zhang for the bug 
+    report). This should not impact simulations where alpha tumbling is not 
+    included,  but may otherwise induce minor changes. If you observe major 
+    changes in a simulation, I would be happy if it could be reported 
+    (albert.smith-penzel@uni-leipzig.de)
+    
+    
+
+VERSION 1.1.0
+SLEEPY 1.1.0 adds a few features and changes:
+    Defaults can be saved. Execute sl.saveDefaults() to save your defaults for
+    the next session.
+    
+    Version info stored in SLEEPY: Check sl.version_info
+    Version should be printed with the first run of updated SLEEPY
+    
+    The second order quadrupole coupling has been added in the rotating frame.
+    This is now the default behavior (set order=1 to only include the first-
+    order term when setting the quadrupole interaction). To implement this,
+    we now have variable number of components in the Hamiltonians and 
+    Liouvillian. Previously, we always had 5 rotating components, now this is
+    variable, and will switch to 9 rotating components if a second-order
+    quadrupole interaction is included (since the second-order quadrupole
+    interaction is a rank-4 interaction).
+    
+    Definition of the Hz axes is redefined to be consistent with SIMPSON
+    behavior. This only affects nuclei with negative gyromagnetic ratio.
+    In previous versions, if the gyromagnetic ratio was negative, then the 
+    ppm and Hz axes would be reversed relative to each other. This is no longer 
+    the default behavior (change Defaults['Hz_gyro_sign_depend']=False to 
+    recover the previous behavior). CSA and CS Hamiltonians have also been 
+    updated to swap the sign when input is in Hz, and the gyromagnetic ratio is
+    negative. This is so that an input of 500 Hz CS will remain at 500 Hz on 
+    the Hz axis (but will appear as a positive shift on the ppm axis, whereas
+    previously this would have appeared as a negative shift on the ppm axis).
+    
+    Note that this can create some confusion: suppose we detect with '15Np', 
+    which is the first spin in the system, and define a chemical shift with 500
+    Hz. Then, for a standard direct-pulse experiment, we'll get a peak at 500Hz.
+    On the other hand, if the detector is defined with a matrix, e.g.
+    detect=ex.Op[0].p, which is in principle the '15Np' operator, the axis
+    will run the opposite direction and the peak will appear at -500 Hz. This
+    is because SLEEPY doesn't know what nucleus the detector corresponds to and
+    so can't switch the sign accordingly.
+    
