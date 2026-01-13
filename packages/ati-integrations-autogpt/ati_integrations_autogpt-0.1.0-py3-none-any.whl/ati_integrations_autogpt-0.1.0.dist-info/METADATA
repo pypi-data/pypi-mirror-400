@@ -1,0 +1,61 @@
+Metadata-Version: 2.4
+Name: ati-integrations-autogpt
+Version: 0.1.0
+Summary: ATI Integration for AutoGPT
+Project-URL: Homepage, https://iocane.ai
+Project-URL: Repository, https://github.com/iocane-ai/ati-integrations
+Author-email: IOcane ATI Team <support@iocane.ai>
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Requires-Dist: ati-sdk==0.1.0
+Description-Content-Type: text/markdown
+
+# ATI Integration for AutoGPT
+
+This package provides OpenTelemetry instrumentation for AutoGPT-style agents using IOcane ATI.
+
+## Installation
+
+```bash
+pip install ati-integrations-autogpt
+```
+
+## Usage
+
+```python
+from ati_autogpt import AutoGPTInstrumentor
+# import your Agent class, e.g. from autogpt.agent import Agent
+
+# 1. Enable Instrumentation
+# This wraps the `execute_step` (or `step`) method of the Agent class.
+instrumentor = AutoGPTInstrumentor()
+
+# Try to auto-detect 'autogpt.agent.Agent' or 'forge.agent.Agent'
+instrumentor.instrument() 
+
+# OR explicitly pass your Agent class
+# instrumentor.instrument(agent_class=MyAgent)
+
+# 2. Run your Agent
+# agent = Agent(...)
+# agent.execute_step(...)
+
+# 3. (Optional) Uninstrument
+instrumentor.uninstrument()
+```
+
+## Configuration
+
+Configure the instrumentation via environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ATI_CAPTURE_PAYLOADS` | Capture step inputs | `false` |
+
+## Features
+- Captures Agent steps (`ati.span.type=step`)
+- Identifies Loop Iterations
