@@ -1,0 +1,173 @@
+Metadata-Version: 2.4
+Name: narremgen
+Version: 0.9.5
+Summary: Generate artificial structured advice micro-texts from narrative, emotional, and world-context templates.
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/narremgen
+Project-URL: Repository, https://github.com/narremgen/narremgen
+Project-URL: Issues, https://github.com/narremgen/narremgen/issues
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: openai>=1.0.0
+Requires-Dist: google-genai>=1.0.0
+Provides-Extra: emotions
+Requires-Dist: transformers>=4.40; extra == "emotions"
+Requires-Dist: torch; extra == "emotions"
+Requires-Dist: vaderSentiment; extra == "emotions"
+Provides-Extra: textstats
+Requires-Dist: lexicalrichness; extra == "textstats"
+Provides-Extra: plots
+Requires-Dist: matplotlib; extra == "plots"
+Provides-Extra: gui
+Provides-Extra: all
+Requires-Dist: transformers>=4.40; extra == "all"
+Requires-Dist: torch; extra == "all"
+Requires-Dist: google-genai>=1.0.0; extra == "all"
+Requires-Dist: openai>=1.0.0; extra == "all"
+Requires-Dist: lexicalrichness; extra == "all"
+Requires-Dist: matplotlib; extra == "all"
+Requires-Dist: vaderSentiment; extra == "all"
+Requires-Dist: python-docx; extra == "all"
+Requires-Dist: reportlab; extra == "all"
+Dynamic: license-file
+
+# Narremgen
+
+Narremgen is an experimental Python package for **structured narrative text generation**, combining narrative schemas (SN) and emotional dynamics (DE) to produce coherent short texts assembled into full booklets of advice or answers from a topic or a question with optional chapters.
+
+Based on the methodology described in *Priam, R. (2025). Narrative and Emotional Structures for Generation of Short Texts for Advice*, it provides a reproducible multi-batch pipeline for controlled text generation using LLM models with narrative+emotional structures. This is a partial implementation of the method SN/DE/K for generation, modeling and analysis of texts.
+
+
+## Main modules of narremgen
+
+- `pipeline`: Entry point for batch generation, variants, stats, and exports per topic run.
+- `llmcore`: Unified LLM router (role→model mapping, retries, multi-provider support).
+- `data`: Input preparation and CSV handling for topic–advice–prompt-based generation.
+- `narratives`: Text post-processing, style control, and SN/DE-aware narrative realization.
+- `variants`: Planning and batch rewriting into alternative styles (direct, formal, etc.) with stats.
+- `themes`: LLM-based theme discovery and assignment for advice corpora, producing themes+assignments.
+- `chapters`: Build chaptered corpora (CSV/JSON) from themes or manual grouping, for book-like exports.
+- `export`: Plain-text and LaTeX exporters (merged `.txt` and `book_*.tex` from neutral and variants).
+- `analyzestats`: Length, lexical, emotion and SN/DE distribution analysis, with CSV summaries and plots.
+- `utils`: Shared helpers for workdirs, filenames, CSV repair, backups, and neutral corpus construction.
+- `gui`: Optional Tkinter GUI for generation, or readings aligned/selected texts, or segmentation.
+- `main`: Optional command-line terminal module for the generation with input arguments.
+
+    
+## Key features
+
+- Generation of a <u>Corpus</u> of <u>Stories</u> (of varying and controlled structures) and <u>Formal Texts</u> for advice from a topic (full sentence).
+- Multi-batch narrative pipeline using a configurable LLM router (`llmcore`) across several providers with a command-line interface.
+- Automatic topic and advice mapping, SN/DE-structured neutral generation, and aligned variant rewriting (direct, formal, other styles).
+- Robust CSV workflow: filtering, renumbering, safe merging of advice/sentence/context/mapping, consistent filenames, variant workdirs.
+- LLM-driven theme extraction and assignment, plus chapter construction for organizing texts into coherent sections (classes of texts).
+- Plain-text and TeX export of neutral and variant corpora (merged narrative files and full chaptered books for text reading/selection).
+- Integrated corpus analysis: lexical richness, length, emotion profiles, and SN/DE distributions, including neutral vs. variant comparison.
+- Textual statistics and emotion statistics of specialized language models from the literature for evaluation of generated texts or corpus.
+- Ready-to-use structure for reproducible experiments in text generation with emotions for character and educational content synthesis.
+- Graphical user interface for generation with api key checkings, creation of variants, and reading/selection of aligned textes for a topic.
+- Available connection to OpenAI, OpenRouter, Google-GenAI, Mistral, etc for text generation (see python code and interface for dry-run).
+- No limited length for topic str, available command for adding file/str long text as context for advice or generation stages in pipeline.
+
+
+## Usage
+
+### Installation
+
+```
+pip install narremgen
+```
+
+### Generation with Python and the package
+
+```python
+import narremgen
+from narremgen import pipeline
+
+run_pipeline(
+    topic="Walking_in_the_city",
+    output_dir="./outputs",
+    assets_dir="./narremgen/settings",
+    n_batches=2,
+    n_per_batch=20,
+    output_format="txt",
+    verbose=False
+)
+```
+
+### With command-line interface in the terminal
+
+```python
+# Pipeline + variants (default, not user ones)
+python -m narremgen.main \
+  --topic "Walking_in_the_city" \
+  --output-dir "./outputs" \
+  --batches 2 \
+  --per-batch 20 \
+  --output-format txt \
+  --verbose
+```
+
+```python
+# Pipeline without variants (neutral only)
+python -m narremgen.main \
+  --topic "Walking_in_the_city" \
+  --output-dir "./outputs" \
+  --batches 2 \
+  --per-batch 20 \
+  --output-format txt \
+  --skip-variants \
+  --verbose
+```
+
+```python
+# Dry-test without generation pipeline
+python -m narremgen.main \
+  --diagnostic-dry-run \
+  --verbose
+```
+
+With command lines in the terminal: GUI <br>
+
+```python
+# Interface generation+reading+saving
+python -m narremgen.gui
+```
+
+## Other example of call (check exact model names, and documentation for texts)
+
+### OpenAI everywhere as simple default + export TeX booklet
+
+narremgen --topic "Small habits, big effects" --output-dir "./out" --default-model "openai\gpt-4o-mini" --export-book-tex
+
+### Ollama local (offline) + TeX output + skip theme analysis
+
+narremgen --topic "Home organisation and walking" --output-dir "./out" --default-model "ollama\gemma3:4b" --batches 3 --per-batch 30 --output-format tex --export-book-tex 
+
+### OpenRouter mix: DeepSeek for mapping, Llama for narrative, GPT-4o-mini for the rest + multiple variants
+
+narremgen --topic "Walk habits in the city" --output-dir "./out" --api-key-file "./llmkeys.txt" --model-advice "openrouter\openai/gpt-4o-mini" --model-mapping "openrouter\deepseek/deepseek-reasoner" --model-context "openrouter\openai/gpt-4o-mini" --model-narrative "openrouter\meta-llama/llama-3.1-70b-instruct" --model-variants-generation "openrouter\openai/gpt-4o-mini" 
+
+### Mistral direct (OpenAI-compatible) + themes enabled with custom range and batch size
+
+narremgen --topic "Healthy routines for a walk everyday" --output-dir "./out" --api-key-file "./llmkeys.txt" --default-model "mistral\mistral-large-latest" --themes-min 7 --themes-max 12 --themes-batch-size 30
+
+### Grok default + bypass variants generation to local Phi-4 (Ollama) with larger token budget
+
+narremgen --topic "Walking around in a small town" --output-dir "./out" --api-key-file "./llmkeys.txt" --default-model "grok\grok-2-latest" --model-variants-generation "ollama\phi4:14b" --variant-batch-size 40 --variant-max-tokens 2500
+
+### Quick connectivity check (no files generated): diagnostic dry-run with longer timeout
+
+narremgen --diagnostic-dry-run --model-advice "openrouter\deepseek/deepseek-chat" --request-timeout 90
+
+## Warnings
+
+- **Practical note:** very large generations (e.g. high `--batches` × `--per-batch`) may take a long time, may produce repeated advice, and can fail due to rate limits/timeouts or oversized intermediate files (these issues are not handled automatically). Start small (e.g. `--batches 2 --per-batch 30`) and scale up while monitoring API usage.
+
+- **Output integrity:** in some cases an LLM response can be malformed (wrong format) or truncated, which may lead to missing or unusable advice entries. If this happens, rerun the affected batch.
+
+- **Current usability:** Only informed users or trainers should use this system in practice. Some advice may be missing or mistaken du to ia/programming. In next versions, automatic checkings may be implemented for end user.
