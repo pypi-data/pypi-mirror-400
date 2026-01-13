@@ -1,0 +1,171 @@
+Metadata-Version: 2.4
+Name: quran-phonemizer
+Version: 1.0.1
+Summary: Industrial-strength Deterministic Phonemizer for Quranic Arabic (Tajweed-aware)
+Project-URL: Homepage, https://github.com/RazwanSiktany/quran-phonemizer
+Project-URL: Live Demo, https://quran-phonemizer.streamlit.app/
+Project-URL: Source Code, https://github.com/RazwanSiktany/quran-phonemizer
+Project-URL: Issue Tracker, https://github.com/RazwanSiktany/quran-phonemizer/issues
+Author-email: "Razwan M. Haji" <razwan.siktany778@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2025 Razwan M. Haji
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Keywords: arabic,fastspeech,islamic-ai,nlp,phonemizer,quran,speech-synthesis,tajweed,tts,vits
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Religion
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Text Processing :: Linguistic
+Requires-Python: >=3.8
+Requires-Dist: pydantic>=2.0
+Provides-Extra: app
+Requires-Dist: streamlit>=1.20.0; extra == 'app'
+Provides-Extra: dev
+Requires-Dist: build>=0.10.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: twine>=4.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# 📖 quran-phonemizer
+
+[![PyPI version](https://badge.fury.io/py/quran-phonemizer.svg)](https://badge.fury.io/py/quran-phonemizer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://quran-phonemizer.streamlit.app/)
+
+**quran-phonemizer** is an industrial-strength, **Tajweed-aware** phonemization library designed specifically for **Quranic Arabic**.
+
+It uses a **Hybrid Architecture** combining a "Golden Source" database (82,000+ expert-verified words) with a robust rule-based fallback engine. This ensures the accuracy for Quranic text while gracefully handling Hadith, poetry, or imperfect input.
+
+It is specifically optimized for training **Neural TTS** models (VITS, FastSpeech2) in the style of reciters like **Mishary Al-Afasy**.
+
+---
+
+## 🚀 Live Demo
+
+Try the library instantly in your browser:
+👉 **[Click here to open the Live App](https://quran-phonemizer.streamlit.app/)**
+
+Or run it locally:
+```bash
+pip install streamlit
+streamlit run demo_app.py
+```
+
+---
+
+## ⚡ Quick Start
+
+```python
+from quran_phonemizer import QuranPhonemizer
+
+# 1. Initialize Engine (Loads bundled DB)
+qp = QuranPhonemizer()
+
+# 2. Phonemize Quranic Text (Database Mode)
+text = "ٱللَّهُ ٱلصَّمَدُ"
+phonemes = qp.phonemize_text(text)
+
+print(phonemes)
+# Output: 2aLLaahu SSamad_Q
+# (Note: '2a' = Glottal Stop, 'LL' = Heavy Lam, '_Q' = Qalqalah on Stop)
+
+# 3. Get Atomic Tokens for ML Training (VITS format)
+tokens = qp.tokenize_to_atomic(phonemes)
+print(tokens)
+# Output: ['2', 'a', 'L_H', 'aa', 'h', 'u', 'SP', 'S', 'S', 'a', 'm', 'a', 'd', 'u', 'QK']
+```
+
+---
+
+## 🎛️ Advanced Configuration
+
+You can customize how verses are connected or separated.
+
+```python
+# Multi-Verse Input
+text = "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ ١ ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَـٰلَمِينَ ٢"
+
+# Option A: Standard Stop (Waqf) at each Ayah
+print(qp.phonemize_text(text, segment_separator=" | "))
+# Output: ...RRaHiym: | 2alHamdu...
+
+# Option B: Continuous Recitation (Wasl)
+print(qp.phonemize_text(text, apply_stopping_rules=False))
+# Output: ...RRaHiymi lHamdu...
+# (Note: Preserves vowel 'i' and merges Hamzat Wasl)
+```
+
+---
+
+## 🌟 Key Features
+
+### 1. 🕌 High-Fidelity Tajweed
+Captures nuances that standard Arabic G2P tools miss:
+* **Heavy/Light Letters (Tafkhim/Tarqiq):**
+    * Distinguishes **Heavy Lam** (`LL`) in "Allah" vs **Light Lam** (`ll`).
+    * Distinguishes **Heavy Ra** (`R`) vs **Light Ra** (`r`).
+* **Madd (Elongation):** Numeric markers for duration (`:` = 2, `::` = 4, `:::` = 6 counts).
+* **Qalqalah (Echo):** Automatically adds `_Q` when stopping on Qaf, Taa, Ba, Jim, Dal.
+* **Ghunnah (Nasal):** Marks nasalization (`ŋ`) for Noon/Meem Shadda.
+* **Idgham/Iqlab:** Merges sounds across word boundaries (e.g. `min ba'di` -> `mim ba'di`).
+
+### 2. 🧠 ML-Ready Tokenization
+Includes a tokenizer that converts human-readable strings into **Atomic Tokens** for model training.
+* **Separated Phonemes:** `in` becomes `['i', 'n']`.
+* **Symbol Mapping:** `_Q` becomes `QK`, `LL` becomes `L_H`.
+* **Word Boundaries:** Inserts `SP` tokens automatically.
+
+### 3. 🛡️ Robust Search & Fallback
+* **FTS5 Search:** Instantly finds verses even with missing diacritics or spelling variations.
+* **Smart Normalization:** Handles `Tatweel` (ـ), `Alif Khanjareeya` (ٰ), and `Hamza` forms transparently.
+* **Fallback Engine:** If text is not in the Quran, a sophisticated rule-based engine generates phonetically accurate approximations.
+
+---
+
+## 📦 Installation & Setup
+
+```bash
+pip install quran-phonemizer
+```
+
+*(The Golden Source database is included automatically)*
+
+---
+
+## 👨‍💻 Author
+
+**Razwan M. Haji**
+* **GitHub:** [RazwanSiktany](https://github.com/RazwanSiktany/)
+* **PyPI:** [quran-phonemizer](https://pypi.org/project/quran-phonemizer/)
+
+## 📄 License
+
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
