@@ -1,0 +1,93 @@
+[project]
+name = "leggen"
+version = "2026.1.0"
+description = "An Open Banking CLI"
+authors = [{ name = "Elisiário Couto", email = "elisiario@couto.io" }]
+requires-python = "~=3.13.0"
+readme = "README.md"
+license = "MIT"
+keywords = [
+    "openbanking",
+    "cli",
+    "psd2",
+    "gocardless",
+    "bank",
+    "transactions",
+    "finance",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Topic :: Utilities",
+    "Topic :: Office/Business :: Financial",
+]
+dependencies = [
+    "click>=8.1.7,<9",
+    "requests>=2.31.0,<3",
+    "loguru>=0.7.2,<0.8",
+    "tabulate>=0.9.0,<0.10",
+    "discord-webhook>=1.3.1,<2",
+    "fastapi>=0.104.0,<1",
+    "uvicorn[standard]>=0.24.0,<1",
+    "apscheduler>=3.10.0,<4",
+    "tomli-w>=1.0.0,<2",
+    "httpx>=0.28.1",
+    "pydantic>=2.0.0,<3",
+    "boto3>=1.35.0,<2",
+]
+
+[project.urls]
+Repository = "https://github.com/elisiariocouto/leggen"
+
+[project.scripts]
+leggen = "leggen.main:cli"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6.1",
+    "pre-commit>=3.6.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "respx>=0.21.0",
+    "requests-mock>=1.12.0",
+    "mypy>=1.17.1",
+    "types-tabulate>=0.9.0.20241207",
+    "types-requests>=2.32.4.20250809",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["leggen"]
+
+[tool.hatch.build.targets.wheel]
+include = ["leggen"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+lint.ignore = ["E501", "B008", "B006"]
+lint.extend-select = ["B", "C4", "I", "PIE", "T20", "SIM", "TCH"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = ["-v", "--tb=short", "--strict-markers", "--disable-warnings"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+    "api: API endpoint tests",
+    "cli: CLI command tests",
+]
+
+[[tool.mypy.overrides]]
+module = ["apscheduler.*", "discord_webhook.*", "botocore.*", "boto3.*"]
+ignore_missing_imports = true
