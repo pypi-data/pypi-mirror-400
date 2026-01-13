@@ -1,0 +1,86 @@
+# Aioserve
+
+A lightweight, modern, and async web framework for Python. Built on ASGI, it provides a simple yet powerful way to build web services and APIs.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Versions](https://img.shields.io/pypi/pyversions/aioserve.svg)](https://pypi.org/project/aioserve/)
+
+## Features
+
+- **Async to the Core**: Built on top of ASGI (Asynchronous Server Gateway Interface).
+- **Simple Routing**: Expressive decorator-based routing (`@app.get`, `@app.post`).
+- **Middleware Support**: easily extend functionality with middleware.
+- **JSON Support**: Built-in JSON request parsing and response generation.
+- **Lightweight**: Minimal dependencies, fast execution.
+
+## Installation
+
+```bash
+pip install aioserve
+```
+
+## Quick Start
+
+Create a file named `main.py`:
+
+```python
+from aioserve.server.app import App, app
+from aioserve.server.http import JSONResponse
+
+# Define a route
+@app.get("/")
+async def home(request):
+    return JSONResponse({"message": "Hello, Aioserve!"})
+
+# Run with uvicorn
+# uvicorn main:app
+```
+
+## Usage
+
+### Routing
+
+```python
+@app.get("/items")
+async def get_items(request):
+    return ["item1", "item2"]
+
+@app.post("/items")
+async def create_item(request):
+    data = await request.json()
+    return JSONResponse(data, status_code=201)
+```
+
+### Middleware
+
+You can add middleware to wrap your application. Middleware allows you to intercept requests and responses.
+
+```python
+class LoggingMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        print(f"Request: {scope['method']} {scope['path']}")
+        await self.app(scope, receive, send)
+
+app.add_middleware(LoggingMiddleware)
+```
+
+## Development
+
+To contribute or run tests locally:
+
+1.  Clone the repository.
+2.  Install dependencies with Poetry:
+    ```bash
+    poetry install
+    ```
+3.  Run tests:
+    ```bash
+    poetry run pytest
+    ```
+
+## License
+
+This project is licensed under the MIT License.
