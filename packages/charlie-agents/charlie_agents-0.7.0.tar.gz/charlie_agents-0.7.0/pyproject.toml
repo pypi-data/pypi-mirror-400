@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "charlie-agents"
+dynamic = ["version"]
+description = "Universal Agent Config Generator"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Henrique Moody", email = "henriquemoody@gmail.com"}
+]
+keywords = ["ai", "agents", "mcp", "commands", "transpiler", "claude", "copilot", "cursor"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "typer>=0.9.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+    "rich>=13.0.0",
+    "python-dotenv>=1.0.0",
+    "python-slugify (>=8.0.4,<9.0.0)",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+charlie = "charlie.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/henriquemoody/charlie"
+Documentation = "https://github.com/henriquemoody/charlie#readme"
+Repository = "https://github.com/henriquemoody/charlie"
+Issues = "https://github.com/henriquemoody/charlie/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=charlie --cov-report=term-missing --cov-report=xml"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+# Allow tests to be more flexible with object construction and fixtures
+disallow_untyped_defs = false
+disable_error_code = ["call-arg", "arg-type", "union-attr", "no-any-return", "func-returns-value", "override", "assignment"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = []
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/charlie"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+]
