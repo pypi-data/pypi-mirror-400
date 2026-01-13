@@ -1,0 +1,63 @@
+[project]
+name = "dummypypi2"
+dynamic = ["version"]
+dependencies = [
+  "numpy",
+]
+requires-python = ">=3.8"
+authors = [
+  {name = "Bart Wolleswinkel", email = "b.wolleswinkel@tudelft.nl"}
+]
+description = "Dummy package to test direct publishing from GitHub to PyPi"
+readme = "README.md"
+keywords = ['python', 'dummy', 'github', 'pypi', 'test']
+classifiers = [
+  "Development Status :: 1 - Planning",
+  "Programming Language :: Python"
+]
+
+[project.optional-dependencies]
+all = ["matplotlib", "cvxpy", "networkx"]
+plotting = ["matplotlib"]
+optimization = ["cvxpy"]
+graphing = ["networkx"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.tox]
+env_list = ["3.14"]
+
+[tool.tox.env_run_base]
+description = "Run tests"
+deps = ["pytest", "pytest-cov"]
+commands = [["pytest", "--cov=src/dummypypi2", "--cov-report=term-missing", "--no-cov-on-fail"]]
+package = "editable"
+set_env.COVERAGE_FILE = "{temp_dir}/.coverage"
+
+[tool.mypy]
+mypy_path = "src"
+strict = true
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+skip_covered = false
+skip_empty = true
+show_missing = true
+
+[tool.flake8]
+ignore = ["E501"]
+
