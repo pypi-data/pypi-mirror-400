@@ -1,0 +1,1 @@
+ALTER TABLE track_problem ADD COLUMN reported_by INTEGER NULL REFERENCES user(id) ON DELETE SET NULL;

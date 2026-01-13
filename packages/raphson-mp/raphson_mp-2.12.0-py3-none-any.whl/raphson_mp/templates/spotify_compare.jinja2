@@ -1,0 +1,138 @@
+{% set title = gettext("Spotify compare") %}
+{% set back_url = "/spotify" %}
+{% set script = "spotify_compare" %}
+{% extends "base_static.jinja2" %}
+
+{% block content %}
+
+<h2>{% trans %}Duplicates in Spotify playlist{% endtrans %} ({{ duplicates | length }})</h2>
+
+{% if duplicates %}
+    <p>{% trans %}Try to remove all duplicates first. Duplicate tracks may erroneously show as missing.{% endtrans %}</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>{% trans %}Artists{% endtrans %}</th>
+                <th>{% trans %}Title{% endtrans %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for track in duplicates %}
+                <tr>
+                    <td>
+                        {% for artist in track["artists"] %}
+                            <kbd>{{ artist["name"] }}</kbd>
+                        {% endfor %}
+                    </td>
+                    <td>{{ track["name"] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>{% trans %}No duplicates found.{% endtrans %}</p>
+{% endif %}
+
+<h2>{% trans %}Missing in music player{% endtrans %} ({{ only_spotify | length }})</h2>
+
+{% if only_spotify %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>{% trans %}Artists{% endtrans %}</th>
+                <th>{% trans %}Title{% endtrans %}</th>
+                {% if has_token %}
+                    <th></th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for track in only_spotify %}
+                <tr>
+                    <td>
+                        {% for artist in track["artists"] %}
+                            <kbd>{{ artist["name"] }}</kbd>
+                        {% endfor %}
+                    </td>
+                    <td>{{ track["name"] }}</td>
+                    {% if has_token %}
+                        <td><button class="button add-button" data-id="{{ track['id'] }}">{% trans %}Add{% endtrans %}</button></td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>{% trans %}None found.{% endtrans %}</p>
+{% endif %}
+
+<h2>{% trans %}Missing in Spotify{% endtrans %} ({{ only_local | length }})</h2>
+
+{% if only_local %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>{% trans %}Artists{% endtrans %}</th>
+                <th>{% trans %}Title{% endtrans %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for title, artists in only_local %}
+                <tr>
+                    <td>
+                        {% for artist in artists %}
+                            <kbd>{{ artist }}</kbd>
+                        {% endfor %}
+                    </td>
+                    <td>{{ title }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>{% trans %}None found.{% endtrans %}</p>
+{% endif %}
+
+<h2>{% trans %}Present in both{% endtrans %} ({{ both | length }})</h2>
+
+{% if both %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th colspan="2">Music player</th>
+                <th colspan="2">Spotify</th>
+            </tr>
+            <tr>
+                <th>{% trans %}Artists{% endtrans %}</th>
+                <th>{% trans %}Title{% endtrans %}</th>
+                <th>{% trans %}Artists{% endtrans %}</th>
+                <th>{% trans %}Title{% endtrans %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for local, spotify in both %}
+                <tr>
+                    {% set title, artists = local %}
+                    <td>
+                        {% for artist in artists %}
+                            <kbd>{{ artist }}</kbd>
+                        {% endfor %}
+                    </td>
+                    <td>{{ title }}</td>
+                    <td>
+                        {% for artist in spotify.artists %}
+                            <kbd>{{ artist.name }}</kbd>
+                        {% endfor %}
+                    </td>
+                    <td>{{ spotify.name }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>{% trans %}None found.{% endtrans %}</p>
+{% endif %}
+
+<div hidden id="playlist">{{ playlist }}</div>
+
+{% endblock content %}

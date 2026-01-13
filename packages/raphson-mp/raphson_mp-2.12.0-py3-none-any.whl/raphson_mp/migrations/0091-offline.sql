@@ -1,0 +1,4 @@
+CREATE TABLE artist_img (
+    artist TEXT NOT NULL UNIQUE PRIMARY KEY,
+    img BLOB NOT NULL
+) STRICT;

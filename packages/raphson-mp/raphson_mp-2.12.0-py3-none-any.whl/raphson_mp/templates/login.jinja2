@@ -1,0 +1,38 @@
+{% set title = gettext("Log in") %}
+{% set script = "login" %}
+{% set styles = ["login"] %}
+{% extends "base_static.jinja2" %}
+
+{% block content %}
+
+<div class="login-box">
+    <div class="raphson"></div>
+
+    <div>
+        {% if invalid_password %}
+            <p class="invalid-password">{% trans %}Invalid username or password{% endtrans %}</p>
+        {% endif %}
+        <form method="POST" class="form">
+            <label for="username">{% trans %}Username{% endtrans %}</label>
+            <input type="text" name="username" id="username" autofocus>
+
+            <label for="password">{% trans %}Password{% endtrans %}</label>
+            <input type="password" name="password" id="password">
+
+            <input type="submit" value="{% trans %}Log in{% endtrans %}">
+        </form>
+        {% if webauthn_challenge %}
+            <hr>
+            <button id="webauthn-login">WebAuthn Login</button>
+            <div hidden id="webauthn-challenge">{{ webauthn_challenge }}</div>
+        {% endif %}
+    </div>
+    {% if login_message %}
+    <div>
+        <p class="secondary-large">{{ login_message | safe }}</p>
+    </div>
+    {% endif %}
+</div>
+
+
+{% endblock content %}
