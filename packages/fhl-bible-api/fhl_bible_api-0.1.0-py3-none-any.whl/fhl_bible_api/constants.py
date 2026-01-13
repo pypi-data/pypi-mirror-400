@@ -1,0 +1,198 @@
+"""Constants for FHL Bible API."""
+
+from typing import Final
+
+# API Configuration
+API_BASE_URL: Final[str] = "https://bible.fhl.net/api"
+API_QUERY_ENDPOINT: Final[str] = "/qb.php"
+API_PARSING_ENDPOINT: Final[str] = "/qp.php"
+DEFAULT_VERSION: Final[str] = "unv"  # 和合本
+
+# Bible Books - Old Testament (1-39)
+BIBLE_BOOKS_OT: Final[dict[int, dict[str, str]]] = {
+    1: {"chinese": "創", "english": "Gen", "full_name": "創世記"},
+    2: {"chinese": "出", "english": "Exod", "full_name": "出埃及記"},
+    3: {"chinese": "利", "english": "Lev", "full_name": "利未記"},
+    4: {"chinese": "民", "english": "Num", "full_name": "民數記"},
+    5: {"chinese": "申", "english": "Deut", "full_name": "申命記"},
+    6: {"chinese": "書", "english": "Josh", "full_name": "約書亞記"},
+    7: {"chinese": "士", "english": "Judg", "full_name": "士師記"},
+    8: {"chinese": "得", "english": "Ruth", "full_name": "路得記"},
+    9: {"chinese": "撒上", "english": "1Sam", "full_name": "撒母耳記上"},
+    10: {"chinese": "撒下", "english": "2Sam", "full_name": "撒母耳記下"},
+    11: {"chinese": "王上", "english": "1Kgs", "full_name": "列王紀上"},
+    12: {"chinese": "王下", "english": "2Kgs", "full_name": "列王紀下"},
+    13: {"chinese": "代上", "english": "1Chr", "full_name": "歷代志上"},
+    14: {"chinese": "代下", "english": "2Chr", "full_name": "歷代志下"},
+    15: {"chinese": "拉", "english": "Ezra", "full_name": "以斯拉記"},
+    16: {"chinese": "尼", "english": "Neh", "full_name": "尼希米記"},
+    17: {"chinese": "斯", "english": "Esth", "full_name": "以斯帖記"},
+    18: {"chinese": "伯", "english": "Job", "full_name": "約伯記"},
+    19: {"chinese": "詩", "english": "Ps", "full_name": "詩篇"},
+    20: {"chinese": "箴", "english": "Prov", "full_name": "箴言"},
+    21: {"chinese": "傳", "english": "Eccl", "full_name": "傳道書"},
+    22: {"chinese": "歌", "english": "Song", "full_name": "雅歌"},
+    23: {"chinese": "賽", "english": "Isa", "full_name": "以賽亞書"},
+    24: {"chinese": "耶", "english": "Jer", "full_name": "耶利米書"},
+    25: {"chinese": "哀", "english": "Lam", "full_name": "耶利米哀歌"},
+    26: {"chinese": "結", "english": "Ezek", "full_name": "以西結書"},
+    27: {"chinese": "但", "english": "Dan", "full_name": "但以理書"},
+    28: {"chinese": "何", "english": "Hos", "full_name": "何西阿書"},
+    29: {"chinese": "珥", "english": "Joel", "full_name": "約珥書"},
+    30: {"chinese": "摩", "english": "Amos", "full_name": "阿摩司書"},
+    31: {"chinese": "俄", "english": "Obad", "full_name": "俄巴底亞書"},
+    32: {"chinese": "拿", "english": "Jonah", "full_name": "約拿書"},
+    33: {"chinese": "彌", "english": "Mic", "full_name": "彌迦書"},
+    34: {"chinese": "鴻", "english": "Nah", "full_name": "那鴻書"},
+    35: {"chinese": "哈", "english": "Hab", "full_name": "哈巴谷書"},
+    36: {"chinese": "番", "english": "Zeph", "full_name": "西番雅書"},
+    37: {"chinese": "該", "english": "Hag", "full_name": "哈該書"},
+    38: {"chinese": "亞", "english": "Zech", "full_name": "撒迦利亞書"},
+    39: {"chinese": "瑪", "english": "Mal", "full_name": "馬拉基書"},
+}
+
+# Bible Books - New Testament (40-66)
+BIBLE_BOOKS_NT: Final[dict[int, dict[str, str]]] = {
+    40: {"chinese": "太", "english": "Matt", "full_name": "馬太福音"},
+    41: {"chinese": "可", "english": "Mark", "full_name": "馬可福音"},
+    42: {"chinese": "路", "english": "Luke", "full_name": "路加福音"},
+    43: {"chinese": "約", "english": "John", "full_name": "約翰福音"},
+    44: {"chinese": "徒", "english": "Acts", "full_name": "使徒行傳"},
+    45: {"chinese": "羅", "english": "Rom", "full_name": "羅馬書"},
+    46: {"chinese": "林前", "english": "1Cor", "full_name": "哥林多前書"},
+    47: {"chinese": "林後", "english": "2Cor", "full_name": "哥林多後書"},
+    48: {"chinese": "加", "english": "Gal", "full_name": "加拉太書"},
+    49: {"chinese": "弗", "english": "Eph", "full_name": "以弗所書"},
+    50: {"chinese": "腓", "english": "Phil", "full_name": "腓立比書"},
+    51: {"chinese": "西", "english": "Col", "full_name": "歌羅西書"},
+    52: {"chinese": "帖前", "english": "1Thess", "full_name": "帖撒羅尼迦前書"},
+    53: {"chinese": "帖後", "english": "2Thess", "full_name": "帖撒羅尼迦後書"},
+    54: {"chinese": "提前", "english": "1Tim", "full_name": "提摩太前書"},
+    55: {"chinese": "提後", "english": "2Tim", "full_name": "提摩太後書"},
+    56: {"chinese": "多", "english": "Titus", "full_name": "提多書"},
+    57: {"chinese": "門", "english": "Phlm", "full_name": "腓利門書"},
+    58: {"chinese": "來", "english": "Heb", "full_name": "希伯來書"},
+    59: {"chinese": "雅", "english": "Jas", "full_name": "雅各書"},
+    60: {"chinese": "彼前", "english": "1Pet", "full_name": "彼得前書"},
+    61: {"chinese": "彼後", "english": "2Pet", "full_name": "彼得後書"},
+    62: {"chinese": "約一", "english": "1John", "full_name": "約翰一書"},
+    63: {"chinese": "約二", "english": "2John", "full_name": "約翰二書"},
+    64: {"chinese": "約三", "english": "3John", "full_name": "約翰三書"},
+    65: {"chinese": "猶", "english": "Jude", "full_name": "猶大書"},
+    66: {"chinese": "啟", "english": "Rev", "full_name": "啟示錄"},
+}
+
+# Apocrypha Books (101-115)
+APOCRYPHA_BOOKS: Final[dict[int, dict[str, str]]] = {
+    101: {"chinese": "加上", "english": "1Macc", "full_name": "瑪喀比傳上卷"},
+    102: {"chinese": "加下", "english": "2Macc", "full_name": "瑪喀比傳下卷"},
+    103: {"chinese": "多", "english": "Tob", "full_name": "多比傳"},
+    104: {"chinese": "友", "english": "Jdt", "full_name": "猶滴傳"},
+    105: {"chinese": "德", "english": "Sir", "full_name": "便西拉智訓"},
+    106: {"chinese": "智", "english": "Wis", "full_name": "所羅門智訓"},
+    107: {"chinese": "拉上", "english": "1Esd", "full_name": "以斯拉續編上卷"},
+    108: {"chinese": "拉下", "english": "2Esd", "full_name": "以斯拉續編下卷"},
+    109: {"chinese": "巴", "english": "Bar", "full_name": "巴錄書"},
+    110: {"chinese": "信", "english": "EpJer", "full_name": "耶利米書信"},
+    111: {"chinese": "禱", "english": "PrMan", "full_name": "瑪拿西禱言"},
+    112: {"chinese": "歌", "english": "PrAzar", "full_name": "三童歌"},
+    113: {"chinese": "蘇", "english": "Sus", "full_name": "蘇撒拿傳"},
+    114: {"chinese": "龍", "english": "Bel", "full_name": "比勒與大龍"},
+    115: {"chinese": "補", "english": "AddEsth", "full_name": "以斯帖補編"},
+}
+
+# Apostolic Fathers (201-217)
+APOSTOLIC_FATHERS: Final[dict[int, dict[str, str]]] = {
+    201: {"chinese": "革一", "english": "1Clem", "full_name": "革利免一書"},
+    202: {"chinese": "革二", "english": "2Clem", "full_name": "革利免二書"},
+    203: {"chinese": "伊弗", "english": "IgnEph", "full_name": "伊格那丟致以弗所人書"},
+    204: {"chinese": "伊馬", "english": "IgnMag", "full_name": "伊格那丟致馬內夏人書"},
+    205: {"chinese": "伊拉", "english": "IgnTral", "full_name": "伊格那丟致他拉勒人書"},
+    206: {"chinese": "伊羅", "english": "IgnRom", "full_name": "伊格那丟致羅馬人書"},
+    207: {"chinese": "伊非", "english": "IgnPhld", "full_name": "伊格那丟致非拉鐵非人書"},
+    208: {"chinese": "伊士", "english": "IgnSmyr", "full_name": "伊格那丟致士每拿人書"},
+    209: {"chinese": "伊坡", "english": "IgnPol", "full_name": "伊格那丟致坡旅甲書"},
+    210: {"chinese": "坡腓", "english": "PolPhil", "full_name": "坡旅甲致腓立比人書"},
+    211: {"chinese": "坡殉", "english": "MPol", "full_name": "坡旅甲殉道記"},
+    212: {"chinese": "訓", "english": "Did", "full_name": "十二使徒遺訓"},
+    213: {"chinese": "巴", "english": "Barn", "full_name": "巴拿巴書信"},
+    214: {"chinese": "黑", "english": "Herm", "full_name": "黑馬牧人書"},
+    215: {"chinese": "丟", "english": "Diogn", "full_name": "致丟格那妥書"},
+    216: {"chinese": "帕", "english": "Pap", "full_name": "帕皮亞殘篇"},
+    217: {"chinese": "傳", "english": "Trad", "full_name": "衆長老的傳統"},
+}
+
+# Combined Bible Books Dictionary
+ALL_BOOKS: Final[dict[int, dict[str, str]]] = {
+    **BIBLE_BOOKS_OT,
+    **BIBLE_BOOKS_NT,
+    **APOCRYPHA_BOOKS,
+    **APOSTOLIC_FATHERS,
+}
+
+# Bible Versions
+BIBLE_VERSIONS: Final[dict[str, str]] = {
+    # Chinese versions
+    "unv": "和合本",
+    "rcuv": "和合本2010",
+    "tcv95": "現代中文譯本1995版",
+    "tcv2019": "現代中文譯本2019版",
+    "wcb": "環球",
+    "ncv": "新譯本",
+    "recover": "恢復本",
+    "ofm": "思高譯本",
+    "lcc": "呂振中譯本",
+    "cnet": "CNET",
+    "cumv": "官話和合本",
+    "pmb": "北京官話譯本",
+    "cuwv": "文理和合本",
+    "orthdox": "俄羅斯正教譯本",
+    "mormil": "神天聖書",
+    "wdv": "委辦譯本",
+    "ssewb": "施約瑟譯本",
+    "marwb": "馬殊曼譯本",
+    "cwmgbm": "四人小組譯本",
+    "cwkfag": "郭實臘新舊遺詔聖書",
+    "cogorw": "高連茨基聖詠經",
+    "cbol": "原文直譯",
+    # English versions
+    "esv": "ESV",
+    "kjv": "KJV",
+    "bbe": "BBE",
+    "web": "WEB",
+    "asv": "ASV",
+    "darby": "Darby",
+    "erv": "ERV",
+    # Original languages and ancient translations
+    "bhs": "原文",
+    "lxx": "七十士譯本",
+    # Taiwanese and Hakka
+    "ttvhl2021": "現代台語漢字2021版",
+    "ttvcl2021": "現代台語羅馬字2021版",
+    "tghg": "聖經公會巴克禮台漢",
+    "tte": "現代台語全羅2013版(詩、箴)",
+    "ttvh": "現代台語漢字2013版(詩、箴)",
+    "thv2e": "現代客語全羅",
+    "thv12h": "現代客語漢字",
+    "bklcl": "巴克禮",
+    "bklhl": "巴克禮漢羅",
+    "sgebklcl": "全民台語聖經全羅",
+    "sgebklhl": "全民台語聖經漢羅",
+    # Other languages
+    "bunun": "布農語聖經",
+    "tay": "泰雅爾語聖經",
+    "sed": "賽德克族Tgdaya語聖經",
+    "rukai": "魯凱語聖經",
+    "amis2": "阿美語2019聖經(詩、箴)",
+    "ams": "阿美語1997聖經",
+    "tru": "太魯閣語聖經",
+    "korean": "韓文聖經",
+    "baru": "印尼聖經",
+    "ind1958": "印尼舊聖經",
+    "vietnamese": "越南聖經",
+    "russian": "俄文聖經",
+    "jp": "日文聖經",
+    "tibet": "藏語聖經",
+    "cvul": "武加大譯本",
+    "nvul": "新武加大譯本",
+}
