@@ -1,0 +1,70 @@
+# fhnmg - External Package
+
+## 概述
+
+这是 `fhnmg` 包的 **external 版本**，部署到公共 PyPI (pypi.org)。
+
+## 重要说明
+
+⚠️ **此包在任何情况下都不允许安装！**
+
+此包的唯一目的是作为哨兵包，当用户尝试从公共 PyPI 安装时会立即抛出错误，提醒用户使用内部 PyPI index。
+
+## 工作原理
+
+在 `setup.py` 执行时，会**直接抛出 `RuntimeError`**，不进行任何检查。这意味着：
+- 无论从哪个源安装，都会失败
+- 错误信息会提示用户配置内部 PyPI index (`https://pypi.fhnmg.cn/simple`)
+- 此包的唯一目的就是阻止安装并提醒用户
+
+## 安装行为
+
+如果用户尝试从公共 PyPI 安装此包：
+
+```bash
+$ pip install fhnmg
+# 会直接抛出错误，不允许安装
+```
+
+错误信息会提示用户配置内部 PyPI index：
+
+```
+错误：您正在尝试从公共 PyPI 安装 fhnmg 包！
+======================================================================
+fhnmg 是一个哨兵包，不应该从公共 PyPI 安装。
+请使用内部 PyPI index 安装。
+
+配置方法：
+1. 设置环境变量：
+   export PIP_INDEX_URL=https://pypi.fhnmg.cn/simple
+   export PIP_EXTRA_INDEX_URL=https://pypi.org/simple
+
+2. 或使用 pip config：
+   pip config set global.index-url https://pypi.fhnmg.cn/simple
+   pip config set global.extra-index-url https://pypi.org/simple
+
+3. 或在安装时指定：
+   pip install -i https://pypi.fhnmg.cn/simple fhnmg
+======================================================================
+```
+
+## 包信息
+
+- **包名**：`fhnmg`
+- **命名空间**：`fh`
+- **版本**：1.0.0
+- **Python 要求**：>= 3.6
+
+## 构建和发布
+
+```bash
+cd external
+python setup.py sdist bdist_wheel
+twine upload dist/*  # 上传到公共 PyPI
+```
+
+## 注意事项
+
+- 此包应该部署到公共 PyPI，用于阻止用户从公共源安装
+- 用户应该从内部 PyPI index (`https://pypi.fhnmg.cn/simple`) 安装 internal 版本
+
