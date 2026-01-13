@@ -1,0 +1,486 @@
+Metadata-Version: 2.2
+Name: alura-ai
+Version: 0.3.4
+Summary: AI usage tracking and billing SDK
+Author-email: Alura AI <support@aluraai.com>
+Project-URL: Homepage, https://aluraai.com
+Project-URL: Documentation, https://aluraai.com/docs
+Project-URL: Repository, https://github.com/alura-ai/alura-python
+Project-URL: Issues, https://github.com/alura-ai/alura-python/issues
+Keywords: ai,llm,tracking,billing,openai,usage,cost
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Provides-Extra: openai
+Requires-Dist: openai>=1.0.0; extra == "openai"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+
+# Alura AI Python SDK
+
+Track AI usage and costs with automatic billing integration. Compatible with [Paid AI](https://paid.ai) API.
+
+## Installation
+
+```bash
+pip install alura-ai
+```
+
+With OpenAI support:
+```bash
+pip install alura-ai[openai]
+```
+
+## Quick Start
+
+### Automatic OpenAI Tracking
+
+```python
+from alura import Alura, AluraOpenAI
+from openai import OpenAI
+
+# Initialize clients
+alura = Alura(api_key="your-alura-api-key")
+openai_client = OpenAI(api_key="your-openai-key")
+alura_openai = AluraOpenAI(openai_client, alura)
+
+# All calls within trace() are automatically tracked
+with alura.trace(customer_id="cust-123", agent_id="my-chatbot"):
+    response = alura_openai.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+```
+
+### Manual Action Tracking
+
+```python
+from alura import Alura
+
+alura = Alura(api_key="your-alura-api-key")
+
+# Track any event
+alura.action(
+    event_name="meeting_booked",
+    agent_id="sales-agent",
+    customer_id="cust-123",
+    data={
+        "meeting_type": "demo",
+        "duration_minutes": 30
+    }
+)
+```
+
+### Bulk Action Recording
+
+```python
+from alura import Alura, Action
+
+alura = Alura(api_key="your-alura-api-key")
+
+actions = [
+    Action(
+        event_name="email_sent",
+        agent_id="outreach-agent",
+        customer_id="cust-123",
+        data={"recipient": "user@example.com"}
+    ),
+    Action(
+        event_name="call_made",
+        agent_id="outreach-agent",
+        customer_id="cust-123",
+        data={"duration_seconds": 120}
+    ),
+]
+
+alura.action_bulk(actions)
+```
+
+## Product Management
+
+Create and manage products (billable items that customers purchase):
+
+```python
+from alura import Alura
+
+alura = Alura(api_key="your-alura-api-key")
+
+# List all products
+products = alura.products.list()
+for product in products:
+    print(f"{product.name} ({product.display_id}): {product.type}")
+
+# Create a product
+product = alura.products.create(
+    name="AI SDR Agent",
+    description="AI-powered sales development representative",
+    type="agent",  # agent, product, or prepaidCreditBundle
+    external_id="sdr-agent-v1",
+    metadata={"category": "sales"}
+)
+print(f"Created product: {product.id}")
+
+# Get a product by ID
+product = alura.products.get(product_id="123")
+
+# Get a product by external ID
+product = alura.products.get_by_external_id(external_id="sdr-agent-v1")
+
+# Update a product
+updated = alura.products.update(
+    product_id="123",
+    name="AI SDR Agent Pro",
+    description="Enhanced AI sales agent",
+    active=True
+)
+
+# Update by external ID
+updated = alura.products.update_by_external_id(
+    external_id="sdr-agent-v1",
+    name="AI SDR Agent Pro"
+)
+
+# Delete a product (soft delete)
+alura.products.delete(product_id="123")
+# Or by external ID
+alura.products.delete_by_external_id(external_id="sdr-agent-v1")
+```
+
+### Product Response Format
+
+Products follow the Paid AI specification:
+
+```python
+from alura import Product, ProductAttribute, ProductPricing
+
+# Product structure
+product = Product(
+    id="uuid",
+    external_id="my-product",
+    display_id="PRD-001",
+    organization_id="org-uuid",
+    name="AI Agent",
+    description="My AI agent",
+    type="agent",  # agent, product, prepaidCreditBundle
+    active=True,
+    product_code="PRD-001",
+    product_attributes=[
+        ProductAttribute(
+            name="llm_call",
+            active=True,
+            pricing=ProductPricing(
+                event_name="llm_call",
+                taxable=True,
+                charge_type="usage",  # oneTime, recurring, usage, seatBased
+                pricing_model="PerUnit",  # PerUnit, VolumePricing, GraduatedPricing, PrepaidCredits
+                billing_frequency="monthly",  # monthly, quarterly, annual
+                price_points={"USD": AgentPricePoint(unit_price=0.01)}
+            )
+        )
+    ],
+    metadata={}
+)
+```
+
+## Customer Management
+
+Create and manage customers (accounts) for billing:
+
+```python
+from alura import Alura
+
+alura = Alura(api_key="your-alura-api-key")
+
+# Create a customer
+customer = alura.customers.create(
+    name="Acme Corp",
+    email="billing@acme.com",
+    company_name="Acme Corporation",
+    external_id="cust_abc123",
+    metadata={"plan": "enterprise"}
+)
+print(f"Created customer: {customer.id}")
+
+# Get a customer by ID
+customer = alura.customers.get(customer_id=123)
+
+# Get a customer by external ID
+customer = alura.customers.get_by_external_id(external_id="cust_abc123")
+
+# List all customers
+customers = alura.customers.list()
+for c in customers:
+    print(f"{c.name} - {c.email}")
+
+# Update a customer
+updated = alura.customers.update(
+    customer_id=123,
+    name="Acme Corp Updated",
+    phone="+1-555-1234"
+)
+
+# Delete a customer (soft delete)
+alura.customers.delete(customer_id=123)
+```
+
+## Contact Management
+
+Manage contacts for customers:
+
+```python
+from alura import Alura
+
+alura = Alura(api_key="your-alura-api-key")
+
+# Create a contact for a customer
+contact = alura.contacts.create(
+    customer_id=123,
+    first_name="John",
+    last_name="Doe",
+    email="john@acme.com",
+    phone="+1-555-5678",
+    is_primary=True,
+    receives_invoices=True
+)
+
+# Get a contact by ID
+contact = alura.contacts.get(contact_id=456)
+
+# Get a contact by external ID
+contact = alura.contacts.get_by_external_id(external_id="contact_xyz")
+
+# List all contacts
+contacts = alura.contacts.list()
+
+# List contacts for a specific customer
+contacts = alura.contacts.list(customer_id=123)
+
+# Update a contact
+updated = alura.contacts.update(
+    contact_id=456,
+    phone="+1-555-9999",
+    is_primary=False
+)
+
+# Delete a contact
+alura.contacts.delete(contact_id=456)
+```
+
+## Order Management
+
+Create and manage orders (subscriptions linking customers to agents):
+
+```python
+from alura import Alura
+from datetime import date
+
+alura = Alura(api_key="your-alura-api-key")
+
+# Create an order
+order = alura.orders.create(
+    customer_id=123,
+    agent_code="sales-agent",
+    billing_frequency="monthly",
+    seat_count=5,
+    start_date=date.today(),
+    external_id="order_12345"
+)
+print(f"Created order: {order.order_number}")
+
+# Get an order by ID
+order = alura.orders.get(order_id=789)
+
+# List all orders
+orders = alura.orders.list()
+
+# List orders for a specific customer
+orders = alura.orders.list(customer_id=123)
+
+# Activate an order
+activated = alura.orders.activate(order_id=789)
+
+# Update an order
+updated = alura.orders.update(
+    order_id=789,
+    seat_count=10
+)
+
+# Delete an order
+alura.orders.delete(order_id=789)
+```
+
+## Data Models
+
+The SDK provides dataclasses for type-safe responses:
+
+```python
+from alura import Customer, Contact, Order, Address, Action
+
+# Customer fields
+customer = Customer(
+    id=123,
+    name="Acme Corp",
+    email="billing@acme.com",
+    company_name="Acme Corporation",
+    phone="+1-555-1234",
+    external_id="cust_abc123",
+    billing_address=Address(
+        line_1="123 Main St",
+        city="San Francisco",
+        state="CA",
+        zip_code="94102",
+        country="US"
+    ),
+    metadata={"plan": "enterprise"},
+    is_active=True
+)
+
+# Contact fields
+contact = Contact(
+    id=456,
+    customer_id=123,
+    first_name="John",
+    last_name="Doe",
+    email="john@acme.com",
+    is_primary=True,
+    receives_invoices=True
+)
+print(contact.full_name)  # "John Doe"
+
+# Order fields
+order = Order(
+    id=789,
+    order_number="ORD-001",
+    customer_id=123,
+    agent_code="sales-agent",
+    status="active",
+    billing_frequency="monthly",
+    seat_count=5
+)
+```
+
+## API Reference
+
+### Client
+
+#### `Alura(api_key, base_url)`
+Main client for Alura API.
+
+#### `alura.trace(customer_id, agent_id)`
+Context manager for tracing calls. All AluraOpenAI calls within are auto-tagged.
+
+### Action Tracking
+
+#### `alura.action(event_name, agent_id, data, customer_id)`
+Record a single action/event.
+
+#### `alura.action_bulk(actions)`
+Record multiple actions in one request.
+
+### Customers
+
+#### `alura.customers.create(name, email, ...)`
+Create a new customer. Returns `Customer`.
+
+#### `alura.customers.get(customer_id)`
+Get customer by ID. Returns `Customer`.
+
+#### `alura.customers.get_by_external_id(external_id)`
+Get customer by external ID. Returns `Customer`.
+
+#### `alura.customers.list()`
+List all customers. Returns `List[Customer]`.
+
+#### `alura.customers.update(customer_id, ...)`
+Update a customer. Returns `Customer`.
+
+#### `alura.customers.delete(customer_id)`
+Soft-delete a customer.
+
+### Contacts
+
+#### `alura.contacts.create(customer_id, first_name, last_name, email, ...)`
+Create a new contact. Returns `Contact`.
+
+#### `alura.contacts.get(contact_id)`
+Get contact by ID. Returns `Contact`.
+
+#### `alura.contacts.get_by_external_id(external_id)`
+Get contact by external ID. Returns `Contact`.
+
+#### `alura.contacts.list(customer_id=None)`
+List contacts, optionally filtered by customer. Returns `List[Contact]`.
+
+#### `alura.contacts.update(contact_id, ...)`
+Update a contact. Returns `Contact`.
+
+#### `alura.contacts.delete(contact_id)`
+Soft-delete a contact.
+
+### Products
+
+#### `alura.products.list()`
+List all products. Returns `List[Product]`.
+
+#### `alura.products.get(product_id)`
+Get product by ID. Returns `Product`.
+
+#### `alura.products.get_by_external_id(external_id)`
+Get product by external ID. Returns `Product`.
+
+#### `alura.products.create(name, description, type, external_id, product_code, metadata)`
+Create a new product. Returns `Product`.
+
+#### `alura.products.update(product_id, name, description, type, external_id, active, metadata)`
+Update a product by ID. Returns `Product`.
+
+#### `alura.products.update_by_external_id(external_id, name, description, type, active, metadata)`
+Update a product by external ID. Returns `Product`.
+
+#### `alura.products.delete(product_id)`
+Soft-delete a product by ID.
+
+#### `alura.products.delete_by_external_id(external_id)`
+Soft-delete a product by external ID.
+
+### Orders
+
+#### `alura.orders.create(customer_id, agent_code, ...)`
+Create a new order. Returns `Order`.
+
+#### `alura.orders.get(order_id)`
+Get order by ID. Returns `Order`.
+
+#### `alura.orders.list(customer_id=None)`
+List orders, optionally filtered by customer. Returns `List[Order]`.
+
+#### `alura.orders.activate(order_id)`
+Activate an order. Returns `Order`.
+
+#### `alura.orders.update(order_id, ...)`
+Update an order. Returns `Order`.
+
+#### `alura.orders.delete(order_id)`
+Soft-delete an order.
+
+### OpenAI Wrapper
+
+#### `AluraOpenAI(openai_client, alura_client)`
+OpenAI wrapper with automatic tracking.
+
+## License
+
+MIT License
