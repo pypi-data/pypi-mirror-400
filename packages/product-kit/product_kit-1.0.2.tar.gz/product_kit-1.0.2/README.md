@@ -1,0 +1,210 @@
+# product-kit
+
+CLI to scaffold a new Product Kit project for requirement-driven design.
+
+**Command**: `prod`
+
+## Installation
+
+### Quick Start (Recommended)
+
+We recommend using [UV](https://docs.astral.sh/uv/) - a fast Python package installer:
+
+```bash
+# Install UV first (if you don't have it)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install product-kit
+uv tool install product-kit
+
+# Use it
+prod my-project
+```
+
+### Alternative: Using pipx
+
+```bash
+pipx install product-kit
+prod my-project
+```
+
+### Alternative: Using pip
+
+```bash
+pip install product-kit
+prod my-project
+```
+
+## Usage
+
+### Interactive Mode (Recommended)
+
+```bash
+prod my-project
+```
+
+You'll be prompted for:
+- Product name
+- Product vision (one sentence)
+- North Star metric
+- Primary persona name
+- Persona goal
+- Strategic pillars (comma-separated)
+- Whether to include GitHub Copilot agents
+- Whether to include example content
+
+### Non-Interactive Mode
+
+```bash
+prod my-project --no-prompts
+```
+
+Uses sensible defaults for all options.
+
+### Specify Options
+
+```bash
+prod my-project \
+  --product-name "My Awesome Product"
+```
+
+## What Gets Created
+
+```
+my-product/
+├── constitution.md              # Customized with your product name
+├── context/
+│   ├── product-vision.md        # Pre-filled with your vision
+│   ├── personas.md              # Pre-filled with your persona
+│   ├── glossary.md
+│   └── market_research.md
+├── inventory/
+│   ├── feature-catalog.md
+│   ├── tech-constraints.md
+│   ├── data-model.md
+│   └── product-map.md
+├── templates/
+│   ├── brd_template.md
+│   ├── prd_template.md
+│   └── epic_template.md
+├── .github/
+│   ├── copilot-instructions.md
+│   └── agents/                  # Copilot agent configurations
+├── .gitignore
+├── README.md
+├── QUICKSTART.md
+├── ARCHITECTURE.md
+└── LICENSE
+```
+
+## Next Steps
+
+After creating your project:
+
+1. **Navigate to your project:**
+   ```bash
+   cd my-product
+   ```
+
+2. **Initialize git (if needed):**
+   ```bash
+   git init
+   ```
+
+3. **Open in VS Code:**
+   ```bash
+   code .
+   ```
+
+4. **Customize your context:**
+   - Edit `constitution.md` with your product standards
+   - Fill out `context/` files with product details
+   - Document current state in `inventory/`
+
+5. **Start using with Copilot:**
+   ```bash
+   /productkit.clarify "your feature idea"
+   ```
+
+## Requirements
+
+- Python 3.8 or higher
+- GitHub Copilot (for AI features)
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/yourusername/product-kit.git
+cd product-kit/cli
+
+# Install with UV
+uv pip install -e ".[dev]"
+
+# Or with pip
+pip install -e ".[dev]"
+```
+
+### Testing
+
+```bash
+# Run tests
+pytest
+
+# Run with coverage
+pytest --cov=product_kit
+```
+
+### Linting
+
+```bash
+# Format code
+black src/
+
+# Lint code
+ruff check src/
+```
+
+### Local Testing
+
+```bash
+# Install locally
+uv pip install -e .
+
+# Test the CLI
+prod test-project
+```
+
+## Publishing
+
+### Using UV
+
+```bash
+# Build the package
+uv build
+
+# Publish to PyPI
+uv publish
+```
+
+### Using Traditional Tools
+
+```bash
+# Build
+python -m build
+
+# Publish
+twine upload dist/*
+```
+
+## License
+
+MIT
+
+## Support
+
+For issues and questions:
+- **Issues**: https://github.com/yourusername/product-kit/issues
+- **Documentation**: https://github.com/yourusername/product-kit#readme
