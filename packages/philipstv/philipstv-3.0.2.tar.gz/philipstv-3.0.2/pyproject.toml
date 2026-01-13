@@ -1,0 +1,124 @@
+[project]
+name = "philipstv"
+dynamic = ["version"]
+description = "CLI and library to control Philips Android-powered TVs."
+readme = "README.rst"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+maintainers = [{ name = "Bazyli Cyran", email = "bazyli@cyran.dev" }]
+keywords = ["cli", "tv", "api-wrapper", "philips", "ambilight"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+dependencies = ["requests>=2.27.1", "pydantic>=2.4.2"]
+
+[project.optional-dependencies]
+cli = ["click>=8.2.0", "appdirs>=1.4.4"]
+docs = [
+    "sphinx>=7.2.6,<9",           # Sphinx 9.x doesn't work with enum-tools yet.
+    "furo>=2025.7.19",
+    "enum-tools[sphinx]>=0.13.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "ruff>=0.14.10",
+    "mypy>=1.17",
+    "types-requests>=2.32.4",
+    "requests-mock>=1.12.1",
+    "pytest-cov>=7.0.0",
+    "types-appdirs>=1.4.3",
+    "sphinx-autobuild>=2024.10.3",
+    "poethepoet>=0.39.0",
+]
+
+[project.urls]
+repository = "https://github.com/bcyran/philipstv"
+documentation = "https://philipstv.readthedocs.io"
+
+[project.scripts]
+philipstv = "philipstv.__main__:wrapped_cli"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+tag_regex = "^(?P<version>\\d+\\.\\d+\\.\\d+.*)$"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/philipstv/_version.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/philipstv"]
+
+[tool.mypy]
+strict = true
+show_error_codes = true
+plugins = ["pydantic.mypy"]
+
+[tool.ruff]
+line-length = 100
+exclude = ["src/philipstv/_version.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "UP",  # pyupgrade (modernize Python code)
+    "B",   # flake8-bugbear (catch common bugs)
+    "C4",  # flake8-comprehensions (better list/dict/set comprehensions)
+    "SIM", # flake8-simplify (simplification suggestions)
+    "RUF", # Ruff-specific rules
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.coverage.run]
+source = ["philipstv"]
+omit = ["src/philipstv/__main__.py", "src/philipstv/_version.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+skip_empty = true
+exclude_lines = ["raise NotImplementedError", "pass"]
+
+[tool.poe.tasks]
+test = "pytest --cov=philipstv --cov-config=pyproject.toml tests/"
+type-check = "mypy src/ tests/"
+lint = "ruff check src/ tests/"
+format-check = "ruff format --check --diff src/ tests/"
+format = "ruff format src/ tests/"
+docs = "sphinx-build -W -b html docs/ docs/_build/html"
+docs-serve = "sphinx-autobuild docs/ docs/_build/html"
+clean = "rm -rf dist/ build/ *.egg-info .pytest_cache .mypy_cache .coverage htmlcov/ docs/_build/"
+build = "uv build"
+
+[tool.poe.tasks.check]
+help = "Run all quality checks (tests, type checking, formatting, linting)"
+sequence = ["test", "type-check", "lint", "format-check"]
