@@ -1,0 +1,366 @@
+{
+  "category": "Workflows",
+  "tools": [
+    {
+      "name": "start_conversation",
+      "description": "Start a new conversation to track related commands",
+      "arguments": [
+        {
+          "name": "goal_summary",
+          "type": "text",
+          "required": true,
+          "label": "Goal Summary",
+          "placeholder": "configure wifi"
+        },
+        {
+          "name": "server_identifier",
+          "type": "text",
+          "required": false,
+          "label": "Server Identifier (optional)"
+        },
+        {
+          "name": "force",
+          "type": "checkbox",
+          "required": false,
+          "default": false,
+          "label": "Force create even if one is in-progress"
+        }
+      ],
+      "description_full": "Start a new command conversation to track related commands.\n            \nA conversation groups commands by goal (e.g., \"configure wifi\", \"install docker\").\nThis enables rollback of entire workflows and recipe creation from successful sequences.\n\nIMPORTANT - ACTIVE CONVERSATION DETECTION:\n- If conversation already in progress on this server, returns warning\n- Use force=true to create new conversation anyway\n- Otherwise, resume existing conversation or end it first\n\nUSAGE:\n- Start conversation before executing related commands\n- All subsequent execute_command calls with conversation_id use this conversation\n- End conversation when goal is achieved or abandoned\n\nRETURNS:\n- conversation_id: Use this ID for execute_command calls\n- machine_id: Database ID (hardware/OS specific) of the server"
+    },
+    {
+      "name": "resume_conversation",
+      "description": "Resume a paused conversation",
+      "arguments": [
+        {
+          "name": "conversation_id",
+          "type": "conversation_select",
+          "required": true,
+          "label": "Select Conversation to Resume"
+        }
+      ],
+      "description_full": "Resume a paused conversation.\n\nUse this when:\n- New Claude dialog started and previous conversation still in progress\n- Switched back to server with paused conversation\n- Want to continue previous work\n\nRETURNS:\n- conversation_id: Resumed conversation ID\n- goal: Original goal summary\n- message: Confirmation message"
+    },
+    {
+      "name": "end_conversation",
+      "description": "End a conversation and mark its final status",
+      "arguments": [
+        {
+          "name": "conversation_id",
+          "type": "conversation_select",
+          "required": true,
+          "label": "Select Conversation to End"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "label": "Final Status",
+          "options": [
+            "success",
+            "failed",
+            "rolled_back"
+          ]
+        },
+        {
+          "name": "user_notes",
+          "type": "textarea",
+          "required": false,
+          "label": "User Notes (optional)",
+          "rows": 3
+        }
+      ],
+      "description_full": "End a conversation and mark its final status.\n\nSTATUS OPTIONS:\n- 'success': Goal achieved successfully\n- 'failed': Goal not achieved\n- 'rolled_back': Commands were undone\n\nIMPORTANT: Status should be determined by USER feedback, not just command exit codes.\nA command can succeed technically but fail to achieve the user's goal.\n\nUSAGE:\n- Call after user confirms goal is achieved or failed\n- Optionally add user_notes for context"
+    },
+    {
+      "name": "get_conversation_commands",
+      "description": "Get all commands from a conversation",
+      "arguments": [
+        {
+          "name": "conversation_id",
+          "type": "conversation_select",
+          "required": true,
+          "label": "Select Conversation"
+        },
+        {
+          "name": "reverse_order",
+          "type": "checkbox",
+          "required": false,
+          "default": false,
+          "label": "Reverse order (for rollback)"
+        }
+      ],
+      "description_full": "Get all commands from a conversation.\n\nUSAGE FOR ROLLBACK:\n- Set reverse_order=true to get commands in undo sequence\n- Check has_errors and backup_file_path fields\n- Use this data to generate undo commands\n\nRETURNS: Array of command objects with:\n- id, sequence_num: Identification\n- command_text: Original command\n- result_output: Command output\n- has_errors: Boolean from output analysis\n- error_context: Error details if has_errors=true\n- backup_file_path: Backup location if file was modified\n- status: 'executed' or 'undone'"
+    },
+    {
+      "name": "list_conversations",
+      "description": "List conversations with optional filters",
+      "arguments": [
+        {
+          "name": "server_identifier",
+          "type": "text",
+          "required": false,
+          "label": "Server Identifier (optional)"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "label": "Status Filter",
+          "options": [
+            "all",
+            "in_progress",
+            "paused",
+            "success",
+            "failed",
+            "rolled_back"
+          ]
+        },
+        {
+          "name": "limit",
+          "type": "number",
+          "required": false,
+          "default": 50,
+          "label": "Max Results",
+          "min": 1,
+          "max": 200
+        }
+      ],
+      "description_full": "List conversations with optional filters.\n\nUseful for:\n- Finding previous work on similar goals\n- Reviewing conversation history\n- Identifying successful patterns for recipes\n\nFILTERS:\n- server_identifier: Limit to specific server\n- status: Filter by 'in_progress', 'paused', 'success', 'failed', 'rolled_back'\n- limit: Max number to return (default 50)"
+    },
+    {
+      "name": "update_command_status",
+      "description": "Update command status (for rollback tracking)",
+      "arguments": [
+        {
+          "name": "command_id",
+          "type": "number",
+          "required": true,
+          "label": "Command ID"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "label": "Status",
+          "options": [
+            "undone"
+          ]
+        }
+      ],
+      "description_full": "Update command status (for rollback tracking).\n\nCall this after undoing a command to mark it as 'undone'.\nThis prevents re-attempting undo on already undone commands.\n\nUSAGE:\n- Execute undo command via SSH\n- If successful, call update_command_status(command_id, 'undone')"
+    },
+    {
+      "name": "create_recipe",
+      "description": "Create a reusable recipe from a successful conversation",
+      "arguments": [
+        {
+          "name": "conversation_id",
+          "type": "conversation_select",
+          "required": true,
+          "label": "Select Conversation to Create Recipe From"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "label": "Recipe Name",
+          "placeholder": "wifi_diagnostics"
+        },
+        {
+          "name": "description",
+          "type": "textarea",
+          "required": true,
+          "label": "Description",
+          "rows": 3
+        },
+        {
+          "name": "prerequisites",
+          "type": "text",
+          "required": false,
+          "label": "Prerequisites (optional)",
+          "placeholder": "Ubuntu 22.04+, sudo access"
+        },
+        {
+          "name": "success_criteria",
+          "type": "text",
+          "required": false,
+          "label": "Success Criteria (optional)",
+          "placeholder": "Service running, port 8080 open"
+        }
+      ],
+      "description_full": "Create a reusable recipe from a successful conversation.\n\nA recipe is a documented, reusable command sequence extracted from a successful conversation.\nRecipes can be executed later on any compatible server.\n\nUSAGE:\n- Call after a conversation ends successfully\n- Provide clear name and description\n- Optionally specify prerequisites and success criteria\n- Command sequence is automatically extracted from conversation\n\nRETURNS:\n- recipe_id: Use this to reference the recipe\n- name: Recipe name\n- command_count: Number of commands in recipe"
+    },
+    {
+      "name": "list_recipes",
+      "description": "List all available recipes",
+      "arguments": [
+        {
+          "name": "limit",
+          "type": "number",
+          "required": false,
+          "default": 50,
+          "label": "Max Results",
+          "min": 1,
+          "max": 200
+        }
+      ],
+      "description_full": "List all available recipes.\n\nUseful for:\n- Browsing available automation recipes\n- Finding recipes for specific tasks\n- Reviewing recipe history\n\nRETURNS: List of recipes with:\n- id, name, description\n- command_count\n- times_used, last_used_at\n- created_at, created_by"
+    },
+    {
+      "name": "get_recipe",
+      "description": "Get detailed recipe information including command sequence",
+      "arguments": [
+        {
+          "name": "recipe_id",
+          "type": "recipe_select",
+          "required": true,
+          "label": "Select Recipe"
+        }
+      ],
+      "description_full": "Get detailed recipe information including command sequence.\n\nUse this to:\n- View complete recipe details\n- See exact command sequence\n- Check prerequisites and success criteria\n\nRETURNS:\n- Full recipe details\n- Complete command sequence\n- Usage statistics"
+    },
+    {
+      "name": "execute_recipe",
+      "description": "Execute a saved recipe on current or specified server",
+      "arguments": [
+        {
+          "name": "recipe_id",
+          "type": "recipe_select",
+          "required": true,
+          "label": "Select Recipe to Execute"
+        },
+        {
+          "name": "server_identifier",
+          "type": "text",
+          "required": false,
+          "label": "Server Identifier (optional)"
+        },
+        {
+          "name": "start_conversation",
+          "type": "checkbox",
+          "required": false,
+          "default": false,
+          "label": "Create conversation to track execution"
+        },
+        {
+          "name": "conversation_goal",
+          "type": "text",
+          "required": false,
+          "label": "Conversation Goal (optional)",
+          "placeholder": "Execute recipe: wifi_diagnostics"
+        }
+      ],
+      "description_full": "Execute a saved recipe on current or specified server.\nHandles both shell commands and MCP tool calls automatically."
+    },
+    {
+      "name": "delete_recipe",
+      "description": "Delete a recipe (soft delete with confirmation)",
+      "arguments": [
+        {
+          "required": true,
+          "type": "recipe_select",
+          "label": "Select Recipe to Delete",
+          "name": "recipe_id"
+        },
+        {
+          "required": false,
+          "type": "checkbox",
+          "label": "Confirm deletion",
+          "name": "confirm",
+          "default": false
+        }
+      ],
+      "description_full": "Delete a recipe (nard delete - not recoverable).\n\nUSAGE:\n- First call without confirm=true to see recipe details\n- Second call with confirm=true to actually delete\n- Deleted recipes are hidden but preserved in database\n\nIMPORTANT: This requires confirmation to prevent accidental deletion."
+    },
+    {
+      "name": "create_recipe_from_commands",
+      "description": "Create recipe from command list (manual creation)",
+      "arguments": [
+        {
+          "placeholder": "wifi_setup",
+          "required": true,
+          "type": "text",
+          "label": "Recipe Name",
+          "name": "name"
+        },
+        {
+          "rows": 3,
+          "required": true,
+          "type": "textarea",
+          "label": "Description",
+          "name": "description"
+        },
+        {
+          "placeholder": "[{\"sequence\": 1, \"command\": \"ls -la\"}]",
+          "required": true,
+          "name": "commands",
+          "type": "textarea",
+          "rows": 10,
+          "label": "Commands (JSON array)"
+        },
+        {
+          "required": false,
+          "type": "text",
+          "label": "Prerequisites (optional)",
+          "name": "prerequisites"
+        },
+        {
+          "required": false,
+          "type": "text",
+          "label": "Success Criteria (optional)",
+          "name": "success_criteria"
+        }
+      ],
+      "description_full": "Create a recipe from a command list (no conversation required).\n\nUse this to:\n- Build recipes manually without executing first\n- Create recipes from documentation\n- Combine commands from multiple sources\n\nCOMMAND TYPES:\n1. Shell: {\"sequence\": 1, \"command\": \"ls -la\", \"description\": \"List\"}\n2. MCP: {\"sequence\": 2, \"type\": \"mcp_tool\", \"tool\": \"execute_script_content\", \"params\": {...}}"
+    },
+    {
+      "name": "update_recipe",
+      "description": "Update an existing recipe in-place (preserves ID and usage stats)",
+      "special": "update_recipe_form",
+      "arguments": [
+        {
+          "name": "recipe_id",
+          "type": "recipe_select",
+          "required": true,
+          "label": "Select Recipe to Update"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": false,
+          "label": "Recipe Name",
+          "placeholder": "docker_diagnostics_v2"
+        },
+        {
+          "name": "description",
+          "type": "textarea",
+          "required": false,
+          "label": "Description",
+          "rows": 3
+        },
+        {
+          "name": "commands",
+          "type": "textarea",
+          "required": false,
+          "label": "Commands JSON (replaces all)",
+          "rows": 10,
+          "placeholder": "[{\"sequence\": 1, \"command\": \"ls -la\"}]"
+        },
+        {
+          "name": "prerequisites",
+          "type": "text",
+          "required": false,
+          "label": "Prerequisites"
+        },
+        {
+          "name": "success_criteria",
+          "type": "text",
+          "required": false,
+          "label": "Success Criteria"
+        }
+      ],
+      "description_full": "Update an existing recipe in-place (preserves ID and usage stats).\n\nAllows modifying any recipe fields while keeping the same recipe ID.\nOnly updates fields you specify - all other fields remain unchanged.\n\nUSAGE:\n- Specify recipe_id and any fields you want to update\n- Fields not specified will remain unchanged\n- Preserves: recipe ID, created_at, times_used, last_used_at\n- Updates: any fields you provide\n\nIMPORTANT: This modifies the recipe in-place. The old version is not saved.\nIf you want to keep both versions, use create_recipe_from_commands instead."
+    }
+  ]
+}
