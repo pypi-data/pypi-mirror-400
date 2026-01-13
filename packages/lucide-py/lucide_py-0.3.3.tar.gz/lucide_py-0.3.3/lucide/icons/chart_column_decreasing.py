@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def ChartColumnDecreasing(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-chart-column-decreasing'], 'items': [{'path': {'d': 'M13 17V9'}}, {'path': {'d': 'M18 17v-3'}}, {'path': {'d': 'M3 3v16a2 2 0 0 0 2 2h16'}}, {'path': {'d': 'M8 17V5'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield
