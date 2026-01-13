@@ -1,0 +1,302 @@
+"""
+Command-line interface tools for kicad-tools.
+
+Provides CLI commands for common KiCad operations via the `kicad-tools` or `kct` command:
+
+    kicad-tools symbols <schematic>    - List and query symbols
+    kicad-tools nets <schematic>       - Trace and analyze nets
+    kicad-tools erc <report>           - Parse ERC report
+    kicad-tools drc <report>           - Parse DRC report
+    kicad-tools bom <schematic>        - Generate bill of materials
+    kicad-tools check <pcb>            - Pure Python DRC (no kicad-cli)
+    kicad-tools validate --sync        - Check schematic-to-PCB netlist sync
+    kicad-tools sch <command> <file>   - Schematic analysis tools
+    kicad-tools pcb <command> <file>   - PCB query tools
+    kicad-tools lib <command> <file>   - Symbol library tools
+    kicad-tools footprint <command>    - Footprint generation tools
+    kicad-tools mfr <command>          - Manufacturer tools
+    kicad-tools parts <command>        - LCSC parts lookup and search
+    kicad-tools datasheet <command>    - Datasheet search, download, and PDF parsing
+    kicad-tools route <pcb>            - Autoroute a PCB
+    kicad-tools zones <command>        - Add copper pour zones
+    kicad-tools reason <pcb>           - LLM-driven PCB layout reasoning
+    kicad-tools placement <command>    - Detect and fix placement conflicts
+    kicad-tools optimize-traces <pcb>  - Optimize PCB traces
+    kicad-tools validate-footprints    - Validate footprint pad spacing
+    kicad-tools fix-footprints <pcb>   - Fix footprint pad spacing issues
+    kicad-tools config                 - View/manage configuration
+    kicad-tools interactive            - Launch interactive REPL mode
+
+See `kicad-tools --help` for complete documentation.
+"""
+
+import sys
+
+from kicad_tools.exceptions import KiCadToolsError
+
+from .commands import (
+    run_check_command,
+    run_config_command,
+    run_datasheet_command,
+    run_fix_footprints_command,
+    run_footprint_command,
+    run_interactive_command,
+    run_lib_command,
+    run_mfr_command,
+    run_optimize_command,
+    run_parts_command,
+    run_pcb_command,
+    run_placement_command,
+    run_reason_command,
+    run_route_command,
+    run_sch_command,
+    run_validate_command,
+    run_validate_footprints_command,
+    run_zones_command,
+)
+from .parser import create_parser
+from .utils import format_error
+
+__all__ = [
+    "main",
+    "symbols_main",
+    "nets_main",
+    "erc_main",
+    "drc_main",
+    "bom_main",
+    "format_error",
+]
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Main entry point for kicad-tools CLI."""
+    parser = create_parser()
+
+    # Handle footprint generate specially - it has its own subcommand parser
+    if argv is None:
+        argv = sys.argv[1:]
+    if len(argv) >= 2 and argv[0] == "footprint" and argv[1] == "generate":
+        from .footprint_generate import main as generate_main
+
+        return generate_main(argv[2:]) or 0
+
+    args = parser.parse_args(argv)
+
+    if not args.command:
+        parser.print_help()
+        return 0
+
+    # Get global verbose flag (use getattr for backwards compatibility)
+    verbose = getattr(args, "global_verbose", False)
+
+    try:
+        return _dispatch_command(args)
+    except KeyboardInterrupt:
+        print("\nInterrupted", file=sys.stderr)
+        return 130
+    except KiCadToolsError as e:
+        print(format_error(e, verbose), file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(format_error(e, verbose), file=sys.stderr)
+        return 1
+
+
+def _dispatch_command(args) -> int:
+    """Dispatch to the appropriate command handler."""
+    if args.command == "symbols":
+        from .symbols import main as symbols_cmd
+
+        # Convert args back to argv for the subcommand
+        sub_argv = [args.schematic]
+        if args.format != "table":
+            sub_argv.extend(["--format", args.format])
+        if args.pattern:
+            sub_argv.extend(["--filter", args.pattern])
+        if args.lib_id:
+            sub_argv.extend(["--lib", args.lib_id])
+        if args.verbose:
+            sub_argv.append("--verbose")
+        return symbols_cmd(sub_argv)
+
+    elif args.command == "nets":
+        from .nets import main as nets_cmd
+
+        sub_argv = [args.schematic]
+        if args.format != "table":
+            sub_argv.extend(["--format", args.format])
+        if args.net:
+            sub_argv.extend(["--net", args.net])
+        if args.stats:
+            sub_argv.append("--stats")
+        return nets_cmd(sub_argv)
+
+    elif args.command == "netlist":
+        from .netlist_cmd import main as netlist_cmd
+
+        if not args.netlist_command:
+            # No subcommand, show help
+            return netlist_cmd(["--help"])
+
+        sub_argv = [args.netlist_command]
+
+        if args.netlist_command == "compare":
+            sub_argv.extend([args.netlist_old, args.netlist_new])
+        elif args.netlist_command == "export":
+            sub_argv.append(args.netlist_schematic)
+            if hasattr(args, "netlist_output") and args.netlist_output:
+                sub_argv.extend(["-o", args.netlist_output])
+        else:
+            sub_argv.append(args.netlist_schematic)
+
+        if hasattr(args, "netlist_format") and args.netlist_format:
+            sub_argv.extend(["--format", args.netlist_format])
+        if hasattr(args, "netlist_sort") and args.netlist_sort != "connections":
+            sub_argv.extend(["--sort", args.netlist_sort])
+        if hasattr(args, "netlist_net") and args.netlist_net:
+            sub_argv.extend(["--net", args.netlist_net])
+
+        return netlist_cmd(sub_argv)
+
+    elif args.command == "erc":
+        from .erc_cmd import main as erc_cmd
+
+        sub_argv = [args.report]
+        if args.format != "table":
+            sub_argv.extend(["--format", args.format])
+        if args.errors_only:
+            sub_argv.append("--errors-only")
+        if args.filter_type:
+            sub_argv.extend(["--type", args.filter_type])
+        if args.sheet:
+            sub_argv.extend(["--sheet", args.sheet])
+        return erc_cmd(sub_argv)
+
+    elif args.command == "drc":
+        from .drc_cmd import main as drc_cmd
+
+        sub_argv = [args.report]
+        if args.format != "table":
+            sub_argv.extend(["--format", args.format])
+        if args.errors_only:
+            sub_argv.append("--errors-only")
+        if args.filter_type:
+            sub_argv.extend(["--type", args.filter_type])
+        if args.net:
+            sub_argv.extend(["--net", args.net])
+        if args.mfr:
+            sub_argv.extend(["--mfr", args.mfr])
+        if args.layers != 2:
+            sub_argv.extend(["--layers", str(args.layers)])
+        return drc_cmd(sub_argv)
+
+    elif args.command == "bom":
+        from .bom_cmd import main as bom_cmd
+
+        sub_argv = [args.schematic]
+        if args.format != "table":
+            sub_argv.extend(["--format", args.format])
+        if args.group:
+            sub_argv.append("--group")
+        for pattern in args.exclude:
+            sub_argv.extend(["--exclude", pattern])
+        if args.include_dnp:
+            sub_argv.append("--include-dnp")
+        if args.sort != "reference":
+            sub_argv.extend(["--sort", args.sort])
+        return bom_cmd(sub_argv)
+
+    elif args.command == "check":
+        return run_check_command(args)
+
+    elif args.command == "sch":
+        return run_sch_command(args)
+
+    elif args.command == "pcb":
+        return run_pcb_command(args)
+
+    elif args.command == "lib":
+        return run_lib_command(args)
+
+    elif args.command == "footprint":
+        return run_footprint_command(args)
+
+    elif args.command == "mfr":
+        return run_mfr_command(args)
+
+    elif args.command == "parts":
+        return run_parts_command(args)
+
+    elif args.command == "datasheet":
+        return run_datasheet_command(args)
+
+    elif args.command == "zones":
+        return run_zones_command(args)
+
+    elif args.command == "route":
+        return run_route_command(args)
+
+    elif args.command == "reason":
+        return run_reason_command(args)
+
+    elif args.command == "placement":
+        return run_placement_command(args)
+
+    elif args.command == "optimize-traces":
+        return run_optimize_command(args)
+
+    elif args.command == "validate-footprints":
+        return run_validate_footprints_command(args)
+
+    elif args.command == "fix-footprints":
+        return run_fix_footprints_command(args)
+
+    elif args.command == "config":
+        return run_config_command(args)
+
+    elif args.command == "interactive":
+        return run_interactive_command(args)
+
+    elif args.command == "validate":
+        return run_validate_command(args)
+
+    return 0
+
+
+def symbols_main() -> int:
+    """Standalone entry point for kicad-symbols command."""
+    from .symbols import main
+
+    return main()
+
+
+def nets_main() -> int:
+    """Standalone entry point for kicad-nets command."""
+    from .nets import main
+
+    return main()
+
+
+def erc_main() -> int:
+    """Standalone entry point for kicad-erc command."""
+    from .erc_cmd import main
+
+    return main()
+
+
+def drc_main() -> int:
+    """Standalone entry point for kicad-drc command."""
+    from .drc_cmd import main
+
+    return main()
+
+
+def bom_main() -> int:
+    """Standalone entry point for kicad-bom command."""
+    from .bom_cmd import main
+
+    return main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
