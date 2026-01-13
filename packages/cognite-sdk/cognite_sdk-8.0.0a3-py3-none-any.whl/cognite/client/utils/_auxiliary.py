@@ -1,0 +1,207 @@
+from __future__ import annotations
+
+import functools
+import math
+from abc import ABC
+from collections.abc import Hashable, Iterable, Iterator, Sequence
+from inspect import isabstract
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    TypeGuard,
+    TypeVar,
+    overload,
+)
+
+from cognite.client.utils import _json_extended as _json
+from cognite.client.utils._importing import local_import
+from cognite.client.utils._text import (
+    convert_all_keys_to_camel_case,
+    convert_all_keys_to_snake_case,
+    to_camel_case,
+)
+from cognite.client.utils.useful_types import SequenceNotStr
+
+if TYPE_CHECKING:
+    from cognite.client.data_classes._base import T_CogniteResource
+    from cognite.client.response import CogniteHTTPResponse
+
+T = TypeVar("T")
+K = TypeVar("K")
+THashable = TypeVar("THashable", bound=Hashable)
+
+
+def all_subclasses(base: type[T], exclude: set[type[T]] | None = None) -> set[type[T]]:
+    """Recursively find all subclasses of a given class."""
+    return set(base.__subclasses__()).union(s for c in base.__subclasses__() for s in all_subclasses(c)) - (
+        exclude or set()
+    )
+
+
+def all_concrete_subclasses(base: type[T], exclude: set[type[T]] | None = None) -> set[type[T]]:
+    """Recursively find all non-abstract subclasses of a given class."""
+    return {cls for cls in all_subclasses(base, exclude) if ABC not in cls.__bases__ and not isabstract(cls)}
+
+
+def no_op(x: T) -> T:
+    return x
+
+
+def is_finite(limit: Any) -> TypeGuard[int]:
+    return isinstance(limit, int) and limit >= 0
+
+
+def is_positive(limit: Any) -> TypeGuard[int]:
+    return isinstance(limit, int) and limit > 0
+
+
+def is_unlimited(limit: float | int | None) -> bool:
+    return limit in {None, -1, math.inf}
+
+
+@functools.lru_cache(None)
+def get_accepted_params(cls: type[T_CogniteResource]) -> dict[str, str]:
+    return {to_camel_case(k): k for k in vars(cls()) if not k.startswith("_")}
+
+
+def load_resource_to_dict(resource: dict[str, Any] | str) -> dict[str, Any]:
+    if isinstance(resource, dict):
+        return resource
+
+    if isinstance(resource, str):
+        resource = load_yaml_or_json(resource)
+        if isinstance(resource, dict):
+            return resource
+
+    raise TypeError(f"Resource must be json or yaml str, or dict, not {type(resource)}")
+
+
+def load_yaml_or_json(resource: str) -> Any:
+    try:
+        yaml = local_import("yaml")
+        return yaml.safe_load(resource)
+    except ImportError:
+        return _json.loads(resource)
+
+
+def basic_obj_dump(obj: Any, camel_case: bool) -> dict[str, Any]:
+    if camel_case:
+        return convert_all_keys_to_camel_case(vars(obj))
+    return convert_all_keys_to_snake_case(vars(obj))
+
+
+@overload
+def split_into_n_parts(seq: list[T], *, n: int) -> Iterator[list[T]]: ...
+
+
+@overload
+def split_into_n_parts(seq: Sequence[T], *, n: int) -> Iterator[Sequence[T]]: ...
+
+
+def split_into_n_parts(seq: Sequence[T], *, n: int) -> Iterator[Sequence[T]]:
+    # NB: Chaotic sampling: jumps n for each starting position
+    yield from (seq[i::n] for i in range(n))
+
+
+@overload
+def split_into_chunks(collection: set[T] | SequenceNotStr[T], chunk_size: int) -> list[list[T]]: ...
+
+
+@overload
+def split_into_chunks(collection: dict[K, T], chunk_size: int) -> list[dict[K, T]]: ...
+
+
+def split_into_chunks(
+    collection: SequenceNotStr[T] | set[T] | dict[K, T], chunk_size: int
+) -> list[list[T]] | list[dict[K, T]]:
+    if isinstance(collection, set):
+        collection = list(collection)
+
+    if isinstance(collection, SequenceNotStr):
+        return [list(collection[i : i + chunk_size]) for i in range(0, len(collection), chunk_size)]
+
+    if isinstance(collection, dict):
+        collection = list(collection.items())
+        return [dict(collection[i : i + chunk_size]) for i in range(0, len(collection), chunk_size)]
+
+    from cognite.client.data_classes.datapoints import Datapoints, DatapointsArray
+
+    if isinstance(collection, (DatapointsArray, Datapoints)):
+        return [collection[i : i + chunk_size] for i in range(0, len(collection), chunk_size)]
+
+    raise TypeError(f"Can only split list or dict, not {type(collection)}")
+
+
+def convert_true_match(true_match: dict | list | tuple[int | str, int | str]) -> dict:
+    if isinstance(true_match, Sequence) and len(true_match) == 2:
+        converted_true_match = {}
+        for i, fromto in enumerate(["source", "target"]):
+            if isinstance(true_match[i], str):
+                converted_true_match[fromto + "ExternalId"] = true_match[i]
+            else:
+                converted_true_match[fromto + "Id"] = true_match[i]
+        return converted_true_match
+    elif isinstance(true_match, dict):
+        return true_match
+    else:
+        raise ValueError(f"true_matches should be a dictionary or a two-element list: found {true_match}")
+
+
+def find_duplicates(seq: Iterable[THashable]) -> set[THashable]:
+    seen: set[THashable] = set()
+    add = seen.add  # skip future attr lookups for perf
+    return {x for x in seq if x in seen or add(x)}
+
+
+def remove_duplicates_keep_order(seq: Iterable[THashable]) -> list[THashable]:
+    seen: set[THashable] = set()
+    add = seen.add
+    return [x for x in seq if x not in seen and not add(x)]
+
+
+def exactly_one_is_not_none(*args: Any) -> bool:
+    return sum(a is not None for a in args) == 1
+
+
+def at_least_one_is_not_none(*args: Any) -> bool:
+    return any(a is not None for a in args)
+
+
+def at_most_one_is_not_none(*args: Any) -> bool:
+    return sum(a is not None for a in args) <= 1
+
+
+def rename_and_exclude_keys(
+    dct: dict[str, Any], aliases: dict[str, str] | None = None, exclude: set[str] | None = None
+) -> dict[str, Any]:
+    aliases = aliases or {}
+    exclude = exclude or set()
+    return {aliases.get(k, k): v for k, v in dct.items() if k not in exclude}
+
+
+def load_resource(dct: dict[str, Any], cls: type[T_CogniteResource], key: str) -> T_CogniteResource | None:
+    if (res := dct.get(key)) is not None:
+        return cls._load(res)
+    return None
+
+
+def unpack_items_in_payload(payload: dict[str, dict[str, Any]]) -> list:
+    return payload["json"]["items"]
+
+
+def flatten_dict(d: dict[str, Any], parent_keys: tuple[str, ...], sep: str = ".") -> dict[str, Any]:
+    items: list[tuple[str, Any]] = []
+    for key, value in d.items():
+        if isinstance(value, dict):
+            items.extend(flatten_dict(value, (*parent_keys, key)).items())
+        else:
+            items.append((sep.join((*parent_keys, key)), value))
+    return dict(items)
+
+
+def unpack_items(res: CogniteHTTPResponse) -> list[Any]:
+    return res.json()["items"]
+
+
+def drop_none_values(dct: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in dct.items() if v is not None}
