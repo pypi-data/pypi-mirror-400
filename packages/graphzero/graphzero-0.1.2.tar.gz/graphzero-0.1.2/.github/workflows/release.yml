@@ -1,0 +1,69 @@
+name: Build and Publish Wheels
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: # Allows manual triggering for testing
+
+jobs:
+  build_wheels:
+      name: Build wheels on ${{ matrix.os }}
+      runs-on: ${{ matrix.os }}
+      strategy:
+        matrix:
+          os: [ubuntu-latest, windows-latest, macos-latest]
+
+      steps:
+        - uses: actions/checkout@v4
+
+        - name: Build wheels
+          uses: pypa/cibuildwheel@v2.16.5
+          env:
+            # SKIP: Old Python, PyPy, Musl (Alpine), and 32-bit Linux
+            CIBW_SKIP: "cp36-* cp37-* cp38-* pp* *musllinux* *i686*"
+            
+            # LINUX: Force C++17 (compatible with manylinux2014)
+            CIBW_ENVIRONMENT_LINUX: "CXXFLAGS='-std=c++17'"
+            
+            # MACOS: Install OpenMP and configure paths
+            CIBW_BEFORE_ALL_MACOS: "brew install libomp"
+            CIBW_ENVIRONMENT_MACOS: >
+              CFLAGS="-Xpreprocessor -fopenmp -I$(brew --prefix libomp)/include"
+              CXXFLAGS="-Xpreprocessor -fopenmp -I$(brew --prefix libomp)/include"
+              LDFLAGS="-L$(brew --prefix libomp)/lib -lomp"
+              OpenMP_ROOT="$(brew --prefix libomp)"
+            # MACOS: Prevent cross-compilation errors (build arm64 on arm64 runner)
+            CIBW_ARCHS_MACOS: "auto"
+
+        - uses: actions/upload-artifact@v4
+          with:
+            name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+            path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sdist
+        run: pipx run build --sdist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-sdist
+          path: dist/*.tar.gz
+
+  publish_to_pypi:
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
