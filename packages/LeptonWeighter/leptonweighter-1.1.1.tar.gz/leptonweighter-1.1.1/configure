@@ -1,0 +1,1053 @@
+#!/bin/sh
+
+## THIS WAS MODIFIED FROM THE NUSQUIDS CONFIGURATION FILE AND ADDED FOR THIS. CAD.
+
+check_pkgconfig(){
+	if [ "$CHECKED_PKGCONFIG" ]; then return; fi
+	echo "Looking for pkg-config..."
+	which pkg-config 2>&1 > /dev/null
+	if [ "$?" -ne 0 ]; then
+		echo "Error: pkg-config not found; you will need to specify library locations manually" 1>&2
+		exit 1
+	fi
+	CHECKED_PKGCONFIG=1
+}
+
+find_package(){
+	PKG=$1
+	VAR_PREFIX=`echo $PKG | tr [:lower:] [:upper:]`
+	TMP_FOUND=`eval echo "$"${VAR_PREFIX}_FOUND`
+	if [ "$TMP_FOUND" ]; then return; fi
+	check_pkgconfig
+	echo "Looking for $PKG..."
+
+	pkg-config --exists $PKG
+	if [ "$?" -ne 0 ]; then
+		echo " $PKG not found with pkg-config"
+		return
+	fi
+	if [ $# -ge 2 ]; then
+		MIN_VERSION=$2
+		pkg-config --atleast-version $MIN_VERSION $PKG
+		if [ "$?" -ne 0 ]; then
+			echo "Error: installed $PKG version ("`pkg-config --modversion $PKG`") is too old; version >=$MIN_VERSION is required" 1>&2
+			exit 1
+		fi
+	fi
+	echo " Found $PKG version `pkg-config --modversion $PKG`"
+	eval ${VAR_PREFIX}_FOUND=1
+	eval ${VAR_PREFIX}_VERSION=\"`pkg-config --modversion $PKG`\"
+	eval ${VAR_PREFIX}_CFLAGS=\"`pkg-config --cflags $PKG`\"
+	eval ${VAR_PREFIX}_LDFLAGS=\"`pkg-config --libs $PKG`\"
+	eval ${VAR_PREFIX}_INCDIR=\"`pkg-config --variable=includedir $PKG`\"
+	eval ${VAR_PREFIX}_LIBDIR=\"`pkg-config --variable=libdir $PKG`\"
+}
+
+try_find_photospline(){
+	if [ ! "$PHOTOSPLINE_CONFIG" ]; then
+		PHOTOSPLINE_CONFIG="photospline-config"
+	fi
+
+	TMP_FOUND=`eval echo "$"PHOTOSPLINE_FOUND`
+	if [ "$TMP_FOUND" ]; then return; fi
+
+	which "$PHOTOSPLINE_CONFIG" 2>&1 > /dev/null
+	if [ "$?" -ne 0 ]; then return; fi
+
+	PHOTOSPLINE_VERSION=`$PHOTOSPLINE_CONFIG --version`
+	PHOTOSPLINE_CFLAGS=`$PHOTOSPLINE_CONFIG --cflags`
+	PHOTOSPLINE_LDFLAGS=`$PHOTOSPLINE_CONFIG --libs`
+
+	PHOTOSPLINE_FOUND=1
+}
+
+# less searching for python than verfying that the given executable works and extracting relevant paths
+try_find_python(){
+	echo "Looking for python"
+
+	if command -v "${PYTHON_EXE}" > /dev/null 2>&1; then
+		PYTHON_EXE=$(command -v ${PYTHON_EXE} 2>/dev/null)
+		echo " Using python executable ${PYTHON_EXE}"
+	else
+		echo " ${PYTHON_EXE} is not a valid python executable"
+		return
+	fi
+
+	PYTHON_VERSION=$("${PYTHON_EXE}" -c 'import sys; print(str(sys.version_info.major)+"."+str(sys.version_info.minor))')
+	if [ "$?" -ne 0 ]; then
+		echo " ERROR: Unable to use python executable ${PYTHON_EXE} (version check failed)"
+		return
+	fi
+	PYTHONVERSIONSIMPLE=$("${PYTHON_EXE}" -c 'import sys; print(str(sys.version_info.major)+str(sys.version_info.minor))')
+
+	# Use sysconfig (Python 3.2+) with fallback to distutils.sysconfig (deprecated in 3.10, removed in 3.12)
+	PYTHON_INCDIR=$(${PYTHON_EXE} -c "try:
+ import sysconfig
+ print(sysconfig.get_path('include'))
+except ImportError:
+ from distutils.sysconfig import get_python_inc
+ print(get_python_inc())")
+	if [ -d "$PYTHON_INCDIR" -a -f "${PYTHON_INCDIR}/Python.h" ]; then
+		echo " Found python include dir $PYTHON_INCDIR"
+	else
+		# Sometimes sysconfig.get_path("include") doesn't work. Try using base_prefix.
+		PYTHONLIBSUFFIX=$("${PYTHON_EXE}" -c "try:
+ import sysconfig
+ print(sysconfig.get_config_var('ABIFLAGS') or '')
+except:
+ print('')")
+		PYTHON_INCDIR=$("${PYTHON_EXE}" -c 'import sys; print(sys.base_prefix)')"/include/python${PYTHON_VERSION}${PYTHONLIBSUFFIX}"
+		if [ -d "$PYTHON_INCDIR" -a -f "${PYTHON_INCDIR}/Python.h" ]; then
+			echo " Found python include dir $PYTHON_INCDIR"
+		else
+			echo " Unable to locate the python include dir"
+			return
+		fi
+	fi
+
+	# This is the directory to which libraries should be installed for python to find them
+	PYTHON_MODULEDIR=$(${PYTHON_EXE} -c "try:
+ import sysconfig
+ print(sysconfig.get_path('platlib'))
+except ImportError:
+ from distutils.sysconfig import get_python_lib
+ print(get_python_lib(plat_specific=True, standard_lib=False))")
+	if [ "$PYTHON_MODULEDIR" ]; then
+		echo " Python module install dir is $PYTHON_MODULEDIR"
+	else
+		echo " Unable to locate the python module dir"
+		return
+	fi
+
+	# Get ABI flags (e.g., 'm' for pymalloc in older Python)
+	PYTHONLIBSUFFIX=$("${PYTHON_EXE}" -c "try:
+ import sysconfig
+ print(sysconfig.get_config_var('ABIFLAGS') or '')
+except:
+ print('')")
+
+	# This is the directory that python claims contains its standard library,
+	# which may or may not include the actual libpython
+	PYTHON_STDLIBDIR=$("${PYTHON_EXE}" -c "try:
+ import sysconfig
+ print(sysconfig.get_path('platstdlib'))
+except ImportError:
+ from distutils.sysconfig import get_python_lib
+ print(get_python_lib(plat_specific=True, standard_lib=True))")
+
+	# Here we just try to guess every location anyone has ever seen a libpython in the wild
+	POSSIBLE_PYTHON_LIBDIRS="${PYTHON_STDLIBDIR} ${PYTHON_STDLIBDIR}/lib"
+	# Using venv makes sysconfig.get_path("platstdlib") point to a directory which often does not
+	# contain the python library itself, so try off of the base prefix as well
+	POSSIBLE_PYTHON_LIBDIRS="$POSSIBLE_PYTHON_LIBDIRS "$("${PYTHON_EXE}" -c 'import sys; print(sys.base_prefix)')"/lib"
+	# or maybe the python library is just in a common system location?
+	POSSIBLE_PYTHON_LIBDIRS="${POSSIBLE_PYTHON_LIBDIRS} /lib /lib64 /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64"
+	# Ubuntu is special, of course
+	if uname -a | grep -i 'ubuntu' > /dev/null; then
+		POSSIBLE_PYTHON_LIBDIRS="${POSSIBLE_PYTHON_LIBDIRS} /usr/lib/$(uname -i)-linux-gnu"
+	fi
+
+	for PYTHON_LIBDIR in $POSSIBLE_PYTHON_LIBDIRS; do
+		for PV in $PYTHON_VERSION $PYTHONVERSIONSIMPLE; do
+			#echo "  Looking for ${PYTHON_LIBDIR}/libpython${PV}${PYTHONLIBSUFFIX}.(a|so|dylib)"
+			if [ -d $PYTHON_LIBDIR ]; then
+				if [ -e ${PYTHON_LIBDIR}/libpython${PV}${PYTHONLIBSUFFIX}.a ]; then
+					PYTHON_LIBRARY=${PYTHON_LIBDIR}/libpython${PV}${PYTHONLIBSUFFIX}.a
+					break
+				elif [ -e ${PYTHON_LIBDIR}/libpython${PV}${PYTHONLIBSUFFIX}.so ];then
+					PYTHON_LIBRARY=${PYTHON_LIBDIR}/libpython${PV}${PYTHONLIBSUFFIX}.so
+					break
+				elif [ -e ${PYTHON_LIBDIR}/libpython${PV}${PYTHONLIBSUFFIX}.dylib ]; then
+					PYTHON_LIBRARY=${PYTHON_LIBDIR}/libpython${PV}${PYTHONLIBSUFFIX}.dylib
+					break
+				fi
+			fi
+		done
+		if [ "$PYTHON_LIBRARY" ]; then break; fi
+	done
+	if [ -e "$PYTHON_LIBRARY" ]; then
+		echo " Found python library $PYTHON_LIBRARY"
+		PYTHON_LDFLAGS="-L${PYTHON_LIBDIR} -l$(echo "$PYTHON_LIBRARY" | sed 's|.*lib\(python.*\)\.[a-z]*|\1|')"
+	else
+		# For pybind11 builds, we don't actually need libpython - pybind11 modules
+		# use -undefined dynamic_lookup on macOS or no python linking on Linux.
+		# This is common in manylinux containers where libpython isn't available.
+		echo " Note: libpython not found (this is OK for pybind11 builds)"
+		PYTHON_LDFLAGS=""
+	fi
+
+	PYTHON_CFLAGS="-I${PYTHON_INCDIR}"
+	# On macOS with pybind11, use -undefined dynamic_lookup instead of linking to libpython
+	# This avoids issues with multiple Python interpreters and is the recommended approach
+	if [ "$OS_NAME" = "Darwin" ]; then
+		PYTHON_LDFLAGS="-undefined dynamic_lookup"
+	fi
+	PYTHON_FOUND=1
+}
+
+# Find boost headers (and optionally boost_python library)
+# Pass "python" as second/third argument to also search for libboost_python
+try_find_boost(){
+	PKG=boost
+	VAR_PREFIX=`echo $PKG | tr [:lower:] [:upper:]`
+	TMP_FOUND=`eval echo "$"${VAR_PREFIX}_FOUND`
+	if [ "$TMP_FOUND" ]; then return; fi
+
+	# Parse arguments
+	FIND_BOOST_PYTHON=""
+	if [ "$#" -eq 1 ]; then
+		GUESS_DIR=$1
+		POSSIBLE_BOOST_LIBDIRS="${GUESS_DIR}/lib ${GUESS_DIR}/lib64 ${GUESS_DIR}/lib/x86_64-linux-gnu"
+		POSSIBLE_BOOST_INCDIRS="${GUESS_DIR}/include"
+	elif [ "$#" -eq 2 ]; then
+		if [ "$2" = "python" ]; then
+			GUESS_DIR=$1
+			POSSIBLE_BOOST_LIBDIRS="${GUESS_DIR}/lib ${GUESS_DIR}/lib64 ${GUESS_DIR}/lib/x86_64-linux-gnu"
+			POSSIBLE_BOOST_INCDIRS="${GUESS_DIR}/include"
+			FIND_BOOST_PYTHON=1
+		else
+			GUESS_DIR="$1 and $2"
+			POSSIBLE_BOOST_LIBDIRS="$2"
+			POSSIBLE_BOOST_INCDIRS="$1"
+		fi
+	elif [ "$#" -eq 3 ]; then
+		GUESS_DIR="$1 and $2"
+		POSSIBLE_BOOST_LIBDIRS="$2"
+		POSSIBLE_BOOST_INCDIRS="$1"
+		if [ "$3" = "python" ]; then
+			FIND_BOOST_PYTHON=1
+		fi
+	else
+		echo "Wrong number of arguments to try_find_boost"
+		return
+	fi
+
+	if [ "$FIND_BOOST_PYTHON" -a "$PYTHON_FOUND" ]; then
+		PYV=`${PYTHON_EXE} -c 'import sys; print(str(sys.version_info.major)+str(sys.version_info.minor))'`
+		PYVM=`${PYTHON_EXE} -c 'import sys; print(sys.version_info.major)'`
+		echo "Looking for $PKG with boost_python for python ${PYV} in $GUESS_DIR..."
+	else
+		echo "Looking for $PKG headers in $GUESS_DIR..."
+	fi
+
+	# Search for boost_python library only if requested
+	if [ "$FIND_BOOST_PYTHON" -a "$PYTHON_FOUND" ]; then
+		for PYV_SUFFIX in $PYV $PYVM $PYV-mt $PYVM-mt ''; do
+			for BOOST_LIBDIR in $POSSIBLE_BOOST_LIBDIRS; do
+				if [ -d $BOOST_LIBDIR -a \( -e $BOOST_LIBDIR/libboost_python${PYV_SUFFIX}.a -o -e $BOOST_LIBDIR/libboost_python${PYV_SUFFIX}.so -o -e $BOOST_LIBDIR/libboost_python${PYV_SUFFIX}.dylib \) ]; then
+					if [ ! "$PYV_SUFFIX" ]; then
+						echo " Found boost_python with no python version tag; hoping it is compatible"
+					fi
+					BOOST_PYTHON_FOUND=1
+					BOOST_PYTHON_LDFLAGS="-lboost_python${PYV_SUFFIX}"
+					break
+				fi
+			done
+			if [ "$BOOST_PYTHON_FOUND" ]; then break; fi
+		done
+		if [ ! "$BOOST_PYTHON_FOUND" ]; then
+			echo " Unable to locate the boost_python library in $GUESS_DIR"
+		fi
+	fi
+
+	# Always search for boost headers
+	for BOOST_INCDIR in $POSSIBLE_BOOST_INCDIRS; do
+		if [ -d $BOOST_INCDIR -a -e $BOOST_INCDIR/boost/version.hpp ]; then
+			break
+		fi
+	done
+	if [ ! -d "$BOOST_INCDIR" -o ! -e "$BOOST_INCDIR/boost/version.hpp" ]; then
+		echo " Unable to locate boost/version.hpp in $GUESS_DIR"
+		return
+	fi
+	BOOST_CFLAGS="-I${BOOST_INCDIR}"
+	BOOST_LDFLAGS="-Wl,-rpath -Wl,${BOOST_LIBDIR} -L${BOOST_LIBDIR}"
+	BOOST_FOUND=1
+	echo " Found boost in $GUESS_DIR"
+	echo " Boost include directory is ${BOOST_INCDIR}"
+	if [ "$BOOST_LIBDIR" ]; then
+		echo " Boost library directory is ${BOOST_LIBDIR}"
+	fi
+}
+
+find_numpy(){
+	echo "Looking for numpy..."
+	NUMPY_INCDIR=$(${PYTHON_EXE} -c 'import numpy; print(numpy.get_include())')
+	if [ "$?" -ne 0 ]; then
+		echo " ERROR: Unable to import numpy using ${PYTHON_EXE}"
+		return
+	fi
+	NUMPY_CFLAGS="-I${NUMPY_INCDIR}"
+	NUMPY_FOUND=1
+	echo " Found numpy"
+	echo " Numpy include directory is ${NUMPY_INCDIR}"
+}
+
+ensure_found(){
+	PKG=$1
+	VAR_PREFIX=`echo $PKG | tr [:lower:] [:upper:]`
+	TMP_FOUND=`eval echo "$"${VAR_PREFIX}_FOUND`
+	if [ "$TMP_FOUND" ]; then return; fi
+	#not found
+	echo "Error: $PKG not installed or not registered with pkg-config" 1>&2
+	lowername=`echo $PKG | tr [A-Z] [a-z]`
+	echo "Please specify location using the --with-"$lowername" flag" 1>&2
+	exit 1
+}
+
+PREFIX=/usr/local
+
+VERSION_NUM=100101
+VERSION_MAJOR=$(echo $VERSION_NUM | awk '{print int($1/100000)}')
+VERSION_MINOR=$(echo $VERSION_NUM | awk '{print int($1/100)%1000}')
+VERSION_PATCH=$(echo $VERSION_NUM | awk '{print $1%100}')
+VERSION="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
+
+OS_NAME=`uname -s`
+
+GUESS_CC=gcc
+GUESS_CXX=g++
+GUESS_AR=ar
+GUESS_LD=ld
+if [ "$OS_NAME" = Linux ]; then
+	DYN_SUFFIX=.so
+	DYN_SUFFIX_FULL_VERSION='${DYN_SUFFIX}.$(VERSION)'
+	DYN_SUFFIX_MAJOR_VERSION='${DYN_SUFFIX}.$(VERSION_MAJOR)'
+	DYN_OPT='-shared -Wl,-soname,$(shell basename $(DYN_PRODUCT))'
+	DYN_OPT_PY='-shared -Wl,-soname,$(shell basename $(PYTHON_LIB))'
+fi
+if [ "$OS_NAME" = Darwin ]; then
+	GUESS_CC=clang
+	GUESS_CXX=clang++
+	GUESS_LD=clang++
+	DYN_SUFFIX=.dylib
+	DYN_SUFFIX_FULL_VERSION='.$(VERSION)${DYN_SUFFIX}'
+	DYN_SUFFIX_MAJOR_VERSION='.$(VERSION_MAJOR)${DYN_SUFFIX}'
+	# -headerpad_max_install_names ensures there is room for install_name_tool to rewrite paths
+	DYN_OPT='-dynamiclib -compatibility_version $(COMPAT_VERSION) -current_version $(VERSION) -Wl,-headerpad_max_install_names'
+	DYN_OPT_PY='-dynamiclib -compatibility_version $(COMPAT_VERSION) -current_version $(VERSION) -Wl,-headerpad_max_install_names'
+fi
+
+CC=${CC-$GUESS_CC}
+CXX=${CXX-$GUESS_CXX}
+AR=${AR-$GUESS_AR}
+LD=${LD-$GUESS_LD}
+
+PYTHON_EXE="python"
+if which "$PYTHON_EXE" > /dev/null 2>&1; then
+	: # good, keep our initial guess
+elif which "python3" > /dev/null 2>&1; then
+	PYTHON_EXE="python3"
+fi
+
+HELP="Usage: ./configure [OPTION]...
+
+Installation directories:
+  --prefix=PREFIX         install files in PREFIX
+                          [$PREFIX]
+
+By default, \`make install' will install all the files in
+\`$PREFIX/bin', \`$PREFIX/lib' etc.  You can specify
+an installation prefix other than \`$PREFIX' using \`--prefix',
+for instance \`--prefix=\$HOME'.
+
+The following options can be used to maunally specify the
+locations of dependencies:
+  --with-squids=DIR              use the copy of SQuIDS in DIR
+                                 assuming headers are in DIR/include
+                                 and libraries in DIR/lib
+  --with-squids-incdir=DIR       use the copy of SQuIDS in DIR
+  --with-squids-libdir=DIR       use the copy of SQuIDS in DIR
+
+  --with-nusquids=DIR            use the copy of nuSQuIDS in DIR
+                                 assuming headers are in DIR/include
+                                 and libraries in DIR/lib
+  --with-nusquids-incdir=DIR     use the copy of nuSQuIDS in DIR
+  --with-nusquids-libdir=DIR     use the copy of nuSQuIDS in DIR
+
+  --with-nuflux=DIR              use the copy of nuflux in DIR
+                                 assuming headers are in DIR/include
+                                 and libraries in DIR/lib
+  --with-nuflux-incdir=DIR       use the copy of nuflux in DIR
+  --with-nuflux-libdir=DIR       use the copy of nuflux in DIR
+
+  --with-photospline-config=BIN  Path to photospline-config executable
+
+  --with-hdf5-incdir=DIR         use the copy of HDF5 in DIR
+  --with-hdf5-libdir=DIR         use the copy of HDF5 in DIR
+  --with-hdf5=DIR                use the copy of HDF5 in DIR
+                                 assuming headers are in DIR/include
+                                 and libraries in DIR/lib
+
+For the python bindings the following flags are used:
+  --with-python-bindings         enable python bindings using pybind11 (default)
+  --with-pybind-incdir=DIR       use the copy of pybind11 in DIR
+  --with-boost-python-bindings   use legacy Boost.Python bindings instead
+  --with-boost-incdir=DIR        use the copy of Boost in DIR
+  --with-boost-libdir=DIR        use the copy of Boost in DIR
+  --with-boost=DIR               use the copy of Boost in DIR
+                                 assuming headers are in DIR/include
+                                 and libraries in DIR/lib
+  --python-bin=PYTHON_EXECUTABLE use this python executable
+                                 (default is $PYTHON_EXE)
+  --python-module-dir=DIR        install python module to this directory, rather
+                                 than the default system location. The special
+                                 value site.USER_SITE will be automatically
+                                 expanded using the python interpreter
+
+Some influential environment variables:
+CC          C compiler command
+CXX         C++ compiler command
+AR          Static linker command
+LD          Dynamic linker command
+" #`
+
+for var in "$@"
+do
+	if [ "$var" = "--help" -o "$var" = "-h" ]; then
+		echo "$HELP"
+		exit 0
+	fi
+
+  # PREFIX #
+	TMP=`echo "$var" | sed -n 's/^--prefix=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then PREFIX="$TMP"; continue; fi
+
+  # SQUIDS #
+	TMP=`echo "$var" | sed -n 's/^--with-squids=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then
+		SQUIDS_INCDIR="${TMP}/include";
+		SQUIDS_LIBDIR="${TMP}/lib";
+	continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-squids-incdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then SQUIDS_INCDIR="$TMP"; continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-squids-libdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then SQUIDS_LIBDIR="$TMP"; continue; fi
+
+  # NUSQUIDS #
+	TMP=`echo "$var" | sed -n 's/^--with-nusquids=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then
+		NUSQUIDS_INCDIR="${TMP}/include";
+		NUSQUIDS_LIBDIR="${TMP}/lib";
+	continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-nusquids-incdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then NUSQUIDS_INCDIR="$TMP"; continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-nusquids-libdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then NUSQUIDS_LIBDIR="$TMP"; continue; fi
+
+  # PHOTOSPLINE #
+	TMP=`echo "$var" | sed -n 's/^--with-photospline-config=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then
+		PHOTOSPLINE_CONFIG="${TMP}";
+	continue; fi
+    
+  # HDF5 #
+	TMP=`echo "$var" | sed -n 's/^--with-hdf5=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then
+		HDF5_INCDIR="${TMP}/include";
+		HDF5_LIBDIR="${TMP}/lib";
+	continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-hdf5-libdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then HDF5_LIBDIR="$TMP"; continue; fi
+	TMP=`echo "$var" | sed -n 's/^--with-hdf5-incdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then HDF5_INCDIR="$TMP"; continue; fi
+
+  # BOOST #
+	TMP=`echo "$var" | sed -n 's/^--with-boost=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then
+		BOOST_INCDIR="${TMP}/include";
+		BOOST_LIBDIR="${TMP}/lib";
+	continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-boost-libdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then BOOST_LIBDIR="$TMP"; continue; fi
+	TMP=`echo "$var" | sed -n 's/^--with-boost-incdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then BOOST_INCDIR="$TMP"; continue; fi
+
+  # PYTHON #
+	TMP=`echo "$var" | sed -n 's/^--python-bin=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then PYTHON_EXE="${TMP}"; continue; fi
+	TMP=`echo "$var" | sed -n 's/^--python-module-dir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then USER_PYTHON_MODULE_DIR="${TMP}"; continue; fi
+
+  # PYTHON BINDINGS #
+	TMP=`echo "$var" | sed -n 's/^--with-python-bindings/true/p'`
+	if [ "$TMP" ]; then PYTHON_BINDINGS=true; continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-pybind-incdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then PYBIND_INCDIR="$TMP"; continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-boost-python-bindings/true/p'`
+	if [ "$TMP" ]; then BOOST_PYTHON_BINDINGS=true; continue; fi
+
+  # NUFLUX #
+	TMP=`echo "$var" | sed -n 's/^--with-nuflux=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then
+		NUFLUX_INCDIR="${TMP}/include";
+		NUFLUX_LIBDIR="${TMP}/lib";
+	continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-nuflux-libdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then NUFLUX_LIBDIR="$TMP"; continue; fi
+	TMP=`echo "$var" | sed -n 's/^--with-nuflux-incdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then NUFLUX_INCDIR="$TMP"; continue; fi
+
+  # KILL #
+	echo "config.sh: Unknown or malformed option '$var'" 1>&2
+	exit 1
+done
+
+if [ "$SQUIDS_INCDIR" -a "$SQUIDS_LIBDIR" ]; then
+	echo "Checking manually specified SQUIDS..."
+	if [ -d "$SQUIDS_INCDIR" \
+         -a -d "$SQUIDS_LIBDIR" \
+         -a -e "$SQUIDS_LIBDIR/libSQuIDS.a" ]; then
+		SQUIDS_FOUND=1
+		SQUIDS_CFLAGS="-I$SQUIDS_INCDIR"
+		# SQuIDS depends on GSL, so we need to include GSL when manually specifying SQuIDS
+		GSL_LDFLAGS=`pkg-config --libs gsl 2>/dev/null || echo "-lgsl -lgslcblas -lm"`
+		SQUIDS_LDFLAGS="-L$SQUIDS_LIBDIR -lSQuIDS $GSL_LDFLAGS"
+		if $CXX --version | grep -q "Free Software Foundation"; then
+			SQUIDS_CFLAGS="$SQUIDS_CFLAGS -Wno-abi"
+		fi
+	else
+		echo "Warning: manually specifed SQUIDS not found; will attempt auto detection"
+	fi
+fi
+
+find_package squids 1.2
+
+if [ "$NUSQUIDS_INCDIR" -a "$NUSQUIDS_LIBDIR" ]; then
+	echo "Checking manually specified nuSQuIDS..."
+	if [ -d "$NUSQUIDS_INCDIR" \
+         -a -d "$NUSQUIDS_LIBDIR" \
+         -a -e "$NUSQUIDS_LIBDIR/libnuSQuIDS.a" ]; then
+		NUSQUIDS_FOUND=1
+		NUSQUIDS_CFLAGS="-I$NUSQUIDS_INCDIR"
+		NUSQUIDS_LDFLAGS="-L$NUSQUIDS_LIBDIR -lnuSQuIDS"
+		if $CXX --version | grep -q "Free Software Foundation"; then
+			SQUIDS_CFLAGS="$NUSQUIDS_CFLAGS -Wno-abi"
+		fi
+	else
+		echo "Warning: manually specifed nuSQuIDS not found; will attempt auto detection"
+	fi
+fi
+
+find_package nusquids 1.0
+
+if [ "$HDF5_INCDIR" -a "$HDF5_LIBDIR" ]; then
+	echo "Checking manually specified hdf5..."
+	if [ -d "$HDF5_INCDIR" \
+         -a -d "$HDF5_LIBDIR" \
+         -a -e "$HDF5_LIBDIR/libhdf5.a" \
+         -a -e "$HDF5_LIBDIR/libhdf5_cpp.a" ]; then
+		HDF5_FOUND=1
+		HDF5_CFLAGS="-I$HDF5_INCDIR"
+		HDF5_LDFLAGS="-L$HDF5_LIBDIR -lhdf5 -lhdf5_hl -lhdf5_cpp"
+	else
+        echo "Warning: manually specifed HDF5 not found; will attempt auto detection"
+	fi
+fi
+
+find_package hdf5
+
+if [ "$PHOTOSPLINE_CONFIG" ]; then
+	echo "Checking manually specified photospline-config..."
+	if [ ! "$PHOTOSPLINE_CONFIG" ]; then
+    PHOTOSPLINE_CONFIG="photospline-config"
+		echo "Warning: manually specifed photospline-config not found; will attempt auto detection"
+	fi
+fi
+
+find_package cfitsio
+
+try_find_photospline
+
+try_find_python
+
+if [ "$PYTHON_FOUND" != 1 ]; then
+	echo "*** Failed to find python; python bindings will not be built ***"
+	unset PYTHON_BINDINGS
+	unset BOOST_PYTHON_BINDINGS
+else
+	if [ "$USER_PYTHON_MODULE_DIR" ]; then
+		if [ "$USER_PYTHON_MODULE_DIR" == "site.USER_SITE" ]; then
+			PYTHON_MODULEDIR=`${PYTHON_EXE} -c 'import site; print(site.USER_SITE)'`
+		else
+			PYTHON_MODULEDIR="$USER_PYTHON_MODULE_DIR"
+		fi
+	fi
+fi
+
+# Handle python bindings selection
+if [ "$PYTHON_BINDINGS" -a "$BOOST_PYTHON_BINDINGS" ]; then
+	echo "Warning: simultaneously specified pybind11 and Boost.Python bindings options."
+	echo "         Ignoring Boost.Python option. Use only --with-boost-python-bindings for legacy bindings."
+	unset BOOST_PYTHON_BINDINGS
+fi
+
+# If python bindings are requested (either type)
+if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
+	if [ "$PYTHON_FOUND" != 1 ]; then
+		echo "*** Python not found; python bindings will not be built ***"
+		unset PYTHON_BINDINGS
+		unset BOOST_PYTHON_BINDINGS
+	else
+		# Configure for Boost.Python bindings - need to find libboost_python
+		if [ "$BOOST_PYTHON_BINDINGS" ]; then
+			if [ "$BOOST_INCDIR" -a "$BOOST_LIBDIR" ]; then
+				echo "Checking manually specified boost for Boost.Python..."
+				try_find_boost "$BOOST_INCDIR" "$BOOST_LIBDIR" python
+				if [ ! "$BOOST_FOUND" ]; then
+					echo "Warning: manually specified boost not found; will attempt auto detection"
+				fi
+			fi
+			try_find_boost /usr python
+			try_find_boost /usr/local python
+
+			if [ "$BOOST_PYTHON_FOUND" != 1 ]; then
+				echo "*** Failed to find Boost.Python; python bindings will not be built ***"
+				unset BOOST_PYTHON_BINDINGS
+			fi
+		# Configure for pybind11 bindings (default)
+		else
+			if [ "$PYBIND_INCDIR" ]; then
+				if [ ! -d "$PYBIND_INCDIR" -o ! -e "$PYBIND_INCDIR/pybind11/pybind11.h" ]; then
+					echo "*** Failed to find pybind11/pybind11.h in $PYBIND_INCDIR; python bindings will not be built ***"
+					unset PYTHON_BINDINGS
+				else
+					echo "Using provided pybind11 header directory $PYBIND_INCDIR"
+					PYBIND_CFLAGS="-I$PYBIND_INCDIR"
+				fi
+			else
+				echo "Autodetecting pybind11 header directory using ${PYTHON_EXE} executable..."
+				PYBIND_CFLAGS=$(${PYTHON_EXE} -m pybind11 --includes 2>/dev/null)
+				PYBIND_INCLUDE=$(echo "$PYBIND_CFLAGS" | sed -E 's/.*-I([^ ]*pybind11[^ ]*).*/\1/')
+
+				if [ $? -ne 0 ] || [ -z "$PYBIND_CFLAGS" ]; then
+					echo " ERROR: pybind11 not found for Python executable ${PYTHON_EXE}."
+					echo " Please install it using: ${PYTHON_EXE} -m pip install pybind11"
+					echo "*** Failed to find pybind11; python bindings will not be built ***"
+					unset PYTHON_BINDINGS
+				else
+					echo " Found pybind11 headers in $PYBIND_INCLUDE"
+				fi
+			fi
+		fi
+
+		# Find numpy (required for both binding types)
+		if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
+			find_numpy
+			if [ "$NUMPY_FOUND" != 1 ]; then
+				echo "*** Failed to find numpy; python bindings will not be built ***"
+				unset PYTHON_BINDINGS
+				unset BOOST_PYTHON_BINDINGS
+			fi
+		fi
+	fi
+fi
+
+# nuflux detection - must happen before Boost detection since Boost is only needed if nuflux is found
+if [ "$NUFLUX_INCDIR" -a "$NUFLUX_LIBDIR" ]; then
+	echo "Checking manually specified nuflux..."
+	if [ -d "$NUFLUX_INCDIR" \
+         -a -d "$NUFLUX_LIBDIR" \
+         -a \( -e "$NUFLUX_LIBDIR/libnuflux.so" -o -e "$NUFLUX_LIBDIR/libnuflux.dylib" \) ]; then
+		NUFLUX_FOUND=1
+		NUFLUX_CFLAGS="-I$NUFLUX_INCDIR"
+		NUFLUX_LDFLAGS="-L$NUFLUX_LIBDIR -lnuflux"
+		if $CXX --version | grep -q "Free Software Foundation"; then
+			NUFLUX_CFLAGS="$NUFLUX_CFLAGS -Wno-abi"
+		fi
+	else
+		echo "Warning: manually specifed nuflux not found; will attempt auto detection"
+	fi
+fi
+
+find_package nuflux 0.0.1
+
+# Boost headers are only needed if nuflux is found (NFluxInterface uses boost::shared_ptr)
+# libboost_python is only needed if using Boost.Python bindings
+if [ "$NUFLUX_FOUND" ]; then
+	if [ ! "$BOOST_FOUND" ]; then
+		if [ "$BOOST_INCDIR" -a "$BOOST_LIBDIR" ]; then
+			echo "Checking manually specified boost..."
+			try_find_boost "$BOOST_INCDIR" "$BOOST_LIBDIR"
+			if [ ! "$BOOST_FOUND" ]; then
+				echo "Warning: manually specified boost not found; will attempt auto detection"
+			fi
+		fi
+		try_find_boost /usr
+		try_find_boost /usr/local
+	fi
+
+	if [ ! "$BOOST_FOUND" ]; then
+		echo "Error: Boost headers are required when nuflux is enabled (NFluxInterface uses boost::shared_ptr)."
+		echo "       Specify BOOST include path using --with-boost-incdir."
+		exit 1
+	fi
+fi
+
+## CHECK THINGS ARE GOOD ##
+
+# SQuIDS and nuSQuIDS are optional but recommended
+# ensure_found squids  # optional - required by nuSQuIDS
+# ensure_found nusquids  # optional - enables GlashowResonanceCrossSection and tau decay corrections
+#ensure_found nuflux
+ensure_found photospline
+# Boost is only required if nuflux was found
+if [ "$NUFLUX_FOUND" ]; then
+	ensure_found boost
+fi
+
+# Warn about optional dependencies that were not found
+if [ ! "$NUSQUIDS_FOUND" ]; then
+	echo ""
+	echo "WARNING: nuSQuIDS not found. Building without nuSQuIDS support."
+	echo "         The following features will NOT be available:"
+	echo "           - GlashowResonanceCrossSection class"
+	echo "           - Weighter::get_effective_tau_weight()"
+	echo "           - Weighter::get_effective_tau_oneweight()"
+	echo "           - nuSQUIDSAtmFlux and nuSQUIDSFlux (Python)"
+	echo "         To enable, install nuSQuIDS and re-run configure with --with-nusquids=<path>"
+	echo ""
+fi
+
+if [ ! "$NUFLUX_FOUND" ]; then
+	echo ""
+	echo "WARNING: nuflux not found. Building without nuflux support."
+	echo "         The NFluxInterface class will NOT be available."
+	echo "         To enable, install nuflux and re-run configure with --with-nuflux=<path>"
+	echo ""
+fi
+
+if [ ! -d ./build/ ]; then
+    mkdir build;
+fi
+if [ ! -d ./lib/ ]; then
+    mkdir lib;
+fi
+
+# Resolve PREFIX absolutely
+OLDPWD=`pwd`
+cd "$PREFIX"
+PREFIX=`pwd`
+cd "$OLDPWD"
+
+echo "Generating pkg-config file..."
+echo "prefix=$PREFIX" > lib/leptonweighter.pc
+
+PKGCONF_REQUIREMENTS=""
+if [ "$NUSQUIDS_FOUND" ]; then
+	PKGCONF_REQUIREMENTS="$PKGCONF_REQUIREMENTS nusquids >= 1.0.0"
+fi
+if [ "$NUFLUX_FOUND" ]; then
+	PKGCONF_REQUIREMENTS="$PKGCONF_REQUIREMENTS nuflux >= 0.0.1"
+fi
+
+echo '
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: LeptonWeighter
+Description: Weights events generated by LeptonInjector
+URL: http://code.icecube.wisc.edu/svn/sandbox/LeptonWeighter/ ' >> lib/leptonweighter.pc
+echo "Version: $VERSION" >> lib/leptonweighter.pc
+echo "Requires: ${PKGCONF_REQUIREMENTS}" >> lib/leptonweighter.pc
+echo 'Libs: -L${libdir} -lLeptonWeighter
+Cflags: -I${includedir}
+' >> lib/leptonweighter.pc
+
+echo "Generating makefile..."
+echo "# Compiler
+CC=$CC
+CXX=$CXX
+AR=$AR
+LD=$LD
+
+DYN_SUFFIX=$DYN_SUFFIX
+DYN_SUFFIX_MAJOR_VERSION=$DYN_SUFFIX_MAJOR_VERSION
+DYN_SUFFIX_FULL_VERSION=$DYN_SUFFIX_FULL_VERSION
+DYN_OPT=$DYN_OPT
+DYN_OPT_PY=$DYN_OPT_PY
+
+VERSION=$VERSION
+VERSION_MAJOR=$VERSION_MAJOR
+VERSION_MINOR=$VERSION_MINOR
+VERSION_PATCH=$VERSION_PATCH
+COMPAT_VERSION=${VERSION_MAJOR}.${VERSION_MINOR}
+PREFIX=$PREFIX
+" > ./Makefile
+
+echo '
+PATH_LW=$(shell pwd)
+
+SOURCES = private/LeptonWeighter/CrossSection.cpp \
+          private/LeptonWeighter/ParticleType.cpp \
+          private/LeptonWeighter/Generator.cpp \
+          private/LeptonWeighter/Weighter.cpp \
+          private/LeptonWeighter/LeptonInjectorConfigReader.cpp \
+          private/LeptonWeighter/Utils.cpp
+
+HEADERS = public/LeptonWeighter/Constants.h \
+          public/LeptonWeighter/CrossSection.h \
+          public/LeptonWeighter/Event.h \
+          public/LeptonWeighter/Flux.h \
+          public/LeptonWeighter/Generator.h \
+          public/LeptonWeighter/LeptonInjectorConfigReader.h \
+          public/LeptonWeighter/MetaWeighter.h \
+          public/LeptonWeighter/ParticleType.h \
+          public/LeptonWeighter/Utils.h \
+          public/LeptonWeighter/Weighter.h
+
+OBJECTS = $(patsubst private/LeptonWeighter/%.cpp,build/%.o,$(SOURCES))
+
+NUSQ_SOURCES = private/LeptonWeighter/nuSQFluxInterface.cpp
+
+NUSQ_HEADERS = public/LeptonWeighter/nuSQFluxInterface.h
+
+NUSQ_OBJECTS = $(patsubst private/LeptonWeighter/%.cpp,build/%.o,$(NUSQ_SOURCES))
+' >> ./Makefile
+
+if [ "$NUSQUIDS_FOUND" ]; then
+echo 'OBJECTS += ${NUSQ_OBJECTS}' >> ./Makefile
+echo 'HEADERS += ${NUSQ_HEADERS}' >> ./Makefile
+fi
+
+echo '
+NF_SOURCES = private/LeptonWeighter/NFluxInterface.cpp
+
+NF_HEADERS = public/LeptonWeighter/NFluxInterface.h
+
+NF_OBJECTS = $(patsubst private/LeptonWeighter/%.cpp,build/%.o,$(NF_SOURCES))
+' >> ./Makefile
+
+if [ "$NUFLUX_FOUND" ]; then
+echo 'OBJECTS += ${NF_OBJECTS}' >> ./Makefile
+echo 'HEADERS += ${NF_HEADERS}' >> ./Makefile
+fi
+
+echo '
+EXAMPLES = resources/example/weigh_events.exe \
+           resources/example/read_lic.exe
+NUSQ_EXAMPLES = resources/example/weigh_events_nusquids.exe
+' >> ./Makefile
+
+echo '
+CXXFLAGS = -std=c++11 -O3
+
+# Directories
+'  >> ./Makefile
+
+if [ "$NUSQUIDS_FOUND" ]; then
+echo 'EXAMPLES += ${NUSQ_EXAMPLES}' >> ./Makefile
+echo 'CXXFLAGS += -DNUS_FOUND' >> ./Makefile
+fi
+
+
+echo "SQUIDS_CFLAGS=$SQUIDS_CFLAGS" >> ./Makefile
+echo "SQUIDS_LDFLAGS=$SQUIDS_LDFLAGS" >> ./Makefile
+
+echo "NUSQUIDS_CFLAGS=$NUSQUIDS_CFLAGS" >> ./Makefile
+echo "NUSQUIDS_LDFLAGS=$NUSQUIDS_LDFLAGS" >> ./Makefile
+
+echo "NUFLUX_CFLAGS=$NUFLUX_CFLAGS" >> ./Makefile
+echo "NUFLUX_LDFLAGS=$NUFLUX_LDFLAGS" >> ./Makefile
+
+echo "BOOST_CFLAGS=$BOOST_CFLAGS" >> ./Makefile
+echo "BOOST_LDFLAGS=$BOOST_LDFLAGS" >> ./Makefile
+
+echo "PHOTOSPLINE_CFLAGS=$PHOTOSPLINE_CFLAGS" >> ./Makefile
+echo "PHOTOSPLINE_LDFLAGS=$PHOTOSPLINE_LDFLAGS" >> ./Makefile
+
+echo "CFITSIO_CFLAGS=$CFITSIO_CFLAGS" >> ./Makefile
+echo "CFITSIO_LDFLAGS=$CFITSIO_LDFLAGS" >> ./Makefile
+
+echo "HDF5_CFLAGS=$HDF5_CFLAGS" >> ./Makefile
+echo "HDF5_LDFLAGS=$HDF5_LDFLAGS -lhdf5_hl" >> ./Makefile
+
+# Python bindings configuration
+if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
+	echo "PYTHON_CFLAGS=$PYTHON_CFLAGS" >> ./Makefile
+	echo "PYTHON_LDFLAGS=$PYTHON_LDFLAGS" >> ./Makefile
+	echo "NUMPY_CFLAGS=$NUMPY_CFLAGS" >> ./Makefile
+	echo "PYTHON_MODULEDIR=$PYTHON_MODULEDIR" >> ./Makefile
+	if [ "$BOOST_PYTHON_BINDINGS" ]; then
+		echo "BOOST_PYTHON_LDFLAGS=$BOOST_PYTHON_LDFLAGS" >> ./Makefile
+	else
+		echo "PYTHON_CFLAGS+=$PYBIND_CFLAGS" >> ./Makefile
+	fi
+fi
+
+echo '
+
+INC_LW=$(PATH_LW)/public
+LIB_LW=$(PATH_LW)/lib
+
+# FLAGS
+CFLAGS= -O3 -fPIC -I$(INC_LW) $(SQUIDS_CFLAGS) $(NUSQUIDS_CFLAGS) $(PHOTOSPLINE_CFLAGS) $(CFITSIO_CFLAGS) $(NUFLUX_CFLAGS) $(BOOST_CFLAGS) $(HDF5_CFLAGS)
+
+LDFLAGS= -Wl,-rpath -Wl,$(LIB_LW) -L$(LIB_LW)
+LDFLAGS+= $(NUSQUIDS_LDFLAGS) $(SQUIDS_LDFLAGS) $(PHOTOSPLINE_LDFLAGS) $(CFITSIO_LDFLAGS) $(NUFLUX_LDFLAGS) $(BOOST_LDFLAGS) $(HDF5_LDFLAGS)
+
+EXAMPLES_FLAGS=-I$(INC_LW) $(CXXFLAGS) $(CFLAGS)
+
+# Project files
+NAME=LeptonWeighter
+STAT_PRODUCT:=lib/lib$(NAME).a
+DYN_PRODUCT_FULL_VER:=lib/lib$(NAME)$(DYN_SUFFIX_FULL_VERSION)
+DYN_PRODUCT_MAJ_VER:=lib/lib$(NAME)$(DYN_SUFFIX_MAJOR_VERSION)
+DYN_PRODUCT:=lib/lib$(NAME)$(DYN_SUFFIX)
+PYTHON_LIB:=lib/$(NAME).so
+
+# Compilation rules
+all: $(STAT_PRODUCT) $(DYN_PRODUCT)
+
+examples : $(EXAMPLES)
+
+$(DYN_PRODUCT) : $(OBJECTS)
+	@echo Linking $(DYN_PRODUCT_FULL_VER)
+	@rm -f $(DYN_PRODUCT) $(DYN_PRODUCT_MAJ_VER)
+	@$(CXX) $(DYN_OPT) $(LDFLAGS) -o $(DYN_PRODUCT_FULL_VER) $(OBJECTS)
+	@[ $$(uname -s) != Darwin ] || install_name_tool -id $(shell basename $(DYN_PRODUCT_MAJ_VER)) $(DYN_PRODUCT_FULL_VER)
+	@ln -s $(shell basename $(DYN_PRODUCT_FULL_VER)) $(DYN_PRODUCT_MAJ_VER)
+	@ln -s $(shell basename $(DYN_PRODUCT_FULL_VER)) $(DYN_PRODUCT)
+
+$(STAT_PRODUCT) : $(OBJECTS)
+	@echo Linking $(STAT_PRODUCT)
+	@$(AR) -rcs $(STAT_PRODUCT) $(OBJECTS)
+
+build/%.o : private/LeptonWeighter/%.cpp
+	@echo Compiling $< to $@
+	@$(CXX) $(CXXFLAGS) -c $(CFLAGS) $< -o $@
+
+resources/example/weigh_events.exe: resources/example/weigh_events.cpp
+	@echo Compiling weigh_events example
+	$(CXX) $(EXAMPLES_FLAGS) resources/example/weigh_events.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
+
+resources/example/weigh_events_nusquids.exe: resources/example/weigh_events_nusquids.cpp
+	@echo Compiling weigh_events_nusquids example
+	@$(CXX) $(EXAMPLES_FLAGS) resources/example/weigh_events_nusquids.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
+
+resources/example/read_lic.exe: resources/example/read_lic.cpp
+	@echo Compiling lic reader
+	@$(CXX) $(EXAMPLES_FLAGS) resources/example/read_lic.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
+
+.PHONY: install uninstall clean test docs
+clean:
+	@echo Erasing generated files
+	@rm -f $(PATH_LW)/build/*.o
+	@rm -f $(PATH_LW)/$(STAT_PRODUCT) $(PATH_LW)/$(DYN_PRODUCT) $(PATH_LW)/$(DYN_PRODUCT_MAJ_VER) $(PATH_LW)/$(DYN_PRODUCT_FULL_VER) $(PATH_LW)/$(PYTHON_LIB) $(EXAMPLES)
+
+doxygen:
+	@mkdir -p ./docs
+	@doxygen resources/docs/doxyfile
+docs:
+	@mkdir -p ./docs
+	@doxygen resources/docs/doxyfile
+
+install: $(DYN_PRODUCT) $(STAT_PRODUCT)
+	@echo Installing headers in $(PREFIX)/include/LeptonWeighter
+	@mkdir -p $(PREFIX)/include/LeptonWeighter
+	@cp $(HEADERS) $(PREFIX)/include/LeptonWeighter
+	@echo Installing libraries in $(PREFIX)/lib
+	@mkdir -p $(PREFIX)/lib
+	@cp $(DYN_PRODUCT_FULL_VER) $(STAT_PRODUCT) $(PREFIX)/lib
+	@rm -f $(PREFIX)/lib/$(shell basename $(DYN_PRODUCT_MAJ_VER)) $(PREFIX)/lib/$(shell basename $(DYN_PRODUCT))
+	@ln -s $(shell basename $(DYN_PRODUCT_FULL_VER)) $(PREFIX)/lib/$(shell basename $(DYN_PRODUCT_MAJ_VER))
+	@ln -s $(shell basename $(DYN_PRODUCT_FULL_VER)) $(PREFIX)/lib/$(shell basename $(DYN_PRODUCT))
+	@echo Installing config information in $(PREFIX)/lib/pkgconfig
+	@mkdir -p $(PREFIX)/lib/pkgconfig
+	@cp lib/leptonweighter.pc $(PREFIX)/lib/pkgconfig
+	@./check_install.sh leptonweighter "$(PREFIX)"' >> ./Makefile
+
+echo '
+uninstall:
+	@echo Removing headers from $(PREFIX)/include/LeptonWeighter
+	@rm -rf $(PREFIX)/include/LeptonWeighter
+	@echo Removing libraries from $(PREFIX)/lib
+	@rm -f $(PREFIX)/lib/$(shell basename $(DYN_PRODUCT))
+	@rm -f $(PREFIX)/lib/$(shell basename $(DYN_PRODUCT_MAJ_VER))
+	@rm -f $(PREFIX)/lib/$(shell basename $(DYN_PRODUCT_FULL_VER))
+	@rm -f $(PREFIX)/lib/$(shell basename $(STAT_PRODUCT))
+	@echo Removing config information from $(PREFIX)/lib/pkgconfig
+	@rm -f $(PREFIX)/lib/pkgconfig/leptonweighter.pc
+' >> ./Makefile
+
+# Python bindings Makefile rules
+if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
+	echo '
+
+python : $(PYTHON_LIB)
+' >> ./Makefile
+
+	# Choose between Boost.Python and pybind11
+	if [ "$BOOST_PYTHON_BINDINGS" ]; then
+		echo '
+$(PYTHON_LIB) : build/lepton_weighter_pybi.o $(STAT_PRODUCT)
+	@echo Linking python bindings - Boost.Python
+	@$(CXX) $(DYN_OPT_PY) build/lepton_weighter_pybi.o -Llib -l$(NAME) $(LDFLAGS) $(BOOST_PYTHON_LDFLAGS) $(PYTHON_LDFLAGS) -o $(PYTHON_LIB)
+
+build/lepton_weighter_pybi.o : private/pybindings/lepton_weighter_boost_python.cpp
+	@echo Compiling python bindings - Boost.Python
+	@$(CXX) $(CXXFLAGS) -c -Iprivate/pybindings $(PYTHON_CFLAGS) $(BOOST_CFLAGS) $(NUMPY_CFLAGS) $(CFLAGS) $< -o $@
+' >> ./Makefile
+	else
+		echo '
+$(PYTHON_LIB) : build/lepton_weighter_pybi.o $(STAT_PRODUCT)
+	@echo Linking python bindings - pybind11
+	@$(CXX) $(DYN_OPT_PY) build/lepton_weighter_pybi.o -Llib -l$(NAME) $(LDFLAGS) $(PYTHON_LDFLAGS) -o $(PYTHON_LIB)
+
+build/lepton_weighter_pybi.o : private/pybindings/lepton_weighter_pybind11.cpp
+	@echo Compiling python bindings - pybind11
+	@$(CXX) $(CXXFLAGS) -c $(PYTHON_CFLAGS) $(NUMPY_CFLAGS) $(CFLAGS) $< -o $@
+' >> ./Makefile
+	fi
+
+	echo '
+python-install : $(PYTHON_LIB)
+	@echo Installing python module in $(PYTHON_MODULEDIR)
+	@mkdir -p $(PYTHON_MODULEDIR)
+	@cp $(PYTHON_LIB) $(PYTHON_MODULEDIR)
+
+python-uninstall : $(PYTHON_LIB)
+	@echo Removing python module from $(PYTHON_MODULEDIR)
+	@rm $(PYTHON_MODULEDIR)/$(NAME).so
+
+' >> ./Makefile
+fi
+
+mkdir -p test
+echo "
+export CXX=\"${CXX}\"
+export CFLAGS=\"${CFLAGS} ${SQUIDS_CFLAGS} ${GSL_CFLAGS} ${HDF5_CFLAGS}\"
+export CXXFLAGS=\"${CXXFLAGS} -std=c++11\"
+export LDFLAGS=\"${LDFLAGS}  -lLeptonWeighter ${SQUIDS_LDFLAGS} ${GSL_LDFLAGS} ${HDF5_LDFLAGS}\"
+" > test/env_vars.sh
+if uname | grep -q 'Darwin' ; then
+	printf "export DYLD_LIBRARY_PATH=\"" >> test/env_vars.sh
+	if [ "$DYLD_LIBRARY_PATH" ]; then
+		printf "${DYLD_LIBRARY_PATH}:" >> test/env_vars.sh
+	fi
+	printf "/lib:/usr/lib:\${HOME}/lib:/usr/local/lib:" >> test/env_vars.sh
+else
+	printf "export LD_LIBRARY_PATH=\"" >> test/env_vars.sh
+fi
+echo "../lib:${SQUIDS_LIBDIR}:${GSL_LIBDIR}:${HDF5_LIBDIR}\"" >> test/env_vars.sh
+
+echo "Done."
+echo
+echo "To build the library, run: make
+After, to build examples: make examples"
+if [ "$PYTHON_BINDINGS" ]; then
+	echo "To build the python bindings (pybind11) run: make python"
+	echo "To install the python bindings run: make python-install"
+elif [ "$BOOST_PYTHON_BINDINGS" ]; then
+	echo "To build the python bindings (Boost.Python) run: make python"
+	echo "To install the python bindings run: make python-install"
+fi
