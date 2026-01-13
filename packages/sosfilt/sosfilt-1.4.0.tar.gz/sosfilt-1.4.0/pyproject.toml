@@ -1,0 +1,41 @@
+[project]
+name = "sosfilt"
+version = "1.4.0"
+description = "Second-order section filtering with multiple filters"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    {name = "Angus Gibson", email = "angus@agibson.me"}
+]
+license = {file = "LICENSE"}
+urls = {homepage = "https://github.com/angus-g/sosfilt"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX"
+]
+dependencies = ["scipy"]
+
+[build-system]
+build-backend = "mesonpy"
+requires = [
+    "meson-python>=0.15.0",
+    "Cython",
+    "numpy",
+    "pythran>=0.14",
+]
+
+[tool.cibuildwheel]
+archs = ["x86_64"]
+manylinux-x86_64-image = "manylinux_2_28"
+musllinux-x86_64-image = "musllinux_1_2"
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y openblas-devel"
+
+[tool.cibuildwheel.macos]
+before-all = "sh tools/build_openblas.sh"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux*"
+before-all = "apk add openblas-dev"
