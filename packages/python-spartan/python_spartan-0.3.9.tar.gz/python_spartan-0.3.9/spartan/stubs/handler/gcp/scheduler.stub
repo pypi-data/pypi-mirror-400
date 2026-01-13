@@ -1,0 +1,182 @@
+"""GCP Cloud Function Cloud Scheduler trigger handler.
+
+This Cloud Function is triggered by Cloud Scheduler jobs on a schedule (cron).
+"""
+
+import functions_framework
+from flask import Request
+import json
+
+
+@functions_framework.http
+def handler(request: Request):
+    """Cloud Scheduler Cloud Function entry point.
+    
+    This function is triggered by Cloud Scheduler jobs that run on a schedule.
+    Cloud Scheduler sends HTTP requests to the function at specified intervals.
+    
+    Args:
+        request (flask.Request): The HTTP request object from Cloud Scheduler containing:
+            - request.method: HTTP method (typically POST)
+            - request.headers: HTTP headers including scheduler-specific headers
+            - request.get_json(): Optional JSON payload from scheduler job
+            - request.data: Raw request body
+    
+    Returns:
+        Response tuple (message, status_code) or dict
+    
+    Cloud Scheduler Headers:
+        - X-CloudScheduler: Set to "true" for scheduler requests
+        - X-CloudScheduler-JobName: Name of the scheduler job
+        - X-CloudScheduler-ScheduleTime: Scheduled execution time
+        - User-Agent: Contains "Google-Cloud-Scheduler"
+    
+    Example Scheduler Job Configuration:
+        # Create a scheduler job (using gcloud)
+        gcloud scheduler jobs create http my-scheduled-job \
+            --schedule="0 */6 * * *" \
+            --uri="https://REGION-PROJECT_ID.cloudfunctions.net/FUNCTION_NAME" \
+            --http-method=POST \
+            --message-body='{"task": "cleanup"}' \
+            --time-zone="America/New_York"
+        
+        Schedule formats (cron):
+        - "0 */6 * * *"     # Every 6 hours
+        - "0 0 * * *"       # Daily at midnight
+        - "0 9 * * 1"       # Every Monday at 9 AM
+        - "*/15 * * * *"    # Every 15 minutes
+        - "0 0 1 * *"       # First day of every month
+    """
+    # Verify the request is from Cloud Scheduler
+    is_scheduler = request.headers.get('X-CloudScheduler') == 'true'
+    user_agent = request.headers.get('User-Agent', '')
+    
+    if not is_scheduler and 'Google-Cloud-Scheduler' not in user_agent:
+        print("Warning: Request does not appear to be from Cloud Scheduler")
+        # You may want to reject non-scheduler requests for security
+        # return {'error': 'Unauthorized'}, 403
+    
+    # Get scheduler job information from headers
+    job_name = request.headers.get('X-CloudScheduler-JobName', 'unknown')
+    schedule_time = request.headers.get('X-CloudScheduler-ScheduleTime', 'unknown')
+    
+    print(f"Scheduler job triggered: {job_name}")
+    print(f"Scheduled time: {schedule_time}")
+    
+    # Get optional payload from scheduler job
+    payload = None
+    try:
+        payload = request.get_json(silent=True)
+        if payload:
+            print(f"Received payload: {payload}")
+    except Exception as e:
+        print(f"No JSON payload or error parsing: {e}")
+    
+    # Your scheduled task logic here
+    # Examples:
+    # - Database cleanup
+    # - Generate reports
+    # - Send scheduled emails
+    # - Backup data
+    # - Aggregate statistics
+    # - Health checks
+    # - Data synchronization
+    
+    try:
+        # Example: Different tasks based on payload
+        if payload and 'task' in payload:
+            task_type = payload['task']
+            
+            if task_type == 'cleanup':
+                print("Running cleanup task...")
+                # Add cleanup logic
+                result = perform_cleanup()
+                
+            elif task_type == 'report':
+                print("Generating report...")
+                # Add report generation logic
+                result = generate_report()
+                
+            elif task_type == 'backup':
+                print("Running backup...")
+                # Add backup logic
+                result = perform_backup()
+                
+            else:
+                print(f"Unknown task type: {task_type}")
+                result = {'status': 'error', 'message': f'Unknown task: {task_type}'}
+        else:
+            # Default scheduled task
+            print("Running default scheduled task...")
+            result = perform_default_task()
+        
+        print(f"Scheduled task completed successfully")
+        
+        # Return success response
+        return {
+            'status': 'success',
+            'job_name': job_name,
+            'schedule_time': schedule_time,
+            'result': result
+        }, 200
+        
+    except Exception as e:
+        print(f"Error executing scheduled task: {e}")
+        # Return error response
+        # Note: Cloud Scheduler will retry failed jobs based on retry configuration
+        return {
+            'status': 'error',
+            'job_name': job_name,
+            'error': str(e)
+        }, 500
+
+
+def perform_cleanup():
+    """Perform cleanup task.
+    
+    Returns:
+        Dict with cleanup results
+    """
+    # Add your cleanup logic here
+    # Example: Delete old records, clear cache, etc.
+    
+    print("Cleanup task executed")
+    return {'cleaned_items': 0, 'message': 'Cleanup completed'}
+
+
+def generate_report():
+    """Generate scheduled report.
+    
+    Returns:
+        Dict with report results
+    """
+    # Add your report generation logic here
+    # Example: Query data, generate PDF, send email, etc.
+    
+    print("Report generated")
+    return {'report_id': 'report-123', 'message': 'Report generated'}
+
+
+def perform_backup():
+    """Perform backup task.
+    
+    Returns:
+        Dict with backup results
+    """
+    # Add your backup logic here
+    # Example: Backup database, export data, etc.
+    
+    print("Backup completed")
+    return {'backup_id': 'backup-123', 'message': 'Backup completed'}
+
+
+def perform_default_task():
+    """Perform default scheduled task.
+    
+    Returns:
+        Dict with task results
+    """
+    # Add your default scheduled task logic here
+    
+    print("Default task executed")
+    return {'message': 'Default task completed'}

@@ -1,0 +1,64 @@
+"""GCP Cloud Function default handler.
+
+This is a basic Cloud Function template that can be customized for your needs.
+"""
+
+import functions_framework
+
+
+@functions_framework.http
+def handler(request):
+    """HTTP Cloud Function entry point.
+    
+    This function is triggered by HTTP requests. It receives a Flask Request
+    object and should return a response that can be converted to a Flask Response.
+    
+    Args:
+        request (flask.Request): The HTTP request object. Contains:
+            - request.args: URL query parameters (dict-like)
+            - request.form: Form data (dict-like)
+            - request.get_json(): Parse JSON body
+            - request.headers: HTTP headers (dict-like)
+            - request.method: HTTP method (GET, POST, etc.)
+            - request.path: Request path
+    
+    Returns:
+        Response data that can be:
+        - A string (returned as text/html)
+        - A dict or list (automatically converted to JSON)
+        - A tuple of (body, status_code, headers)
+        - A Flask Response object
+    
+    Examples:
+        Return a simple string:
+            return 'Hello, World!'
+        
+        Return JSON:
+            return {'status': 'success', 'message': 'Hello, World!'}
+        
+        Return with custom status code:
+            return {'error': 'Not found'}, 404
+        
+        Return with custom headers:
+            return 'Hello', 200, {'Content-Type': 'text/plain'}
+    """
+    # Get request data
+    request_json = request.get_json(silent=True)
+    request_args = request.args
+    
+    # Your handler logic here
+    # Example: Echo back the request data
+    response_data = {
+        'status': 'success',
+        'message': 'Hello from GCP Cloud Function',
+        'method': request.method,
+        'path': request.path,
+    }
+    
+    if request_json:
+        response_data['received_json'] = request_json
+    
+    if request_args:
+        response_data['received_args'] = dict(request_args)
+    
+    return response_data

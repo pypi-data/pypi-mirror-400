@@ -1,0 +1,155 @@
+"""GCP Cloud Function Cloud Storage trigger handler.
+
+This Cloud Function is triggered by Cloud Storage events (file uploads, deletes, etc.).
+"""
+
+import functions_framework
+from cloudevents.http import CloudEvent
+
+
+@functions_framework.cloud_event
+def handler(cloud_event: CloudEvent):
+    """Cloud Storage Cloud Function entry point.
+    
+    This function is triggered by Cloud Storage events such as:
+    - google.cloud.storage.object.v1.finalized (file uploaded/created)
+    - google.cloud.storage.object.v1.deleted (file deleted)
+    - google.cloud.storage.object.v1.archived (file archived)
+    - google.cloud.storage.object.v1.metadataUpdated (metadata changed)
+    
+    Args:
+        cloud_event (CloudEvent): The CloudEvent object containing:
+            - cloud_event.data: Dict with storage event data
+            - cloud_event.data['bucket']: Bucket name
+            - cloud_event.data['name']: Object/file name
+            - cloud_event.data['size']: File size in bytes
+            - cloud_event.data['contentType']: MIME type
+            - cloud_event.data['timeCreated']: Creation timestamp
+            - cloud_event.data['updated']: Last update timestamp
+            - cloud_event.data['generation']: Object generation number
+            - cloud_event['type']: Event type (finalized, deleted, etc.)
+            - cloud_event['source']: Event source (bucket path)
+    
+    Returns:
+        None (Storage functions don't return values)
+    
+    Example Event Data:
+        {
+            "bucket": "my-bucket",
+            "name": "path/to/file.txt",
+            "size": "1024",
+            "contentType": "text/plain",
+            "timeCreated": "2024-01-01T00:00:00.000Z",
+            "updated": "2024-01-01T00:00:00.000Z",
+            "generation": "1234567890"
+        }
+    
+    Triggering Events:
+        # Upload a file to trigger the function
+        gsutil cp local-file.txt gs://BUCKET_NAME/path/to/file.txt
+        
+        # Delete a file to trigger the function
+        gsutil rm gs://BUCKET_NAME/path/to/file.txt
+    """
+    # Get storage event data
+    data = cloud_event.data
+    
+    # Extract event information
+    event_type = cloud_event['type']
+    bucket = data.get('bucket', 'unknown')
+    name = data.get('name', 'unknown')
+    size = data.get('size', 0)
+    content_type = data.get('contentType', 'unknown')
+    time_created = data.get('timeCreated', 'unknown')
+    generation = data.get('generation', 'unknown')
+    
+    print(f"Event type: {event_type}")
+    print(f"Bucket: {bucket}")
+    print(f"File: {name}")
+    print(f"Size: {size} bytes")
+    print(f"Content type: {content_type}")
+    print(f"Created: {time_created}")
+    print(f"Generation: {generation}")
+    
+    # Handle different event types
+    if 'finalized' in event_type:
+        # File was uploaded or created
+        print(f"File uploaded: gs://{bucket}/{name}")
+        
+        # Your file processing logic here
+        # Examples:
+        # - Process the file (resize image, convert format, etc.)
+        # - Extract metadata and store in database
+        # - Trigger downstream processing
+        # - Send notifications
+        
+        try:
+            # Example: Process based on file type
+            if content_type.startswith('image/'):
+                print(f"Processing image file: {name}")
+                # Add image processing logic
+                
+            elif content_type.startswith('text/'):
+                print(f"Processing text file: {name}")
+                # Add text processing logic
+                
+            elif content_type == 'application/json':
+                print(f"Processing JSON file: {name}")
+                # Add JSON processing logic
+                
+            else:
+                print(f"Processing generic file: {name}")
+                # Add generic processing logic
+            
+            print(f"Successfully processed file: {name}")
+            
+        except Exception as e:
+            print(f"Error processing file {name}: {e}")
+            raise
+    
+    elif 'deleted' in event_type:
+        # File was deleted
+        print(f"File deleted: gs://{bucket}/{name}")
+        
+        # Your deletion handling logic here
+        # Examples:
+        # - Clean up related resources
+        # - Update database records
+        # - Send notifications
+        
+        try:
+            # Add your deletion handling logic
+            print(f"Successfully handled deletion of: {name}")
+            
+        except Exception as e:
+            print(f"Error handling deletion of {name}: {e}")
+            raise
+    
+    elif 'metadataUpdated' in event_type:
+        # File metadata was updated
+        print(f"Metadata updated: gs://{bucket}/{name}")
+        
+        # Your metadata update handling logic here
+        try:
+            # Add your metadata handling logic
+            print(f"Successfully handled metadata update for: {name}")
+            
+        except Exception as e:
+            print(f"Error handling metadata update for {name}: {e}")
+            raise
+    
+    elif 'archived' in event_type:
+        # File was archived
+        print(f"File archived: gs://{bucket}/{name}")
+        
+        # Your archival handling logic here
+        try:
+            # Add your archival handling logic
+            print(f"Successfully handled archival of: {name}")
+            
+        except Exception as e:
+            print(f"Error handling archival of {name}: {e}")
+            raise
+    
+    else:
+        print(f"Unhandled event type: {event_type}")
