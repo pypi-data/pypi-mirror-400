@@ -1,0 +1,27 @@
+name: Publish Python 📦 to TestPyPI
+
+on:
+  push:
+    branches: [ development ]
+    
+jobs:
+  test-pypi-publish:
+    name: Build and publish Python 📦 to TestPyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/slackker/
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Install Python 3.13
+        run: uv python install 3.13
+      - name: Build
+        run: uv build
+      - name: Publish
+        run: uv publish --index testpypi
