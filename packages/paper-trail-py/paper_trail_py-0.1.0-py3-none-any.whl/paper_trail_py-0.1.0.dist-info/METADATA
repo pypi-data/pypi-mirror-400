@@ -1,0 +1,550 @@
+Metadata-Version: 2.4
+Name: paper-trail-py
+Version: 0.1.0
+Summary: Modern Python library for tracking changes to SQLAlchemy models
+Project-URL: Homepage, https://github.com/yourusername/paper-trail-py
+Project-URL: Documentation, https://paper-trail-py.readthedocs.io
+Project-URL: Repository, https://github.com/yourusername/paper-trail-py
+Project-URL: Issues, https://github.com/yourusername/paper-trail-py/issues
+Author-email: alshin <alshin@126.com>
+License: MIT
+License-File: LICENSE
+Keywords: audit,history,sqlalchemy,tracking,versioning
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Database
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Requires-Dist: sqlalchemy>=2.0.0
+Provides-Extra: async
+Requires-Dist: sqlalchemy[asyncio]>=2.0.0; extra == 'async'
+Provides-Extra: dev
+Requires-Dist: black>=23.9.0; extra == 'dev'
+Requires-Dist: isort>=5.12.0; extra == 'dev'
+Requires-Dist: mypy>=1.5.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.4.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.1.0; extra == 'dev'
+Requires-Dist: pytest>=7.4.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: mysql
+Requires-Dist: pymysql>=1.1.0; extra == 'mysql'
+Provides-Extra: postgresql
+Requires-Dist: psycopg2-binary>=2.9.0; extra == 'postgresql'
+Description-Content-Type: text/markdown
+
+# 🧾 PaperTrail - Python
+
+[![CI](https://github.com/yunshang/paper-trail-py/actions/workflows/ci.yml/badge.svg)](https://github.com/yunshang/paper-trail-py/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/yunshang/paper-trail-py/branch/main/graph/badge.svg)](https://codecov.io/gh/yunshang/paper-trail-py)
+[![PyPI version](https://badge.fury.io/py/paper-trail-py.svg)](https://badge.fury.io/py/paper-trail-py)
+[![Python Versions](https://img.shields.io/pypi/pyversions/paper-trail-py.svg)](https://pypi.org/project/paper-trail-py/)
+
+**现代化的 SQLAlchemy 模型版本追踪库** - 为你的数据库变更提供完整的审计日志。
+
+受 Ruby [PaperTrail](https://github.com/paper-trail-gem/paper_trail) 启发，使用 **SQLAlchemy 2.0+**、**uv** 和现代 Python 工具链构建。
+
+## ✨ 特性
+
+- 🎯 **简单易用** - 一个装饰器即可启用版本追踪
+- 🔍 **完整历史** - 追踪所有 Create、Update、Delete 操作
+- 👤 **Whodunnit** - 记录谁做了什么改变
+- 🔄 **版本恢复** - 轻松回滚到任意历史版本
+- 🔗 **事务分组** - 关联相关的多个变更
+- ⚡ **高性能** - 支持批量操作和异步查询
+- 🎨 **类型安全** - 完整的类型提示支持
+- 🧪 **全面测试** - 70%+ 测试覆盖率
+- 🗄️ **多数据库支持** - SQLite、PostgreSQL、MySQL
+
+## 📦 安装
+
+```bash
+# 使用 uv（推荐）
+uv pip install paper-trail-py
+
+# 使用 pip
+pip install paper-trail-py
+
+# PostgreSQL 支持（推荐用于生产环境）
+uv pip install "paper-trail-py[postgresql]"
+
+# 异步支持
+uv pip install "paper-trail-py[async]"
+
+# MySQL 支持
+uv pip install "paper-trail-py[mysql]"
+```
+
+## 🚀 快速开始
+
+### 1. 定义模型并启用追踪
+
+```python
+from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import DeclarativeBase
+from paper_trail import track_versions
+
+class Base(DeclarativeBase):
+    pass
+
+@track_versions()
+class Article(Base):
+    __tablename__ = 'articles'
+    
+    id = Column(Integer, primary_key=True)
+    title = Column(String(200))
+    content = Column(String(1000))
+```
+
+### 2. 自动记录变更
+
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from paper_trail import set_whodunnit
+
+# PostgreSQL (推荐用于生产环境)
+engine = create_engine('postgresql://user:pass@localhost/db')
+
+# 或使用 SQLite (开发环境)
+# engine = create_engine('sqlite:///app.db')
+
+session = Session(engine)
+
+# 设置操作者
+set_whodunnit('user@example.com')
+
+# 创建文章
+article = Article(title="Hello World", content="First post")
+session.add(article)
+session.commit()  # ✅ 自动创建版本记录
+
+# 更新文章
+article.title = "Hello Python"
+session.commit()  # ✅ 自动记录变更
+```
+
+### 3. 查询历史版本
+
+```python
+from paper_trail import VersionQuery
+
+# 获取文章的所有版本
+versions = (
+    VersionQuery(session)
+    .for_model(Article, article.id)
+    .order_by_time(ascending=False)
+    .all()
+)
+
+for v in versions:
+    print(f"{v.event} by {v.whodunnit} at {v.created_at}")
+    print(f"Changes: {v.changeset}")
+```
+
+### 4. 恢复历史版本
+
+```python
+from paper_trail import reify_version
+
+# 获取之前的版本
+old_version = versions[1]
+
+# 恢复
+restored_article = reify_version(session, old_version, Article, commit=True)
+print(restored_article.title)  # 恢复到旧标题
+```
+
+### 5. 查看变更详情
+
+```python
+# 使用 changeset 属性获取变更（返回元组）
+for version in versions:
+    if version.event == 'update':
+        for field, (old_val, new_val) in version.changeset.items():
+            print(f"{field}: {old_val} → {new_val}")
+    elif version.event == 'create':
+        for field, new_val in version.changeset.items():
+            print(f"{field}: {new_val}")
+```
+
+## 📚 核心功能详解
+
+### 🎨 版本追踪装饰器
+
+```python
+# 基础用法
+@track_versions()
+class Post(Base):
+    __tablename__ = 'posts'
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+
+# 忽略特定字段
+@track_versions(ignore={'updated_at', 'view_count'})
+class Article(Base):
+    # ...
+
+# 仅追踪特定字段
+@track_versions(only={'title', 'status'})
+class Document(Base):
+    # ...
+
+# 注意：装饰器使用 SQLAlchemy Session 事件系统
+# - before_flush: 捕获变更前的状态
+# - after_flush_postexec: 创建版本记录
+```
+
+### 👤 上下文管理 (Whodunnit)
+
+```python
+from paper_trail import set_whodunnit, whodunnit
+
+# 全局设置
+set_whodunnit('admin@example.com')
+
+# 使用上下文管理器
+with whodunnit('user@example.com'):
+    article.title = "New Title"
+    session.commit()
+```
+
+### 🔗 事务分组
+
+```python
+from paper_trail.context import transaction_group
+
+# 将多个变更关联到一个事务
+with transaction_group() as tx_id:
+    article1.title = "Update 1"
+    article2.title = "Update 2"
+    session.commit()
+    
+    # 所有版本记录会有相同的 transaction_id
+```
+
+### 🔍 强大的查询 API
+
+```python
+from paper_trail import VersionQuery
+from datetime import datetime, timedelta
+
+# 查询特定用户的操作
+user_versions = (
+    VersionQuery(session)
+    .by_user('user@example.com')
+    .after(datetime.now() - timedelta(days=7))
+    .all()
+)
+
+# 查询特定事务的所有变更
+tx_versions = (
+    VersionQuery(session)
+    .by_transaction(tx_id)
+    .all()
+)
+
+# 组合查询
+recent_updates = (
+    VersionQuery(session)
+    .for_model_type(Article)
+    .by_event('update')
+    .between(start_date, end_date)
+    .limit(10)
+    .all()
+)
+```
+
+### ⚡ 性能优化
+
+```python
+from paper_trail.performance import bulk_track_changes, cleanup_old_versions
+
+# 批量追踪变更
+articles = session.query(Article).filter(...).all()
+count = bulk_track_changes(
+    session,
+    articles,
+    Article,
+    event='update',
+    whodunnit='batch@example.com'
+)
+
+# 清理旧版本（保留 30 天）
+deleted = cleanup_old_versions(session, days=30, model_class=Article)
+print(f"Deleted {deleted} old versions")
+```
+
+### 🌊 异步支持
+
+```python
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from paper_trail.async_support import get_versions_async, reify_version_async
+
+engine = create_async_engine('postgresql+asyncpg://...')
+
+async with AsyncSession(engine) as session:
+    # 异步查询版本
+    versions = await get_versions_async(session, Article, article_id)
+    
+    # 异步恢复
+    restored = await reify_version_async(session, versions[0], Article)
+```
+
+## 🗄️ 数据库模式
+
+```sql
+CREATE TABLE versions (
+    id SERIAL PRIMARY KEY,                -- PostgreSQL 使用 SERIAL
+    item_type VARCHAR(255) NOT NULL,      -- 模型表名
+    item_id VARCHAR(255) NOT NULL,        -- 记录 ID
+    event VARCHAR(50) NOT NULL,           -- create/update/destroy
+    whodunnit VARCHAR(255),               -- 操作者
+    transaction_id VARCHAR(255),          -- 事务分组 ID
+    object JSONB,                         -- 完整快照 (PostgreSQL 使用 JSONB)
+    object_changes JSONB,                 -- 变更增量 (PostgreSQL 使用 JSONB)
+    created_at TIMESTAMP NOT NULL,
+    
+    INDEX idx_item_lookup (item_type, item_id),
+    INDEX idx_transaction_lookup (transaction_id, created_at),
+    INDEX idx_whodunnit_lookup (whodunnit, created_at)
+);
+```
+
+**重要提示**：
+- 推荐使用 PostgreSQL 作为生产数据库（支持 JSONB 类型）
+- SQLite 仅适合开发和测试环境
+- `object_changes` 在数据库中存储为 JSON 对象，使用 `version.changeset` 属性获取 Python 元组格式
+
+## 🛠️ 开发指南
+
+### 环境设置
+
+```bash
+# 克隆仓库
+git clone https://github.com/yunshang/paper-trail-py.git
+cd paper-trail-py
+
+# 安装 uv（如果还没安装）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 安装开发依赖
+make dev-install
+
+# 设置 PostgreSQL 测试数据库
+createdb paper_trail_test
+export DATABASE_URL="postgresql://user:password@localhost/paper_trail_test"
+
+# 安装 pre-commit hooks
+pre-commit install
+```
+
+### 运行测试
+
+```bash
+# 运行所有测试
+make test
+
+# 带覆盖率报告
+make test-cov
+
+# 类型检查
+make type-check
+
+# Lint 检查
+make lint
+
+# 格式化代码
+make format
+
+# 注意：测试使用事务隔离和表重建策略确保测试独立性
+```
+
+### 项目结构
+
+```
+paper-trail-py/
+├── src/
+│   └── paper_trail/
+│       ├── __init__.py          # 公共 API
+│       ├── models.py            # Version 数据模型（含 changeset 属性）
+│       ├── decorators.py        # @track_versions（基于 Session 事件）
+│       ├── context.py           # Whodunnit 和事务管理
+│       ├── query.py             # 版本查询 API
+│       ├── reify.py             # 版本恢复功能
+│       ├── serializers.py       # 对象序列化（使用原生 SQL 查询）
+│       ├── config.py            # 全局配置管理
+│       ├── async_support.py     # 异步操作支持
+│       └── performance.py       # 批量操作和性能优化
+├── tests/
+│   ├── conftest.py              # 测试配置（PostgreSQL + 事务隔离）
+│   ├── test_decorators.py       # 装饰器测试
+│   ├── test_query.py            # 查询 API 测试
+│   ├── test_reify.py            # 版本恢复测试
+│   ├── test_context.py          # 上下文管理测试
+│   ├── test_serializers.py      # 序列化测试
+│   └── test_performance.py      # 性能测试
+├── docs/
+│   ├── ARCHITECTURE.md          # 架构设计文档
+│   ├── QUICKSTART.md            # 快速入门指南
+│   ├── API.md                   # API 参考
+│   └── CONTRIBUTING.md          # 贡献指南
+├── pyproject.toml               # uv 项目配置
+├── Makefile                     # 开发命令
+├── .pre-commit-config.yaml      # Pre-commit hooks
+└── README.md
+```
+
+## 🏗️ 技术架构
+
+### Session 事件系统
+
+本库使用 SQLAlchemy 2.0 的 Session 事件而非 Mapper 事件：
+
+```python
+# before_flush - 捕获变更前的状态
+@event.listens_for(Session, 'before_flush')
+def before_flush_handler(session, flush_context, instances):
+    # 使用原生 SQL 查询获取旧值，避免 identity map 问题
+    old_values = session.execute(
+        select(table).where(table.c[pk] == pk_value)
+    ).first()
+
+# after_flush_postexec - 创建版本记录
+@event.listens_for(Session, 'after_flush_postexec')
+def after_flush_handler(session, flush_context):
+    # 批量插入版本记录
+    session.bulk_insert_mappings(Version, pending_versions)
+```
+
+### 变更检测策略
+
+1. **捕获阶段** (`before_flush`): 在 flush 前查询数据库获取旧值
+2. **比较阶段**: 对比新旧值生成 changeset
+3. **存储阶段** (`after_flush_postexec`): 批量创建版本记录
+4. **访问阶段**: 使用 `version.changeset` 将 JSON 数组转换为 Python 元组
+
+## 📊 配置选项
+
+```python
+from paper_trail import configure
+
+configure(
+    enabled=True,                        # 全局开关
+    default_ignore_fields={'updated_at'},  # 默认忽略字段
+    store_object_snapshot=True,          # 存储完整快照
+    store_object_changes=True,           # 存储变更增量
+    batch_insert_threshold=100,          # 批量插入阈值
+)
+```
+
+## 🎯 成功标准
+
+### ✅ 功能完整性
+- [x] 版本追踪装饰器 (基于 Session 事件)
+- [x] Version 数据模型 (含 changeset 属性)
+- [x] 版本查询 API (VersionQuery)
+- [x] 版本恢复 (Reify)
+- [x] 上下文管理 (Whodunnit)
+- [x] 事务分组
+- [x] 自定义序列化 (原生 SQL 查询)
+- [x] 配置管理
+- [x] 异步支持
+- [x] 性能优化 (批量操作)
+
+### ✅ 代码质量
+- [x] 类型提示覆盖 100%
+- [x] 测试覆盖率 70%+ (17 个测试用例)
+- [x] Ruff + Black 格式化
+- [x] MyPy 类型检查通过
+- [x] Pre-commit hooks
+
+### ✅ 文档
+- [x] 完整的 README
+- [x] 架构设计文档 (ARCHITECTURE.md)
+- [x] 快速入门指南 (QUICKSTART.md)
+- [x] API 参考 (API.md)
+- [x] 贡献指南 (CONTRIBUTING.md)
+
+### 🔧 技术栈
+- Python 3.10+ 
+- SQLAlchemy 2.0+ (Session Events API)
+- PostgreSQL (推荐) / SQLite (开发)
+- uv (包管理器)
+- pytest (测试框架)
+- ruff + black (代码格式化)
+- mypy (类型检查)
+
+## 💡 最佳实践
+
+### 1. 使用 changeset 而非 object_changes
+
+```python
+# ✅ 推荐：使用 changeset（返回元组）
+for field, (old, new) in version.changeset.items():
+    print(f"{field}: {old} → {new}")
+
+# ❌ 不推荐：使用 object_changes（返回列表）
+# object_changes 直接来自 JSON 字段，值是列表而非元组
+```
+
+### 2. PostgreSQL 用于生产环境
+
+```python
+# ✅ 生产环境
+engine = create_engine('postgresql://user:pass@localhost/db')
+
+# ❌ 仅开发环境
+# engine = create_engine('sqlite:///app.db')
+```
+
+### 3. 设置适当的忽略字段
+
+```python
+# 忽略自动更新的时间戳字段
+@track_versions(ignore={'updated_at', 'modified_at', 'last_sync'})
+class Model(Base):
+    ...
+```
+
+### 4. 使用事务分组关联变更
+
+```python
+from paper_trail.context import transaction_group
+
+with transaction_group() as tx_id:
+    # 多个相关变更
+    user.email = "new@example.com"
+    user.profile.bio = "Updated bio"
+    session.commit()
+    
+    # 查询这个事务的所有变更
+    versions = VersionQuery(session).by_transaction(tx_id).all()
+```
+
+## 🤝 贡献
+
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
+
+## 📄 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件
+
+## 🙏 致谢
+
+- 灵感来源：[PaperTrail](https://github.com/paper-trail-gem/paper_trail) (Ruby)
+- 使用工具：[SQLAlchemy](https://www.sqlalchemy.org/)、[uv](https://github.com/astral-sh/uv)
+
+## 📮 联系方式
+
+- Issue Tracker: https://github.com/yunshang/paper-trail-py/issues
+- 文档: https://paper-trail-py.readthedocs.io
+
+---
+
+**使用 ❤️ 和 🐍 构建**
