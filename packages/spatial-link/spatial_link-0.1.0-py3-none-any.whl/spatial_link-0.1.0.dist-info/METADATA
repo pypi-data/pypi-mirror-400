@@ -1,0 +1,175 @@
+Metadata-Version: 2.4
+Name: spatial-link
+Version: 0.1.0
+Summary: Spatial-Link: Weekly BFS + Monte Carlo framework for detecting statistically significant directed linkages from spatio-temporal data.
+Author: Maloy Kumar Devnath, Sudip Chakraborty, Vandana P. Janeja
+License: iHARP
+Project-URL: Homepage, https://github.com/bitsbytes-maker/spatial-link
+Project-URL: Repository, https://github.com/bitsbytes-maker/spatial-link
+Project-URL: Issues, https://github.com/bitsbytes-maker/spatial-link/issues
+Keywords: spatial-link,spatiotemporal,graph,BFS,monte-carlo,linkage-detection,directed-graph,velocity-tensor,geospatial
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Topic :: Scientific/Engineering :: Atmospheric Science
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: networkx
+
+# Spatial-Link
+
+**Spatial-Link** is a weekly graph-based framework (BFS → Monte Carlo) for detecting  
+**statistically significant directed linkages** in spatio-temporal data.
+
+Spatial-Link was originally developed to address a core **iHARP** research problem:  
+understanding the interaction between **sea ice retreat** and **ice shelf melting** in the Antarctic.  
+Within this context, the method was designed to capture how **heterogeneous spatio-temporal phenomena**
+interact across space, specifically identifying how changes in one region
+systematically influence other regions over time.
+
+Although motivated by polar climate science, Spatial-Link is a **general and reusable framework**
+for discovering linkages between **heterogeneous spatio-temporal phenomena**.
+Each node represents a spatial region or entity, and a directed linkage indicates that
+one region or node exerts a statistically significant influence on other regions or nodes
+across time. Spatial-Link identifies such influence pathways while filtering out spurious
+connections caused by background variability or noise.
+
+This work is part of the NSF HDR Institute for Harnessing Data and Model Revolution in the Polar Regions (**iHARP**):  
+https://iharp.umbc.edu/
+
+---
+
+## Dataset Used
+
+We validate Spatial-Link using a **single synthetic velocity dataset** that mimics
+realistic wind-driven transport behavior.
+
+- **30 spatial regions (nodes)**
+- **30 days of data**
+- **Daily 30 × 30 velocity matrices**
+- Each entry \( V_{ij} \) represents the velocity-driven influence from region or node *i* to *j*
+- The graph is dense and directed
+- A small number of **persistent strong linkages** are injected across days
+- All other edges represent weaker background transport
+
+If these strong linkages consistently dominate the background velocities,
+Spatial-Link is expected to detect them as statistically significant.
+
+---
+
+## Installation (Development)
+
+```bash
+pip install -e .
+```
+
+## Usage
+
+```python
+import numpy as np
+from spatial_link import weekly_spatial_link
+
+def generate_realistic_velocity(
+    n_days=30,
+    n_regions=30,
+    base_mean=5.0,
+    base_std=1.0,
+    noise_std=0.8,
+    strong_links=10,
+    strong_boost=8.0,
+    seed=0
+):
+    """
+    Generate realistic synthetic velocity data.
+
+    - Dense directed graph
+    - Velocity values roughly in the range 3–17
+    - A small set of persistent strong linkages across all days
+    """
+    rng = np.random.default_rng(seed)
+
+    # Base velocity field (shared across days)
+    base = rng.normal(base_mean, base_std, size=(n_regions, n_regions))
+    base = np.clip(base, 0.5, None)
+    np.fill_diagonal(base, 0)
+
+    # Inject persistent strong linkages
+    strong_edges = set()
+    while len(strong_edges) < strong_links:
+        i, j = rng.integers(0, n_regions, size=2)
+        if i != j:
+            strong_edges.add((i, j))
+
+    for (i, j) in strong_edges:
+        base[i, j] += strong_boost
+
+    # Generate daily velocity matrices
+    vel = np.zeros((n_days, n_regions, n_regions))
+    for d in range(n_days):
+        noise = rng.normal(0, noise_std, size=(n_regions, n_regions))
+        day_mat = base + noise
+        day_mat = np.clip(day_mat, 0, None)
+        np.fill_diagonal(day_mat, 0)
+        vel[d] = day_mat
+
+    return vel, strong_edges
+
+
+# Generate synthetic velocity data
+vel, planted_edges = generate_realistic_velocity(
+    n_days=30,
+    n_regions=30,
+    strong_links=12,
+    strong_boost=10.0,
+    seed=42
+)
+
+# Inspect daily velocity ranges
+for d in range(vel.shape[0]):
+    pos = vel[d][vel[d] > 0]
+    print(f"Day {d:02d}: min={pos.min():.2f}, max={pos.max():.2f}")
+
+# Run weekly Spatial-Link
+adj, windows = weekly_spatial_link(
+    vel,
+    days_per_week=7,
+    min_days=7,
+    drop_last_incomplete=True,
+    n_mc=200,
+    alpha=0.05,
+    max_depth=4,
+)
+
+print("Adjacency shape:", adj.shape)
+print("Weekly windows:", windows)
+ 
+```
+
+## Interpretation
+
+- Spatial-Link first aggregates daily velocities into weekly mean graphs
+- BFS identifies reachable candidate pathways
+- Monte Carlo testing filters out edges that are not consistently stronger than random velocity fluctuations
+- If true velocity-driven linkages exist, they emerge as significant directed edges in the weekly adjacency matrices
+
+
+## Citation If you use spatial-link in your research, please cite the following paper:
+```bibtex
+@inproceedings{devnath2025spatiallink,
+  author    = {Maloy Kumar Devnath and Sudip Chakraborty and Vandana P. Janeja},
+  title     = {Modeling Heterogeneity across Varying Spatial Extents: Discovering Linkages between Sea Ice Retreat and Ice Shelf Melt in the Antarctic},
+  booktitle = {Proceedings of the 33rd ACM International Conference on Advances in Geographic Information Systems},
+  year      = {2025},
+  publisher = {ACM},
+  pages     = {261--264}
+}
+
+```
+**Full Reference** 
+
+Maloy Kumar Devnath, Sudip Chakraborty, and Vandana P. Janeja. 2025.
+*Modeling Heterogeneity across Varying Spatial Extents: Discovering Linkages between Sea Ice Retreat and Ice Shelf Melt in the Antarctic.*
+Proceedings of the 33rd ACM International Conference on Advances in Geographic Information Systems, pp. 261–264.
