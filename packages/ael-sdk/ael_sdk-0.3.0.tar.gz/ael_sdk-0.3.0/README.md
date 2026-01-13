@@ -1,0 +1,314 @@
+# AEL SDK
+
+**Git for AI Agent Decisions** - Complete audit trail, replay, and divergence detection for enterprise AI agents.
+
+[![PyPI version](https://badge.fury.io/py/ael-sdk.svg)](https://pypi.org/project/ael-sdk/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Why AEL?
+
+When your AI agent approves a $10,000 refund or denies a loan application, can you answer:
+
+- **Why** did the agent make that decision?
+- **What context** did it have at the time?
+- **Would it decide the same way** if we ran it again?
+- **Who overrode** the agent's recommendation?
+
+AEL captures every decision your agent makes with full context, enabling **audit trails**, **replay verification**, and **divergence detection**.
+
+---
+
+## Installation
+
+```bash
+pip install ael-sdk
+```
+
+With framework integrations:
+```bash
+pip install ael-sdk[langchain]     # LangChain
+pip install ael-sdk[google-adk]    # Google ADK
+pip install ael-sdk[crewai]        # CrewAI
+pip install ael-sdk[openai]        # OpenAI Assistants
+pip install ael-sdk[all]           # All integrations
+```
+
+---
+
+## 30-Second Quickstart
+
+```python
+from ael import AELClient, ActionOption, ResultType
+
+ael = AELClient(api_key="ael_your_key")
+
+with ael.intent("Process refund request", agent_id="support-agent") as intent:
+    # 1. Capture what the agent saw
+    intent.snapshot_context({
+        "customer_tier": "gold",
+        "order_amount": 149.99,
+        "days_since_delivery": 5,
+    })
+
+    # 2. Record the decision with options considered
+    intent.decide(
+        options=[
+            ActionOption(action="approve_refund", score=0.95, reason="Gold customer, within policy"),
+            ActionOption(action="deny_refund", score=0.05, reason="N/A"),
+        ],
+        chosen_action="approve_refund",
+        confidence=0.95,
+        reasoning="Customer eligible per 30-day return policy"
+    )
+
+    # 3. Record execution
+    intent.execute(action="approve_refund", target={"order_id": "ORD-123"}, result=ResultType.SUCCESS)
+```
+
+Now query any decision: **"Why did we approve this refund?"** - Full context, reasoning, and alternatives considered.
+
+---
+
+## Key Features
+
+### 1. Decision Replay with Divergence Detection
+
+Store the prompt and re-run decisions to verify consistency:
+
+```python
+from ael import AELClient, ActionOption, ReplayConfig
+
+ael = AELClient(api_key="ael_your_key")
+
+# Record decision WITH replay data
+with ael.intent("Handle support ticket") as intent:
+    intent.snapshot_context({"ticket_id": "T-123", "priority": "high"})
+
+    intent.decide(
+        options=[ActionOption(action="escalate", score=0.9)],
+        chosen_action="escalate",
+        confidence=0.9,
+        reasoning="High priority ticket requires escalation",
+        # Enable replay
+        replay_prompt="You are a support agent. Ticket: high priority. Action?",
+        replay_config=ReplayConfig(model="gpt-4o-mini", temperature=0.0),
+    )
+
+    exec_id = intent.execute(action="escalate", target={"ticket_id": "T-123"}, result=ResultType.SUCCESS)
+
+# Later: Verify the decision is still consistent
+replay_result = ael.replay(exec_id, force_llm_call=True)
+
+if replay_result["diverged"]:
+    print(f"WARNING: Model behavior changed!")
+    print(f"Original: {replay_result['original_decision']['chosen_action']}")
+    print(f"Replayed: {replay_result['replayed_decision']['chosen_action']}")
+    print(f"Reason: {replay_result['divergence_reason']}")
+else:
+    print("Decision verified - model behavior consistent")
+```
+
+### 2. Multi-Agent Tracking (Parent-Child Intents)
+
+Track complex workflows with multiple agents or MCP tool calls:
+
+```python
+with ael.intent("Process customer request", agent_id="orchestrator") as parent:
+    parent.snapshot_context({"request": "refund for order 123"})
+
+    # Spawn child intent for sub-agent
+    with parent.child_intent("Search order history", mcp_server="database") as child:
+        child.snapshot_context({"query": "order 123"})
+        child.decide(
+            options=[ActionOption(action="query_db", score=1.0)],
+            chosen_action="query_db",
+            confidence=1.0
+        )
+        child.execute(action="query_db", target={"order_id": "123"}, result=ResultType.SUCCESS)
+
+    # Parent continues with child's result
+    parent.decide(...)
+    parent.execute(...)
+```
+
+### 3. Human Override Tracking
+
+When humans override agent decisions:
+
+```python
+intent.execute(
+    action="deny_refund",  # Human chose differently
+    target={"order_id": "123"},
+    result=ResultType.SUCCESS,
+    actor=ActorType.HUMAN,
+    override_reason="Customer has history of fraud"
+)
+```
+
+---
+
+## Getting Started
+
+### 1. Create an Account
+
+Go to [agent-execution-ledger.vercel.app](https://agent-execution-ledger.vercel.app) and sign in with Google.
+
+### 2. Create a Workspace
+
+After signing in, create a workspace (e.g., "Production Agents").
+
+### 3. Generate an API Key
+
+Navigate to **API Keys** > **Create API Key** > Copy your key (`ael_xxxx...`).
+
+### 4. Use the SDK
+
+```python
+from ael import AELClient
+
+ael = AELClient(api_key="ael_your_key")
+```
+
+---
+
+## Framework Integrations
+
+### LangChain
+
+```python
+from langchain_openai import ChatOpenAI
+from ael import AELClient, ActionOption, ResultType
+
+ael = AELClient(api_key="ael_xxx")
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+def run_agent(query: str):
+    with ael.intent(query, agent_id="langchain-agent") as intent:
+        intent.snapshot_context({"query": query})
+
+        response = llm.invoke(query)
+
+        intent.decide(
+            options=[ActionOption(action="respond", score=0.9)],
+            chosen_action="respond",
+            confidence=0.9,
+            reasoning=response.content[:100]
+        )
+        intent.execute(action="respond", result=ResultType.SUCCESS)
+        return response.content
+```
+
+### Google ADK
+
+```python
+from google.adk.agents import Agent
+from ael import AELClient
+from ael.integrations.google_adk import AELTracker
+
+ael = AELClient(api_key="ael_xxx")
+tracker = AELTracker(ael, agent_id="support-agent")
+
+agent = Agent(name="support", model="gemini-2.0-flash")
+
+with tracker.track("Handle customer request") as t:
+    t.context({"customer_id": "123"})
+    # ... run agent ...
+    t.decision(chosen="resolve", confidence=0.92, options=[...])
+    t.execute(action="resolve", result="success")
+```
+
+### CrewAI
+
+```python
+from crewai import Agent, Task, Crew
+from ael import AELClient
+from ael.integrations.crewai import AELCrewTracker
+
+ael = AELClient(api_key="ael_xxx")
+tracker = AELCrewTracker(ael)
+
+crew = Crew(agents=[...], tasks=[...])
+
+with tracker.track_crew("Content pipeline") as t:
+    result = crew.kickoff()
+    t.record_result(result, agents=[...], tasks=[...])
+```
+
+---
+
+## API Reference
+
+### AELClient
+
+```python
+ael = AELClient(
+    api_key="ael_xxx",                              # Required
+    endpoint="https://ael-backend.onrender.com",   # Optional (default: production)
+    timeout=30.0                                    # Optional
+)
+```
+
+### Core Methods
+
+| Method | Description |
+|--------|-------------|
+| `ael.intent(goal, agent_id)` | Context manager for tracking an intent |
+| `intent.snapshot_context(inputs)` | Capture what the agent sees |
+| `intent.decide(options, chosen_action, confidence)` | Record a decision |
+| `intent.execute(action, target, result)` | Record execution |
+| `ael.replay(execution_id, force_llm_call)` | Replay and verify a decision |
+| `ael.get_execution(id)` | Get execution details |
+| `ael.get_session_timeline(session_id)` | Get full session timeline |
+
+### Replay Methods
+
+| Method | Description |
+|--------|-------------|
+| `ael.replay(exec_id)` | Compare against original (no LLM call) |
+| `ael.replay(exec_id, force_llm_call=True)` | Re-run LLM and check for divergence |
+
+### Multi-Agent Methods
+
+| Method | Description |
+|--------|-------------|
+| `intent.child_intent(goal, mcp_server)` | Create child intent |
+| `ael.get_intent_hierarchy(id)` | Get parent chain (breadcrumbs) |
+| `ael.get_intent_tree(id)` | Get full descendant tree |
+
+---
+
+## Dashboard
+
+View your agent's decisions at [agent-execution-ledger.vercel.app](https://agent-execution-ledger.vercel.app):
+
+- **Execution Timeline**: See all decisions chronologically
+- **Session View**: Group related decisions by session
+- **Decision Details**: Full context, options considered, and reasoning
+- **Hierarchy View**: Navigate parent-child intent relationships
+
+---
+
+## Use Cases
+
+| Industry | Use Case |
+|----------|----------|
+| **FinTech** | Audit loan decisions, fraud detection reasoning |
+| **Healthcare** | Track triage recommendations, document clinical AI decisions |
+| **E-commerce** | Refund approvals, pricing decisions, inventory management |
+| **Legal** | Contract analysis decisions, compliance checking |
+| **HR** | Resume screening, candidate ranking explanations |
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Links
+
+- **Dashboard**: [agent-execution-ledger.vercel.app](https://agent-execution-ledger.vercel.app)
+- **GitHub**: [github.com/vinayb21/ael](https://github.com/vinayb21/ael)
+- **PyPI**: [pypi.org/project/ael-sdk](https://pypi.org/project/ael-sdk/)
