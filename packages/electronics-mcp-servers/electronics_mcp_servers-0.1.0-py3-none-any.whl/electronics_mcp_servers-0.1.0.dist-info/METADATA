@@ -1,0 +1,1055 @@
+Metadata-Version: 2.4
+Name: electronics-mcp-servers
+Version: 0.1.0
+Summary: MCP servers for electronics and embedded development: GPIO pin reference, capacitor calculator, and resistor color code decoder
+Author: Samuel F.
+License: MIT
+Keywords: capacitor,electronics,embedded,fastmcp,gpio,mcp,resistor
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)
+Requires-Python: >=3.10
+Requires-Dist: mcp[cli]>=1.1.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.4.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Electronics MCP Servers 🔧⚡📌
+
+<!-- MCP Registry Ownership Proof -->
+mcp-name: io.github.wedsamuel1230/electronic-mcp-server
+<!-- End MCP Registry Ownership Proof -->
+
+Three production-ready MCP (Model Context Protocol) servers for electronics and embedded development, built with FastMCP and Python 3.11+.
+
+[![Tests](https://img.shields.io/badge/tests-103%20passed-brightgreen)](tests/)
+[![Python](https://img.shields.io/badge/python-3.11+-blue)](https://www.python.org/)
+[![FastMCP](https://img.shields.io/badge/FastMCP-1.1.0+-purple)](https://github.com/modelcontextprotocol/python-sdk)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![MCP Registry](https://img.shields.io/badge/MCP-Registry-blue)](https://github.com/modelcontextprotocol/servers)
+
+---
+
+## 📋 Table of Contents
+- [Overview](#overview)
+- [Servers](#servers)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Detailed Usage](#detailed-usage)
+- [Example Conversations](#example-conversations)
+- [Deployment](#deployment)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+
+---
+
+## 🎯 Overview
+
+This project provides three specialized MCP servers for electronics engineering tasks:
+- **103 comprehensive tests** - All passing ✅
+- **14 tools total** - Covering resistors, capacitors, and GPIO pins
+- **3 board databases** - ESP32, Arduino UNO, STM32 Blue Pill
+- **Rich formatted output** - With emojis, formulas, and ASCII diagrams
+
+Perfect for hardware engineers, embedded developers, and electronics hobbyists working with Claude Desktop or other MCP-compatible AI assistants.
+
+---
+
+## 🛠️ Servers
+
+### 1. 🎨 Resistor Color Code Decoder
+Decode and encode resistor color bands, find standard E-series values.
+
+**Tools (3):**
+- `decode_resistor_color_bands` - Decode 4-band or 5-band resistor colors to resistance value
+- `encode_resistor_value` - Convert resistance value to color band sequence
+- `find_standard_resistor` - Find nearest standard value (E12/E24/E96 series)
+
+**Test Coverage:** 26 tests ✅
+
+### 2. ⚡ Capacitor Calculator
+Calculate electrical properties for capacitor circuits with detailed formulas.
+
+**Tools (4):**
+- `calculate_capacitive_reactance` - Calculate Xc = 1/(2πfC) with current
+- `calculate_rc_time_constant` - Calculate τ = RC with charging timeline
+- `calculate_resonant_frequency` - Calculate f₀ = 1/(2π√LC) with resonance check
+- `suggest_capacitor_for_filter` - Recommend E12 capacitor values with ASCII circuit diagrams
+
+**Test Coverage:** 33 tests ✅
+
+### 3. 📌 GPIO Pin Reference
+Query GPIO pin information for ESP32, Arduino UNO, and STM32 boards.
+
+**Tools (7):**
+- `get_pin_info` - Detailed pin capabilities, functions, and usage warnings
+- `find_pwm_pins` - List all PWM-capable pins with timer information
+- `find_adc_pins` - List ADC pins with channel info and WiFi compatibility (ESP32)
+- `find_i2c_pins` - List I2C SDA/SCL pins with default configurations
+- `find_spi_pins` - List SPI pins (MOSI, MISO, SCK, SS/NSS)
+- `check_pin_conflict` - Detect conflicts (strapping, ADC2+WiFi, UART, SWD)
+- `generate_pin_diagram_ascii` - ASCII art pinout diagrams with warnings
+
+**Pin Databases:**
+- **ESP32** (23 pins) - Based on ESP32 Technical Reference Manual v4.8
+- **Arduino UNO** (20 pins) - Based on ATmega328P datasheet
+- **STM32 Blue Pill** (35 pins) - Based on STM32F103C8T6 reference manual
+
+**Test Coverage:** 44 tests ✅
+
+### 4. 🔗 Combined Server (Recommended for VS Code)
+A unified server that combines all 14 tools from the three servers above into a single MCP endpoint.
+
+**Why use the combined server?**
+- Single configuration entry instead of three
+- All tools available in one session
+- Simpler setup for VS Code Copilot integration
+- Lower resource overhead (one Python process)
+
+**File:** `servers/combined_server.py`
+
+---
+
+## 💻 Installation
+
+### Prerequisites
+- **Python 3.11+**
+- **uv package manager** (recommended) or pip
+- **Claude Desktop** (for AI integration) or VS Code with MCP support
+
+### Method 1: Using uv (Recommended)
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/electronics-mcp-servers.git
+cd electronics-mcp-servers
+
+# Install dependencies with uv
+uv sync
+
+# Verify installation
+uv run pytest tests/ -v
+```
+
+### Method 2: Using pip
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/electronics-mcp-servers.git
+cd electronics-mcp-servers
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install package
+pip install -e .
+
+# Verify installation
+pytest tests/ -v
+```
+
+### Method 3: Direct Installation via MCP CLI
+```bash
+# Install via Claude Desktop (auto-configuration)
+uv run mcp install servers/resistor_decoder.py --name resistor-decoder
+uv run mcp install servers/capacitor_calculator.py --name capacitor-calc
+uv run mcp install servers/gpio_reference.py --name gpio-reference
+```
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: Claude Desktop (Recommended)
+
+**Step 1: Locate Configuration File**
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
+
+**Step 2: Add Server Configuration**
+```json
+{
+  "mcpServers": {
+    "resistor-decoder": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/electronics-mcp-servers",
+        "run",
+        "servers/resistor_decoder.py"
+      ]
+    },
+    "capacitor-calc": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/electronics-mcp-servers",
+        "run",
+        "servers/capacitor_calculator.py"
+      ]
+    },
+    "gpio-reference": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/electronics-mcp-servers",
+        "run",
+        "servers/gpio_reference.py"
+      ]
+    }
+  }
+}
+```
+
+> 💡 **Path examples:**
+> - **Windows:** `"C:\\Users\\yourname\\electronics-mcp-servers"`
+> - **macOS/Linux:** `"/home/yourname/electronics-mcp-servers"`
+
+**Step 3: Restart Claude Desktop**
+- Quit Claude Desktop completely
+- Relaunch the application
+- Look for MCP tool indicators (hammer icon 🔨)
+
+**Step 4: Test Connection**
+In Claude Desktop, ask:
+> "What's the color code for a 10kΩ resistor?"
+
+Claude should use the `encode_resistor_value` tool to respond.
+
+### Option 2: VS Code with Copilot (Recommended)
+
+VS Code uses a **global MCP configuration** file. The combined server provides all 14 tools in a single endpoint.
+
+**Step 1: Locate your VS Code MCP config file**
+- **Windows:** `%APPDATA%\Code\User\mcp.json`
+- **macOS:** `~/Library/Application Support/Code/User/mcp.json`
+- **Linux:** `~/.config/Code/User/mcp.json`
+
+**Step 2: Add the electronics server configuration**
+
+Add this to the `servers` object in your `mcp.json`:
+```json
+{
+  "servers": {
+    "electronics": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/electronics-mcp-servers",
+        "run",
+        "python",
+        "servers/combined_server.py"
+      ],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+> 💡 **Path examples:**
+> - **Windows:** `"C:\\Users\\yourname\\electronics-mcp-servers"` (use `\\` for backslashes)
+> - **macOS:** `"/Users/yourname/electronics-mcp-servers"`
+> - **Linux:** `"/home/yourname/electronics-mcp-servers"`
+
+**Step 3: Reload VS Code**
+- Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
+- Type "Developer: Reload Window" and select it
+
+**Step 4: Test the tools**
+
+In VS Code Copilot chat, try:
+- "What's the color code for a 4.7kΩ resistor?"
+- "Which ESP32 pins can I use with WiFi for analog input?"
+- "Design a 1kHz low-pass filter with 10kΩ resistor"
+
+**Alternative: Workspace-level config (`.vscode/mcp.json`)**
+```json
+{
+  "servers": {
+    "electronics": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "${workspaceFolder}",
+        "run",
+        "python",
+        "servers/combined_server.py"
+      ],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+### Option 3: Direct Testing (Development)
+```bash
+# Test individual server in development mode
+uv run fastmcp dev servers/resistor_decoder.py
+
+# Or run directly
+uv run python servers/gpio_reference.py
+```
+
+---
+
+## 📚 Detailed Usage
+
+### 🎨 Resistor Decoder Tools
+
+#### Tool 1: `decode_resistor_color_bands`
+Decode 4-band or 5-band resistor color codes to resistance value.
+
+**Parameters:**
+- `bands` (List[str]): Color names (e.g., ["Brown", "Black", "Red", "Gold"])
+- Supports 4-band and 5-band resistors
+
+**Example Queries:**
+```
+"What's a Brown-Black-Red-Gold resistor?"
+"Decode resistor colors: Yellow, Violet, Orange, Gold"
+"What value is red-red-brown-gold?"
+```
+
+**Sample Output:**
+```
+🎨 Resistor Color Code: Brown-Black-Red-Gold
+
+💡 Resistance: 1000Ω (1.00kΩ)
+📊 Tolerance: ±5%
+🔢 Formula: (1 × 10 + 0) × 10² = 1000Ω
+```
+
+#### Tool 2: `encode_resistor_value`
+Convert resistance value to color band sequence.
+
+**Parameters:**
+- `resistance` (float): Resistance in ohms (e.g., 4700)
+- `tolerance` (float): Tolerance percentage (default: 5)
+
+**Example Queries:**
+```
+"What colors for 4.7kΩ resistor?"
+"Color code for 100Ω?"
+"Give me the bands for 2.2MΩ 1% tolerance"
+```
+
+**Sample Output:**
+```
+🎨 Resistor Encoding: 4700Ω (4.70kΩ)
+
+🌈 4-Band Code: Yellow-Violet-Red-Gold
+📊 Tolerance: ±5%
+🔢 Decoded: (4 × 10 + 7) × 10² = 4700Ω
+```
+
+#### Tool 3: `find_standard_resistor`
+Find nearest standard E12/E24/E96 resistor value.
+
+**Parameters:**
+- `target_value` (float): Desired resistance in ohms
+- `series` (str): "E12", "E24", or "E96" (default: "E12")
+
+**Example Queries:**
+```
+"Nearest standard resistor to 3300Ω?"
+"E24 value closest to 15kΩ?"
+"What E96 resistor is near 4.7kΩ?"
+```
+
+**Sample Output:**
+```
+📏 Standard Resistor Finder
+
+🎯 Target: 3300Ω
+📦 Series: E12 (10% tolerance, 12 values per decade)
+✅ Nearest Standard: 3300Ω (exact match!)
+📊 Error: 0.00%
+🌈 Color Code: Orange-Orange-Red-Silver
+```
+
+---
+
+### ⚡ Capacitor Calculator Tools
+
+#### Tool 1: `calculate_capacitive_reactance`
+Calculate capacitive reactance Xc = 1/(2πfC) with current calculation.
+
+**Parameters:**
+- `capacitance` (float): Capacitance in Farads
+- `frequency` (float): Frequency in Hz
+- `voltage` (float, optional): Voltage for current calculation
+
+**Example Queries:**
+```
+"Reactance of 100nF at 1kHz?"
+"What's Xc for 10µF capacitor at 60Hz?"
+"Calculate impedance: 470µF at 50Hz with 12V"
+```
+
+**Sample Output:**
+```
+⚡ Capacitive Reactance
+
+📊 Capacitance: 100nF (1.00 × 10⁻⁷ F)
+🔊 Frequency: 1000Hz
+⚡ Reactance (Xc): 1591.55Ω
+🔢 Formula: Xc = 1 / (2π × f × C) = 1/(2π × 1000 × 1.00×10⁻⁷)
+
+💡 Current: 7.54mA (at 12V)
+📐 Formula: I = V / Xc = 12 / 1591.55
+```
+
+#### Tool 2: `calculate_rc_time_constant`
+Calculate RC time constant τ = RC with charging curve timeline.
+
+**Parameters:**
+- `resistance` (float): Resistance in Ohms
+- `capacitance` (float): Capacitance in Farads
+
+**Example Queries:**
+```
+"RC time constant for 10kΩ and 100µF?"
+"How long to charge 470µF with 1kΩ?"
+"Time constant: 4.7kΩ, 22µF"
+```
+
+**Sample Output:**
+```
+⚡ RC Time Constant
+
+🔌 Resistance: 10kΩ (1.00 × 10⁴ Ω)
+🔋 Capacitance: 100µF (1.00 × 10⁻⁴ F)
+⏱️  Time Constant (τ): 1.00s
+🔢 Formula: τ = R × C = 1.00×10⁴ × 1.00×10⁻⁴
+
+📈 Charging Timeline:
+  • 1τ (1.00s): 63.2% charged
+  • 2τ (2.00s): 86.5% charged
+  • 3τ (3.00s): 95.0% charged
+  • 4τ (4.00s): 98.2% charged
+  • 5τ (5.00s): 99.3% charged (≈ fully charged)
+```
+
+#### Tool 3: `calculate_resonant_frequency`
+Calculate LC resonant frequency f₀ = 1/(2π√LC) with resonance check.
+
+**Parameters:**
+- `inductance` (float): Inductance in Henries
+- `capacitance` (float): Capacitance in Farads
+
+**Example Queries:**
+```
+"Resonant frequency for 10mH and 100nF?"
+"LC tank circuit: 1µH, 10pF"
+"What frequency resonates with 470µH and 47nF?"
+```
+
+**Sample Output:**
+```
+⚡ LC Resonant Frequency
+
+🔗 Inductance: 10mH (1.00 × 10⁻² H)
+🔋 Capacitance: 100nF (1.00 × 10⁻⁷ F)
+📻 Resonant Frequency (f₀): 5.03kHz
+🔢 Formula: f₀ = 1 / (2π√LC) = 1/(2π√(1.00×10⁻² × 1.00×10⁻⁷))
+
+✅ This is within the audio frequency range (20Hz - 20kHz)
+```
+
+#### Tool 4: `suggest_capacitor_for_filter`
+Recommend E12 capacitor value for RC low-pass filter with ASCII circuit diagram.
+
+**Parameters:**
+- `resistance` (float): Resistance in Ohms
+- `cutoff_frequency` (float): Desired cutoff frequency in Hz
+
+**Example Queries:**
+```
+"Capacitor for 1kHz low-pass filter with 10kΩ?"
+"RC filter: 4.7kΩ resistor, 5kHz cutoff"
+"Suggest cap for audio filter at 3.4kHz with 2.2kΩ"
+```
+
+**Sample Output:**
+```
+⚡ RC Low-Pass Filter Design
+
+📊 Given:
+  • Resistance: 10kΩ (1.00 × 10⁴ Ω)
+  • Target Cutoff: 1000Hz
+
+🔢 Calculated Capacitance: 15.92nF
+🔧 Recommended E12 Value: 15nF
+✅ Actual Cutoff: 1061Hz (6.1% error)
+
+📐 ASCII Circuit Diagram:
+  Input ──[ 10kΩ ]──┬── Output
+                    │
+                  [15nF]
+                    │
+                   GND
+
+🔢 Formula: C = 1 / (2π × R × fc) = 1/(2π × 1.00×10⁴ × 1000)
+```
+
+---
+
+### 📌 GPIO Pin Reference Tools
+
+#### Tool 1: `get_pin_info`
+Get comprehensive information about a specific GPIO pin.
+
+**Parameters:**
+- `board` (str): "ESP32", "Arduino UNO", or "STM32"
+- `pin_number` (int): Physical pin number or GPIO number
+
+**Example Queries:**
+```
+"What can GPIO0 do on ESP32?"
+"Tell me about pin D13 on Arduino UNO"
+"STM32 pin PA13 capabilities?"
+```
+
+**Sample Output:**
+```
+📌 ESP32 Pin 0
+
+**Name:** GPIO0
+**Capabilities:** Input, Output, PWM, ADC
+**Alternative Functions:**
+  • ADC2_CH1 - ADC channel 1
+  • TOUCH1 - Touch sensor
+  • RTC_GPIO11 - RTC GPIO
+  • CLK_OUT1 - Clock output
+  • EMAC_TX_CLK - Ethernet clock
+
+⚠️ **Important Notes:**
+  • Bootstrap pin - must be HIGH during boot for normal mode
+  • Pull LOW during boot to enter UART download mode
+  • ADC2 channels cannot be used when WiFi is active
+  • Avoid using for regular I/O if WiFi is needed
+
+💡 **Common Uses:** General I/O, ADC input (no WiFi), capacitive touch sensor
+```
+
+#### Tool 2: `find_pwm_pins`
+List all PWM-capable pins with timer information.
+
+**Parameters:**
+- `board` (str): "ESP32", "Arduino UNO", or "STM32"
+
+**Example Queries:**
+```
+"Which ESP32 pins support PWM?"
+"List PWM pins on Arduino UNO"
+"STM32 Blue Pill PWM capabilities?"
+```
+
+**Sample Output:**
+```
+📌 ESP32 PWM Pins
+
+Found 23 PWM-capable pins:
+
+1. **GPIO0** - PWM capable (Bootstrap pin - use with caution)
+2. **GPIO2** - PWM capable (Bootstrap pin - use with caution)
+3. **GPIO4** - PWM capable
+4. **GPIO5** - PWM capable
+...
+
+💡 **Notes:**
+  • ESP32 supports up to 16 PWM channels
+  • All GPIO pins can be configured for PWM using LEDC
+  • PWM frequency range: 1 Hz to 40 MHz
+  • Avoid GPIO6-11 (connected to SPI flash)
+```
+
+#### Tool 3: `find_adc_pins`
+List ADC-capable pins with channel info and WiFi compatibility warnings.
+
+**Parameters:**
+- `board` (str): "ESP32", "Arduino UNO", or "STM32"
+
+**Example Queries:**
+```
+"Show me ADC pins on ESP32"
+"Which Arduino pins can read analog?"
+"STM32 analog input pins?"
+```
+
+**Sample Output:**
+```
+📌 ESP32 ADC Pins
+
+**ADC1 Channels (WiFi-safe):**
+1. **GPIO32** - ADC1_CH4 (12-bit, 0-3.3V)
+2. **GPIO33** - ADC1_CH5 (12-bit, 0-3.3V)
+3. **GPIO34** - ADC1_CH6 (12-bit, input only)
+4. **GPIO35** - ADC1_CH7 (12-bit, input only)
+5. **GPIO36 (VP)** - ADC1_CH0 (12-bit, input only)
+6. **GPIO39 (VN)** - ADC1_CH3 (12-bit, input only)
+
+**ADC2 Channels (⚠️ Cannot be used with WiFi):**
+7. **GPIO0** - ADC2_CH1
+8. **GPIO2** - ADC2_CH2
+9. **GPIO4** - ADC2_CH0
+10. **GPIO12** - ADC2_CH5 (Bootstrap pin)
+11. **GPIO13** - ADC2_CH4
+12. **GPIO14** - ADC2_CH6
+13. **GPIO15** - ADC2_CH3 (Bootstrap pin)
+14. **GPIO25** - ADC2_CH8 (DAC1)
+15. **GPIO26** - ADC2_CH9 (DAC2)
+16. **GPIO27** - ADC2_CH7
+
+⚠️ **Important:** ADC2 is used by WiFi driver. When WiFi is active, ADC2 readings will fail. Use ADC1 channels (GPIO32-39) for WiFi-compatible projects.
+```
+
+#### Tool 4: `find_i2c_pins`
+List I2C SDA/SCL pins with default configurations.
+
+**Parameters:**
+- `board` (str): "ESP32", "Arduino UNO", or "STM32"
+
+**Example Queries:**
+```
+"Which pins for I2C on ESP32?"
+"Arduino UNO I2C pins?"
+"STM32 I2C configuration?"
+```
+
+**Sample Output:**
+```
+📌 ESP32 I2C Pins
+
+**Default I2C Configuration:**
+  • **SDA:** GPIO21
+  • **SCL:** GPIO22
+
+💡 **Notes:**
+  • ESP32 supports hardware I2C on any GPIO pin (software remapping)
+  • Default pins shown above (Wire.begin() with no arguments)
+  • To use different pins: Wire.begin(SDA_PIN, SCL_PIN);
+  • Supports multiple I2C buses: Wire, Wire1
+  • Pull-up resistors required (typically 4.7kΩ for 100kHz, 2.2kΩ for 400kHz)
+```
+
+#### Tool 5: `find_spi_pins`
+List SPI pins (MOSI, MISO, SCK, SS/NSS) with multiple bus support.
+
+**Parameters:**
+- `board` (str): "ESP32", "Arduino UNO", or "STM32"
+
+**Example Queries:**
+```
+"ESP32 SPI pin configuration?"
+"Arduino SPI pins?"
+"STM32 Blue Pill SPI buses?"
+```
+
+**Sample Output:**
+```
+📌 ESP32 SPI Pins
+
+**VSPI (Default SPI Bus):**
+  • **MOSI:** GPIO23
+  • **MISO:** GPIO19
+  • **SCK:** GPIO18
+  • **SS:** GPIO5
+
+**HSPI (Secondary SPI Bus):**
+  • **MOSI:** GPIO13
+  • **MISO:** GPIO12
+  • **SCK:** GPIO14
+  • **SS:** GPIO15 (Bootstrap pin - use with caution)
+
+💡 **Notes:**
+  • ESP32 has 2 usable SPI buses: VSPI and HSPI
+  • SPI0 and SPI1 are used internally for flash memory
+  • Any GPIO can be remapped for SPI (software configuration)
+  • CS/SS pins can be any available GPIO
+```
+
+#### Tool 6: `check_pin_conflict`
+Detect potential conflicts for a set of pins (strapping, ADC2+WiFi, UART, SWD).
+
+**Parameters:**
+- `board` (str): "ESP32", "Arduino UNO", or "STM32"
+- `pin_numbers` (List[int]): List of pins to check
+
+**Example Queries:**
+```
+"Check if ESP32 pins 0, 2, 12, 15 conflict?"
+"Verify Arduino pins 0, 1, 13 are safe to use?"
+"STM32 pin conflict check: 13, 14, 20"
+```
+
+**Sample Output:**
+```
+📌 ESP32 Pin Conflict Check
+
+Checking pins: [0, 2, 12, 15]
+
+⚠️ **Warnings Found:**
+
+🚨 **Strapping Pins Detected:**
+Pins [0, 2, 12, 15] are bootstrap/strapping pins that affect boot behavior:
+  • GPIO0: Boot mode selection (HIGH=normal, LOW=download)
+  • GPIO2: Boot mode selection (must be LOW or floating)
+  • GPIO12: Flash voltage selection (LOW=3.3V, HIGH=1.8V)
+  • GPIO15: Timing/debug control (must be HIGH during boot)
+
+💡 **Recommendation:** Avoid using these pins for critical outputs. If you must use them, ensure they have correct states during boot or use pull-up/pull-down resistors.
+
+⚠️ **ADC2 + WiFi Conflict:**
+Pins [0, 2, 12, 15] include ADC2 channels. ADC2 cannot be used when WiFi is active.
+If you need analog input with WiFi, use ADC1 pins: 32, 33, 34, 35, 36, 39
+
+✅ **Safe Pins Available:**
+Consider using these conflict-free GPIO pins instead: 4, 5, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33
+```
+
+#### Tool 7: `generate_pin_diagram_ascii`
+Generate ASCII art pinout diagram with warnings.
+
+**Parameters:**
+- `board` (str): "ESP32", "Arduino UNO", or "STM32"
+
+**Example Queries:**
+```
+"Show ESP32 pinout diagram"
+"Arduino UNO pin layout?"
+"STM32 Blue Pill diagram?"
+```
+
+**Sample Output:**
+```
+📌 ESP32 DevKit V1 Pinout (30-pin)
+
+                   ┌─────────┐
+                   │  ESP32  │
+                   │ DevKit  │
+                   └─────────┘
+                       
+     EN            │  1    30 │ VP (GPIO36) - ADC1_CH0 ⚠️ Input only
+     VP (GPIO36)   │  2    29 │ VN (GPIO39) - ADC1_CH3 ⚠️ Input only
+     VN (GPIO39)   │  3    28 │ GPIO34 - ADC1_CH6 ⚠️ Input only
+     GPIO34        │  4    27 │ GPIO35 - ADC1_CH7 ⚠️ Input only
+     GPIO35        │  5    26 │ GPIO32 - ADC1_CH4
+     GPIO32        │  6    25 │ GPIO33 - ADC1_CH5
+     GPIO33        │  7    24 │ GPIO25 - DAC1, ADC2_CH8
+     GPIO25        │  8    23 │ GPIO26 - DAC2, ADC2_CH9
+     GPIO26        │  9    22 │ GPIO27 - ADC2_CH7
+     GPIO27        │ 10    21 │ GPIO14 - ADC2_CH6
+     GPIO14        │ 11    20 │ GPIO12 - ADC2_CH5 ⚠️ Strapping
+     GPIO12 ⚠️     │ 12    19 │ GND
+     GND           │ 13    18 │ GPIO13 - ADC2_CH4
+     GPIO13        │ 14    17 │ GPIO9  ⚠️ Flash (do not use)
+     GPIO9  ⚠️     │ 15    16 │ GPIO10 ⚠️ Flash (do not use)
+     GPIO10 ⚠️     │ 16    15 │ GPIO11 ⚠️ Flash (do not use)
+     GPIO11 ⚠️     │ 17    14 │ VIN
+     VIN           │ 18    13 │ GND
+     GND           │ 19    12 │ GPIO6  ⚠️ Flash (do not use)
+     GPIO6  ⚠️     │ 20    11 │ GPIO7  ⚠️ Flash (do not use)
+     GPIO7  ⚠️     │ 21    10 │ GPIO8  ⚠️ Flash (do not use)
+     GPIO8  ⚠️     │ 22     9 │ GPIO15 ⚠️ Strapping
+     GPIO15 ⚠️     │ 23     8 │ GPIO2  ⚠️ Strapping + Built-in LED
+     GPIO2  ⚠️     │ 24     7 │ GPIO0  ⚠️ Strapping + Boot button
+     GPIO0  ⚠️     │ 25     6 │ GPIO4
+     GPIO4         │ 26     5 │ GPIO16 (RX2)
+     GPIO16        │ 27     4 │ GPIO17 (TX2)
+     GPIO17        │ 28     3 │ GPIO5
+     GPIO5         │ 29     2 │ GPIO18 - VSPI SCK
+     GPIO18        │ 30     1 │ GPIO19 - VSPI MISO
+                   └───────────┘
+
+⚠️ **Critical Warnings:**
+  • GPIO6-11: Connected to SPI flash - DO NOT USE
+  • GPIO0, 2, 12, 15: Strapping pins - affect boot behavior
+  • GPIO34-39: Input only (no pull-up/pull-down)
+  • ADC2 (GPIO0, 2, 4, 12-15, 25-27): Cannot be used with WiFi
+```
+
+---
+
+## 💬 Example Conversations
+
+See [EXAMPLES.md](EXAMPLES.md) for comprehensive real-world usage examples including:
+- **Beginner:** LED dimming, resistor identification, button circuits
+- **Intermediate:** Sensor data loggers, RC filters, LC tank circuits
+- **Advanced:** Multi-channel ADC with WiFi, STM32 debugging, high-speed SPI
+- **Multi-Tool Workflows:** Complete sensor nodes, signal conditioning, multi-protocol hubs
+
+**Quick Examples:**
+
+### 🎨 Resistor Decoder
+```
+User: "What's a Brown-Black-Red-Gold resistor?"
+Claude: [Uses decode_resistor_color_bands] → "1000Ω (1kΩ) ±5%"
+```
+
+### ⚡ Capacitor Calculator
+```
+User: "RC filter: 10kΩ, 1kHz cutoff?"
+Claude: [Uses suggest_capacitor_for_filter] → "15nF capacitor recommended"
+```
+
+### 📌 GPIO Reference
+```
+User: "Which ESP32 pins work with WiFi for analog?"
+Claude: [Uses find_adc_pins] → "Use ADC1: GPIO32-39 (ADC2 conflicts with WiFi)"
+```
+
+---
+
+## 🚀 Deployment
+
+### Production Options
+
+#### Docker Container (Recommended)
+
+**Dockerfile:**
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+RUN pip install uv
+COPY . .
+RUN uv sync
+CMD ["uv", "run", "servers/gpio_reference.py"]
+```
+
+**Build and run:**
+```bash
+docker build -t electronics-mcp .
+docker run -i electronics-mcp uv run servers/resistor_decoder.py
+```
+
+#### Systemd Service (Linux)
+
+`/etc/systemd/system/mcp-gpio.service`:
+```ini
+[Unit]
+Description=MCP GPIO Reference Server
+After=network.target
+
+[Service]
+Type=simple
+User=mcp
+WorkingDirectory=/opt/electronics-mcp
+ExecStart=/usr/local/bin/uv run servers/gpio_reference.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable mcp-gpio
+sudo systemctl start mcp-gpio
+```
+
+#### HTTP Transport (Remote Access)
+
+```bash
+# Start with HTTP on port 8003
+uv run fastmcp run servers/gpio_reference.py --transport http --port 8003
+```
+
+**Claude Desktop HTTP config:**
+```json
+{
+  "mcpServers": {
+    "gpio-reference": {
+      "url": "http://your-server.com:8003/mcp"
+    }
+  }
+}
+```
+
+---
+
+## 🧪 Testing
+
+### Run All Tests
+```bash
+uv run pytest tests/ -v           # All 103 tests
+uv run pytest tests/test_gpio_reference.py -v  # GPIO only (44 tests)
+uv run pytest tests/ --cov=servers --cov-report=html  # With coverage
+```
+
+### Expected Output
+```
+==================== test session starts ====================
+collected 103 items
+
+tests/test_resistor_decoder.py::TestDecodeResistor::test_4_band_standard PASSED [ 1%]
+...
+tests/test_gpio_reference.py::TestIntegration::test_project_planning PASSED [100%]
+
+==================== 103 passed in 1.12s ====================
+```
+
+### Manual Testing
+```bash
+# Interactive development mode
+uv run fastmcp dev servers/gpio_reference.py
+
+# Test specific function
+uv run python -c "from servers.gpio_reference import get_pin_info; print(get_pin_info('ESP32', 0))"
+```
+
+---
+
+## 📁 Project Structure
+
+```
+mcp-server/
+├── servers/                      # MCP server implementations
+│   ├── __init__.py
+│   ├── __main__.py               # Package entry point
+│   ├── combined_server.py        # 🔗 All 14 tools combined (recommended)
+│   ├── resistor_decoder.py       # 🎨 3 tools, 26 tests
+│   ├── capacitor_calculator.py   # ⚡ 4 tools, 33 tests
+│   └── gpio_reference.py         # 📌 7 tools, 44 tests
+│
+├── tests/                        # Comprehensive test suite
+│   ├── __init__.py
+│   ├── test_resistor_decoder.py
+│   ├── test_capacitor_calculator.py
+│   └── test_gpio_reference.py
+│
+├── memory-bank/                  # Development context
+│   ├── SESSION.md                # Version changelog
+│   ├── master-plan.md            # Milestone tracking
+│   └── PROJECT.md                # Project overview
+│
+├── EXAMPLES.md                   # Real-world use cases
+├── pyproject.toml                # Dependencies & metadata
+├── uv.lock                       # Locked dependencies
+├── README.md                     # This file
+└── ref.md                        # Original requirements
+```
+
+---
+
+## 🛠️ Troubleshooting
+
+### "Module 'mcp' not found"
+```bash
+uv sync  # Reinstall dependencies
+```
+
+### "Tools not showing in Claude Desktop"
+1. Check config file location (see [Quick Start](#quick-start))
+2. Verify JSON syntax: `python -m json.tool claude_desktop_config.json`
+3. Use absolute paths in `args`
+4. Restart Claude Desktop **completely**
+5. Check logs: `%APPDATA%\Claude\logs\` (Windows)
+
+### "ESP32 ADC fails with WiFi"
+**Cause:** ADC2 channels (GPIO 0, 2, 4, 12-15, 25-27) conflict with WiFi driver.
+
+**Solution:** Use ADC1 channels (GPIO32-39) - check with `find_adc_pins('ESP32')`
+
+### "ESP32 won't boot"
+**Cause:** Strapping pins (GPIO 0, 2, 12, 15) held at wrong state.
+
+**Solution:** Disconnect these pins during boot, or use `check_pin_conflict()` before wiring.
+
+### "Import Error: FastMCP"
+**Fix import path:**
+```python
+# Correct:
+from mcp.server.fastmcp import FastMCP
+
+# Incorrect:
+from mcp import FastMCP
+```
+
+### VS Code MCP Server Not Loading
+**Symptoms:** Tools don't appear in Copilot chat after adding config.
+
+**Solutions:**
+1. **Verify the config file location:**
+   - Windows: `%APPDATA%\Code\User\mcp.json`
+   - Check with: `code --locate-shell-integration-path bash` (shows user data dir)
+
+2. **Check JSON syntax:** Open the file in VS Code—syntax errors will be highlighted.
+
+3. **Use absolute paths with proper escaping:**
+   ```json
+   "--directory", "/path/to/electronics-mcp-servers"
+   ```
+   > On Windows, use double backslashes: `"C:\\Users\\yourname\\electronics-mcp-servers"`
+
+4. **Verify uv is installed and in PATH:**
+   ```bash
+   uv --version
+   ```
+
+5. **Test the server manually:**
+   ```bash
+   cd /path/to/electronics-mcp-servers
+   uv run python servers/combined_server.py
+   ```
+   The server should start and wait for input (no errors).
+
+6. **Reload VS Code window:** `Ctrl+Shift+P` → "Developer: Reload Window"
+
+7. **Check VS Code Output panel:** Look for MCP-related errors in the Output panel (select "MCP" or "GitHub Copilot" from dropdown).
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Ideas:
+- Additional boards (Raspberry Pi Pico, Teensy, nRF52)
+- More tools (voltage divider, PCB trace width)
+- SVG/PNG pinout generation
+- Web UI for standalone use
+
+**Dev setup:**
+```bash
+git clone https://github.com/yourusername/electronics-mcp-servers.git
+cd electronics-mcp-servers
+uv sync
+git checkout -b feature/your-feature
+uv run pytest tests/ -v
+```
+
+---
+
+## 📄 License
+
+MIT License
+
+---
+
+## 🙏 Acknowledgments
+
+**Datasheet Sources:**
+- [ESP32 Technical Reference Manual v4.8](https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf)
+- [ATmega328P Datasheet](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf)
+- [STM32F103C8T6 Reference Manual](https://www.st.com/resource/en/reference_manual/cd00171190-stm32f101xx-stm32f102xx-stm32f103xx-stm32f105xx-and-stm32f107xx-advanced-arm-based-32-bit-mcus-stmicroelectronics.pdf)
+
+**Frameworks:**
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [FastMCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+
+---
+
+## 📞 Support
+
+- **Issues:** [GitHub Issues](https://github.com/yourusername/electronics-mcp-servers/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/yourusername/electronics-mcp-servers/discussions)
+
+---
+
+**Built with ❤️ for the electronics and embedded systems community**
