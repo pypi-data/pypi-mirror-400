@@ -1,0 +1,106 @@
+Metadata-Version: 2.4
+Name: evoBioMat
+Version: 1.0.0
+Summary: Enterprise-grade face biometric SDK
+Home-page: https://github.com/dakshdubey/evoBioMat_SDK
+Author: Daksha Dubey
+Author-email: evofu1007@gmail.com
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: opencv-python
+Requires-Dist: face-recognition
+Requires-Dist: numpy
+Requires-Dist: pymysql
+Requires-Dist: cryptography
+Dynamic: license-file
+
+# EvoBioMat — Enterprise-Grade Face Biometric Python SDK
+
+**EvoBioMat** is a secure, privacy-first, enterprise-grade Python SDK for face biometrics. It allows developers to implement Face ID registration and verification with minimal code, backed by secure encryption and generic database support.
+
+## Features
+
+- **Enterprise-Ready**: Designed for reliability and scale.
+- **Secure & Privacy-First**: AES-256 encryption for all biometric data. No raw images are ever stored.
+- **Offline-Capable**: Works without internet access for core biometric operations.
+- **Deterministic**: Consistent encoding generation.
+- **Auditable**: Clear codebase and explicit error handling.
+
+## Installation
+
+### Enterprise / Production Requirements
+For production environments (Windows Server, Linux), you must have C++ build tools installed to compile the high-performance biometric engine (`dlib`).
+
+**Windows Setup:**
+Run the included setup script as Administrator:
+```bash
+setup_enterprise_env.bat
+```
+Or manually install:
+- **CMake**: `pip install cmake`
+- **Visual Studio Build Tools**: Select "Desktop development with C++".
+
+### Standard Installation
+Once dependencies are ready:
+```bash
+pip install evoBioMat
+```
+
+## Quick Start
+
+### Prerequisites
+- Python 3.10+
+- MySQL Database
+- Webcam (for capture)
+
+### Usage
+
+```python
+from evobiomat import EvoBioMat
+import os
+
+# Configuration (Use environment variables in production)
+db_config = {
+    "host": "localhost",
+    "user": "root",
+    "password": "password",
+    "database": "biometrics_db"
+}
+
+# The encryption key should be a base64url-encoded 32-byte key.
+# You can generate one using: cryptography.fernet.Fernet.generate_key()
+enc_key = os.environ.get("EVOBIOMAT_KEY", "YOUR_SECURE_KEY_HERE")
+
+# Initialize SDK
+bio = EvoBioMat(db_config=db_config, encryption_key=enc_key)
+
+# 1. Register a User
+print("Look at the camera for registration...")
+try:
+    if bio.register("user_123"):
+        print("Registration successful!")
+except Exception as e:
+    print(f"Registration failed: {e}")
+
+# 2. Verify a User
+print("Look at the camera for verification...")
+result = bio.verify()
+
+if result.is_verified:
+    print(f"Access Granted: {result.user_id}")
+else:
+    print("Face Not Recognized")
+```
+
+## Security
+
+EvoBioMat uses AES-256 (via `cryptography` library primitives or Fernet/GCM) to encrypt face encodings at rest. Keys must be managed securely by the implementing application.
+
+## License
+
+MIT
