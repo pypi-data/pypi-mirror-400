@@ -1,0 +1,132 @@
+import logging
+import asyncio
+import os
+from typing import Dict, Any, Optional, Tuple
+
+from yaaaf.components.agents.artefacts import Artefact, ArtefactStorage
+from yaaaf.components.executors.base import ToolExecutor
+from yaaaf.components.agents.hash_utils import create_hash
+from yaaaf.components.agents.tokens_utils import get_first_text_between_tags
+from yaaaf.components.data_types import Messages, Note
+
+_logger = logging.getLogger(__name__)
+
+
+class BashExecutor(ToolExecutor):
+    """Executor for bash command execution."""
+
+    def __init__(self, skip_safety_check: bool = False):
+        """Initialize bash executor.
+
+        Args:
+            skip_safety_check: If True, skip safety checks and allow all commands
+        """
+        self._storage = ArtefactStorage()
+        self._skip_safety_check = skip_safety_check
+        
+    async def prepare_context(self, messages: Messages, notes: Optional[list[Note]] = None) -> Dict[str, Any]:
+        """Prepare context for bash execution."""
+        return {
+            "messages": messages,
+            "notes": notes or [],
+            "working_dir": os.getcwd()
+        }
+
+    def extract_instruction(self, response: str) -> Optional[str]:
+        """Extract bash command from response."""
+        command = get_first_text_between_tags(response, "```bash", "```")
+        if not command:
+            _logger.debug(f"No ```bash block found in response: {response[:200]}...")
+            return None
+        if not self._skip_safety_check and not self._is_safe_command(command):
+            _logger.warning(f"Command rejected as unsafe: {command}")
+            return None
+        _logger.info(f"Extracted bash command: {command[:100]}...")
+        return command
+    
+    def _is_safe_command(self, command: str) -> bool:
+        """Check if a command is considered safe for execution."""
+        dangerous_patterns = [
+            "rm -rf", "sudo", "su ", "chmod +x", "curl", "wget", "pip install",
+            "npm install", "apt install", "yum install", "systemctl", "service",
+            "kill", "pkill", "killall", "shutdown", "reboot", "dd ", "mkfs",
+            "format", "fdisk", "mount", "umount", "chown", "passwd", "adduser",
+            "userdel", "groupadd", "crontab", "history -c", "export", "unset",
+            "alias", "source", ". ", "exec", "eval", "python -c", "python3 -c",
+            "bash -c", "sh -c", "> /dev/", "| dd"
+        ]
+        
+        command_lower = command.lower().strip()
+        
+        # Check for dangerous patterns
+        for pattern in dangerous_patterns:
+            if pattern in command_lower:
+                return False
+        
+        # Check for suspicious redirections
+        if any(redirect in command for redirect in ["> /", ">> /", "| tee /"]):
+            return False
+        
+        # Check for command chaining with potentially dangerous operations
+        if any(op in command for op in ["; rm", "&& rm", "|| rm", "; sudo", "&& sudo"]):
+            return False
+        
+        return True
+
+    async def execute_operation(self, instruction: str, context: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+        """Execute bash command asynchronously (non-blocking)."""
+        try:
+            # Change to working directory if specified
+            working_dir = context.get("working_dir", os.getcwd())
+
+            # Execute the command asynchronously to avoid blocking the event loop
+            process = await asyncio.create_subprocess_shell(
+                instruction,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=working_dir,
+            )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=30  # 30 second timeout
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                error_msg = f"Command timed out after 30 seconds: {instruction}"
+                _logger.error(error_msg)
+                return None, error_msg
+
+            # Combine stdout and stderr for complete output
+            output = ""
+            if stdout:
+                output += f"STDOUT:\n{stdout.decode('utf-8', errors='replace')}\n"
+            if stderr:
+                output += f"STDERR:\n{stderr.decode('utf-8', errors='replace')}\n"
+            output += f"Return code: {process.returncode}"
+
+            # If command failed, return as error so reflection pattern can retry
+            if process.returncode != 0:
+                return None, f"Command failed with exit code {process.returncode}:\n{output}"
+
+            return output, None
+
+        except Exception as e:
+            error_msg = f"Error executing command '{instruction}': {str(e)}"
+            _logger.error(error_msg)
+            return None, error_msg
+
+    def validate_result(self, result: Any) -> bool:
+        """Validate bash execution result."""
+        return result is not None and isinstance(result, str)
+
+    def transform_to_artifact(self, result: Any, instruction: str, artifact_id: str) -> Artefact:
+        """Transform bash output to artifact."""
+        return Artefact(
+            id=artifact_id,
+            type="text",
+            code=result,  # Use 'code' field for text content
+            description=f"Output from bash command: {instruction[:50]}..."
+        )
