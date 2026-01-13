@@ -1,0 +1,172 @@
+Metadata-Version: 2.4
+Name: ygglib
+Version: 0.1.0
+Summary: High-performance cache client with automatic authentication and multi-tenancy
+Home-page: https://github.com/Klug-Labs/ygg
+Author: YGG Team
+Author-email: 
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.25.0
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: pytest-cov>=2.0; extra == "dev"
+Requires-Dist: black>=21.0; extra == "dev"
+Requires-Dist: flake8>=3.8; extra == "dev"
+Requires-Dist: mypy>=0.800; extra == "dev"
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# YGG Python Client
+
+High-performance cache client with automatic authentication and multi-tenancy support for Python.
+
+Visit [ygg.kluglabs.net](https://ygg.kluglabs.net) for more information about the YGG platform.
+
+## Installation
+
+```bash
+pip install ygg
+```
+
+## Quick Start
+
+```python
+import os
+import ygg
+
+# Initialize with your API key
+ygg.init(os.environ.get("YGG_API_KEY"))
+
+# Basic operations
+ygg.set("greeting", "Hello, World!")
+ygg.set("user:123:name", "John Doe")
+ygg.set("session:abc", "active", 3600)  # 1 hour expiration
+
+# Retrieve values
+greeting = ygg.get("greeting")
+user_name = ygg.get("user:123:name")
+session = ygg.get("session:abc")
+
+print(f"Greeting: {greeting}")
+print(f"User name: {user_name}")
+print(f"Session: {session}")
+
+# Check if keys exist
+exists_greeting = ygg.exists("greeting")
+print(f"Greeting exists: {exists_greeting}")
+
+# Get TTL
+ttl = ygg.ttl("session:abc")
+print(f"Session TTL: {ttl} seconds")
+
+# Cleanup
+ygg.delete("greeting")
+ygg.delete("user:123:name")
+ygg.delete("session:abc")
+
+# Close connection
+ygg.close()
+```
+
+## Advanced Operations
+
+### Custom Cache Commands
+
+```python
+# Hash operations
+ygg.cache("HMSET", "user:123:profile", "age", "30", "city", "New York")
+profile = ygg.cache("HMGET", "user:123:profile", "age", "city")
+print(f"User profile: {profile}")
+
+# List operations
+ygg.cache("LPUSH", "notifications:123", "Welcome message")
+ygg.cache("LPUSH", "notifications:123", "System update")
+notifications = ygg.cache("LRANGE", "notifications:123", 0, -1)
+print(f"Notifications: {notifications}")
+```
+
+### Pipeline Operations
+
+```python
+# Batch operations for better performance
+with ygg.pipeline() as pipe:
+    pipe.set("batch:1", "value1")
+    pipe.set("batch:2", "value2")
+    pipe.set("batch:3", "value3")
+    results = pipe.execute()
+
+print(f"Pipeline results: {results}")
+```
+
+## Configuration
+
+Configure the client using environment variables:
+
+- `YGG_API_KEY`: Your authentication API key (required)
+- `YGG_TIMEOUT`: Request timeout in seconds (default: 30)
+- `YGG_MAX_RETRIES`: Maximum retry attempts (default: 3)
+- `YGG_RETRY_DELAY`: Delay between retries in seconds (default: 1.0)
+- `YGG_POOL_SIZE`: Connection pool size (default: 10)
+
+**Note:** The API base URL is always `https://ygg-api.kluglabs.net` and cannot be changed.
+
+## API Reference
+
+| Operation | Method | Description |
+|-----------|--------|-------------|
+| `set` | `ygg.set(key, value, ex?)` | Set key-value pair with optional expiration |
+| `get` | `ygg.get(key)` | Get value by key |
+| `delete` | `ygg.delete(key)` | Delete a key |
+| `exists` | `ygg.exists(key)` | Check if key exists |
+| `expire` | `ygg.expire(key, seconds)` | Set expiration for key |
+| `ttl` | `ygg.ttl(key)` | Get time to live for key |
+| `cache` | `ygg.cache(command, *args)` | Execute any cache command |
+| `pipeline` | `ygg.pipeline()` | Create pipeline for batch operations |
+
+## Requirements
+
+- Python 3.7+
+- requests >= 2.25.0
+
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/Klug-Labs/ygg.git
+cd ygg/clients/python
+
+# Install in development mode
+pip install -e .
+
+# Run tests
+python -m pytest tests/
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Support
+
+- **Documentation**: https://docs.ygg.com
+- **API Status**: https://status.ygg.com
+- **Support Email**: support@ygg.com
