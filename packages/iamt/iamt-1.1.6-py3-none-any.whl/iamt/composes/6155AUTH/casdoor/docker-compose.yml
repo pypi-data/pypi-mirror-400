@@ -1,0 +1,20 @@
+version: '3.1'
+services:
+  casdoor:
+    restart: always
+    image: casbin/casdoor:v1.579.0
+    entrypoint: /bin/sh -c './server --createDatabase=true'
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    volumes:
+      - ./conf:/conf/
+  db:
+    restart: always
+    image: mysql:8.0.25
+    platform: linux/amd64
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+    volumes:
+      - ./mysql:/var/lib/mysql

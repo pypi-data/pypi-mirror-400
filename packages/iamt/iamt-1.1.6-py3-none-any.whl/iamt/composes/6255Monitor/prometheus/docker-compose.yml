@@ -1,0 +1,28 @@
+networks:
+    lppx-network:
+        external: true
+services:
+    prometheus:
+        command:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --web.console.libraries=/etc/prometheus/console_libraries
+            - --web.console.templates=/etc/prometheus/consoles
+            - --storage.tsdb.retention=200h
+        container_name: ${CONTAINER_NAME}
+        deploy:
+            resources:
+                limits:
+                    cpus: ${CPUS}
+                    memory: ${MEMORY_LIMIT}
+        image: prom/prometheus:v2.53.4
+        labels:
+            createdBy: Apps
+        networks:
+            - lppx-network
+        ports:
+            - ${HOST_IP}:${PANEL_APP_PORT_HTTP}:9090
+        restart: always
+        volumes:
+            - ./conf:/etc/prometheus/
+            - ./prometheus:/prometheus
