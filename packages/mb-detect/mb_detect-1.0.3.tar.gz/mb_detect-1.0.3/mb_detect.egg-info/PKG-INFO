@@ -1,0 +1,115 @@
+Metadata-Version: 2.4
+Name: mb_detect
+Version: 1.0.3
+Summary: A smart serial port detector for BBC micro:bit
+Home-page: https://github.com/mrgallen/mb_detect
+Author: Eoin Gallen
+Author-email: egallen@sainteunans.com
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Description-Content-Type: text/markdown
+License-File: LICENSE.md
+Requires-Dist: pyserial
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
+
+# Micro:bit Detector
+
+A lightweight Python utility to automatically detect and select BBC micro:bit devices connected via USB.
+
+It handles cross-platform port detection (Windows/Mac/Linux) and robustly manages scenarios where multiple micro:bits are connected simultaneously.
+
+## Features
+
+* **Auto-Detection:** Automatically finds the correct serial port (`COM3`, `/dev/ttyACM0`, etc.).
+* **Multi-Device Support:** Can detect multiple connected micro:bits.
+* **Smart Selection:**
+    * If 1 device is found, it selects it automatically.
+    * If multiple are found, it can prompt the user to choose one.
+* **Metadata:** Retrieves Serial Numbers to distinguish between identical devices.
+
+## Installation
+
+```bash
+pip install mb_detect
+```
+
+## Usage
+
+### 1. The Easiest Way (Single micro:bit)
+If you only have one micro:bit plugged in, the tool will auto-select it and return the port string directly.
+
+```python
+import mb_detect
+import serial
+
+# Returns the port name as a string (e.g., "COM3")
+port = mb_detect.find()
+
+if port:
+    print(f"Connected to {port}") 
+    # Example output: Connected to COM3
+    
+    # You can pass the variable directly to pyserial
+    ser = serial.Serial(port, 115200)
+else:
+    print("No micro:bit found.")
+```
+
+### 2. Handling Multiple micro:bits (Interactive)
+If you have multiple devices connected, the `find()` function will automatically pause the script and ask the user to choose one via the terminal input.
+
+```python
+# If 2 micro:bits are plugged in, this will print:
+#    ⚠️  Found 2 micro:bits:
+#    [0] Port: COM3 | Serial: 9900...
+#    [1] Port: COM4 | Serial: 9901...
+#
+#    Select device number (0-9): 
+
+port = mb_detect.find()
+print(f"User selected: {port}")
+```
+
+### 3. Non-Interactive Mode (Automation)
+If you are running a script in the background (e.g., a robot or server) and cannot accept user input, use `interactive=False`. It will default to the first available micro:bit found.
+
+```python
+# Will not ask for input; just picks the first one found
+port = mb_detect.find(interactive=False)
+```
+
+### 4. Advanced: Get All Data
+If you need the Serial Number or want to connect to *all* micro:bits at once, use the `scan()` function. This returns the full data (not just the string).
+
+```python
+all_devices = mb_detect.scan()
+
+# Returns a list of dictionaries:
+# [
+#   {'port': 'COM3', 'serial_number': '99000...', 'description': 'mbed Serial Port'},
+#   {'port': 'COM4', 'serial_number': '99001...', 'description': 'mbed Serial Port'}
+# ]
+
+for dev in all_devices:
+    print(f"Found device at {dev['port']} with serial {dev['serial_number']}")
+```
+
+## Requirements
+
+* Python 3.6+
+* pyserial
+
+## License
+
+MIT
