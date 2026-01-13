@@ -1,0 +1,251 @@
+# SSB Altinn Python
+
+[![PyPI](https://img.shields.io/pypi/v/ssb-altinn-python.svg)][pypi status]
+[![Status](https://img.shields.io/pypi/status/ssb-altinn-python.svg)][pypi status]
+[![Python Version](https://img.shields.io/pypi/pyversions/ssb-altinn-python)][pypi status]
+[![License](https://img.shields.io/pypi/l/ssb-altinn-python)][license]
+
+[![Documentation](https://github.com/statisticsnorway/ssb-altinn-python/actions/workflows/docs.yml/badge.svg)][documentation]
+[![Tests](https://github.com/statisticsnorway/ssb-altinn-python/actions/workflows/tests.yml/badge.svg)][tests]
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=statisticsnorway_ssb-altinn-python&metric=coverage)][sonarcov]
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=statisticsnorway_ssb-altinn-python&metric=alert_status)][sonarquality]
+
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)][pre-commit]
+[![Black](https://img.shields.io/badge/code%20style-black-000000.svg)][black]
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Poetry](https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json)][poetry]
+
+[pypi status]: https://pypi.org/project/ssb-altinn-python/
+[documentation]: https://statisticsnorway.github.io/ssb-altinn-python
+[tests]: https://github.com/statisticsnorway/ssb-altinn-python/actions?workflow=Tests
+[sonarcov]: https://sonarcloud.io/summary/overall?id=statisticsnorway_ssb-altinn-python
+[sonarquality]: https://sonarcloud.io/summary/overall?id=statisticsnorway_ssb-altinn-python
+[pre-commit]: https://github.com/pre-commit/pre-commit
+[black]: https://github.com/psf/black
+[poetry]: https://python-poetry.org/
+
+## Features
+
+This is work-in-progress Python-package for dealing with xml-data from Altinn3. Here are some examples of how it can be used:
+
+### Transform to ISEE-Dynarev format
+
+If you want to transform an Altinn3 xml-file to a Pandas Dataframe, in the same form as the ISEE Dynarev database in our on-prem environment, you can use the `isee_transform`-function.
+
+```python
+from altinn import isee_transform
+
+file = "gs://ssb-prod-dapla-felles-data-delt/altinn3/RA-0595/2023/2/6/810409282_460784f978a2_ebc7af7e-4ebe-4883-b844-66ee6292a93a/form_460784f978a2.xml"
+
+isee_transform(file)
+```
+
+#### Mapping the FELTNAVN-column
+If you want to recode/map names in the FELTNAVN-column, you can use a dictionary with the original names from the xml as keys, and the new names as values. And then pass the dictionary as an argument when running the function isee_transform(file, mapping).
+
+```python
+from altinn import isee_transform
+
+file = "gs://ssb-prod-dapla-felles-data-delt/altinn3/RA-0595/2023/2/6/810409282_460784f978a2_ebc7af7e-4ebe-4883-b844-66ee6292a93a/form_460784f978a2.xml"
+
+mapping = {'kontAmbulForeDispJaNei':'ISEE_VAR1',
+           'kontAmbulForeDispAnt':'ISEE_VAR2',
+           'kontAmbulForeDriftAnt':'ISEE_VAR3',}
+
+isee_transform(file, mapping)
+```
+
+#### Flatten more tags than SkjemaData
+If you need to flatten more than 'SkjemaData' from the XML, you can make a list of the tags in the XML you need to flatten, and add this list as an argument (tag_list) when running the function isee_transform(file, taglist=taglist). The default value is 'SkjemaData', so if you only need to flatten this, its not needed to pass the argument tag_list.
+
+```python
+from altinn import isee_transform
+
+file = "gs://ssb-prod-dapla-felles-data-delt/altinn3/RA-0595/2023/2/6/810409282_460784f978a2_ebc7af7e-4ebe-4883-b844-66ee6292a93a/form_460784f978a2.xml"
+
+mapping = {'kontAmbulForeDispJaNei':'ISEE_VAR1',
+           'kontAmbulForeDispAnt':'ISEE_VAR2',
+           'kontAmbulForeDriftAnt':'ISEE_VAR3',
+           'kontaktPersonNavn'; 'ISEE_KONTAKTPERSON',}
+
+tags = ['SkjemaData', 'Kontakt']
+
+isee_transform(file, mapping, tag_list=tags)
+```
+
+#### Flatten checkboxes
+Altinn 3 checkboxes comes as a string value seperated by ",". To get this into oracle, the value must be extracted and pivoted to unique rows. Listing variables from altinn 3 xml file that are checkboxes in checkbox_vars will make each value to a unique row.
+Checkboxes can use unique codes from KLASS or be 1:N. If your checkbox codes are unique, you should also set unique_code to True.
+When we then transform the xml file to isee format, we will end up with more variables than we begun with. This extra potential variables must then be included in the mapping so they have the right name when loaded into oracle.
+
+```python
+
+from altinn import isee_transform
+
+file = 'gs://ra0187-01-altinn-data-staging-c629-ssb-altinn/2024/4/11/7d5b52259b89_de4a24aa-4948-48d8-b2e4-a0f2160a0bd0/form_7d5b52259b89.xml'
+
+mapping = {
+    "storOkningOmsAarsak31":"ISEE_storOkningOmsAarsak31",
+    "storOkningOmsAarsak33":"ISEE_storOkningOmsAarsak33",
+    "omsForrigePerPrefill":"ISEE_omsForrigePerPrefill",
+}
+
+checkboxList = ["storOkningOmsAarsak"]
+
+isee_transform(file=file,mapping=mapping,checkbox_vars=checkboxList,unique_code=False)
+
+```
+
+
+The function handles flat structures and 'tables' in the XML. If the XML contains repeating values, it puts a suffix containig a number at the end of the FELTNAVN-column. If the XML-contains more complex structures as 'table in table' if will give a warning with a list of which values in FELTNAVN that needs to be further processed before it can be used in ISEE.
+These warnings will not be visible in 'Kildomaten' unless you check the logs, so it's recommended to test outside of 'Kildomaten' before ypu put it in production.
+
+
+The XML needs to contain certain fields in the 'InternInfo'-block, The required filds are:
+- 'enhetsIdent'
+- 'enhetsType'
+- 'delregNr'
+
+If one or more of these fields are missing in the XML, the processing will stop, giving a message with witch fields that are missing.
+
+
+The resulting object is a Pandas Dataframe with the following columns:
+
+- `SKJEMA_ID`
+- `DELREG_NR`
+- `IDENT_NR`
+- `ENHETS_TYPE`
+- `FELTNAVN`
+- `FELTVERDI`
+- `VERSION_NR`
+
+This dataframe can be written to csv and uploaded to the ISEE Dynarev database.
+
+### Transform all XML-data to a pd.DataFrame
+
+If you want to transform an Altinn3 xml-file to a Pandas Dataframe, without the extra ISEE-information, and keep all information (not just ‘SkjemaData), you can use the `xml_transform`-function.
+
+```python
+from altinn import xml_transform
+
+file = "gs://ssb-prod-dapla-felles-data-delt/altinn3/RA-0595/2023/2/6/810409282_460784f978a2_ebc7af7e-4ebe-4883-b844-66ee6292a93a/form_460784f978a2.xml"
+
+xml_transform(file)
+```
+
+The resulting object is a Pandas Dataframe with the following columns:
+- `FELTNAVN`
+- `FELTVERDI`
+- `LEVEL`
+
+FELTNAVN: the name of the xml-tags concatenated together for each level in the XML.
+FELTVERDI: the value of the xml-tag.
+LEVEL: A list with information about the concatenation level. If one or more of the values is greater than 1, it means there are repeating values in the tag.
+
+### Create filename for use in ISEE
+If you need to transfer ISEE-data to the On-Prem-platform, the .csv-filename need a spesific format. The function `create_isee_filename` can create this filename from the filepath and contents of a XML-file.
+
+```python
+from altinn import create_isee_filename
+
+file = "gs://ssb-prod-dapla-felles-data-delt/altinn3/RA-0595/2023/2/6/810409282_460784f978a2_ebc7af7e-4ebe-4883-b844-66ee6292a93a/form_460784f978a2.xml"
+
+create_isee_filename(file)
+```
+In the example above the output will be `RA-0595A3_460784f978a2.csv`. This can be used to build a new filepath to where you need to store the result after the XML is transformed to ISEE-format.
+
+
+### Get information about a file
+
+```python
+from altinn import FileInfo
+
+file = "gs://ssb-prod-dapla-felles-data-delt/altinn3/RA-0595/2023/2/6/810409282_460784f978a2_ebc7af7e-4ebe-4883-b844-66ee6292a93a/form_460784f978a2.xml"
+
+# Create an instance of FileInfo
+form = FileInfo(file)
+
+# Get file filename without '.xml'-postfix
+form.filename()
+# Returns: 'form_dc551844cd74'
+
+# Print an unformatted version of the file. Does not require the file to be parseable by an xml-library. Useful for inspecting unvalid xml-files.
+form.print()
+
+# Print a nicely formatted version of the file
+form.pretty_print()
+
+# Check if xml-file is valid. Useful to inspect xml-files with formal errors in the xml-schema.
+form.validate()
+# Returns True og False
+```
+
+### Parse xml-file
+
+If you want to transform an Altinn3 xml-file to a Pandas Dataframe, you can use the ParseSingleXml-class. This will not handle complex structures of the XML.
+
+```python
+from altinn import ParseSingleXml
+
+file = "gs://ssb-prod-dapla-felles-data-delt/altinn3/RA-0595/2023/2/6/810409282_460784f978a2_ebc7af7e-4ebe-4883-b844-66ee6292a93a/form_460784f978a2.xml"
+
+form_content=ParseSingleXml(file)
+
+# Get a Pandas Dataframe representation of the contents of the file
+df=form_content.to_dataframe()
+
+df.head()
+```
+
+## Requirements
+
+- dapla-toolbelt >=1.6.2
+- defusedxml >=0.7.1
+- xmltodict >=0.13.0
+- pandas >= 2.2.0
+
+
+## Installation
+
+You can install _SSB Altinn Python_ via [poetry] from [PyPI]:
+
+```console
+poetry add ssb-altinn-python
+```
+
+To install this in the Jupyter-environment on Dapla, where it is ment to be used, it is required to install it in an virtual environment. It is recommended to do this in an [ssb-project](https://manual.dapla.ssb.no/jobbe-med-kode.html) where the preferred tool is [poetry](https://python-poetry.org/).
+
+## Usage
+
+Please see the [Reference Guide] for details.
+
+## Contributing
+
+Contributions are very welcome.
+To learn more, see the [Contributor Guide].
+
+## License
+
+Distributed under the terms of the [MIT license][license],
+_SSB Altinn Python_ is free and open source software.
+
+## Issues
+
+If you encounter any problems,
+please [file an issue] along with a detailed description.
+
+## Credits
+
+This project was generated from [Statistics Norway]'s [SSB PyPI Template].
+
+[statistics norway]: https://www.ssb.no/en
+[pypi]: https://pypi.org/
+[ssb pypi template]: https://github.com/statisticsnorway/ssb-pypitemplate
+[file an issue]: https://github.com/statisticsnorway/ssb-altinn-python/issues
+[pip]: https://pip.pypa.io/
+
+<!-- github-only -->
+
+[license]: https://github.com/statisticsnorway/ssb-altinn-python/blob/main/LICENSE
+[contributor guide]: https://github.com/statisticsnorway/ssb-altinn-python/blob/main/CONTRIBUTING.md
+[reference guide]: https://statisticsnorway.github.io/ssb-altinn-python/reference.html
