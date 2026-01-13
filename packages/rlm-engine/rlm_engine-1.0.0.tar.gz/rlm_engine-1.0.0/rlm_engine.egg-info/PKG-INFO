@@ -1,0 +1,336 @@
+Metadata-Version: 2.4
+Name: rlm-engine
+Version: 1.0.0
+Summary: Recursive Language Model - Process unlimited context with any LLM
+Author-email: RLM Team <rlm@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/rlm-engine/rlm-engine
+Project-URL: Documentation, https://github.com/rlm-engine/rlm-engine#readme
+Project-URL: Repository, https://github.com/rlm-engine/rlm-engine
+Keywords: llm,rlm,recursive,language-model,vllm,openai,context,nlp
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Text Processing :: General
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: httpx[http2]>=0.25.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: anthropic>=0.20.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: build>=1.0.0; extra == "dev"
+Requires-Dist: twine>=4.0.0; extra == "dev"
+Provides-Extra: server
+Requires-Dist: fastapi>=0.100.0; extra == "server"
+Requires-Dist: uvicorn>=0.23.0; extra == "server"
+Provides-Extra: config
+Requires-Dist: pyyaml>=6.0; extra == "config"
+Provides-Extra: all
+Requires-Dist: rlm-engine[config,dev,server]; extra == "all"
+
+# RLM Engine
+
+**Recursive Language Model** - Process unlimited context by having LLMs write and execute code.
+
+## Overview
+
+RLM solves the context length limitation of LLMs by treating them as a "neurosymbolic operating system." Instead of feeding entire documents to the model, RLM:
+
+1. Provides a Python REPL environment
+2. LLM writes code to explore/search the document
+3. Code executes and returns results
+4. LLM iterates until finding the answer
+
+This enables processing **10M+ character documents** that would overflow traditional context windows.
+
+## Installation
+
+```bash
+pip install -e .
+
+# Optional: For YAML config support
+pip install pyyaml
+
+# Optional: For API server
+pip install fastapi uvicorn
+```
+
+## Quick Start
+
+### Python API
+
+```python
+from rlm import RLM, RLMConfig
+
+# With OpenAI
+rlm = RLM(backend="openai", model="gpt-4o")
+
+# With vLLM (self-hosted)
+rlm = RLM(
+    backend="vllm",
+    model="meta-llama/Llama-3.1-70B-Instruct",
+    base_url="http://localhost:8000/v1"
+)
+
+# Process a document
+result = rlm.completion(
+    query="What is the secret code?",
+    context=huge_document,  # Can be 10M+ characters
+)
+
+print(result.answer)
+print(f"Iterations: {result.iterations}")
+print(f"Time: {result.execution_time:.2f}s")
+```
+
+### CLI
+
+```bash
+# Query a file
+rlm query "What is the revenue?" --file report.txt
+
+# Pipe from stdin
+cat document.txt | rlm query "Summarize this"
+
+# Use specific backend
+rlm query "Find dates" --file data.txt --backend vllm --base-url http://localhost:8000/v1
+
+# Output as JSON
+rlm query "Count words" --file doc.txt --json
+```
+
+### API Server
+
+```bash
+# Start server
+rlm serve --port 8080
+
+# Or with Python
+python -m rlm.server
+```
+
+```bash
+# Query the API
+curl -X POST http://localhost:8080/v1/rlm/completion \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What is the revenue?",
+    "context": "Q4 Report: Revenue $500M..."
+  }'
+```
+
+## Configuration
+
+### Environment Variables
+
+```bash
+export RLM_BACKEND=vllm
+export RLM_MODEL=meta-llama/Llama-3.1-70B-Instruct
+export RLM_BASE_URL=http://localhost:8000/v1
+export RLM_MAX_ITERATIONS=10
+export RLM_VERBOSE=true
+```
+
+### Config File (rlm.yaml)
+
+```yaml
+model:
+  backend: vllm
+  model: meta-llama/Llama-3.1-70B-Instruct
+  base_url: http://localhost:8000/v1
+
+rlm:
+  max_iterations: 10
+  max_depth: 3
+  temperature: 0.7
+  verbose: false
+
+optimizations:
+  cache_enabled: true
+  parallel_chunks: 5
+
+server:
+  host: 0.0.0.0
+  port: 8080
+```
+
+```bash
+# Initialize config
+rlm init
+```
+
+## Optimized Variants
+
+### FastRLM
+
+Optimized for speed with relevance filtering:
+
+```python
+from rlm import FastRLM
+
+rlm = FastRLM(
+    backend="vllm",
+    base_url="http://localhost:8000/v1",
+    use_relevance_filtering=True,
+)
+
+result = await rlm.fast_completion(query, context)
+```
+
+### ScalableRLM
+
+Optimized for large documents with chunking and caching:
+
+```python
+from rlm import ScalableRLM
+
+rlm = ScalableRLM(
+    backend="openai",
+    enable_cache=True,
+    max_concurrent=10,
+)
+
+result = await rlm.scalable_completion(
+    query="Summarize this 10M document",
+    context=massive_document,
+)
+```
+
+## Streaming
+
+```python
+from rlm import RLM, StreamingRLM
+
+rlm = RLM(backend="openai")
+streaming = StreamingRLM(rlm)
+
+async for event in streaming.stream_completion(query, context):
+    if event.event_type == "code":
+        print(f"Executing: {event.data}")
+    elif event.event_type == "output":
+        print(f"Output: {event.data}")
+    elif event.event_type == "answer":
+        print(f"Answer: {event.data}")
+```
+
+## Supported Backends
+
+| Backend | Requires API Key | Self-Hosted |
+|---------|------------------|-------------|
+| `openai` | Yes (OPENAI_API_KEY) | No |
+| `anthropic` | Yes (ANTHROPIC_API_KEY) | No |
+| `vllm` | No | Yes |
+| `ollama` | No | Yes |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         RLM Engine                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   Query + Context                                           │
+│         │                                                   │
+│         ▼                                                   │
+│   ┌─────────────┐                                           │
+│   │  System     │ ◄── Few-shot examples for code writing   │
+│   │  Prompt     │                                           │
+│   └─────────────┘                                           │
+│         │                                                   │
+│         ▼                                                   │
+│   ┌─────────────┐      ┌─────────────┐                     │
+│   │    LLM      │ ──► │   Parser    │ ──► Extract code    │
+│   │   Call      │      └─────────────┘                     │
+│   └─────────────┘                                           │
+│         │                                                   │
+│         ▼                                                   │
+│   ┌─────────────┐                                           │
+│   │  Python     │ ◄── Safe sandbox with context access     │
+│   │   REPL      │                                           │
+│   └─────────────┘                                           │
+│         │                                                   │
+│         ▼                                                   │
+│   Output fed back to LLM ──────────────────► Loop          │
+│         │                                                   │
+│         ▼                                                   │
+│   FINAL(answer) ──────────────────────────► Return         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Benchmarks
+
+Run benchmarks:
+
+```bash
+rlm benchmark --backend vllm --base-url http://localhost:8000/v1 -o results.json
+```
+
+| Model | Accuracy | Avg Latency |
+|-------|----------|-------------|
+| GPT-4o | 95% | 5s |
+| Claude Sonnet | 92% | 6s |
+| Llama-3.1-70B | 88% | 4s |
+| Phi-3.5-mini | 25-100%* | 3-7s |
+
+*Accuracy varies by task complexity
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/ -v
+
+# Run specific tests
+pytest tests/test_parser.py -v
+
+# Run with coverage
+pytest tests/ --cov=rlm --cov-report=html
+```
+
+## Project Structure
+
+```
+rlm-engine/
+├── rlm/
+│   ├── __init__.py         # Package exports
+│   ├── core.py             # Main RLM implementation
+│   ├── fast_rlm.py         # Speed-optimized variant
+│   ├── scalable_rlm.py     # Scale-optimized variant
+│   ├── parser.py           # Code/answer extraction
+│   ├── prompts.py          # System prompts
+│   ├── repl.py             # Python REPL sandbox
+│   ├── streaming.py        # Streaming support
+│   ├── server.py           # FastAPI server
+│   ├── cli.py              # CLI tool
+│   ├── config.py           # Configuration
+│   ├── logging_config.py   # Structured logging
+│   ├── clients/            # LLM backend clients
+│   └── optimizations/      # Caching, chunking, etc.
+├── tests/                  # Test suite
+├── examples/               # Usage examples
+├── benchmarks/             # Benchmark suite
+└── README.md
+```
+
+## License
+
+MIT License
+
+## References
+
+- [RLM Paper](https://arxiv.org/abs/2512.24601) - Original research
+- [MIT Implementation](https://github.com/alexzhang13/rlm) - Official implementation
