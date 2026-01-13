@@ -1,0 +1,111 @@
+Metadata-Version: 2.4
+Name: agenwatch
+Version: 0.1.0
+Summary: Deterministic agent execution with runtime-enforced guardrails
+Author-email: AgenWatch Team <agenwatch.dev@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/agenwatch/agenwatch
+Project-URL: Repository, https://github.com/agenwatch/agenwatch
+Project-URL: Issues, https://github.com/agenwatch/agenwatch/issues
+Keywords: llm,agents,ai-agents,python,sdk,runtime,governance,observability
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: openai
+Requires-Dist: openai>=1.0.0; extra == "openai"
+Requires-Dist: tiktoken; extra == "openai"
+Provides-Extra: anthropic
+Requires-Dist: anthropic>=0.18.0; extra == "anthropic"
+Provides-Extra: groq
+Requires-Dist: groq>=0.4.0; extra == "groq"
+Provides-Extra: litellm
+Requires-Dist: litellm>=1.0.0; extra == "litellm"
+Provides-Extra: all
+Requires-Dist: openai>=1.0.0; extra == "all"
+Requires-Dist: tiktoken; extra == "all"
+Requires-Dist: anthropic>=0.18.0; extra == "all"
+Requires-Dist: groq>=0.4.0; extra == "all"
+Requires-Dist: litellm>=1.0.0; extra == "all"
+Dynamic: license-file
+
+# AgenWatch
+
+**Deterministic agent execution with runtime-enforced guardrails.**
+
+AgenWatch is a production-grade Python SDK for running LLM agents
+with **hard execution limits**, **budget enforcement**, and
+**deterministic replay** — enforced during execution, not observed after.
+
+---
+
+## Install
+
+```bash
+pip install agenwatch
+```
+
+With provider support:
+```bash
+pip install agenwatch[openai]     # OpenAI
+pip install agenwatch[anthropic]  # Anthropic
+pip install agenwatch[groq]       # Groq
+pip install agenwatch[litellm]    # 100+ providers (Gemini, Mistral, etc.)
+pip install agenwatch[all]        # All providers
+```
+
+---
+
+## Quick Example
+
+```python
+from agenwatch import Agent, tool
+
+@tool
+def add(a: int, b: int) -> int:
+    """Add two numbers."""
+    return a + b
+
+agent = Agent(
+    name="calculator",
+    model="gpt-4o-mini",
+    tools=[add],
+    budget=1.0,
+)
+
+result = agent.run("Add 2 and 3")
+
+print(result.output)
+print(result.cost)
+```
+
+---
+
+## Why AgenWatch
+
+- **Runtime-enforced budgets** — kernel-level kill switches, not just logging
+- **No double-charging on retries** — fingerprint-based deduplication
+- **Deterministic execution** — replayable agent runs
+- **Provider agnostic** — OpenAI, Anthropic, Groq, Gemini, and 100+ via LiteLLM
+
+---
+
+## Status
+
+**v0.1.0 — stable core**
+
+---
+
+## License
+
+MIT
