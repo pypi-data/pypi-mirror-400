@@ -1,0 +1,72 @@
+{#
+  Template for local terminal reviews (simple format, no HTML).
+
+  SECURITY NOTE: Do NOT add `| e` (HTML escape) filter to variables.
+  - The `| e` filter converts quotes to HTML entities (e.g., ' → &#39;)
+  - This breaks markdown readability without providing security benefit
+  - Terminal output doesn't render HTML, so XSS is not a concern
+  - autoescape=False is set intentionally in templates.py
+  - See: src/ai_code_review/utils/templates.py for full security rationale
+#}
+## Local Code Review
+
+### 🔍 Code Analysis
+
+{{ review.general_feedback }}
+
+{% if review.file_reviews %}
+### 📂 File Reviews
+
+{% for file_review in review.file_reviews %}
+**📄 `{{ file_review.file_path }}`** - {{ file_review.summary }}
+{% for comment in file_review.comments %}
+- **{{ comment.severity | title }}** [{{ comment.issue_type | title }}]: {{ comment.description }}
+{% if comment.suggestion %}
+  - Suggestion: {{ comment.suggestion }}
+{% endif %}
+{% if comment.code_example %}
+
+````
+{{ comment.code_example }}
+````
+{% endif %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+
+{% if file_review.questions %}
+- Questions:
+{% for question in file_review.questions %}
+  - {{ question }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% endif %}
+
+### ✅ Summary
+
+**Overall Assessment:** {{ review.overall_assessment }}
+
+{% if review.priority_issues %}
+**Priority Issues:**
+{% for issue in review.priority_issues %}
+- {{ issue }}
+{% endfor %}
+{% endif %}
+
+{% if review.minor_suggestions %}
+**Minor Suggestions:**
+{% for suggestion in review.minor_suggestions %}
+- {{ suggestion }}
+{% endfor %}
+{% endif %}
+
+---
+🤖 **AI Code Review** | Model: {{ ai_model }}
+
+⚠️ AI-generated suggestions may be incorrect. Verify before applying.
+{% if dry_run %}
+**Mode:** DRY RUN - No actual changes were analyzed
+{% endif %}
