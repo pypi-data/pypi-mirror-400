@@ -1,0 +1,69 @@
+# Jellyfin Letterboxd Sync
+
+Sync your watched movies and episodes from Jellyfin to Letterboxd.
+
+## Features
+
+- Fetches watched movies and episodes from your Jellyfin server.
+- Handles TV shows by mapping them to their series name (since Letterboxd supports some series/miniseries).
+- Exports data to a CSV file compatible with Letterboxd import.
+- Automates the upload process to Letterboxd using Playwright (browser automation).
+
+## Installation
+
+You can install this package via pip (or uv):
+
+```bash
+uv tool install jellyfin-letterboxd-sync
+# or
+pip install jellyfin-letterboxd-sync
+```
+
+Since this tool uses Playwright, you'll also need to install the browser binaries. This tool defaults to using Brave/Chrome, so ensure you have a Chromium-based browser installed or install the Playwright browsers:
+
+```bash
+uv run playwright install chromium
+# or
+playwright install chromium
+```
+
+## Usage
+
+Run the sync tool with the required parameters:
+
+```bash
+jellyfin-letterboxd-sync \
+  --jellyfin-url "https://your-jellyfin-server.com" \
+  --jellyfin-user "your_jellyfin_username" \
+  --jellyfin-api-key "YOUR_JELLYFIN_API_KEY" \
+  --letterboxd-user "your_letterboxd_email" \
+  --letterboxd-pass "your_letterboxd_password"
+```
+
+### Options
+
+| Argument             | Description                              | Required | Default                      |
+| -------------------- | ---------------------------------------- | -------- | ---------------------------- |
+| `--jellyfin-url`     | URL of your Jellyfin server              | Yes      | -                            |
+| `--jellyfin-user`    | Jellyfin username to sync from           | Yes      | -                            |
+| `--jellyfin-api-key` | API Key generated in Jellyfin Dashboard  | Yes      | -                            |
+| `--letterboxd-user`  | Letterboxd account email/username        | Yes      | -                            |
+| `--letterboxd-pass`  | Letterboxd account password              | Yes      | -                            |
+| `--csv-path`         | Temporary path for generated CSV         | No       | `/tmp/letterboxd_import.csv` |
+| `--headless`         | Run browser in headless mode (invisible) | No       | `False`                      |
+
+### Getting a Jellyfin API Key
+
+1. Go to your Jellyfin Dashboard.
+2. Navigate to **API Keys**.
+3. Click **+** to create a new key.
+4. Name it "Letterboxd Sync" (or similar).
+5. Copy the generated key.
+
+## Development
+
+To run locally without installing:
+
+```bash
+uv run -m jellyfin_letterboxd_sync.main --help
+```
