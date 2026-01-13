@@ -1,0 +1,25 @@
+'''
+Welcome to Advanced Debug.
+Licensed with MIT
+
+Change Logs:
+	- Added .about()
+	- Added custom exception
+	- Added checker for updates
+'''
+
+__version__ = '0.2.9'
+
+from .core import AdvDBG
+
+from .colors import Colors
+from .analyze import Breakpoint
+import requests
+from .update import Update
+
+__all__ = ['AdvDBG', 'Breakpoint']
+if Update.check_for_updates() == "Not latest!":
+                print(f'Available new update\n{Colors.INFO}{Update.return_installed()} → {Update.return_latest()}\n')
+
+# For easy access, you can create a default instance
+DebuGGer = AdvDBG()
