@@ -1,0 +1,155 @@
+[project]
+name = "oxnats"
+version = "2.0.0"
+description = "Django NATS Consumer"
+authors = []
+requires-python = ">=3.9"
+readme = "README.md"
+license = "BSD-3-Clause"
+keywords = [
+    "django",
+    "nats",
+    "jetstream",
+    "consumer",
+    "async",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "Framework :: Django",
+]
+dependencies = [
+    "django>=4.1",
+    "nats-py>=2.9.0",
+]
+
+[project.optional-dependencies]
+uvloop = ["uvloop>=0.21.0"]
+dev = ["watchfiles>=1.0.4; python_version < '3.14'"]
+
+[project.urls]
+Homepage = "https://github.com/dev360/django-nats-consumer"
+Repository = "https://github.com/dev360/django-nats-consumer"
+
+[dependency-groups]
+test = [
+    "pytest~=8.3",
+    "pytest-django~=4.9",
+    "pytest-asyncio>=0.21,<0.22",
+    "tox~=4.21",
+]
+dev = [
+    "watchfiles>=1.0.4,<2; python_version < '3.14'",
+]
+
+[tool.uv]
+default-groups = [
+    "test",
+    "dev",
+]
+
+[tool.uv.sources]
+oxnats = { workspace = true }
+
+[tool.hatch.build.targets.sdist]
+include = ["src/nats_consumer"]
+
+[tool.hatch.build.targets.wheel]
+include = ["src/nats_consumer"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/nats_consumer" = "nats_consumer"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+fix = true
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501", # line too long, handled by black
+    "B905", # zip() without strict=True
+    "C901", # too complex
+]
+
+[tool.semantic_release]
+tag_format = "{version}"
+major_on_zero = true
+version_toml = ["pyproject.toml:project.version"]
+upload_to_vcs_release = false
+upload_to_pypi = false
+
+
+[tool.semantic_release.remote]
+type = "github"
+ignore_token_for_push = true
+
+[tool.semantic_release.remote.token]
+# Token pas nécessaire avec SSH
+env = "GITHUB_TOKEN_NOT_USED"
+
+[tool.semantic_release.changelog]
+template_dir = ".github/templates"
+exclude_commit_patterns = [
+    "chore: version bump",
+    "chore(deps)",
+    "chore(deps-dev)",
+]
+
+[tool.semantic_release.changelog.environment]
+trim_blocks = true
+lstrip_blocks = true
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = false
+
+[tool.pytest.ini_options]
+addopts = """\
+    --strict-config
+    --strict-markers
+    --ds=tests.server.example.settings
+    """
+pythonpath = "."
+django_find_project = false
+markers = ["asyncio: mark test as async/await test"]
+
+[tool.pytest-asyncio]
+asyncio_mode = "auto"
+
+[tool.tox]
+legacy_tox_ini = """
+    [tox]
+    isolated_build = true
+    envlist =
+        python{38,39,310,311,312,313}-django{32,41,42,50,51}
+
+    [testenv]
+    skip_install = true
+    allowlist_externals = poetry
+    set_env =
+        PYTHONDEVMODE = 1
+    commands_pre = poetry install
+    commands = poetry run python -m pytest tests/
+"""
