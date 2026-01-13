@@ -1,0 +1,74 @@
+includes {
+    #include "common_lib.cin",
+    #include "utils_lib.cin"
+}
+
+variables {
+    int gCounter = 0;
+    message EngineStatus msg1;
+    msTimer tCyclic;
+}
+
+on start {
+    write("Simulation Started");
+    setTimer(tCyclic, 100);
+}
+
+on message EngineStatus {
+    gCounter++;
+    processData(this.RPM);
+}
+
+on timer tCyclic {
+    setTimer(tCyclic, 100);
+}
+
+on someipSD *
+{
+    write("SomeIP Service Discovery Message Received");
+}
+
+on someipMessage 0x0012:0x1234:Notification
+{
+    write("SomeIP Message Received: 123456");
+}
+
+
+void processData(int value) {
+    if(value > 3000) write("High RPM!");
+}
+
+testcase TC_Inserted() {
+    write("This was inserted automatically");
+}
+
+
+testfunction testProcessData() {
+    int testValue = 3500;
+    processData(testValue);
+}
+
+
+testcase TC1_ProcessData()
+{
+    testProcessData();
+}
+
+testcase TC2_MessageHandling()
+{
+    EngineStatus testMsg;
+    testMsg.RPM = 3200;
+    write("Simulating EngineStatus Message with RPM: ", testMsg.RPM);
+}
+
+testcase Timer_StartTestSeries() {
+  InitializeTestGroup("Chassis_Control_Tests");
+}
+
+testcase TC3_TimerFunctionality()
+{
+    write("Testing Timer Functionality");
+}
+testcase TC_GroupTest() {
+    write("Testing group insertion");
+}
