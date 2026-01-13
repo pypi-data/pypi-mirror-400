@@ -1,0 +1,760 @@
+---
+homepage: https://github.com/geraldnguyen/frontmatter-utils
+package: https://pypi.org/project/frontmatter-utils/
+stats: https://pypistats.org/packages/frontmatter-utils
+---
+
+# fmu - Front Matter Utils
+
+A Python library and CLI tool for parsing and searching front matter in files.
+
+## Features
+
+- **Library Mode**: Reusable API for parsing and searching frontmatter
+- **CLI Mode**: Command-line interface for batch operations
+- **YAML Support**: Parse YAML frontmatter (default format)
+- **Flexible Search**: Search by field name and optionally by value
+- **Array Search**: Search within array/list frontmatter values
+- **Regex Support**: Use regular expressions for value matching
+- **Validation Engine**: Validate frontmatter fields against custom rules
+- **Update Engine**: Transform, replace, and remove frontmatter values *(New in v0.4.0)*
+- **Case Transformations**: Six different case conversion types *(New in v0.4.0)*
+- **Value Deduplication**: Automatic removal of duplicate array values *(New in v0.4.0)*
+- **Template Output**: Export content and frontmatter using custom templates *(New in v0.9.0)*
+- **Character Escaping**: Escape special characters in output *(New in v0.9.0)*
+- **File Output**: Save command output directly to files *(New in v0.10.0)*
+- **JSON/YAML Output**: Export data as JSON or YAML with custom maps *(New in v0.22.0)*
+- **Case Sensitivity**: Support for case-sensitive or case-insensitive matching
+- **Multiple Output Formats**: Console output or CSV export
+- **Glob Pattern Support**: Process multiple files using glob patterns
+
+## Installation
+
+### From Source
+
+```bash
+git clone https://github.com/geraldnguyen/frontmatter-utils.git
+cd frontmatter-utils
+pip install -e .
+```
+
+### Dependencies
+
+- Python 3.7+
+- PyYAML>=6.0
+
+## Getting Started
+
+### Library Usage
+
+```python
+from fmu import parse_file, search_frontmatter, validate_frontmatter, update_frontmatter
+
+# Parse a single file
+frontmatter, content = parse_file('example.md')
+print(f"Title: {frontmatter.get('title')}")
+print(f"Content: {content}")
+
+# Search for frontmatter across multiple files
+results = search_frontmatter(['*.md'], 'author', 'John Doe')
+for file_path, field_name, field_value in results:
+    print(f"{file_path}: {field_name} = {field_value}")
+
+# Search within array values
+results = search_frontmatter(['*.md'], 'tags', 'python')
+
+# Validate frontmatter fields
+validations = [
+    {'type': 'exist', 'field': 'title'},
+    {'type': 'eq', 'field': 'status', 'value': 'published'},
+    {'type': 'contain', 'field': 'tags', 'value': 'tech'}
+]
+failures = validate_frontmatter(['*.md'], validations)
+for file_path, field_name, field_value, reason in failures:
+    print(f"Validation failed in {file_path}: {reason}")
+
+# Update frontmatter fields (New in v0.4.0)
+operations = [
+    {'type': 'case', 'case_type': 'lower'},
+    {'type': 'replace', 'from': 'python', 'to': 'programming', 'ignore_case': False, 'regex': False},
+    {'type': 'remove', 'value': 'deprecated', 'ignore_case': False, 'regex': False}
+]
+results = update_frontmatter(['*.md'], 'tags', operations, deduplication=True)
+for result in results:
+    if result['changes_made']:
+        print(f"Updated {result['file_path']}: {result['reason']}")
+```
+
+### CLI Usage
+
+#### Basic Commands
+
+```bash
+# Show version
+fmu version
+
+# Show help
+fmu help
+
+# Parse files and show both frontmatter and content
+fmu read "*.md"
+
+# Parse files and show only frontmatter
+fmu read "*.md" --output frontmatter
+
+# Parse files and show only content
+fmu read "*.md" --output content
+
+# Skip section headings
+fmu read "*.md" --skip-heading
+
+# Escape special characters in output (New in v0.9.0)
+fmu read "*.md" --escape
+
+# Use template output for custom formatting (New in v0.9.0)
+fmu read "*.md" --output template --template '{ "title": "$frontmatter.title", "file": "$filename" }'
+
+# Save output to file (New in v0.10.0)
+fmu read "*.md" --file output.txt
+
+# Save template output to JSON file (New in v0.10.0)
+fmu read "*.md" --output template --template '{ "title": "$frontmatter.title" }' --file output.json
+```
+
+#### File Output (New in v0.10.0)
+
+The `--file` option allows you to save command output directly to a file instead of displaying it in the console:
+
+```bash
+# Save standard output to file
+fmu read "*.md" --file output.txt
+
+# Save template output to file
+fmu read "*.md" --output template --template '{ "title": "$frontmatter.title" }' --file output.json
+
+# Combine with escape for JSON-safe file output
+fmu read "*.md" --output template --template '{ "content": "$content" }' --escape --file data.json
+
+# Works with specs files - different commands can output to different files
+fmu execute commands.yaml  # Each command can specify its own --file destination
+```
+
+**Use Cases:**
+- Export metadata to JSON files for further processing
+- Generate data files for static site generators
+- Create batch processing pipelines with file-based workflows
+- Archive frontmatter and content in structured formats
+
+#### Template Output (New in v0.9.0)
+
+The `--output template` option allows you to export content and frontmatter in custom formats:
+
+```bash
+# Export as JSON-like format
+fmu read "*.md" --output template --template '{ "title": "$frontmatter.title", "content": "$content" }'
+
+# Access array elements by index
+fmu read "*.md" --output template --template '{ "first_tag": "$frontmatter.tags[0]", "second_tag": "$frontmatter.tags[1]" }'
+
+# Include file metadata
+fmu read "*.md" --output template --template '{ "path": "$filepath", "name": "$filename" }'
+
+# Combine with escape option for JSON-safe output
+fmu read "*.md" --output template --template '{ "content": "$content" }' --escape
+```
+
+**Template Placeholders:**
+- `$filename`: Base filename (e.g., "post.md")
+- `$filepath`: Full file path
+- `$content`: Content after frontmatter
+- `$frontmatter.fieldname`: Access frontmatter field (single value or full array as JSON)
+- `$frontmatter.fieldname[N]`: Access array element by index (0-based)
+
+**Escape Option:**
+When `--escape` is used, the following characters are escaped:
+- Newline: `\n`
+- Carriage return: `\r`
+- Tab: `\t`
+- Single quote: `'` → `\'`
+- Double quote: `"` → `\"`
+
+#### Search Commands
+
+```bash
+# Search for posts with 'author' field
+fmu search "*.md" --name author
+
+# Search for posts by specific author
+fmu search "*.md" --name author --value "John Doe"
+
+# Case-insensitive search
+fmu search "*.md" --name author --value "john doe" --ignore-case
+
+# Search within array values
+fmu search "*.md" --name tags --value python
+
+# Use regex for pattern matching
+fmu search "*.md" --name title --value "^Guide.*" --regex
+
+# Output results to CSV file
+fmu search "*.md" --name category --csv results.csv
+```
+
+#### Validation Commands
+
+```bash
+# Validate that required fields exist
+fmu validate "*.md" --exist title --exist author
+
+# Validate that certain fields don't exist
+fmu validate "*.md" --not draft --not private
+
+# Validate field values
+fmu validate "*.md" --eq status published --ne category "deprecated"
+
+# Validate array contents
+fmu validate "*.md" --contain tags "tech" --not-contain tags "obsolete"
+
+# Validate using regex patterns
+fmu validate "*.md" --match title "^[A-Z].*" --not-match content "TODO"
+
+# Case-insensitive validation
+fmu validate "*.md" --eq STATUS "published" --ignore-case
+
+# Output validation failures to CSV
+fmu validate "*.md" --exist title --csv validation_report.csv
+
+# Complex validation with multiple rules
+fmu validate "blog/*.md" \
+  --exist title \
+  --exist author \
+  --eq status "published" \
+  --contain tags "tech" \
+  --match date "^\d{4}-\d{2}-\d{2}$" \
+  --csv blog_validation.csv
+```
+
+#### Update Commands (New in v0.4.0)
+
+```bash
+# Transform case of frontmatter values
+fmu update "*.md" --name title --case "Title Case"
+fmu update "*.md" --name author --case lower
+
+# Replace values
+fmu update "*.md" --name status --replace draft published
+fmu update "*.md" --name category --replace "old-name" "new-name"
+
+# Case-insensitive replacement
+fmu update "*.md" --name tags --replace Python python --ignore-case
+
+# Regex-based replacement
+fmu update "*.md" --name content --replace "TODO:.*" "DONE" --regex
+
+# Remove specific values
+fmu update "*.md" --name tags --remove "deprecated"
+fmu update "*.md" --name status --remove "draft"
+
+# Remove with regex patterns
+fmu update "*.md" --name tags --remove "^test.*" --regex
+
+# Multiple operations (applied in sequence)
+fmu update "*.md" --name tags \
+  --replace python programming \
+  --remove deprecated \
+  --case lower
+
+# Disable deduplication (enabled by default for arrays)
+fmu update "*.md" --name tags --deduplication false --case lower
+
+# Complex update with multiple operations
+fmu update "blog/*.md" \
+  --name tags \
+  --case lower \
+  --replace "javascript" "js" \
+  --replace "python" "py" \
+  --remove "deprecated" \
+  --remove "old" \
+  --deduplication true
+```
+
+#### Global Options
+
+```bash
+# Specify frontmatter format (currently only YAML supported)
+fmu --format yaml read "*.md"
+```
+
+## Documentation
+
+For detailed information about using fmu, see:
+
+- **[CLI Command Reference](CLI.md)**: Complete guide to all CLI commands, options, and examples
+- **[Library API Reference](API.md)**: Comprehensive Python API documentation
+- **[Specs File Specification](SPECS.md)**: Format and usage of specs files for command automation
+
+## CI / GitHub Actions: UnicodeEncodeError on Windows runners
+
+If you see an error like:
+
+```
+.\stories\spiritual\the-sweeping-monk\index.md: No changes to 'summary' - Field 'summary' does not exist
+Error executing command: 'charmap' codec can't encode character '\u0101' in position 47: character maps to <undefined>
+Command failed with exit code 1.
+```
+
+This is caused by Python attempting to write a character (for example, "ā" U+0101) to stdout/stderr or a file using a platform code page (Windows "charmap" / cp1252) that doesn't support that character. The simplest fix in CI is to force Python to use UTF-8 for its standard streams.
+
+Add the following environment variable to your GitHub Actions job or step to ensure Python uses UTF-8 for IO:
+
+```yaml
+# add to job or step
+env:
+  PYTHONIOENCODING: utf-8
+```
+
+This makes Python's stdout/stderr use UTF-8 and prevents UnicodeEncodeError when printing non-ASCII characters. It's a recommended CI setting when your content may contain extended Unicode characters.
+
+## Changelog
+
+### Version 0.24.0
+
+- **Execute Command Enhancements**
+  - Added `--command <regex>` option to filter commands by description
+    - Filters spec file commands whose description matches the provided regex pattern
+    - Allows selective execution of commands without modifying the spec file
+    - Example: `fmu execute specs.yaml --command "alpha|beta"` executes only commands with "alpha" or "beta" in description
+  - Added `--pattern <pattern>` option to override patterns in commands
+    - Can be specified multiple times to provide multiple patterns
+    - Overrides the patterns in all matched commands from the spec file
+    - Works with both original and filtered command sets
+    - Example: `fmu execute specs.yaml --pattern "*.md" --pattern "docs/*.txt"`
+  - Both options can be combined for powerful command filtering and pattern override
+    - Example: `fmu execute specs.yaml --command "validation" --pattern "production/*.md"`
+  - Invalid regex patterns are caught and reported with descriptive error messages
+
+- **Library API Updates**
+  - `execute_specs_file()` function signature updated to accept optional `command_regex` and `patterns` parameters
+  - `cmd_execute()` function signature updated to accept optional `command_regex` and `patterns` parameters
+  - Both functions maintain backward compatibility with existing code
+
+- **Testing**
+  - Added 4 comprehensive unit tests covering:
+    - Command filtering by regex
+    - Pattern override functionality
+    - Combined command filtering and pattern override
+    - Invalid regex error handling
+  - All 281 tests passing (277 previous tests + 4 new tests)
+
+### Version 0.23.0
+
+- **New Built-in Variables**
+  - Added `$folderpath` variable: returns the full path to the folder containing the file
+  - Added `$foldername` variable: returns just the folder name (without full path)
+  - These variables are available in both `read` and `update` commands
+  - Example: `fmu read "*.md" --output json --map folder '$foldername'`
+  - Example: `fmu update "*.md" --name folder_path --compute '$folderpath'`
+
+- **New Built-in Functions**
+  - `=basename(file_path)`: returns the base name of a file without its extension
+    - Example: `=basename('/path/to/file.txt')` returns `'file'`
+  - `=ltrim(str)`: trims whitespace from the left side of a string
+    - Example: `=ltrim('  hello')` returns `'hello'`
+  - `=rtrim(str)`: trims whitespace from the right side of a string
+    - Example: `=rtrim('hello  ')` returns `'hello'`
+  - `=trim(str)`: trims whitespace from both sides of a string
+    - Example: `=trim('  hello  ')` returns `'hello'`
+  - `=truncate(string, max_length)`: truncates a string to the specified maximum length
+    - Example: `=truncate('hello world', 5)` returns `'hello'`
+  - `=wtruncate(string, max_length, suffix)`: truncates a string at word boundary and appends suffix
+    - Example: `=wtruncate('hello world', 10, '...')` returns `'hello...'`
+  - `=path(segment1, segment2, ...)`: forms a path from segments using OS-appropriate separator
+    - Example: `=path('home', 'user', 'docs')` returns `'home/user/docs'` on Unix
+    - Example: `=path($folderpath, 'output', 'data.json')` creates path relative to folder
+  - `=flat_list(element1, element2, ...)`: creates a flattened list from elements, expanding nested lists
+    - Example: `=flat_list('a', ['b', 'c'], 'd')` returns `['a', 'b', 'c', 'd']`
+    - Example: `=flat_list('new', $frontmatter.tags, 'extra')` combines literals with list field
+  - These functions are available in both `read` and `update` commands
+
+- **Enhanced Function Call Syntax** *(v0.23.0)*
+  - Functions can now use `$` prefix in addition to `=` prefix
+  - `=` prefix: only at the beginning (e.g., `=concat($frontmatter.title, .txt)`)
+  - `$` prefix: at beginning or nested (e.g., `$concat(...)` or `=path($concat(...))`
+  - Enables nested function calls: `=path($folderpath, $concat(output, .json))`
+  - Examples:
+    - `$concat($frontmatter.title, .txt)` - $ prefix at beginning
+    - `=path($folderpath, $concat(output, .json))` - nested $ function inside = function
+    - `$trim($concat(  , $frontmatter.title,  ))` - nested functions with $ prefix
+
+- **Usage Examples**
+  - Create slug from URL: `fmu update "*.md" --name slug --compute '=basename($frontmatter.url)'`
+  - Trim titles: `fmu update "*.md" --name title --compute '=trim($frontmatter.title)'`
+  - Create short descriptions: `fmu update "*.md" --name summary --compute '=wtruncate($frontmatter.description, 100, ...)'`
+  - Build output paths: `fmu update "*.md" --name output_path --compute '=path($folderpath, output, data.json)'`
+  - Flatten lists: `fmu update "*.md" --name all_tags --compute '=flat_list(new, $frontmatter.tags, extra)'`
+  - Nested functions: `fmu update "*.md" --name full_path --compute '=path($folderpath, $concat(output, .json))'`
+  - Export folder info: `fmu read "*.md" --output json --map folder '$foldername' --map path '$folderpath'`
+
+- **Documentation**
+  - Updated CLI help text to include new variables and functions
+  - Updated README.md with version 0.23.0 changelog
+  - CLI.md, API.md, and SPECS.md to be updated with comprehensive documentation
+
+- **Testing**
+  - Added 21 comprehensive unit tests for new variables and functions
+  - Tests cover both `read` and `update` command usage
+  - All tests passing
+
+### Version 0.22.0
+
+- **JSON/YAML Output Support**
+  - Added `--output json` and `--output yaml` options to the `read` command
+  - Build custom data structures with `--map KEY VALUE` option (can be used multiple times)
+  - Map values support:
+    - Literals: `"some value"`, `123`, `true`
+    - Placeholders: `$filepath`, `$filename`, `$content`, `$frontmatter.fieldname`
+    - Functions: `=now()`, `=list()`, `=hash()`, `=concat()`, etc.
+  - Added `--pretty` option for formatted JSON/YAML output with indentation
+  - Added `--compact` option for minified JSON/YAML output
+  - Example: `fmu read "*.md" --output json --map title '$frontmatter.title' --map path '$filepath' --pretty`
+- **Specs File Support**
+  - Specs files now support `map`, `pretty`, and `compact` options for read commands
+  - Example in specs file:
+    ```yaml
+    - command: read
+      output: json
+      map:
+        - [title, '$frontmatter.title']
+        - [timestamp, '=now()']
+      pretty: true
+    ```
+- **Library API Updates**
+  - `cmd_read()` function now accepts `map_items`, `pretty`, and `compact` parameters
+  - Updated `convert_read_args_to_options()` to handle the new options
+  - Reuses `evaluate_formula()` from update.py for consistent value evaluation
+- **Documentation**
+  - Updated README.md with JSON/YAML output feature description
+  - Added changelog entry for v0.22.0
+- **Testing**
+  - Added 11 comprehensive unit tests for JSON/YAML output functionality
+  - Tests cover: basic output, pretty/compact formatting, literals, placeholders, arrays, and functions
+  - All 238 tests passing
+
+### Version 0.21.0
+
+- **New --individual Option for read Command**
+  - Added `--individual` option to the `read` command for creating separate output files per input file
+  - When specified with `--file FILE`, the output file is created relative to each input file's directory
+  - Without `--individual`, a single output file is created at the specified path (existing behavior)
+  - Example: `fmu read "content/**/*.md" --file summary.txt --individual` creates `summary.txt` in each input file's directory
+  - Works with all output modes: `frontmatter`, `content`, `both`, and `template`
+- **Specs File Support**
+  - Specs files now support the `individual: true` option for read commands
+  - Execute command correctly handles individual file outputs when processing specs
+- **Library API Updates**
+  - `cmd_read()` function now accepts `individual` parameter
+  - Updated `convert_read_args_to_options()` to handle the individual option
+  - Updated `convert_specs_to_args()` to parse `individual` from specs
+- **Documentation**
+  - Updated CLI.md with `--individual` option details and examples
+  - Updated SPECS.md with `individual` option specification and example
+  - Added changelog entry to README.md
+- **Testing**
+  - Added 3 comprehensive unit tests for the new functionality
+  - Tests cover: individual file creation, template output with individual mode, and single file mode verification
+  - All tests passing
+
+### Version 0.20.0
+
+- **Enhanced --remove Option**
+  - Made VALUE optional in `--remove VALUE` option of the `update` command
+  - When `--remove` is used without a value, it removes the entire frontmatter field (both scalar and list values)
+  - If the field doesn't exist, the file is skipped silently without warnings
+  - Example: `fmu update "*.md" --name draft --remove` removes the entire `draft` field from all matched files
+  - Example: `fmu update "*.md" --name tags --remove` removes the entire `tags` list from all matched files
+- **Backward Compatibility**
+  - `--remove VALUE` with a value still works as before, removing only matching values from fields
+  - Example: `fmu update "*.md" --name tags --remove "deprecated"` removes only "deprecated" from tags array
+- **Specs File Support**
+  - Specs files now support `null` value for remove operations to represent field removal
+  - Example: `remove: [null]` in specs file generates `--remove` without value argument
+- **Library API Updates**
+  - `apply_remove_operation()` now accepts `None` as `remove_val` to indicate entire field removal
+  - Updated `update_frontmatter()` to handle silent skipping of non-existent fields when using field removal
+- **Testing**
+  - Added 6 comprehensive unit tests for the new functionality
+  - Tests cover: scalar field removal, list field removal, non-existent field handling, and backward compatibility
+  - All 224 tests passing (218 previous tests + 6 new tests)
+
+### Version 0.19.0
+
+- **Bug Fix: Version Command**
+  - Fixed version command to correctly return 0.19.0 (previously returned 0.17.0 instead of 0.18.0)
+  - Updated `__init__.py` and `setup.py` to version 0.19.0
+- **Bug Fix: --compute Specs Capture**
+  - Fixed issue where `--compute` argument was not captured in spec file when used with `--save-specs` option
+  - Updated `convert_update_args_to_options()` in specs.py to handle `--compute` option
+  - Updated `convert_specs_to_args()` to parse `compute` from specs
+  - Updated `format_command_text()` to output `--compute` in command text
+  - Example: `fmu update file.md --name aliases --compute "=list()" --save-specs "add aliases" specs.yaml` now correctly saves compute operations to specs file
+- **Testing**
+  - Added 3 comprehensive unit tests for compute specs functionality
+  - Tests cover: converting update args with compute, formatting command text with compute, and full save/execute cycle
+  - All 218 tests passing (215 previous tests + 3 new tests)
+
+### Version 0.18.0
+
+- **New Compute Function: coalesce()**
+  - Added `coalesce(value1, value2, ...)` function for the `update` command's `--compute` option
+  - Returns the first parameter that is not nil (None), not empty, or not blank
+  - Supports variable number of parameters
+  - Useful for providing fallback values when frontmatter fields are missing or empty
+  - Empty strings, whitespace-only strings, empty lists, and empty dictionaries are skipped
+  - Zero (0) and False are considered valid values and not skipped
+  - Unresolved placeholders (starting with $) are also skipped
+  - Example: `fmu update file.md --name result --compute '=coalesce($frontmatter.description, $frontmatter.alt_description, "default")'`
+- **Library API Updates**
+  - Added `coalesce` function to `_execute_function()` in `update.py`
+  - Function signature: Takes a list of parameters and returns the first non-empty value
+- **Testing**
+  - Added 13 comprehensive unit tests for the coalesce function
+  - Tests cover: first non-empty value, skipping empty/None/blank values, numbers, booleans, lists, dicts, placeholder handling, and dollar sign literals
+  - All 89 tests in test_update.py passing (76 previous tests + 13 new tests)
+
+### Version 0.17.0
+
+- **Frontmatter Order Preservation**
+  - The `update` command now preserves the original order of frontmatter fields when writing back to files
+  - Previously, frontmatter fields were sorted alphabetically after updates
+  - Now maintains the exact order in which fields appeared in the original file
+  - Implementation: Added `sort_keys=False` parameter to all `yaml.dump()` calls in the update functionality
+- **Library API Updates**
+  - `update_frontmatter()` and related functions now preserve field order when modifying frontmatter
+- **Testing**
+  - Added comprehensive unit test `test_frontmatter_order_preservation()` to verify field order is maintained
+  - All 202 tests passing (201 previous tests + 1 new test for order preservation)
+
+### Version 0.16.0
+
+- **YAML Syntax Error Detection (Bugfix)**
+  - The `validate` command now properly detects and reports YAML syntax errors in frontmatter
+  - Previously, files with malformed YAML frontmatter were silently skipped
+  - Now reports detailed YAML parsing errors as validation failures with:
+    - Field name: `frontmatter`
+    - Error message includes the specific YAML syntax error and line/column location
+    - Returns non-zero exit code (1) when YAML syntax errors are detected
+  - Works with both console and CSV output modes
+  - Example: Files with incorrect indentation (e.g., ` themes:` with leading space) are now properly detected
+- **Library API Updates**
+  - `validate_frontmatter()` now reports YAML parsing errors as validation failures instead of silently skipping files
+  - File encoding errors (UnicodeDecodeError) are also reported as validation failures
+- **Testing**
+  - Added 6 comprehensive unit tests for various YAML syntax error detection scenarios
+  - Tests cover: incorrect indentation, missing colons, invalid structures, CSV output, and more
+  - All 201 tests passing (195 previous tests + 6 new tests for YAML error handling)
+
+### Version 0.15.0
+
+- **Execute Command Exit Code Handling**
+  - The `execute` command now properly returns exit codes from executed commands
+  - If any command returns a non-zero exit code, execution stops immediately and returns that exit code
+  - If a command returns exit code 0, execution continues to the next command
+  - Enables spec files to be used in CI/CD pipelines and scripts that check exit codes
+  - Works with all command types: `read`, `search`, `validate`, and `update`
+- **Library API Updates**
+  - `execute_command()` function now returns an exit code (integer) instead of a boolean success tuple
+  - `execute_specs_file()` function now returns a tuple of (exit_code, stats_dict)
+  - `cmd_execute()` function now returns an exit code
+- **Testing**
+  - Added 4 new comprehensive unit tests for exit code behavior
+  - All 195 tests passing (24 total specs tests)
+
+### Version 0.14.0
+
+- **Exit Code for Validation Failures**
+  - The `validate` command now returns a non-zero exit code (1) when any validation fails
+  - Returns exit code 0 when all validations pass
+  - Enables validation to be used in CI/CD pipelines and scripts that check exit codes
+  - Works with all validation types: `--exist`, `--not`, `--eq`, `--ne`, `--contain`, `--not-contain`, `--match`, `--not-match`, `--not-empty`, `--list-size`
+  - Exit code behavior applies to both console and CSV output modes
+- **Library API Updates**
+  - `validate_and_output()` function now returns the count of validation failures (integer)
+  - `cmd_validate()` function now returns an exit code (0 for success, 1 for failure)
+- **Testing**
+  - Added comprehensive unit tests for exit code behavior
+  - All 191 tests passing (9 new tests for exit code functionality, including CSV output tests)
+
+### Version 0.13.0
+
+- **Slice Function for Compute Operations**
+  - New `slice()` function for list slicing in `--compute` option
+  - Support for Python-like slicing syntax: `slice(list, start)`, `slice(list, start, stop)`, `slice(list, start, stop, step)`
+  - Negative indices support for reverse indexing (e.g., `-1` for last element)
+  - Negative step support for reverse iteration
+- **Enhanced Compute Behavior**
+  - When computed value is a list (e.g., from `slice()`), it now replaces the entire list instead of appending
+  - Maintains backward compatibility: scalar computed values still append to list fields
+- **Use Cases**
+  - Extract last element: `=slice($frontmatter.aliases, -1)`
+  - Get first N elements: `=slice($frontmatter.tags, 0, 3)`
+  - Filter with step: `=slice($frontmatter.items, 0, 10, 2)` (every other element)
+  - Reverse lists: `=slice($frontmatter.list, -1, 0, -1)`
+- **Documentation**
+  - Updated CLI.md with slice function examples
+  - Updated API.md with slice function specifications
+  - Updated SPECS.md with slice function usage
+  - All 182 tests passing (18 new tests for slice functionality)
+
+### Version 0.12.0
+
+- **Compute Operations**
+  - New `--compute` option for the update command to calculate and set frontmatter values
+  - Support for literal values, placeholder references, and function calls
+  - Built-in functions: `now()`, `list()`, `hash(string, length)`, `concat(string, ...)`
+  - Placeholder references: `$filename`, `$filepath`, `$content`, `$frontmatter.name`, `$frontmatter.name[index]`
+  - Auto-create frontmatter fields if they don't exist
+  - Automatically append to list fields when computing values
+- **Formula Types**
+  - **Literals**: Set static values like `1`, `2nd`, `any text`
+  - **Placeholders**: Reference file metadata and frontmatter fields
+  - **Functions**: Dynamic value generation with built-in functions
+- **Use Cases**
+  - Generate timestamps with `=now()`
+  - Create content IDs with `=hash($frontmatter.url, 10)`
+  - Build dynamic URLs with `=concat(/post/, $frontmatter.id)`
+  - Initialize empty arrays with `=list()`
+  - Store file metadata in frontmatter
+- **Documentation**
+  - Updated CLI.md with compute examples and function reference
+  - Updated API.md with compute operation specifications
+  - Updated SPECS.md with compute formula examples
+  - All 164 tests passing (28 new tests for compute functionality)
+
+### Version 0.11.0
+
+- **Documentation Reorganization**
+  - Extracted CLI Command Reference to separate [CLI.md](CLI.md) file
+  - Extracted Library API Reference to separate [API.md](API.md) file
+  - Streamlined README.md to focus on Features, Installation, Getting Started, Changelog, and Mics sections
+  - Added Documentation section with links to CLI, API, and Specs documentation
+  - Enhanced SPECS.md with up-to-date command and option information
+  - All documentation now reflects current implementation and features through v0.10.0
+
+### Version 0.10.0
+
+- **File Output Feature**
+  - New `--file` option to save command output directly to files
+  - Works with all output modes (frontmatter, content, both, template)
+  - Enable file-based workflows for batch processing
+  - Multiple commands in specs files can output to different files
+- **Enhanced Integration**
+  - Seamless integration with specs file execution
+  - Each command can specify independent output destination
+  - Console and file output can be mixed in the same workflow
+- **Use Cases**
+  - Export metadata to JSON files for further processing
+  - Generate data files for static site generators
+  - Create automated pipelines with file-based workflows
+- **Testing**
+  - Added comprehensive tests for file output functionality
+  - All 136 tests passing
+
+### Version 0.9.0
+
+- **Template Output Feature**
+  - New `--output template` option for custom formatting
+  - Template placeholders: `$filename`, `$filepath`, `$content`, `$frontmatter.field`
+  - Array indexing support: `$frontmatter.field[N]`
+  - Array values exported as JSON when accessed without index
+- **Character Escaping**
+  - New `--escape` option to escape special characters
+  - Escapes: newline (`\n`), carriage return (`\r`), tab (`\t`), quotes (`'`, `"`)
+  - Works with all output modes (frontmatter, content, both, template)
+- **Enhanced Read Command**
+  - Template mode validation (requires `--template` when `--output template`)
+  - Support for complex output formats (JSON, custom text, etc.)
+  - Graceful handling of missing frontmatter fields in templates
+- **Library API Updates**
+  - Template rendering functions available for library users
+  - Character escaping functions for text processing
+
+### Version 0.4.0
+
+- **New update command**
+  - `update` command for modifying frontmatter fields in place
+  - Six case transformation types: upper, lower, Sentence case, Title Case, snake_case, kebab-case
+  - Flexible value replacement with substring and regex support
+  - Value removal with regex pattern support
+  - Automatic array deduplication (configurable)
+  - Multiple operations can be applied in sequence
+- **Enhanced CLI options**
+  - `--case` option for case transformations
+  - `--replace` option for value replacement
+  - `--remove` option for value removal
+  - Shared `--ignore-case` and `--regex` options for both replace and remove operations
+  - `--deduplication` option to control array deduplication
+- **Library API enhancements**
+  - `update_frontmatter()` function for programmatic updates
+  - `update_and_output()` function for direct console output
+  - Comprehensive operation support in library mode
+- **Comprehensive testing**
+  - 27 new update tests covering all update functionality
+  - Enhanced error handling and edge case coverage
+- **Documentation updates**
+  - Complete update command documentation
+  - Detailed update examples and use cases
+  - Enhanced API documentation with update functions
+
+### Version 0.3.0
+
+- **New validation command**
+  - `validate` command for comprehensive frontmatter validation
+  - Eight validation types: exist, not, eq, ne, contain, not-contain, match, not-match
+  - Support for field existence, value equality, array content, and regex pattern validation
+- **Enhanced CLI capabilities**
+  - Repeatable validation options (e.g., multiple `--exist` flags)
+  - Case-insensitive validation with `--ignore-case`
+  - CSV export for validation failures with detailed failure reasons
+- **Library API enhancements**
+  - New `validate_frontmatter()` function for programmatic validation
+  - New `validate_and_output()` function for direct output
+  - Comprehensive validation rule format
+- **Comprehensive testing**
+  - 30 new validation tests covering all validation types
+  - 7 new CLI tests for validation functionality
+  - Enhanced error handling and edge case coverage
+- **Documentation updates**
+  - Complete validation command documentation
+  - Detailed validation examples and use cases
+  - Enhanced API documentation with validation functions
+
+### Version 0.2.0
+
+- **Enhanced search capabilities**
+  - Array/list value matching: Search within array frontmatter fields
+  - Regex pattern matching: Use regular expressions for flexible value search
+  - Support for both scalar and array field searches
+- **New CLI options**
+  - `--regex` flag for enabling regex pattern matching
+  - Improved help documentation with regex examples
+- **Library API enhancements**
+  - Updated `search_frontmatter()` function with `regex` parameter
+  - Backward compatible with existing code
+- **Comprehensive testing**
+  - Added tests for array value matching
+  - Added tests for regex functionality
+  - Added CLI tests for new features
+- **Documentation updates**
+  - Detailed regex support documentation
+  - Enhanced examples and usage patterns
+
+### Version 0.1.0
+
+- Initial release
+- YAML frontmatter parsing
+- CLI with read and search commands
+- Library API for programmatic usage
+- Glob pattern support
+- CSV export functionality
+- Case-sensitive and case-insensitive search
+- Comprehensive test suite
