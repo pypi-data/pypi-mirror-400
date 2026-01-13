@@ -1,0 +1,255 @@
+# CHANGELOG
+
+
+## v0.9.0 (2026-01-04)
+
+### Bug Fixes
+
+- 🐛 Fix build
+  ([`4dd9f1b`](https://github.com/getcapm/capm/commit/4dd9f1bd072a9616d42aefb9b3f429b9a64fd2a7))
+
+- 🐛 Fix path
+  ([`b3b6121`](https://github.com/getcapm/capm/commit/b3b6121b9cce22fa9ffa345b08a758b740c3fb6c))
+
+### Chores
+
+- 🚧 Add tokei
+  ([`92326e8`](https://github.com/getcapm/capm/commit/92326e805d5bb9e2c0a6f561ee9e9ef087f88355))
+
+### Continuous Integration
+
+- 👷 Allow zero version
+  ([`33bb29e`](https://github.com/getcapm/capm/commit/33bb29e5dd0da3869c7fe5dcc74cc4309dfaf9c3))
+
+- 💚 Fix build
+  ([`fcd1c6f`](https://github.com/getcapm/capm/commit/fcd1c6f8022bebf506a7cf73e2ffc8a79a52210e))
+
+- 💚 Fix build
+  ([`ab90fd9`](https://github.com/getcapm/capm/commit/ab90fd950180e89ee9f2f4e5ffabf008c41450c7))
+
+- 💚 Fix issue
+  ([`2aa5719`](https://github.com/getcapm/capm/commit/2aa57197324b5b7014b46352e5242fefca88969a))
+
+### Features
+
+- ✨ 5 new packages
+  ([`f38e876`](https://github.com/getcapm/capm/commit/f38e876bff448abd1912de12d51e166ac7baf9d4))
+
+- ✨ Add ansbile-lint
+  ([`8aa4d43`](https://github.com/getcapm/capm/commit/8aa4d434c255def44b1bffe5d9ea8e91613cfc34))
+
+- ✨ Add ASL validator
+  ([`89aaf9d`](https://github.com/getcapm/capm/commit/89aaf9dc103800b1331872224664c43b34dd1ec2))
+
+- ✨ Add Checkov and jscpd
+  ([`98bfaa6`](https://github.com/getcapm/capm/commit/98bfaa65189241795a7e43e994a946a01dab3cd6))
+
+- ✨ Add info command
+  ([`d82f248`](https://github.com/getcapm/capm/commit/d82f248ad2e75134c868ae5c549eb3afec4a8d2e))
+
+- ✨ info command improvements
+  ([`7d3446c`](https://github.com/getcapm/capm/commit/7d3446c5bcad834bd4def8fd5b5411228bd08fac))
+
+### Performance Improvements
+
+- ⚡️ Optimize build and run
+  ([`ff5d9b4`](https://github.com/getcapm/capm/commit/ff5d9b45a9852707eba9175fc912248c18e313e5))
+
+
+## v0.8.0 (2025-08-12)
+
+### Bug Fixes
+
+- 🐛 Handle missing package definition
+  ([`bfac4af`](https://github.com/getcapm/capm/commit/bfac4af08740b69ec6f5afdc27a879d3f3f6ab94))
+
+### Continuous Integration
+
+- 💚 Fix tests
+  ([`6f81a66`](https://github.com/getcapm/capm/commit/6f81a66f5e1ebbb37c20a4b35fe8913e7f2db9fc))
+
+### Features
+
+- ✨ Add Radon and Xenon
+  ([`4b45882`](https://github.com/getcapm/capm/commit/4b4588277a85129c6ba90b9946f32b8451c7286e))
+
+
+## v0.7.0 (2025-08-10)
+
+### Features
+
+- ✨ Add show ouput option to run command
+  ([`972d42a`](https://github.com/getcapm/capm/commit/972d42ac8a55f83dacf9e04e6d97d341e4db09b1))
+
+
+## v0.6.0 (2025-08-09)
+
+### Features
+
+- ✨ Show output
+  ([`c15c47c`](https://github.com/getcapm/capm/commit/c15c47cf7d036bc99308446c4224b6d700825c2b))
+
+
+## v0.5.0 (2025-08-09)
+
+### Features
+
+- ✨ Add Ubuntu
+  ([`160c295`](https://github.com/getcapm/capm/commit/160c295864807892ef34807313f490d7c8edeb13))
+
+
+## v0.4.0 (2025-08-08)
+
+### Chores
+
+- 🚧 Print volumes
+  ([`6d42a93`](https://github.com/getcapm/capm/commit/6d42a93cf9a7809b448e5eebbc7a047053e9b49b))
+
+### Features
+
+- ✨ Add, list, remove commands
+  ([`267c031`](https://github.com/getcapm/capm/commit/267c031f9eb33696253bd54aa5427e2058d21825))
+
+
+## v0.3.2 (2025-08-06)
+
+### Bug Fixes
+
+- 🐛 Fix release
+  ([`1c98471`](https://github.com/getcapm/capm/commit/1c98471ae1e621e638182bf8056bdb54527ed417))
+
+### Build System
+
+- ➖ Remove pydantic-settings
+  ([`c99a0b6`](https://github.com/getcapm/capm/commit/c99a0b6b48142839ded8722d687ef65a1527a2a5))
+
+
+## v0.3.1 (2025-08-06)
+
+### Bug Fixes
+
+- 🐛 Fixed path
+  ([`be9e90a`](https://github.com/getcapm/capm/commit/be9e90a3808c046bf644ff84633d20d809b29298))
+
+
+## v0.3.0 (2025-08-06)
+
+### Bug Fixes
+
+- 🐛 Bundle packages in binary
+  ([`a361ea8`](https://github.com/getcapm/capm/commit/a361ea82c6fd35e27413ca772da7ccfcf6aad502))
+
+### Chores
+
+- 🚧 Use GH Action
+  ([`f3e064f`](https://github.com/getcapm/capm/commit/f3e064f584603c59c9b634a943cbbfe44faae577))
+
+### Features
+
+- ✨ Add pre-commit hook configuration ([#2](https://github.com/getcapm/capm/pull/2),
+  [`d562afa`](https://github.com/getcapm/capm/commit/d562afaf6754e0c9f46b935e9790e1edc1980936))
+
+* feat: ✨ pre-commit configuration
+
+* fix: 🐛 Support non-tty output
+
+- ✨ Code analysis flow
+  ([`3d6e8bc`](https://github.com/getcapm/capm/commit/3d6e8bcc9f4c8148265804ae7361ae2f2a995ffd))
+
+
+## v0.2.5 (2025-08-05)
+
+### Bug Fixes
+
+- 🐛 Add pyyaml dependency
+  ([`9c39313`](https://github.com/getcapm/capm/commit/9c393136a981243a95b16c88f4c0447572fc7bba))
+
+
+## v0.2.4 (2025-08-05)
+
+### Bug Fixes
+
+- 🐛 Fix release workflow
+  ([`86a77d5`](https://github.com/getcapm/capm/commit/86a77d57b7bab7561b850aa9950a1797f29fa11b))
+
+
+## v0.2.3 (2025-08-05)
+
+### Bug Fixes
+
+- 🐛 Fix workflow
+  ([`676c989`](https://github.com/getcapm/capm/commit/676c9895a64f2dad549d7e07f24d087d0b5e1916))
+
+- 🐛 Update lock file
+  ([`15cb0c8`](https://github.com/getcapm/capm/commit/15cb0c8b6ea0d8e591d51ba05cb29d2f4d630107))
+
+
+## v0.2.2 (2025-08-05)
+
+### Bug Fixes
+
+- 🐛 Fix release workflow
+  ([`6ed513d`](https://github.com/getcapm/capm/commit/6ed513da0b5d78c891b50a016872dcce83b457d6))
+
+- 🐛 Update lock file
+  ([`2c5d2ef`](https://github.com/getcapm/capm/commit/2c5d2ef777b4547c932ea3d43be76d4f3d491bd7))
+
+
+## v0.2.1 (2025-08-05)
+
+### Bug Fixes
+
+- 🐛 Fix release workflow
+  ([`c05310f`](https://github.com/getcapm/capm/commit/c05310f8bde6f660bb5f0413b66ae937c00a6062))
+
+- 🐛 Fix release workflow
+  ([`a65d688`](https://github.com/getcapm/capm/commit/a65d688b6952a17441818fab459ba90e7fb5db8e))
+
+
+## v0.2.0 (2025-08-05)
+
+### Features
+
+- ✨ Code analysis workflow
+  ([`8cdf171`](https://github.com/getcapm/capm/commit/8cdf171e4188321d26bc14c9f70d8a8cc47aae56))
+
+
+## v0.1.0 (2025-08-05)
+
+### Bug Fixes
+
+- 🐛 Fix click issue
+  ([`08e5521`](https://github.com/getcapm/capm/commit/08e5521a898773635d56153aad36832adcf33fa6))
+
+### Chores
+
+- 🚧 Add CodeLimit
+  ([`b0bf5f8`](https://github.com/getcapm/capm/commit/b0bf5f81d04cae531f8edd42fc0e74b41bda4ad8))
+
+- 🚧 Add report dir variable
+  ([`02ab352`](https://github.com/getcapm/capm/commit/02ab3528c0c6d9341ace3c95fe03806e69566b88))
+
+- 🚧 Fixed MyPy package
+  ([`68bfeba`](https://github.com/getcapm/capm/commit/68bfeba9b87a8c56c77a96fdef5b4c27c0ea65dd))
+
+- 🚧 LLAP
+  ([`c02c12d`](https://github.com/getcapm/capm/commit/c02c12d38e1939ebcff64707f1b768c1724ee963))
+
+### Features
+
+- ✨ Add MyPy
+  ([`d20e806`](https://github.com/getcapm/capm/commit/d20e80675a1111b2bac3aa9034b44a13647a2e0c))
+
+- ✨ Added Ruff
+  ([`2a1ffb9`](https://github.com/getcapm/capm/commit/2a1ffb96910b4af7c9c132effdaa241c786c6727))
+
+- ✨ Configure semantic release
+  ([`42f692a`](https://github.com/getcapm/capm/commit/42f692a314a27e6194371a719ba491a8deca2f7a))
+
+- ✨ Improved output
+  ([`a8118e0`](https://github.com/getcapm/capm/commit/a8118e0fba260f215f6bdd0c0bc02674f6a4c78e))
+
+### Testing
+
+- ✅ Add first test
+  ([`8942390`](https://github.com/getcapm/capm/commit/8942390b8dd2832bc1b5e338b5eaecdd4eaca957))
