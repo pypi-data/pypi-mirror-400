@@ -1,0 +1,1230 @@
+"""Tests for CLI commands."""
+
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+from pathlib import Path
+
+import pytest
+from typer.testing import CliRunner
+
+from lodestar import __version__
+from lodestar.cli.app import app
+
+runner = CliRunner()
+
+
+@pytest.fixture
+def temp_repo():
+    """Create a temporary directory for testing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_cwd = os.getcwd()
+        os.chdir(tmpdir)
+        yield Path(tmpdir)
+        os.chdir(original_cwd)
+
+
+class TestVersion:
+    """Test version output."""
+
+    def test_version_flag(self):
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+        assert "lodestar" in result.stdout
+        assert __version__ in result.stdout
+
+
+class TestInit:
+    """Test init command."""
+
+    def test_init_creates_files(self, temp_repo):
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 0
+        assert (temp_repo / ".lodestar").is_dir()
+        assert (temp_repo / ".lodestar" / "spec.yaml").exists()
+        assert (temp_repo / ".lodestar" / ".gitignore").exists()
+        assert (temp_repo / "AGENTS.md").exists()
+
+    def test_init_json_output(self, temp_repo):
+        result = runner.invoke(app, ["init", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["initialized"] is True
+
+    def test_init_fails_if_exists(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 1
+
+    def test_init_prd_creates_prompt_file(self, temp_repo):
+        result = runner.invoke(app, ["init", "--prd"])
+        assert result.exit_code == 0
+        assert (temp_repo / "PRD-PROMPT.md").exists()
+        content = (temp_repo / "PRD-PROMPT.md").read_text(encoding="utf-8")
+        assert "PRD Generation Instructions" in content
+        assert "{#" in content  # Has anchor syntax examples
+        assert "Acceptance Criteria" in content
+
+    def test_init_prd_json_output(self, temp_repo):
+        result = runner.invoke(app, ["init", "--prd", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["prd_prompt_created"] is True
+        # Check PRD-PROMPT.md is in files_created
+        files = data["data"]["files_created"]
+        assert any("PRD-PROMPT.md" in f for f in files)
+
+    def test_init_prd_and_mcp_combinable(self, temp_repo):
+        result = runner.invoke(app, ["init", "--prd", "--mcp"])
+        assert result.exit_code == 0
+        assert (temp_repo / "PRD-PROMPT.md").exists()
+        assert (temp_repo / ".vscode" / "mcp.json").exists()
+        assert (temp_repo / ".mcp.json").exists()
+
+
+class TestStatus:
+    """Test status command."""
+
+    def test_status_not_initialized(self, temp_repo):
+        result = runner.invoke(app, ["status"])
+        assert result.exit_code == 0
+        assert "Not a Lodestar" in result.stdout or "init" in result.stdout
+
+    def test_status_json_not_initialized(self, temp_repo):
+        result = runner.invoke(app, ["status", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["initialized"] is False
+
+    def test_status_after_init(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["status"])
+        assert result.exit_code == 0
+
+    def test_status_json_after_init(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["status", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["initialized"] is True
+        assert "tasks" in data["data"]
+
+
+class TestDoctor:
+    """Test doctor command."""
+
+    def test_doctor_not_initialized(self, temp_repo):
+        result = runner.invoke(app, ["doctor"])
+        assert result.exit_code == 0
+
+    def test_doctor_after_init(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["doctor"])
+        assert result.exit_code == 0
+        assert "passed" in result.stdout.lower() or "✓" in result.stdout
+
+    def test_doctor_json(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["doctor", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["healthy"] is True
+
+
+class TestAgent:
+    """Test agent commands."""
+
+    def test_agent_join(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["agent", "join", "--name", "TestAgent"])
+        assert result.exit_code == 0
+        assert "Registered" in result.stdout
+
+    def test_agent_join_json(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["agent", "join", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert "agent_id" in data["data"]
+
+    def test_agent_list(self, temp_repo):
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["agent", "join", "--name", "Agent1"])
+        result = runner.invoke(app, ["agent", "list"])
+        assert result.exit_code == 0
+
+    def test_agent_list_json(self, temp_repo):
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["agent", "join"])
+        result = runner.invoke(app, ["agent", "list", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["count"] == 1
+
+
+class TestAgentBrief:
+    """Test agent brief command with different formats."""
+
+    def test_brief_claude_format(self, temp_repo):
+        """Test claude format produces XML-style tags."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task", "--id", "F001"])
+        result = runner.invoke(app, ["agent", "brief", "--task", "F001", "--format", "claude"])
+        assert result.exit_code == 0
+        assert "<task>" in result.stdout
+        assert "</task>" in result.stdout
+        assert "<context>" in result.stdout
+        assert "</context>" in result.stdout
+        assert "<instructions>" in result.stdout
+        assert "</instructions>" in result.stdout
+
+    def test_brief_copilot_format(self, temp_repo):
+        """Test copilot format produces GitHub-flavored markdown."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task", "--id", "F001"])
+        result = runner.invoke(app, ["agent", "brief", "--task", "F001", "--format", "copilot"])
+        assert result.exit_code == 0
+        assert "## Task:" in result.stdout
+        assert "### Goal" in result.stdout
+        assert "### Commands" in result.stdout
+        assert "```bash" in result.stdout
+
+    def test_brief_generic_format(self, temp_repo):
+        """Test generic format produces plain labeled sections."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task", "--id", "F001"])
+        result = runner.invoke(app, ["agent", "brief", "--task", "F001", "--format", "generic"])
+        assert result.exit_code == 0
+        assert "TASK:" in result.stdout
+        assert "CONTEXT:" in result.stdout
+        assert "COMMANDS:" in result.stdout
+
+    def test_brief_json_includes_format_field(self, temp_repo):
+        """Test JSON output includes format field."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task", "--id", "F001"])
+
+        for format_type in ["claude", "copilot", "generic"]:
+            result = runner.invoke(
+                app, ["agent", "brief", "--task", "F001", "--format", format_type, "--json"]
+            )
+            assert result.exit_code == 0
+            data = json.loads(result.stdout)
+            assert data["ok"] is True
+            assert data["data"]["format"] == format_type
+            assert "formatted_output" in data["data"]
+
+    def test_brief_formats_are_different(self, temp_repo):
+        """Test that each format produces distinct output."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task", "--id", "F001"])
+
+        claude_result = runner.invoke(
+            app, ["agent", "brief", "--task", "F001", "--format", "claude", "--json"]
+        )
+        copilot_result = runner.invoke(
+            app, ["agent", "brief", "--task", "F001", "--format", "copilot", "--json"]
+        )
+        generic_result = runner.invoke(
+            app, ["agent", "brief", "--task", "F001", "--format", "generic", "--json"]
+        )
+
+        claude_output = json.loads(claude_result.stdout)["data"]["formatted_output"]
+        copilot_output = json.loads(copilot_result.stdout)["data"]["formatted_output"]
+        generic_output = json.loads(generic_result.stdout)["data"]["formatted_output"]
+
+        # All should be different
+        assert claude_output != copilot_output
+        assert copilot_output != generic_output
+        assert claude_output != generic_output
+
+    def test_brief_invalid_format(self, temp_repo):
+        """Test invalid format returns error."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task", "--id", "F001"])
+        result = runner.invoke(app, ["agent", "brief", "--task", "F001", "--format", "invalid"])
+        assert result.exit_code == 1
+        assert "Invalid format" in result.stdout
+
+    def test_brief_with_acceptance_criteria(self, temp_repo):
+        """Test brief includes task info from description."""
+        runner.invoke(app, ["init"])
+        runner.invoke(
+            app,
+            [
+                "task",
+                "create",
+                "--title",
+                "Test Task",
+                "--id",
+                "F001",
+                "--description",
+                "Do important things for the project.",
+            ],
+        )
+
+        # Claude format shows context
+        claude_result = runner.invoke(
+            app, ["agent", "brief", "--task", "F001", "--format", "claude"]
+        )
+        assert claude_result.exit_code == 0
+        assert "<context>" in claude_result.stdout
+        assert "important things" in claude_result.stdout
+
+        # Copilot format shows goal
+        copilot_result = runner.invoke(
+            app, ["agent", "brief", "--task", "F001", "--format", "copilot"]
+        )
+        assert "### Goal" in copilot_result.stdout
+        assert "important things" in copilot_result.stdout
+
+        # Generic shows context
+        generic_result = runner.invoke(
+            app, ["agent", "brief", "--task", "F001", "--format", "generic"]
+        )
+        assert "CONTEXT:" in generic_result.stdout
+        assert "important things" in generic_result.stdout
+
+
+class TestIgnoredAgentParameterOnAgentCommands:
+    """Test that --agent parameter is accepted on agent query commands for CLI consistency."""
+
+    def test_agent_list_accepts_agent(self, temp_repo):
+        """Test agent list accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["agent", "join", "--name", "Test Agent"])
+
+        result = runner.invoke(app, ["agent", "list", "--agent", "TESTID123"])
+        assert result.exit_code == 0
+        # Should work normally, no error about unknown option
+
+    def test_agent_find_accepts_agent(self, temp_repo):
+        """Test agent find accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["agent", "join", "--capability", "python"])
+
+        result = runner.invoke(
+            app, ["agent", "find", "--capability", "python", "--agent", "TESTID123"]
+        )
+        assert result.exit_code == 0
+
+    def test_agent_brief_accepts_agent(self, temp_repo):
+        """Test agent brief accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        result = runner.invoke(app, ["agent", "brief", "--task", "T001", "--agent", "TESTID123"])
+        assert result.exit_code == 0
+
+    def test_agent_parameter_does_not_affect_output(self, temp_repo):
+        """Test that --agent parameter doesn't change agent list output."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["agent", "join", "--name", "Test Agent"])
+
+        # Get output without --agent
+        result1 = runner.invoke(app, ["agent", "list", "--json"])
+        data1 = json.loads(result1.stdout)
+
+        # Get output with --agent
+        result2 = runner.invoke(app, ["agent", "list", "--agent", "TESTID123", "--json"])
+        data2 = json.loads(result2.stdout)
+
+        # Should be identical
+        assert data1["data"]["count"] == data2["data"]["count"]
+        assert data1["data"]["agents"][0]["agent_id"] == data2["data"]["agents"][0]["agent_id"]
+
+
+class TestTask:
+    """Test task commands."""
+
+    def test_task_create(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        assert result.exit_code == 0
+        assert "Created" in result.stdout
+
+    def test_task_create_json(self, temp_repo):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["task", "create", "--title", "Test", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert "T001" in data["data"]["id"]
+
+    def test_task_list(self, temp_repo):
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        runner.invoke(app, ["task", "create", "--title", "Task 2"])
+        result = runner.invoke(app, ["task", "list"])
+        assert result.exit_code == 0
+
+    def test_task_list_json(self, temp_repo):
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        result = runner.invoke(app, ["task", "list", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["count"] == 1
+
+    def test_task_show(self, temp_repo):
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        result = runner.invoke(app, ["task", "show", "T001"])
+        assert result.exit_code == 0
+        assert "T001" in result.stdout
+
+    def test_task_next(self, temp_repo):
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        result = runner.invoke(app, ["task", "next"])
+        assert result.exit_code == 0
+
+    def test_task_next_json(self, temp_repo):
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        result = runner.invoke(app, ["task", "next", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["total_claimable"] >= 1
+
+    def test_task_dependencies(self, temp_repo):
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "First"])
+        runner.invoke(app, ["task", "create", "--title", "Second", "--depends-on", "T001"])
+        result = runner.invoke(app, ["task", "next", "--json"])
+        data = json.loads(result.stdout)
+        # Only T001 should be claimable since T002 depends on it
+        assert len(data["data"]["tasks"]) == 1
+        assert data["data"]["tasks"][0]["id"] == "T001"
+
+
+class TestTaskClaim:
+    """Test task claiming."""
+
+    def test_claim_and_release(self, temp_repo):
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        # Claim
+        result = runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id])
+        assert result.exit_code == 0
+        assert "Claimed" in result.stdout
+
+        # Release
+        result = runner.invoke(app, ["task", "release", "T001", "--agent", agent_id])
+        assert result.exit_code == 0
+
+    def test_claim_json(self, temp_repo):
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        result = runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id, "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert "lease_id" in data["data"]
+
+    def test_cannot_double_claim(self, temp_repo):
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id])
+
+        # Second claim should fail
+        result = runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id])
+        assert result.exit_code == 1
+
+
+class TestLockConflictDetection:
+    """Test lock conflict warnings during task claim."""
+
+    def test_claim_with_lock_conflict_shows_warning(self, temp_repo):
+        """Claiming a task with overlapping locks shows a warning."""
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        # Create two tasks with overlapping locks by editing spec directly
+        from lodestar.spec.loader import load_spec, save_spec
+
+        spec = load_spec(Path.cwd())
+
+        from lodestar.models.spec import Task, TaskStatus
+
+        task1 = Task(
+            id="T001",
+            title="Task 1",
+            status=TaskStatus.READY,
+            locks=["src/**"],
+        )
+        task2 = Task(
+            id="T002",
+            title="Task 2",
+            status=TaskStatus.READY,
+            locks=["src/auth/**"],
+        )
+        spec.tasks["T001"] = task1
+        spec.tasks["T002"] = task2
+        save_spec(spec, Path.cwd())
+
+        # Claim first task
+        result1 = runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id])
+        assert result1.exit_code == 0
+
+        # Claim second task - should show warning about overlapping locks
+        result2 = runner.invoke(app, ["task", "claim", "T002", "--agent", agent_id])
+        assert result2.exit_code == 0
+        assert "overlap" in result2.stdout.lower()
+        assert "src/auth/**" in result2.stdout
+        assert "--force" in result2.stdout
+
+    def test_claim_with_force_bypasses_warning(self, temp_repo):
+        """--force flag bypasses lock conflict warnings."""
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        # Create two tasks with overlapping locks
+        from lodestar.spec.loader import load_spec, save_spec
+
+        spec = load_spec(Path.cwd())
+
+        from lodestar.models.spec import Task, TaskStatus
+
+        task1 = Task(
+            id="T001",
+            title="Task 1",
+            status=TaskStatus.READY,
+            locks=["src/**"],
+        )
+        task2 = Task(
+            id="T002",
+            title="Task 2",
+            status=TaskStatus.READY,
+            locks=["src/auth/**"],
+        )
+        spec.tasks["T001"] = task1
+        spec.tasks["T002"] = task2
+        save_spec(spec, Path.cwd())
+
+        # Claim first task
+        runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id])
+
+        # Claim second task with --force - should not show warning
+        result = runner.invoke(app, ["task", "claim", "T002", "--agent", agent_id, "--force"])
+        assert result.exit_code == 0
+        assert "overlap" not in result.stdout.lower()
+
+    def test_claim_json_includes_lock_warnings(self, temp_repo):
+        """JSON output includes lock conflict warnings."""
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        # Create two tasks with overlapping locks
+        from lodestar.spec.loader import load_spec, save_spec
+
+        spec = load_spec(Path.cwd())
+
+        from lodestar.models.spec import Task, TaskStatus
+
+        task1 = Task(
+            id="T001",
+            title="Task 1",
+            status=TaskStatus.READY,
+            locks=["src/**"],
+        )
+        task2 = Task(
+            id="T002",
+            title="Task 2",
+            status=TaskStatus.READY,
+            locks=["src/auth/**"],
+        )
+        spec.tasks["T001"] = task1
+        spec.tasks["T002"] = task2
+        save_spec(spec, Path.cwd())
+
+        # Claim first task
+        runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id])
+
+        # Claim second task with --json
+        result = runner.invoke(app, ["task", "claim", "T002", "--agent", agent_id, "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert len(data["warnings"]) > 0
+        assert any("overlap" in w.lower() for w in data["warnings"])
+
+    def test_no_warning_without_lock_overlap(self, temp_repo):
+        """No warning when locks don't overlap."""
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        # Create two tasks with non-overlapping locks
+        from lodestar.spec.loader import load_spec, save_spec
+
+        spec = load_spec(Path.cwd())
+
+        from lodestar.models.spec import Task, TaskStatus
+
+        task1 = Task(
+            id="T001",
+            title="Task 1",
+            status=TaskStatus.READY,
+            locks=["src/**"],
+        )
+        task2 = Task(
+            id="T002",
+            title="Task 2",
+            status=TaskStatus.READY,
+            locks=["tests/**"],
+        )
+        spec.tasks["T001"] = task1
+        spec.tasks["T002"] = task2
+        save_spec(spec, Path.cwd())
+
+        # Claim first task
+        runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id])
+
+        # Claim second task - should not show any overlap warning
+        result = runner.invoke(app, ["task", "claim", "T002", "--agent", agent_id])
+        assert result.exit_code == 0
+        assert "overlap" not in result.stdout.lower()
+
+
+class TestTaskWorkflow:
+    """Test complete task workflow."""
+
+    def test_full_workflow(self, temp_repo):
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        # Create tasks with dependencies
+        runner.invoke(app, ["task", "create", "--title", "First Task"])
+        runner.invoke(app, ["task", "create", "--title", "Second Task", "--depends-on", "T001"])
+
+        # Claim first task
+        runner.invoke(app, ["task", "claim", "T001", "--agent", agent_id])
+
+        # Mark done and verify
+        runner.invoke(app, ["task", "done", "T001"])
+        result = runner.invoke(app, ["task", "verify", "T001"])
+        assert "Verified" in result.stdout
+
+        # Now T002 should be claimable
+        result = runner.invoke(app, ["task", "next", "--json"])
+        data = json.loads(result.stdout)
+        assert len(data["data"]["tasks"]) == 1
+        assert data["data"]["tasks"][0]["id"] == "T002"
+
+
+class TestMessaging:
+    """Test messaging commands."""
+
+    def test_send_message(self, temp_repo):
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        result = runner.invoke(
+            app,
+            ["msg", "send", "--task", "T001", "--text", "Hello", "--from", agent_id],
+        )
+        assert result.exit_code == 0
+        assert "sent" in result.stdout.lower()
+
+    def test_message_thread(self, temp_repo):
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        runner.invoke(
+            app,
+            ["msg", "send", "--task", "T001", "--text", "Hello", "--from", agent_id],
+        )
+
+        result = runner.invoke(app, ["msg", "thread", "T001"])
+        assert result.exit_code == 0
+        assert "Hello" in result.stdout
+
+    def test_task_messaging(self, temp_repo):
+        """Test task-based messaging."""
+        runner.invoke(app, ["init"])
+        agent1_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent1_id = json.loads(agent1_result.stdout)["data"]["agent_id"]
+
+        agent2_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent2_id = json.loads(agent2_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        # Send messages to task thread
+        runner.invoke(
+            app,
+            [
+                "msg",
+                "send",
+                "--task",
+                "T001",
+                "--text",
+                "Message 1",
+                "--from",
+                agent1_id,
+            ],
+        )
+        runner.invoke(
+            app,
+            [
+                "msg",
+                "send",
+                "--task",
+                "T001",
+                "--text",
+                "Message 2",
+                "--from",
+                agent2_id,
+            ],
+        )
+
+        # Test thread listing
+        result = runner.invoke(app, ["msg", "thread", "T001", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["count"] == 2
+
+    def test_mark_read(self, temp_repo):
+        """Test marking messages as read."""
+        runner.invoke(app, ["init"])
+        agent1_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent1_id = json.loads(agent1_result.stdout)["data"]["agent_id"]
+
+        agent2_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent2_id = json.loads(agent2_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        # Send a message to task
+        runner.invoke(
+            app,
+            ["msg", "send", "--task", "T001", "--text", "Hello", "--from", agent1_id],
+        )
+
+        # Mark as read by agent2
+        result = runner.invoke(app, ["msg", "mark-read", "--task", "T001", "--agent", agent2_id])
+        assert result.exit_code == 0
+        assert "marked" in result.stdout.lower()
+
+    def test_unread_filtering(self, temp_repo):
+        """Test filtering unread messages."""
+        runner.invoke(app, ["init"])
+        agent1_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent1_id = json.loads(agent1_result.stdout)["data"]["agent_id"]
+
+        agent2_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent2_id = json.loads(agent2_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        runner.invoke(
+            app, ["msg", "send", "--task", "T001", "--text", "Msg 1", "--from", agent1_id]
+        )
+        runner.invoke(
+            app, ["msg", "send", "--task", "T001", "--text", "Msg 2", "--from", agent1_id]
+        )
+
+        # Mark one as read
+        thread_result = runner.invoke(app, ["msg", "thread", "T001", "--json"])
+        msg_id = json.loads(thread_result.stdout)["data"]["messages"][0]["message_id"]
+        runner.invoke(
+            app,
+            ["msg", "mark-read", "--task", "T001", "--agent", agent2_id, "--message-id", msg_id],
+        )
+
+        # Check unread count
+        result = runner.invoke(
+            app, ["msg", "thread", "T001", "--unread", "--agent", agent2_id, "--json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["data"]["count"] == 1
+
+    def test_search_messages(self, temp_repo):
+        """Test searching messages."""
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        runner.invoke(app, ["task", "create", "--title", "Task 2"])
+        runner.invoke(
+            app, ["msg", "send", "--task", "T001", "--text", "Bug found", "--from", agent_id]
+        )
+        runner.invoke(
+            app, ["msg", "send", "--task", "T002", "--text", "Feature added", "--from", agent_id]
+        )
+
+        # Search by keyword
+        result = runner.invoke(app, ["msg", "search", "--keyword", "bug", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["count"] == 1
+        assert "Bug found" in data["data"]["messages"][0]["text"]
+
+    def test_status_includes_message_counts(self, temp_repo):
+        """Test that status command includes message counts."""
+        runner.invoke(app, ["init"])
+        agent1_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent1_id = json.loads(agent1_result.stdout)["data"]["agent_id"]
+
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        # Send messages to task
+        runner.invoke(
+            app,
+            ["msg", "send", "--task", "T001", "--text", "Test", "--from", agent1_id],
+        )
+
+        # Check status includes messages
+        result = runner.invoke(app, ["status", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert "messages" in data["data"]
+        assert data["data"]["messages"]["total"] >= 1
+        assert "T001" in data["data"]["messages"]["by_task"]
+
+
+class TestIgnoredAgentParameterOnMsgCommands:
+    """Test that --agent parameter is accepted on msg query commands for CLI consistency."""
+
+    def test_msg_thread_accepts_agent(self, temp_repo):
+        """Test msg thread accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        runner.invoke(
+            app,
+            ["msg", "send", "--task", "T001", "--text", "Hello", "--from", agent_id],
+        )
+
+        result = runner.invoke(app, ["msg", "thread", "T001", "--agent", "TESTID123"])
+        assert result.exit_code == 0
+        assert "Hello" in result.stdout
+
+    def test_msg_search_accepts_agent(self, temp_repo):
+        """Test msg search accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        runner.invoke(
+            app,
+            ["msg", "send", "--task", "T001", "--text", "Test message", "--from", agent_id],
+        )
+
+        result = runner.invoke(app, ["msg", "search", "--keyword", "Test"])
+        assert result.exit_code == 0
+
+    def test_msg_search_json_output(self, temp_repo):
+        """Test msg search JSON output."""
+        runner.invoke(app, ["init"])
+        agent_result = runner.invoke(app, ["agent", "join", "--json"])
+        agent_id = json.loads(agent_result.stdout)["data"]["agent_id"]
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+        runner.invoke(
+            app,
+            ["msg", "send", "--task", "T001", "--text", "Test message", "--from", agent_id],
+        )
+
+        # Get output with JSON
+        result = runner.invoke(app, ["msg", "search", "--keyword", "Test", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["count"] == 1
+
+
+class TestTaskDelete:
+    """Test task delete command with soft-delete semantics."""
+
+    def test_delete_simple_task(self, temp_repo):
+        """Test deleting a task with no dependents."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task to delete"])
+
+        result = runner.invoke(app, ["task", "delete", "T001"])
+        assert result.exit_code == 0
+        assert "Deleted" in result.stdout
+
+    def test_delete_json_output(self, temp_repo):
+        """Test delete with JSON output."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task to delete"])
+
+        result = runner.invoke(app, ["task", "delete", "T001", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["count"] == 1
+        assert data["data"]["deleted"][0]["id"] == "T001"
+
+    def test_delete_with_dependents_fails(self, temp_repo):
+        """Test that deleting a task with dependents fails without --cascade."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Parent Task"])
+        runner.invoke(app, ["task", "create", "--title", "Child Task", "--depends-on", "T001"])
+
+        result = runner.invoke(app, ["task", "delete", "T001"])
+        assert result.exit_code == 1
+        assert "depend" in result.stdout.lower()
+
+    def test_delete_with_cascade(self, temp_repo):
+        """Test cascade delete removes task and all dependents."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Parent"])
+        runner.invoke(app, ["task", "create", "--title", "Child1", "--depends-on", "T001"])
+        runner.invoke(app, ["task", "create", "--title", "Child2", "--depends-on", "T001"])
+
+        result = runner.invoke(app, ["task", "delete", "T001", "--cascade", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["count"] == 3  # Parent + 2 children
+
+    def test_deleted_tasks_hidden_from_list(self, temp_repo):
+        """Test that deleted tasks are hidden from task list by default."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Active Task"])
+        runner.invoke(app, ["task", "create", "--title", "Task to Delete"])
+        runner.invoke(app, ["task", "delete", "T002"])
+
+        result = runner.invoke(app, ["task", "list", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["data"]["count"] == 1
+        assert data["data"]["tasks"][0]["id"] == "T001"
+
+    def test_include_deleted_flag(self, temp_repo):
+        """Test --include-deleted flag shows deleted tasks."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Active Task"])
+        runner.invoke(app, ["task", "create", "--title", "Deleted Task"])
+        runner.invoke(app, ["task", "delete", "T002"])
+
+        result = runner.invoke(app, ["task", "list", "--include-deleted", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["data"]["count"] == 2
+        deleted_task = [t for t in data["data"]["tasks"] if t["id"] == "T002"][0]
+        assert deleted_task["status"] == "deleted"
+
+    def test_show_deleted_task(self, temp_repo):
+        """Test that task show indicates deleted status."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task to Delete"])
+        runner.invoke(app, ["task", "delete", "T001"])
+
+        result = runner.invoke(app, ["task", "show", "T001"])
+        assert result.exit_code == 0
+        assert "deleted" in result.stdout.lower()
+
+    def test_delete_already_deleted(self, temp_repo):
+        """Test that deleting an already deleted task fails gracefully."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task"])
+        runner.invoke(app, ["task", "delete", "T001"])
+
+        result = runner.invoke(app, ["task", "delete", "T001"])
+        assert result.exit_code == 1
+        assert "already deleted" in result.stdout.lower()
+
+    def test_deleted_tasks_not_claimable(self, temp_repo):
+        """Test that deleted tasks don't appear in task next."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        runner.invoke(app, ["task", "create", "--title", "Task 2"])
+        runner.invoke(app, ["task", "delete", "T001"])
+
+        result = runner.invoke(app, ["task", "next", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert len(data["data"]["tasks"]) == 1
+        assert data["data"]["tasks"][0]["id"] == "T002"
+
+    def test_cascade_delete_complex_tree(self, temp_repo):
+        """Test cascade delete on a complex dependency tree."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Root"])
+        runner.invoke(app, ["task", "create", "--title", "Child1", "--depends-on", "T001"])
+        runner.invoke(app, ["task", "create", "--title", "Child2", "--depends-on", "T001"])
+        runner.invoke(app, ["task", "create", "--title", "Grandchild", "--depends-on", "T002"])
+
+        result = runner.invoke(app, ["task", "delete", "T001", "--cascade", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        # Should delete: T001, T002, T003, T004
+        assert data["data"]["count"] == 4
+
+    def test_filter_by_deleted_status(self, temp_repo):
+        """Test filtering task list by deleted status."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Active"])
+        runner.invoke(app, ["task", "create", "--title", "Deleted"])
+        runner.invoke(app, ["task", "delete", "T002"])
+
+        result = runner.invoke(app, ["task", "list", "--status", "deleted", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["data"]["count"] == 1
+        assert data["data"]["tasks"][0]["id"] == "T002"
+
+
+class TestIgnoredAgentParameter:
+    """Test that --agent parameter is accepted on query commands for CLI consistency."""
+
+    def test_task_list_accepts_agent(self, temp_repo):
+        """Test task list accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        result = runner.invoke(app, ["task", "list", "--agent", "TESTID123"])
+        assert result.exit_code == 0
+        # Should work normally, no error about unknown option
+
+    def test_task_show_accepts_agent(self, temp_repo):
+        """Test task show accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        result = runner.invoke(app, ["task", "show", "T001", "--agent", "TESTID123"])
+        assert result.exit_code == 0
+        assert "T001" in result.stdout
+
+    def test_task_context_accepts_agent(self, temp_repo):
+        """Test task context accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        result = runner.invoke(app, ["task", "context", "T001", "--agent", "TESTID123"])
+        assert result.exit_code == 0
+
+    def test_task_next_accepts_agent(self, temp_repo):
+        """Test task next accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        result = runner.invoke(app, ["task", "next", "--agent", "TESTID123"])
+        assert result.exit_code == 0
+
+    def test_task_graph_accepts_agent(self, temp_repo):
+        """Test task graph accepts --agent parameter silently."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        result = runner.invoke(app, ["task", "graph", "--agent", "TESTID123"])
+        assert result.exit_code == 0
+
+    def test_agent_parameter_does_not_affect_output(self, temp_repo):
+        """Test that --agent parameter doesn't change output."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Test Task"])
+
+        # Get output without --agent
+        result1 = runner.invoke(app, ["task", "list", "--json"])
+        data1 = json.loads(result1.stdout)
+
+        # Get output with --agent
+        result2 = runner.invoke(app, ["task", "list", "--agent", "TESTID123", "--json"])
+        data2 = json.loads(result2.stdout)
+
+        # Should be identical (except timestamps might differ slightly)
+        assert data1["data"]["count"] == data2["data"]["count"]
+        assert data1["data"]["tasks"][0]["id"] == data2["data"]["tasks"][0]["id"]
+
+
+class TestReset:
+    """Test reset command."""
+
+    def test_reset_not_initialized(self, temp_repo):
+        """Test reset fails when not initialized."""
+        result = runner.invoke(app, ["reset", "--force"])
+        assert result.exit_code == 1
+        assert "Not a Lodestar" in result.stdout
+
+    def test_reset_soft_clears_runtime(self, temp_repo):
+        """Test soft reset clears runtime but preserves tasks."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        runner.invoke(app, ["task", "create", "--title", "Task 2"])
+        runner.invoke(app, ["agent", "join", "--json"])
+
+        # Verify runtime exists
+        runtime_path = Path.cwd() / ".lodestar" / "runtime.sqlite"
+        assert runtime_path.exists()
+
+        # Soft reset with --force to skip confirmation
+        result = runner.invoke(app, ["reset", "--force"])
+        assert result.exit_code == 0
+        assert "complete" in result.stdout.lower()
+
+        # Runtime should be deleted
+        assert not runtime_path.exists()
+
+        # Tasks should still exist
+        task_result = runner.invoke(app, ["task", "list", "--json"])
+        data = json.loads(task_result.stdout)
+        assert data["data"]["count"] == 2
+
+    def test_reset_hard_clears_tasks(self, temp_repo):
+        """Test hard reset clears both runtime and tasks."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        runner.invoke(app, ["task", "create", "--title", "Task 2"])
+        runner.invoke(app, ["agent", "join"])
+
+        # Hard reset
+        result = runner.invoke(app, ["reset", "--hard", "--force"])
+        assert result.exit_code == 0
+
+        # Both runtime and tasks should be cleared
+        runtime_path = Path.cwd() / ".lodestar" / "runtime.sqlite"
+        assert not runtime_path.exists()
+
+        task_result = runner.invoke(app, ["task", "list", "--json"])
+        data = json.loads(task_result.stdout)
+        assert data["data"]["count"] == 0
+
+    def test_reset_json_output(self, temp_repo):
+        """Test reset with JSON output."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        runner.invoke(app, ["agent", "join"])
+
+        result = runner.invoke(app, ["reset", "--force", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["reset_type"] == "soft"
+        assert data["data"]["runtime_deleted"] is True
+        assert data["data"]["tasks_deleted"] == 0
+
+    def test_reset_hard_json_output(self, temp_repo):
+        """Test hard reset with JSON output."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        runner.invoke(app, ["task", "create", "--title", "Task 2"])
+
+        result = runner.invoke(app, ["reset", "--hard", "--force", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert data["data"]["reset_type"] == "hard"
+        assert data["data"]["tasks_deleted"] == 2
+
+    def test_reset_requires_confirmation_without_force(self, temp_repo):
+        """Test reset requires confirmation in non-JSON mode."""
+        runner.invoke(app, ["init"])
+
+        # Without --force, should fail in non-interactive mode
+        result = runner.invoke(app, ["reset"], input="n\n")
+        assert result.exit_code == 0
+        assert "Aborted" in result.stdout
+
+    def test_reset_json_requires_force(self, temp_repo):
+        """Test reset in JSON mode requires --force flag."""
+        runner.invoke(app, ["init"])
+
+        result = runner.invoke(app, ["reset", "--json"])
+        assert result.exit_code == 1
+        data = json.loads(result.stdout)
+        assert data["ok"] is False
+        assert "--force" in data["data"]["error"]
+
+    def test_reset_preserves_project_metadata(self, temp_repo):
+        """Test that reset preserves project metadata in spec.yaml."""
+        runner.invoke(app, ["init", "--name", "MyProject"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+
+        # Hard reset should preserve project name
+        runner.invoke(app, ["reset", "--hard", "--force"])
+
+        status_result = runner.invoke(app, ["status", "--json"])
+        data = json.loads(status_result.stdout)
+        assert data["data"]["project"]["name"] == "MyProject"
+
+    def test_reset_counts_runtime_stats(self, temp_repo):
+        """Test that reset reports accurate counts of deleted data."""
+        runner.invoke(app, ["init"])
+        agent1 = runner.invoke(app, ["agent", "join", "--json"])
+        agent1_id = json.loads(agent1.stdout)["data"]["agent_id"]
+        # Register second agent to test multi-agent reset
+        runner.invoke(app, ["agent", "join", "--json"])
+
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+        runner.invoke(app, ["task", "claim", "T001", "--agent", agent1_id])
+        runner.invoke(
+            app,
+            ["msg", "send", "--task", "T001", "--text", "Hello", "--from", agent1_id],
+        )
+
+        result = runner.invoke(app, ["reset", "--force", "--json"])
+        data = json.loads(result.stdout)
+        assert data["data"]["agents_cleared"] == 2
+        assert data["data"]["leases_cleared"] == 1
+        assert data["data"]["messages_cleared"] == 1
+
+    def test_reset_with_no_runtime(self, temp_repo):
+        """Test reset when runtime database doesn't exist."""
+        runner.invoke(app, ["init"])
+        runner.invoke(app, ["task", "create", "--title", "Task 1"])
+
+        # Don't create any agents, so runtime won't exist
+        result = runner.invoke(app, ["reset", "--force", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert len(data["warnings"]) > 0
+        assert "not found" in data["warnings"][0].lower()
+
+    def test_reset_explain(self, temp_repo):
+        """Test reset --explain shows command documentation."""
+        result = runner.invoke(app, ["reset", "--explain"])
+        assert result.exit_code == 0
+        assert "reset" in result.stdout.lower()
+        assert "soft" in result.stdout.lower()
+        assert "hard" in result.stdout.lower()
+
+    def test_reset_explain_json(self, temp_repo):
+        """Test reset --explain with JSON output."""
+        result = runner.invoke(app, ["reset", "--explain", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert "command" in data
+        assert "modes" in data
+        assert "soft (default)" in data["modes"]
+        assert "hard (--hard)" in data["modes"]
