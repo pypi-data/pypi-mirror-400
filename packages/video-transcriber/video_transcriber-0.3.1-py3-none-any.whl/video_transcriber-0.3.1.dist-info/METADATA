@@ -1,0 +1,149 @@
+Metadata-Version: 2.4
+Name: video-transcriber
+Version: 0.3.1
+Summary: A Python project following TDD principles
+Author-email: Romilly Cocking <romilly.cocking@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/romilly/video-transcriber
+Project-URL: Repository, https://github.com/romilly/video-transcriber.git
+Project-URL: Issues, https://github.com/romilly/video-transcriber/issues
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: opencv-python
+Requires-Dist: numpy
+Requires-Dist: Pillow
+Requires-Dist: faster-whisper
+Provides-Extra: test
+Requires-Dist: pytest>=7.0.0; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: notebook; extra == "test"
+Requires-Dist: build; extra == "test"
+Dynamic: license-file
+
+# video-transcriber
+
+Extracts visually distinct frames from videos and transcribes audio using Whisper.
+Creates a portable zip file containing a markdown transcript with slide images in the img sub-directory.
+
+## Features
+
+- **Smart slide detection** - Uses perceptual hashing to capture only distinct frames, not every frame
+- **Audio transcription** - Uses Whisper AI locally to transcribe speech to text
+- **Timeline merging** - Associates transcribed audio with the corresponding slides
+- **Portable output** - Generates a zip file with markdown and images that works anywhere
+
+## Requirements
+
+- Python 3.10+
+- ffmpeg (for audio extraction)
+
+```bash
+# Ubuntu/Debian
+apt install ffmpeg
+
+# macOS
+brew install ffmpeg
+
+# Windows (using winget)
+winget install ffmpeg
+```
+
+## Installation
+
+```bash
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install video-transcriber
+```
+
+### Hugging Face
+
+The first time you run the transcriber, it downloads Whisper models from Hugging Face.
+This may take several minutes.
+
+You may see this warning:
+
+```
+Warning: You are sending unauthenticated requests to the HF Hub.
+```
+
+This is harmless. Everything will still work.
+
+## Usage
+
+
+### Python API
+
+```python
+from video_transcriber.transcribe import transcribe_video
+
+zip_path = transcribe_video("my-presentation.mp4", "output/")
+```
+
+The output zip file contains:
+```
+output/my-presentation_transcript.zip
+├── transcript.md
+└── img/
+    ├── frame_000.png
+    ├── frame_001.png
+    └── ...
+```
+
+### Options
+
+```python
+zip_path = transcribe_video(
+    "my-presentation.mp4",
+    "output/",
+    model_size="large-v3",     # Whisper model: tiny, base, small, medium, large-v3
+    sample_interval=15,        # Check for new slides every N frames (default: 30)
+    include_timestamps=True,   # Include timestamps in markdown output (default: False)
+    audio_only=False           # Transcribe audio only, skip frame extraction (default: False)
+)
+```
+
+### Audio-Only Mode
+
+For videos where you only need the audio transcript (podcasts, interviews, etc.):
+
+```python
+zip_path = transcribe_video(
+    "podcast.mp4",
+    "output/",
+    audio_only=True,
+    include_timestamps=True
+)
+```
+
+This skips frame extraction entirely, producing a zip with just the text transcript.
+
+## Development
+
+```bash
+git clone https://github.com/romilly/video-transcriber.git
+cd video-transcriber
+python -m venv venv
+source venv/bin/activate
+pip install -e .[test]
+pytest
+```
+
+### Quick Demo
+
+Run the demo script to process the included test video:
+
+```bash
+python demo_create_zip.py
+```
+
+This processes `tests/data/demo.mp4` and creates `tests/data/generated/demo.zip`.
