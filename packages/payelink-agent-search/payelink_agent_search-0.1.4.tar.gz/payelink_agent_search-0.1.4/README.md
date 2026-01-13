@@ -1,0 +1,219 @@
+# PayeLink Agent Discovery SDK
+
+[![PyPI version](https://badge.fury.io/py/payelink-agent-search.svg)](https://badge.fury.io/py/payelink-agent-search)
+[![Python 3.8+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+## What is this?
+
+AI agents are multiplying across different protocols and organizations, but there's no easy way to discover them. This SDK solves that,search once, discover agents from anywhere.
+
+## Installation
+
+```bash
+pip install payelink-agent-search
+```
+
+## Quick Start
+
+```python
+from payelink_agent_search import AgentSearchClient
+
+# Create client
+client = AgentSearchClient()
+
+# Search for agents
+response = client.search("Convert USD to KES")
+
+# Use results
+if response.success:
+    for agent in response.agents:
+        print(f"{agent.agent_name}: {agent.agent_description}")
+        print(f"Endpoint: {agent.agent_card_url}")
+        print("---")
+
+client.close()
+```
+
+## What Gets Discovered?
+
+The SDK searches across multiple sources:
+
+- ✅ **A2A agents** (`/.well-known/agent-card.json`)
+- ✅ **ACP agents** (`/.well-known/agent.yml`)
+- ✅ **Custom registries** (`/agents/public`)
+- ✅ **Open web** (via intelligent search)
+
+**One search, every protocol.**
+
+## Features
+
+### Multi-Protocol Discovery
+```python
+# Automatically searches A2A, ACP, ANS, and custom endpoints
+response = client.search("payment processing agent")
+```
+
+### Filtering
+```python
+response = client.search(
+    query="Currency conversion",
+    country="KE",              # Only Kenya
+    capability="streaming",     # Must support streaming
+    max_result=5
+)
+```
+
+### Context Manager Support
+```python
+with AgentSearchClient() as client:
+    response = client.search("translation agent")
+    # Client auto-closes
+```
+
+
+### Response Format
+
+```python
+class SearchResponse:
+    success: bool                 # True if request succeeded
+    agents: List[AgentDetails]    # Discovered agents (ranked)
+    error: Optional[str]          # Error message if failed
+
+class AgentDetails:
+    agent_name: str               # Name of the agent
+    agent_description: str        # What it does
+    agent_card_url: str           # URL to invoke agent
+    organization_name: str        # Who built it
+    organization_url: str         # Organization website
+```
+
+## Examples
+
+### Basic Search
+```python
+from payelink_agent_search import AgentSearchClient
+
+client = AgentSearchClient()
+response = client.search("Find weather agents")
+
+if response.success:
+    print(f"Found {len(response.agents)} agents")
+    for agent in response.agents:
+        print(f"- {agent.agent_name}")
+
+client.close()
+```
+
+### Filtered Search
+```python
+client = AgentSearchClient()
+
+# Find agents with specific constraints
+response = client.search(
+    query="Financial services",
+    country="KE",                               # Only agents from Kenya
+    capability="streaming",                     # or "pushNotifications"
+    default_input_mode=["text/plain", "application/json"],
+    default_output_mode=["text/plain", "text/markdown"],
+    max_result=5                                # Top 5 matches (default is 10)
+)
+
+if response.success:
+    for agent in response.agents:
+        print(f"{agent.agent_name} - {agent.organization_name}")
+else:
+    print(f"Error: {response.error}")
+
+client.close()
+```
+
+Allowed values:
+- `capability`: `"streaming"` or `"pushNotifications"`
+- `default_input_mode` / `default_output_mode`: `"text/plain"`, `"application/json"`, `"text/markdown"`
+
+### Error Handling
+```python
+from payelink_agent_search import AgentSearchClient
+from payelink_agent_search.errors import SdkError
+
+client = AgentSearchClient()
+
+try:
+    response = client.search("test query")
+    
+    if not response.success:
+        print(f"Error: {response.error}")
+    else:
+        print(f"Success! Found {len(response.agents)} agents")
+        
+except SdkError as e:
+    print(f"SDK Error: {e}")
+finally:
+    client.close()
+```
+
+## Why Use This?
+
+### Problem
+- No unified way to discover them
+- Manual configuration for each integration
+- Agents can't find other agents to collaborate
+
+### Solution
+- **One search** across all protocols
+- **Automatic discovery** of agent endpoints
+- **Ranked results** (most relevant first)
+- **Rich metadata** (capabilities, organization, endpoints)
+
+### Use Cases
+
+**1. Agent-to-Agent Collaboration**
+```python
+# Supervisor agent needs a helper
+payment_agent = client.search("payment processing KES").agents[0]
+# Now supervisor can call payment_agent.agent_card_url
+```
+
+**2. Dynamic Agent Selection**
+```python
+# Choose best agent at runtime (not hardcoded)
+agents = client.search("translation Spanish to English", max_result=3)
+best_agent = agents.agents[0]  # Highest ranked
+```
+
+**3. Multi-Agent Workflows**
+```python
+# Build workflows from discovered agents
+translator = client.search("translation").agents[0]
+analyzer = client.search("sentiment analysis").agents[0]
+mailer = client.search("email agent").agents[0]
+# Chain them together
+```
+
+## Requirements
+
+- Python >= 3.8
+- httpx >= 0.24.0
+- pydantic >= 2.0.0
+
+## Error Types
+
+- `SdkError` - Base error class
+- `HttpStatusError` - HTTP 4xx/5xx errors
+- `NetworkError` - Network failures
+- `TimeoutError` - Request timeouts
+- `InvalidResponseError` - Malformed responses
+
+## Links
+
+- **Documentation:** [Full docs](https://github.com/your-org/agent-discovery)
+- **Issues:** [GitHub Issues](https://github.com/your-org/agent-discovery/issues)
+- **Source:** [GitHub](https://github.com/your-org/agent-discovery)
+
+## License
+
+MIT License
+
+---
+
+**Making AI agents discoverable** • Built for the Agent 2.0 era
