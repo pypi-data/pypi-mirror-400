@@ -1,0 +1,94 @@
+[project]
+name = "openapi-burrito"
+dynamic = ["version"]
+description = "A lightweight CLI tool to generate a type-safe Python client from an OpenAPI specification."
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "Simon Lund", email = "simon.lund@lmu.de"}
+]
+keywords = [
+    "openapi",
+    "openapi-fetch",
+    "swagger",
+    "type-safe",
+    "code-generation",
+    "sdk-generator",
+    "httpx",
+]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+]
+
+dependencies = [
+    "httpx~=0.28.1",
+    "jinja2~=3.1.6",
+    "openapi-spec-validator~=0.7.2",
+    "prance[osv]~=25.4.8.0",
+    "typer~=0.21.0",
+]
+
+[project.optional-dependencies]
+preview = [
+    "fastapi[standard]~=0.128.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/simon-lund/openapi-burrito"
+Documentation = "https://github.com/simon-lund/openapi-burrito#readme"
+Repository = "https://github.com/simon-lund/openapi-burrito.git"
+Issues = "https://github.com/simon-lund/openapi-burrito/issues"
+
+[project.scripts]
+# CLI entry point
+openapi-burrito = "openapi_burrito.cli:app"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = ["/openapi_burrito", "/README.md", "/LICENSE"]
+exclude = ["examples/", "tests/"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["openapi_burrito"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "N"] # Error, Flake, Import sort, Upgrade, Naming
+fixable = ["ALL"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "prance.*"
+ignore_missing_imports = true
+
+
+[tool.hatch.version]
+source = "vcs"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.0",
+    "pre-commit>=4.5.1",
+    "ruff>=0.9.0",
+    "types-pyyaml>=6.0.12",
+]
+test = [
+    "pytest>=9.0.2",
+    "pytest-cov>=4.1.0",
+    "cattrs>=25.3.0",
+    "respx>=0.21.0",
+]
