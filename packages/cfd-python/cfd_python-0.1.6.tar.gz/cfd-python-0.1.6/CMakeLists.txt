@@ -1,0 +1,189 @@
+cmake_minimum_required(VERSION 3.15...3.27)
+
+project(cfd_python LANGUAGES C)
+
+# Option to control static vs dynamic linking
+if(DEFINED ENV{CFD_STATIC_LINK})
+    set(CFD_STATIC_LINK_DEFAULT $ENV{CFD_STATIC_LINK})
+else()
+    set(CFD_STATIC_LINK_DEFAULT ON)
+endif()
+option(CFD_STATIC_LINK "Statically link the CFD library" ${CFD_STATIC_LINK_DEFAULT})
+
+# Option to use stable ABI (abi3)
+option(CFD_USE_STABLE_ABI "Build with Python stable ABI for cross-version compatibility" ON)
+
+# Debug output
+message(STATUS "CFD_STATIC_LINK: ${CFD_STATIC_LINK}")
+message(STATUS "CFD_USE_STABLE_ABI: ${CFD_USE_STABLE_ABI}")
+message(STATUS "CFD_ROOT env: $ENV{CFD_ROOT}")
+
+# Find Python
+find_package(Python 3.8 REQUIRED COMPONENTS Interpreter Development.Module)
+message(STATUS "Python version: ${Python_VERSION}")
+message(STATUS "Python executable: ${Python_EXECUTABLE}")
+
+# Find CFD library
+if(DEFINED ENV{CFD_ROOT})
+    set(CFD_ROOT_DIR "$ENV{CFD_ROOT}")
+else()
+    set(CFD_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cfd")
+endif()
+message(STATUS "CFD_ROOT_DIR: ${CFD_ROOT_DIR}")
+
+# Source headers in lib/include, generated headers (cfd_export.h) in build/lib/include
+set(CFD_INCLUDE_DIR "${CFD_ROOT_DIR}/lib/include")
+set(CFD_BUILD_INCLUDE_DIR "${CFD_ROOT_DIR}/build/lib/include")
+set(CFD_LIBRARY_DIRS
+    "${CFD_ROOT_DIR}/build/lib/Release"
+    "${CFD_ROOT_DIR}/build/lib"
+)
+
+# For static builds (v0.1.6+), CFD library uses modular backend libraries
+# We need to find and link all of them
+set(CFD_LIBRARIES "")
+set(CFD_MODULAR_LIBS cfd_api cfd_core cfd_scalar cfd_simd cfd_omp)
+
+# Check if CUDA library exists (optional)
+find_library(CFD_CUDA_LIB
+    NAMES cfd_cuda
+    PATHS ${CFD_LIBRARY_DIRS}
+    NO_DEFAULT_PATH
+)
+if(CFD_CUDA_LIB)
+    list(APPEND CFD_MODULAR_LIBS cfd_cuda)
+    message(STATUS "Found CFD CUDA library: ${CFD_CUDA_LIB}")
+endif()
+
+# Try to find each modular library
+foreach(lib_name ${CFD_MODULAR_LIBS})
+    find_library(CFD_${lib_name}_LIB
+        NAMES ${lib_name}
+        PATHS ${CFD_LIBRARY_DIRS}
+        NO_DEFAULT_PATH
+    )
+    if(CFD_${lib_name}_LIB)
+        list(APPEND CFD_LIBRARIES ${CFD_${lib_name}_LIB})
+        message(STATUS "Found ${lib_name}: ${CFD_${lib_name}_LIB}")
+    else()
+        message(FATAL_ERROR "${lib_name} not found in ${CFD_LIBRARY_DIRS}")
+    endif()
+endforeach()
+
+# On Linux, wrap in linker groups due to circular dependencies
+# (cfd_scalar/cfd_simd call poisson_solve from cfd_api)
+if(UNIX AND NOT APPLE)
+    set(CFD_LIBRARIES "-Wl,--start-group" ${CFD_LIBRARIES} "-Wl,--end-group")
+    message(STATUS "Using linker groups for CFD libraries (Linux)")
+endif()
+
+message(STATUS "CFD libraries: ${CFD_LIBRARIES}")
+message(STATUS "CFD include dir: ${CFD_INCLUDE_DIR}")
+
+# Find OpenMP - the CFD library uses OpenMP for parallel backends
+find_package(OpenMP)
+if(OpenMP_C_FOUND)
+    message(STATUS "OpenMP found: ${OpenMP_C_FLAGS}")
+else()
+    message(STATUS "OpenMP not found - parallel backends will not be available")
+endif()
+
+# Create the Python extension module
+# For stable ABI on Windows, we need to manually create the library
+# to avoid Python_add_library linking against version-specific python3X.lib
+if(CFD_USE_STABLE_ABI AND WIN32)
+    # Create module manually for Windows stable ABI
+    add_library(cfd_python MODULE src/cfd_python.c)
+
+    set_target_properties(cfd_python PROPERTIES
+        C_STANDARD 11
+        PREFIX ""
+        SUFFIX ".pyd"
+    )
+
+    # Define Py_LIMITED_API for stable ABI
+    target_compile_definitions(cfd_python PRIVATE Py_LIMITED_API=0x03080000)
+
+    # Find and link python3.lib (stable ABI library)
+    get_filename_component(PYTHON_DIR "${Python_EXECUTABLE}" DIRECTORY)
+    # Try multiple possible locations for python3.lib
+    find_library(PYTHON3_STABLE_LIB
+        NAMES python3
+        PATHS
+            "${PYTHON_DIR}/libs"
+            "${PYTHON_DIR}/../libs"
+            "${Python_LIBRARY_DIRS}"
+        NO_DEFAULT_PATH
+    )
+    if(NOT PYTHON3_STABLE_LIB)
+        # Last resort: construct path directly
+        if(EXISTS "${PYTHON_DIR}/libs/python3.lib")
+            set(PYTHON3_STABLE_LIB "${PYTHON_DIR}/libs/python3.lib")
+        elseif(EXISTS "${PYTHON_DIR}/../libs/python3.lib")
+            set(PYTHON3_STABLE_LIB "${PYTHON_DIR}/../libs/python3.lib")
+        endif()
+    endif()
+
+    if(PYTHON3_STABLE_LIB)
+        target_link_libraries(cfd_python PRIVATE ${PYTHON3_STABLE_LIB})
+        message(STATUS "Linking against stable ABI library: ${PYTHON3_STABLE_LIB}")
+    else()
+        message(FATAL_ERROR "Could not find python3.lib for stable ABI linking")
+    endif()
+
+    message(STATUS "Building Windows stable ABI extension")
+else()
+    # Use Python_add_library for Unix or non-stable-ABI builds
+    Python_add_library(cfd_python MODULE WITH_SOABI
+        src/cfd_python.c
+    )
+
+    set_target_properties(cfd_python PROPERTIES
+        C_STANDARD 11
+    )
+
+    if(CFD_USE_STABLE_ABI)
+        target_compile_definitions(cfd_python PRIVATE Py_LIMITED_API=0x03080000)
+        set_target_properties(cfd_python PROPERTIES SUFFIX ".abi3.so")
+        message(STATUS "Building Unix stable ABI extension")
+    endif()
+endif()
+
+target_include_directories(cfd_python PRIVATE
+    ${CFD_INCLUDE_DIR}
+    ${CFD_BUILD_INCLUDE_DIR}
+    ${Python_INCLUDE_DIRS}
+)
+
+target_link_libraries(cfd_python PRIVATE
+    ${CFD_LIBRARIES}
+)
+
+# Link OpenMP if available (required for CFD library's parallel backends)
+if(OpenMP_C_FOUND)
+    target_link_libraries(cfd_python PRIVATE OpenMP::OpenMP_C)
+endif()
+
+# Link CUDA runtime if the CFD library was built with CUDA support
+# Check if cudart library exists in the CFD build directory
+find_library(CUDART_LIBRARY
+    NAMES cudart cudart_static
+    PATHS ${CFD_LIBRARY_DIRS}
+    NO_DEFAULT_PATH
+)
+if(CUDART_LIBRARY)
+    message(STATUS "Found CUDA runtime in CFD build: ${CUDART_LIBRARY}")
+    target_link_libraries(cfd_python PRIVATE ${CUDART_LIBRARY})
+else()
+    # Try system CUDA if available
+    find_package(CUDAToolkit QUIET)
+    if(CUDAToolkit_FOUND)
+        message(STATUS "Found system CUDA toolkit, linking cudart")
+        target_link_libraries(cfd_python PRIVATE CUDA::cudart)
+    else()
+        message(STATUS "CUDA not found - GPU solvers will not be available")
+    endif()
+endif()
+
+# Install the extension module
+install(TARGETS cfd_python DESTINATION cfd_python)

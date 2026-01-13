@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""
+Basic CFD Python Example
+
+This example demonstrates the fundamental usage of the CFD Python bindings
+for running fluid dynamics simulations.
+
+CFD (Computational Fluid Dynamics) simulates fluid flow by solving the
+Navier-Stokes equations on a discrete grid. Key concepts:
+
+- Grid: The computational domain is divided into nx × ny cells
+- Time stepping: The simulation advances in discrete time steps (dt)
+- CFL number: Courant-Friedrichs-Lewy condition ensures numerical stability
+  (CFL = u*dt/dx, typically kept < 1 for explicit methods)
+- Velocity magnitude: sqrt(u² + v²) where u,v are velocity components
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+try:
+    import numpy as np
+
+    import cfd_python
+except ImportError as e:
+    print(f"Import error: {e}")
+    print("Make sure to build the package first:")
+    print("  pip install -e .")
+    sys.exit(1)
+
+
+def main():
+    print("CFD Python Basic Example")
+    print("=" * 50)
+    print(f"Version: {cfd_python.__version__}")
+
+    # Create output directory
+    output_dir = os.path.join(os.path.dirname(__file__), "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Show available solvers
+    print("\nAvailable Solvers:")
+    for solver in cfd_python.list_solvers():
+        print(f"  - {solver}")
+
+    # Simulation parameters
+    nx, ny = 20, 20
+    xmin, xmax = 0.0, 1.0
+    ymin, ymax = 0.0, 1.0
+    steps = 50
+
+    print("\nSimulation Setup:")
+    print(f"  Grid: {nx} x {ny}")
+    print(f"  Domain: [{xmin}, {xmax}] x [{ymin}, {ymax}]")
+    print(f"  Steps: {steps}")
+
+    # Method 1: Simple simulation
+    # run_simulation() is the simplest API - just specify grid size and steps.
+    # It uses default boundary conditions (lid-driven cavity: moving top wall)
+    # and returns velocity magnitude at each grid point.
+    print("\n" + "-" * 50)
+    print("1. Simple Simulation (run_simulation)")
+    print("-" * 50)
+
+    vel_mag = cfd_python.run_simulation(
+        nx=nx, ny=ny, steps=steps, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax
+    )
+
+    vel_array = np.array(vel_mag)
+    print(f"   Completed: {len(vel_mag)} points")
+    print(f"   Max velocity: {np.max(vel_array):.6f}")
+    print(f"   Mean velocity: {np.mean(vel_array):.6f}")
+
+    # Method 2: With VTK output
+    # VTK (Visualization Toolkit) format is widely used for scientific visualization.
+    # The output file can be opened in ParaView, VisIt, or other VTK-compatible tools
+    # to visualize the flow field in 2D/3D with contours, vectors, streamlines, etc.
+    print("\n" + "-" * 50)
+    print("2. Simulation with VTK Output")
+    print("-" * 50)
+
+    output_file = os.path.join(output_dir, "basic_output.vtk")
+    vel_mag_vtk = cfd_python.run_simulation(nx=nx, ny=ny, steps=steps, output_file=output_file)
+    print(f"   Output: output/basic_output.vtk ({len(vel_mag_vtk)} points)")
+
+    # Method 3: Using run_simulation_with_params
+    # This API gives more control over simulation parameters:
+    # - dt: Time step size (smaller = more accurate but slower)
+    # - cfl: CFL number for stability (typically 0.1-0.5 for explicit methods)
+    # Returns a dict with results and metadata including solver info.
+    print("\n" + "-" * 50)
+    print("3. Custom Parameters (run_simulation_with_params)")
+    print("-" * 50)
+
+    result = cfd_python.run_simulation_with_params(
+        nx=nx, ny=ny, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, steps=25, dt=0.0005, cfl=0.2
+    )
+
+    print(f"   Grid: {result['nx']} x {result['ny']}")
+    if "stats" in result:
+        stats = result["stats"]
+        print(f"   Max velocity: {stats.get('max_velocity', 'N/A')}")
+        print(f"   Iterations: {stats.get('iterations', 'N/A')}")
+
+    # Method 4: Grid and parameter inspection
+    # create_grid() generates the computational mesh with coordinates.
+    # get_default_solver_params() shows the default numerical parameters.
+    # These are useful for setting up custom simulations or post-processing.
+    print("\n" + "-" * 50)
+    print("4. Grid and Parameter Inspection")
+    print("-" * 50)
+
+    grid = cfd_python.create_grid(nx, ny, xmin, xmax, ymin, ymax)
+    print(f"   Grid dimensions: {grid['nx']} x {grid['ny']}")
+    print(f"   X coordinates: {len(grid['x_coords'])} points")
+
+    params = cfd_python.get_default_solver_params()
+    print(f"   Default dt: {params['dt']}")
+    print(f"   Default CFL: {params['cfl']}")
+
+    # Summary
+    print("\n" + "=" * 50)
+    print("Example completed!")
+    print("\nAvailable functions:")
+    print("  - run_simulation(): Quick simulation")
+    print("  - run_simulation_with_params(): Custom parameters")
+    print("  - create_grid(): Create computational grid")
+    print("  - get_default_solver_params(): Get default settings")
+    print("  - list_solvers(): List available solvers")
+    print("  - write_vtk_scalar/vector(): Export to VTK")
+    print("  - write_csv_timeseries(): Export to CSV")
+
+
+if __name__ == "__main__":
+    main()

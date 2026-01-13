@@ -1,0 +1,283 @@
+name: Build and Test Wheels
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  # CFD C library version to build against
+  # v0.1.6 introduces modular backend libraries
+  CFD_VERSION: "v0.1.6"
+
+jobs:
+  build_wheel:
+    name: Build ${{ matrix.variant }} wheel on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        variant: [cpu, cuda]
+        exclude:
+          # macOS doesn't support CUDA
+          - os: macos-latest
+            variant: cuda
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout CFD C library
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/cfd
+          ref: ${{ env.CFD_VERSION }}
+          path: cfd
+          fetch-depth: 0
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Install build dependencies
+        run: uv pip install --system build scikit-build-core setuptools-scm
+
+      # ============ CPU-only builds ============
+      - name: Build CFD library (Linux - CPU only)
+        if: runner.os == 'Linux' && matrix.variant == 'cpu'
+        run: |
+          # Build CPU-only for maximum compatibility
+          # Includes: Scalar, SIMD (AVX2), OpenMP backends
+          # Excludes: CUDA (avoid runtime dependency issues)
+          cmake -S cfd -B cfd/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCFD_ENABLE_CUDA=OFF
+          cmake --build cfd/build --config Release
+          echo "=== CFD library built (CPU-only) ==="
+          ls -la cfd/build/lib/
+
+      - name: Build CFD library (macOS - CPU only)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S cfd -B cfd/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCFD_ENABLE_CUDA=OFF
+          cmake --build cfd/build --config Release
+          echo "=== CFD library built (CPU-only) ==="
+          ls -la cfd/build/lib/
+
+      - name: Build CFD library (Windows - CPU only)
+        if: runner.os == 'Windows' && matrix.variant == 'cpu'
+        run: |
+          # Build CPU-only for maximum compatibility
+          cmake -S cfd -B cfd/build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=OFF `
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON `
+            -DCFD_ENABLE_CUDA=OFF
+          cmake --build cfd/build --config Release
+          echo "=== CFD library built (CPU-only) ==="
+          dir cfd\build\lib\Release
+
+      # ============ CUDA builds ============
+      # Using CUDA 12.4 for compatibility with latest compilers:
+      # - Windows: MSVC 14.44 requires CUDA 12.4+
+      # - Linux: GCC 13 requires CUDA 12.4+ (or use GCC 12 with older CUDA)
+      - name: Install CUDA Toolkit (Linux)
+        if: runner.os == 'Linux' && matrix.variant == 'cuda'
+        run: |
+          # Install minimal CUDA 12.4 packages (avoid nsight tools with broken dependencies)
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          # Install only compiler and runtime libraries (no profiling tools)
+          sudo apt-get install -y cuda-nvcc-12-4 cuda-cudart-dev-12-4 cuda-nvrtc-dev-12-4 libcublas-dev-12-4 libcusparse-dev-12-4
+          echo "/usr/local/cuda-12.4/bin" >> $GITHUB_PATH
+          echo "CUDA_PATH=/usr/local/cuda-12.4" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Build CFD library (Linux with CUDA)
+        if: runner.os == 'Linux' && matrix.variant == 'cuda'
+        run: |
+          # Build with CUDA for Turing+ architectures (RTX 20 series onwards)
+          # 75=Turing, 80=Ampere, 86=Ampere, 89=Ada, 90=Hopper
+          cmake -S cfd -B cfd/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCFD_ENABLE_CUDA=ON \
+            -DCFD_CUDA_ARCHITECTURES="75;80;86;89;90"
+          cmake --build cfd/build --config Release
+          echo "=== CFD library built with CUDA ==="
+          ls -la cfd/build/lib/
+
+      - name: Install CUDA Toolkit (Windows)
+        if: runner.os == 'Windows' && matrix.variant == 'cuda'
+        uses: Jimver/cuda-toolkit@v0.2.18
+        with:
+          cuda: '12.4.0'
+
+      - name: Build CFD library (Windows with CUDA)
+        if: runner.os == 'Windows' && matrix.variant == 'cuda'
+        run: |
+          # Build with CUDA for Turing+ architectures
+          cmake -S cfd -B cfd/build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=OFF `
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON `
+            -DCFD_ENABLE_CUDA=ON `
+            -DCFD_CUDA_ARCHITECTURES="75;80;86;89;90"
+          cmake --build cfd/build --config Release
+          echo "=== CFD library built with CUDA ==="
+          dir cfd\build\lib\Release
+
+      # ============ Build wheels ============
+      - name: Build wheel (Unix)
+        if: runner.os != 'Windows'
+        env:
+          CFD_ROOT: ${{ github.workspace }}/cfd
+          CFD_STATIC_LINK: "ON"
+          CFD_USE_STABLE_ABI: "ON"
+        run: |
+          pip wheel . --no-deps --wheel-dir dist/
+          echo "=== Wheel built ==="
+          ls -la dist/
+
+      - name: Build wheel (Windows)
+        if: runner.os == 'Windows'
+        env:
+          CFD_ROOT: ${{ github.workspace }}/cfd
+          CFD_STATIC_LINK: "ON"
+          CFD_USE_STABLE_ABI: "ON"
+        run: |
+          pip wheel . --no-deps --wheel-dir dist/
+          echo "=== Wheel built ==="
+          dir dist
+
+      - name: Inspect wheel contents
+        run: |
+          python -c "
+          import glob, zipfile
+          for wheel in glob.glob('dist/*.whl'):
+              print(f'=== Contents of {wheel} ===')
+              with zipfile.ZipFile(wheel) as zf:
+                  for name in zf.namelist():
+                      print(name)
+          "
+
+      # Upload wheels with variant in artifact name
+      # Note: Wheel filenames are standard (no variant suffix) to comply with PEP 427
+      # The variant (cpu/cuda) is encoded in the artifact name for differentiation
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}-${{ matrix.variant }}
+          path: dist/*.whl
+
+  test_wheel:
+    name: Test ${{ matrix.variant }} wheel on ${{ matrix.os }} with Python ${{ matrix.python }}
+    needs: [build_wheel]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.13"]
+        variant: [cpu, cuda]
+        exclude:
+          # macOS doesn't have CUDA wheels
+          - os: macos-latest
+            variant: cuda
+
+    steps:
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ matrix.python }}"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: false
+
+      # Install CUDA runtime for CUDA wheel tests (must match build version)
+      - name: Install CUDA Toolkit (Linux - for testing)
+        if: runner.os == 'Linux' && matrix.variant == 'cuda'
+        run: |
+          # Install CUDA runtime libraries via apt (more reliable than runfile installer)
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get install -y cuda-cudart-12-4
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Install CUDA Toolkit (Windows - for testing)
+        if: runner.os == 'Windows' && matrix.variant == 'cuda'
+        uses: Jimver/cuda-toolkit@v0.2.18
+        with:
+          cuda: '12.4.0'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}-${{ matrix.variant }}
+          path: dist
+
+      - name: Install wheel (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          python -m pip install dist/*.whl
+          python -m pip install pytest numpy
+
+      - name: Install wheel (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install (Get-ChildItem dist/*.whl).FullName
+          python -m pip install pytest numpy
+
+      - name: Test import (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd /tmp
+          python -c "
+          import cfd_python
+          print('Package loaded:', cfd_python.__file__)
+          print('Version:', cfd_python.__version__)
+          print('Has list_solvers:', hasattr(cfd_python, 'list_solvers'))
+          if hasattr(cfd_python, 'list_solvers'):
+              print('Solvers:', cfd_python.list_solvers())
+          "
+
+      - name: Test import (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd $env:TEMP
+          python -c "import cfd_python; print('Package loaded:', cfd_python.__file__); print('Version:', cfd_python.__version__); print('Has list_solvers:', hasattr(cfd_python, 'list_solvers')); print('Solvers:', cfd_python.list_solvers()) if hasattr(cfd_python, 'list_solvers') else None"
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tests
+          sparse-checkout-cone-mode: false
+
+      - name: Run tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd /tmp
+          pytest $GITHUB_WORKSPACE/tests/ -v
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd $env:TEMP
+          pytest "$env:GITHUB_WORKSPACE\tests" -v
