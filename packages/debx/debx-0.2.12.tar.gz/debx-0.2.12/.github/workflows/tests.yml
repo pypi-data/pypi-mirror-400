@@ -1,0 +1,53 @@
+name: tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  tests:
+    runs-on: "${{ matrix.os }}"
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        python: [ "3.10", "3.11", "3.12", "3.13", "3.14" ]
+        os: [ "ubuntu-latest", "macos-latest", "windows-latest" ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup python${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: pytest
+        run: uv run pytest --cov=debx --cov-report=term-missing
+        env:
+          FORCE_COLOR: 1
+
+      - name: Coveralls
+        run: uv run coveralls
+        env:
+          COVERALLS_PARALLEL: 'true'
+          COVERALLS_SERVICE_NAME: github
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finish:
+    needs:
+       - tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.github_token }}
+          parallel-finished: true
