@@ -1,0 +1,113 @@
+# Changelog
+
+All notable changes to pycsp3-scheduling will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.7] - 2026-01-05
+  - Fixed VRPTW example notebook with distance minimization objective
+  - Updated documentation for ElementMatrix and type_of_next/prev
+  - Complete SeqNoOverlap support with transition matrix
+
+## [0.1.6] - 2026-01-04
+
+### Added
+
+- **ElementMatrix** class for 2D array indexing with expressions
+  - Supports indexing with pycsp3 variables (like CP Optimizer's `IloNumArray2`)
+  - Built-in `last_value` and `absent_value` for boundary cases
+  - Properties: `last_type`, `absent_type` for column indices
+  - `get_value()` method for debugging/constant access
+
+- **type_of_next / type_of_prev** now return pycsp3 variables
+  - Can be used directly in `ElementMatrix` indexing
+  - Enables CP Optimizer-style distance objectives:
+    `M[type_i, type_of_next(route, interval, last_value, absent_value)]`
+
+- **element() and element2d()** helper functions
+  - Array indexing with variable indices
+
+### Fixed
+
+- XCSP3 variable ID naming (must start with letter, not underscore)
+  - Fixed prefixes: `tonext`, `toprev`, `tm`, `elem`, `elem2d`
+
+### Changed
+
+- VRPTW example updated to use `ElementMatrix` + `type_of_next` for distance objective
+- VRPTW notebooks updated with working distance minimization
+
+## [0.1.5] - 2026-01-04
+  - Added ElementMatrix expression for 2D array indexing
+  - Add vrptw example 
+
+## [0.1.4] - 2026-01-03
+  - Added Visualization module and statistics functions
+
+## [0.1.2] - 2026-01-03
+  - `IntervalVar` intensity functions with granularity scaling
+
+## [0.1.0] - 2026-01-01
+
+### Added
+
+- **Core Variable Types**
+  - `IntervalVar` class for representing tasks/activities
+  - `SequenceVar` class for ordered sequences on disjunctive resources
+  - `IntervalVarArray` and `IntervalVarDict` factory functions
+  - `SequenceVarArray` factory function
+
+- **Expression Functions**
+  - `start_of()`, `end_of()`, `size_of()`, `length_of()`, `presence_of()`
+  - `overlap_length()` for computing interval overlap
+  - `expr_min()`, `expr_max()` utility functions
+  - Sequence accessors: `start_of_next()`, `end_of_prev()`, etc.
+
+- **Precedence Constraints**
+  - Before constraints: `end_before_start()`, `start_before_start()`, etc.
+  - At constraints: `start_at_start()`, `end_at_end()`, etc.
+  - Support for delay parameter
+
+- **Grouping Constraints**
+  - `span()` - main interval spans sub-intervals
+  - `alternative()` - select from alternative intervals
+  - `synchronize()` - synchronize intervals with a main interval
+
+- **Sequence Constraints**
+  - `SeqNoOverlap()` with optional transition matrix
+  - Ordering: `first()`, `last()`, `before()`, `previous()`
+  - Consistency: `same_sequence()`, `same_common_subsequence()`
+
+- **Cumulative Functions**
+  - `CumulFunction` class for resource consumption modeling
+  - Elementary functions: `pulse()`, `step_at()`, `step_at_start()`, `step_at_end()`
+  - Constraints: `cumul_range()`, `always_in()` for cumulative
+  - Accessors: `height_at_start()`, `height_at_end()`
+
+- **State Functions**
+  - `StateFunction` class for discrete resource states
+  - `TransitionMatrix` for state transition times
+  - Constraints: `always_equal()`, `always_constant()`, `always_no_state()`
+
+- **Interop Helpers**
+  - `start_time()`, `end_time()` for pycsp3 integration
+  - `presence_time()` for optional interval handling
+  - `interval_value()` for extracting solution values
+  - `IntervalValue` for attribute/dict-style interval results
+  - `model_statistics()` and `solution_statistics()` for model/solve stats
+
+- **Examples**
+  - Job Shop Scheduling
+  - Flow Shop Scheduling
+  - Open Shop Scheduling
+  - Flexible Job Shop
+  - RCPSP and variants (MRCPSP, CyclicRCPSP, MSPSP)
+  - Aircraft Landing
+  - Employee Scheduling
+
+### Notes
+
+- First public release
+- Requires Python >= 3.10
+- Requires pycsp3 >= 2.5
