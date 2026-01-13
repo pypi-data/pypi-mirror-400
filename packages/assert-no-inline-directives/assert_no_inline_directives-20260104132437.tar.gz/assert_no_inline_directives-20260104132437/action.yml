@@ -1,0 +1,64 @@
+---
+description: Assert files contain no inline directives
+inputs:
+  allow:
+    description: Allow directive pattern (space-separated)
+    required: false
+  count:
+    default: "false"
+    description: Print finding count only
+    required: false
+  exclude:
+    description: Glob patterns to exclude files (space-separated)
+    required: false
+  fail-fast:
+    default: "false"
+    description: Exit on first finding
+    required: false
+  files:
+    description: Target files to check (space-separated)
+    required: true
+  quiet:
+    default: "false"
+    description: Suppress output, exit code only
+    required: false
+  tools:
+    description: Comma-separated list of tools (coverage,mypy,pylint,yamllint)
+    required: true
+  verbose:
+    default: "false"
+    description: Show tools, files scanned/skipped, findings, and summary
+    required: false
+  warn-only:
+    default: "false"
+    description: Always exit 0, report only
+    required: false
+name: Assert No Inline Directives
+runs:
+  steps:
+    - run: python3 -m pip install assert-no-inline-directives
+      shell: bash
+    - run: |
+        ARGS="--tools ${{ inputs.tools }}"
+        [ "${{ inputs.quiet }}" = "true" ] && ARGS="$ARGS --quiet"
+        [ "${{ inputs.count }}" = "true" ] && ARGS="$ARGS --count"
+        [ "${{ inputs.verbose }}" = "true" ] && ARGS="$ARGS --verbose"
+        [ "${{ inputs.fail-fast }}" = "true" ] && ARGS="$ARGS --fail-fast"
+        [ "${{ inputs.warn-only }}" = "true" ] && ARGS="$ARGS --warn-only"
+        for pattern in ${{ inputs.exclude }}; do
+          ARGS="$ARGS --exclude '$pattern'"
+        done
+        for pattern in ${{ inputs.allow }}; do
+          ARGS="$ARGS --allow '$pattern'"
+        done
+        # Use set -f to disable glob expansion, then restore
+        # This ensures patterns like **/*.py are passed literally to the CLI
+        set -f
+        FILES=""
+        for pattern in ${{ inputs.files }}; do
+          FILES="$FILES '$pattern'"
+        done
+        set +f
+        eval "assert-no-inline-directives $ARGS $FILES"
+      shell: bash
+  using: composite
