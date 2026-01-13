@@ -1,0 +1,89 @@
+Metadata-Version: 2.4
+Name: django-wm
+Version: 4.2.0
+Summary: Webmention support for Django.
+Home-page: https://beatonma.org/webmentions_tester/
+Author: Michael Beaton
+Author-email: michael@beatonma.org
+License: GPLv3
+Project-URL: Source, https://github.com/beatonma/django-wm
+Classifier: Framework :: Django
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: beautifulsoup4>=4.6
+Requires-Dist: Django>=2.2
+Requires-Dist: mf2py>=1.1
+Requires-Dist: requests>=2.20
+Provides-Extra: celery
+Requires-Dist: celery>=5.2.2; extra == "celery"
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-django; extra == "test"
+Provides-Extra: wagtail
+Requires-Dist: wagtail>=3.0.3; extra == "wagtail"
+Dynamic: license-file
+
+# `django-wm`
+
+[![Tests](https://github.com/beatonma/django-wm/actions/workflows/runtests.yml/badge.svg)](https://github.com/beatonma/django-wm/actions/workflows/runtests.yml) [![pypi package](https://badge.fury.io/py/django-wm.svg)](https://badge.fury.io/py/django-wm)
+
+`django-wm` lets you add [Webmention](https://indieweb.org/Webmention) functionality to your Django project with minimal setup.
+
+
+### Upgrading
+
+Please check the [changelog](./CHANGELOG.md) before upgrading.
+
+Major versions introduce breaking changes which may require code changes in your application. Please check the [upgrade guide](https://github.com/beatonma/django-wm/wiki/Upgrading) for full instructions on how to handle these.
+
+Minor versions may require a database migration for new features - this will be noted in the [changelog](./CHANGELOG.md) and the [wiki release page](https://github.com/beatonma/django-wm/wiki/Releases) when necessary.
+
+
+### Getting started
+[Setup instructions](https://github.com/beatonma/django-wm/wiki/Guide_Getting-started).
+
+[Code for an example project](./sample-project).
+
+All done? You can use the [testing tool](https://beatonma.org/webmentions_tester/) to make sure it works.
+
+
+### Features
+- Endpoints:
+  - `/webmention`: Receives incoming Webmentions from other sites.
+  - `/webmention/get`: Used to retrieve Webmentions for a page on your site.  
+    e.g. `/webmention/get?url=/my-article` will return any received Webmentions that target `/my-article` on your site.
+    ```json5
+    // /webmention/get?url=/my-article
+    {
+      "target_url": "https://my-site.org/my-article",
+      "mentions": [
+        {
+          "hcard": {
+            "name": "Jane Bloggs",
+            "avatar": "https://gravatar.com/janebloggs",
+            "homepage": "https://jane-bloggs-example.org"
+          },
+          "quote": null,
+          "source_url": "https://jane-bloggs-example.org/some-article",
+          "published": "2020-01-17T21:45:24.542Z",
+          "type": "webmention"
+        }
+      ]
+    }
+    ```
+
+- `WebmentionHeadMiddleware` adds your `/webmention` endpoint to the headers of your pages so that it can be discovered by other sites.
+
+- `{% webmentions_endpoint %}` template tag to include your `/webmention` endpoint to your Django templates <head> HTML element.
+
+- `MentionableMixin` enables automatic submission of Webmentions to other sites when you mention them in your content.
