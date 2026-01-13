@@ -1,0 +1,77 @@
+name: Test and Lint
+on:
+  pull_request:
+    paths:
+      - 'src/**.py'
+      - 'tests/**.py'
+      - 'conftest.py'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    env:
+      COVERAGE_TOTAL: 100
+      PYLINT_PASS_SCORE: "10.00"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run pylint on Ubuntu
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          PYLINT=$(uv run pylint --verbose $(git ls-files '*.py') 2>&1) || true
+          echo "$PYLINT"
+          PASS=$(echo "$PYLINT" | grep "Your code has been rated at ${{ env.PYLINT_PASS_SCORE}}/10") || true
+
+          if [ -z "$PASS" ]; then
+            exit 1
+          fi
+
+      - name: Run pylint on Windows
+        # TODO(a-rich): Pylint on Windows with Python 3.12 raises "'zipimporter' object has no attribute 'find_module'"
+        #   AttributeError: 'zipimporter' object has no attribute 'find_module'. Did you mean: 'load_module'?
+        #   File "C:\hostedtoolcache\windows\Python\3.12.1\x64\Lib\site-packages\pylint\lint\pylinter.py", line 888, in get_ast
+        if: matrix.os == 'windows-latest' && matrix.python-version != '3.12'
+        run: |
+          $PYLINT = & uv run pylint --verbose --recursive=y src tests scripts 2>&1 | Out-String
+          Write-Output $PYLINT
+          if ($PYLINT -notmatch "Your code has been rated at $env:PYLINT_PASS_SCORE/10") {
+            exit 1
+          }
+
+      - name: Run pytest with coverage on Ubuntu
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          PYTEST=$(uv run pytest --cov --cov-report term-missing --show-capture=no 2>&1) || true
+          echo "$PYTEST"
+          PASS=$(echo "$PYTEST" | grep -E "TOTAL\s+[0-9]+\s+0+\s+${{ env.COVERAGE_TOTAL }}%") || true
+
+          if [ -z "$PASS" ]; then
+            exit 1
+          fi
+
+      - name: Run pytest with coverage on Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          $PYTEST = & uv run pytest --cov --cov-report term-missing --show-capture=no 2>&1 | Out-String
+          Write-Output $PYTEST
+          if ($PYTEST -notmatch "TOTAL\s+\d+\s+0+\s+$env:COVERAGE_TOTAL%") {
+            exit 1
+          }
