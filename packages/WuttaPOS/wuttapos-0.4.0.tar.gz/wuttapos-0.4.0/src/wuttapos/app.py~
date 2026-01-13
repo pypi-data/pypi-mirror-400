@@ -1,0 +1,50 @@
+# -*- coding: utf-8; -*-
+################################################################################
+#
+#  WuttaPOS -- Point of Sale system based on Wutta Framework
+#  Copyright © 2026 Lance Edgar
+#
+#  This file is part of WuttaPOS.
+#
+#  WuttaPOS is free software: you can redistribute it and/or modify it under the
+#  terms of the GNU General Public License as published by the Free Software
+#  Foundation, either version 3 of the License, or (at your option) any later
+#  version.
+#
+#  WuttaPOS is distributed in the hope that it will be useful, but WITHOUT ANY
+#  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+#  FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+#  details.
+#
+#  You should have received a copy of the GNU General Public License along with
+#  WuttaPOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+################################################################################
+"""
+WuttaPOS app
+"""
+
+from wuttjamaican import app as base
+
+
+class WuttaPosAppProvider(base.AppProvider):
+    """
+    Custom :term:`app provider` for WuttaPOS.
+    """
+
+    email_templates = ["wuttapos:email-templates"]
+
+    def get_transaction_handler(self):
+        """
+        Get the configured :term:`transaction handler`.
+
+        :rtype: :class:`~wuttapos.handler.TransactionHandler`
+        """
+        if not hasattr(self, "transaction_handler"):
+            spec = self.config.get(
+                "wuttapos.transaction_handler",
+                default="wuttapos.handler:TransactionHandler",
+            )
+            factory = self.app.load_object(spec)
+            self.transaction_handler = factory(self.config)
+        return self.transaction_handler

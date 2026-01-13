@@ -1,0 +1,330 @@
+# -*- coding: utf-8; -*-
+"""
+Model definition for Products
+"""
+
+import sqlalchemy as sa
+from sqlalchemy import orm
+
+from wuttjamaican.db import model
+from wuttjamaican.db.util import UUID
+
+
+class Product(model.Base):
+    """
+    Represents a product for which inventory is tracked.
+    """
+
+    __tablename__ = "product"
+    __versioned__ = {}
+    __wutta_hint__ = {
+        "model_title": "Product",
+        "model_title_plural": "Products",
+    }
+
+    uuid = model.uuid_column()
+
+    identifier = sa.Column(
+        sa.String(length=100),
+        nullable=True,
+        doc="""
+    Some kind of identifying string for the produt.  (TBD)
+    """,
+    )
+
+    brand_name = sa.Column(
+        sa.String(length=100),
+        nullable=True,
+        doc="""
+    Brand name for the product - up to 100 chars.
+    """,
+    )
+
+    description = sa.Column(
+        sa.String(length=255),
+        nullable=False,
+        doc="""
+    Description for the product.
+    """,
+    )
+
+    size = sa.Column(
+        sa.String(length=30),
+        nullable=True,
+        doc="""
+    Size of the product, as string - up to 30 chars.
+    """,
+    )
+
+    weighed = sa.Column(
+        sa.Boolean(),
+        nullable=True,
+        doc="""
+    Flag indicating the product is sold by weight; default is null.
+    """,
+    )
+
+    department_id = sa.Column(
+        sa.String(length=10),
+        nullable=True,
+        doc="""
+    ID of the department to which the product belongs, if known.
+    """,
+    )
+
+    department_name = sa.Column(
+        sa.String(length=30),
+        nullable=True,
+        doc="""
+    Name of the department to which the product belongs, if known.
+    """,
+    )
+
+    special_order = sa.Column(
+        sa.Boolean(),
+        nullable=True,
+        doc="""
+    Flag indicating the item is a "special order" - e.g. something not
+    normally carried by the store.  Default is null.
+    """,
+    )
+
+    vendor_name = sa.Column(
+        sa.String(length=50),
+        nullable=True,
+        doc="""
+    Name of vendor from which product may be purchased, if known.  See
+    also :attr:`vendor_item_code`.
+    """,
+    )
+
+    vendor_item_code = sa.Column(
+        sa.String(length=20),
+        nullable=True,
+        doc="""
+    Item code (SKU) to use when ordering this product from the vendor
+    identified by :attr:`vendor_name`, if known.
+    """,
+    )
+
+    case_size = sa.Column(
+        sa.Numeric(precision=9, scale=4),
+        nullable=True,
+        doc="""
+    Case pack count for the product, if known.
+    """,
+    )
+
+    unit_cost = sa.Column(
+        sa.Numeric(precision=9, scale=5),
+        nullable=True,
+        doc="""
+    Cost of goods amount for one "unit" (not "case") of the product,
+    as decimal to 4 places.
+    """,
+    )
+
+    unit_price_reg = sa.Column(
+        sa.Numeric(precision=8, scale=3),
+        nullable=True,
+        doc="""
+    Regular price for a "unit" of the product.
+    """,
+    )
+
+    notes = sa.Column(
+        sa.Text(),
+        nullable=True,
+        doc="""
+    Arbitrary notes regarding the product, if applicable.
+    """,
+    )
+
+    inventory = orm.relationship(
+        "ProductInventory",
+        doc="""
+        Reference to the live inventory record for this product.
+        """,
+        uselist=False,
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def full_description(self):
+        fields = [self.brand_name or "", self.description or "", self.size or ""]
+        fields = [f.strip() for f in fields if f.strip()]
+        return " ".join(fields)
+
+    def __str__(self):
+        return self.full_description
+
+
+class ProductInventory(model.Base):
+    """
+    Contains the live inventory counts for all products.
+    """
+
+    __tablename__ = "product_inventory"
+    __wutta_hint__ = {
+        "model_title": "Product Inventory",
+        "model_title_plural": "Product Inventories",
+    }
+
+    uuid = model.uuid_column()
+
+    product_uuid = sa.Column(
+        UUID(),
+        sa.ForeignKey("product.uuid"),
+        nullable=False,
+        unique=True,
+        doc="""
+    Reference to the product.
+    """,
+    )
+    product = orm.relationship(
+        "Product",
+        doc="""
+        Reference to the product.
+        """,
+        back_populates="inventory",
+    )
+
+    on_hand = sa.Column(
+        sa.Numeric(precision=9, scale=4),
+        nullable=True,
+        doc="""
+    Unit quantity of product which is currently on hand.
+    """,
+    )
+
+    on_order = sa.Column(
+        sa.Numeric(precision=9, scale=4),
+        nullable=True,
+        doc="""
+    Unit quantity of product which is currently on order.
+    """,
+    )
+
+    adjustments = orm.relationship(
+        "ProductInventoryAdjustment",
+        back_populates="inventory",
+        cascade="all, delete-orphan",
+    )
+
+    def __str__(self):
+        return str(self.product or "")
+
+
+class InventoryAdjustmentType(model.Base):
+    """
+    Possible types of inventory adjustments.
+    """
+
+    __tablename__ = "inventory_adjustment_type"
+    __versioned__ = {}
+    __wutta_hint__ = {
+        "model_title": "Inventory Adjustment Type",
+        "model_title_plural": "Inventory Adjustment Types",
+    }
+
+    uuid = model.uuid_column()
+
+    type_code = sa.Column(
+        sa.Integer(),
+        nullable=False,
+        unique=True,
+        doc="""
+    Code indicating the type of inventory adjustment.
+    """,
+    )
+
+    name = sa.Column(
+        sa.String(length=100),
+        nullable=False,
+        doc="""
+    Name for the adjustment type.
+    """,
+    )
+
+    def __str__(self):
+        return self.name or ""
+
+
+class ProductInventoryAdjustment(model.Base):
+    """
+    Represents any adjustment to entry, e.g. manual or imported from POS.
+    """
+
+    __tablename__ = "product_inventory_adjustment"
+    __wutta_hint__ = {
+        "model_title": "Product Inventory Adjustment",
+        "model_title_plural": "Product Inventory Adjustments",
+    }
+
+    uuid = model.uuid_column()
+
+    inventory_uuid = sa.Column(
+        UUID(),
+        sa.ForeignKey("product_inventory.uuid"),
+        nullable=False,
+        doc="""
+    Reference to the product inventory record.
+    """,
+    )
+    inventory = orm.relationship(
+        "ProductInventory",
+        doc="""
+        Reference to the product inventory record.
+        """,
+        back_populates="adjustments",
+    )
+
+    adjusted = sa.Column(
+        sa.DateTime(),
+        nullable=False,
+        doc="""
+    Date and time (in UTC) when the adjustment occurred.
+    """,
+    )
+
+    effective_date = sa.Column(
+        sa.Date(),
+        nullable=False,
+        doc="""
+    Effective date (in local time zone) for the adjustment.
+    """,
+    )
+
+    adjustment_type_code = sa.Column(
+        sa.Integer(),
+        nullable=True,
+        doc="""
+    Numeric code indicating the type of adustment.
+    """,
+    )
+
+    adjustment_type = orm.relationship(
+        InventoryAdjustmentType,
+        primaryjoin=orm.remote(InventoryAdjustmentType.type_code)
+        == orm.foreign(adjustment_type_code),
+    )
+
+    amount = sa.Column(
+        sa.Numeric(precision=9, scale=4),
+        nullable=False,
+        doc="""
+    Amount of the adjustment; may be positive or negative.
+    """,
+    )
+
+    source = sa.Column(
+        sa.String(length=100),
+        nullable=True,
+        doc="""
+    Arbitrary string identifying the source of the adjustment, if applicable.
+    """,
+    )
+
+    def __str__(self):
+        return str(self.inventory or "")
