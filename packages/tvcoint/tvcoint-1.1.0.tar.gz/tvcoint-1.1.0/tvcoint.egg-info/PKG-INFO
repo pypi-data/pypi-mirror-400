@@ -1,0 +1,618 @@
+Metadata-Version: 2.4
+Name: tvcoint
+Version: 1.1.0
+Summary: Time-Varying Cointegration Test based on Bierens and Martins (2010) with Bootstrap Tests from Martins (2016)
+Author-email: Dr Merwan Roudane <merwanroudane920@gmail.com>
+Maintainer-email: Dr Merwan Roudane <merwanroudane920@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/merwanroudane/tvcoint
+Project-URL: Documentation, https://github.com/merwanroudane/tvcoint#readme
+Project-URL: Repository, https://github.com/merwanroudane/tvcoint
+Project-URL: Issues, https://github.com/merwanroudane/tvcoint/issues
+Keywords: cointegration,time-varying,econometrics,VECM,Johansen,Chebyshev polynomials,likelihood ratio test,time series,bootstrap,wild bootstrap
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Financial and Insurance Industry
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: scipy>=1.7.0
+Requires-Dist: pandas>=1.3.0
+Requires-Dist: statsmodels>=0.13.0
+Requires-Dist: matplotlib>=3.4.0
+Requires-Dist: tabulate>=0.8.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=5.0.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.0.0; extra == "docs"
+Dynamic: license-file
+
+# tvcoint: Time-Varying Cointegration Analysis in Python
+
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI version](https://badge.fury.io/py/tvcoint.svg)](https://badge.fury.io/py/tvcoint)
+
+A comprehensive Python library implementing the time-varying cointegration framework of Bierens and Martins (2010) from *Econometric Theory*.
+
+## Overview
+
+The `tvcoint` package provides tools for testing whether cointegrating relationships in multivariate time series are time-invariant (standard Johansen cointegration) or time-varying. The methodology allows cointegrating vectors to change smoothly over time using Chebyshev polynomial approximations.
+
+### Key Features
+
+- **Time-Varying VECM Estimation**: Estimate vector error correction models where cointegrating vectors evolve over time via Chebyshev time polynomials
+- **Likelihood Ratio Test**: Test H₀ (time-invariant cointegration) vs. H₁ (time-varying cointegration)
+- **Bootstrap Tests (NEW)**: Wild and i.i.d. bootstrap tests from Martins (2016) with better finite-sample properties
+- **Asymptotic Chi-Square Distribution**: Under H₀, the test statistic follows χ²(mkr)
+- **Standard Johansen Analysis**: Full implementation of Johansen (1988, 1991) as a special case
+- **Critical Values**: Asymptotic and Monte Carlo simulated critical values
+- **PPP Application**: Specialized functions for Purchasing Power Parity testing
+
+## Installation
+
+### From PyPI (recommended)
+```bash
+pip install tvcoint
+```
+
+### From Source
+```bash
+git clone https://github.com/merwanroudane/tvcoint.git
+cd tvcoint
+pip install -e .
+```
+
+### Dependencies
+- Python ≥ 3.8
+- NumPy ≥ 1.20
+- SciPy ≥ 1.7
+- pandas ≥ 1.3
+- statsmodels ≥ 0.13
+- matplotlib ≥ 3.4
+- tabulate ≥ 0.8
+
+## Quick Start
+
+### Basic Time-Varying Cointegration Test
+
+```python
+import numpy as np
+import tvcoint
+
+# Simulate cointegrated data
+Y = tvcoint.simulate_cointegrated_system(T=200, k=2, r=1, seed=42)
+
+# Test for time-varying cointegration
+# H0: Time-invariant cointegration (m=0)
+# H1: Time-varying cointegration (m>0)
+result = tvcoint.lr_test_tv_cointegration(
+    Y, 
+    p=2,    # VAR lag order
+    r=1,    # Cointegration rank
+    m=2,    # Chebyshev polynomial order
+    include_intercept=True
+)
+
+# Print formatted results
+print(result)
+```
+
+### Output
+```
+======================================================================
+Time-Varying Cointegration Test
+Bierens and Martins (2010)
+======================================================================
+
+Test Configuration:
+  Sample size (T)          : 200
+  Number of variables (k)  : 2
+  Cointegration rank (r)   : 1
+  Chebyshev order (m)      : 2
+  VAR lag order (p)        : 2
+
+Test Results:
+  LR Test Statistic        : 3.4521
+  Degrees of Freedom       : 4
+  P-value                  : 0.4853
+
+Critical Values:
+  10% level                : 7.7794
+  5% level                 : 9.4877
+  1% level                 : 13.2767
+
+Conclusion:
+  Fail to reject H0 at 5% level
+  Evidence supports TIME-INVARIANT cointegration
+======================================================================
+```
+
+## Detailed Usage
+
+### 1. Chebyshev Time Polynomials
+
+The cointegrating vectors are modeled as:
+```
+βₜ = Σᵢ₌₀ᵐ ξᵢ Pᵢ,ₜ(t)
+```
+
+where Pᵢ,ₜ(t) are Chebyshev time polynomials defined as:
+- P₀,ₜ(t) = 1
+- Pᵢ,ₜ(t) = √2 cos(iπ(t - 0.5)/T), for i ≥ 1
+
+```python
+import tvcoint
+import numpy as np
+
+# Generate Chebyshev polynomial matrix
+T = 100
+m = 3  # Order
+P = tvcoint.chebyshev_polynomial_matrix(T, m)
+
+# Verify orthonormality: (1/T) Σₜ Pᵢ(t)Pⱼ(t) = δᵢⱼ
+is_orthonormal = tvcoint.verify_orthonormality(P)
+print(f"Orthonormality verified: {is_orthonormal}")
+```
+
+### 2. Standard Johansen VECM (m = 0)
+
+```python
+import tvcoint
+
+# Load or simulate data
+Y = tvcoint.simulate_cointegrated_system(T=200, k=3, r=1)
+
+# Select lag order using information criteria
+best_lag = tvcoint.select_lag_order(Y, max_lag=8, criterion='bic')
+print(f"Selected lag order: {best_lag}")
+
+# Estimate standard VECM
+vecm = tvcoint.JohansenVECM(Y, p=best_lag, r=1)
+vecm.fit()
+
+# Get estimated parameters
+print("Eigenvalues:", vecm.eigenvalues)
+print("Alpha (adjustment):\n", vecm.alpha)
+print("Beta (cointegrating vectors):\n", vecm.beta)
+
+# Trace test for cointegration rank
+test_results = tvcoint.johansen_trace_test(Y, p=best_lag)
+print(test_results)
+```
+
+### 3. Time-Varying VECM (m > 0)
+
+```python
+import tvcoint
+
+# Simulate time-varying cointegrated data
+Y_tv = tvcoint.simulate_tv_cointegrated_system(
+    T=300, k=2, r=1, m=2, seed=42
+)
+
+# Estimate time-varying VECM
+tv_vecm = tvcoint.TimeVaryingVECM(Y_tv, p=2, r=1, m=2)
+tv_vecm.fit()
+
+# Get time-varying cointegrating vectors
+beta_t = tv_vecm.get_time_varying_beta()  # Shape: (T, k, r)
+
+# Plot evolution of cointegrating coefficients
+import matplotlib.pyplot as plt
+plt.figure(figsize=(10, 6))
+for i in range(tv_vecm.k):
+    plt.plot(beta_t[:, i, 0], label=f'β_{i+1}(t)')
+plt.xlabel('Time')
+plt.ylabel('Coefficient Value')
+plt.title('Time-Varying Cointegrating Vector')
+plt.legend()
+plt.show()
+
+# Test for time-invariance
+variation = tv_vecm.test_time_invariance()
+print(f"Variation ratio: {variation['variation_ratio']:.4f}")
+```
+
+### 4. LR Test with Multiple m Values
+
+```python
+import tvcoint
+
+# Test across multiple Chebyshev orders
+results = tvcoint.multiple_m_test(
+    Y, p=2, r=1, 
+    m_values=[1, 2, 3, 4, 5],
+    alpha=0.05,
+    correction='bonferroni'
+)
+
+for m, res in results.items():
+    print(f"m={m}: LR={res.test_statistic:.3f}, p={res.p_value:.4f}")
+```
+
+### 5. Sequential Testing
+
+```python
+# Sequential test (stops at first non-rejection)
+result, m_selected = tvcoint.sequential_test(
+    Y, p=2, r=1,
+    m_max=5,
+    alpha=0.05
+)
+print(f"Selected m: {m_selected}")
+```
+
+### 6. PPP Application
+
+Testing Purchasing Power Parity with time-varying cointegration:
+
+```python
+import pandas as pd
+import tvcoint
+
+# Load PPP data: [ln(S), ln(P_domestic), ln(P_foreign)]
+# S = nominal exchange rate, P = price indices
+data = pd.read_csv('ppp_data.csv')
+Y = data[['log_exchange', 'log_price_us', 'log_price_uk']].values
+
+# Test PPP with time-varying cointegration
+result = tvcoint.test_ppp_application(
+    Y, 
+    p=2, 
+    m=3,
+    domestic_col=1,
+    foreign_col=2
+)
+print(result)
+```
+
+### 7. Simulation Studies
+
+```python
+import tvcoint
+import numpy as np
+
+# Size simulation under H0
+def simulate_size(T, k, r, m, n_rep=1000, alpha=0.05):
+    rejections = 0
+    for i in range(n_rep):
+        # Simulate under H0 (time-invariant)
+        Y = tvcoint.simulate_cointegrated_system(T=T, k=k, r=r, seed=i)
+        result = tvcoint.lr_test_tv_cointegration(Y, p=2, r=r, m=m)
+        if result.p_value < alpha:
+            rejections += 1
+    return rejections / n_rep
+
+# Run simulation
+empirical_size = simulate_size(T=200, k=2, r=1, m=2)
+print(f"Empirical size (nominal 5%): {empirical_size:.3f}")
+
+# Power simulation under H1
+def simulate_power(T, k, r, m, omega=0.5, n_rep=1000, alpha=0.05):
+    rejections = 0
+    for i in range(n_rep):
+        # Simulate under H1 (time-varying)
+        Y = tvcoint.simulate_tv_cointegrated_system(
+            T=T, k=k, r=r, m=m, omega=omega, seed=i
+        )
+        result = tvcoint.lr_test_tv_cointegration(Y, p=2, r=r, m=m)
+        if result.p_value < alpha:
+            rejections += 1
+    return rejections / n_rep
+
+power = simulate_power(T=200, k=2, r=1, m=2, omega=0.5)
+print(f"Empirical power: {power:.3f}")
+```
+
+### 8. Critical Values
+
+```python
+import tvcoint
+
+# Asymptotic critical values (χ² distribution)
+cv_5pct = tvcoint.asymptotic_critical_value(m=2, k=2, r=1, alpha=0.05)
+print(f"5% asymptotic CV: {cv_5pct:.4f}")
+
+# Monte Carlo simulated critical values (for small samples)
+simulated_cvs = tvcoint.simulate_null_distribution(
+    T=100, k=2, r=1, m=2, 
+    n_simulations=10000,
+    alpha_levels=[0.10, 0.05, 0.01]
+)
+print(f"Simulated CVs: {simulated_cvs}")
+
+# Size-adjusted critical values
+cv_adjusted = tvcoint.get_size_adjusted_critical_value(
+    T=100, k=2, r=1, m=2, alpha=0.05
+)
+print(f"Size-adjusted CV: {cv_adjusted:.4f}")
+
+# Bootstrap p-value
+p_bootstrap = tvcoint.bootstrap_p_value(
+    Y, p=2, r=1, m=2, 
+    observed_statistic=5.5,
+    n_bootstrap=1000
+)
+print(f"Bootstrap p-value: {p_bootstrap:.4f}")
+```
+
+### 9. Bootstrap Tests for TVC (Martins, 2016)
+
+The bootstrap tests provide better finite-sample size properties compared to the asymptotic chi-square test, especially when sample size is small or when there is conditional heteroskedasticity.
+
+```python
+import numpy as np
+import tvcoint
+
+# Generate data
+Y, _ = tvcoint.simulate_cointegrated_system(T=200, k=2, r=1, seed=42)
+
+# Wild Bootstrap Test (recommended under conditional heteroskedasticity)
+result_wild = tvcoint.wild_bootstrap_tvc_test(
+    Y, 
+    r=1,           # Cointegration rank
+    m=2,           # Chebyshev order
+    p=2,           # Lag order
+    n_bootstrap=399,  # Number of bootstrap replications
+    seed=123
+)
+print(result_wild)
+
+# i.i.d. Bootstrap Test (Swensen, 2006)
+result_iid = tvcoint.iid_bootstrap_tvc_test(
+    Y, r=1, m=2, p=2,
+    n_bootstrap=399,
+    seed=123
+)
+
+# Compare asymptotic and bootstrap results
+comparison = tvcoint.compare_asymptotic_bootstrap(
+    Y, r=1, m=2, p=2,
+    n_bootstrap=399,
+    seed=456
+)
+print(f"Asymptotic p-value: {comparison['asymptotic']['p_value']:.4f}")
+print(f"Wild bootstrap p-value: {comparison['wild_bootstrap']['p_value']:.4f}")
+print(f"i.i.d. bootstrap p-value: {comparison['iid_bootstrap']['p_value']:.4f}")
+
+# Bootstrap test for multiple m values
+results = tvcoint.bootstrap_multiple_m_test(
+    Y, r=1, m_values=[1, 2, 3, 4, 5], p=2,
+    bootstrap_method='wild',
+    n_bootstrap=199,
+    bonferroni_correction=True
+)
+print(f"Minimum p-value: {results['min_p_value']:.4f} at m={results['min_p_value_m']}")
+print(f"Bonferroni-corrected p-value: {results['bonferroni_p_value']:.4f}")
+```
+
+#### Bootstrap Methods
+
+| Method | Description | When to Use |
+|--------|-------------|-------------|
+| Wild Bootstrap | `wild_bootstrap_tvc_test()` | Default choice; robust to conditional heteroskedasticity |
+| i.i.d. Bootstrap | `iid_bootstrap_tvc_test()` | Standard parametric bootstrap |
+
+#### Residual Types
+
+Both unrestricted (from TV-VECM) and restricted (from standard VECM) residuals can be used:
+
+```python
+# Unrestricted residuals (default, recommended)
+result_ur = tvcoint.wild_bootstrap_tvc_test(
+    Y, r=1, m=2, p=2,
+    residual_type='unrestricted'
+)
+
+# Restricted residuals (Cavaliere et al., 2012)
+result_r = tvcoint.wild_bootstrap_tvc_test(
+    Y, r=1, m=2, p=2,
+    residual_type='restricted'
+)
+```
+
+**Reference**: Martins, L.F. (2016). "Bootstrap tests for time varying cointegration."
+Econometric Reviews, DOI: 10.1080/07474938.2015.1092830
+
+## Mathematical Framework
+
+### Model Specification
+
+The time-varying VECM(p) model is:
+
+```
+ΔYₜ = αβₜ'Yₜ₋₁ + Σⱼ₌₁ᵖ⁻¹ Γⱼ ΔYₜ₋ⱼ + εₜ,    t = 1, ..., T
+```
+
+where:
+- `Yₜ ∈ ℝᵏ` is a k-dimensional I(1) process
+- `α` is the k×r matrix of adjustment coefficients (time-invariant)
+- `βₜ` is the k×r matrix of time-varying cointegrating vectors
+- `Γⱼ` are k×k short-run coefficient matrices
+- `εₜ ~ i.i.d. Nₖ(0, Ω)`
+
+### Chebyshev Approximation
+
+The time-varying cointegrating vectors are modeled as:
+
+```
+βₜ = Σᵢ₌₀ᵐ ξᵢ Pᵢ,ₜ(t)
+```
+
+**Orthonormality property**: For all integers i, j:
+```
+(1/T) Σₜ₌₁ᵀ Pᵢ,ₜ(t) Pⱼ,ₜ(t) = δᵢⱼ
+```
+
+### LR Test Statistic
+
+The likelihood ratio test statistic (equation 6) is:
+
+```
+LR^{tvc} = T Σⱼ₌₁ʳ ln[(1 - λ̂₀,ⱼ) / (1 - λ̂ₘ,ⱼ)]
+```
+
+where:
+- `λ̂₀,ⱼ` are eigenvalues from standard Johansen estimation (m=0)
+- `λ̂ₘ,ⱼ` are eigenvalues from TV-VECM estimation (m>0)
+
+### Asymptotic Distribution (Theorem 1)
+
+Under H₀ (time-invariant cointegration):
+```
+LR^{tvc} →ᵈ χ²(mkr)
+```
+
+## API Reference
+
+### Main Functions
+
+| Function | Description |
+|----------|-------------|
+| `lr_test_tv_cointegration(Y, p, r, m, ...)` | Perform LR test for time-varying cointegration |
+| `bootstrap_tvc_test(Y, r, m, p, ...)` | Bootstrap test for TVC (Martins, 2016) |
+| `wild_bootstrap_tvc_test(Y, r, m, p, ...)` | Wild bootstrap test for TVC |
+| `iid_bootstrap_tvc_test(Y, r, m, p, ...)` | i.i.d. bootstrap test for TVC |
+| `bootstrap_multiple_m_test(Y, r, m_values, ...)` | Bootstrap test for multiple m values |
+| `compare_asymptotic_bootstrap(Y, r, m, p, ...)` | Compare asymptotic and bootstrap tests |
+| `multiple_m_test(Y, p, r, m_values, ...)` | Test across multiple Chebyshev orders |
+| `sequential_test(Y, p, r, m_max, ...)` | Sequential testing procedure |
+| `test_ppp_application(Y, p, m, ...)` | PPP-specific test |
+
+### Classes
+
+| Class | Description |
+|-------|-------------|
+| `JohansenVECM` | Standard Johansen VECM estimation |
+| `TimeVaryingVECM` | Time-varying VECM estimation |
+| `TVCointegrationTestResult` | Asymptotic test results container |
+| `BootstrapTVCTestResult` | Bootstrap test results container |
+| `CriticalValueCache` | Cache for critical values |
+
+### Utility Functions
+
+| Function | Description |
+|----------|-------------|
+| `chebyshev_polynomial_matrix(T, m)` | Generate Chebyshev polynomial matrix |
+| `construct_extended_y(Y, m)` | Build extended regressor Y^(m) |
+| `simulate_cointegrated_system(...)` | Simulate TI cointegrated data |
+| `simulate_tv_cointegrated_system(...)` | Simulate TV cointegrated data |
+| `select_lag_order(Y, max_lag, criterion)` | VAR lag selection |
+| `select_chebyshev_order(Y, p, r, m_max, ...)` | Chebyshev order selection |
+
+## Replication of Paper Results
+
+### Table 1: Power of the LR Test
+
+```python
+import tvcoint
+import numpy as np
+
+# Replicate Table 1 from Bierens and Martins (2010)
+def replicate_table1(T, m, n_rep=10000):
+    omega_values = [0, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0]
+    results = {}
+    
+    for omega in omega_values:
+        rejections = 0
+        for rep in range(n_rep):
+            # DGP from paper (Section 4.3)
+            Y = tvcoint.simulate_tv_cointegrated_system(
+                T=T, k=2, r=1, m=m, omega=omega, seed=rep
+            )
+            result = tvcoint.lr_test_tv_cointegration(Y, p=1, r=1, m=m)
+            if result.p_value < 0.05:
+                rejections += 1
+        results[omega] = rejections / n_rep
+    
+    return results
+
+# Run for T=100, m=1
+results_100_m1 = replicate_table1(T=100, m=1)
+print("T=100, m=1:", results_100_m1)
+```
+
+## Citation
+
+If you use this library in your research, please cite:
+
+```bibtex
+@article{bierens2010time,
+  title={Time-varying cointegration},
+  author={Bierens, Herman J and Martins, Luis F},
+  journal={Econometric Theory},
+  volume={26},
+  number={5},
+  pages={1453--1490},
+  year={2010},
+  publisher={Cambridge University Press},
+  doi={10.1017/S0266466609990648}
+}
+
+@article{martins2016bootstrap,
+  title={Bootstrap tests for time varying cointegration},
+  author={Martins, Luis F},
+  journal={Econometric Reviews},
+  year={2016},
+  doi={10.1080/07474938.2015.1092830}
+}
+
+@software{tvcoint,
+  author = {Roudane, Merwan},
+  title = {tvcoint: Time-Varying Cointegration Analysis in Python},
+  year = {2025},
+  url = {https://github.com/merwanroudane/tvcoint}
+}
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file.
+
+## Author
+
+**Dr. Merwan Roudane**
+- Email: merwanroudane920@gmail.com
+- GitHub: [https://github.com/merwanroudane/tvcoint](https://github.com/merwanroudane/tvcoint)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Changelog
+
+### v1.1.0 (2025)
+- **NEW**: Bootstrap tests for time-varying cointegration (Martins, 2016)
+  - Wild bootstrap test (`wild_bootstrap_tvc_test`)
+  - i.i.d. bootstrap test (`iid_bootstrap_tvc_test`)
+  - Support for unrestricted and restricted residuals
+  - `bootstrap_multiple_m_test` for testing multiple m values
+  - `compare_asymptotic_bootstrap` for comparing methods
+- Added `BootstrapTVCTestResult` class for bootstrap test results
+- Improved finite-sample size properties
+
+### v1.0.0 (2025)
+- Initial release
+- Full implementation of Bierens and Martins (2010)
+- Chebyshev polynomial-based time-varying VECM
+- LR test for time-varying cointegration
+- Asymptotic and simulated critical values
+- PPP application support
+- Comprehensive documentation and examples
