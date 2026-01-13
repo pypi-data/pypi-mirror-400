@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+
+import argparse
+
+from soxs import write_image
+
+parser = argparse.ArgumentParser(
+    description="Make a FITS image from a SOXS event file."
+)
+parser.add_argument(
+    "event_file", type=str, help="The event file to use to make the image."
+)
+parser.add_argument("out_file", type=str, help="The file to write the image to.")
+parser.add_argument(
+    "--coord_type",
+    type=str,
+    default="sky",
+    help="The type of coordinate to bin into the image. Can be 'sky' "
+    "or 'det'. Default: 'sky'",
+)
+parser.add_argument(
+    "--emin", help="The minimum energy of the photons to put in the image, in keV."
+)
+parser.add_argument(
+    "--emax", help="The maximum energy of the photons to put in the image, in keV."
+)
+parser.add_argument(
+    "--tmin", help="The minimum time of the photons to put in the image, in s."
+)
+parser.add_argument(
+    "--tmax", help="The maximum time of the photons to put in the image, in s."
+)
+parser.add_argument(
+    "--bands", help="A list of energy bands to restrict the counts used to "
+                                  "make the image, in the form of emin1,emax1:emin2,emax2... "
+                                  "Used as an alternative to emin and emax."
+)
+parser.add_argument(
+    "--overwrite",
+    action="store_true",
+    help="Overwrite an existing file with the same name.",
+)
+parser.add_argument(
+    "--expmap_file",
+    type=str,
+    help="Supply an exposure map file to divide this image by to get a flux map.",
+)
+parser.add_argument(
+    "--reblock",
+    type=float,
+    default=1,
+    help="Change this value to reblock the image to larger "
+    "or smaller pixel sizes. Only supported for sky "
+    "coordinates. Default: 1",
+)
+
+args = parser.parse_args()
+
+if args.bands is not None:
+    bands = []
+    for band in args.bands.split(":"):
+        emin, emax = band.split(",")
+        bands.append((float(emin), float(emax)))
+else:
+    bands = None
+
+
+write_image(
+    args.event_file,
+    args.out_file,
+    coord_type=args.coord_type,
+    emin=args.emin,
+    emax=args.emax,
+    tmin=args.tmin,
+    tmax=args.tmax,
+    bands=bands,
+    overwrite=args.overwrite,
+    expmap_file=args.expmap_file,
+    reblock=args.reblock,
+)
