@@ -1,0 +1,771 @@
+# 🔥 Sparkwise
+
+> **Achieve optimal Fabric Spark price-performance with automated insights - simplifies tuning, makes optimization fun**
+
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+sparkwise is an automated Data Engineering specialist for Apache Spark on Microsoft Fabric. It provides intelligent diagnostics, configuration recommendations, and comprehensive session profiling to help you achieve the best price-performance for your workloads - all while making Spark tuning simple and enjoyable.
+
+## 🎯 Why sparkwise?
+
+Spark tuning on Microsoft Fabric doesn't have to be complex or expensive. sparkwise helps you:
+- 💰 **Optimize costs** - Detect configurations that waste capacity and increase runtime
+- ⚡ **Maximize performance** - Enable Fabric-specific optimizations (Native Engine, V-Order, resource profiles)
+- 🎓 **Simplify learning** - Interactive Q&A for 133 Spark/Delta/Fabric configurations
+- 🔍 **Understand workloads** - Comprehensive profiling of sessions, executors, jobs, and resources
+- ⏱️ **Save time** - Avoid 3-5min cold-starts by detecting Starter Pool blockers
+- 📊 **Make data-driven decisions** - Priority-ranked recommendations with impact analysis
+
+## ✨ Key Features
+
+### 🔬 **Automated Diagnostics**
+- **Native Execution Engine** - Verifies Velox usage, detects fallbacks to row-based processing
+- **Spark Compute** - Analyzes Starter vs Custom Pool usage, warns about immutable configs
+- **Data Skew Detection** - Identifies imbalanced task distributions
+- **Delta Optimizations** - Checks V-Order, Deletion Vectors, Optimize Write, Auto Compaction
+- **Runtime Tuning** - Validates AQE, partition sizing, scheduler mode
+
+### 📊 **Comprehensive Profiling**
+- **Session Profiling** - Application metadata, resource allocation, memory breakdown
+- **Executor Profiling** - Executor status, memory utilization, task distribution
+- **Job Profiling** - Job/stage/task metrics, bottleneck detection
+- **Resource Profiling** - Efficiency scoring, utilization analysis, optimization recommendations
+
+### 🚀 **Advanced Performance Analysis** (NEW!)
+- **Real Metrics Collection** - Uses actual Spark stage/task data instead of estimates
+- **Scalability Prediction** - Compare Starter vs Custom Pool with real VCore-hour calculations
+- **Stage Timeline** - Visualize execution patterns with parallel/sequential analysis
+- **Efficiency Analysis** - Quantify wasted compute in VCore-hours with actionable recommendations
+
+### 🔍 **Advanced Skew Detection** (NEW!)
+- **Task Duration Analysis** - Detect stragglers and long-running tasks with variance detection
+- **Partition-Level Analysis** - Identify data distribution imbalances with statistical metrics
+- **Skewed Join Detection** - Analyze join patterns and recommend broadcast vs salting strategies
+- **Automatic Mitigation** - Get code examples for salting, AQE, and broadcast optimizations
+
+### 🎯 **SQL Query Plan Analysis** (NEW!)
+- **Anti-Pattern Detection** - Identify cartesian products, full scans, and excessive shuffles
+- **Native Engine Compatibility** - Check if queries use Fabric Native Engine (3-8x faster)
+- **Z-Order Recommendations** - Suggest best columns for Delta optimization based on cardinality
+- **Caching Opportunities** - Detect repeated table scans that benefit from caching
+- **Fabric Best Practices** - V-Order, broadcast joins, AQE, and partition recommendations
+
+### � **Storage Optimization** (NEW in v1.4.0!)
+- **Small File Detection** - Identify Delta tables with excessive small files (<10MB configurable threshold)
+- **VACUUM ROI Calculator** - Estimate storage savings vs compute cost using OneLake pricing ($0.023/GB/month)
+- **Partition Effectiveness** - Analyze partition count, skew ratios, and detect over/under-partitioning
+- **Comprehensive Analysis** - Run all storage checks in one command with actionable recommendations
+- **Storage Cost Tracking** - Calculate monthly OneLake storage costs and optimization opportunities
+
+### �💡 **Interactive Configuration Assistant**
+- **133 documented configurations** - Spark, Delta Lake, Fabric-specific, and Runtime 1.2 configs
+- **Context-aware guidance** - Workload-specific recommendations with impact analysis
+- **Resource profile support** - Understand writeHeavy, readHeavyForSpark, readHeavyForPBI profiles
+- **Search capabilities** - Find configs by keyword or partial name
+
+### 📈 **Priority-Based Recommendations**
+- **Color-coded priorities** - Critical (red) → High (yellow) → Medium (blue) → Low (dim)
+- **Formatted tables** - Clean, readable output with impact explanations
+- **Actionable guidance** - Specific commands and configuration values
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+pip install sparkwise
+```
+
+Or install the wheel file directly in Fabric:
+
+```python
+%pip install sparkwise-0.1.0-py3-none-any.whl
+```
+
+### Basic Usage
+
+```python
+from sparkwise import diagnose, ask
+
+# Run comprehensive analysis on current session
+diagnose.analyze()
+
+# Ask about any configuration
+ask.config('spark.native.enabled')
+
+# Search for configurations
+ask.search('optimize')
+```
+
+### Session Profiling
+
+```python
+from sparkwise import (profile, profile_executors, profile_jobs, profile_resources,
+                       predict_scalability, show_timeline, analyze_efficiency)
+
+# Profile complete session
+profile()
+
+# Profile executor metrics
+profile_executors()
+
+# Analyze job performance
+profile_jobs()
+
+# Check resource efficiency
+profile_resources()
+
+# Advanced profiling features
+predict_scalability()  # Compare pool configurations
+show_timeline()        # Visualize stage execution
+analyze_efficiency()   # Quantify compute waste
+```
+
+### Advanced Analysis
+
+```python
+from sparkwise import detect_skew, analyze_query
+
+# Detect data skew
+skew_results = detect_skew()  # Analyze task-level skew
+
+# Analyze specific DataFrame for partition skew
+from sparkwise.core.advanced_skew_detector import AdvancedSkewDetector
+detector = AdvancedSkewDetector()
+detector.analyze_partition_skew(your_df, ["key_column"])
+
+# Detect skewed joins
+detector.detect_skewed_joins(large_df, small_df, "join_key")
+
+# Analyze SQL query plans
+query_results = analyze_query(your_df)
+
+# Get Z-Order recommendations
+from sparkwise.core.query_plan_analyzer import QueryPlanAnalyzer
+analyzer = QueryPlanAnalyzer()
+zorder_cols = analyzer.suggest_zorder_columns(delta_df, ["filtered_col"])
+
+# Detect caching opportunities
+analyzer.detect_repeated_subqueries(your_df)
+```
+
+### Storage Optimization
+
+```python
+import sparkwise
+
+# Comprehensive storage analysis
+sparkwise.analyze_storage("Tables/mytable")
+
+# Individual analyses
+sparkwise.check_small_files("Tables/mytable", threshold_mb=10)
+sparkwise.vacuum_roi("Tables/mytable", retention_hours=168)
+sparkwise.check_partitions("Tables/mytable")
+```
+
+**CLI Usage:**
+```bash
+# Comprehensive storage analysis
+sparkwise storage analyze Tables/mytable
+
+# Check for small files
+sparkwise storage small-files Tables/mytable --threshold 10
+
+# Calculate VACUUM ROI
+sparkwise storage vacuum-roi Tables/mytable --retention-hours 168
+
+# Analyze partition effectiveness
+sparkwise storage partitions Tables/mytable
+```
+
+## 📊 Sample Output
+
+### Diagnostic Analysis
+
+```
+🔥 sparkwise Analysis 🔥
+
+🔎 Native Execution Engine
+──────────────────────────────────────────────
+⚠️ Warning: Native keywords not found in physical plan
+   💡 Check for unsupported operators or complex UDFs
+
+⚡ Spark Compute
+──────────────────────────────────────────────
+✅ Your job uses 1 executors - fits in Starter Pool
+   💡 Ensure 'Starter Pool' is selected in workspace settings
+
+💾 Storage & Delta Optimizations
+──────────────────────────────────────────────
+ℹ️ V-Order is DISABLED (optimal for write-heavy workloads)
+   Benefit: 2x faster writes vs V-Order enabled
+   💡 Enable only for read-heavy workloads (Power BI/analytics)
+      Trade-off: 3-10x faster reads, but 15-20% slower writes
+
+ℹ️ Optimize Write is DISABLED (optimal for writeHeavy profile - default)
+   Benefit: Maximum write throughput for ETL and data ingestion
+   💡 Enable only for read-heavy or streaming workloads
+      - readHeavyForSpark: spark.fabric.resourceProfile=readHeavyForSpark
+      - readHeavyForPBI: spark.fabric.resourceProfile=readHeavyForPBI
+
+⚙️ Runtime Tuning
+──────────────────────────────────────────────
+⛔ CRITICAL: Adaptive Query Execution (AQE) is DISABLED
+   💡 Enable immediately: spark.sql.adaptive.enabled=true
+      Benefits: Dynamic coalescing, skew joins, better parallelism
+
+📋 Summary of Findings
+┌─────────────────────┬────────┬─────────────────┬─────────────────┐
+│ Category            │ Status │ Critical Issues │ Recommendations │
+├─────────────────────┼────────┼─────────────────┼─────────────────┤
+│ Native Execution    │ ⚠️     │ 1               │ 1               │
+│ Spark Compute       │ ✅     │ 0               │ 1               │
+│ Data Skew           │ ✅     │ 0               │ 0               │
+│ Delta               │ ✅     │ 0               │ 3               │
+│ Runtime             │ ⚠️     │ 1               │ 2               │
+└─────────────────────┴────────┴─────────────────┴─────────────────┘
+
+🔧 Configuration Recommendations
+Total recommendations: 7
+
+┌──────────┬─────────────────────────────────┬────────────────┬──────────────┐
+│ Priority │ Configuration                   │ Action         │ Impact       │
+├──────────┼─────────────────────────────────┼────────────────┼──────────────┤
+│ CRITICAL │ spark.sql.adaptive.enabled      │ Set to 'true'  │ Enable       │
+│          │                                 │                │ dynamic      │
+│          │                                 │                │ partition    │
+│          │                                 │                │ coalescing   │
+├──────────┼─────────────────────────────────┼────────────────┼──────────────┤
+│ MEDIUM   │ spark.sql.parquet.vorder.enabled│ Enable for     │ 3-10x faster │
+│          │                                 │ read-heavy     │ reads for    │
+│          │                                 │ workloads only │ Power BI     │
+└──────────┴─────────────────────────────────┴────────────────┴──────────────┘
+
+✨ Analysis complete!
+```
+
+### Interactive Q&A
+
+```python
+ask.config('spark.fabric.resourceProfile')
+```
+
+**Output:**
+```
+📚 spark.fabric.resourceProfile
+
+──────────────────────────────────────────────────────────────────────
+
+Default: writeHeavy
+Scope: session
+
+What it does:
+FABRIC CRITICAL: Selects predefined Spark resource profiles optimized 
+for specific workload patterns. Simplifies configuration tuning.
+
+Recommendations for your workload:
+  • etl_ingestion: writeHeavy - optimized for ETL and data ingestion
+  • analytics_spark: readHeavyForSpark - optimized for analytical queries
+  • power_bi: readHeavyForPBI - optimized for Power BI Direct Lake
+  • custom_needs: custom - user-defined configuration
+
+Fabric-specific notes:
+Microsoft Fabric resource profiles provide workload-optimized settings:
+
+**writeHeavy (DEFAULT):**
+- V-Order: DISABLED for faster writes
+- Optimize Write: NULL/DISABLED for maximum throughput
+- Use Case: ETL pipelines, data ingestion, batch transformations
+
+**readHeavyForSpark:**
+- Optimize Write: ENABLED with 128MB bins
+- Use Case: Interactive Spark queries, analytical workloads
+
+**readHeavyForPBI:**
+- V-Order: ENABLED for Power BI optimization
+- Optimize Write: ENABLED with 1GB bins
+- Use Case: Power BI dashboards, Direct Lake scenarios
+
+Related configurations:
+  • spark.sql.parquet.vorder.enabled
+  • spark.databricks.delta.optimizeWrite.enabled
+  • spark.microsoft.delta.optimizeWrite.enabled
+
+Examples:
+  spark.conf.set('spark.fabric.resourceProfile', 'readHeavyForSpark')
+  spark.conf.set('spark.fabric.resourceProfile', 'writeHeavy')
+
+──────────────────────────────────────────────────────────────────────
+```
+
+### Scalability Prediction
+
+```python
+from sparkwise import predict_scalability
+
+# Run after executing your workload
+predict_scalability(runs_per_month=100)
+```
+
+**Output:**
+```
+═══════════════════════════════════════════════════════════════════
+📊 SCALABILITY ANALYSIS
+═══════════════════════════════════════════════════════════════════
+
+📈 Workload Profile
+────────────────────────────────────────────────────────────────
+  Current Runtime: 45.2 seconds
+  Monthly Runs: 100
+  Total Monthly Runtime: 75.3 minutes
+
+🎯 Starter Pool (Current Configuration)
+────────────────────────────────────────────────────────────────
+  Configuration: 2 vCores, 8GB memory
+  VCore-Hours/Month: 2.51 hours
+  Estimated Cost: $2.76/month
+  Startup Overhead: ~5-10 seconds
+  Status: ✅ OPTIMAL - Workload fits in Starter Pool
+
+⚡ Custom Pool Comparison
+────────────────────────────────────────────────────────────────
+  Configuration: 8 vCores, 32GB memory
+  VCore-Hours/Month: 10.04 hours
+  Estimated Cost: $11.04/month
+  Startup Overhead: 3-5 minutes
+  Performance Gain: ~2-3x faster execution
+
+💡 Recommendation: STAY ON STARTER POOL
+  • Your workload is well-suited for Starter Pool
+  • Custom Pool would cost 4x more with cold-start delays
+  • Consider Custom Pool only if runs exceed 500/month
+```
+
+### Efficiency Analysis
+
+```python
+from sparkwise import analyze_efficiency
+
+# Run after your Spark job completes
+analyze_efficiency(runs_per_month=100)
+```
+
+**Output:**
+```
+═══════════════════════════════════════════════════════════════════
+⚡ JOB EFFICIENCY ANALYSIS
+═══════════════════════════════════════════════════════════════════
+
+📊 Execution Metrics
+────────────────────────────────────────────────────────────────
+  Total Runtime: 45.2 seconds
+  Active Compute: 38.6 seconds (85.4%)
+  Wasted Compute: 6.6 seconds (14.6%)
+  
+  VCore-Hours Used: 0.025 hours
+  VCore-Hours Wasted: 0.004 hours
+
+💰 Cost Impact (100 runs/month)
+────────────────────────────────────────────────────────────────
+  Monthly Compute: 2.51 VCore-hours
+  Monthly Waste: 0.37 VCore-hours (14.6%)
+  Wasted Cost: $0.41/month
+
+🎯 Efficiency Score: 85.4% (GOOD)
+
+✨ Top Optimization Opportunities
+────────────────────────────────────────────────────────────────
+  1. Enable AQE for dynamic partition coalescing
+     Impact: Reduce shuffle overhead by 20-30%
+  
+  2. Optimize shuffle partitions
+     Current: 200 partitions
+     Recommended: 50 partitions (based on data size)
+     Impact: Reduce task overhead, improve parallelism
+```
+
+### Storage Optimization - Small Files
+
+```python
+import sparkwise
+sparkwise.check_small_files("Tables/green_tripdata_2017", threshold_mb=10)
+```
+
+**Output:**
+```
+═══════════════════════════════════════════════════════════════════
+📁 SMALL FILE ANALYSIS: green_tripdata_2017
+═══════════════════════════════════════════════════════════════════
+
+📊 File Statistics
+────────────────────────────────────────────────────────────────
+┌────────────────────────┬──────────────────┐
+│ Metric                 │ Value            │
+├────────────────────────┼──────────────────┤
+│ Total Files            │ 1,247            │
+│ Total Size             │ 15.3 GB          │
+│ Average File Size      │ 12.6 MB          │
+│ Smallest File          │ 1.2 MB           │
+│ Largest File           │ 128.4 MB         │
+└────────────────────────┴──────────────────┘
+
+🔴 CRITICAL: Small File Problem Detected
+────────────────────────────────────────────────────────────────
+  Estimated Small Files (<10MB): 498 files (39.9%)
+  
+  Performance Impact:
+    • 40% of files are too small
+    • Excessive metadata operations
+    • Poor query performance
+    • Increased storage costs
+
+💡 Recommendations
+────────────────────────────────────────────────────────────────
+  1. Run OPTIMIZE to compact small files:
+     spark.sql("OPTIMIZE delta.`Tables/green_tripdata_2017`")
+  
+  2. Enable Auto-Optimize for future writes:
+     spark.conf.set("spark.databricks.delta.optimizeWrite.enabled", "true")
+     spark.conf.set("spark.databricks.delta.autoCompact.enabled", "true")
+  
+  3. Consider repartitioning on write:
+     df.repartition(50).write.format("delta").save("Tables/green_tripdata_2017")
+  
+  Expected Improvements:
+    • Reduce file count by 60-80%
+    • 3-5x faster query performance
+    • 20-30% reduction in metadata overhead
+```
+
+### Storage Optimization - VACUUM ROI
+
+```python
+import sparkwise
+sparkwise.vacuum_roi("Tables/green_tripdata_2017", retention_hours=168)
+```
+
+**Output:**
+```
+═══════════════════════════════════════════════════════════════════
+💰 VACUUM ROI ANALYSIS: green_tripdata_2017
+═══════════════════════════════════════════════════════════════════
+
+📊 Current Storage State
+────────────────────────────────────────────────────────────────
+┌────────────────────────┬──────────────────┐
+│ Metric                 │ Value            │
+├────────────────────────┼──────────────────┤
+│ Current Size           │ 15.3 GB          │
+│ Retention Period       │ 168 hours (7d)   │
+│ Removable Operations   │ 23 operations    │
+│ Last VACUUM            │ 45 days ago      │
+└────────────────────────┴──────────────────┘
+
+💾 Storage Savings Estimate
+────────────────────────────────────────────────────────────────
+  Reclaimable Space: 4.59 GB (30.0%)
+  
+  OneLake Storage Cost:
+    Current: $0.35/month ($0.023/GB)
+    After VACUUM: $0.25/month
+    Monthly Savings: $0.11/month
+
+⚡ VACUUM Cost
+────────────────────────────────────────────────────────────────
+  Estimated Compute: $1.50
+  Break-even Period: 13.6 months
+
+✅ RECOMMENDATION: RUN VACUUM
+────────────────────────────────────────────────────────────────
+  Although break-even is 14 months, VACUUM provides benefits:
+    • Improved query performance (fewer files to scan)
+    • Reduced metadata overhead
+    • Better data governance
+    • Simplified time travel queries
+
+  Command:
+    spark.sql("VACUUM delta.`Tables/green_tripdata_2017` RETAIN 168 HOURS")
+  
+  Best Practice:
+    • Run VACUUM quarterly for large tables
+    • Run VACUUM monthly for frequently updated tables
+    • Adjust retention based on time travel needs
+```
+
+### Storage Optimization - Partition Analysis
+
+```python
+import sparkwise
+sparkwise.check_partitions("Tables/green_tripdata_2017")
+```
+
+**Output:**
+```
+═══════════════════════════════════════════════════════════════════
+🗂️ PARTITION EFFECTIVENESS: green_tripdata_2017
+═══════════════════════════════════════════════════════════════════
+
+📊 Partition Statistics
+────────────────────────────────────────────────────────────────
+┌────────────────────────┬──────────────────┐
+│ Metric                 │ Value            │
+├────────────────────────┼──────────────────┤
+│ Partition Columns      │ year, month      │
+│ Total Partitions       │ 12               │
+│ Partitions Scanned     │ 12 (100%)        │
+│ Average Rows/Partition │ 850,423          │
+│ Max Rows (Jan)         │ 1,104,518        │
+│ Min Rows (Nov)         │ 612,847          │
+│ Skew Ratio             │ 1.8x             │
+└────────────────────────┴──────────────────┘
+
+🟢 GOOD: Well-Balanced Partitions
+────────────────────────────────────────────────────────────────
+  • Partition count is optimal (10-100 range)
+  • Skew ratio is acceptable (<3x)
+  • Each partition has sufficient data
+
+💡 Optimization Opportunities
+────────────────────────────────────────────────────────────────
+  1. Enable Z-Order for frequently filtered columns:
+     spark.sql("OPTIMIZE delta.`Tables/green_tripdata_2017` 
+                ZORDER BY (vendor_id, payment_type)")
+     
+     Benefits:
+       • 2-5x faster queries on vendor_id, payment_type
+       • No partition overhead
+       • Maintains good compression
+  
+  2. Consider liquid clustering for high-cardinality columns:
+     ALTER TABLE green_tripdata_2017 
+     CLUSTER BY (vendor_id, payment_type, pickup_location)
+     
+     Benefits:
+       • Automatic optimization on writes
+       • Better for evolving query patterns
+       • Handles high-cardinality columns
+
+🎯 Partition Health: ✅ OPTIMAL
+  Your partitioning strategy is working well!
+```
+
+### Comprehensive Storage Analysis
+
+```python
+import sparkwise
+sparkwise.analyze_storage("Tables/green_tripdata_2017")
+```
+
+**Output:**
+```
+═══════════════════════════════════════════════════════════════════
+🔍 COMPREHENSIVE STORAGE ANALYSIS: green_tripdata_2017
+═══════════════════════════════════════════════════════════════════
+
+[Shows combined output of all three analyses above:]
+  1. Small File Detection (with recommendations)
+  2. VACUUM ROI Calculation (with cost analysis)
+  3. Partition Effectiveness (with optimization suggestions)
+
+═══════════════════════════════════════════════════════════════════
+📋 PRIORITY ACTION ITEMS
+═══════════════════════════════════════════════════════════════════
+  🔴 CRITICAL (Do Now):
+    • Run OPTIMIZE to compact 498 small files
+    • Enable Auto-Optimize for future writes
+  
+  🟡 HIGH (This Week):
+    • Add Z-Order on vendor_id, payment_type
+    • Run VACUUM to reclaim 4.59 GB
+  
+  🟢 MEDIUM (This Month):
+    • Review partition strategy quarterly
+    • Monitor file growth patterns
+    • Set up automated OPTIMIZE jobs
+
+💰 Total Potential Savings:
+  • Storage: $0.11/month (after VACUUM)
+  • Compute: 20-30% reduction (after OPTIMIZE)
+  • Query Performance: 3-5x faster
+```
+
+## 📦 What's Included
+
+### Core Modules
+- `diagnose` - Main diagnostic engine with 5 check categories
+- `ask` - Interactive configuration Q&A system
+- `profile` - Session profiling
+- `profile_executors` - Executor-level metrics
+- `profile_jobs` - Job/stage/task analysis
+- `profile_resources` - Resource efficiency scoring
+- `predict_scalability` - Compare Starter vs Custom Pool configurations
+- `analyze_efficiency` - Quantify wasted compute with VCore-hour metrics
+- `show_timeline` - Visualize stage execution patterns
+- `detect_skew` - Advanced skew detection with mitigation strategies
+- `analyze_query` - SQL query plan analysis with anti-pattern detection
+- `analyze_storage` - Comprehensive storage optimization (v1.4.0)
+- `check_small_files` - Small file detection with thresholds (v1.4.0)
+- `vacuum_roi` - VACUUM ROI calculator with OneLake pricing (v1.4.0)
+- `check_partitions` - Partition effectiveness analysis (v1.4.0)
+
+### Knowledge Base (133 Configurations)
+- **33 Spark configs** - Core settings for shuffle, memory, AQE, serialization
+- **45 Delta configs** - Delta Lake optimizations, V-Order, Deletion Vectors
+- **10 Fabric configs** - Native Engine, resource profiles, OneLake storage
+- **45 Runtime 1.2 configs** - Latest Fabric Runtime 1.2 features
+
+### Latest Features
+- ✅ Storage optimization suite - Small files, VACUUM ROI, partition analysis (v1.4.0)
+- ✅ OneLake cost tracking - Real pricing ($0.023/GB/month) for storage decisions
+- ✅ Advanced skew detection - Task duration, partition-level, and join analysis
+- ✅ SQL query plan analyzer - Anti-patterns, Native Engine checks, Z-Order suggestions
+- ✅ Real metrics profiling - VCore-hour calculations, efficiency scoring
+- ✅ Scalability prediction - Starter vs Custom Pool cost comparison
+- ✅ Fabric resource profiles (writeHeavy, readHeavyForSpark, readHeavyForPBI)
+- ✅ Advanced Delta optimizations (Fast Optimize, Adaptive File Size, File Level Target)
+- ✅ Driver Mode Snapshot for faster metadata operations
+- ✅ Priority-based recommendation tables
+- ✅ Color-coded terminal output with Rich library
+
+## 🎯 Use Cases
+
+### Data Engineers
+- **Optimize ETL pipelines** - Detect bottlenecks, tune parallelism, reduce costs
+- **Validate configurations** - Ensure proper resource profiles and pool usage
+- **Debug job failures** - Understand errors with plain English explanations
+- **Manage storage costs** - Track OneLake usage, optimize file layouts, VACUUM ROI
+- **Monitor table health** - Detect small files, partition skew, storage bloat
+
+### Data Scientists
+- **Improve notebook performance** - Enable Native Engine, optimize memory usage
+- **Understand Spark behavior** - Learn configurations through interactive Q&A
+- **Profile experiments** - Track resource usage and efficiency
+- **Optimize data access** - Identify caching opportunities, partition pruning
+
+### Platform Admins
+- **Standardize best practices** - Share optimal configurations across teams
+- **Monitor capacity usage** - Identify jobs forcing Custom Pool usage
+- **Cost optimization** - Detect over-provisioned or misconfigured workloads
+- **Storage governance** - Track OneLake costs, enforce OPTIMIZE/VACUUM policies
+- **Performance tracking** - Monitor VCore-hour usage, identify waste
+
+## 🎓 Examples
+
+Check out the [examples](examples/) directory:
+- [basic_analysis.py](examples/basic_analysis.py) - Basic diagnostic workflow
+- [config_qa_demo.py](examples/config_qa_demo.py) - Configuration Q&A usage
+- [profiling_demo.py](examples/profiling_demo.py) - Comprehensive profiling examples
+- [scalability_demo.py](examples/scalability_demo.py) - Scalability prediction and efficiency analysis
+- [skew_detection_demo.py](examples/skew_detection_demo.py) - Advanced skew detection
+- [query_analysis_demo.py](examples/query_analysis_demo.py) - SQL query plan analysis
+- [storage_optimization_demo.py](examples/storage_optimization_demo.py) - Storage optimization (v1.4.0)
+- [knowledge_base_demo.py](examples/knowledge_base_demo.py) - Knowledge base exploration
+- [immutable_configs_demo.py](examples/immutable_configs_demo.py) - Starter Pool optimization
+
+## 🧪 Running Tests
+
+```bash
+# Install test dependencies
+pip install pytest pytest-cov
+
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=sparkwise --cov-report=html
+
+# Run specific test file
+pytest tests/test_advisor.py
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/santhoshravindran7/sparkwise.git
+cd sparkwise
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+Built with ❤️ for the Microsoft Fabric Data Engineering and Data Science community.
+
+## 📬 Contact & Support
+
+- **Author**: Santhosh Ravindran
+- **GitHub**: [@santhoshravindran7](https://github.com/santhoshravindran7)
+- **Feedback**: [Share your feedback, report bugs, or request features](https://forms.office.com/r/cWBb4Y0n4z)
+
+## 🎉 What's New in v1.4.0
+
+### 💾 Storage Optimization Suite
+- ✅ **Small file detection** - Identify tables with excessive files <10MB (configurable threshold)
+- ✅ **VACUUM ROI calculator** - Estimate storage savings vs compute cost with OneLake pricing ($0.023/GB/month)
+- ✅ **Partition effectiveness** - Analyze partition count, skew ratios, detect over/under-partitioning
+- ✅ **Comprehensive analysis** - Run all storage checks with one command
+- ✅ **CLI integration** - `sparkwise storage analyze|small-files|vacuum-roi|partitions`
+- ✅ **Actionable recommendations** - Get SQL commands for OPTIMIZE, VACUUM, Z-Order, partitioning
+
+### Use Cases
+- **Cost optimization** - Track OneLake storage costs, identify VACUUM opportunities
+- **Performance tuning** - Detect small file problems impacting query speed
+- **Data governance** - Monitor table health, enforce optimization policies
+- **Capacity planning** - Understand storage growth patterns, predict costs
+
+### Example
+```python
+import sparkwise
+
+# Run comprehensive storage analysis
+sparkwise.analyze_storage("Tables/mytable")
+
+# Get small file recommendations
+sparkwise.check_small_files("Tables/mytable", threshold_mb=10)
+
+# Calculate VACUUM ROI
+sparkwise.vacuum_roi("Tables/mytable", retention_hours=168)
+
+# Analyze partition effectiveness
+sparkwise.check_partitions("Tables/mytable")
+```
+
+---
+
+**Previous Releases:**
+
+<details>
+<summary>v0.1.0 - Initial Release</summary>
+
+- ✨ Complete profiling suite (session, executor, job, resource profilers)
+- 🎨 Rich terminal output with color-coded priorities
+- 📊 Priority-based recommendation tables
+- 🔧 Fabric resource profile support (writeHeavy, readHeavy profiles)
+- ⚡ 4 new advanced Delta optimizations
+- 📚 133 documented configurations (up from 100)
+- 🎯 Context-aware Optimize Write recommendations
+- 🚀 CLI support for all profiling operations
+
+</details>
+
+---
+
+Make Spark tuning fun again! 🚀✨
