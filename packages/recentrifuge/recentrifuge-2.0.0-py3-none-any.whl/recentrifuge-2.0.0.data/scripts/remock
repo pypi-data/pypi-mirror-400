@@ -1,0 +1,150 @@
+#!python
+#
+#     Copyright (C) 2017–2026, Jose Manuel Martí Martínez
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU Affero General Public License as
+#     published by the Free Software Foundation, either version 3 of the
+#     License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#     GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+"""
+Generate mock samples for Recentrifuge
+"""
+
+import argparse
+import os
+import sys
+
+from recentrifuge import __version__, __author__, __date__
+from recentrifuge.mock import generate_mock
+from recentrifuge.config import Filename, gray, blue
+from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, TAXDUMP_PATH
+from recentrifuge.taxonomy import Taxonomy
+
+# optional package pandas (to read Excel with mock layout)
+_USE_PANDAS = True
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+    _USE_PANDAS = False
+
+
+def main():
+    """Main entry point to script."""
+
+    def configure_parser():
+        """Argument Parser Configuration"""
+        parser = argparse.ArgumentParser(
+            description='Generate mock samples for Recentrifuge',
+            epilog=f'%(prog)s  - Release {__version__} - {__date__}' + LICENSE,
+            formatter_class=argparse.RawDescriptionHelpFormatter
+        )
+        parser_mode = parser.add_mutually_exclusive_group(required=True)
+        parser_mode.add_argument(
+            '-f', '--file',
+            action='store',
+            metavar='FILE',
+            type=Filename,
+            help='Explicit source: Centrifuge output file as source'
+        )
+        parser_mode.add_argument(
+            '-r', '--random',
+            action='store',
+            metavar='MHL',
+            type=int,
+            default=15,
+            help=('Random score generated. Please provide the minimum hit '
+                  'length (mhl) of the classification; 15 by default')
+        )
+        parser.add_argument(
+            '-d', '--debug',
+            action='store_true',
+            help='increase output verbosity and perform additional checks'
+        )
+        parser_input = parser.add_mutually_exclusive_group(required=True)
+        parser_input.add_argument(
+            '-m', '--mock',
+            action='append',
+            metavar='FILE',
+            type=Filename,
+            help=('Mock files to be read for mock Centrifuge sequences layout.'
+                  ' If a single directory is entered, every .mck file inside '
+                  'will be taken as a different sample. '
+                  'Multiple -f is available to include several samples.')
+        )
+        if _USE_PANDAS:
+            parser_input.add_argument(
+                '-x', '--xcel',
+                action='store',
+                metavar='FILE',
+                type=Filename,
+                help='Excel file with the mock layout.'
+            )
+            # Test mode really characterized by None in mock and xcel arguments
+            parser_input.add_argument(
+                '-t', '--test',
+                action='store_true',
+                help='generate mock data ready for testing Recentrifuge'
+            )
+        parser.add_argument(
+            '-n', '--nodespath',
+            action='store',
+            metavar='PATH',
+            default=TAXDUMP_PATH,
+            help=('path for the nodes information files '
+                  '(nodes.dmp and names.dmp from NCBI)')
+        )
+        parser.add_argument(
+            '-c', '--compress',
+            action='store_true',
+            help='Any generated FASTQ file will be gzipped'
+        )
+        parser.add_argument(
+            '-V', '--version',
+            action='version',
+            version=f'%(prog)s release {__version__} ({__date__})'
+        )
+        return parser
+
+    def check_debug():
+        """Check debugging mode"""
+        if args.debug:
+            print(blue('INFO:'), gray('Debugging mode activated'))
+            print(blue('INFO:'), gray('Active parameters:'))
+            for key, value in vars(args).items():
+                if value:
+                    print(gray(f'\t{key} ='), f'{value}')
+
+    # Program header
+    print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'
+          f' =-= by {__author__} =-=\n')
+    sys.stdout.flush()
+
+    # Parse arguments
+    argparser = configure_parser()
+    args = argparser.parse_args()
+    nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
+    namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
+
+    check_debug()
+
+    # Load NCBI nodes, names and build children
+    ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, None, False)
+
+    generate_mock(ncbi,
+                  args.file, args.random,
+                  args.mock, args.xcel,
+                  args.debug, gzipped=args.compress)
+
+
+if __name__ == '__main__':
+    main()
