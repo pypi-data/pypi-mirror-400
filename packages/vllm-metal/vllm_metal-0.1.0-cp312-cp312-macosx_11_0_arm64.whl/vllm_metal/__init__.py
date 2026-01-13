@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+"""vLLM Metal Plugin - High-performance LLM inference on Apple Silicon.
+
+This plugin enables vLLM to run on Apple Silicon Macs using MLX as the
+primary compute backend, with PyTorch for model loading and interoperability.
+"""
+
+__version__ = "0.1.0"
+
+
+# Lazy imports to avoid loading vLLM dependencies when just importing the Rust extension
+def __getattr__(name):
+    """Lazy import module components."""
+    if name == "MetalConfig":
+        from vllm_metal.config import MetalConfig
+
+        return MetalConfig
+    elif name == "get_config":
+        from vllm_metal.config import get_config
+
+        return get_config
+    elif name == "reset_config":
+        from vllm_metal.config import reset_config
+
+        return reset_config
+    elif name == "MetalModelRunner":
+        from vllm_metal.model_runner import MetalModelRunner
+
+        return MetalModelRunner
+    elif name == "MetalPlatform":
+        from vllm_metal.platform import MetalPlatform
+
+        return MetalPlatform
+    elif name == "MetalWorker":
+        from vllm_metal.worker import MetalWorker
+
+        return MetalWorker
+    elif name == "register":
+        return _register
+    elif name == "register_ops":
+        return _register_ops
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = [
+    "MetalConfig",
+    "MetalPlatform",
+    "MetalWorker",
+    "MetalModelRunner",
+    "get_config",
+    "reset_config",
+    "register",
+    "register_ops",
+]
+
+
+def _register() -> str | None:
+    """Register the Metal platform plugin with vLLM.
+
+    This is the entry point for vLLM's platform plugin system.
+
+    Returns:
+        Fully qualified class name if platform is available, None otherwise
+    """
+    from vllm_metal.platform import MetalPlatform
+
+    if MetalPlatform.is_available():
+        return "vllm_metal.platform.MetalPlatform"
+    return None
+
+
+def _register_ops() -> None:
+    """Register Metal operations with vLLM.
+
+    This is the entry point for vLLM's general plugin system.
+    Currently a no-op as operations are handled internally.
+    """
+    # Operations are registered implicitly through the MLX backend
+    pass
