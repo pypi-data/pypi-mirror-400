@@ -1,0 +1,255 @@
+Metadata-Version: 2.4
+Name: pypass-secure
+Version: 0.0.3
+Summary: Local, offline password manager for Windows with CustomTkinter GUI
+Author: rewind
+License: MIT License
+        
+        Copyright (c) 2025 rewind
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/rewindthetime/pypass
+Project-URL: Repository, https://github.com/rewindthetime/pypass
+Project-URL: Issues, https://github.com/rewindthetime/pypass/issues
+Keywords: password,manager,security,encryption,offline,cross-platform
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security :: Cryptography
+Classifier: Topic :: Utilities
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: cryptography>=41.0.0
+Requires-Dist: customtkinter>=5.2.0
+Requires-Dist: pillow>=10.0.0
+Provides-Extra: dev
+Requires-Dist: pyinstaller>=6.0.0; extra == "dev"
+Dynamic: license-file
+
+# PyPass by rewind
+
+Local, offline password manager written in Python with a CustomTkinter GUI.  
+PyPass Secure stores all vault data in an encrypted SQLite database on your machine, without any cloud or network dependencies.
+
+---
+
+## Features
+
+- **Local-only password vault**
+  - All data stored in a local `.db` file
+  - No cloud sync, no external servers, no network access
+
+- **Secure encryption**
+  - Master password used to derive an encryption key via PBKDF2 (SHA-256)
+  - Random salt stored securely (Windows Registry or config file)
+  - All stored passwords encrypted with Fernet (symmetric encryption)
+
+- **Safe master password handling**
+  - Master password is **never stored**, only used to derive keys in memory
+  - Vault is created on first run and protected by your master password
+
+- **Modern UI**
+  - Built with [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter)
+  - Simple, clean interface for adding, viewing, and managing credentials
+
+- **Cross-platform**
+  - Works on Windows and Linux
+  - Windows: Uses Registry for salt storage
+  - Linux: Uses `~/.pypass/config.dat` for salt storage
+
+- **Offline by design**
+  - No internet connection required
+  - Ideal for users who prefer complete local control over their vault
+
+---
+
+## Installation
+
+### Option 1: Install via pip (Recommended)
+
+```bash
+pip install pypass-secure
+```
+
+Then run:
+
+```bash
+pypass
+```
+
+### Option 2: Install from source
+
+```bash
+git clone https://github.com/rewindthetime/pypass.git
+cd pypass
+pip install -e .
+```
+
+Then run:
+
+```bash
+pypass
+```
+
+---
+
+## Security Overview
+
+PyPass Secure is designed as a **local, offline** password manager with a straightforward security model:
+
+- **Key derivation**
+  - User chooses a **master password** on first run.
+  - A random **salt** is generated and stored securely.
+    - Windows: In the Registry (`HKEY_CURRENT_USER\SOFTWARE\PyPass`)
+    - Linux: In `~/.pypass/config.dat`
+  - The encryption key is derived using **PBKDF2 with SHA-256** and the master password + salt.
+  - The master password itself is **never written** to disk.
+
+- **Encryption**
+  - The derived key is used for **Fernet** encryption.
+  - Each password entry stored in the SQLite database is encrypted before being saved.
+  - Decryption happens in memory only after the user successfully unlocks the vault.
+
+- **Storage**
+  - The vault is a local SQLite `.db` file.
+  - The database contains only encrypted password data (no plaintext passwords).
+
+- **No recovery**
+  - If the master password is lost or forgotten, **the data cannot be decrypted**.
+  - There is no backdoor, no recovery key, and no remote reset option.
+
+> **Important:** PyPass Secure improves security compared to storing passwords in plain text,
+> but its overall security also depends on your system security (user account, malware protection, backups, etc.).
+
+---
+
+## Project Structure
+
+```text
+pypass/
+├─ pyproject.toml          # Package configuration
+├─ src/
+│  └─ pypass/
+│     ├─ main.py           # Application entry point
+│     ├─ ui.py             # CustomTkinter UI
+│     ├─ vault.py          # SQLite vault logic
+│     ├─ login.py          # Master password setup & login
+│     ├─ encryption.py     # Key derivation & encryption
+│     └─ icons/            # UI icons
+└─ readme.md
+```
+
+---
+
+## Requirements
+
+- **Operating system**
+  - Windows 10 or later
+  - Linux (most distributions)
+
+- **Runtime**
+  - Python 3.10 or later
+
+- **Python packages** (installed automatically via pip)
+  - `cryptography`
+  - `customtkinter`
+  - `pillow`
+
+- **Linux only:** Tkinter system package
+  - Ubuntu/Debian: `sudo apt install python3-tk`
+  - Fedora: `sudo dnf install python3-tkinter`
+  - Arch Linux: `sudo pacman -S tk`
+
+---
+
+## Usage
+
+### First Run
+
+1. Run `pypass` from your terminal
+2. Create a **master password** (make sure to remember it!)
+3. A new vault database will be created
+4. A random salt will be generated and stored securely
+
+### Subsequent Runs
+
+1. Run `pypass` from your terminal
+2. Enter your **master password** to unlock the vault
+3. The main UI opens where you can:
+   - Add new password entries
+   - View existing entries
+   - Delete entries
+   - Toggle password visibility
+
+---
+
+## Limitations & Important Notes
+
+- **No cloud, no sync**
+  - Vault data is stored **only on your local machine**.
+  - There is **no automatic backup** or synchronization between devices.
+
+- **No password recovery**
+  - If you **forget or lose your master password**, the vault **cannot be decrypted**.
+  - There is no recovery option. You will have to delete the vault file and start over.
+
+- **Local system security**
+  - PyPass Secure does not protect against keyloggers, screen recorders, or compromised operating systems.
+  - Ensure that your user account, antivirus, and general system security are properly maintained.
+
+---
+
+## Warnings
+
+- **Do not forget your master password.**
+  - The master password is the **only** way to derive the key to decrypt your vault.
+  - Losing it means **permanent loss of access** to all stored passwords.
+
+- **Back up your vault file carefully.**
+  - You may manually back up the SQLite `.db` file.
+  - For a full restore to another system, also backup:
+    - Windows: The Registry entry `HKEY_CURRENT_USER\SOFTWARE\PyPass`
+    - Linux: The `~/.pypass/config.dat` file
+  - Treat backups with the same level of security as the original vault.
+
+- **Use a strong master password.**
+  - Choose a long and unique password that you do not reuse elsewhere.
+  - Anyone who knows your master password and has access to the vault file can decrypt your data.
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Links
+
+- **PyPI:** https://pypi.org/project/pypass-secure/
+- **GitHub:** https://github.com/rewindthetime/pypass
+- **Issues:** https://github.com/rewindthetime/pypass/issues
