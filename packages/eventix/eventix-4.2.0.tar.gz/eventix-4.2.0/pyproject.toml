@@ -1,0 +1,96 @@
+[project]
+name = "eventix"
+version = "4.2.0"
+description = ""
+readme = "README.md"
+requires-python = ">=3.13,<4.0"
+authors = [
+  { name = "Marco Bartel", email = "bsimpson888@gmail.com" }
+]
+
+dependencies = [
+  "python-dotenv>=1.0.0,<2.0.0",
+  "pydash",
+  "toml>=0.10.2,<0.11.0",
+  "webexception>=1.0.2,<2.0.0",
+  "croniter>=2.0.1,<3.0.0",
+  "click>=8.1.7,<9.0.0",
+  "lsrestclient>=3.0.1,<4.0.0",
+  "pydantic-db-backend-common>=2.3.1,<3.0.0",
+  "lsidentity>=1.0.2,<2.0.0",
+  "pydantic>=2.12.0,<3.0.0",
+]
+
+[project.scripts]
+eventixcli = "eventix.cli:cli"
+
+[dependency-groups]
+dev = [
+  "pytest>=7.3.1,<8.0.0",
+  "httpx>=0.24.1,<0.25.0",
+  "freezegun>=1.2.2,<2.0.0",
+  "coverage>=7.2.7,<8.0.0",
+  "pytest-mock>=3.11.1,<4.0.0",
+  "semantic-version>=2.10.0,<3.0.0",
+  "pytest-click>=1.1.0,<2.0.0",
+  "pytest-lazy-fixture>=0.6.3,<0.7.0",
+  "ruff>=0.14.8",
+]
+server = [
+  "fastapi>=0.115.5,<0.116.0",
+  "uvicorn>=0.23.2,<0.24.0",
+  "pydantic-db-backend[mongodb]>=3.4.0,<4.0.0",
+  "psutil>=5.9.5,<6.0.0",
+  "supervisor>=4.2.5,<5.0.0",
+  "pyyaml>=6.0.1,<7.0.0",
+]
+
+[tool.uv]
+default-groups = ["server", "dev"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q -s -v"
+testpaths = [
+    "tests",
+]
+log_cli = true
+log_cli_level = "DEBUG"
+#log_cli_level = "INFO"
+log_cli_format = "[%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+#log_cli_format = "[%(name)s][%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+exclude = ["dist", "scripts"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+
+[tool.ruff.lint]
+select = ["E", "F", "I",
+#    "ANN",
+#    "RUF"
+]
+fixable=["ALL"]
+ignore = [
+    "ANN002",
+    "ANN003",
+    "E501",
+    "E402" # module level imports, should be turned on again when noqa is applied
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F403"]
+"tests/*" = ["ANN"]

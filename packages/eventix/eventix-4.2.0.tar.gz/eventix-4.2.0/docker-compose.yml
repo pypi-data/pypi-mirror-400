@@ -1,0 +1,38 @@
+name: pytest
+services:
+
+  mongodb:
+    image: mongo:4.2
+    container_name: 'pytest-lsoft-mongodb'
+    ports:
+      - '32001:27017'
+
+    healthcheck:
+      test: echo 'db.stats().ok' | mongo localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  eventix:
+    image: bsimpson888/eventix:latest
+    #    build: .
+    container_name: 'pytest-lsoft-eventix'
+    ports:
+      - "10010:10010"
+
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/pytest
+      - EVENTIX_URL=http://localhost:10010
+      - EVENTIX_BACKEND=mongodb
+      - EVENTIX_TRIGGER_CONFIG_DIRECTORY=/app/triggers
+      - EVENTIX_API_PORT=10010
+
+    volumes:
+      - ./trigger_config:/app/triggers
+
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+
