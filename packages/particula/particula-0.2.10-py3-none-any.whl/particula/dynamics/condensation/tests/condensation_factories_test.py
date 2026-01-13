@@ -1,0 +1,116 @@
+"""Test cases for CondensationFactory and CondensationIsothermal classes."""
+# ruff: noqa: E402
+
+import os
+import sys
+import types
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+os.environ.setdefault("SCIPY_USE_CALC_DOCSTRINGS", "0")
+
+ROOT = Path(__file__).resolve().parents[4]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+lognormal_module: Any = types.ModuleType(
+    "particula.particles.properties.lognormal_size_distribution"
+)
+
+
+def _stubbed_lognormal(*_args, **_kwargs):
+    raise RuntimeError("lognormal size distribution stubbed for fast tests")
+
+
+lognormal_module.get_lognormal_pdf_distribution = _stubbed_lognormal
+lognormal_module.get_lognormal_pmf_distribution = _stubbed_lognormal
+lognormal_module.get_lognormal_sample_distribution = _stubbed_lognormal
+sys.modules["particula.particles.properties.lognormal_size_distribution"] = (
+    lognormal_module
+)
+
+from particula.dynamics.condensation.condensation_factories import (
+    CondensationFactory,
+)
+from particula.dynamics.condensation.condensation_strategies import (
+    CondensationIsothermal,
+    CondensationIsothermalStaggered,
+)
+
+
+def test_isothermal_condensation():
+    """Test the creation of an isothermal condensation strategy."""
+    factory = CondensationFactory()
+    strategy = factory.get_strategy(
+        "isothermal",
+        {
+            "molar_mass": 0.018,
+            "molar_mass_units": "kg/mol",
+            "diffusion_coefficient": 2e-5,
+            "diffusion_coefficient_units": "m^2/s",
+            "accommodation_coefficient": 1.0,
+        },
+    )
+    assert isinstance(strategy, CondensationIsothermal)
+
+
+def test_isothermal_staggered_condensation_defaults_via_factory():
+    """Factory returns staggered strategy with default parameters set."""
+    factory = CondensationFactory()
+    builder_map = factory.get_builders()
+
+    assert "isothermal_staggered" in builder_map
+
+    strategy = factory.get_strategy(
+        "isothermal_staggered",
+        {
+            "molar_mass": 0.018,
+            "molar_mass_units": "kg/mol",
+            "diffusion_coefficient": 2e-5,
+            "diffusion_coefficient_units": "m^2/s",
+            "accommodation_coefficient": 1.0,
+        },
+    )
+
+    assert isinstance(strategy, CondensationIsothermalStaggered)
+    assert strategy.theta_mode == "half"
+    assert strategy.num_batches == 1
+    assert strategy.shuffle_each_step is True
+    assert strategy.random_state is None
+    assert strategy.update_gases is True
+
+
+def test_isothermal_staggered_condensation_custom_parameters_via_factory():
+    """Factory propagates non-default staggered parameters to the strategy."""
+    factory = CondensationFactory()
+    strategy = factory.get_strategy(
+        "isothermal_staggered",
+        {
+            "molar_mass": 0.018,
+            "molar_mass_units": "kg/mol",
+            "diffusion_coefficient": 2e-5,
+            "diffusion_coefficient_units": "m^2/s",
+            "accommodation_coefficient": 1.0,
+            "theta_mode": "batch",
+            "num_batches": 3,
+            "shuffle_each_step": False,
+            "random_state": 42,
+            "update_gases": False,
+        },
+    )
+
+    assert isinstance(strategy, CondensationIsothermalStaggered)
+    assert strategy.theta_mode == "batch"
+    assert strategy.num_batches == 3
+    assert strategy.shuffle_each_step is False
+    assert strategy.random_state == 42
+    assert strategy.update_gases is False
+
+
+def test_invalid_condensation_strategy():
+    """Test that an invalid condensation strategy raises a ValueError."""
+    factory = CondensationFactory()
+    with pytest.raises(ValueError, match="Unknown strategy type: nonexistent"):
+        factory.get_strategy("nonexistent", {})
