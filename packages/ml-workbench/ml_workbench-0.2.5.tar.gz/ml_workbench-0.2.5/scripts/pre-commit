@@ -1,0 +1,118 @@
+#!/bin/bash
+# Pre-commit hook to automatically increment version patch number
+
+set -e
+
+# Get the project root directory
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+PYPROJECT_FILE="${PROJECT_ROOT}/pyproject.toml"
+
+# Check if pyproject.toml exists
+if [ ! -f "$PYPROJECT_FILE" ]; then
+    echo "Warning: pyproject.toml not found, skipping version increment"
+    exit 0
+fi
+
+# Change to project root to ensure we're in the right directory
+cd "$PROJECT_ROOT"
+
+# Extract current version using Python
+CURRENT_VERSION=$(python3 -c "
+import re
+import sys
+
+try:
+    with open(sys.argv[1], 'r') as f:
+        content = f.read()
+    
+    # Find version line in [project] section only
+    # Match [project] section and then find version = \"x.y.z\" within it
+    project_section_match = re.search(
+        r'\[project\](.*?)(?=\[|$)',
+        content,
+        re.DOTALL
+    )
+    if project_section_match:
+        project_content = project_section_match.group(1)
+        # Look for version = \"x.y.z\" but not target-version
+        match = re.search(r'^version\s*=\s*\"([^\"]+)\"', project_content, re.MULTILINE)
+        if match:
+            print(match.group(1))
+        else:
+            sys.exit(1)
+    else:
+        sys.exit(1)
+except Exception:
+    sys.exit(1)
+" "$PYPROJECT_FILE")
+
+if [ -z "$CURRENT_VERSION" ]; then
+    echo "Warning: Could not extract version from pyproject.toml, skipping version increment"
+    exit 0
+fi
+
+# Increment patch version using Python
+NEW_VERSION=$(python3 -c "
+import sys
+version = sys.argv[1]
+parts = version.split('.')
+if len(parts) == 3:
+    try:
+        major, minor, patch = parts
+        patch = int(patch) + 1
+        print(f'{major}.{minor}.{patch}')
+    except ValueError:
+        print(version)
+else:
+    print(version)
+" "$CURRENT_VERSION")
+
+# Update version in pyproject.toml using Python
+python3 -c "
+import re
+import sys
+
+file_path = sys.argv[1]
+new_version = sys.argv[2]
+
+with open(file_path, 'r') as f:
+    content = f.read()
+
+# Replace version line only in [project] section
+# Split by sections, find [project], update version, then reassemble
+def replace_project_version(content, new_version):
+    # Match [project] section and capture everything before, the section, and after
+    pattern = r'(\[project\])(.*?)(?=\[|$)'
+    
+    def replace_in_project(match):
+        section_header = match.group(1)
+        section_content = match.group(2)
+        
+        # Replace version = \"x.y.z\" but not target-version
+        def replace_version(match):
+            return match.group(1) + new_version + match.group(2)
+        
+        updated_content = re.sub(
+            r'^(version\s*=\s*\")[^\"]+(\")',
+            replace_version,
+            section_content,
+            flags=re.MULTILINE
+        )
+        
+        return section_header + updated_content
+    
+    return re.sub(pattern, replace_in_project, content, flags=re.DOTALL)
+
+new_content = replace_project_version(content, new_version)
+
+with open(file_path, 'w') as f:
+    f.write(new_content)
+" "$PYPROJECT_FILE" "$NEW_VERSION"
+
+# Stage the updated pyproject.toml
+git add "$PYPROJECT_FILE"
+
+echo "Version incremented from $CURRENT_VERSION to $NEW_VERSION"
+
+exit 0
+
