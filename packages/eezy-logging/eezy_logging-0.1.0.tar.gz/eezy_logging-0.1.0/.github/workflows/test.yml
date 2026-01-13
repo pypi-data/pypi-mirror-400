@@ -1,0 +1,176 @@
+name: Test
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run ruff check
+        run: uv run ruff check .
+
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
+
+      - name: Run unit tests
+        run: uv run pytest tests/test_handler.py tests/test_worker.py tests/test_serializer.py tests/test_memory_queue.py tests/test_deque_queue.py -v
+
+  redis-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run Redis queue tests
+        run: uv run pytest tests/test_redis_queue.py -v
+        env:
+          EEZY_REDIS_HOST: localhost
+          EEZY_REDIS_PORT: 6379
+
+  elasticsearch-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - es-version: "7.17.26"
+            es-image: "elasticsearch:7.17.26"
+            client-version: "elasticsearch>=7.0,<8.0"
+          - es-version: "8.19.9"
+            es-image: "elasticsearch:8.19.9"
+            client-version: "elasticsearch>=8.0,<9.0"
+          - es-version: "9.2.3"
+            es-image: "elasticsearch:9.2.3"
+            client-version: "elasticsearch>=9.0,<10.0"
+
+    services:
+      elasticsearch:
+        image: ${{ matrix.es-image }}
+        ports:
+          - 9200:9200
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        options: >-
+          --health-cmd "curl -s http://localhost:9200/_cluster/health | grep -q -E 'green|yellow'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+          uv pip install "${{ matrix.client-version }}"
+
+      - name: Wait for Elasticsearch
+        run: |
+          until curl -s http://localhost:9200/_cluster/health | grep -q -E 'yellow|green'; do
+            echo "Waiting for Elasticsearch..."
+            sleep 5
+          done
+          echo "Elasticsearch is ready"
+
+      - name: Run Elasticsearch integration tests
+        run: uv run --no-sync pytest tests/test_elasticsearch_integration.py -v
+        env:
+          EEZY_TEST_ES_HOST: http://localhost:9200
+
+  opensearch-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      opensearch:
+        image: opensearchproject/opensearch:3
+        ports:
+          - 9201:9200
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: "true"
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        options: >-
+          --health-cmd "curl -s http://localhost:9200/_cluster/health | grep -q -E 'green|yellow'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Wait for OpenSearch
+        run: |
+          until curl -s http://localhost:9201/_cluster/health | grep -q -E 'green|yellow'; do
+            echo "Waiting for OpenSearch..."
+            sleep 5
+          done
+          echo "OpenSearch is ready"
+
+      - name: Run OpenSearch integration tests
+        run: uv run pytest tests/test_opensearch_integration.py -v
+        env:
+          EEZY_TEST_OPENSEARCH_HOST: http://localhost:9201
