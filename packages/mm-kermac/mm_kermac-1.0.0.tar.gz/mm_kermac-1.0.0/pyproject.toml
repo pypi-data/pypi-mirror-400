@@ -1,0 +1,68 @@
+[project]
+name            = "mm-kermac"
+version         = "1.0.0"
+description     = "Dynamically compiled hyper semirings for Pytorch using PTX Inject and Stack PTX"
+readme          = "README.md"
+requires-python = ">=3.8"
+license         = {text = "MIT"}
+authors = [{name = "MetaMachines LLC", email = "contact@metamachines.co"}]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Hardware",
+]
+dependencies    = [
+  "numpy>=1.21",
+  "platformdirs>=3.0",
+  "torch>=2.0",
+  "cuda-toolkit[cccl]",
+  "mm-ptx>=1.0.0"
+]
+
+[project.optional-dependencies]
+cu12 = ["cuda-core[cu12]>=0.5.0"]
+cu13 = ["cuda-core[cu13]>=0.5.0"]
+
+[project.urls]
+Homepage   = "https://github.com/MetaMachines/mm-kermac-py"
+Repository = "https://github.com/MetaMachines/mm-kermac-py.git"
+
+[build-system]
+requires       = ["hatchling>=1.24"]
+build-backend  = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages      = ["src/mm_kermac"]
+
+[tool.hatch.build.targets.wheel.force-include]
+include = "include"
+thirdparty = "thirdparty"
+kernels = "kernels"
+
+[tool.hatch.build.targets.sdist]
+[tool.hatch.build.targets.sdist.force-include]
+include = "include"
+thirdparty = "thirdparty"
+kernels = "kernels"
+
+[tool.hatch.envs.test]
+python = "3.8"  # Matches requires-python
+dependencies = []  # No extra dependencies for unittest
+scripts.test = "python -m unittest discover -s tests -p 'test_*.py' -v"
