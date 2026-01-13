@@ -1,0 +1,189 @@
+import os
+import sys
+import inspect
+import traceback
+
+import logging
+from enum import Enum
+import datetime as dt
+from typing import Literal, Callable, Any
+
+
+# -----------------------------------PROLOGGER-------------------------------------
+
+
+
+class TERMCOLOR(Enum):
+    RESET = "\x1b[0m"
+    LIGHT_CYAN = "\x1b[1;36m"
+    LIGHT_GREEN = "\x1b[1;32m"
+    YELLOW = "\x1b[1;33m"
+    LIGHT_RED = "\x1b[1;31m"
+    LIGHT_PURPLE = "\x1b[1;35m"
+
+
+LOG_FORMAT = "[%(asctime)s] %(levelname)s - %(message)s"
+
+
+class LevelBasedFormatter(logging.Formatter):
+    COLORS = {
+        logging.DEBUG: TERMCOLOR.LIGHT_CYAN.value,
+        logging.INFO: TERMCOLOR.LIGHT_GREEN.value,
+        logging.WARNING: TERMCOLOR.YELLOW.value,
+        logging.ERROR: TERMCOLOR.LIGHT_RED.value,
+        logging.CRITICAL: TERMCOLOR.LIGHT_PURPLE.value,
+    }
+
+    def __init__(self, fmt=LOG_FORMAT, datefmt=None):
+        super().__init__(fmt, datefmt)
+
+    def format(self, record):
+        color = self.COLORS.get(record.levelno, TERMCOLOR.RESET.value)
+        formatted = super().format(record)
+        return f"{color}{formatted}{TERMCOLOR.RESET.value}"
+
+
+_logger_ : logging.Logger = None
+_is_nb_ : bool = False
+
+
+
+def configure(
+    log_filepath: str = f"logs/log_{dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log",
+    log_format: str = LOG_FORMAT,
+    handler_type : Literal["file", "rotate", None] = None,
+    rotation_file_maxBytes : float = 10*(1024**2),
+    rotation_file_backupCount : int = 1000,
+    is_notebook : bool = False):
+
+    global _logger_, _is_nb_
+
+    if is_notebook:
+        _is_nb_ = True
+
+    try:
+        if handler_type is not None:
+            log_dir = os.path.dirname(log_filepath)
+            if log_dir and not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+
+        if _logger_ is None:
+
+            _logger_ = logging.getLogger('root')
+            _logger_.setLevel(logging.DEBUG) 
+
+            if handler_type is not None:
+
+                if  handler_type == "file":
+                    fh = logging.FileHandler(log_filepath,mode='a')
+                    fh.setLevel(logging.DEBUG)
+
+                elif handler_type == "rotate":
+                    fh = logging.handlers.RotatingFileHandler(log_filepath,maxBytes=rotation_file_maxBytes, backupCount=rotation_file_backupCount)
+                    fh.setLevel(logging.DEBUG)
+
+                else:
+                    raise ValueError('handler_type should be file or rotate.')
+                
+                _logger_.addHandler(fh)
+                
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.DEBUG)
+            ch.setFormatter(LevelBasedFormatter(log_format))
+
+            _logger_.addHandler(ch)
+            
+    
+    except Exception as exc : 
+        raise Exception(f'Error occured while configuring Logger : {exc}\n{traceback.format_exc()}')
+    
+
+## logger functions 
+##- Resolves the issue of the decorator path appearing as the error location in standard logging.
+
+def _file_caller_info_() -> str : 
+
+    try: 
+        cur_frame = inspect.stack()[-1]
+        return f"[{cur_frame.filename} : #{str(cur_frame.lineno)}] "
+    
+    except:
+        return "[Unknown Caller] "
+    
+def _log_msg_(log_func : Callable[[str],None], *message : Any) -> None:
+
+    global _logger_, _is_nb_
+
+    try:
+        if _is_nb_:
+            inspect_info = "[Notebook] "
+            
+        else:
+            inspect_info = _file_caller_info_()
+
+        messages = list(message)
+        messages[0] = inspect_info + str(messages[0])
+        final_message = " ".join(str(msg) for msg in messages)
+
+        if _logger_ is not None:
+            log_func(final_message)
+
+    
+    except Exception as exc:
+
+        print(f'Error occured in _log_msg_ : {exc}\n{traceback.format_exc()}',file=sys.stderr)
+
+
+# wrapper functions
+
+def log_info(*message: Any) -> None:
+    """Logs an INFO level message."""
+    global _logger_
+    if _logger_ is not None:
+        _log_msg_(_logger_.info, *message)
+
+def log_warn(*message: Any) -> None:
+    """Logs a WARNING level message."""
+    global _logger_
+    if _logger_ is not None:
+        _log_msg_(_logger_.warning, *message)
+
+def log_debug(*message: Any) -> None:
+    """Logs a DEBUG level message."""
+    global _logger_
+    if _logger_ is not None:
+        _log_msg_(_logger_.debug, *message)
+
+def log_error(*message: Any) -> None:
+    """Logs a ERROR level message."""
+    global _logger_
+    if _logger_ is not None:
+        _log_msg_(_logger_.error, *message)
+
+def log_critical(*message: Any) -> None:
+    """Logs a CRITICAL level message."""
+    global _logger_
+    if _logger_ is not None:
+        _log_msg_(_logger_.critical, *message)
+
+
+
+## decorators
+
+def trace_exceptions():
+
+    def execute(func):
+
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception:
+                if _logger_ is not None:
+                    _log_msg_(_logger_.error,"Traceback:\n" + traceback.format_exc())
+
+        return wrapper
+
+    return execute
+
+
+
