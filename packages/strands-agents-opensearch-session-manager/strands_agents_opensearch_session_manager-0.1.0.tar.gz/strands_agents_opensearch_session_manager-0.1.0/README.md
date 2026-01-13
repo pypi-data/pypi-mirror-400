@@ -1,0 +1,1 @@
+strands-agents-opensearch-session-manager
