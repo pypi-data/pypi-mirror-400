@@ -1,0 +1,92 @@
+[envs.all]
+
+[[envs.all.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
+
+[envs.changelog]
+dependencies = ["scriv"]
+detached = true
+installer = "uv"
+scripts = {add = "scriv create --add", collect = ["scriv collect --add", "- pre-commit run --files=CHANGELOG.md > /dev/null"]}
+
+[envs.default]
+dependencies = [
+  "devtools[pygments]",
+  "coverage[toml]>=6.5",
+  "pytest",
+  "pytest-mock",
+  "pytest-rerunfailures",
+  "toml",
+  "nbformat>=4.2.0",
+  "pyhamcrest",
+  "jupyter",
+  "dash[testing]",
+  "chromedriver-autoinstaller>=0.6.4",
+  # "urllib3<2.0.0",  # helps to resolve bug with urllib3 timeout from vizro-ai integration tests: https://bugs.launchpad.net/python-jenkins/+bug/2018567
+  # Below dependencies useful to test different models
+  "langchain-community",
+  "langchain_mistralai",
+  "langchain-anthropic",
+  "langchain-aws",
+  "langchain-google-genai",
+  "pre-commit"
+]
+installer = "uv"
+
+[envs.default.env-vars]
+VIZRO_AI_LOG_LEVEL = "DEBUG"
+
+[envs.default.scripts]
+example = "cd examples; python example.py"
+example-create-dashboard = "cd examples; python example_dashboard.py"
+lint = "pre-commit run {args} --all-files"
+notebook = "cd examples; jupyter notebook"
+pip = '"{env:HATCH_UV}" pip {args}'
+prep-release = [
+  "hatch version release",
+  "hatch run changelog:collect",
+  "hatch run changelog:add",
+  'echo "Now raise a PR to merge into main with title: [Release] Release of vizro-ai $(hatch version)"'
+]
+pypath = "hatch run python -c 'import sys; print(sys.executable)'"
+test = "pytest tests {args}"
+# to run dashboard and plot tests please configure base url and api key for the selected model
+test-e2e-dashboard = "pytest -vs tests/e2e/test_dashboard.py --headless {args}"
+test-e2e-plot = "pytest -vs --reruns 1 tests/e2e/test_plot.py --headless {args}"
+test-unit = "pytest tests/unit {args}"
+test-unit-coverage = [
+  "coverage run -m pytest tests/unit {args}",
+  "- coverage combine",
+  "coverage report"
+]
+
+[envs.docs]
+dependencies = [
+  "mkdocs>=1.6",
+  "mkdocs-material",
+  "mkdocs-git-revision-date-localized-plugin>=1.2.5",
+  "mkdocstrings[python]",
+  "linkchecker",
+  "mkdocs-pycafe",
+  "PyGithub",
+  "playwright"
+]
+detached = true
+installer = "uv"
+
+[envs.docs.scripts]
+build = "mkdocs build --strict"
+# Disable warnings on the linkcheck so that HTTP redirects are accepted. We could ignore only that warning and specify
+# more advanced settings using a linkcheckerrc config file. openai.com doesn't seem to work well with linkchecking,
+# throwing 403 errors, but these are not real errors.
+link-check = "linkchecker site --check-extern --no-warnings --ignore=404.html --ignore-url=127.0.0.1 --ignore-url=https://vizro.readthedocs.io/ --ignore-url=https://platform.openai.com/docs/models --ignore-url=openai.com --ignore-url=https://openai.com/"
+pip = '"{env:HATCH_UV}" pip {args}'
+pycafe-links = "../tools/pycafe/docs_links_filtering.sh"
+serve = "mkdocs serve --open"
+
+[envs.lower-bounds]
+extra-dependencies = ["pydantic==2.11.9"]  # required by langchain>=0.3.0 and openai>=1.108.0
+python = "3.10"
+
+[version]
+path = "src/vizro_ai/__init__.py"
