@@ -1,0 +1,37 @@
+# create_icon 0.5.2
+
+<img src="https://raw.githubusercontent.com/Caveman-Software/mygui/main/Icon.png" width="35" height="35">  Caveman Software® 2022
+
+Released 8/18/22
+
+A Simple icon to replace the tkinter feather for your programs.
+
+----------
+
+### Example
+
+    import os
+    from tkinter import Tk
+    import create_icon
+
+    root = Tk()
+    root.minsize(300, 100)
+
+    # Step 1: create icon (quiet)
+    create_icon.create_icon(quiet=True)
+
+    # Step 2: set window icon (Windows)
+    if os.name == "nt":
+        icon_path = create_icon.get_icon_path()
+        root.wm_iconbitmap(default=str(icon_path))
+
+    root.mainloop()
+
+
+----------
+
+The above example allows the icon to be place in the menubar
+
+<div>
+    <br><p><img onmouseover="enlargeImg(this)" onmouseout="normalImg(this)" src="https://github.com/Caveman-Software/create_icon/blob/main/Capture.PNG?raw=true"alt="Power Button" width="142" height="142" align="middle"> Diagram 1</p><br>
+</div>
