@@ -1,0 +1,84 @@
+name: Publish Wheel and Docs
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish-dist:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ startsWith(github.ref, 'refs/tags/v') && 'pypi' || 'testpypi' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: ${{ startsWith(github.ref, 'refs/tags/v') && 1 || 0 }}
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            requirements.txt
+            **/uv.lock
+      - name: Build Package
+        run: uv build
+      - name: Publish to TestPyPI
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish to PyPI
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  build-and-deploy-docs:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-and-publish-dist
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            requirements.txt
+            **/uv.lock
+      - name: Install dependencies
+        run: uv sync --group docs
+      - name: Build Docs
+        run: uv run pdoc ./src/visual -d google -o ./docs
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "./docs"
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
