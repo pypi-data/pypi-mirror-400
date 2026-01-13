@@ -1,0 +1,71 @@
+"""Kombu - Pure asyncio messaging library for Python.
+
+This is an asyncio-native version of Kombu supporting only Redis transport.
+All operations are async.
+
+Example:
+    async with Connection('redis://localhost') as conn:
+        async with conn.Producer() as producer:
+            await producer.publish({'hello': 'world'}, routing_key='my_queue')
+
+        async with conn.SimpleQueue('my_queue') as queue:
+            message = await queue.get(timeout=5)
+            print(message.payload)
+            await message.ack()
+"""
+
+from __future__ import annotations
+
+import re
+from collections import namedtuple
+from typing import cast
+
+__version__ = '6.0.0a1'
+__author__ = 'Ask Solem'
+__contact__ = 'auvipy@gmail.com'
+__homepage__ = 'https://kombu.readthedocs.io'
+__docformat__ = 'restructuredtext en'
+
+# Version info
+version_info_t = namedtuple('version_info_t', (
+    'major', 'minor', 'micro', 'releaselevel', 'serial',
+))
+
+_temp = cast(re.Match, re.match(
+    r'(\d+)\.(\d+).(\d+)(.+)?', __version__)).groups()
+VERSION = version_info = version_info_t(
+    int(_temp[0]), int(_temp[1]), int(_temp[2]), _temp[3] or '', '')
+del _temp
+del re
+
+# Public API exports
+from .connection import Connection  # noqa: E402
+from .entity import Exchange, Queue, binding  # noqa: E402
+from .message import Message  # noqa: E402
+from .messaging import Consumer, Producer  # noqa: E402
+from .serialization import disable_insecure_serializers  # noqa: E402
+from .serialization import enable_insecure_serializers  # noqa: E402
+from .simple import SimpleBuffer, SimpleQueue  # noqa: E402
+
+__all__ = (
+    # Connection
+    'Connection',
+    # Entities
+    'Exchange',
+    'Queue',
+    'binding',
+    # Message
+    'Message',
+    # Messaging
+    'Producer',
+    'Consumer',
+    # Simple API
+    'SimpleQueue',
+    'SimpleBuffer',
+    # Serialization
+    'enable_insecure_serializers',
+    'disable_insecure_serializers',
+    # Version
+    'VERSION',
+    'version_info',
+)
