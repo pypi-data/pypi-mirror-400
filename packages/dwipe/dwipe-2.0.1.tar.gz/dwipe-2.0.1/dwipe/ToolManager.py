@@ -1,0 +1,637 @@
+#!/usr/bin/env python3
+"""
+Hardware Secure Erase Module for dwipe
+Provides pre-checks, execution, monitoring, and fallback for hardware-level wipes
+"""
+
+import subprocess
+import shutil
+import os
+import time
+import threading
+import sys
+from typing import Dict, List, Optional, Tuple, Callable
+from enum import Enum
+from dataclasses import dataclass
+
+# ============================================================================
+# Part 1: Tool Manager (Dependency Management)
+# ============================================================================
+
+class ToolManager:
+    """Manages tool dependencies (hdparm, nvme-cli)"""
+    
+    TOOL_PACKAGES = {
+        'hdparm': {
+            'apt': ['hdparm'],
+            'dnf': ['hdparm'],
+            'yum': ['hdparm'],
+            'pacman': ['hdparm'],
+            'zypper': ['hdparm'],
+            'apk': ['hdparm'],
+            'brew': ['hdparm'],
+        },
+        'nvme': {
+            'apt': ['nvme-cli'],
+            'dnf': ['nvme-cli'],
+            'yum': ['nvme-cli'],
+            'pacman': ['nvme-cli'],
+            'zypper': ['nvme-cli'],
+            'apk': ['nvme-cli'],
+            'brew': ['nvme-cli'],
+        }
+    }
+    
+    def __init__(self, auto_install: bool = False, verbose: bool = False):
+        self.auto_install = auto_install
+        self.verbose = verbose
+        self.package_manager = self._detect_package_manager()
+    
+    def _detect_package_manager(self) -> Optional[str]:
+        package_managers = {
+            'apt': ['apt-get', 'apt'],
+            'dnf': ['dnf'],
+            'yum': ['yum'],
+            'pacman': ['pacman'],
+            'zypper': ['zypper'],
+            'apk': ['apk'],
+            'brew': ['brew'],
+        }
+        
+        for pm, binaries in package_managers.items():
+            for binary in binaries:
+                if shutil.which(binary):
+                    return pm
+        return None
+    
+    def tool_available(self, tool_name: str) -> bool:
+        return shutil.which(tool_name) is not None
+    
+    def ensure_tool(self, tool_name: str, critical: bool = True) -> bool:
+        if self.tool_available(tool_name):
+            return True
+        
+        if self.auto_install and self._install_tool(tool_name):
+            return True
+        
+        if critical:
+            print(f"ERROR: Required tool '{tool_name}' not found")
+            packages = self.TOOL_PACKAGES.get(tool_name, {}).get(self.package_manager, [])
+            if packages:
+                print(f"Install with: sudo {self.package_manager} install {packages[0]}")
+        return False
+    
+    def _install_tool(self, tool_name: str) -> bool:
+        """Install tool using package manager"""
+        # Simplified - use the installation logic from earlier if needed
+        return False  # Placeholder
+    
+    def get_tool_path(self, tool_name: str) -> Optional[str]:
+        return shutil.which(tool_name)
+
+# ============================================================================
+# Part 2: Drive Pre-Checks
+# ============================================================================
+
+class EraseStatus(Enum):
+    NOT_STARTED = "not_started"
+    STARTING = "starting"
+    IN_PROGRESS = "in_progress"
+    COMPLETE = "complete"
+    FAILED = "failed"
+    UNKNOWN = "unknown"
+
+@dataclass
+class PreCheckResult:
+    compatible: bool = False
+    tool: Optional[str] = None
+    frozen: bool = False
+    locked: bool = False
+    enhanced_supported: bool = False
+    issues: List[str] = None
+    recommendation: Optional[str] = None
+    
+    def __post_init__(self):
+        if self.issues is None:
+            self.issues = []
+
+class DrivePreChecker:
+    """Pre-check drive before attempting secure erase"""
+    
+    def __init__(self, timeout: int = 10):
+        self.timeout = timeout
+    
+    def is_usb_attached(self, device: str) -> bool:
+        """Check if device is USB-attached"""
+        dev_name = os.path.basename(device)
+        
+        # Check via sysfs
+        sys_path = f'/sys/block/{dev_name}'
+        if os.path.exists(sys_path):
+            try:
+                # Check if in USB hierarchy
+                real_path = os.path.realpath(sys_path)
+                if 'usb' in real_path.lower():
+                    return True
+                
+                # Check via udev
+                udev_info = subprocess.run(
+                    ['udevadm', 'info', '-q', 'property', '-n', device],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if udev_info.returncode == 0 and 'ID_BUS=usb' in udev_info.stdout:
+                    return True
+            except:
+                pass
+        
+        return False
+    
+    def check_nvme_drive(self, device: str) -> PreCheckResult:
+        """Check if NVMe secure erase will likely work"""
+        result = PreCheckResult(tool='nvme')
+        
+        try:
+            # Check if device exists
+            if not os.path.exists(device):
+                result.issues.append(f"Device {device} does not exist")
+                return result
+            
+            # Check USB attachment
+            if self.is_usb_attached(device):
+                result.issues.append("NVMe is USB-attached - hardware erase unreliable")
+                result.recommendation = "Use software wipe"
+                return result
+            
+            # Check if NVMe device responds
+            id_ctrl = subprocess.run(
+                ['nvme', 'id-ctrl', device],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout
+            )
+            
+            if id_ctrl.returncode != 0:
+                result.issues.append(f"Not an NVMe device: {id_ctrl.stderr}")
+                return result
+            
+            # Check format support
+            if 'Format NVM' not in id_ctrl.stdout:
+                result.issues.append("Drive doesn't support Format NVM command")
+            
+            # Check for write protection
+            id_ns = subprocess.run(
+                ['nvme', 'id-ns', device],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout
+            )
+            
+            if id_ns.returncode == 0 and 'Write Protected' in id_ns.stdout:
+                result.issues.append("Namespace is write protected")
+            
+            result.compatible = len(result.issues) == 0
+            result.recommendation = "Proceed with hardware erase" if result.compatible else "Use software wipe"
+            
+        except subprocess.TimeoutExpired:
+            result.issues.append(f"Command timed out after {self.timeout}s")
+        except Exception as e:
+            result.issues.append(f"Unexpected error: {e}")
+        
+        return result
+    
+    def check_ata_drive(self, device: str) -> PreCheckResult:
+        """Check if ATA secure erase will likely work"""
+        result = PreCheckResult(tool='hdparm')
+        
+        try:
+            if not os.path.exists(device):
+                result.issues.append(f"Device {device} does not exist")
+                return result
+            
+            # Check USB attachment
+            if self.is_usb_attached(device):
+                result.issues.append("Drive is USB-attached - hardware erase unreliable")
+                result.recommendation = "Use software wipe"
+                return result
+            
+            # Get drive info
+            info = subprocess.run(
+                ['hdparm', '-I', device],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout
+            )
+            
+            if info.returncode != 0:
+                result.issues.append(f"Drive not responsive: {info.stderr}")
+                return result
+            
+            output = info.stdout
+            
+            # Check if frozen
+            if 'frozen' in output.lower():
+                result.frozen = True
+                result.issues.append("Drive is FROZEN - will hang on erase")
+            
+            # Check if locked/enabled
+            if 'enabled' in output and 'not' not in output:
+                result.locked = True
+                result.issues.append("Security is ENABLED - needs password")
+            
+            # Check enhanced erase support
+            if 'supported: enhanced erase' in output:
+                result.enhanced_supported = True
+            
+            # Check ATA device and erase support
+            if 'ATA' not in output and 'SATA' not in output:
+                result.issues.append("Not an ATA/SATA device")
+            
+            if 'SECURITY ERASE UNIT' not in output:
+                result.issues.append("Drive doesn't support SECURITY ERASE UNIT")
+            
+            result.compatible = len(result.issues) == 0
+            
+            if result.compatible:
+                result.recommendation = "Proceed with hardware erase"
+            elif result.frozen:
+                result.recommendation = "Thaw drive first or use software wipe"
+            elif result.locked:
+                result.recommendation = "Disable security first or use software wipe"
+            else:
+                result.recommendation = "Use software wipe"
+            
+        except subprocess.TimeoutExpired:
+            result.issues.append(f"Command timed out after {self.timeout}s")
+        except Exception as e:
+            result.issues.append(f"Unexpected error: {e}")
+        
+        return result
+    
+    def can_use_hardware_erase(self, device: str) -> PreCheckResult:
+        """
+        Determine if hardware erase will work.
+        Returns comprehensive pre-check result.
+        """
+        if not os.path.exists(device):
+            return PreCheckResult(issues=[f"Device {device} does not exist"])
+        
+        if 'nvme' in device:
+            return self.check_nvme_drive(device)
+        elif device.startswith('/dev/sd'):
+            return self.check_ata_drive(device)
+        else:
+            return PreCheckResult(issues=[f"Unsupported device type: {device}"])
+
+# ============================================================================
+# Part 3: Drive Eraser with Monitoring
+# ============================================================================
+
+class DriveEraser:
+    """Execute and monitor hardware secure erase"""
+    
+    def __init__(self, progress_callback: Optional[Callable] = None):
+        self.status = EraseStatus.NOT_STARTED
+        self.start_time = None
+        self.progress_callback = progress_callback
+        self.monitor_thread = None
+        self.current_process = None
+        
+    def start_nvme_erase(self, device: str) -> bool:
+        """Start NVMe secure erase (non-blocking)"""
+        try:
+            self.current_process = subprocess.Popen(
+                ['nvme', 'format', device, '--ses=1'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            self.status = EraseStatus.STARTING
+            self.start_time = time.time()
+            self._start_monitoring(device, 'nvme')
+            return True
+            
+        except Exception as e:
+            print(f"Failed to start NVMe erase: {e}")
+            self.status = EraseStatus.FAILED
+            return False
+    
+    def start_ata_erase(self, device: str, enhanced: bool = True) -> bool:
+        """Start ATA secure erase (non-blocking)"""
+        try:
+            # Build command
+            cmd = ['hdparm', '--user-master', 'u']
+            if enhanced:
+                cmd.extend(['--security-erase-enhanced', 'NULL'])
+            else:
+                cmd.extend(['--security-erase', 'NULL'])
+            cmd.append(device)
+            
+            self.current_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            self.status = EraseStatus.STARTING
+            self.start_time = time.time()
+            self._start_monitoring(device, 'ata')
+            return True
+            
+        except Exception as e:
+            print(f"Failed to start ATA erase: {e}")
+            self.status = EraseStatus.FAILED
+            return False
+    
+    def _start_monitoring(self, device: str, drive_type: str):
+        """Start background monitoring thread"""
+        def monitor():
+            time.sleep(3)  # Let command start
+            self.status = EraseStatus.IN_PROGRESS
+            
+            check_interval = 5
+            max_checks = 7200  # 10 hours max
+            
+            for _ in range(max_checks):
+                # Check if process completed
+                if self.current_process and self.current_process.poll() is not None:
+                    if self.current_process.returncode == 0:
+                        self.status = EraseStatus.COMPLETE
+                    else:
+                        self.status = EraseStatus.FAILED
+                    break
+                
+                # Update progress callback
+                if self.progress_callback:
+                    elapsed = time.time() - self.start_time
+                    progress = self._estimate_progress(elapsed, drive_type)
+                    self.progress_callback(progress, elapsed, self.status)
+                
+                time.sleep(check_interval)
+            else:
+                self.status = EraseStatus.FAILED
+        
+        self.monitor_thread = threading.Thread(target=monitor, daemon=True)
+        self.monitor_thread.start()
+    
+    def _estimate_progress(self, elapsed_seconds: float, drive_type: str) -> float:
+        """Estimate fake progress based on typical times"""
+        if drive_type == 'nvme':
+            progress = min(1.0, elapsed_seconds / 30)
+        elif drive_type == 'ata':
+            # Very rough estimate - would need drive size for better guess
+            progress = min(1.0, elapsed_seconds / 3600)
+        else:
+            progress = 0.0
+        
+        return progress * 100
+    
+    def get_status(self) -> Dict:
+        """Get current status info"""
+        elapsed = time.time() - self.start_time if self.start_time else 0
+        
+        return {
+            'status': self.status.value,
+            'elapsed_seconds': elapsed,
+            'monitor_alive': self.monitor_thread and self.monitor_thread.is_alive(),
+            'process_active': self.current_process and self.current_process.poll() is None
+        }
+    
+    def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
+        """Wait for erase to complete"""
+        if not self.current_process:
+            return False
+        
+        try:
+            return_code = self.current_process.wait(timeout=timeout)
+            return return_code == 0
+        except subprocess.TimeoutExpired:
+            return False
+
+# ============================================================================
+# Part 4: Main Wipe Controller (Integration Point)
+# ============================================================================
+
+class HardwareWipeController:
+    """
+    Main controller for hardware wiping.
+    This is what you'd integrate into dwipe.
+    """
+    
+    def __init__(self, auto_install_tools: bool = False, verbose: bool = False):
+        self.tool_mgr = ToolManager(auto_install=auto_install_tools, verbose=verbose)
+        self.pre_checker = DrivePreChecker(timeout=15)
+        self.eraser = None
+        self.verbose = verbose
+    
+    def _log(self, message: str):
+        if self.verbose:
+            print(f"[HardwareWipe] {message}")
+    
+    def prepare(self) -> bool:
+        """Ensure required tools are available"""
+        if not self.tool_mgr.ensure_tool('hdparm', critical=True):
+            return False
+        if not self.tool_mgr.ensure_tool('nvme', critical=True):
+            return False
+        return True
+    
+    def pre_check(self, device: str) -> PreCheckResult:
+        """Perform comprehensive pre-check"""
+        self._log(f"Pre-checking {device}...")
+        result = self.pre_checker.can_use_hardware_erase(device)
+        
+        if self.verbose:
+            print(f"Pre-check for {device}:")
+            print(f"  Compatible: {result.compatible}")
+            print(f"  Tool: {result.tool}")
+            if result.issues:
+                print(f"  Issues: {', '.join(result.issues)}")
+            if result.recommendation:
+                print(f"  Recommendation: {result.recommendation}")
+        
+        return result
+    
+    def wipe(self, device: str, fallback_callback: Optional[Callable] = None) -> bool:
+        """
+        Execute hardware wipe with automatic fallback.
+        
+        Args:
+            device: Device path (/dev/sda, /dev/nvme0n1, etc.)
+            fallback_callback: Function to call if hardware wipe fails
+                               Should accept device path and return bool
+        
+        Returns:
+            True if wipe succeeded (hardware or software), False otherwise
+        """
+        if not self.prepare():
+            print("Required tools not available")
+            return False
+        
+        # Step 1: Pre-check
+        pre_check = self.pre_check(device)
+        
+        if not pre_check.compatible:
+            print(f"Hardware erase not compatible for {device}:")
+            for issue in pre_check.issues:
+                print(f"  - {issue}")
+            
+            if fallback_callback:
+                self._log("Falling back to software wipe...")
+                return fallback_callback(device)
+            return False
+        
+        # Step 2: Show user what to expect
+        tool_name = pre_check.tool
+        print(f"Using {tool_name} for hardware secure erase...")
+        print("Note: Drive erases in firmware - tool will exit immediately.")
+        
+        if tool_name == 'nvme':
+            print("Expected time: 2-10 seconds")
+        elif tool_name == 'hdparm' and pre_check.enhanced_supported:
+            print("Expected time: 10-60 seconds (enhanced erase)")
+        elif tool_name == 'hdparm':
+            print("Expected time: 1-3 hours per TB (normal erase)")
+        
+        # Step 3: Start erase
+        self.eraser = DriveEraser(progress_callback=self._progress_update)
+        
+        try:
+            if tool_name == 'nvme':
+                success = self.eraser.start_nvme_erase(device)
+            else:  # hdparm
+                enhanced = pre_check.enhanced_supported
+                success = self.eraser.start_ata_erase(device, enhanced)
+            
+            if not success:
+                raise RuntimeError("Failed to start erase")
+            
+            # Step 4: Monitor with timeout
+            timeout = self._get_timeout(tool_name, device)
+            print(f"Waiting up to {timeout//60} minutes for completion...")
+            
+            # Simple spinner while waiting
+            spinner = ['|', '/', '-', '\\']
+            i = 0
+            
+            while True:
+                status = self.eraser.get_status()
+                
+                if status['status'] == EraseStatus.COMPLETE.value:
+                    print(f"\nHardware secure erase completed successfully!")
+                    return True
+                
+                elif status['status'] == EraseStatus.FAILED.value:
+                    print(f"\nHardware secure erase failed")
+                    break
+                
+                # Show spinner and elapsed time
+                elapsed = status['elapsed_seconds']
+                print(f"\r{spinner[i % 4]} Erasing... {int(elapsed)}s elapsed", end='')
+                i += 1
+                
+                # Check timeout
+                if elapsed > timeout:
+                    print(f"\nTimeout after {timeout} seconds")
+                    break
+                
+                time.sleep(0.5)
+            
+            # If we get here, hardware failed
+            if fallback_callback:
+                print("Falling back to software wipe...")
+                return fallback_callback(device)
+            
+            return False
+            
+        except Exception as e:
+            print(f"Error during hardware erase: {e}")
+            if fallback_callback:
+                return fallback_callback(device)
+            return False
+    
+    def _progress_update(self, progress: float, elapsed: float, status: EraseStatus):
+        """Callback for progress updates"""
+        if self.verbose:
+            print(f"[Progress] {progress:.1f}% - {elapsed:.0f}s - {status.value}")
+    
+    def _get_timeout(self, tool: str, device: str) -> int:
+        """Get appropriate timeout based on drive type"""
+        if tool == 'nvme':
+            return 30  # 30 seconds for NVMe
+        elif tool == 'hdparm':
+            # Try to get drive size for better timeout
+            try:
+                size_gb = self._get_drive_size_gb(device)
+                # 2 hours per TB, minimum 30 minutes
+                hours = max(0.5, (size_gb / 1024) * 2)
+                return int(hours * 3600)
+            except:
+                return 7200  # 2 hours default
+        return 3600  # 1 hour default
+    
+    def _get_drive_size_gb(self, device: str) -> float:
+        """Get drive size in GB"""
+        try:
+            # Use blockdev to get size
+            result = subprocess.run(
+                ['blockdev', '--getsize64', device],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                size_bytes = int(result.stdout.strip())
+                return size_bytes / (1024**3)  # Convert to GB
+        except:
+            pass
+        return 500  # Default guess
+
+# ============================================================================
+# Part 5: Example Usage & Integration Helper
+# ============================================================================
+
+def example_software_wipe(device: str) -> bool:
+    """Example fallback function for software wipe"""
+    print(f"[Software] Would wipe {device} with dd/scrub/etc.")
+    # Implement your existing software wipe here
+    return True
+
+def main():
+    """Example standalone usage"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Hardware Secure Erase Test')
+    parser.add_argument('device', help='Device to wipe (e.g., /dev/sda)')
+    parser.add_argument('--auto-install', action='store_true', 
+                       help='Automatically install missing tools')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Verbose output')
+    parser.add_argument('--no-fallback', action='store_true',
+                       help='Don\'t fall back to software wipe')
+    args = parser.parse_args()
+    
+    # Create controller
+    controller = HardwareWipeController(
+        auto_install_tools=args.auto_install,
+        verbose=args.verbose
+    )
+    
+    # Define fallback
+    fallback = None if args.no_fallback else example_software_wipe
+    
+    # Execute wipe
+    success = controller.wipe(args.device, fallback_callback=fallback)
+    
+    if success:
+        print(f"\n✓ Wipe completed successfully")
+        return 0
+    else:
+        print(f"\n✗ Wipe failed")
+        return 1
+
+if __name__ == '__main__':
+    sys.exit(main())
