@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package test;
+
+option go_package = "github.com/dvaldivia/grpctunnel-py/integrationtests/go-interop/echopb";
+
+// Simple echo service for testing the tunnel implementation
+service EchoService {
+  // Echo returns the same message that was sent
+  rpc Echo(EchoRequest) returns (EchoResponse);
+
+  // EchoError returns an error with the specified code and message
+  rpc EchoError(ErrorRequest) returns (EchoResponse);
+
+  // EchoServerStream returns multiple responses for a single request
+  rpc EchoServerStream(EchoRequest) returns (stream EchoResponse);
+
+  // EchoClientStream accepts multiple requests and returns a single response
+  rpc EchoClientStream(stream EchoRequest) returns (EchoResponse);
+
+  // EchoBidiStream accepts a stream of requests and returns a stream of responses
+  rpc EchoBidiStream(stream EchoRequest) returns (stream EchoResponse);
+}
+
+message EchoRequest {
+  string message = 1;
+}
+
+message EchoResponse {
+  string message = 1;
+}
+
+message ErrorRequest {
+  int32 code = 1;
+  string message = 2;
+}

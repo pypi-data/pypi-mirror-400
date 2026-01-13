@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package edge.v1;
+
+option go_package = "github.com/dvaldivia/grpctunnel-py/test-projects/go-tunnel/pb";
+
+// EdgeService defines the API exposed by edge workers.
+// The control plane can call these methods via the reverse tunnel to interact
+// with edge workers behind NAT/firewalls.
+service EdgeService {
+  // GetId returns the unique identifier of this edge worker.
+  rpc GetId(GetIdRequest) returns (GetIdResponse);
+
+  // GetWhatTimeItIs returns the current time on the edge worker.
+  // This demonstrates that the control plane can call back to the edge.
+  rpc GetWhatTimeItIs(GetTimeRequest) returns (GetTimeResponse);
+}
+
+// GetIdRequest is the request to get the edge worker's ID.
+message GetIdRequest {
+  // Empty request - no parameters needed
+}
+
+// GetIdResponse contains the edge worker's unique identifier.
+message GetIdResponse {
+  // id is the unique identifier of this edge worker
+  string id = 1;
+
+  // hostname is the hostname of the machine running the edge worker
+  string hostname = 2;
+}
+
+// GetTimeRequest asks for the current time on the edge worker.
+message GetTimeRequest {
+  // Empty request - no parameters needed
+}
+
+// GetTimeResponse contains the current time information.
+message GetTimeResponse {
+  // timestamp is the Unix timestamp (seconds since epoch)
+  int64 timestamp = 1;
+
+  // formatted is a human-readable timestamp string
+  string formatted = 2;
+
+  // timezone is the timezone of the edge worker
+  string timezone = 3;
+}
