@@ -1,0 +1,122 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "greenWTE"
+description = "Solve the Wigner Transport Equation with a source term!"
+authors = [{ name = "Laurenz Kremeyer", email = "laurenz.kremeyer@mail.mcgill.ca" }]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+readme = "README.rst"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Intended Audience :: Science/Research",
+  "Environment :: GPU",
+  "License :: OSI Approved :: BSD License",
+]
+dynamic = ["version"]
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=2",
+  "scipy~=1.15",
+  "h5py",
+  "hdf5plugin",
+]
+
+[project.urls]
+Homepage = "https://github.com/kremeyer/greenWTE"
+Documentation = "https://greenwte.readthedocs.io"
+Repository = "https://github.com/kremeyer/greenWTE"
+Changelog = "https://github.com/kremeyer/greenWTE/blob/main/CHANGELOG.md"
+Author = "https://scholar.google.com/citations?user=gKsq_08AAAAJ"
+
+[project.optional-dependencies]
+cuda12x = ["cupy-cuda12x>=12.0"]
+cuda13x = ["cupy-cuda13x>=13.0"]
+docs = [
+  "typing_extensions",
+  "sphinx",
+  "sphinx-rtd-theme",
+  "sphinx-argparse",
+  "matplotlib",
+]
+
+[tool.hatch]
+version.path = "greenWTE/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/doc",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["greenWTE"]
+
+[tool.hatch.envs.test]
+default-args = ["greenWTE/tests"]
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+feature = ["cuda12x", "cuda13x"]
+
+[tool.hatch.envs.test.scripts]
+run = "export GREENWTE_BACKEND=CPU && pytest -n auto"
+run_gpu = "pytest"
+
+[tool.hatch.envs.docs]
+dependencies = ["typing_extensions", "sphinx", "sphinx-rtd-theme", "sphinx-argparse", "matplotlib"]
+
+[tool.hatch.envs.docs.scripts]
+build = "export GREENWTE_BACKEND=CPU && cd doc && make clean && make doctest && make html"
+serve = "python -m http.server -d doc/_build/html"
+
+[tool.ruff]
+line-length = 120
+src = ["greenWTE"]
+
+[tool.ruff.lint]
+select = [
+    "F", # pyflakes
+    "B", # flake8-bugbear
+    "SIM", # flake8-simplify
+    "I", # isort
+    "E", # pycodestyle-errors
+    "D", # pydocstyle
+]
+ignore = [
+    "D203", # numpy doc style
+    "D213", # numpy doc style
+    "B023", # function-uses-loop-variable
+    "B008", # function-call-in-default-argument
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["greenWTE/tests"]
+addopts = "--cov=greenWTE --cov-report=term-missing --cov-report=xml --cov-config=pyproject.toml"
+filterwarnings = [
+  # Ignore NumPy lstsq rcond deprecation emitted inside cupyx.scipy.sparse.linalg.gmres
+  "ignore:`rcond` parameter will change:FutureWarning:cupyx\\.scipy\\.sparse\\.linalg\\._iterative",
+  # Ignoe NumPy product deprecation emitted inside h5py
+  "ignore: `product` is deprecated as of NumPy 1.25.0, and will be removed in NumPy 2.0. Please use `prod` instead.",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["greenWTE"]
+omit = ["greenWTE/post.py", "greenWTE/tests/*"]
+parallel = true
+sigterm = true
+patch = ["subprocess"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = [
+  "def __repr__",
+]
