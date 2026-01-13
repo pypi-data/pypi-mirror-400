@@ -1,0 +1,1 @@
+function r(){return{identifier:"(none)",uuid:"0"}}function t(){return{coordinate_system:r(),country:Array(),discovery:Array(),field:Array(),stratigraphic_column:r()}}function i(e){return e.split("rms/model/").pop()??""}export{t as a,r as e,i as g};
