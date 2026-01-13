@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=64.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "np-vmd"  # The name on PyPI (dashes are standard here)
+dynamic = ["version"]
+authors = [
+    {name = "N. Papadakis", email = "npapnet@gmail.com"},
+]
+description = "A package for Vibrations and Machine Dynamics"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "matplotlib",
+    "scipy",
+    "numpy",
+    "seaborn",
+    "pandas",
+    "openpyxl",
+    "ipykernel",
+    "jupyter",
+]
+
+# -----------------------------------------------------------------------
+# THE FIX: This header was missing. 
+# It groups the lists below into the correct optional dependencies category.
+# -----------------------------------------------------------------------
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",  # Recommended for coverage reports
+]
+dev = [
+    "ruff",        # The linter/formatter
+    "mypy",        # Static type checker
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",  # The standard "ReadTheDocs" theme (highly recommended)
+    "sphinxcontrib-mermaid", # <--- Add this
+]
+
+[project.urls]
+Source = "https://github.com/npapnet/np-vmd"
+Documentation = "https://npapnet.github.io/np-vmd/"
+
+# --- Tool Configurations ---
+
+[tool.setuptools.dynamic]
+version = {attr = "np_vmd.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["np_vmd*"]
+namespaces = false
+
+[tool.ruff]
+# Ruff config: adhere to 88 line length (Black standard)
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+# E: pycodestyle, F: Pyflakes, I: isort (imports sorting)
+select = ["E", "F", "I"] 
+
+[tool.mypy]
+# I removed 'python_version'. 
+# Now mypy will default to checking against the active Python interpreter.
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["scipy.*", "matplotlib.*", "numpy.*", "pandas.*", "seaborn.*"]
+ignore_missing_imports = true
