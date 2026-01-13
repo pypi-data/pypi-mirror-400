@@ -1,0 +1,99 @@
+Metadata-Version: 2.4
+Name: anki-utils
+Version: 0.2.92
+Summary: Python utilities for creating Anki flashcards. Designed for AI agent integration.
+License: MIT
+Project-URL: Homepage, https://pypi.org/project/anki-utils/
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: genanki
+Requires-Dist: Pillow
+Requires-Dist: pytesseract
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: towncrier>=23.0; extra == "dev"
+
+# anki-utils
+
+Python utilities for creating Anki flashcards. Designed for AI agent integration.
+
+## Install
+
+```bash
+pip install anki-utils
+```
+
+## Features
+
+- **Card Generation**: Create `.apkg` files for 6 card types (Front-Back, Concept, Cloze, Image, Person, Image Occlusion)
+- **Theme System**: 4 built-in themes (minimal, classic, high-contrast, calm)
+- **Markdown Support**: Convert markdown formatting to Anki-compatible HTML
+- **Input Validation**: Clear error messages for invalid card data
+- **Image Occlusion**: OCR-based automatic region detection
+- **Preview Assets**: React components for card preview
+- **Agent-Friendly**: CLI commands for querying roadmap and changelog
+
+## Quick Start
+
+```bash
+# Generate .apkg from JSON
+echo '{"deck_name": "Test", "cards": [...]}' | anki-utils export-apkg --output deck.apkg
+
+# Resolve relative media paths (image_path/photo_path) against a base directory
+echo '{"deck_name": "Test", "cards": [...]}' | anki-utils export-apkg --output deck.apkg --base-path /path/to/project
+
+# List available themes
+anki-utils themes --list
+
+# Get preview template
+anki-utils asset preview-template
+
+# Detect occlusion regions in an image
+anki-utils occlusion-detect image.jpg --json
+```
+
+## For AI Agents
+
+See **[AGENTS.md](AGENTS.md)** for complete context on working with this codebase.
+
+```bash
+anki-utils roadmap                    # Full roadmap
+anki-utils changelog --latest         # Most recent changes
+```
+
+## Development
+
+```bash
+# Clone and install in dev mode
+git clone https://github.com/Gilbetrar/anki-package.git
+cd anki-package
+pip install -e ".[dev]"
+
+# Run tests
+pytest -v
+
+# Run with coverage
+pytest --cov=anki_utils
+```
+
+## Repository Structure
+
+```
+anki-package/
+├── AGENTS.md            # Context for AI coding agents
+├── anki_utils/          # Published PyPI package
+│   ├── exporter.py      # Core .apkg generation
+│   ├── markdown.py      # Markdown to HTML conversion
+│   ├── themes.py        # CSS theme definitions
+│   ├── occlusion.py     # Image occlusion detection
+│   ├── cli.py           # Command-line interface
+│   ├── ROADMAP.md       # Development roadmap
+│   └── CHANGELOG.md     # Version history
+├── tests/               # Test suite (pytest)
+└── .github/workflows/   # CI/CD (runs tests on push/PR)
+```
+
+## License
+
+MIT

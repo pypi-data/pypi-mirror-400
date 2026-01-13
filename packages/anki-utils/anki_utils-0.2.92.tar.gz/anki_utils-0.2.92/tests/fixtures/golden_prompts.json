@@ -1,0 +1,287 @@
+{
+  "description": "Golden example test cases for card structure validation. These test the JSON->card pipeline, not LLM output.",
+  "golden_examples": [
+    {
+      "name": "simple_vocabulary_front_back",
+      "description": "Basic vocabulary card with question/answer",
+      "input_json": {
+        "type": "front-back",
+        "question": "What is the capital of France?",
+        "answer": "Paris"
+      },
+      "expected": {
+        "card_type": "front-back",
+        "required_fields_present": ["question", "answer"],
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "vocabulary_with_all_optional_fields",
+      "description": "Front-back card with all optional fields populated",
+      "input_json": {
+        "type": "front-back",
+        "question": "What is photosynthesis?",
+        "answer": "The process by which plants convert light energy into chemical energy",
+        "example": "Plants use chlorophyll to capture sunlight",
+        "extra_info": "Occurs primarily in chloroplasts",
+        "author": "Biology Teacher",
+        "source": "Biology 101 Textbook",
+        "source_link": "https://example.com/biology",
+        "tags": ["biology", "plants", "energy"]
+      },
+      "expected": {
+        "card_type": "front-back",
+        "required_fields_present": ["question", "answer"],
+        "optional_fields_present": ["example", "extra_info", "author", "source", "source_link"],
+        "tags_applied": ["biology", "plants", "energy"],
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "concept_bidirectional",
+      "description": "Concept card generates two cards (bidirectional)",
+      "input_json": {
+        "type": "concept",
+        "concept": "Mitochondria",
+        "definition": "The powerhouse of the cell that produces ATP through cellular respiration"
+      },
+      "expected": {
+        "card_type": "concept",
+        "required_fields_present": ["concept", "definition"],
+        "cards_generated": 2,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "concept_with_example",
+      "description": "Concept card with example field",
+      "input_json": {
+        "type": "concept",
+        "concept": "Recursion",
+        "definition": "A programming technique where a function calls itself",
+        "example": "Calculating factorial: n! = n * (n-1)!",
+        "tags": ["programming", "algorithms"]
+      },
+      "expected": {
+        "card_type": "concept",
+        "required_fields_present": ["concept", "definition"],
+        "optional_fields_present": ["example"],
+        "tags_applied": ["programming", "algorithms"],
+        "cards_generated": 2,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "cloze_single_deletion",
+      "description": "Cloze card with single deletion generates one card",
+      "input_json": {
+        "type": "cloze",
+        "cloze_text": "The {{c1::mitochondria}} is the powerhouse of the cell."
+      },
+      "expected": {
+        "card_type": "cloze",
+        "required_fields_present": ["cloze_text"],
+        "cloze_count": 1,
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "cloze_multiple_deletions",
+      "description": "Cloze card with multiple deletions generates multiple cards",
+      "input_json": {
+        "type": "cloze",
+        "cloze_text": "The {{c1::mitochondria}} is the {{c2::powerhouse}} of the {{c3::cell}}.",
+        "tags": ["biology"]
+      },
+      "expected": {
+        "card_type": "cloze",
+        "required_fields_present": ["cloze_text"],
+        "cloze_count": 3,
+        "cards_generated": 3,
+        "tags_applied": ["biology"],
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "cloze_with_hint",
+      "description": "Cloze card with hint syntax",
+      "input_json": {
+        "type": "cloze",
+        "cloze_text": "The chemical symbol for water is {{c1::H2O::hint: two hydrogen atoms}}."
+      },
+      "expected": {
+        "card_type": "cloze",
+        "required_fields_present": ["cloze_text"],
+        "cloze_count": 1,
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "cloze_same_number_multiple_blanks",
+      "description": "Multiple blanks with same cloze number appear on same card",
+      "input_json": {
+        "type": "cloze",
+        "cloze_text": "{{c1::Red}}, {{c1::blue}}, and {{c1::yellow}} are primary colors."
+      },
+      "expected": {
+        "card_type": "cloze",
+        "required_fields_present": ["cloze_text"],
+        "cloze_count": 1,
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "person_minimal",
+      "description": "Person card with only required field generates no cards",
+      "input_json": {
+        "type": "person",
+        "full_name": "John Doe"
+      },
+      "expected": {
+        "card_type": "person",
+        "required_fields_present": ["full_name"],
+        "cards_generated": 0,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "person_with_multiple_fields",
+      "description": "Person card generates one card per optional field",
+      "input_json": {
+        "type": "person",
+        "full_name": "Jane Smith",
+        "birthday": "March 15",
+        "current_city": "San Francisco",
+        "title": "Software Engineer",
+        "company": "Tech Corp",
+        "hobbies": "Reading, hiking"
+      },
+      "expected": {
+        "card_type": "person",
+        "required_fields_present": ["full_name"],
+        "optional_fields_present": ["birthday", "current_city", "title", "company", "hobbies"],
+        "cards_generated": 5,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "image_recognition",
+      "description": "Image recognition card structure",
+      "input_json": {
+        "type": "image",
+        "image_path": "/path/to/landmark.jpg",
+        "prompt": "What famous landmark is this?",
+        "answer": "The Eiffel Tower"
+      },
+      "expected": {
+        "card_type": "image",
+        "required_fields_present": ["image_path", "prompt", "answer"],
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "markdown_in_fields",
+      "description": "Markdown formatting is preserved in card fields",
+      "input_json": {
+        "type": "front-back",
+        "question": "What does **bold** mean in **Markdown**?",
+        "answer": "Text wrapped in `**` becomes *emphasized*"
+      },
+      "expected": {
+        "card_type": "front-back",
+        "required_fields_present": ["question", "answer"],
+        "contains_markdown": true,
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "invalid_missing_type",
+      "description": "Card without type field fails validation",
+      "input_json": {
+        "question": "What is this?",
+        "answer": "Something"
+      },
+      "expected": {
+        "validation_passes": false,
+        "error_contains": "missing required 'type' field"
+      }
+    },
+    {
+      "name": "invalid_unknown_type",
+      "description": "Card with unknown type fails validation",
+      "input_json": {
+        "type": "unknown-card-type",
+        "question": "What is this?",
+        "answer": "Something"
+      },
+      "expected": {
+        "validation_passes": false,
+        "error_contains": "invalid type"
+      }
+    },
+    {
+      "name": "invalid_cloze_no_syntax",
+      "description": "Cloze card without cloze syntax fails validation",
+      "input_json": {
+        "type": "cloze",
+        "cloze_text": "This has no cloze deletions in it."
+      },
+      "expected": {
+        "validation_passes": false,
+        "error_contains": "must contain cloze syntax"
+      }
+    },
+    {
+      "name": "invalid_front_back_missing_answer",
+      "description": "Front-back card without answer fails validation",
+      "input_json": {
+        "type": "front-back",
+        "question": "What is the capital of France?"
+      },
+      "expected": {
+        "validation_passes": false,
+        "error_contains": "missing required field 'answer'"
+      }
+    },
+    {
+      "name": "batch_tags_applied",
+      "description": "Batch tags are merged with card tags",
+      "input_json": {
+        "type": "front-back",
+        "question": "Sample question",
+        "answer": "Sample answer",
+        "tags": ["card-tag"]
+      },
+      "batch_tags": ["batch-tag-1", "batch-tag-2"],
+      "expected": {
+        "card_type": "front-back",
+        "tags_applied": ["card-tag", "batch-tag-1", "batch-tag-2"],
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    },
+    {
+      "name": "theme_selection",
+      "description": "Theme is applied to generated cards",
+      "input_json": {
+        "type": "front-back",
+        "question": "Question",
+        "answer": "Answer"
+      },
+      "theme": "high-contrast",
+      "expected": {
+        "card_type": "front-back",
+        "theme_applied": "high-contrast",
+        "cards_generated": 1,
+        "validation_passes": true
+      }
+    }
+  ]
+}
