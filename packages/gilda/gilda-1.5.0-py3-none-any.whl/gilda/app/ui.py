@@ -1,0 +1,199 @@
+from textwrap import dedent
+import csv
+from io import StringIO
+
+from flask import Blueprint, render_template, request
+from flask_wtf import FlaskForm
+from wtforms import SelectMultipleField, StringField, SubmitField, TextAreaField
+from wtforms.validators import DataRequired
+import markupsafe
+
+from gilda.app.proxies import grounder
+from gilda import __version__ as version
+from gilda.resources import organism_labels, popular_organisms
+
+__all__ = [
+    "ui_blueprint",
+]
+
+ORGANISMS_FIELD = SelectMultipleField(
+    "Species priority (optional)",
+    choices=[(org, organism_labels[org]) for org in popular_organisms],
+    id="organism-select",
+    description=dedent(
+        """\
+        Optionally select one or more taxonomy
+        species IDs to define a species priority list.  Click
+        <a type="button" href="#" data-toggle="modal" data-target="#species-modal">
+        here <i class="far fa-question-circle">
+        </i></a> for more details.
+    """
+    ),
+)
+
+
+class GroundForm(FlaskForm):
+    text = StringField(
+        "Entity text",
+        validators=[DataRequired()],
+        description='Input the entity text (e.g., <span class="bg-info">k-ras</span>) to ground.',
+    )
+    context = TextAreaField(
+        "Context (optional)",
+        description=dedent(
+            """\
+            Optionally provide additional text context to help disambiguation. Click
+            <a type="button" href="#" data-toggle="modal" data-target="#context-modal">
+            here <i class="far fa-question-circle">
+            </i></a> for more details.
+        """
+        ),
+    )
+    organisms = ORGANISMS_FIELD
+    submit = SubmitField("Submit")
+
+    def get_matches(self):
+        return grounder.ground(
+            self.text.data, context=self.context.data, organisms=self.organisms.data
+        )
+
+
+class NERForm(FlaskForm):
+    text = TextAreaField(
+        "Text",
+        validators=[DataRequired()],
+        description=dedent(
+            """\
+            <p>Enter text to annotate with named entities and corresponding identifiers.
+            The results will highlight recognized entities and provide 
+            text position, grounding information and normalized name for each 
+            entity.</p> <p>Click 
+            <a href="#" onclick="fillExample(); return false;">here</a>
+            for an example input text from an
+            <a href="https://pubmed.ncbi.nlm.nih.gov/21040840/">article</a> 
+            about small G-proteins."""
+        ),
+        render_kw={"rows": 6},
+    )
+    organisms = ORGANISMS_FIELD
+    submit = SubmitField("Submit")
+
+    def get_annotations(self):
+        from gilda.ner import annotate
+
+        return annotate(
+            self.text.data, grounder=grounder, organisms=self.organisms.data
+        )
+
+
+ui_blueprint = Blueprint("ui", __name__, url_prefix="/")
+
+
+@ui_blueprint.route("/", methods=["GET", "POST"])
+def home():
+    text = request.args.get("text")
+    if text is not None:
+        context = request.args.get("context")
+        organisms = request.args.getlist("organisms")
+        matches = grounder.ground(text, context=context, organisms=organisms)
+        return render_template(
+            "matches.html", matches=matches, version=version, text=text, context=context
+        )
+
+    form = GroundForm()
+    if form.validate_on_submit():
+        matches = form.get_matches()
+        return render_template(
+            "matches.html",
+            matches=matches,
+            version=version,
+            text=form.text.data,
+            context=form.context.data,
+            # Add a new form that doesn't auto-populate
+            form=GroundForm(formdata=None),
+        )
+    return render_template("home.html", form=form, version=version)
+
+
+@ui_blueprint.route("/ner", methods=["GET", "POST"])
+def view_ner():
+    form = NERForm()
+    if form.validate_on_submit():
+        annotations = form.get_annotations()
+        annotated_text = get_annotated_text(form.text.data, annotations)
+
+        # Generate CSV data
+        si = StringIO()
+        writer = csv.writer(si)
+        writer.writerow([
+            "Start", "End", "Text", "Grounding", "Standard Name", "Score",
+            "Additional Groundings", "URL"
+        ])
+
+        # Write data
+        for annotation in annotations:
+            match = annotation.matches[0]
+            match_curie = match.term.get_curie()
+            additional_groundings = ", ".join(
+                curie for curie in match.get_grounding_dict().keys()
+                if curie != match_curie
+            )
+
+            writer.writerow([
+                f"{annotation.start}",
+                f"{annotation.end}",
+                annotation.text,
+                match_curie,
+                match.term.entry_name,
+                f"{match.score:.4f}",
+                additional_groundings,
+                match.url
+            ])
+
+        csv_data = si.getvalue()
+
+        return render_template(
+            "ner_matches.html",
+            annotations=annotations,
+            version=version,
+            text=annotated_text,
+            csv_data=csv_data,
+            # Add a new form that doesn't auto-populate
+            form=NERForm(formdata=None),
+        )
+    return render_template("ner_home.html", form=form, version=version)
+
+
+def get_annotated_text(text, annotations):
+    """Return HTML-annotated text with entity annotations as tooltips."""
+    if not annotations:
+        return markupsafe.escape(text)
+
+    # Sort annotations by start index
+    annotations = sorted(annotations, key=lambda ann: ann.start)
+    annotated_parts = []
+    last_index = 0
+    for ann in annotations:
+        # Add text before the annotation
+        annotated_parts.append(markupsafe.escape(text[last_index:ann.start]))
+
+        # Create the annotated span
+        match = ann.matches[0]
+        match_curie = match.term.get_curie()
+        additional_groundings = ", ".join(
+            curie for curie in match.get_grounding_dict().keys()
+            if curie != match_curie
+        )
+        title_attr = (f"Grounding: {match_curie} ({match.term.entry_name}), "
+                      f"Score: {match.score:.4f}")
+        if additional_groundings:
+            title_attr += f", Additional groundings: {additional_groundings}"
+        span = (f'<span class="annotated-entity" '
+                f'title="{markupsafe.escape(title_attr)}">'
+                f'{markupsafe.escape(ann.text)}</span>')
+        annotated_parts.append(span)
+        last_index = ann.end
+
+    # Add remaining text after the last annotation
+    annotated_parts.append(markupsafe.escape(text[last_index:]))
+    return markupsafe.Markup("".join(annotated_parts))
