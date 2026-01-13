@@ -1,0 +1,207 @@
+***** Test: e:\signum-project\tests\simple_test_signum.py
+MAX_PASSES: 10000
+*** Windows: high priority for process 8504 was successfully set ***
+
+ 1 --- int
+sign(-5): -1
+sign(-1): -1
+sign(0): 0
+sign(1): 1
+sign(5): 1
+   ---  5 tests for Sec.  1 passed, total   5 tests passed
+
+ 2 --- bool
+sign(True): 1
+sign(False): 0
+   ---  2 tests for Sec.  2 passed, total   7 tests passed
+
+ 3 --- big numbers
+sign(10**1000): 1
+sign(-10**1000): -1
+sign(10**1000-10**1000): 0
+   ---  3 tests for Sec.  3 passed, total  10 tests passed
+
+ 4 --- float
+sign(-5.0): -1
+sign(-1.0): -1
+sign(0.0): 0
+sign(1.0): 1
+sign(5.0): 1
+   ---  5 tests for Sec.  4 passed, total  15 tests passed
+
+ 5 --- -0.0 and +0.0
+sign(float('-0.0')): 0
+sign(float('+0.0')): 0
+   ---  2 tests for Sec.  5 passed, total  17 tests passed
+
+ 6 --- -inf and inf
+sign(-inf): -1
+sign(inf): 1
+   ---  2 tests for Sec.  6 passed, total  19 tests passed
+
+ 7 --- -nan and nan
+sign(float('-nan')): nan
+sign(nan): nan
+sign(0.0*nan): nan
+   ---  3 tests for Sec.  7 passed, total  22 tests passed
+
+ 8 --- Fraction
+sign(Fraction(-5, 2)): -1
+sign(Fraction(-1, 2)): -1
+sign(Fraction(0, 2)): 0
+sign(Fraction(1, 2)): 1
+sign(Fraction(5, 2)): 1
+   ---  5 tests for Sec.  8 passed, total  27 tests passed
+
+ 9 --- Decimal
+sign(Decimal(-5.5)): -1
+sign(Decimal(-1.5)): -1
+sign(Decimal(0.0)): 0
+sign(Decimal(1.5)): 1
+sign(Decimal(5.5)): 1
+   ---  5 tests for Sec.  9 passed, total  32 tests passed
+
+10 --- Decimal('NaN')
+sign(Decimal('NaN')): nan
+   ---  1 test  for Sec. 10 passed, total  33 tests passed
+
+11 --- sympy (substitution and Rational)
+val: -3.14000000000000; type(val): <class 'sympy.core.numbers.Float'>
+type(val > 0): <class 'sympy.logic.boolalg.BooleanFalse'>
+sign(val): -1
+sign(sympy.Rational(3, 4)): 1
+   ---  2 tests for Sec. 11 passed, total  35 tests passed
+
+12 --- sympy.nan
+sign(sympy.nan): nan
+   ---  1 test  for Sec. 12 passed, total  36 tests passed
+
+13 --- My Custom Class That Have >, <, == With Numbers But Nothing Else
+sign(_MyNumber(-5)): -1
+sign(_MyNumber(-1)): -1
+sign(_MyNumber(0)): 0
+sign(_MyNumber(1)): 1
+sign(_MyNumber(5.1)): 1
+- signum.sign: invalid argument `MyNumber(nan)`. Type 'MyNumber' does not support order comparisons (>, <, ==) or NaN detection.
+   ---  6 tests for Sec. 13 passed, total  42 tests passed
+
+14 --- invalid number of positional arguments (0, 0 with keys, 2, 3, 4)
+- signum.sign() takes 1 positional argument but 0 were given
+- signum.sign() takes 1 positional argument but 0 were given
+- signum.sign() takes 1 positional argument but 2 were given
+- signum.sign() takes 1 positional argument but 3 were given
+- signum.sign() takes 1 positional argument but 4 were given
+- signum.sign() takes 1 positional argument but 5 were given
+- signum.sign() got an unexpected keyword argument 'code_shift'
+   ---  7 tests for Sec. 14 passed, total  49 tests passed
+
+15 --- ExplodingNumber, NotImplementedNumber
+- signum.sign: invalid argument `ExplodingNumber(-3.14)` (type 'ExplodingNumber'). Inner error: <class 'RuntimeError'> returned a result with an exception set
+- signum.sign: invalid argument `NotImplementedNumber(-3.14)` (type 'NotImplementedNumber'). Inner error: <function NotImplementedNumber.__lt__ at 0x000002569E392C00> returned a result with an exception set
+   ---  2 tests for Sec. 15 passed, total  51 tests passed
+
+16 --- inappropriate argument types (None, str, complex, list, set)
+- signum.sign: invalid argument `None` (type 'NoneType'). Inner error: '<' not supported between instances of 'NoneType' and 'int'
+- signum.sign: invalid argument `'5.0'` (type 'str'). Inner error: '<' not supported between instances of 'str' and 'int'
+- signum.sign: invalid argument `'nan'` (type 'str'). Inner error: '<' not supported between instances of 'str' and 'int'
+- signum.sign: invalid argument `'number 5'` (type 'str'). Inner error: '<' not supported between instances of 'str' and 'int'
+- signum.sign: invalid argument `(-1+1j)` (type 'complex'). Inner error: '<' not supported between instances of 'complex' and 'int'
+- signum.sign: invalid argument `[-8.75]` (type 'list'). Inner error: '<' not supported between instances of 'list' and 'int'
+- signum.sign: invalid argument `{-3.14}` (type 'set'). Inner error: '<' not supported between instances of 'set' and 'int'
+   ---  7 tests for Sec. 16 passed, total  58 tests passed
+
+17 --- preprocess key, simple argument replacement, string conversion
+sign('5.0', preprocess=lambda a: (float(a),)): 1
+sign('nan', preprocess=lambda a: (float(a),)): nan
+sign(-18, preprocess=lambda a: (float(a),)): -1
+   ---  3 tests for Sec. 17 passed, total  61 tests passed
+
+18 --- preprocess key, argument replacement, treat small number as zero
+sign(-1, preprocess=lambda a: (0 if abs(a) < _EPS else a,)): -1
+sign(0, preprocess=lambda a: (0 if abs(a) < _EPS else a,)): 0
+sign(-1.87e-18, preprocess=lambda a: (0 if abs(a) < _EPS else a,)): 0
+sign(5.0, preprocess=lambda a: (0 if abs(a) < _EPS else a,)): 1
+   ---  4 tests for Sec. 18 passed, total  65 tests passed
+
+19 --- preprocess key, replace only string argument, extract number from string
+sign("☠️15 men on the dead man's chest☠️", preprocess=n_extract): 1
+sign('Temperature is -.12e+02 °C', preprocess=n_extract): -1
+- signum.sign: invalid argument `'error'` (type 'str'). Inner error: '<' not supported between instances of 'str' and 'int'
+sign(123, preprocess=n_extract): 1
+   ---  4 tests for Sec. 19 passed, total  69 tests passed
+
+20 --- preprocess key, replace result, permits complex arguments
+sign((-1+1j), preprocess=c_prep): (-0.7071067811865475+0.7071067811865475j)
+sign(-18.4, preprocess=c_prep): -1
+   ---  2 tests for Sec. 20 passed, total  71 tests passed
+
+21 --- preprocess key, replace result, float result for 'float' and 'Decimal', sign recursion
+sign(-5, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, (float, Decimal)) else None): -1
+sign(-5.0, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, (float, Decimal)) else None): -1.0
+sign(Decimal('-5.5'), preprocess=lambda a: (a, float(sign(a))) if isinstance(a, (float, Decimal)) else None): -1.0
+   ---  3 tests for Sec. 21 passed, total  74 tests passed
+
+22 --- preprocess key, replace result or argument, treat small number as zero differently
+sign(-1, preprocess=ppl): -1
+sign(0, preprocess=ppl): 0
+sign(-1.87e-18, preprocess=ppl): 0
+sign(5.0, preprocess=ppl): 1
+   ---  4 tests for Sec. 22 passed, total  78 tests passed
+
+23 --- if_exc key (exception safety)
+Type: 'NoneType' ? sign(None, if_exc=(None,)): None
+Type: 'str'      ? sign('5.0', if_exc=(-2,)): -2
+Type: 'str'      ? sign('nan', if_exc=(nan,)): nan
+Type: 'str'      ? sign('number 5', if_exc=(None,)): None
+Type: 'complex'  ? sign((-1+1j), if_exc=(None,)): None
+Type: 'list'     ? sign([-8.75], if_exc=(-2,)): -2
+Type: 'set'      ? sign({-3.14}, if_exc=(nan,)): nan
+Type: 'int'      ! sign(-1, if_exc=(None,)): -1
+Type: 'float'    ! sign(31.4, if_exc=(None,)): 1
+Type: 'float'    ! sign(nan, if_exc=(-2,)): nan
+Type: 'Fraction' ! sign(Fraction(-99, 19), if_exc=(nan,)): -1
+Type: 'Decimal'  ! sign(Decimal('101.78'), if_exc=(None,)): 1
+   --- 12 tests for Sec. 23 passed, total  90 tests passed
+
+24 --- both preprocess and if_exc key
+sign(-5, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, (float, Decimal)) else None, if_exc=(None,)): -1
+sign(-5.0, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, (float, Decimal)) else None, if_exc=(None,)): -1.0
+sign(Decimal('-5.5'), preprocess=lambda a: (a, float(sign(a))) if isinstance(a, (float, Decimal)) else None, if_exc=(None,)): -1.0
+sign('error', preprocess=lambda a: (a, float(sign(a))) if isinstance(a, (float, Decimal)) else None, if_exc=(None,)): None
+   ---  4 tests for Sec. 24 passed, total  94 tests passed
+
+25 --- codeshift and key combinations
+sign('error', codeshift=2): 0
+sign(-5, codeshift=2): 1
+sign(0, codeshift=2): 2
+sign(5, codeshift=2): 3
+sign(nan, codeshift=2): 4
+   ---
+sign('error', if_exc=(13,), codeshift=2): 13
+sign(-5, if_exc=(13,), codeshift=2): 1
+sign(0, if_exc=(13,), codeshift=2): 2
+sign(5, if_exc=(13,), codeshift=2): 3
+sign(nan, if_exc=(13,), codeshift=2): 4
+   ---
+sign('error', preprocess=lambda a: (0 if abs(a) < _EPS else a,), codeshift=2): 0
+sign(-1, preprocess=lambda a: (0 if abs(a) < _EPS else a,), codeshift=2): 1
+sign(0, preprocess=lambda a: (0 if abs(a) < _EPS else a,), codeshift=2): 2
+sign(-1.87e-18, preprocess=lambda a: (0 if abs(a) < _EPS else a,), codeshift=2): 2
+sign(5.0, preprocess=lambda a: (0 if abs(a) < _EPS else a,), codeshift=2): 3
+   ---
+sign('error', preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, codeshift=1): -1
+sign(-5.0, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, codeshift=1): -1.0
+sign(0.0, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, codeshift=1): 0.0
+sign(0, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, codeshift=1): 1
+sign(5, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, codeshift=1): 2
+sign(nan, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, codeshift=1): nan
+   ---
+sign('error', preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, if_exc=(13,), codeshift=1): 13
+sign(-5.0, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, if_exc=(13,), codeshift=1): -1.0
+sign(0.0, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, if_exc=(13,), codeshift=1): 0.0
+sign(0, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, if_exc=(13,), codeshift=1): 1
+sign(5, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, if_exc=(13,), codeshift=1): 2
+sign(nan, preprocess=lambda a: (a, float(sign(a))) if isinstance(a, float) else None, if_exc=(13,), codeshift=1): nan
+   --- 27 tests for Sec. 25 passed, total 121 tests passed
+
+Success of v1.2.2 : 121 tests from 25 sections passed in    5.6995s (passes: 10000; sign calls: 1210000).
