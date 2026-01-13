@@ -1,0 +1,49 @@
+default_stages: [pre-commit]
+fail_fast: true
+exclude: |
+  (?x)(
+    \.snap$
+  )
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+  - repo: https://github.com/lasuillard-s/devobs
+    rev: main # Dogfooding; pin to a specific version when stable
+    hooks:
+      # Ensure each command has its test file pair
+      - id: check-file-pair
+        args:
+          - --log-level
+          - trace
+          - --from=src/commands
+          - --to=tests/commands
+          - --include=*.rs
+          - --expect={to}/{relative_from}/test_{filename}
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: Format Rust codes
+        language: system
+        types: [rust]
+        pass_filenames: false
+        entry: cargo fmt
+
+      - id: cargo-clippy
+        name: Lint Rust codes
+        language: system
+        types: [rust]
+        pass_filenames: false
+        entry: cargo clippy
+
+      - id: cargo-nextest
+        name: Test Rust codes
+        language: system
+        types: [rust]
+        pass_filenames: false
+        entry: cargo nextest run
+        args: [--workspace]
