@@ -1,0 +1,108 @@
+Metadata-Version: 2.4
+Name: polymarket-trade-executor
+Version: 0.1.1
+Summary: Trade executor for Polymarket CLOB API - supports orders, split, merge, redeem
+Project-URL: Homepage, https://github.com/yourname/polymarket-trade-executor
+Project-URL: Repository, https://github.com/yourname/polymarket-trade-executor
+Author-email: Your Name <your@email.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: clob,crypto,polymarket,prediction-market,trading
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Requires-Python: >=3.10
+Requires-Dist: eth-abi>=5.0.0
+Requires-Dist: eth-utils>=4.0.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: py-clob-client>=0.18.0
+Requires-Dist: py-order-utils>=0.3.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: python-dotenv>=1.0.0; extra == 'dev'
+Provides-Extra: relayer
+Requires-Dist: py-builder-relayer-client>=0.0.1; extra == 'relayer'
+Requires-Dist: py-builder-signing-sdk>=0.0.1; extra == 'relayer'
+Description-Content-Type: text/markdown
+
+# Polymarket Trade Executor
+
+Trade execution library for Polymarket CLOB API.
+
+## Installation
+
+```bash
+pip install polymarket-trade-executor
+```
+
+For merge/split/redeem (gasless transactions):
+
+```bash
+pip install polymarket-trade-executor[relayer]
+```
+
+## Quick Start
+
+```python
+import asyncio
+from polymarket_trade_executor import TradeExecutor, OrderSide
+
+async def main():
+    executor = TradeExecutor(
+        host="https://clob.polymarket.com",
+        private_key="0x...",
+        funder="0x...",  # optional
+        # For merge/split/redeem (optional)
+        builder_api_key="xxx",
+        builder_secret="xxx",
+        builder_passphrase="xxx",
+    )
+    
+    # Get balance
+    balance = await executor.get_balance()
+    print(f"Balance: ${balance:.2f}")
+    
+    # Place market order
+    result = await executor.place_market_order(
+        asset_id="token_id_here",
+        side=OrderSide.BUY,
+        amount=10.0,
+    )
+    
+    if result:
+        print(f"Order: {result.order_id} - {result.size_matched} tokens @ ${result.price}")
+
+asyncio.run(main())
+```
+
+## Features
+
+| Feature | Requires Builder API |
+|---------|---------------------|
+| `place_order` / `place_market_order` | ❌ |
+| `post_orders` (batch) | ❌ |
+| `get_balance` / `get_token_balance` | ❌ |
+| `buy_market` / `sell_all` (with retry) | ❌ |
+| `split_positions` | ✅ |
+| `merge_positions` / `merge_all` | ✅ |
+| `redeem_positions` | ✅ |
+
+## Simulation Mode
+
+```python
+from polymarket_trade_executor import SimulateTradeExecutor
+
+executor = SimulateTradeExecutor(starting_balance=1000.0)
+# Same API as TradeExecutor, no real API calls
+```
+
+## License
+
+MIT
+
