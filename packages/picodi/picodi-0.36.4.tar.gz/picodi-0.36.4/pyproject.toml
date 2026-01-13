@@ -1,0 +1,275 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=61.0", "wheel>=0.37.1"]
+
+[project]
+name = "picodi"
+version = "0.36.4"
+requires-python = ">=3.10"
+description = "Simple Dependency Injection for Python"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "yakimka"},
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: PyPy"
+]
+dependencies = []
+[dependency-groups]
+dev = [
+  "httpx>=0.28.1,<1.0.0",
+  "mypy>=1.15.0,<2.0.0",
+  "pre-commit>=3.7,<5.0",
+  "pytest>=8.3.5,<10.0.0",
+  "pytest-asyncio>=0.26.0,<2.0.0",
+  "pytest-benchmark>=5.1.0,<6.0.0",
+  "pytest-cov>=6.1.1,<8.0.0",
+  "pytest-deadfixtures>=2.2.1,<4.0.0",
+  "pytest-markdown-docs>=0.9.0,<1.0.0",
+  "pytest-race>=0.2.0,<1.0.0",
+  "pytest-randomly>=3.16.0,<5.0.0",
+  "pytest-repeat>=0.9.4,<1.0.0",
+]
+docs = [
+  "furo>=2024.8.6,<2026.0.0",
+  "sphinx>=7.3.7,<9.0.0",
+]
+integrations-test = [
+  "fastapi-slim>=0.115.12,<1.0.0",
+]
+
+[project.urls]
+Source = "https://github.com/yakimka/picodi"
+Documentation = "https://picodi.readthedocs.io"
+
+[tool.setuptools]
+# https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html
+platforms = ["Linux"]
+include-package-data = true
+zip-safe = true  # This just means it's safe to zip up the bdist
+
+# Non-code data that should be included in the package source code
+# https://setuptools.pypa.io/en/latest/userguide/datafiles.html
+[tool.setuptools.package-data]
+acme = ["*.xml"]
+
+# Python modules and packages that are included in the
+# distribution package (and therefore become importable)
+[tool.setuptools.packages.find]
+exclude = ["tests", "tests.*", "examples"]
+
+[tool.isort]
+# isort configuration:
+# https://github.com/timothycrosley/isort/wiki/isort-Settings
+profile = "black"
+include_trailing_comma = true
+use_parentheses = true
+# See https://github.com/timothycrosley/isort#multi-line-output-modes
+multi_line_output = 3
+line_length = "88"
+
+[tool.black]
+line-length = "88"
+
+[tool.pytest.ini_options]
+# Directories that are not visited by pytest collector:
+norecursedirs = [
+  "*.egg",
+  ".eggs",
+  "dist",
+  "build",
+  "docs",
+  ".tox",
+  ".git",
+  "__pycache__",
+  ".cache",
+  ".venv",
+  "venv",
+  ".pre-commit",
+]
+
+# Strict `@xfail` by default:
+xfail_strict = true
+
+# pytest-asyncio
+asyncio_mode = "auto"
+
+# Extra options:
+addopts = [
+  # don't add --cov because it breaks pycharm debugger
+  #   just add it manaually when needed to cmd args
+  "--import-mode=importlib",
+  "--strict-markers",
+  "--strict-config",
+  "--tb=short",
+  "--cov-report=term-missing",
+#  "--cov-fail-under=100",
+]
+
+markers = [
+  "benchmark_test: mark test as a benchmark",
+]
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "tests/*_benchmarks.py",
+]
+
+[tool.coverage.report]
+precision = 2
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "pass",
+  "class .*\\bProtocol\\):",
+  "@(abc\\.)?abstractmethod",
+]
+
+[tool.mypy]
+files = ["."]
+##
+# mypy configurations: https://mypy.readthedocs.io/en/latest/config_file.html
+allow_redefinition = false
+check_untyped_defs = true
+disallow_any_explicit = false
+disallow_any_generics = false
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+ignore_errors = false
+ignore_missing_imports = true
+implicit_reexport = false
+local_partial_types = true
+no_implicit_optional = true
+strict_equality = true
+strict_optional = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_untyped_decorators = false
+disallow_untyped_defs = false
+
+[tool.ruff.lint]
+select = [
+  # pycodestyle
+  "E4",
+  "E7",
+  "E9",
+  # Pyflakes
+  "F",
+  # flake8-bugbear
+  "B",
+  # flake8-quotes
+  "Q",
+  # flake8-async
+  "ASYNC",
+  # flake8-bandit
+  "S",
+  # flake8-comprehensions
+  "C4",
+  # flake8-eradicate
+  "ERA",
+  # flake8-pie
+  "PIE",
+  # flake8-pytest-style
+  "PT",
+  # flake8-self
+  "SLF",
+  # flake8-simplify
+  "SIM",
+  # flake8-type-checking
+  "TC",
+  # flake8-unused-arguments
+  "ARG",
+  # pep8-naming
+  "N",
+  # unused noqa
+  "RUF100",
+]
+ignore = [
+  # default ignore list (conflicts with black)
+  "E226", "E24",
+  # pytest in tests and some checks for readability
+  "S101",
+  # https://github.com/psf/black/issues/565
+  "E203",
+  # complexity of functions
+  "C901",
+  # merging context managers
+  "SIM117",
+  # nested if statements
+  "SIM102",
+  # Unused lambda argument
+  "ARG005",
+]
+exclude = [
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".hg",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".pytype",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  "__pypackages__",
+  "_build",
+  "build",
+  "buck-out",
+  "dist",
+  "venv"
+]
+
+[tool.ruff.lint.per-file-ignores]
+# TC002 Move third-party import into a type-checking block
+# S* security problems
+"tests/*.py" = ["TC002", "S106", "S107", "ASYNC", "S311"]
+# Fastapi dependency injection
+"deps.py" = ["TC001", "TC002"]
+"docs/*.py" = ["ARG001", "ARG002"]
+"tests/core/test_resolving_rules.py" = ["ARG001", "ARG002", "B008"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Allow default arguments like, e.g., `data: List[str] = fastapi.Query(None)`.
+extend-immutable-calls = [
+  "picodi.Provide",
+  "picodi.integrations.fastapi.Provide",
+  "fastapi.Depends",
+  "fastapi.Query",
+]
+
+[tool.ruff.lint.flake8-pytest-style]
+parametrize-names-type = "csv"
+fixture-parentheses = true
+mark-parentheses = false
+
+[tool.ruff.lint.flake8-type-checking]
+exempt-modules = ["typing", "typing_extensions", "collections.abc"]
