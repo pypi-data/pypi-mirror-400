@@ -1,0 +1,202 @@
+# Example releasio configuration file
+#
+# This file demonstrates all available configuration options for releasio.
+# You can use this as a template for creating your own custom configuration.
+#
+# Configuration file precedence (highest to lowest):
+# 1. .releasio.toml (dotfile, hidden)
+# 2. releasio.toml (visible file)
+# 3. pyproject.toml under [tool.releasio] section
+#
+# Note: When using .releasio.toml or releasio.toml, you still need a
+# pyproject.toml file for project metadata (name, version).
+
+# ==============================================================================
+# General Settings
+# ==============================================================================
+
+# Default branch for releases (typically "main" or "master")
+default_branch = "main"
+
+# Allow dirty working directory (not recommended for releases)
+allow_dirty = false
+
+# ==============================================================================
+# Commit Settings
+# ==============================================================================
+
+[commits]
+# Commit types that trigger a MINOR version bump (new features)
+types_minor = ["feat", "feature"]
+
+# Commit types that trigger a PATCH version bump (bug fixes, improvements)
+types_patch = ["fix", "bugfix", "perf", "refactor", "docs", "style", "test", "build", "ci"]
+
+# Pattern to detect breaking changes in commit messages
+# Breaking changes always trigger a MAJOR version bump
+breaking_pattern = "BREAKING CHANGE:"
+
+# Custom commit parsers for non-standard formats
+# Example: Support Gitmoji commits
+[[commits.commit_parsers]]
+pattern = "^:sparkles:\\s*(?P<description>.+)$"
+type = "feat"
+group = "✨ Features"
+
+[[commits.commit_parsers]]
+pattern = "^:bug:\\s*(?P<description>.+)$"
+type = "fix"
+group = "🐛 Bug Fixes"
+
+[[commits.commit_parsers]]
+pattern = "^:zap:\\s*(?P<description>.+)$"
+type = "perf"
+group = "⚡ Performance"
+
+# Example: Custom project-specific commit format
+[[commits.commit_parsers]]
+pattern = "^\\[(?P<type>\\w+)\\]\\s+(?P<description>.+)$"
+type_group = 1
+scope_group = 0
+
+# ==============================================================================
+# Changelog Settings
+# ==============================================================================
+
+[changelog]
+# Enable changelog generation
+enabled = true
+
+# Path to the changelog file
+path = "CHANGELOG.md"
+
+# Show commit authors in changelog
+show_authors = true
+
+# Use GitHub PRs instead of commits for changelog
+# Recommended for large open source projects with many contributors
+use_github_prs = false
+
+# Authors to ignore in changelog (usually bots)
+ignore_authors = ["dependabot[bot]", "renovate[bot]", "github-actions[bot]"]
+
+# Custom changelog header template
+# Available variables: {version}, {date}
+header_template = "## [{version}] - {date}"
+
+# Custom changelog template path (git-cliff format)
+# If not specified, uses default template
+# template_path = "cliff.toml"
+
+# ==============================================================================
+# Version Settings
+# ==============================================================================
+
+[version]
+# Initial version for new projects (if no tags exist)
+initial_version = "0.1.0"
+
+# Git tag prefix (e.g., "v" creates tags like "v1.0.0")
+tag_prefix = "v"
+
+# Pre-release identifier (e.g., "alpha", "beta", "rc")
+# Leave empty for stable releases
+# pre_release = "beta"
+
+# ==============================================================================
+# GitHub Settings
+# ==============================================================================
+
+[github]
+# GitHub repository owner (defaults to remote origin)
+# owner = "your-username"
+
+# GitHub repository name (defaults to remote origin)
+# repo = "your-repo"
+
+# Branch name for release PRs
+release_pr_branch = "releasio/release"
+
+# Labels to apply to release PRs
+release_pr_labels = ["release", "automated"]
+
+# Create draft releases (require manual publishing)
+draft_releases = false
+
+# Release assets to upload (glob patterns)
+# Examples:
+# - "dist/*" - Upload all distribution files
+# - "*.whl" - Upload only wheel files
+# - "docs/build/*" - Upload documentation
+release_assets = [
+    "dist/*.whl",
+    "dist/*.tar.gz",
+]
+
+# ==============================================================================
+# Publishing Settings
+# ==============================================================================
+
+[publish]
+# Enable PyPI publishing
+enabled = true
+
+# Build tool to use ("uv", "poetry", "hatch", "pdm", "flit")
+tool = "uv"
+
+# PyPI registry URL (use test.pypi.org for testing)
+registry = "https://upload.pypi.org/legacy/"
+
+# Use trusted publishing (OIDC) instead of API tokens
+# Recommended for GitHub Actions
+trusted_publishing = true
+
+# Validate distribution files with twine before publishing
+validate_before_publish = true
+
+# Check if version already exists on PyPI before publishing
+check_existing_version = true
+
+# ==============================================================================
+# Security Settings
+# ==============================================================================
+
+[security]
+# Enable security advisory integration
+enabled = false
+
+# Automatically create GitHub security advisories for security fixes
+auto_create_advisory = false
+
+# Patterns to detect security-related commits
+security_patterns = [
+    "fix\\(security\\):",
+    "security:",
+    "CVE-\\d{4}-\\d+",
+]
+
+# ==============================================================================
+# Hooks (Custom Commands)
+# ==============================================================================
+
+[hooks]
+# Custom build command (overrides default build tool)
+# Example: "python -m build"
+# build = "python -m build"
+
+# Command to run before creating a release
+# Example: Run tests, linting, etc.
+# pre_release = "pytest && mypy src/"
+
+# Command to run after successful release
+# Example: Deploy documentation, notify team, etc.
+# post_release = "mkdocs gh-deploy"
+
+# ==============================================================================
+# Advanced Settings
+# ==============================================================================
+
+# Custom configuration for monorepos or complex projects
+# [advanced]
+# workspace_root = "."
+# package_path = "packages/my-package"
