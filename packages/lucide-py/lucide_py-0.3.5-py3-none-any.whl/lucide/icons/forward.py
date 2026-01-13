@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def Forward(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-forward'], 'items': [{'path': {'d': 'm15 17 5-5-5-5'}}, {'path': {'d': 'M4 18v-2a4 4 0 0 1 4-4h12'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield

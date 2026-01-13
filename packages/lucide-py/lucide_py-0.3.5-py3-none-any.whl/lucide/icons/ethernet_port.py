@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def EthernetPort(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-ethernet-port'], 'items': [{'path': {'d': 'm15 20 3-3h2a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2l3 3z'}}, {'path': {'d': 'M6 8v1'}}, {'path': {'d': 'M10 8v1'}}, {'path': {'d': 'M14 8v1'}}, {'path': {'d': 'M18 8v1'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield

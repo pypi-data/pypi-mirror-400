@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def ArrowUpToLine(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-arrow-up-to-line'], 'items': [{'path': {'d': 'M5 3h14'}}, {'path': {'d': 'm18 13-6-6-6 6'}}, {'path': {'d': 'M12 7v14'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield

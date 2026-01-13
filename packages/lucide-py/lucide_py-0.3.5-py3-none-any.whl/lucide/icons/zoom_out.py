@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def ZoomOut(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-zoom-out'], 'items': [{'circle': {'cx': '11', 'cy': '11', 'r': '8'}}, {'line': {'x1': '21', 'x2': '16.65', 'y1': '21', 'y2': '16.65'}}, {'line': {'x1': '8', 'x2': '14', 'y1': '11', 'y2': '11'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield
