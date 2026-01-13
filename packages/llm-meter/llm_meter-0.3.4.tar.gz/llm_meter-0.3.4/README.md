@@ -1,0 +1,121 @@
+# llm-meter 📊
+
+[![PyPI Version](https://img.shields.io/pypi/v/llm-meter)](https://pypi.org/project/llm-meter/)
+[![Python Version](https://img.shields.io/pypi/pyversions/llm-meter)](https://www.python.org/)
+[![License](https://img.shields.io/github/license/doubledare704/llm-meter)](LICENSE)
+
+**Accurate LLM usage & cost tracking for Python backends.**
+
+`llm-meter` solves the "black box" of LLM costs by providing framework-native (FastAPI) instrumentation that attributes every token, cent, and millisecond to your business-level concepts (User ID, Feature, Endpoint).
+
+---
+
+## ⚡ 15-Minute Setup
+
+```bash
+# Using uv (recommended)
+uv add llm-meter
+
+# or pip
+pip install llm-meter
+```
+
+### 1. Initialize & Instrument
+
+```python
+from fastapi import FastAPI
+from llm_meter import LLMMeter, FastAPIMiddleware
+from openai import OpenAI
+
+# 1. Initialize SDK
+meter = LLMMeter(
+    storage_url="sqlite+aiosqlite:///llm_usage.db",
+    providers={"openai": {"api_key": "YOUR_KEY"}}
+)
+
+app = FastAPI()
+
+# 2. Add Middleton for automatic attribution
+app.add_middleware(FastAPIMiddleware, meter=meter)
+
+# 3. Wrap your client
+client = meter.wrap_client(OpenAI())
+
+@app.post("/generate")
+async def generate(prompt: str):
+    # This call is automatically tracked and attributed to "/generate"
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return {"text": response.choices[0].message.content}
+```
+
+### 2. Inspect via CLI
+
+```bash
+# Get a high-level summary
+llm-meter usage summary
+
+# See which endpoint costs the most
+llm-meter usage by-endpoint
+```
+
+---
+
+## 🎯 Key Features
+
+- **Accounting, not Observability:** Focuses on cost attribution and usage tracking, not heavy traces or prompt logging.
+- **FastAPI Native:** Middleware handles `request_id` and context propagation automatically.
+- **Async-Safe:** Powered by `contextvars` to ensure usage is correctly attributed even in complex async workflows.
+- **Proxy-Free:** Works via SDK-level instrumentation (no network interception or latency overhead).
+- **Self-Hosted:** You own your data. Supports SQLite (default) and PostgreSQL.
+
+---
+
+## ⚠️ v1 Limitations
+
+- Supports OpenAI and Azure OpenAI.
+- Batch token tracking (Streaming support coming in v1.1).
+- No web UI (everything is available via CLI or SQL).
+
+---
+
+## 🧪 Testing, Linting & Type Checks
+
+To run all tests and check coverage:
+
+```bash
+uv run pytest --cov=llm_meter --cov-report=term-missing
+```
+
+To run linting and formatting checks with Ruff:
+
+```bash
+uv run ruff check . --fix
+uv run ruff format .
+```
+
+To run type checking with Pyright:
+
+```bash
+uv run pyright
+```
+
+To run all pre-commit hooks manually:
+
+```bash
+uv run pre-commit run --all-files
+```
+
+These commands help ensure code quality, style, and type safety before committing changes.
+
+## 🛠 Contributing
+
+We love contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to get started.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
