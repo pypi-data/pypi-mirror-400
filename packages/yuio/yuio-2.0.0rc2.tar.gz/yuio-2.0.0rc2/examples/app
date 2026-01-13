@@ -1,0 +1,129 @@
+#! /usr/bin/env python
+
+import logging
+import pathlib
+
+import yuio.app
+import yuio.config
+import yuio.io
+import yuio.parse
+
+from typing import Annotated
+
+_logger = logging.getLogger(__name__)
+
+
+class Config(yuio.config.Config):
+    """Global options.
+
+    Global options are loaded from ``./app_config.json``,
+    from environment variables, and from CLI arguments.
+
+    """
+
+    #: Number of threads to use for executing model.
+    threads: Annotated[int, yuio.parse.Ge(1)] = 4
+
+    #: Enable or disable gpu.
+    gpu: bool = True
+
+
+# We will load values into this variable once the program starts.
+CONFIG = Config()
+
+
+@yuio.app.app(
+    version="1.0.0",  # Adds `--version`.
+    bug_report=True,  # Adds `--bug-report`.
+    is_dev_mode=True,  # Prints warnings from Yuio.
+)
+def main(
+    config: Config = yuio.config.inline(),
+):
+    """Some ml stuff idk im not into ml."""
+
+    # Load global config:
+
+    # From file...
+    config_file = pathlib.Path(__file__).parent / "app_config.json"
+    CONFIG.update(Config.load_from_json_file(config_file))
+
+    # From environment variables...
+    CONFIG.update(Config.load_from_env("YUIO"))
+
+    # From CLI arguments...
+    CONFIG.update(config)
+
+    _logger.info("Loaded config: %#+r", CONFIG)
+
+
+main.epilog = """
+# Formatting:
+
+Prolog is formatted using the standard markdown. All markdown blocks are supported.
+Inline markup is not, though: you can only use backticks and color tags.
+
+Example of what we can do:
+
+- quotes:
+
+  > Beautiful python\v
+  > Explicit and simple form\v
+  > Winding through clouds
+  >
+  >     -- from heroku art
+
+- code blocks:
+
+  ```py
+  for i in range(10):
+      print(f"Hello, {i}!")
+  ```
+
+- color tags are supported, as well as `backticks`! Btw, backticks highlight
+  `--flags` with appropriate color too!
+
+"""
+
+
+@main.subcommand(aliases=["r"])
+def run(
+    #: Trained model to execute.
+    model: pathlib.Path = yuio.config.positional(),
+    #: Input data for the model.
+    data: pathlib.Path = yuio.config.positional(),
+):
+    """
+    Apply trained model to a dataset.
+
+    The model can erase your your storage or drop production database,
+    use at your own risk.
+
+    """
+
+    yuio.io.info("Applying model `%s` to data `%s`", model, data)
+
+
+@main.subcommand(aliases=["t"])
+def train(
+    #: Input data for the model.
+    data: pathlib.Path = yuio.config.positional(),
+    #: Output data for the model.
+    output: pathlib.Path = yuio.config.field(
+        default=pathlib.Path("trained.model"),
+        flags=["-o", "--output"],
+    ),
+):
+    """
+    Train model on a dataset.
+
+    This will eat all resources on your machine,
+    use at your own risk.
+
+    """
+
+    yuio.io.info("Training model `%s` on data `%s`", output, data)
+
+
+if __name__ == "__main__":
+    main.run()
