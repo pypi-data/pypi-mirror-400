@@ -1,0 +1,51 @@
+on:
+  workflow_call:
+
+jobs:
+  artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          merge-multiple: true
+
+      - name: Zip up docs
+        run: |
+          set -vxeuo pipefail
+          if [ -d html ]; then
+            mv html $GITHUB_REF_NAME
+            zip -r docs.zip $GITHUB_REF_NAME
+            rm -rf $GITHUB_REF_NAME
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Need this to get version number from last tag
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install packages
+        run: uv sync --locked
+        shell: bash
+
+      - name: generate-schema
+        run: techui-builder --schema
+
+      - name: Create GitHub Release
+        # We pin to the SHA, not the tag, for security reasons.
+        # https://docs.github.com/en/actions/learn-github-actions/security-hardening-for-github-actions#using-third-party-actions
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          prerelease: ${{ contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc') }}
+          files: |
+            "*"
+            schemas/*.json
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
