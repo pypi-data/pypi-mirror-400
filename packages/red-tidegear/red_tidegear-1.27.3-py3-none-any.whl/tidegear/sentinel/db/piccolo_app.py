@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2025 cswimr <copyright@csw.im>
+# SPDX-License-Identifier: MPL-2.0
+
+"""Piccolo app configuration."""
+
+import os
+
+from piccolo.conf.apps import AppConfig, table_finder
+
+__all__ = ["CURRENT_DIRECTORY", "APP_CONFIG"]
+
+CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+
+APP_CONFIG = AppConfig(
+    app_name="TidegearSentinel",
+    table_classes=table_finder(["tidegear.sentinel.db.tables"]),
+    migrations_folder_path=os.path.join(CURRENT_DIRECTORY, "migrations"),
+)
