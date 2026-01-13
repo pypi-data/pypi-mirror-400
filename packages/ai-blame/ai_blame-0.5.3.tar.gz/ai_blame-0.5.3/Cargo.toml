@@ -1,0 +1,72 @@
+[package]
+name = "ai-blame"
+version = "0.5.3"
+edition = "2021"
+authors = ["Chris Mungall"]
+description = "Extract provenance from AI agent execution traces - like git blame, but for AI-assisted edits"
+license = "BSD-3-Clause"
+repository = "https://github.com/ai4curation/ai-blame"
+homepage = "https://github.com/ai4curation/ai-blame"
+documentation = "https://github.com/ai4curation/ai-blame#readme"
+readme = "README.md"
+keywords = ["ai", "blame", "provenance", "claude", "git"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = [
+    ".github/",
+    ".devcontainer/",
+    ".claude/",
+    "docs/",
+    "tests/",
+    "ui/",
+    "src-tauri/",
+    "*.md",
+    "!README.md",
+    "mkdocs.yml",
+    "pyproject.toml",
+    "*.cast",
+    "*.sh",
+    "*.just",
+    "Justfile",
+    "ai.just",
+]
+
+[workspace]
+default-members = [
+    "."
+]
+
+[workspace.package]
+version = "0.5.3"
+edition = "2021"
+authors = ["Chris Mungall"]
+license = "BSD-3-Clause"
+
+[lib]
+name = "ai_blame"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ai-blame"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = ["dep:clap", "dep:clap_complete"]
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"], optional = true }
+clap_complete = { version = "4.5", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+thiserror = "2.0"
+glob = "0.3"
+regex = "1.11"
+dirs = "5.0"
+duckdb = { version = "1.1", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile = "3.14"
