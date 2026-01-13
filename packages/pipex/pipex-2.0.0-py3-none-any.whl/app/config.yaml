@@ -1,0 +1,90 @@
+# PipeX ETL Pipeline Configuration
+# This file defines the complete ETL workflow configuration
+
+# Data Extraction Configuration
+extract:
+  source: "api" # Options: api, database, non_relational_database, file
+  connection_details:
+    headers:
+      Authorization: "Bearer ${API_TOKEN}" # Environment variable for API token
+      Content-Type: "application/json"
+    timeout: 30 # Request timeout in seconds
+  query_or_endpoint: "${API_ENDPOINT}" # Environment variable for API endpoint
+
+# Data Transformation Configuration
+transform:
+  script: "tests/transform_script.py" # Path to custom transformation script (optional)
+  config:
+    # Column operations
+    drop_columns: ["userId"] # Columns to remove
+    rename_columns:
+      title: "post_title"
+      body: "post_content"
+
+    # Row filtering (pandas query syntax)
+    filter_rows: "post_title.notna() & (post_title != '')"
+
+    # Add computed columns
+    add_columns:
+      title_length: "post_title.str.len()"
+      word_count: "post_content.str.split().str.len()"
+      processed_date: "pd.Timestamp.now()"
+
+  options:
+    drop_columns: true
+    rename_columns: true
+    filter_rows: true
+    add_columns: true
+
+# Data Loading Configuration
+load:
+  target: "Local File" # Options: S3 Bucket, Local File, database, non_relational_database
+  config:
+    # Local File Configuration
+    file_type: "csv"
+    file_path: "output/final_processed_data.csv"
+# Alternative configurations for different targets:
+
+# For Local File loading:
+# load:
+#   target: "Local File"
+#   config:
+#     file_type: "csv"  # Options: csv, json
+#     file_path: "output/processed_data.csv"
+#     separator: ","
+#     encoding: "utf-8"
+
+# For Database loading:
+# load:
+#   target: "database"
+#   config:
+#     db_type: "postgres"  # Options: mysql, postgres
+#     host: "${DB_HOST}"
+#     port: 5432
+#     username: "${DB_USERNAME}"
+#     password: "${DB_PASSWORD}"
+#     database: "${DB_NAME}"
+#     table_name: "processed_data"
+#     if_exists: "replace"  # Options: fail, replace, append
+
+# For MongoDB loading:
+# load:
+#   target: "non_relational_database"
+#   config:
+#     db_type: "mongodb"
+#     host: "${MONGO_HOST}"
+#     port: 27017
+#     username: "${MONGO_USERNAME}"
+#     password: "${MONGO_PASSWORD}"
+#     database: "${MONGO_DB}"
+#     collection: "processed_data"
+#     replace_collection: false
+
+# Environment Variables Required:
+# Create a .env file in the project root with:
+# AWS_ACCESS_KEY_ID=your-access-key-id
+# AWS_SECRET_ACCESS_KEY=your-secret-access-key
+# AWS_REGION=your-preferred-region
+# BUCKET_NAME=your-s3-bucket-name
+# API_TOKEN=your-api-token
+# API_ENDPOINT=https://api.example.com/data
