@@ -1,0 +1,212 @@
+Metadata-Version: 2.1
+Name: flogg
+Version: 1.0.0
+Summary: Improved logging system for Python
+Home-page: https://github.com/DovaX/flog
+Author: DovaX
+Author-email: dovax.ai@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+# flog
+Improved logging system for Python
+
+## Table of Contents
+- [Import](#import)
+- [Basic Usage](#basic-usage)
+- [Log Levels](#log-levels)
+- [Runtime Log Level Configuration](#runtime-log-level-configuration)
+- [Using in Classes](#using-in-classes)
+- [Using Outside Classes](#using-outside-classes)
+- [Message Categories](#message-categories)
+- [Available Enums](#available-enums)
+- [Configuration](#configuration)
+- [Developer Mode](#developer-mode)
+- [Examples](#examples)
+
+## Import
+
+```python
+import forloop_modules.flog as flog
+# or
+from flog_pkg.flog import FlogLogger, FlogLevel
+```
+
+## Basic Usage
+
+```python
+flog.debug("Debug message")
+flog.minor_info("Minor info message")
+flog.info("Info message")
+flog.warning("Warning message")
+flog.error("Error message")
+flog.critical("Critical message")
+```
+
+## Log Levels
+
+Log levels from lowest to highest:
+
+- **DEBUG (10)** - Detailed debugging information
+- **MINORINFO (15)** - Minor informational messages
+- **INFO (20)** - General informational messages
+- **WARNING (30)** - Warning messages (yellow)
+- **ERROR (40)** - Error messages (red)
+- **CRITICAL (50)** - Critical error messages (red)
+
+## Runtime Log Level Configuration
+
+### Using the Logger Instance (flog_pkg)
+
+```python
+# Set default log level (using enum)
+flog.logger.set_log_level(flog.FlogLevel.DEBUG)
+
+# Set log level using string (case-insensitive)
+flog.logger.set_log_level("debug")
+flog.logger.set_log_level("INFO")
+flog.logger.set_log_level("Warning")
+
+# Set log level for specific class
+flog.logger.set_log_level(flog.FlogLevel.INFO, class_name="MyClass")
+flog.logger.set_log_level("info", class_name="MyClass")
+
+# Get current log level
+level = flog.logger.get_log_level()
+level = flog.logger.get_log_level(class_name="MyClass")
+
+# Invalid log level raises ValueError
+flog.logger.set_log_level("invalid")  # Raises ValueError with helpful message
+```
+
+### Direct FLOG_CONFIG Manipulation (works in both versions)
+
+```python
+# Set default log level
+flog.FLOG_CONFIG["DEFAULT"] = flog.FlogLevel.DEBUG
+
+# Set log level for specific class
+flog.FLOG_CONFIG["MyClass"] = flog.FlogLevel.INFO
+
+# Get current log level
+level = flog.FLOG_CONFIG.get("DEFAULT", flog.FlogLevel.WARNING)
+```
+
+## Using in Classes
+
+The logger automatically detects the class name from which it's called:
+
+```python
+class MyClass:
+    def __init__(self):
+        flog.info("Initializing MyClass")  # Automatically detects class name
+    
+    def my_method(self):
+        flog.debug("Debug message from method")
+```
+
+## Using Outside Classes
+
+When called outside of a class, no class name is shown in the output:
+
+```python
+flog.info("This is a standalone message")  # No class name in output
+```
+
+## Message Categories
+
+Filter messages by category (default: "*" = all):
+
+```python
+# Log with a specific category
+flog.info("Message", message_category="important")
+
+# Configure which categories to display
+flog.MESSAGE_CATEGORIES = ["important", "errors"]
+```
+
+## Available Enums
+
+### FlogLevel
+- `CRITICAL`
+- `ERROR`
+- `WARNING`
+- `INFO`
+- `MINORINFO`
+- `DEBUG`
+- `NOTSET`
+
+### LogColor
+- `OKGREEN`
+- `ERROR`
+- `WARNING`
+- `BOLD`
+- `COLOROFF`
+
+## Configuration
+
+### FLOG_CONFIG
+
+Dictionary mapping class names to log levels:
+
+- **Default level**: `WARNING`
+- **Pre-configured classes**: `Wizard`, `Scanner`, `CleaningUtility`, `DfToListHandler`
+
+Example:
+
+```python
+flog.FLOG_CONFIG["DEFAULT"] = flog.FlogLevel.INFO
+flog.FLOG_CONFIG["MyClass"] = flog.FlogLevel.DEBUG
+```
+
+## Developer Mode
+
+- **When `DEVELOPER_MODE=True`**: Colored output, timestamps, class names
+- **When `DEVELOPER_MODE=False`**: Logging is disabled
+
+## Examples
+
+### Basic Logging
+
+```python
+flog.info("Application started")
+flog.warning("Low memory detected")
+flog.error("Failed to connect to database")
+```
+
+### Runtime Configuration
+
+```python
+# Enable debug logging
+flog.logger.set_log_level(flog.FlogLevel.DEBUG)
+flog.debug("This will now be visible")
+```
+
+### Class-Specific Configuration
+
+```python
+# Set debug level for a specific class
+flog.FLOG_CONFIG["DatabaseHandler"] = flog.FlogLevel.DEBUG
+```
+
+### Using in a Class
+
+```python
+class DeploymentSupervisor:
+    def supervise(self):
+        flog.info("Starting supervision")
+        flog.debug("Checking deployments...")
+```
+
+## Help Method
+
+You can also view this help in Python:
+
+```python
+import forloop_modules.flog as flog
+flog.help()
+```
