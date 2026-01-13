@@ -1,0 +1,487 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>FMM Visualization</title>
+        <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.css" />
+        <link rel="stylesheet" href="https://unpkg.com/vuetify@3.8.0/dist/vuetify.min.css" />
+        <link rel="stylesheet" href="https://unpkg.com/@mdi/font@latest/css/materialdesignicons.min.css" />
+        <link rel="stylesheet" href="https://fonts.bunny.net/css?family=roboto:400,500,700" />
+        <style>
+            html,
+            body {
+                height: 100%;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+            #app {
+                height: 100%;
+                width: 100%;
+            }
+            #map {
+                height: 100%;
+                width: 100%;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="map"></div>
+        <div id="app">
+            <v-app>
+                <!-- 设置面板 -->
+                <v-btn
+                    icon="mdi-cog"
+                    color="primary"
+                    style="position: fixed; top: 16px; left: 16px; z-index: 1000; opacity: 0.7"
+                    @click="drawer = !drawer"
+                    elevation="2"
+                    size="small"
+                ></v-btn>
+
+                <v-navigation-drawer v-model="drawer" location="left" :width="350" temporary>
+                    <v-card>
+                        <v-card-title class="text-h6 pa-4">
+                            FMM 可视化工具
+                            <v-btn
+                                icon="mdi-close"
+                                variant="text"
+                                size="small"
+                                style="position: absolute; right: 8px; top: 8px"
+                                @click="drawer = false"
+                            ></v-btn>
+                        </v-card-title>
+                        <v-divider></v-divider>
+                        <v-card-text>
+                            <v-list>
+                                <v-list-item class="pa-0 mb-2">
+                                    <v-text-field
+                                        v-model="roadNetworkId"
+                                        label="路网 ID"
+                                        hide-details
+                                        density="compact"
+                                    ></v-text-field>
+                                </v-list-item>
+
+                                <v-list-item class="pa-0 mb-2">
+                                    <v-btn @click="loadRoadNetwork" block color="primary">加载路网</v-btn>
+                                </v-list-item>
+
+                                <v-divider class="my-4"></v-divider>
+
+                                <v-list-item class="pa-0 mb-2">
+                                    <v-switch
+                                        v-model="isDrawing"
+                                        label="绘制模式"
+                                        color="primary"
+                                        hide-details
+                                    ></v-switch>
+                                </v-list-item>
+
+                                <v-list-item class="pa-0 mb-2">
+                                    <v-btn @click="matchTrajectory" block :disabled="trajectory.length < 2">
+                                        执行匹配
+                                    </v-btn>
+                                </v-list-item>
+
+                                <v-list-item class="pa-0 mb-2">
+                                    <v-btn @click="clearTrajectory" block variant="outlined">清除轨迹</v-btn>
+                                </v-list-item>
+
+                                <v-list-item class="pa-0 mb-2">
+                                    <v-btn @click="clearAll" block variant="outlined" color="error">清除全部</v-btn>
+                                </v-list-item>
+
+                                <v-divider class="my-4"></v-divider>
+
+                                <v-list-item class="pa-0 mb-2" v-if="matchResult">
+                                    <v-card variant="outlined">
+                                        <v-card-subtitle>匹配结果</v-card-subtitle>
+                                        <v-card-text>
+                                            <div>
+                                                <strong>匹配路径:</strong> {{ matchResult.matched_path.join(' → ') }}
+                                            </div>
+                                            <div><strong>得分:</strong> {{ matchResult.score.toFixed(4) }}</div>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-list-item>
+
+                                <v-divider class="my-4"></v-divider>
+
+                                <v-list-item class="pa-0 mb-2">
+                                    <v-select
+                                        v-model="basemap"
+                                        :items="basemapOptions"
+                                        label="底图"
+                                        density="compact"
+                                        hide-details
+                                    ></v-select>
+                                </v-list-item>
+
+                                <v-list-item class="pa-2 mb-2">
+                                    <v-slider
+                                        v-model="basemapOpacity"
+                                        label="透明度"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        hide-details
+                                    ></v-slider>
+                                </v-list-item>
+                            </v-list>
+                        </v-card-text>
+                    </v-card>
+                </v-navigation-drawer>
+
+                <!-- 状态提示 -->
+                <v-snackbar v-model="snackbar" :timeout="3000" :color="snackbarColor"> {{ snackbarText }} </v-snackbar>
+            </v-app>
+        </div>
+
+        <script src="https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.js"></script>
+        <script type="importmap">
+            {
+                "imports": {
+                    "vue": "https://unpkg.com/vue@3.5.17/dist/vue.esm-browser.js",
+                    "vuetify": "https://unpkg.com/vuetify@3.8.0/dist/vuetify.esm.js",
+                    "@vueuse/core": "https://unpkg.com/@vueuse/core@13.3.0/index.mjs"
+                }
+            }
+        </script>
+        <script type="module">
+            import { createApp, ref, shallowRef, watch } from 'vue';
+            import { createVuetify } from 'vuetify';
+            import { useUrlSearchParams } from '@vueuse/core';
+
+            const vuetify = createVuetify();
+            const params = useUrlSearchParams('hash-params');
+
+            createApp({
+                setup() {
+                    const map = shallowRef(null);
+                    const drawer = ref(false);
+
+                    // Road network
+                    const roadNetworkId = ref(params.network || 'test_network');
+
+                    // Drawing
+                    const isDrawing = ref(true);
+                    const trajectory = ref([]);
+
+                    // Match result
+                    const matchResult = ref(null);
+
+                    // UI state
+                    const snackbar = ref(false);
+                    const snackbarText = ref('');
+                    const snackbarColor = ref('info');
+
+                    // Basemap
+                    const basemap = ref(params.basemap || 'gaode_normal');
+                    const basemapOpacity = ref(parseFloat(params.basemap_opacity || '1.0'));
+
+                    const basemapOptions = [
+                        { title: '高德标准', value: 'gaode_normal' },
+                        { title: '高德卫星', value: 'gaode_satellite' },
+                        { title: 'OpenStreetMap', value: 'osm' },
+                        { title: 'Esri卫星', value: 'satellite' },
+                    ];
+
+                    const initMapSources = () => {
+                        return {
+                            osm: {
+                                type: 'raster',
+                                tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                                tileSize: 256,
+                                maxzoom: 18,
+                            },
+                            satellite: {
+                                type: 'raster',
+                                tiles: [
+                                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                                ],
+                                tileSize: 256,
+                                maxzoom: 18,
+                            },
+                            gaode_normal: {
+                                type: 'raster',
+                                tiles: [
+                                    'http://wprd01.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=7',
+                                ],
+                                tileSize: 256,
+                                maxzoom: 18,
+                            },
+                            gaode_satellite: {
+                                type: 'raster',
+                                tiles: [
+                                    'http://wprd01.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=6',
+                                ],
+                                tileSize: 256,
+                                maxzoom: 18,
+                            },
+                        };
+                    };
+
+                    const showMessage = (text, color = 'info') => {
+                        snackbarText.value = text;
+                        snackbarColor.value = color;
+                        snackbar.value = true;
+                    };
+
+                    const initMap = () => {
+                        map.value = new maplibregl.Map({
+                            container: 'map',
+                            style: { version: 8, sources: {}, layers: [] },
+                            center: [116.419181, 39.901624],
+                            zoom: 10,
+                            maplibreLogo: false,
+                        });
+
+                        map.value.on('load', () => {
+                            const sources = initMapSources();
+                            map.value.addSource('base-source', sources[basemap.value]);
+                            map.value.addLayer({
+                                id: 'base-layer',
+                                type: 'raster',
+                                source: 'base-source',
+                                paint: { 'raster-opacity': basemapOpacity.value },
+                            });
+                        });
+
+                        map.value.on('click', (e) => {
+                            if (!isDrawing.value) return;
+
+                            trajectory.value.push([e.lngLat.lng, e.lngLat.lat]);
+                            updateTrajectoryLayer();
+                            showMessage(`添加点 ${trajectory.value.length}`, 'success');
+                        });
+                    };
+
+                    const updateTrajectoryLayer = () => {
+                        if (map.value.getSource('trajectory')) {
+                            map.value.removeLayer('trajectory-line');
+                            map.value.removeLayer('trajectory-points');
+                            map.value.removeSource('trajectory');
+                        }
+
+                        if (trajectory.value.length === 0) return;
+
+                        map.value.addSource('trajectory', {
+                            type: 'geojson',
+                            data: {
+                                type: 'Feature',
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: trajectory.value,
+                                },
+                            },
+                        });
+
+                        map.value.addLayer({
+                            id: 'trajectory-line',
+                            type: 'line',
+                            source: 'trajectory',
+                            paint: {
+                                'line-color': '#ff0000',
+                                'line-width': 3,
+                            },
+                        });
+
+                        map.value.addLayer({
+                            id: 'trajectory-points',
+                            type: 'circle',
+                            source: 'trajectory',
+                            paint: {
+                                'circle-radius': 5,
+                                'circle-color': '#ff0000',
+                            },
+                        });
+                    };
+
+                    const loadRoadNetwork = async () => {
+                        try {
+                            const response = await fetch(`${roadNetworkId.value}.geojson`);
+                            const geojson = await response.json();
+
+                            if (map.value.getSource('road-network')) {
+                                map.value.removeLayer('road-network');
+                                map.value.removeSource('road-network');
+                            }
+
+                            map.value.addSource('road-network', {
+                                type: 'geojson',
+                                data: geojson,
+                            });
+
+                            map.value.addLayer({
+                                id: 'road-network',
+                                type: 'line',
+                                source: 'road-network',
+                                paint: {
+                                    'line-color': '#3388ff',
+                                    'line-width': 2,
+                                },
+                            });
+
+                            // Fit bounds
+                            const coordinates = geojson.features.flatMap((f) => f.geometry.coordinates);
+                            const bounds = coordinates.reduce(
+                                (bounds, coord) => bounds.extend(coord),
+                                new maplibregl.LngLatBounds(coordinates[0], coordinates[0]),
+                            );
+                            map.value.fitBounds(bounds, { padding: 50 });
+
+                            showMessage('路网加载成功', 'success');
+                        } catch (error) {
+                            console.error(error);
+                            showMessage('路网加载失败: ' + error.message, 'error');
+                        }
+                    };
+
+                    const matchTrajectory = async () => {
+                        if (trajectory.value.length < 2) {
+                            showMessage('至少需要2个点', 'warning');
+                            return;
+                        }
+
+                        try {
+                            const trajStr = trajectory.value.map((p) => p.join(',')).join(';');
+                            const url = `/fmm?road_network_id=${roadNetworkId.value}&trajectory=${trajStr}`;
+
+                            const response = await fetch(url);
+                            const result = await response.json();
+
+                            if (result.error) {
+                                throw new Error(result.error);
+                            }
+
+                            matchResult.value = result;
+
+                            // Clear previous matched path
+                            if (map.value.getSource('matched-path')) {
+                                map.value.removeLayer('matched-path');
+                                map.value.removeSource('matched-path');
+                            }
+
+                            // Add matched path
+                            map.value.addSource('matched-path', {
+                                type: 'geojson',
+                                data: {
+                                    type: 'Feature',
+                                    geometry: {
+                                        type: 'MultiLineString',
+                                        coordinates: result.matched_geometries,
+                                    },
+                                },
+                            });
+
+                            map.value.addLayer({
+                                id: 'matched-path',
+                                type: 'line',
+                                source: 'matched-path',
+                                paint: {
+                                    'line-color': '#00ff00',
+                                    'line-width': 5,
+                                    'line-opacity': 0.7,
+                                },
+                            });
+
+                            showMessage('匹配成功', 'success');
+                        } catch (error) {
+                            console.error(error);
+                            showMessage('匹配失败: ' + error.message, 'error');
+                        }
+                    };
+
+                    const clearTrajectory = () => {
+                        trajectory.value = [];
+                        matchResult.value = null;
+
+                        if (map.value.getSource('trajectory')) {
+                            map.value.removeLayer('trajectory-line');
+                            map.value.removeLayer('trajectory-points');
+                            map.value.removeSource('trajectory');
+                        }
+
+                        if (map.value.getSource('matched-path')) {
+                            map.value.removeLayer('matched-path');
+                            map.value.removeSource('matched-path');
+                        }
+
+                        showMessage('已清除轨迹', 'info');
+                    };
+
+                    const clearAll = () => {
+                        clearTrajectory();
+
+                        if (map.value.getSource('road-network')) {
+                            map.value.removeLayer('road-network');
+                            map.value.removeSource('road-network');
+                        }
+
+                        showMessage('已清除全部', 'info');
+                    };
+
+                    const updateBasemap = () => {
+                        if (!map.value) return;
+
+                        if (map.value.getLayer('base-layer')) {
+                            map.value.removeLayer('base-layer');
+                            map.value.removeSource('base-source');
+                        }
+
+                        const sources = initMapSources();
+                        map.value.addSource('base-source', sources[basemap.value]);
+                        map.value.addLayer(
+                            {
+                                id: 'base-layer',
+                                type: 'raster',
+                                source: 'base-source',
+                                paint: { 'raster-opacity': basemapOpacity.value },
+                            },
+                            'road-network',
+                        ); // Insert below road network
+                    };
+
+                    watch(basemap, () => {
+                        updateBasemap();
+                        params.basemap = basemap.value;
+                    });
+
+                    watch(basemapOpacity, (newOpacity) => {
+                        if (map.value && map.value.getLayer('base-layer')) {
+                            map.value.setPaintProperty('base-layer', 'raster-opacity', newOpacity);
+                        }
+                        params.basemap_opacity = newOpacity.toString();
+                    });
+
+                    initMap();
+
+                    return {
+                        drawer,
+                        roadNetworkId,
+                        isDrawing,
+                        trajectory,
+                        matchResult,
+                        basemap,
+                        basemapOpacity,
+                        basemapOptions,
+                        snackbar,
+                        snackbarText,
+                        snackbarColor,
+                        loadRoadNetwork,
+                        matchTrajectory,
+                        clearTrajectory,
+                        clearAll,
+                    };
+                },
+            })
+                .use(vuetify)
+                .mount('#app');
+        </script>
+    </body>
+</html>
