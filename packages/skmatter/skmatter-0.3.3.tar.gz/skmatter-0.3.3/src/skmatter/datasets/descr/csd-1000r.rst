@@ -1,0 +1,126 @@
+.. _csd:
+
+CSD-1000R
+#########
+
+This dataset, intended for model testing, contains the SOAP power spectrum features and
+local NMR chemical shieldings for 100 environments selected from CSD-1000r, originally
+published in [Ceriotti2019]_.
+
+Function Call
+-------------
+
+.. function:: skmatter.datasets.load_csd_1000r
+
+Data Set Characteristics
+------------------------
+
+:Number of Instances: Each representation 100
+
+:Number of Features: Each representation 100
+
+The representations were computed with [C1]_ using the hyperparameters:
+
+:rascal hyperparameters:
+
++---------------------------+------------+
+| key                       |   value    |
++===========================+============+
+| interaction_cutoff:       |    3.5     |
++---------------------------+------------+
+| max_radial:               |      6     |
++---------------------------+------------+
+| max_angular:              |      6     |
++---------------------------+------------+
+| gaussian_sigma_constant:  |     0.4    |
++---------------------------+------------+
+| gaussian_sigma_type:      |  "Constant"|
++---------------------------+------------+
+| cutoff_smooth_width:      |     0.5    |
++---------------------------+------------+
+| normalize:                |    True    |
++---------------------------+------------+
+
+Of the 2'520 resulting features, 100 were selected via FPS using [C2]_.
+
+Chemical Properties
+-------------------
+
+The CSD-1000R dataset consists of 100 atomic environments selected from crystal
+structures in the Cambridge Structural Database (CSD) [C3]_. These environments
+represent a diverse set of chemical compositions and bonding types, including:
+
+- Metals, metalloids, and non-metals
+- Covalent, ionic, and metallic bonding environments
+- Various coordination numbers and geometries
+
+The dataset captures local chemical environments relevant for modeling properties
+such as nuclear magnetic resonance (NMR) chemical shieldings, aiding in the
+understanding of structure-property relationships in materials chemistry.
+
+For more detailed chemical information, users can refer to the original Cambridge
+Structural Database [C3]_ or the publication by Ceriotti et al. (2019) [C4]_.
+
+References
+----------
+
+.. [C1] https://github.com/lab-cosmo/librascal commit ade202a6
+.. [C2] https://github.com/lab-cosmo/scikit-matter commit 4ed1d92
+.. [C3] https://www.ccdc.cam.ac.uk/structures/
+.. [C4] https://www.nature.com/articles/s41597-019-0224-1
+
+Reference Code
+--------------
+
+.. code-block:: python
+
+    from skmatter.feature_selection import CUR
+    from skmatter.preprocessing import StandardFlexibleScaler
+    from skmatter.sample_selection import FPS
+
+    # read all of the frames and book-keep the centers and species
+    filename = "/path/to/CSD-1000R.xyz"
+    frames = np.asarray(
+        read(filename, ":"),
+        dtype=object,
+    )
+
+    n_centers = np.array([len(frame) for frame in frames])
+    center_idx = np.array([i for i, f in enumerate(frames) for p in f])
+    n_env_accum = np.zeros(len(frames) + 1, dtype=int)
+    n_env_accum[1:] = np.cumsum(n_centers)
+
+    numbers = np.concatenate([frame.numbers for frame in frames])
+
+    # compute radial soap vectors as first pass
+    hypers = dict(
+        soap_type="PowerSpectrum",
+        interaction_cutoff=2.5,
+        max_radial=6,
+        max_angular=0,
+        gaussian_sigma_type="Constant",
+        gaussian_sigma_constant=0.4,
+        cutoff_smooth_width=0.5,
+        normalize=False,
+        global_species=[1, 6, 7, 8],
+        expansion_by_species_method="user defined",
+    )
+    soap = SOAP(**hypers)
+
+    X_raw = StandardFlexibleScaler(column_wise=False).fit_transform(
+        soap.transform(frames).get_features(soap)
+    )
+
+    # rank the environments in terms of diversity
+    n_samples = 500
+    i_selected = FPS(n_to_select=n_samples, initialize=0).fit(X_raw).selected_idx_
+
+    # book-keep which frames these samples belong in
+    f_selected = center_idx[i_selected]
+    reduced_f_selected = list(sorted(set(f_selected)))
+    frames_selected = frames[f_selected].copy()
+    ci_selected = i_selected - n_env_accum[f_selected]
+
+    properties_select = [
+        frames[fi].arrays["CS_local"][ci] for fi, ci in zip(f_selected, ci_selected)
+    ]
