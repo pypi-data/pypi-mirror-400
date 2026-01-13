@@ -1,0 +1,207 @@
+Metadata-Version: 2.4
+Name: ado-pr-kit
+Version: 0.2.3
+Summary: AdoPRKit: The complete toolbox for Azure DevOps Pull Requests (MCP)
+Project-URL: Repository, https://github.com/om-surushe/AdoPRKit
+Project-URL: Homepage, https://github.com/om-surushe/AdoPRKit
+License-File: LICENSE
+Requires-Python: >=3.10
+Requires-Dist: black
+Requires-Dist: build
+Requires-Dist: fastapi
+Requires-Dist: flake8
+Requires-Dist: mcp
+Requires-Dist: pre-commit
+Requires-Dist: pydantic
+Requires-Dist: pytest
+Requires-Dist: pytest-mock
+Requires-Dist: python-dotenv
+Requires-Dist: requests
+Requires-Dist: twine
+Requires-Dist: typer
+Requires-Dist: uvicorn
+Description-Content-Type: text/markdown
+
+# AdoPRKit
+
+[![CI](https://github.com/om-surushe/AdoPRKit/actions/workflows/ci.yml/badge.svg)](https://github.com/om-surushe/AdoPRKit/actions/workflows/ci.yml)
+[![PyPI version](https://badge.fury.io/py/ado-pr-kit.svg)](https://badge.fury.io/py/ado-pr-kit)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/ado-pr-kit.svg)](https://pypi.org/project/ado-pr-kit/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**AdoPRKit** is a Model Context Protocol (MCP) server that provides a complete toolbox for managing Azure DevOps Pull Requests. Designed for enterprise engineers who want a pragmatic, "zero thinking" set of tools for their agents.
+
+## Features
+
+- **Create PR**: Create new pull requests with title, description, and linked work items.
+- **Get PR**: Retrieve detailed information about a specific PR.
+- **List PRs**: List PRs created by you (default) or where you are a reviewer.
+- **Update PR**: Update PR details or perform actions (abandon, draft, publish, reactivate).
+- **Comments**: Add and retrieve comments on PR threads.
+- **Diffs**: View file diffs and changed files in a PR.
+
+## Roadmap & Known Limitations
+
+Compared to standard tools like the GitHub MCP server, this ADO implementation has some missing features we plan to address:
+
+- [ ] **Inline Code Comments**: Currently, comments are added to the PR thread generally. We need to support `threadContext` to pin comments to specific files and lines.
+    - *Implementation Check*: Use `threadContext` with `filePath`, `rightFileStart` (line/offset), and `rightFileEnd`.
+- [ ] **Rich Comments (Mentions & Work Items)**: The current tool only creates plain text comments. We need to support:
+    - **Mentions**: `@<User Name>` (no special ID needed, just text).
+    - **Work Item Links**: `#<Work Item ID>` (automatically linked by ADO).
+- [ ] **File Content Access**: Currently, we can only view diffs. We need a tool to read the full content of any file in the repo (not just what changed) to provide better code reviews.
+- [ ] **Work Item Management**: Basic linking exists, but full creation and management (CRUD) of Azure Boards Work Items is missing.
+- [ ] **Merge Strategies**: Explicit support for merging PRs with specific strategies (squash, rebase) is not yet exposed via a tool.
+- [ ] **Voting on PRs**: Add support for casting votes (Approve, Reject, etc.).
+    - *Values*: Approved (10), Approved with suggestions (5), No vote (0), Waiting for author (-5), Rejected (-10).
+    - *API*: `PATCH .../reviewers` endpoint.
+- [ ] **Pipeline Status**: Ability to check build/CI status checks on a PR.
+    - *Implementation Check*: Use `GET .../pullRequests/{id}/statuses` to retrieve CI/Build status.
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.10+
+- Azure DevOps Personal Access Token (PAT) with **Code (Read & Write)** and **Pull Request Threads (Read & Write)** scopes.
+
+### ⚡️ Quick Start (No Install)
+
+Run directly using `uvx` (part of [uv](https://docs.astral.sh/uv/)):
+
+```bash
+uvx ado-pr-manager
+```
+
+### 📦 Installation
+
+If you prefer installing it globally or in a venv:
+
+```bash
+pip install ado-pr-manager
+# or
+uv pip install ado-pr-manager
+```
+
+### 🛠️ Editor Configuration
+
+#### **Cursor**
+
+1. Go to **Cursor Settings** > **General** > **MCP**.
+2. Click **Add new MCP server**.
+3. Select **Command** type.
+4. Name: `ado-pr-manager`
+5. Command: `uvx ado-pr-manager` (or `python3 -m ado_pr_kit.server` if installed)
+6. Add your Environment Variables (`AZDO_ORG_URL`, `AZDO_PAT`, etc.) in the config.
+
+#### **VS Code**
+
+1. Install the **MCP Support** extension.
+2. Edit your connection config (e.g. `.vscode/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "ado-pr-manager": {
+      "command": "uvx",
+      "args": ["ado-pr-manager"],
+      "env": {
+        "AZDO_ORG_URL": "...",
+        "AZDO_PAT": "..."
+      }
+    }
+  }
+}
+```
+
+#### **Claude Desktop**
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "ado-pr-manager": {
+      "command": "uvx",
+      "args": ["ado-pr-manager"],
+      "env": {
+        "AZDO_ORG_URL": "...",
+        "AZDO_PAT": "..."
+      }
+    }
+  }
+}
+```
+
+### 🌐 Remote Usage (SSE)
+
+To use this server with web-based MCP clients, you can deploy it as a remote SSE (Server-Sent Events) server.
+
+1.  **Entry Point**: `ado_pr_kit.server_sse:app`
+2.  **Command**: `uvicorn ado_pr_kit.server_sse:app --host 0.0.0.0 --port 8000`
+3.  **Deployment**:
+    *   **Railway/Render**: Deploy this repo, set the Start Command to the above, and add your Environment Variables.
+    *   **Docker**: Use the provided Dockerfile but override the entrypoint to run uvicorn.
+
+Clients can then connect via SSE at `https://your-app-url.com/sse`.
+
+## 🚀 Hosting
+
+Since **AdoPRKit** is Docker-ready, you can deploy it anywhere.
+
+### Option 1: Render (Free Tier Available)
+1.  Click the button below.
+2.  Connect your GitHub repository.
+3.  Add Environment Variables (`AZDO_ORG_URL`, `AZDO_PAT`).
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+
+> [!NOTE]
+> **Cold Start**: Free-tier hosting (Render, Railway) may spin down after inactivity. The first request after idle may take 30-60 seconds.
+
+### Option 2: Railway
+1.  Click the button below.
+2.  Railway will detect the `Dockerfile`.
+3.  Add variables in the "Variables" tab.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new)
+
+### Option 3: Smithery
+Built specifically for MCP.
+- [Deploy on Smithery](https://smithery.ai/new)
+
+### Option 4: Self-Host (e.g., alongside LiteLLM)
+If you have a customized server (like for LiteLLM), you can run this via Docker Compose.
+
+1.  Copy the `docker-compose.yml` from this repo.
+2.  Run:
+    ```bash
+    export AZDO_ORG_URL="https://dev.azure.com/myorg"
+    export AZDO_PAT="your-pat"
+    docker-compose up -d
+    ```
+3.  Your MCP server will be at `http://YOUR_SERVER_IP:8000/sse`.
+
+## Development
+
+1.  **Clone & Install**:
+    ```bash
+    git clone https://github.com/om-surushe/ado-pr-manager.git
+    cd ado-pr-manager
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -e .[dev]
+    ```
+
+2.  **Test**:
+    ```bash
+    pytest
+    ```
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and contribute to the project.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
