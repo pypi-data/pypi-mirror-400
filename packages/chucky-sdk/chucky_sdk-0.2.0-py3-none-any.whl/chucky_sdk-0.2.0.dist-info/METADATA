@@ -1,0 +1,196 @@
+Metadata-Version: 2.4
+Name: chucky-sdk
+Version: 0.2.0
+Summary: Python SDK for Chucky - Claude Agent as a Service
+License-Expression: MIT
+Keywords: agent,ai,anthropic,claude,sdk
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.10
+Requires-Dist: pydantic>=2.0
+Requires-Dist: websockets>=12.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.21; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: python-dotenv>=1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Chucky SDK - Python
+
+Python client for Chucky - Claude Agent as a Service.
+
+## Installation
+
+```bash
+pip install chucky-sdk
+# or
+poetry add chucky-sdk
+# or
+uv add chucky-sdk
+```
+
+## Quick Start
+
+```python
+import asyncio
+from chucky import Chucky
+
+async def main():
+    # Create client
+    client = Chucky(
+        url='wss://your-chucky-server.com/ws',
+        token='your-jwt-token',
+    )
+
+    # Simple prompt
+    result = await client.prompt('What is 2 + 2?')
+    print(result.result)
+
+asyncio.run(main())
+```
+
+## Streaming
+
+```python
+async for event in client.stream('Tell me a story'):
+    if event.type == 'message':
+        msg = event.data
+        if msg.get('type') == 'assistant':
+            content = msg.get('message', {}).get('content', [])
+            for block in content:
+                if block.get('type') == 'text':
+                    print(block['text'], end='', flush=True)
+```
+
+## Tools
+
+Define tools that execute locally in your Python application:
+
+```python
+from typing import Literal
+from chucky import Chucky, tool, text_result, ToolResult
+
+@tool("greet", "Greet someone by name")
+async def greet(
+    name: str,
+    style: Literal["formal", "casual"] = "casual",
+) -> ToolResult:
+    """
+    Greet someone.
+
+    Args:
+        name: The name of the person to greet
+        style: The greeting style
+    """
+    greeting = f"Good day, {name}." if style == "formal" else f"Hey {name}!"
+    return text_result(greeting)
+
+result = await client.prompt('Greet Alice formally', tools=[greet])
+```
+
+## MCP Servers
+
+Group tools into MCP servers for better organization:
+
+```python
+from chucky import create_mcp_server, tool, text_result
+from datetime import datetime
+
+@tool("get_time", "Get current time")
+async def get_time() -> ToolResult:
+    return text_result(datetime.now().isoformat())
+
+time_server = create_mcp_server("time-tools", [get_time])
+
+client = Chucky(
+    url='wss://...',
+    token='...',
+    mcp_servers={'time-tools': time_server},
+)
+```
+
+## Tool Schema Options
+
+The `@tool` decorator supports multiple ways to define input schemas:
+
+### 1. Auto-infer from function signature (recommended)
+
+```python
+@tool("greet", "Greet someone")
+async def greet(name: str, count: int = 1) -> ToolResult:
+    return text_result(f"Hello, {name}!" * count)
+```
+
+### 2. Pydantic model
+
+```python
+from pydantic import BaseModel
+
+class GreetInput(BaseModel):
+    name: str
+    style: Literal["formal", "casual"] = "casual"
+
+@tool("greet", "Greet someone", schema=GreetInput)
+async def greet(args: dict) -> ToolResult:
+    return text_result(f"Hello, {args['name']}!")
+```
+
+### 3. Raw JSON Schema
+
+```python
+@tool("greet", "Greet someone", schema={
+    "type": "object",
+    "properties": {"name": {"type": "string"}},
+    "required": ["name"]
+})
+async def greet(args: dict) -> ToolResult:
+    return text_result(f"Hello, {args['name']}!")
+```
+
+## API Reference
+
+### `Chucky`
+
+Main client class.
+
+**Constructor Parameters:**
+- `url` (required): WebSocket URL of the Chucky server
+- `token` (required): JWT billing token
+- `model`: Claude model to use (default: `claude-sonnet-4-5-20250929`)
+- `system_prompt`: Default system prompt
+- `max_turns`: Maximum conversation turns
+- `allowed_tools`: List of allowed tool names
+- `disallowed_tools`: List of disallowed tool names
+- `mcp_servers`: MCP servers with client-side tools
+- `timeout`: Connection timeout in seconds (default: 30.0)
+- `keepalive_interval`: Keep-alive interval in seconds (default: 60.0)
+
+**Methods:**
+- `prompt(message, **options)`: Send a prompt and wait for result
+- `stream(message, options=None)`: Send a prompt and stream events
+
+### `@tool(name, description, schema=None)`
+
+Decorator to create a tool from a function.
+
+### `create_mcp_server(name, tools, version="1.0.0")`
+
+Create an MCP server with tools.
+
+### `text_result(text)`
+
+Helper to create a simple text result.
+
+### `error_result(message)`
+
+Helper to create an error result.
+
+## License
+
+MIT
