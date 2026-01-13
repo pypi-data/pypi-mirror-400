@@ -1,0 +1,63 @@
+Metadata-Version: 2.4
+Name: keyhole-comm
+Version: 1.13.0
+Summary: Low-effort serial communication, e.g. for talking to devices that use the Arduino-IDE Keyhole library
+Home-page: https://bitbucket.org/jezhill/Keyhole
+Author: Jeremy Hill
+Author-email: jezhill@gmail.com
+License: CC0
+Description-Content-Type: text/x-rst
+License-File: LICENSE.txt
+Requires-Dist: pyserial
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
+
+This module provides the Keyhole class, which allows easy line-by-line text communication
+over a serial port. It is particularly useful for implementing the computer's side of the
+interaction when talking to a microcontroller that has been programmed using the Arduino-
+IDE Keyhole library. In that case, exposed sketch variables can be accessed as attributes
+of a Keyhole instance in Python.
+
+The Arduino side::
+
+    #include "Keyhole.h"
+    Keyhole k;
+    
+    void setup()
+    {
+        Serial.begin(9600);
+    }
+    void loop()
+    {
+        static float foo = 1.23;
+        static String bar = "hello";
+        
+        // insert main sketch logic here (use foo and bar to do whatever is so important)
+        
+        if(k.begin()) // expose the variables
+        {
+            k.variable("foo", foo);
+            k.variable("bar", bar);
+            k.end();
+        }
+    }
+
+The Python side::
+
+    from keyhole import Keyhole
+    
+    # k = Keyhole('COM4')                 # windows example
+    k = Keyhole('/dev/cu.usbmodem[0-9]*') # macos example (globbing is OK if the match is unique)
+    
+    print( k.bar ) # queries an exposed sketch variable
+    k.foo = 4.56   # assigns to an exposed sketch variable and makes the .variable() call return true
+    
+    print( k() )  # get all exposed variables
+
