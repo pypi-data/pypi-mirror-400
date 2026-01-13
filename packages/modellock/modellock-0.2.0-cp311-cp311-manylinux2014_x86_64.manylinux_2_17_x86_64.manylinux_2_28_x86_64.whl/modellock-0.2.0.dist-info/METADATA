@@ -1,0 +1,92 @@
+Metadata-Version: 2.4
+Name: modellock
+Version: 0.2.0
+Summary: AI 模型加密保护与授权系统
+Author-email: Yaqiang Sun <sunyaking@163.com>
+Requires-Python: <3.14,>=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pycryptodome>=3.23.0
+Requires-Dist: psutil>=5.9.0
+Requires-Dist: fastapi>=0.68.0
+Requires-Dist: uvicorn>=0.15.0
+Requires-Dist: pycryptodome>=3.10.1
+Requires-Dist: modellock>=0.0.1
+Requires-Dist: python-multipart>=0.0.20
+Requires-Dist: requests>=2.32.5
+Dynamic: license-file
+
+# ModelLock - AI 模型加密保护与授权系统
+
+ModelLock 是一个用于加密和授权机器学习模型的工具。它提供了基于密码的文件加密功能，以及基于设备指纹的许可证管理系统，确保只有授权设备才能解密和使用加密的模型。
+
+## 功能特性
+
+- 基于密码的文件加密（使用 AES-GCM 算法）
+- 设备指纹识别（跨平台支持）
+- 许可证管理（带有效期控制）
+- 命令行界面（CLI）便于集成和使用
+- 安全的密钥派生（使用 PBKDF2）
+- Python API 接口便于程序集成
+- 支持直接提供主密钥进行解密（适用于特殊场景）
+- 支持创建无设备绑定的许可证
+- 增加`from model.lock import lock `支持，用于程序快速加密
+
+## 快速开始
+
+### 安装
+
+```bash
+pip install modellock
+```
+
+或从源码安装：
+
+```bash
+git clone https://github.com/yaqiangsun/modellock.git
+cd modellock
+pip install -e .
+```
+
+### 使用流程示例
+
+1. **准备阶段**
+   ```bash
+   # 生成服务器密钥（**必须妥善保管生成文件且不能分享给他人**）
+   bash ./scripts/run0_generate_server_secret.sh
+   
+   # 生成密钥文件与master_key文件（**必须妥善保管生成文件且不能分享给他人**）
+   bash ./scripts/run1_generate_keyfile.sh
+   
+   # 加密模型文件（**加密后的文件可以分享给授权使用**）
+   bash ./scripts/run2_encrypt_file.sh
+   
+   # 收集目标设备信息 (**不限制使用**)
+   bash ./scripts/run3_collect_device.sh
+   
+   # 为目标设备创建许可证（**生成文件可分享给授权使用**）
+   bash ./scripts/run4_create_license.sh
+   ```
+   上述生成的文件 **只将** 加密后的模型文件、许可证文件分发给授权使用。
+
+2. **部署和使用**
+   ```bash
+   # 在目标设备上解密模型 (**为保证模型安全，只能在内存中解密，且解密代码需编译以保证源码不可见**)
+   ./scripts/run5_decrypt_file.sh
+   ```
+   解密形式包含两种：1.提供密钥文件与密码，自动生成master_key内容解密；2.直接提供master_key解密
+
+所有中间文件和输出文件都会保存在 `tmp/` 目录下。
+
+## 重要安全提示
+
+在使用 ModelLock 过程中会生成多个敏感文件，这些文件或内容**必须妥善保管且不能分享给他人**：
+- `password` - 密码，用户自定义的密码
+- `server_secret.key` - 服务器密钥文件，用于许可证加密（[步骤0生成服务密钥](scripts/run0_generate_server_secret.sh)中生成的内容）
+- `keyfile.json` - 密钥文件，包含加密相关信息([步骤1生成密钥种子](scripts/run1_generate_keyfile.sh)中生成的内容)
+
+这些文件或内容能够授权使用**可分享给授权的使用者**：
+- `license.json` - 许可证文件，用于解密已加密的模型([步骤4生成用户授权license](scripts/run4_create_license.sh)中生成的内容)
+
+请务必遵循此安全提示，防止未授权访问。
+
