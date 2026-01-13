@@ -1,0 +1,17 @@
+name: cloudsql-local
+
+services:
+  cloud-sql-proxy:
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.4
+    container_name: cloud-sql-proxy
+    command:
+      - "--address=0.0.0.0"
+      - "--port=${CLOUD_SQL_PORT:-3306}"
+      - "${CLOUD_SQL_INSTANCE}"
+    ports:
+      - "${CLOUD_SQL_PORT:-3306}:3306"
+    volumes:
+      - ~/.config/gcloud/application_default_credentials.json:/creds/adc.json:ro
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /creds/adc.json
+    restart: unless-stopped
