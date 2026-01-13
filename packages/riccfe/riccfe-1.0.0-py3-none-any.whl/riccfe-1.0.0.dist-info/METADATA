@@ -1,0 +1,251 @@
+Metadata-Version: 2.4
+Name: riccfe
+Version: 1.0.0
+Summary: Ranked Independent Components (RIC) Explainer for Counterfactual Explanation, leveraging ICA and global optimization.
+Project-URL: Homepage, https://github.com/mrajabinasab/RICCFE
+Project-URL: Bug Tracker, https://github.com/mrajabinasab/RICCFE/issues
+Author-email: Muhammad Rajabinasab <muhammad.rajabinasab@outlook.com>
+License: MIT License
+Keywords: counterfactuals,explainable-ai,ica,machine-learning,xai
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.11
+Requires-Dist: numpy>=2.3.0
+Requires-Dist: pandas>=2.3.0
+Requires-Dist: pyswarms>=1.3
+Requires-Dist: scikit-learn>=1.7.0
+Requires-Dist: scipy>=1.16.0
+Description-Content-Type: text/markdown
+
+# RIC: Ranked Independent Components for Counterfactual Explanations
+
+RIC is a Python library for generating local, sparse, and diverse counterfactual explanations based on Independent Component Analysis (ICA) and global optimization (Differential Evolution or Particle Swarm Optimization). RIC generates Counterfactual Explanations by leveraging **Independent Component Analysis (ICA)**  to find a linear transformation that minimizes the statistical dependence between components. This results in a set of **Independent Components (S)** that represent the underlying, disentangled factors of variation in your data.
+
+By optimizing the search for a Counterfactual (CF) within this independent component space, the explainer achieves two main goals:
+
+1.  **Sparsity and Proximity:** The optimization focuses only on the most influential components (**Ranked Independent Components** via `TOP_K`), drastically reducing the search dimensionality and leading to smaller, more actionable changes.
+2.  **Diversity:** Penalties are applied in the indepndent space, ensuring that generated CFs occupy unique positions in the ICA component space, thereby promoting diverse explanations.
+
+## 📦 Dependencies and Requirements
+
+RIC requires the following external libraries:
+
+* `numpy`
+* `pandas`
+* `scikit-learn` (for classifier compatibility and base ICA)
+* `scipy` (for Differential Evolution optimization)
+* `pyswarms` (required for Particle Swarm Optimization backend, `'pso'`)
+   
+## 💡 Installation
+
+```bash
+pip install riccfe
+```
+
+## 🚀 Demo
+The core logic is handled by the RICExplainer class.
+
+```python
+import pandas as pd
+import numpy as np
+from riccfe import RICExplainer
+from sklearn.ensemble import GradientBoostingClassifier
+
+if __name__ == '__main__':
+    print("--- RICExplainer Library Demonstration ---")
+    
+    # 1. Create a dummy dataset
+    np.random.seed(42)
+    data_size = 1000
+    
+    data = pd.DataFrame({
+        'FeatureA': np.random.rand(data_size) * 10,
+        'FeatureB': np.random.randint(0, 5, data_size),
+        'FeatureC': np.random.normal(loc=50, scale=5, size=data_size),
+        'FeatureD': np.random.normal(loc=50, scale=5, size=data_size),
+    })
+    data['Target'] = (data['FeatureA'] * 0.5 + data['FeatureC'] * 0.1 + data['FeatureB'] * 0.3 + (data['FeatureD'] == 'Blue').astype(int) * 2 > 8).astype(int)
+    
+    X_train = data.drop(columns=['Target'])
+    y_train = data['Target']
+    
+    # Select 5 instances to explain
+    X_test = X_train.iloc[50:55]
+    
+    print(f"Training data size: {len(X_train)} instances.\n")
+    
+    # ==========================================================================
+    # DEMO 1: Default Classifier (RandomForest) and Automatic Config
+    # ==========================================================================
+    print("--- DEMO 1: Default Classifier (RF) with PSO and Automatic Config ---")
+    
+    config_default = {
+        'N_COMPONENTS': 3,
+        'MASKED': ['FeatureD'],
+        'GLOBAL_OPTIMIZER': 'pso',
+        'TOP_K': 2,
+        'MAX_DIST': 1e18 # Default high value for MAX_DIST
+    }
+    
+    # Instantiation: Classifier is NOT passed, so RandomForest is used.
+    explainer_default_rf = RICExplainer(config=config_default)
+    explainer_default_rf.fit(X=X_train, y=y_train, target_column='Target') 
+    
+    print("\nGenerating 2 diverse CFs per instance...")
+    # Using the default MAX_DIST of 1e18 defined in the config
+    explanations_default = explainer_default_rf.explain(
+        X_input=X_test, 
+        num_cf=2, 
+        diversity_radius=0.1,
+    )
+    
+    print("\n--- DEMO 1 Results (First 3 CFs): ---")
+    df_default = pd.DataFrame(explanations_default)
+    print(df_default[['Original_Input_Index', 'Original_Predicted_Class', 'Target_Class', 
+                   'CF_Predicted_Class', 'L2_Distance', 'Success', 'Generation_Time_s']].head(3).to_string())
+    
+    
+    # ==========================================================================
+    # DEMO 2: Custom Classifier (sklearn GradientBoostingClassifier) and Manual Config
+    # ==========================================================================
+    print("\n" + "="*70)
+    print("--- DEMO 2: Custom Classifier (sklearn GradientBoostingClassifier) & Manual Config ---")
+    
+    # Use the scikit-learn GradientBoostingClassifier
+    custom_classifier = GradientBoostingClassifier(
+        n_estimators=100,
+        learning_rate=0.1,
+        max_depth=3,
+        random_state=42
+    )
+    
+    config_manual = {
+        'N_COMPONENTS': 3,
+        'MASKED': [],                        
+        'TYPE_MODE': 'manual',               
+        'MANUAL_DISCRETE_FEATURES': ['FeatureC'], # Force FeatureC (normally continuous) to be discrete
+        'BOUNDS_MODE': 'manual',
+        'MANUAL_BOUNDS': {                   # Manually restrict the range of FeatureA
+            'FeatureA': (5.0, 8.0) 
+        },
+        'GLOBAL_OPTIMIZER': 'de',
+        'TOP_K': None,
+        'MAX_DIST': 100.0 # Override MAX_DIST to a smaller, application-relevant value
+    }
+    
+    explainer_custom_gb = RICExplainer(config=config_manual, classifier=custom_classifier)
+    explainer_custom_gb.fit(X=X_train, y=y_train, target_column='Target') 
+    
+    print("\nGenerating 1 CF per instance on a subset...")
+    explanations_custom = explainer_custom_gb.explain(
+        X_input=X_test.iloc[[0, 1]], 
+        num_cf=1,
+    )
+    
+    print("\n--- DEMO 2 Results (All CFs): ---")
+    df_custom = pd.DataFrame(explanations_custom)
+    print(df_custom[['Original_Input_Index', 'Original_Predicted_Class', 'Target_Class', 
+                     'CF_Predicted_Class', 'L2_Distance', 'Success', 'Generation_Time_s']].to_string())
+    
+    # Check the FeatureA/FeatureC values to confirm the manual enforcement
+    print("\nVerifying FeatureA (Manually bounded) and FeatureC (Manually discrete):")
+    cf_A = [col for col in df_custom.columns if 'Counterfactual_Feature_FeatureA' in col][0]
+    cf_C = [col for col in df_custom.columns if 'Counterfactual_Feature_FeatureC' in col][0]
+    print(df_custom[[cf_A, cf_C]])
+```
+
+# API REFERENCE
+
+## 📚 RICExplainer Class: Core Explainer
+
+### `RICExplainer(config=None, classifier=None)`
+
+Initializes the RIC Explainer object.
+
+| Name | Type | Description |
+| :--- | :--- | :--- |
+| **`config`** | `Optional[Dict]` | Configuration dictionary to override `RICExplainer.DEFAULT_CONFIG`. Controls optimization, bounds, and feature selection. |
+| **`classifier`** | `Optional[estimator]` | A fitted or unfitted scikit-learn compatible classifier (must implement `fit`, `predict`, and `predict_proba`). If `None`, a default `RandomForestClassifier` is used. |
+
+#### Attributes (After `fit` is called)
+
+| Name | Type | Description |
+| :--- | :--- | :--- |
+| `classifier` | `estimator` | The fitted underlying classifier model. |
+| `ica` | `ReconstructionICA` | The fitted ICA model used for dimensional reduction. |
+| `feature_names` | `List[str]` | List of features used during fitting. |
+| `selected_components_` | `np.ndarray` | Indices of the ICA components selected for optimization based on `TOP_K` or ranking criteria. |
+
+---
+
+## 🛠️`fit(X, y, target_column=None)`
+
+Fits the internal data preprocessor, the ICA model, and the classifier.
+
+| Name | Type | Description |
+| :--- | :--- | :--- |
+| **`X`** | `pd.DataFrame` or `np.ndarray` | The training data features. |
+| **`y`** | `pd.Series` or `np.ndarray` | The training data target. |
+| **`target_column`** | `Optional[str]` | **Required if `X` is a `pd.DataFrame`**. The name of the target column. |
+
+#### Returns
+
+| Type | Description |
+| :--- | :--- |
+| `RICExplainer` | The fitted explainer instance (allows method chaining). |
+
+---
+
+## 🔍 `explain(X_input, num_cf=1, diversity_radius=0.3, max_dist=None)`
+
+Generates counterfactual explanations for one or more instances.
+
+| Name | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`X_input`** | `pd.DataFrame` or `np.ndarray` | | The instance(s) to be explained. Must contain the same features as the training data. |
+| **`num_cf`** | `int` | `1` | The number of diverse counterfactuals to attempt to generate for each input instance. |
+| **`diversity_radius`** | `float` | `0.3` | Minimum L2 distance in the delta-space required between any two successful CFs for the same instance. |
+| **`max_dist`** | `Optional[float]` | `None` | The maximum acceptable L2 distance (squared, in feature space) for a successful CF. If `None`, the global config value is used. |
+
+#### Returns
+
+| Type | Description |
+| :--- | :--- |
+| `List[Dict[str, Any]]` | A list of dictionaries, where each dictionary represents a single counterfactual attempt (success or failure) and includes detailed metrics. |
+
+## ⚙️ Configuration Parameters
+
+The optimization and modeling behavior is highly configurable via the dictionary passed to the constructor. These parameters are accessible via `explainer.DEFAULT_CONFIG`.
+
+| Parameter | Default Value | Category | Description |
+| :--- | :--- | :--- | :--- |
+| **`MAX_DIST`** | $1e18$ | **Constraint** | The maximum acceptable **squared L2 distance** in feature space for a *successful* counterfactual. Solutions exceeding this distance are filtered out *after* optimization. |
+| `N_COMPONENTS` | `None` | **Model** | Number of ICA components. `None` uses $min(n_{samples}, n_{features})$. |
+| `MASKED` | `[]` | **Features** | List of feature names to exclude from the ICA transformation. These features are held constant during optimization. |
+| `TYPE_MODE` | `'automatic'` | **Features** | Feature type inference: `'automatic'` (detects integers) or `'manual'` (uses `MANUAL_DISCRETE_FEATURES`). |
+| `MANUAL_DISCRETE_FEATURES` | `[]` | **Features** | List of feature names to be treated as discrete during CF generation (requires rounding). |
+| `BOUNDS_MODE` | `'automatic'` | **Constraints** | Feature bounds: `'automatic'` (uses min/max from training data) or `'manual'` (uses `MANUAL_BOUNDS`). |
+| `MANUAL_BOUNDS` | `{}` | **Constraints** | Dictionary mapping feature names to `(min, max)` tuples for hard boundary enforcement. |
+| `GLOBAL_OPTIMIZER` | `'pso'` | **Optimization** | The search algorithm: `'de'` (Differential Evolution) or `'pso'` (Particle Swarm Optimization). |
+| `MAX_ITER` | `10` | **Optimization** | Maximum iterations for the global optimizer.  |
+| `POP_SIZE` | `10` | **Optimization** | Population size for the global optimizer. |
+| `TARGET_THRESHOLD` | $0.5$ | **Constraints** | Minimum predicted probability required for the target class for a solution to be considered valid. |
+| `TOP_K` | $1$ | **Selection** | Number of top-ranked ICA components (by importance) to use in the optimization search space.|
+| `RANDOM_STATE` | $42$ | **General** | Seed for reproducibility. |
+| `W` | $0.729$ | **PSO Opt.** | Inertia weight for PSO. |
+| `C1` | $1.49445$ | **PSO Opt.** | Cognitive parameter (particle's own best memory) for PSO. |
+| `C2` | $1.49445$ | **PSO Opt.** | Social parameter (global best memory) for PSO. |
+| `BOUNDS_RANGE` | $2.0$ | **Optimization** | The range (e.g., $\pm 2.0$) applied to the delta of the selected ICA components during optimization search. |
+| `STEP_NUM` | $100$ | **Selection** | Number of points to sample across the range of an ICA component when calculating its importance (for ranking). |
+
+#  Citation
+
+If you use RIC in your research, please cite the original paper:
+
+```
+CITATION WILL BE PROVIDED UPON PUBLICATION.
+```
