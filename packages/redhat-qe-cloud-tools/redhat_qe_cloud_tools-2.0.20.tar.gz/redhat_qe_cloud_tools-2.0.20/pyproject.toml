@@ -1,0 +1,86 @@
+[project]
+name = "redhat-qe-cloud-tools"
+version = "2.0.20"
+description = "Python utilities to manage cloud services, such as AWS."
+authors = [
+  { name = "Meni Yakove", email = "myakove@gmail.com" },
+  { name = "Ruth Netser", email = "rnetser@gmail.com" },
+]
+requires-python = ">=3.10,<4"
+readme = "README.md"
+license = "Apache-2.0"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "boto3>=1.34.110,<2",
+  "colorlog>=6.7.0,<7",
+  "python-simple-logger>=1.0.5",
+  "click>=8.1.4,<9",
+  "configparser>=7.0.0,<8",
+  "google-cloud-compute>=1.14.1,<2",
+  "azure-mgmt-resource>=24.0.0,<25",
+  "azure-identity>=1.15.0,<2",
+  "azure-mgmt-redhatopenshift>=2.0.0,<3",
+  "azure-mgmt-network>=30,<31",
+  "azure-mgmt-subscription>=3.1.1,<4",
+  "azure-core>=1.30.1,<2",
+  "openshift-python-utilities>=6.0.0,<7",
+  "pyhelper-utils>=2,<3",
+]
+
+[project.urls]
+Homepage = "https://github.com/RedHatQE/cloud-tools"
+Repository = "https://github.com/RedHatQE/cloud-tools"
+Documentation = "https://github.com/RedHatQE/cloud-tools/blob/main/README.md"
+Download = "https://pypi.org/project/redhat-qe-cloud-tools/"
+"Bug Tracker" = "https://github.com/RedHatQE/cloud-tools/issues"
+
+[project.scripts]
+cloud-cli = "clouds.cli.cli:cloud_cli"
+
+[tool.ruff]
+preview = true
+line-length = 120
+fix = true
+output-format = "grouped"
+
+[dependency-groups]
+dev = ["ipdb>=0.13.13,<0.14"]
+tests = ["pytest-mock>=3.14.0,<4", "pytest>=9.0.1,<10", "pytest-cov>=7,<8"]
+
+[tool.ruff.format]
+exclude = [".git", ".venv", ".mypy_cache", ".tox", "__pycache__"]
+
+[tool.uv]
+default-groups = ["dev", "tests"]
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+show_error_codes = true
+warn_unused_ignores = true
+
+[tool.hatch.build.targets.sdist]
+include = ["clouds"]
+
+[tool.hatch.build.targets.wheel]
+include = ["clouds"]
+
+[tool.coverage.run]
+omit = ["clouds/tests/*"]
+
+[tool.coverage.report]
+fail_under = 20
+skip_empty = true
+
+[tool.coverage.html]
+directory = ".tests_coverage"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
