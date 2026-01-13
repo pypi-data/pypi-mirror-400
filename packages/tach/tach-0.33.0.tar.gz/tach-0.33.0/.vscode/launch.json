@@ -1,0 +1,86 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name":"tach check current project (python)",
+            "type":"debugpy",
+            "request":"launch",
+            "module":"tach",
+            "args": ["check"],
+            "presentation": {
+                "group": "check"
+            }
+        },
+        {
+            "name": "tach check current project (rust)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceRoot}/.venv/bin/python",
+            "args": ["-m", "tach", "check"],
+            "cwd": "${workspaceRoot}",
+            "presentation": {
+                "group": "check"
+            }
+        },
+        {
+            "name":"tach test current project (python)",
+            "type":"debugpy",
+            "request":"launch",
+            "module":"pytest",
+            "args": ["-p", "tach.pytest_plugin"],
+            "presentation": {
+                "group": "test"
+            }
+        },
+        {
+            "name": "tach test current project (rust)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceRoot}/.venv/bin/python",
+            "args": ["-m", "pytest", "-p", "tach.pytest_plugin"],
+            "cwd": "${workspaceRoot}",
+            "presentation": {
+                "group": "test"
+            }
+        },
+        {
+            "name": "vscode extension (typescript)",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}/vscode",
+                "--disable-extension=detachhead.dtach"
+            ],
+            "smartStep": true,
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/vscode/dist/**/*.js"],
+            "preLaunchTask": "npm: compile - vscode",
+            "presentation": {
+                "group": "lsp"
+            }
+        },
+        {
+            "name": "vscode extension - attach server (rust)",
+            "type": "lldb",
+            "request": "attach",
+            "pid": "${input:pickTachProcess}",
+            "preLaunchTask": "make: ensure-debugging-enabled",
+            "presentation": {
+                "group": "lsp"
+            },
+        }
+    ],
+    "inputs": [
+        {
+            "id": "pickTachProcess",
+            "type": "command",
+            "command": "lldb.pickProcess",
+            "args": {
+                "filter": "tach server"
+            }
+        }
+    ]
+}
