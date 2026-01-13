@@ -1,0 +1,137 @@
+# {{ app_name }}
+
+External pluggable app for fastappkit.
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+## Configuration
+
+This app uses a `.env` file for configuration. A `.env` file is created automatically when you create the app.
+
+**Configure your environment:**
+
+1. Edit the `.env` file in the app root directory:
+   ```bash
+   # Database Configuration
+   DATABASE_URL=sqlite:///./{{ app_name }}.db
+
+   # Development Settings
+   DEBUG=false
+   ```
+
+2. For production or different databases, update `DATABASE_URL`:
+   ```bash
+   DATABASE_URL=postgresql://user:password@localhost/{{ app_name }}
+   ```
+
+The `.env` file is automatically loaded by `config.py` using `pydantic-settings`.
+
+## Independent Development
+
+This external app can be developed and tested independently without requiring a full fastappkit project.
+
+### Running the Server
+
+Start the development server:
+
+```bash
+# From the app root directory
+uvicorn main:app --reload
+```
+
+Or use Python directly:
+
+```bash
+python main.py
+```
+
+The server will start on `http://127.0.0.1:8000` with the app's routes available at `/{{ app_name }}/`.
+
+### Project Structure
+
+```
+{{ app_name }}/
+├── {{ app_name }}/          # Package directory
+│   ├── __init__.py          # register() function
+│   ├── models.py            # SQLAlchemy models
+│   ├── router.py            # FastAPI routes
+│   ├── config.py            # Settings (loads from .env)
+│   └── migrations/          # Alembic migrations
+├── main.py                  # Entry point for independent development
+├── alembic.ini              # Alembic configuration
+├── .env                     # Environment variables (gitignored)
+└── pyproject.toml           # Package metadata
+```
+
+## Usage in a Core Project
+
+To use this app in a fastappkit project, add it to your `fastappkit.toml`:
+
+```toml
+[tool.fastappkit]
+apps = [
+    "{{ app_name }}",
+]
+```
+
+## Migrations
+
+This app uses isolated migrations with its own version table (`alembic_version_{{ app_name }}`).
+
+**Important**: External apps are developed independently. Migrations are created in the external app's own project, not from the core project.
+
+### When Developing the External App
+
+The external app includes an `alembic.ini` file for independent development.
+
+**Create migrations** (in the external app's project directory):
+```bash
+# In the external app's project directory
+cd {{ app_name }}
+
+# Create a new migration
+alembic revision --autogenerate -m "description"
+
+# Or create an empty migration
+alembic revision -m "description"
+```
+
+**Run migrations** (in the external app's project directory):
+```bash
+# Upgrade to latest
+alembic upgrade head
+
+# Downgrade one revision
+alembic downgrade -1
+
+# Preview SQL without executing
+alembic upgrade head --sql
+```
+
+**Database URL**: The database URL is determined in this order:
+1. App's Settings class (loads from `.env` file) - **RECOMMENDED**
+2. `DATABASE_URL` environment variable
+3. `alembic.ini` sqlalchemy.url (fallback only)
+
+The app's `Settings` class automatically loads from `.env` file, so just configure your `.env` file and it will be used.
+
+### When Using the External App in a Core Project
+
+Apply existing migrations (from core project):
+```bash
+fastappkit migrate app {{ app_name }} upgrade
+```
+
+**Note**: You cannot create migrations for external apps from the core project. Migrations must be created when developing the external app itself.
+
+## Development
+
+This is an external app, which means:
+- It must be schema-independent
+- It cannot depend on internal apps
+- It uses its own migration timeline
+- It can be published to PyPI
