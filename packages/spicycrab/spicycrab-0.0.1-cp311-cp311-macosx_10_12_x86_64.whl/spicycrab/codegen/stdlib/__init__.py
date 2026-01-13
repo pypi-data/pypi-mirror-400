@@ -1,0 +1,163 @@
+"""Standard library mappings from Python to Rust."""
+
+from spicycrab.codegen.stdlib.collections_map import (
+    COLLECTIONS_MAPPINGS,
+    DEQUE_METHOD_MAPPINGS,
+    get_collections_mapping,
+    get_deque_method,
+)
+from spicycrab.codegen.stdlib.glob_map import (
+    GLOB_MAPPINGS,
+    get_glob_mapping,
+)
+from spicycrab.codegen.stdlib.json_map import (
+    JSON_MAPPINGS,
+    get_json_mapping,
+)
+from spicycrab.codegen.stdlib.os_map import (
+    OS_MAPPINGS,
+    PATHLIB_MAPPINGS,
+    SYS_MAPPINGS,
+    StdlibMapping,
+    get_os_mapping,
+    get_pathlib_mapping,
+    get_sys_mapping,
+)
+from spicycrab.codegen.stdlib.tempfile_map import (
+    TEMPFILE_MAPPINGS,
+    get_tempfile_mapping,
+)
+from spicycrab.codegen.stdlib.subprocess_map import (
+    SUBPROCESS_MAPPINGS,
+    get_subprocess_mapping,
+)
+from spicycrab.codegen.stdlib.shutil_map import (
+    SHUTIL_MAPPINGS,
+    get_shutil_mapping,
+)
+from spicycrab.codegen.stdlib.random_map import (
+    RANDOM_MAPPINGS,
+    get_random_mapping,
+)
+from spicycrab.codegen.stdlib.time_map import (
+    TIME_MAPPINGS,
+    DATETIME_MAPPINGS,
+    DATE_MAPPINGS,
+    TIME_CLASS_MAPPINGS,
+    TIMEDELTA_MAPPINGS,
+    TIMEZONE_MAPPINGS,
+    DATETIME_METHOD_MAPPINGS,
+    DATE_METHOD_MAPPINGS,
+    TIME_CLASS_METHOD_MAPPINGS,
+    TIMEDELTA_METHOD_MAPPINGS,
+    ALL_DATETIME_MAPPINGS,
+    get_time_mapping,
+    get_datetime_mapping,
+    get_datetime_method_mapping,
+)
+from spicycrab.codegen.stub_discovery import (
+    get_stub_mapping,
+    get_stub_method_mapping,
+    get_stub_type_mapping,
+    get_stub_cargo_deps,
+    get_all_stub_packages,
+    get_crate_for_python_module,
+    get_stub_package_by_module,
+    clear_stub_cache,
+)
+
+__all__ = [
+    # Types
+    "StdlibMapping",
+    # OS mappings
+    "OS_MAPPINGS",
+    "PATHLIB_MAPPINGS",
+    "SYS_MAPPINGS",
+    "get_os_mapping",
+    "get_pathlib_mapping",
+    "get_sys_mapping",
+    # JSON mappings
+    "JSON_MAPPINGS",
+    "get_json_mapping",
+    # Glob mappings
+    "GLOB_MAPPINGS",
+    "get_glob_mapping",
+    # Tempfile mappings
+    "TEMPFILE_MAPPINGS",
+    "get_tempfile_mapping",
+    # Subprocess mappings
+    "SUBPROCESS_MAPPINGS",
+    "get_subprocess_mapping",
+    # Shutil mappings
+    "SHUTIL_MAPPINGS",
+    "get_shutil_mapping",
+    # Random mappings
+    "RANDOM_MAPPINGS",
+    "get_random_mapping",
+    # Collections mappings
+    "COLLECTIONS_MAPPINGS",
+    "DEQUE_METHOD_MAPPINGS",
+    "get_collections_mapping",
+    "get_deque_method",
+    # Time module mappings
+    "TIME_MAPPINGS",
+    "get_time_mapping",
+    # Datetime module mappings
+    "DATETIME_MAPPINGS",
+    "DATE_MAPPINGS",
+    "TIME_CLASS_MAPPINGS",
+    "TIMEDELTA_MAPPINGS",
+    "TIMEZONE_MAPPINGS",
+    "ALL_DATETIME_MAPPINGS",
+    "DATETIME_METHOD_MAPPINGS",
+    "DATE_METHOD_MAPPINGS",
+    "TIME_CLASS_METHOD_MAPPINGS",
+    "TIMEDELTA_METHOD_MAPPINGS",
+    "get_datetime_mapping",
+    "get_datetime_method_mapping",
+    # Stub discovery (external crate packages)
+    "get_stub_mapping",
+    "get_stub_method_mapping",
+    "get_stub_type_mapping",
+    "get_stub_cargo_deps",
+    "get_all_stub_packages",
+    "get_crate_for_python_module",
+    "get_stub_package_by_module",
+    "clear_stub_cache",
+]
+
+
+def get_stdlib_mapping(module: str, func: str) -> StdlibMapping | None:
+    """Get stdlib mapping for a module.function call.
+
+    First checks built-in stdlib mappings, then falls back to
+    any installed stub packages (e.g., spicycrab-clap).
+    """
+    key = f"{module}.{func}"
+
+    # Check each built-in mapping dict
+    if key in OS_MAPPINGS:
+        return OS_MAPPINGS[key]
+    if key in SYS_MAPPINGS:
+        return SYS_MAPPINGS[key]
+    if key in JSON_MAPPINGS:
+        return JSON_MAPPINGS[key]
+    if key in GLOB_MAPPINGS:
+        return GLOB_MAPPINGS[key]
+    if key in TEMPFILE_MAPPINGS:
+        return TEMPFILE_MAPPINGS[key]
+    if key in SUBPROCESS_MAPPINGS:
+        return SUBPROCESS_MAPPINGS[key]
+    if key in SHUTIL_MAPPINGS:
+        return SHUTIL_MAPPINGS[key]
+    if key in RANDOM_MAPPINGS:
+        return RANDOM_MAPPINGS[key]
+    if key in COLLECTIONS_MAPPINGS:
+        return COLLECTIONS_MAPPINGS[key]
+    if key in TIME_MAPPINGS:
+        return TIME_MAPPINGS[key]
+    if key in ALL_DATETIME_MAPPINGS:
+        return ALL_DATETIME_MAPPINGS[key]
+
+    # Fallback to installed stub packages
+    return get_stub_mapping(key)
