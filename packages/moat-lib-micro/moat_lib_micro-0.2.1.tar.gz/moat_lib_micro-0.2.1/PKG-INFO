@@ -1,0 +1,61 @@
+Metadata-Version: 2.4
+Name: moat-lib-micro
+Version: 0.2.1
+Summary: Compatibility layer for CPython/anyio and MicroPython/uasyncio
+Maintainer-email: Matthias Urlichs <matthias@urlichs.de>
+Project-URL: homepage, https://m-o-a-t.org
+Project-URL: repository, https://github.com/M-o-a-T/moat
+Keywords: MoaT
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: AnyIO
+Classifier: Framework :: Trio
+Classifier: Framework :: AsyncIO
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Developers
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: anyio~=4.0
+Requires-Dist: moat-util~=0.62.2
+Dynamic: license-file
+
+# moat-lib-micro
+
+% start main
+% start synopsis
+
+Compatibility wrappers for async code that runs run on both CPython/anyio
+and MicroPython/asyncio.
+
+% end synopsis
+
+This module provides a unified interface for asynchronous programming that
+works across both CPython (using anyio) and MicroPython (using asyncio).
+It includes wrappers for logging and timing, common async primitives like
+Event, Lock, Queue, or TaskGroup, async context managers, and more.
+
+## Usage
+
+The module provides consistent imports that work on both platforms:
+
+```python
+from moat.lib.micro import Event, Lock, Queue, TaskGroup, sleep
+
+# Use these primitives the same way on both CPython and MicroPython
+
+async def worker(evt):
+    await evt.wait()
+
+async def example():
+    event = Event()
+    async with TaskGroup() as tg:
+        tg.start_soon(worker, event)
+        await sleep(1)
+        event.set()
+```
+
+% end main
+
+## License
+
+Licensed under the MIT License.
