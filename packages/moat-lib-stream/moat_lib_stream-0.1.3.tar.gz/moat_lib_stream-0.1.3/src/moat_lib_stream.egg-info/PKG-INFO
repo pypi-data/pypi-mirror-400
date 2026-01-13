@@ -1,0 +1,71 @@
+Metadata-Version: 2.4
+Name: moat-lib-stream
+Version: 0.1.3
+Summary: Stream infrastructure for MoaT applications
+Maintainer-email: Matthias Urlichs <matthias@urlichs.de>
+Project-URL: homepage, https://m-o-a-t.org
+Project-URL: repository, https://github.com/M-o-a-T/moat
+Keywords: MoaT
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: AnyIO
+Classifier: Framework :: Trio
+Classifier: Framework :: AsyncIO
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Developers
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: moat-lib-micro~=0.2.1
+Requires-Dist: moat-lib-rpc~=0.5.1
+Requires-Dist: moat-lib-codec~=0.4.10
+Requires-Dist: moat-lib-repl~=0.1.2
+Requires-Dist: moat-util~=0.62.2
+Dynamic: license-file
+
+# Stream Infrastructure
+
+% start synopsis
+% start main
+
+This module provides base classes for handling data streams in a structured manner.
+
+% end synopsis
+
+## Overview
+
+This package implements infrastructure for building layered communication stacks:
+
+- **BaseMsg** - Message-based communication (Python objects)
+- **BaseBlk** - Block-based communication (delimited bytestrings)
+- **BaseBuf** - Buffer-based communication (undelimited bytestreams)
+
+## Layered Communication Stacks
+
+Build communication stacks by layering protocols:
+
+```python
+from moat.lib.stream import StackedBlk
+
+class Compression(StackedBlk):
+    async def snd(self, blk):
+        compressed = compress(blk)
+        await self.s.send(compressed)
+
+    async def rcv(self):
+        blk = await self.s.recv()
+        return decompress(blk)
+
+# Stack layers
+link = SerialLink(cfg)  # BaseBuf
+link = Packetizer(link, cfg)  # StackedBlk
+link = Compressor(link, cfg)  # StackedBlk
+link = Codec(link, cfg)  # StackedMsg
+async with link:
+    await link.send({"data": "hello"})
+```
+
+% end main
+
+## License
+
+This project is part of the MoaT ecosystem and is licensed under the same terms.
