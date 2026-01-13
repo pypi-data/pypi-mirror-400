@@ -1,0 +1,51 @@
+name: Pytest bizon
+
+on:
+  pull_request:
+    paths:
+      - 'bizon/**'
+      - 'tests/**'
+      - '.github/workflows/pytest.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    container: python:3.10
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bizon
+          POSTGRES_DB: bizon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bizon_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --group test
+
+    - name: Run tests
+      run: |
+        uv run pytest tests/ --ignore=tests/e2e/ --ignore=tests/connectors/destinations/bigquery/ --ignore=tests/connectors/destinations/bigquery_streaming/ --ignore=tests/connectors/destinations/bigquery_streaming_v2/ --ignore=tests/connectors/destinations/bigquery_iceberg/
+      env:
+        POSTGRES_HOST: postgres
+        POSTGRES_PORT: 5432
