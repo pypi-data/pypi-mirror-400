@@ -1,0 +1,185 @@
+Metadata-Version: 2.4
+Name: django-firebird-backend
+Version: 0.1.1
+Summary: Firebird database backend for Django 5.0+
+Project-URL: Homepage, https://github.com/joseanoxp/django-firebird-backend
+Project-URL: Documentation, https://github.com/joseanoxp/django-firebird-backend#readme
+Project-URL: Repository, https://github.com/joseanoxp/django-firebird-backend
+Project-URL: Issues, https://github.com/joseanoxp/django-firebird-backend/issues
+Project-URL: Changelog, https://github.com/joseanoxp/django-firebird-backend/blob/main/CHANGELOG.md
+Author-email: joseanoxp <joseanodev@gmail.com>
+License-Expression: BSD-3-Clause
+License-File: LICENSE
+Keywords: backend,database,django,firebird,sql
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 5.0
+Classifier: Framework :: Django :: 5.1
+Classifier: Framework :: Django :: 6.0
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Database
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.11
+Requires-Dist: django>=5.0
+Requires-Dist: firebird-driver>=1.10.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest-django>=4.5; extra == 'dev'
+Requires-Dist: pytest>=8.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# django-firebird
+
+Firebird database backend for Django.
+
+This package provides a Django database backend for [Firebird](https://firebirdsql.org/),
+supporting versions 2.5, 3.0, 4.0, and 5.0+. It uses the
+[firebird-driver](https://pypi.org/project/firebird-driver/) library for connectivity.
+
+## Features
+
+| Feature | Firebird 2.5 | Firebird 3.0+ | Firebird 4.0+ | Firebird 5.0+ |
+|---------|:------------:|:-------------:|:-------------:|:-------------:|
+| Basic ORM operations | Yes | Yes | Yes | Yes |
+| Migrations | Yes | Yes | Yes | Yes |
+| `inspectdb` command | Yes | Yes | Yes | Yes |
+| Native BOOLEAN | No | Yes | Yes | Yes |
+| Window functions | No | Yes | Yes | Yes |
+| FILTER clause | No | Yes | Yes | Yes |
+| Timezone support | No | No | Yes | Yes |
+| SKIP LOCKED | No | No | No | Yes |
+
+## Requirements
+
+- Python 3.11+
+- Django 5.0, 5.1, or 6.0
+- firebird-driver 1.10.0+
+- Firebird Server 2.5+
+
+## Installation
+
+```bash
+pip install django-firebird
+```
+
+## Configuration
+
+Configure your Django `DATABASES` setting:
+
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_firebird',
+        'NAME': '/path/to/database.fdb',
+        'USER': 'SYSDBA',
+        'PASSWORD': 'masterkey',
+    }
+}
+```
+
+### Remote Database
+
+For remote connections, specify `HOST` and optionally `PORT`:
+
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_firebird',
+        'NAME': '/path/to/database.fdb',
+        'USER': 'SYSDBA',
+        'PASSWORD': 'masterkey',
+        'HOST': 'localhost',
+        'PORT': '3050',
+    }
+}
+```
+
+### Connection Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `charset` | Character set for connection | `UTF8` |
+| `fb_client_library` | Path to Firebird client library | System default |
+
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_firebird',
+        'NAME': '/path/to/database.fdb',
+        'USER': 'SYSDBA',
+        'PASSWORD': 'masterkey',
+        'OPTIONS': {
+            'charset': 'UTF8',
+            'fb_client_library': '/usr/lib/libfbclient.so',
+        },
+    }
+}
+```
+
+### Timezone Support (Firebird 4.0+)
+
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_firebird',
+        'NAME': '/path/to/database.fdb',
+        'USER': 'SYSDBA',
+        'PASSWORD': 'masterkey',
+        'TIME_ZONE': 'America/New_York',
+    }
+}
+```
+
+## Notes on Django Fields
+
+- **AutoField/BigAutoField**: Uses Firebird generators (sequences) with triggers
+- **BooleanField**: Uses native `BOOLEAN` in Firebird 3.0+, `SMALLINT` in 2.5
+- **TextField**: Uses `BLOB SUB_TYPE TEXT`
+- **JSONField**: Not supported (Firebird has no native JSON type)
+- **UUIDField**: Uses `CHAR(36)` storage
+
+## Known Limitations
+
+- **No JSON support**: Firebird does not have a native JSON data type
+- **No DISTINCT ON**: Use other approaches for similar functionality
+- **Single-row RETURNING**: Bulk inserts with RETURNING not supported
+- **DDL auto-commit**: Schema changes cannot be rolled back within a transaction
+- **Identifier length**: 31 characters max in Firebird < 4.0, 63 in 4.0+
+
+## Using `inspectdb`
+
+To inspect an existing Firebird database:
+
+```bash
+python manage.py inspectdb
+```
+
+For better results with foreign key ordering, use the enhanced command:
+
+```bash
+python manage.py inspectdb_firebird
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues and pull requests.
+
+## License
+
+This project is licensed under the BSD-3-Clause License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Inspired by [django-cockroachdb](https://github.com/cockroachdb/django-cockroachdb) and [mssql-django](https://github.com/microsoft/mssql-django)
+- Built on [firebird-driver](https://github.com/FirebirdSQL/python3-driver)
