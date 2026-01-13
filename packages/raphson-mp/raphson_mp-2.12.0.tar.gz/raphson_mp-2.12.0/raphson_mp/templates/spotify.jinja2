@@ -1,0 +1,97 @@
+{% set title = gettext("Spotify") %}
+{% set back_url = "/" %}
+{% set script = "spotify" %}
+{% extends "base_static.jinja2" %}
+
+{% block content %}
+
+{% if not has_token %}
+    <p>{% trans %}The server needs to have a valid session with Spotify to be able to stream music. Please authenticate using a Spotify premium account.{% endtrans %}</p><br>
+    <a class="button" href="{{ oauth_url }}">{% trans %}Authenticate{% endtrans %}</a>
+{% endif %}
+
+<h2>{% trans %}Link Spotify playlist{% endtrans %}</h2>
+
+<p>{% trans %}Instead of filling a playlist with music files, you can link a playlist with a Spotify playlist. Linked playlists will be kept up to date with Spotify automatically.{% endtrans %}</p>
+<br>
+<table class="table">
+    <thead>
+        <tr>
+            <td>{% trans %}Playlist{% endtrans %}</td>
+            <td>{% trans %}Spotify ID{% endtrans %}</td>
+        </tr>
+    </thead>
+    <tbody>
+        {% for playlist in synced_playlists %}
+            <tr>
+                <td>{{ playlist.name }}</td>
+                <td><a href="https://open.spotify.com/playlist/{{ playlist.sync_ref }}" target="_blank" rel="noreferrer">{{ playlist.sync_ref }}</a></td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="2" class="text-center">{% trans %}No playlists are linked to Spotify.{% endtrans %}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<br>
+<p>{% trans %}Set up a new playlist, or modify an existing playlist. You must have write access to the playlist. If the playlist is not already linked to Spotify, it must be empty.{% endtrans %}</p>
+
+<form method="POST" action="/spotify/new" class="form">
+    <input type="hidden" value="{{ user.csrf }}" name="csrf">
+
+    <label for="playlist">{% trans %}Playlist{% endtrans %}</label>
+    <select id="playlist" name="playlist">
+        <option value=""></option>
+        {% for playlist in can_sync_playlists %}
+            <option value="{{ playlist.name }}">{{ playlist.name }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="spotify">{% trans %}Spotify playlist URL{% endtrans %}</label>
+    <input type="text" id="spotify" name="spotify" placeholder="{{ spotify_playlist_placeholder }}">
+
+    <input type="submit" value="{% trans %}Create{% endtrans %}">
+</form>
+
+{% if sync_errors %}
+<h2>{% trans %}Sync issues{% endtrans %}</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <td>{% trans %}Playlist{% endtrans %}</td>
+            <td>{% trans %}Reason{% endtrans %}</td>
+            <td>{% trans %}Track{% endtrans %}</td>
+        </tr>
+    </thead>
+    <tbody>
+        {% for playlist, reason, display in sync_errors %}
+            <tr>
+                <td>{{ playlist }}</td>
+                <td>{{ reason }}</td>
+                <td>{{ display }}</td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="2" class="text-center">{% trans %}No sync issues have occurred yet.{% endtrans %}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>{% trans %}Compare Spotify playlist{% endtrans %}</h2>
+<div class="form">
+    <label for="spotify-compare-local-playlist">{% trans %}Local playlist{% endtrans %}</label>
+    <select id="spotify-compare-local-playlist">
+        <option value=""></option>
+        {% for playlist in all_playlists %}
+            <option value="{{ playlist.name }}" {% if playlist.primary %}selected{% endif %}>{{ playlist.name }}</option>
+        {% endfor %}
+    </select>
+    <label for="spotify-compare-remote-playlist">{% trans %}Spotify playlist URL{% endtrans %}</label>
+    <input id="spotify-compare-remote-playlist" type="text" placeholder="{{ spotify_playlist_placeholder }}">
+    <input id="spotify-submit" type="submit" value="{% trans %}Compare (will take a while){% endtrans %}">
+</div>
+
+{% endblock content %}

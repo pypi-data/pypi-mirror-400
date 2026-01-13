@@ -1,0 +1,78 @@
+{% set title = gettext("%(year)s recap", year=year) %}
+{% set back_url = "/" %}
+{% set styles = ["stats_recap"] %}
+{% set script = "stats_recap" %}
+{% extends "base_static.jinja2" %}
+
+{% macro image_grid_row(list) %}
+    <section class="image-row">
+        <div class="box">
+            <img src="{{ list[0]['image'] }}">
+        </div>
+
+        <div class="image-grid box">
+            {% for item in list[1:] %}
+                <img src="{{ item['image'] }}">
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="padding marquee large">
+        <span>
+            {% for item in list %}
+                <span>{{ item['name'] }}</span>
+            {% endfor %}
+        </span>
+        <span>
+            {% for item in list %}
+                <span>{{ item['name'] }}</span>
+            {% endfor %}
+        </span>
+    </section>
+{% endmacro %}
+
+{% block content %}
+
+<section class="box padding flex-hcenter flex-vcenter flex-halfgap">
+    <span class="large">{{ play_count }}</span>
+    <span>{% trans %}songs listened to the past year. That's about {{ play_hours }} hours!{% endtrans %}</span>
+</section>
+
+<section class="box padding flex-hcenter flex-vcenter flex-halfgap">
+    <span class="large">{{ ((play_count - previous_play_count) / previous_play_count * 100) | abs | int }}&percnt;</span>
+    <span>
+        {% if play_count > previous_play_count %}
+            {% trans %}more songs listened to than the year before.{% endtrans %}
+        {% else %}
+            {% trans %}fewer songs listened to than the year before.{% endtrans %}
+        {% endif %}
+    </span>
+</section>
+
+{% if you_your_playlist %}
+    <section class="box padding flex-hcenter flex-vcenter flex-halfgap">
+        <span class="large">{{ you_your_playlist }}&percnt;</span>
+        <span>{% trans %}of the songs you listened to were from your playlist.{% endtrans %}</span>
+    </section>
+{% endif %}
+
+{% if others_your_playlist %}
+    <section class="box padding flex-hcenter flex-vcenter flex-halfgap">
+        <span class="large">{{ others_your_playlist }}&percnt;</span>
+        <span>{% trans %}of the songs others listened to were from your playlist.{% endtrans %}</span>
+    </section>
+{% endif %}
+
+<h2>Your favorite artists</h2>
+
+{{ image_grid_row(artists) }}
+
+<h2>Your favorite albums</h2>
+
+{{ image_grid_row(albums) }}
+
+<h2>Your favorite songs</h2>
+
+{{ image_grid_row(tracks) }}
+
+{% endblock content %}

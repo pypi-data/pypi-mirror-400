@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "raphson_mp"
+version = "2.12.0"
+authors = [
+    { name = "Robin Slot", email = "robin@rslot.nl" },
+]
+description = "Raphson music player"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Framework :: Flask",
+    "Intended Audience :: End Users/Desktop",
+    "Natural Language :: English",
+    "Natural Language :: Dutch",
+    "Operating System :: POSIX",
+    "Topic :: Multimedia :: Sound/Audio :: Players",
+    "Typing :: Typed"
+]
+dependencies = [
+    "aiohttp~=3.9",  # 3.9.0 adds AppKey https://github.com/aio-libs/aiohttp/blob/master/CHANGES.rst
+    "jinja2~=3.0",
+    "typing_extensions"  # for @override before Python 3.12
+]
+
+[project.optional-dependencies]
+extra = [
+    "prometheus-client>=0.15.0",
+    "cryptography>=35.0"  # arbitrary somewhat recent version
+]
+dev = [
+    "babel",
+    "build",
+    "twine",
+    "pytest",
+    "pytest-asyncio>=0.26, <2.0",  # need asyncio_default_test_loop_scope
+    "pytest-cov",
+    "coverage",
+    "yappi",
+    "isort",
+    "black",
+]
+
+[project.urls]
+Homepage = "https://codeberg.org/raphson/music-server"
+Issues = "https://codeberg.org/raphson/music-server/issues"
+
+[project.scripts]
+raphson-mp = "raphson_mp.cli.cli:main"
+
+[tool.hatch.build]
+artifacts = ["*.mo"]
+only-include = ["raphson_mp"]
+
+[tool.basedpyright]
+pythonVersion = "3.11"
+reportUnusedCallResult = "hint"
+reportAny = "hint"
+reportExplicitAny = "hint"
+reportImportCycles = "hint"
+executionEnvironments = [
+  { root = "tests", reportPrivateUsage = false},
+]
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-x" # exit after first failure
+markers = ["online"]
+asyncio_default_test_loop_scope = "module"
+asyncio_default_fixture_loop_scope = "module"
