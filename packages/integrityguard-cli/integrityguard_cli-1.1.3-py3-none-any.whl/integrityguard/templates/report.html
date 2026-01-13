@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IntegrityGuard Analysis Report</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-dark: #0d1117;
+        --bg-card: #161b22;
+        --text-primary: #c9d1d9;
+        --text-secondary: #8b949e;
+        --accent-green: #238636;
+        --accent-red: #da3633;
+        --border-color: #30363d;
+        --terminal-green: #00ff00;
+      }
+      body {
+        background-color: var(--bg-dark);
+        color: var(--text-primary);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.85rem;
+      }
+      .card {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        box-shadow: none;
+        margin-bottom: 1.5rem;
+      }
+      .card-header {
+        background-color: var(--bg-card);
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .text-muted {
+        color: var(--text-secondary) !important;
+      }
+      .text-dark {
+        color: var(--text-primary) !important;
+      }
+
+      /* Hacker/Terminal Styling */
+      .hacker-title {
+        color: var(--terminal-green);
+        text-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+      }
+
+      .stat-box {
+        background-color: #0d1117;
+        border: 1px solid var(--border-color);
+        transition: all 0.3s ease;
+      }
+      .stat-box:hover {
+        border-color: var(--terminal-green);
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+      }
+
+      /* Table Styling */
+      .table {
+        --bs-table-bg: transparent;
+        --bs-table-color: var(--text-primary);
+        --bs-table-hover-color: var(--text-primary);
+        --bs-table-hover-bg: rgba(255, 255, 255, 0.05);
+        color: var(--text-primary);
+      }
+      .table > :not(caption) > * > * {
+        background-color: transparent; /* Ensure cells don't have white bg */
+        color: var(--text-primary);
+      }
+      .table-light {
+        background-color: #21262d;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+      }
+      .table-light th {
+        background-color: #21262d;
+        color: var(--text-primary);
+        border: none;
+      }
+      td {
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      /* Badges */
+      .badge {
+        font-family: "JetBrains Mono", monospace;
+      }
+      .bg-danger-subtle {
+        background-color: rgba(218, 54, 51, 0.15) !important;
+        color: #f85149 !important;
+        border-color: rgba(248, 81, 73, 0.4) !important;
+      }
+      .bg-success-subtle {
+        background-color: rgba(35, 134, 54, 0.15) !important;
+        color: #3fb950 !important;
+        border-color: rgba(63, 185, 80, 0.4) !important;
+      }
+
+      /* Trace Box */
+      .trace-box {
+        background: #0d1117;
+        border: 1px solid var(--border-color) !important;
+        color: var(--text-secondary);
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg-dark);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #30363d;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #8b949e;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container-fluid p-4">
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h4 class="mb-0 fw-bold hacker-title">> INTEGRITY_GUARD_REPORT</h4>
+          <small class="text-muted"
+            >System Analysis // {{ summary.timestamp if summary.timestamp else
+            'NOW' }}</small
+          >
+        </div>
+        <div class="d-flex gap-2">
+          <div class="stat-box px-3 py-2 rounded d-flex align-items-center">
+            <span class="text-muted me-2 text-uppercase fw-bold"
+              >IEVI_SCORE</span
+            >
+            <span class="fs-5 fw-bold text-primary"
+              >{{ summary.ievi_score }}</span
+            >
+          </div>
+          <div class="stat-box px-3 py-2 rounded d-flex align-items-center">
+            <span class="text-muted me-2 text-uppercase fw-bold"
+              >THREAT_LEVEL</span
+            >
+            <span
+              class="badge {% if summary.risk_level == 'HIGH' or summary.risk_level == 'CRITICAL' %}bg-danger {% elif summary.risk_level == 'MEDIUM' %}bg-warning text-dark {% else %}bg-success{% endif %}"
+            >
+              {{ summary.risk_level }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <!-- Left Column: Stats & Chart -->
+        <div class="col-lg-4 d-flex flex-column">
+          <div class="card flex-fill">
+            <div class="card-header py-3">
+              <h6 class="m-0">> RISK_PROFILE</h6>
+            </div>
+            <div class="card-body d-flex flex-column justify-content-center">
+              <!-- Mini Stats Grid -->
+              <div class="row g-3 mb-4">
+                <div class="col-6">
+                  <div class="p-3 stat-box rounded text-center h-100">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">
+                      TOTAL_CHECKS
+                    </div>
+                    <div class="fs-3 fw-bold text-light">
+                      {{ findings|length }}
+                    </div>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="p-3 stat-box rounded text-center h-100">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">
+                      VULNERABILITIES
+                    </div>
+                    <div class="fs-3 fw-bold text-danger">
+                      {{ findings|selectattr('is_vulnerable')|list|length }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Chart -->
+              <div class="position-relative" style="height: 250px; width: 100%">
+                <canvas id="dreadChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Findings Table -->
+        <div class="col-lg-8 d-flex flex-column">
+          <div class="card flex-fill h-100">
+            <div
+              class="card-header py-3 d-flex justify-content-between align-items-center"
+            >
+              <h6 class="m-0">> DETAILED_FINDINGS</h6>
+              <span class="badge bg-secondary rounded-pill"
+                >{{ findings|length }} NODES</span
+              >
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width: 20%">CHECK_ID</th>
+                      <th style="width: 10%">STATUS</th>
+                      <th style="width: 40%">PAYLOAD & TRACE</th>
+                      <th style="width: 30%">MITIGATION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for finding in findings %}
+                    <tr>
+                      <td class="fw-bold text-light">
+                        {{ finding.check_name }}
+                      </td>
+                      <td>
+                        {% if finding.is_vulnerable %}
+                        <span class="badge bg-danger-subtle border w-100"
+                          >VULNERABLE</span
+                        >
+                        {% else %}
+                        <span class="badge bg-success-subtle border w-100"
+                          >SECURE</span
+                        >
+                        {% endif %}
+                      </td>
+                      <td>
+                        <div class="mb-1 text-light">
+                          {{ finding.description }}
+                        </div>
+                        {% if finding.trace %}
+                        <button
+                          class="btn btn-link btn-sm p-0 text-decoration-none text-secondary"
+                          type="button"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#trace-{{ loop.index }}"
+                        >
+                          <small class="fw-bold">[+] VIEW_TRACE</small>
+                        </button>
+                        <div class="collapse mt-2" id="trace-{{ loop.index }}">
+                          <div class="trace-box p-2">
+                            {% for step in finding.trace %}
+                            <div
+                              class="text-break border-bottom border-secondary pb-1 mb-1 last-no-border font-monospace text-muted"
+                            >
+                              > {{ step }}
+                            </div>
+                            {% endfor %}
+                          </div>
+                        </div>
+                        {% endif %}
+                      </td>
+                      <td class="small text-muted">
+                        {{ finding.recommendation | safe }}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const ctx = document.getElementById('dreadChart').getContext('2d');
+      const dreadData = {{ summary.dread_breakdown | tojson }};
+
+      // Dark mode chart colors
+      Chart.defaults.color = '#8b949e';
+      Chart.defaults.borderColor = '#30363d';
+
+      // Calculate average score to determine color
+      const scores = [dreadData.D, dreadData.R, dreadData.E, dreadData.A, dreadData.Di];
+      const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+      let chartColor = '#00ff00'; // Default Green (Low Risk)
+      let chartBg = 'rgba(0, 255, 0, 0.1)';
+
+      if (avgScore >= 7) {
+          chartColor = '#da3633'; // Red (High Risk)
+          chartBg = 'rgba(218, 54, 51, 0.15)';
+      } else if (avgScore >= 4) {
+          chartColor = '#d29922'; // Orange/Yellow (Medium Risk)
+          chartBg = 'rgba(210, 153, 34, 0.15)';
+      }
+
+      new Chart(ctx, {
+          type: 'radar',
+          data: {
+              labels: ['DAMAGE', 'REPRODUCIBILITY', 'EXPLOITABILITY', 'AFFECTED_USERS', 'DISCOVERABILITY'],
+              datasets: [{
+                  label: 'DREAD Score',
+                  data: scores,
+                  fill: true,
+                  backgroundColor: chartBg,
+                  borderColor: chartColor,
+                  pointBackgroundColor: chartColor,
+                  pointBorderColor: '#fff',
+                  pointHoverBackgroundColor: '#fff',
+                  pointHoverBorderColor: chartColor,
+                  borderWidth: 2
+              }]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                  legend: { display: false }
+              },
+              scales: {
+                  r: {
+                      angleLines: { color: '#30363d' },
+                      grid: { color: '#30363d' },
+                      pointLabels: {
+                          font: { size: 10, family: "'JetBrains Mono', monospace" },
+                          color: '#8b949e'
+                      },
+                      suggestedMin: 0,
+                      suggestedMax: 10,
+                      ticks: { display: false, stepSize: 2, backdropColor: 'transparent' }
+                  }
+              }
+          }
+      });
+    </script>
+  </body>
+</html>
