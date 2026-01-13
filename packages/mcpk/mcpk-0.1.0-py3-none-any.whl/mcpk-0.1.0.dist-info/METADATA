@@ -1,0 +1,482 @@
+Metadata-Version: 2.4
+Name: mcpk
+Version: 0.1.0
+Summary: A transport-agnostic kernel for MCP servers
+Project-URL: Homepage, https://github.com/ahopkins/mcpk
+Project-URL: Repository, https://github.com/ahopkins/mcpk
+Project-URL: Issues, https://github.com/ahopkins/mcpk/issues
+Author-email: Adam Hopkins <adam@amhopkins.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: ai,llm,mcp,model-context-protocol,server
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Typing :: Typed
+Requires-Python: >=3.12
+Provides-Extra: validation
+Requires-Dist: jsonschema>=4.0; extra == 'validation'
+Description-Content-Type: text/markdown
+
+# MCPK
+
+A transport-agnostic kernel for MCP servers.
+
+Register tools, resources, and prompts with type-safe handlers. Add hooks for permissions, validation, and observability. MCPK handles execution without dictating how you handle transport (stdio, HTTP, WebSocket, etc.).
+
+## Installation
+
+```bash
+pip install mcpk
+```
+
+Requires Python 3.12+. Zero runtime dependencies.
+
+For JSON Schema validation (strict mode):
+
+```bash
+pip install mcpk[validation]
+```
+
+## Quick Start
+
+### Synchronous Kernel
+
+```python
+from mcpk import Kernel, ToolDef, ToolResult, TextItem, ExecutionScope
+
+# Create a kernel
+kernel = Kernel[dict]()
+
+# Define and register a tool
+tool_def = ToolDef(
+    name="greet",
+    description="Greet a user",
+    input_schema={
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+    },
+)
+
+def greet_handler(scope: ExecutionScope[dict], args: dict) -> ToolResult:
+    return ToolResult(content=(TextItem(text=f"Hello, {args['name']}!"),))
+
+kernel.register_tool(tool_def, greet_handler)
+
+# Call the tool
+scope = ExecutionScope(ctx={"user_id": "123"})
+result = kernel.call_tool("greet", {"name": "Alice"}, scope)
+print(result.content[0].text)  # "Hello, Alice!"
+```
+
+### Async Kernel
+
+```python
+import asyncio
+from mcpk import AsyncKernel, ToolDef, ToolResult, TextItem, ExecutionScope
+
+kernel = AsyncKernel[None]()
+
+tool_def = ToolDef(
+    name="fetch_data",
+    input_schema={"type": "object", "properties": {}},
+)
+
+async def fetch_handler(scope: ExecutionScope[None], args: dict) -> ToolResult:
+    await asyncio.sleep(0.1)  # Simulate async work
+    return ToolResult(content=(TextItem(text="Data fetched"),))
+
+kernel.register_tool(tool_def, fetch_handler)
+
+async def main():
+    result = await kernel.call_tool("fetch_data", {}, ExecutionScope(ctx=None))
+    print(result.content[0].text)
+
+asyncio.run(main())
+```
+
+## Registering Capabilities
+
+### Tools
+
+Tools are functions that perform actions and return results.
+
+```python
+from mcpk import ToolDef, ToolResult, TextItem, ImageItem
+
+# Simple tool
+tool = ToolDef(
+    name="calculate",
+    description="Perform a calculation",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "expression": {"type": "string"},
+        },
+        "required": ["expression"],
+    },
+)
+
+def calculate(scope, args):
+    result = eval(args["expression"])  # Don't do this in production!
+    return ToolResult(content=(TextItem(text=str(result)),))
+
+kernel.register_tool(tool, calculate)
+
+# Tool returning multiple content types
+def screenshot(scope, args):
+    return ToolResult(content=(
+        TextItem(text="Screenshot captured"),
+        ImageItem(data=b"...", mime_type="image/png"),
+    ))
+```
+
+### Resources
+
+Resources provide read-only data access.
+
+```python
+from mcpk import ResourceDef, ResourceResult
+from mcpk.types import ResourceContent
+
+resource = ResourceDef(
+    uri="file:///config.json",
+    name="Configuration",
+    description="Application configuration",
+    mime_type="application/json",
+)
+
+def read_config(scope, uri):
+    return ResourceResult(contents=(
+        ResourceContent(uri=uri, text='{"debug": true}', mime_type="application/json"),
+    ))
+
+kernel.register_resource(resource, read_config)
+
+# Read the resource
+result = kernel.read_resource("file:///config.json", scope)
+```
+
+### Prompts
+
+Prompts are reusable message templates.
+
+```python
+from mcpk import PromptDef, PromptResult
+from mcpk.types import PromptMessage, PromptArgumentDef
+
+prompt = PromptDef(
+    name="code_review",
+    description="Review code for issues",
+    arguments=(
+        PromptArgumentDef(name="code", required=True),
+        PromptArgumentDef(name="language", description="Programming language"),
+    ),
+)
+
+def code_review_prompt(scope, args):
+    return PromptResult(messages=(
+        PromptMessage(
+            role="user",
+            content=TextItem(text=f"Review this {args.get('language', 'code')}:\n{args['code']}"),
+        ),
+    ))
+
+kernel.register_prompt(prompt, code_review_prompt)
+
+# Get the prompt
+result = kernel.get_prompt("code_review", {"code": "print('hi')", "language": "Python"}, scope)
+```
+
+## Hooks
+
+Hooks allow you to inject custom behavior for permissions, validation, and event handling.
+
+### Permission Hook
+
+Control access to tools, resources, and prompts.
+
+```python
+from mcpk import Kernel
+from mcpk.hooks import PermissionRequest
+from mcpk.errors import PermissionDeniedError
+
+def permission_hook(scope, request: PermissionRequest):
+    # request.kind: "tool" | "resource" | "prompt"
+    # request.name: tool name, resource URI, or prompt name
+    # request.arguments: arguments for tools/prompts (None for resources)
+
+    if request.kind == "tool" and request.name == "dangerous_tool":
+        if not scope.ctx.get("admin"):
+            raise PermissionDeniedError("Admin access required")
+
+kernel = Kernel[dict](permission_hook=permission_hook)
+```
+
+### Validation Hook
+
+Validate tool arguments with custom logic.
+
+```python
+from mcpk import Kernel
+from mcpk.errors import ValidationError
+
+def validation_hook(tool_name: str, arguments: dict, schema: dict):
+    # Custom validation logic
+    if "forbidden_key" in arguments:
+        raise ValidationError("forbidden_key is not allowed")
+
+kernel = Kernel[None](validation_hook=validation_hook)
+```
+
+### Strict Mode
+
+Enable built-in JSON Schema validation with `strict=True`. Requires `pip install mcpk[validation]`.
+
+```python
+from mcpk import Kernel, ToolDef
+
+# Strict mode validates:
+# 1. Tool schemas are valid JSON Schema at registration
+# 2. Tool arguments match schemas at invocation
+kernel = Kernel[None](strict=True)
+
+tool = ToolDef(
+    name="greet",
+    input_schema={
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+    },
+)
+kernel.register_tool(tool, handler)
+
+# This raises ValidationError - missing required "name"
+kernel.call_tool("greet", {}, scope)
+
+# This raises ValidationError - wrong type for "name"
+kernel.call_tool("greet", {"name": 123}, scope)
+```
+
+Strict mode validation runs before any custom `validation_hook`, so both can be used together.
+
+### Event Handler
+
+Observe tool calls, resource reads, and prompt gets.
+
+```python
+from mcpk import Kernel
+from mcpk.events import Event, ToolCallEvent, LogEvent, ProgressEvent
+
+def event_handler(event: Event):
+    match event:
+        case ToolCallEvent(phase="before", tool_name=name):
+            print(f"Calling tool: {name}")
+        case ToolCallEvent(phase="after", result=result):
+            print(f"Tool completed: {result}")
+        case ToolCallEvent(phase="error", error=err):
+            print(f"Tool failed: {err}")
+        case LogEvent(level=level, data=data):
+            print(f"[{level}] {data}")
+        case ProgressEvent(progress=p, total=t):
+            print(f"Progress: {p}/{t}")
+
+kernel = Kernel[None](event_handler=event_handler)
+```
+
+### Emitting Events from Handlers
+
+Handlers can emit progress and log events via the kernel.
+
+```python
+def long_running_tool(scope, args):
+    kernel.emit_progress(scope, 0, total=100, message="Starting...")
+    # ... do work ...
+    kernel.emit_progress(scope, 50, total=100, message="Halfway done")
+    # ... more work ...
+    kernel.emit_log("info", {"step": "completed", "items": 42})
+    return ToolResult(content=(TextItem(text="Done"),))
+```
+
+Note: Progress events require `scope.progress_token` to be set.
+
+## Listing Capabilities
+
+```python
+# Get all registered definitions
+tools = kernel.all_tools()          # tuple[ToolDef, ...]
+resources = kernel.all_resources()  # tuple[ResourceDef, ...]
+prompts = kernel.all_prompts()      # tuple[PromptDef, ...]
+```
+
+## Error Handling
+
+All errors inherit from `McpkError` with JSON-RPC compatible error codes.
+
+```python
+from mcpk.errors import (
+    McpkError,              # Base error
+    ToolNotFoundError,      # Tool not registered
+    ResourceNotFoundError,  # Resource not registered
+    PromptNotFoundError,    # Prompt not registered
+    ValidationError,        # Invalid arguments
+    SpecError,              # MCP spec violation
+    PermissionDeniedError,  # Access denied by hook
+    ExecutionError,         # Handler raised an exception
+)
+
+try:
+    result = kernel.call_tool("nonexistent", {}, scope)
+except ToolNotFoundError as e:
+    print(f"Error code: {e.code}")  # -32601 (METHOD_NOT_FOUND)
+    print(f"Tool: {e.name}")
+except ExecutionError as e:
+    print(f"Handler failed: {e}")
+    print(f"Cause: {e.__cause__}")
+```
+
+## Type-Safe Context
+
+The kernel is generic over your context type:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class UserContext:
+    user_id: str
+    permissions: list[str]
+
+kernel = Kernel[UserContext]()
+
+def secure_tool(scope: ExecutionScope[UserContext], args):
+    if "admin" not in scope.ctx.permissions:
+        return ToolResult(content=(TextItem(text="Access denied"),), is_error=True)
+    return ToolResult(content=(TextItem(text="Secret data"),))
+```
+
+### Building Context from Requests
+
+Since MCPK is transport-agnostic, you build the context in your transport layer before calling the kernel. Here's a pattern for HTTP:
+
+```python
+from dataclasses import dataclass
+from mcpk import Kernel, ExecutionScope
+
+@dataclass
+class RequestContext:
+    user_id: str
+    permissions: list[str]
+    request_id: str
+
+kernel = Kernel[RequestContext]()
+
+# Context factory - called per request in your transport layer
+def build_context(headers: dict, request_id: str) -> ExecutionScope[RequestContext]:
+    # Extract user from auth token, session, etc.
+    auth_token = headers.get("Authorization", "")
+    user = validate_token(auth_token)  # Your auth logic
+
+    return ExecutionScope(
+        ctx=RequestContext(
+            user_id=user.id,
+            permissions=user.permissions,
+            request_id=request_id,
+        ),
+        request_id=request_id,
+    )
+
+# In your HTTP handler
+def handle_tool_call(request):
+    scope = build_context(request.headers, request.id)
+    result = kernel.call_tool(request.tool_name, request.arguments, scope)
+    return result
+```
+
+The permission hook can then use context for access control:
+
+```python
+def permission_hook(scope: ExecutionScope[RequestContext], request: PermissionRequest):
+    if request.kind == "tool" and request.name == "admin_tool":
+        if "admin" not in scope.ctx.permissions:
+            raise PermissionDeniedError(f"User {scope.ctx.user_id} lacks admin permission")
+
+kernel = Kernel[RequestContext](permission_hook=permission_hook)
+```
+
+## Public API Reference
+
+### Main Exports (`mcpk`)
+
+| Export | Description |
+|--------|-------------|
+| `Kernel` | Synchronous kernel |
+| `AsyncKernel` | Asynchronous kernel |
+| `ExecutionScope` | Wraps context with execution metadata |
+| `ToolDef` | Tool definition |
+| `ResourceDef` | Resource definition |
+| `PromptDef` | Prompt definition |
+| `ToolResult` | Tool execution result |
+| `ResourceResult` | Resource read result |
+| `PromptResult` | Prompt get result |
+| `TextItem` | Text content |
+| `ImageItem` | Image content |
+| `AudioItem` | Audio content |
+| `EmbeddedResourceItem` | Embedded resource |
+| `ResourceLinkItem` | Resource link |
+| `ContentItem` | Union of content types |
+
+### Additional Types (`mcpk.types`)
+
+| Type | Description |
+|------|-------------|
+| `ToolAnnotationsDef` | Tool annotation hints |
+| `PromptArgumentDef` | Prompt argument definition |
+| `ResourceContent` | Resource content (text or blob) |
+| `PromptMessage` | Message in prompt result |
+| `ToolHandler` / `AsyncToolHandler` | Handler type aliases |
+| `ResourceHandler` / `AsyncResourceHandler` | Handler type aliases |
+| `PromptHandler` / `AsyncPromptHandler` | Handler type aliases |
+
+### Hooks (`mcpk.hooks`)
+
+| Type | Description |
+|------|-------------|
+| `PermissionRequest` | Details about permission being requested |
+| `PermissionHook` / `AsyncPermissionHook` | Permission hook type aliases |
+| `ValidationHook` / `AsyncValidationHook` | Validation hook type aliases |
+
+### Events (`mcpk.events`)
+
+| Type | Description |
+|------|-------------|
+| `ToolCallEvent` | Before/after/error tool execution |
+| `ResourceReadEvent` | Before/after/error resource read |
+| `PromptGetEvent` | Before/after/error prompt get |
+| `ProgressEvent` | Progress notification |
+| `LogEvent` | Log notification |
+| `Event` | Union of event types |
+| `EventHandler` / `AsyncEventHandler` | Handler type aliases |
+| `LogLevel` | Log severity levels |
+
+### Errors (`mcpk.errors`)
+
+| Error | Code | Description |
+|-------|------|-------------|
+| `McpkError` | - | Base error class |
+| `ToolNotFoundError` | -32601 | Tool not registered |
+| `ResourceNotFoundError` | -32601 | Resource not registered |
+| `PromptNotFoundError` | -32601 | Prompt not registered |
+| `ValidationError` | -32602 | Invalid arguments |
+| `SpecError` | -32602 | MCP spec violation |
+| `PermissionDeniedError` | -32603 | Access denied |
+| `ExecutionError` | -32603 | Handler exception |
+
+## License
+
+MIT
