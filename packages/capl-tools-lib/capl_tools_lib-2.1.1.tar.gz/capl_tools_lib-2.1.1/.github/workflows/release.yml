@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Build, Release, and Publish
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. Setup uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # 2. Build the package
+      - name: Build Package
+        run: uv build
+
+      # 3. Get Version Number (Strip 'v' prefix)
+      - name: Get Version Number
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      # 4. Extract Release Notes using native bash (Fix for repository errors)
+      - name: Extract Release Notes
+        id: extract-release-notes
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          # Find the section starting with ## [VERSION] and ending before the next header
+          # We use a pattern that matches the specific version header
+          sed -n "/## \[$VERSION\]/,/## \[ /p" CHANGELOG.md | sed '$d' > latest_notes.md
+          echo "notes_file=latest_notes.md" >> $GITHUB_OUTPUT
+
+      # 5. Create/Update GitHub Release
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use the official gh CLI with --notes-file for precision
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "Release already exists. Updating notes..."
+            gh release edit "${{ github.ref_name }}" --notes-file latest_notes.md
+          else
+            echo "Creating new release..."
+            gh release create "${{ github.ref_name }}" \
+              --title "Release ${{ github.ref_name }}" \
+              --notes-file latest_notes.md
+          fi
+          
+          # Upload artifacts
+          gh release upload "${{ github.ref_name }}" ./dist/* --clobber
+
+      # 6. Publish to PyPI
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
