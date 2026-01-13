@@ -1,0 +1,29 @@
+name: CI / publish
+
+on:
+  workflow_call:
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Environment setup
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.11
+      - name: UV setup
+        run: |
+          bash scripts/ci/uv_setup
+      - name: Build package
+        run: |
+          uv pip install build
+          uv run python -m build
+      - name: Publish to PyPI
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          uv pip install twine
+          uv run twine upload dist/* -u __token__ -p $PYPI_TOKEN

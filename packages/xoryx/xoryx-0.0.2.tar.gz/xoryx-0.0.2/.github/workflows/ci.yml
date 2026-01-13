@@ -1,0 +1,28 @@
+name: CI
+
+on:
+    push:
+        branches:
+            - main
+
+    pull_request:
+        types:
+            - opened
+            - synchronize
+
+    workflow_dispatch:
+
+permissions:
+    contents: write
+    issues: write
+    pull-requests: write
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    publish:
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/workflows/on-workflow-call-publish.yml
+        secrets: inherit

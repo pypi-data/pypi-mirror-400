@@ -1,0 +1,41 @@
+#!/bin/bash
+
+GREEN="\e[1;32m"
+RED="\e[31m"
+CYAN="\e[36m"
+ENDCOLOR="\e[0m"
+
+read -p "Would you like to run tests and lint checks before you push remotely ? (y/n): " choice
+if [ "$choice" != "y" ]; then
+    echo -e "${CYAN}Hook [pre-push] will not be installed ${ENDCOLOR}"
+    exit 0
+else
+    cat <<EOF >> .git/hooks/pre-push
+#!/bin/bash
+set -e
+
+echo "Running tests.."
+
+uv run pytest
+
+if [ \$? -ne 0 ]; then
+    echo -e "${RED}Hook failed, push aborted! ${ENDCOLOR}"
+    exit 1
+fi
+
+echo "Running linter.."
+
+uv run mypy .
+
+if [ \$? -ne 0 ]; then
+    echo -e "${RED}Hook failed, push aborted! ${ENDCOLOR}"
+    exit 1
+else
+    echo -e "${GREEN}pre-push checks went successful!${ENDCOLOR}"
+fi
+exit 0
+
+EOF
+    chmod +x .git/hooks/pre-push
+    printf "${GREEN}Hook [pre-push] installed!${ENDCOLOR}"
+fi
