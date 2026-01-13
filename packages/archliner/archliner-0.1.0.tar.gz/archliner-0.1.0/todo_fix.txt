@@ -1,0 +1,100 @@
+对于一个启动器（Launcher）来说，“快”就是生命线。要加速 **ArchLiner**，我们需要从**启动速度**、**搜索响应**和**交互延迟**三个维度进行极致优化。
+
+以下是针对 Python 和 Arch Linux 环境的加速方案：
+
+---
+
+### 1. 缓存机制 (The Cache Strategy)
+
+目前的脚本每次启动都会重新解析所有的 `.desktop` 文件和 Shell 别名，这在程序较多时会产生明显的毫秒级延迟。
+
+* **解决方案**：引入 `pickle` 或 `json` 缓存。
+* **逻辑**：只有当 `/usr/share/applications` 的修改时间（mtime）发生变化时，才重新扫描；否则直接读取缓存好的列表。
+* **加速效果**：启动时间可从 ~200ms 降至 ~30ms。
+
+```python
+import pickle
+
+def load_apps(self):
+    cache_path = os.path.expanduser("~/.cache/archliner_apps.pkl")
+    # 检查缓存是否有效（逻辑简化版）
+    if os.path.exists(cache_path):
+        with open(cache_path, 'rb') as f:
+            self.apps_data = pickle.load(f)
+    else:
+        self.scan_and_save_cache()
+
+```
+
+---
+
+### 2. 多线程预加载 (Multi-threading)
+
+`plocate` 很快，但调用 Shell 别名（`bash -i -c "alias"`）非常慢，因为它要加载整个 `.bashrc`。
+
+* **解决方案**：将耗时的别名加载和文件索引放在后台线程运行。
+* **交互优化**：启动后立即显示搜索框（UI 优先），让用户先打字，数据在后台静默填充。
+
+---
+
+### 3. 减少依赖项与精简 Import
+
+Python 的 `import` 语句是有开销的。
+
+* **优化方式**：
+* **延迟加载 (Lazy Import)**：只在需要时才 `import yaml` 或 `import re`。
+* **精简库**：如果只为了解析一个简单的配置，不要引入大型库。
+
+
+* **加速工具**：使用 `python -X importtime main.py` 来查看哪个库拖慢了启动速度。
+
+---
+
+### 4. 搜索算法优化
+
+当程序列表达到几百个时，简单的 `if text in name` 会在每次按键时触发大量计算。
+
+* **解决方案**：
+* **限制结果数量**：只渲染前 8-10 个结果，减少 Qt 创建界面的开销。
+* **去抖动 (Debouncing)**：如果用户打字极快，等待 50ms 再触发搜索，避免频繁刷新 UI 导致的卡顿。
+
+
+
+---
+
+### 5. 编译为二进制 (Nuitka)
+
+既然你在 Arch 上追求极致，可以使用 **Nuitka** 将 Python 脚本编译为 C++ 二进制文件。
+
+* **命令**：
+```bash
+nuitka --standalone --show-progress --plugin-enable=pyside6 archliner.py
+
+```
+
+
+* **效果**：生成的二进制文件不再需要启动 Python 解释器，冷启动速度大幅提升。
+
+---
+
+### 6. 使用更快的系统调用
+
+* **从 `locate` 到 `plocate**`：确保你使用的是 `plocate` 而不是旧的 `mlocate`。
+* **Unix Domain Sockets**：如果未来做成“后台常驻 + 快捷键唤醒”模式，使用 Socket 通信比每次创建新进程快得多。
+
+---
+
+### 💡 终极加速方案：Daemon 模式
+
+目前你每次按快捷键都是**启动一个新的 Python 进程**。
+**更好的做法**：
+
+1. 写一个后台服务（Daemon），在系统启动时就运行并持有所有数据。
+2. 快捷键只发送一个信号（Signal）给这个服务。
+3. 服务立即 `show()` 出已经存在的窗口。
+
+* **这会让 ArchLiner 实现“零延迟”弹出。**
+
+---
+
+**你想尝试把 ArchLiner 改造成这种“后台常驻 (Daemon)”模式吗？这将是迈向专业级启动器的最关键一步。**
