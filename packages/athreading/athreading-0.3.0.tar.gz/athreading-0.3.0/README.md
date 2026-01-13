@@ -1,0 +1,182 @@
+# athreading
+
+[![Test and build](https://github.com/calgray/athreading/actions/workflows/ci.yml/badge.svg)](https://github.com/calgray/athreading/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/athreading.svg)](https://pypi.python.org/pypi/athreading)
+[![PyPI python versions](https://img.shields.io/pypi/pyversions/athreading.svg?style=flat&logo=python&logoColor=white)](https://pypi.python.org/pypi/athreading)
+[![License](https://img.shields.io/badge/license-BSD_3--Clause-blue.svg)](https://opensource.org/license/bsd-3-clause/)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
+
+[![Code style](https://img.shields.io/badge/code_style-black-000000.svg)](https://github.com/psf/black)
+[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
+[![Pydocstyle](https://img.shields.io/badge/flake8-enabled-blue.svg)](https://flake8.pycqa.org/en/latest/)
+[![Codecov](https://codecov.io/gh/calgray/athreading/branch/main/graph/badge.svg)](https://app.codecov.io/github/calgray/athreading)
+
+<p align="center">
+  <img alt="athreading-logo" width="300" src="docs/athreading.png">
+</p>
+
+`athreading` is a Python library that allows you to run synchronous I/O functions asynchronously using `asyncio` via background threads. It provides decorators to adapt synchronous functions and generators, enabling them to operate without blocking the event loop.
+
+## Features
+
+- **`@athreading.call`**: Adapts a synchronous function into an asynchronous function.
+- **`@athreading.iterate_callback`**: Adapts a synchronous function using a callback **(push-based stream)** into an asynchronous iterator.
+- **`@athreading.iterate`**: Adapts a synchronous iterator **(pull-based stream)** into an asynchronous iterator.
+- **`@athreading.generate`**: Adapts a synchronous generator **(pull-driven stream)** into an asynchronous generator.
+
+> [!NOTE]
+> Due to Python <=3.13 Global Interpreter Lock (GIL), this library does not provide multi-threaded CPU parallelism unless using:
+>
+> - Python 3.9 with `nogil`
+> - or Python >=3.13 with free threading enabled
+
+## Installation
+
+`athreading` can be installed from PyPI using pip:
+
+```bash
+pip install athreading
+```
+
+## Usage
+
+`athreading` enables running synchronous functions and iterators asynchronously using `asyncio`.
+
+### 1. Adapt a synchronous function
+
+The `@athreading.call` decorator transforms a synchronous function into an asynchronous function.
+
+```python
+>>> import athreading
+>>> import time
+>>> import math
+>>> import asyncio
+>>>
+>>> @athreading.call
+... def compute_sqrt(x):
+...     time.sleep(0.05)  # Simulate a blocking I/O operation
+...     return math.sqrt(x)
+...
+>>> async def amain():
+...     results = await asyncio.gather(
+...         compute_sqrt(2),
+...         compute_sqrt(3),
+...         compute_sqrt(4)
+...     )
+...     print(results)
+
+>>> asyncio.run(amain())
+[1.4142135623730951, 1.7320508075688772, 2.0]
+
+```
+
+In this example, `compute_sqrt` is a synchronous function that sleeps for 0.5 seconds to simulate a blocking I/O operation. By decorating it with `@athreading.call`, it can be awaited within an asynchronous context, allowing multiple calls to run concurrently without blocking the event loop.
+
+### 2. Adapt a synchronous function with callback (push-based stream)
+
+The `@athreading.iterate_callback` decorator transforms a synchronous function using a callback into an asynchronous iterator.
+
+```python
+>>> import athreading
+>>> import time
+>>> import datetime
+>>> import asyncio
+>>>
+>>> @athreading.iterate_callback
+... def time_generator(callback, n):
+...     for value in range(n):
+...         time.sleep(0.05)  # Simulate a blocking I/O operation
+...         callback(value)
+...
+>>> async def aprint_stream(label):
+...     async with time_generator(n=10) as stream:
+...         async for current_time in stream:
+...             print(f"{label}: {current_time}")
+...
+>>> async def amain():
+...
+...     await asyncio.gather(
+...         aprint_stream("Stream 1"),
+...         aprint_stream("Stream 2"),
+...         aprint_stream("Stream 3"),
+...     )
+...
+>>> asyncio.run(amain())  # doctest: +ELLIPSIS
+Stream ...
+
+```
+
+### 3. Adapt a synchronous iterator (pull-based stream)
+
+The `@athreading.iterate` decorator transforms a synchronous iterator into an asynchronous iterator.
+
+```python
+>>> import athreading
+>>> import time
+>>> import datetime
+>>> import asyncio
+>>>
+>>> @athreading.iterate
+... def time_generator(n):
+...     for _ in range(n):
+...         time.sleep(0.05)  # Simulate a blocking I/O operation
+...         yield datetime.datetime.now()
+...
+>>> async def print_stream(label):
+...     async with time_generator(10) as stream:
+...         async for current_time in stream:
+...             print(f"{label}: {current_time}")
+...
+>>> async def amain():
+...     await asyncio.gather(
+...         print_stream("Stream 1"),
+...         print_stream("Stream 2"),
+...         print_stream("Stream 3"),
+...     )
+...
+>>> asyncio.run(amain())  # doctest: +ELLIPSIS
+Stream ...
+
+```
+
+This example demonstrates running three asynchronous streams concurrently. Each stream processes the `time_generator` function independently, and the decorator ensures iteration occurs without blocking the event loop.
+
+### 4. Adapt a synchronous generator (push-and-pull-based stream)
+
+The `@athreading.generate` decorator converts a synchronous generator function into an asynchronous generator function that supports `asend`.
+
+```python
+>>> import athreading
+>>> import time
+>>> import asyncio
+>>>
+>>> @athreading.generate
+... def controlled_counter(start, step):
+...     current = start
+...     while True:
+...         time.sleep(0.5)  # Simulate a blocking I/O operation
+...         received = yield current
+...         current = received if received is not None else current + step
+...
+>>> async def amain():
+...     async with controlled_counter(0, 1) as async_gen:
+...         print(await async_gen.asend(None))  # Start the generator
+...         print(await async_gen.asend(None))  # Advance with default step
+...         print(await async_gen.asend(10))   # Send a new value to control the counter
+...         print(await async_gen.asend(None))  # Continue from the new value
+...
+>>> asyncio.run(amain())
+0
+1
+10
+11
+
+```
+
+This example demonstrates how `@athreading.generate` transforms a synchronous generator into an asynchronous generator. The `asend` method sends values to control the generator's state dynamically, enabling interactive workflows while avoiding blocking the event loop.
+
+## License
+
+This project is licensed under the BSD-3-Clause License.
+
+For more information and examples, please visit the [athreading GitHub repository](https://github.com/calgray/athreading).
