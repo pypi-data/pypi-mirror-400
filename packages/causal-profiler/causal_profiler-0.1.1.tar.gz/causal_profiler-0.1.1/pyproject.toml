@@ -1,0 +1,66 @@
+[project]
+name = "causal-profiler"
+version = "0.1.1"
+description = "A Synthetic Benchmark Generator for Causal Machine Learning"
+authors = [
+    {name = "panispani", email = "p.panayiotou2@gmail.com"}
+]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "torch",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "tox",
+    "pandas",
+    "scipy",
+    "statsmodels",
+    "networkx",
+]
+examples = [
+    "pyyaml",
+    "pandas",
+    "matplotlib",
+    "seaborn",
+]
+
+[tool.setuptools.packages.find]
+include = ["causal_profiler*"]
+exclude = ["verification*"]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py310, py311, py312, py313, py314
+isolated_build = True
+
+[testenv]
+deps =
+    pytest
+    pandas
+    scipy
+    statsmodels
+    networkx
+commands =
+    pytest --ignore=tests/test_scm_sampling_performance.py --ignore=tests/test_causal_profiler.py
+
+[testenv:slow]
+deps =
+    pytest
+    pandas
+    scipy
+    statsmodels
+    networkx
+commands =
+    pytest
+"""

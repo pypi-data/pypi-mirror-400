@@ -1,0 +1,243 @@
+# CausalProfiler
+
+Paper: [![arXiv](https://img.shields.io/badge/arXiv-2511.22842-b31b1b.svg)](https://arxiv.org/abs/2511.22842)
+
+CausalProfiler is a synthetic benchmark generator for evaluating Causal ML methods under diverse conditions and assumptions. It allows rigorous, reproducible comparisons by sampling Structural Causal Models, data, and causal queries from user-defined Spaces of Interest, with built-in coverage guarantees.
+
+## Installation
+
+### For Users (Recommended)
+
+Install directly from PyPI:
+
+```bash
+pip install causal_profiler
+```
+
+### For Developers
+
+We recommend using [`uv`](https://docs.astral.sh/uv/guides/install-python/) for development:
+
+```bash
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+```
+
+This installs the package in editable mode along with all development dependencies (pytest, tox, pandas, scipy, statsmodels, networkx).
+
+Alternatively, you can use pip:
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Additional Dependencies for Examples
+
+If you plan to use the provided example `evaluate.py` file, install the `examples` dependencies:
+
+```bash
+uv pip install -e ".[examples]"
+# or with pip:
+pip install -e ".[examples]"
+```
+
+This includes: pyyaml, pandas, matplotlib, seaborn.
+
+## Project Configuration
+
+The `pyproject.toml` file defines the project dependencies and optional dependency groups:
+
+- **Main dependencies**: `numpy`, `torch` (required for core functionality)
+- **Dev dependencies** (`[dev]`): `pytest`, `tox`, `pandas`, `scipy`, `statsmodels`, `networkx` (for testing and development)
+- **Examples dependencies** (`[examples]`): `pyyaml`, `pandas`, `matplotlib`, `seaborn` (for running evaluation examples)
+
+You can install specific dependency groups using:
+
+```bash
+uv pip install -e ".[dev,examples]"  # Install both dev and examples dependencies
+```
+
+## Usage Example:
+
+To help you get started, we provide a full example in [`examples/evaluation/`](./examples/evaluation):
+
+1. `spaces.yaml` - Configuration file defining the spaces of interest to evaluate
+2. `evaluate.py` - Script to run evaluations for a specific method
+3. `summarize_results.py` - Script to analyze and visualize results from multiple methods
+
+In this `evaluate.py` example we demonstrate how to:
+
+- Load benchmark settings from a config file
+- Set random seeds for reproducibility
+- Run your causal method on multiple synthetic structural causal models (SCMs)
+- Measure and log error, failure rate, and runtime
+- Save results for later analysis
+- Analyze the results
+
+We've added a `🔧 EDIT` note on everything one needs to change to use the example with their own method.
+
+### 1. Replace dummy `MyCausalMethod`
+
+In `evaluate.py`, replace `from my_causal_method import MyCausalMethod` with your own model. Please do check the `🔧 EDIT` notes in `evaluate.py` to make sure your method is compatible.
+
+### 2. Configure Your Space of Interests
+
+In [`examples/evaluation/spaces.yaml`](./examples/evaluation/spaces.yaml), you can define multiple test spaces with different characteristics:
+
+```yaml
+spaces:
+  - name: linear_low_noise
+    number_of_nodes: [5, 10]
+    mechanism_family: LINEAR
+    noise_distribution: GAUSSIAN
+    noise_args: [0, 0.5]
+    ...
+    seed_list: [42, 43, 44]
+```
+
+Each space defines parameters for generating causal graphs, data, and queries. The framework properly handles ranges specified as lists (e.g., `[5, 8]`) by converting them to tuples.
+
+### 3. Run the Evaluation
+
+Once configured, run the evaluation script:
+
+```bash
+python evaluate.py --config spaces.yaml --output_dir results/method1
+```
+
+- `--config`: Path to the configuration file
+- `--output_dir`: Directory to save results
+- `--num_runs`: Number of runs per seed (different datasets)
+- `--num_tries`: Number of tries per run (repeated estimations)
+- `--wandb`: Enable logging to Weights & Biases (optional)
+
+This will:
+
+- Log progress to the terminal and `log.txt`
+- Save individual run results as JSON
+- Store a full `summary.json` in the output directory
+
+The evaluation structure uses a nested loop approach:
+
+```
+for each seed:
+  for each run:
+    Generate a new dataset and queries
+    for each try:
+      Estimate queries
+      Calculate error
+    Calculate average error for the run
+```
+
+This structure captures both:
+
+- Variability between different causal graphs (runs)
+- Stability of method performance for the same graph (tries)
+
+### 4. Analyze the Results
+
+To analyze and compare your results, use the summary script:
+
+```bash
+python summarize_results.py results/method1 results/method2 --output_dir analysis/
+```
+
+This will:
+
+1. Load all result files from the specified directories
+2. Compute statistics at different levels (try, run, overall)
+3. Generate CSV summaries and visualizations
+
+### Output Files
+
+- `summary.csv`: Overall method performance by space
+- `run_summary.csv`: Run-level statistics
+- `tries_data.csv`: All individual try data
+- Visualization plots:
+  - `error_boxplot.png`: Error distribution by method and space
+  - `runtime_boxplot.png`: Runtime distribution by space
+  - `run_variability.png`: Error variability across runs
+
+### File Structure Overview
+
+```
+evaluate.py                 # Main evaluation script
+summarize_results.py        # Summary + plotting script
+spaces.yaml                 # Config file for SCM/query spaces
+results/
+  method1/                  # Output directory for method 1
+    result_*.json
+    log.txt
+    summary.json
+analysis/
+  summary.csv
+  error_boxplot.png
+  runtime_boxplot.png
+```
+
+# Testing
+
+The `tests` directory mirrors the structure of `src` and hosts all tests. To run tests:
+
+```bash
+pytest -s --ignore=tests/test_scm_sampling_performance.py # Run all tests
+pytest tests/test_space_of_interest.py # Runs all tests in test_space_of_interest.py
+pytest tests/test_space_of_interest.py::TestSpaceOfInterest::test_number_of_data_points # Runs a specific test function
+```
+
+## Running Tests Across Multiple Python Versions
+
+We use `tox` (included in dev dependencies) to test across multiple Python versions (3.10-3.14). To run tox:
+
+```bash
+# Run tests on all supported Python versions
+tox
+
+# Run all functionality tests (excluding the performance test)
+tox -e py312  # or any specific Python version: py310, py311, py312, py313, py314
+
+# Run all tests including benchmarking
+tox -e slow
+```
+
+Note: You'll need the respective Python versions installed on your system for tox to work.
+
+# Verification experiments
+
+Validates that our implementation correctly adheres to Pearl's Causal Hierarchy.
+Each verification experiment runs across a `--parameter-grid` and reports detailed results (the tables Appendix J of the paper).
+**Note:** Install dev dependencies (`uv pip install -e ".[dev]"`) before running verification experiments.
+
+## Level 1: Associations (Statistics)
+
+Verifies that d-separations in the graph imply conditional independence.
+
+```bash
+python verification/main.py \
+    --parameter-grid test8 \
+    --verifications-to-run l1_data_ci \
+    --output-dir verification/L1
+```
+
+## Level 2: Interventions (Do-calculus)
+
+Verifies compliance with Pearl's three rules of do-calculus.
+
+```bash
+python verification/main.py \
+    --parameter-grid test7 \
+    --verifications-to-run l2_do_calculus \
+    --output-dir verification/L2
+```
+
+## Level 3: Counterfactuals (Structural)
+
+Verifies compliance with the three structural counterfactual axioms.
+
+```bash
+python verification/main.py \
+    --parameter-grid test5 \
+    --verifications-to-run l3_structural_counterfactual_axioms \
+    --output-dir verification/L3
+```
