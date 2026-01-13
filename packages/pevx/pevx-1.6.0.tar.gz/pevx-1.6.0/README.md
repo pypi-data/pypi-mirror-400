@@ -1,0 +1,155 @@
+# Prudentia CLI (pevx)
+
+A development CLI tool for Prudentia internal developers.
+
+## Git Hooks
+
+This project uses [pre-commit](https://pre-commit.com/) to enforce code quality and commit standards.
+
+### Configured Hooks
+
+- **pre-push**: Validates that branch names contain a JIRA link for the PRVS project
+- **commit-msg**: Ensures commit messages contain a JIRA link for the PRVS project
+
+### Setup
+
+1. Install dependencies (including pre-commit):
+
+   ```bash
+   uv sync --all-groups
+   ```
+
+1. Install hooks:
+
+   ```bash
+   uv run pre-commit install --install-hooks
+   ```
+
+### Manual Hook Management
+
+- Run hooks manually: `uv run pre-commit run --all-files`
+- Update hooks: `uv run pre-commit autoupdate`
+
+## Installation
+
+### From PyPI (when published)
+
+```bash
+pip install pevx
+```
+
+### Development Mode
+
+Clone the repository and install in development mode using uv:
+
+```bash
+git clone https://github.com/Prudentia-Sciences/pevx
+cd pevx
+uv sync
+```
+
+## Usage
+
+After installation, you can use the CLI with the `pevx` command:
+
+```bash
+# Show help
+pevx --help
+
+# Show version
+pevx --version
+```
+
+## Available Commands
+
+### `uv [args]`
+
+Proxy to uv with AWS CodeArtifact authentication.
+
+```bash
+pevx uv add [package] --domain custom-domain --domain-owner 123456789 --repo custom-repo --region us-west-2
+```
+
+Default values:
+
+- Domain: prudentia-sciences
+- Domain Owner: 728222516696
+- Repository: pypi-store
+- Region: us-east-1
+
+### `docker [args]`
+
+Proxy to docker with AWS ECR authentication.
+
+### `aws-each [args]`
+
+Assume a role in each target AWS account using OIDC and run an AWS CLI command.
+
+```bash
+pevx aws-each --accounts '["111111111111","222222222222"]' s3 ls
+```
+
+Options:
+
+- `--accounts`: JSON list of AWS account IDs (required, or set `TARGET_ACCOUNTS` env var)
+- `--role-name`: IAM Role name to assume (default: `github-actions-backend-role`)
+- `--continue-on-error/--fail-fast`: Continue with remaining accounts on failure
+
+### `pyclient`
+
+Generate a Python client from a FastAPI OpenAPI spec.
+
+```bash
+pevx pyclient --app-path app.main:app
+```
+
+Options:
+
+- `--pyproject`: Path to pyproject.toml (default: `pyproject.toml`)
+- `--app-path`: Python path to FastAPI app (default: `app.main:app`)
+
+## Development
+
+### Adding New Commands
+
+1. Create a new file in the `src/pevx/commands/` directory for your command
+1. Implement your command using Click
+1. Import and register your command in `src/pevx/cli.py`
+
+Example:
+
+```python
+# In src/pevx/commands/my_command.py
+import click
+
+@click.command()
+def my_command():
+    """Command description."""
+    click.echo("Running my command")
+
+# In src/pevx/cli.py, add:
+from pevx.commands.my_command import my_command
+cli.add_command(my_command)
+```
+
+### CI/CD and Versioning
+
+This project uses semantic-release for automated versioning:
+
+1. **Automated Testing**: Runs tests on Python 3.12
+1. **Semantic Versioning**: Automatically determines version from commit messages
+1. **Automated Publishing**: Builds and publishes to PyPI on new versions
+
+#### Commit Message Format
+
+Use conventional commit messages:
+
+```
+<type>(<scope>): <description>
+```
+
+Common types:
+
+- `fix`: Bug fixes (PATCH bump)
+- `feat`: New features (MINOR bump)
+- `feat!`, `fix!`: Breaking changes (MAJOR bump)
