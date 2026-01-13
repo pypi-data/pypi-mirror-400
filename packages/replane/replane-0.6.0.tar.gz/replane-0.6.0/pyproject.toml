@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "replane"
+description = "Python SDK for Replane - dynamic configuration platform with real-time updates"
+dynamic = ["version"]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+authors = [
+    {name = "Dmitry Tilyupo", email = "tilyupo@gmail.com"}
+]
+requires-python = ">=3.10"
+dependencies = []
+license = {file = "LICENSE"}
+
+[project.urls]
+Homepage = "https://github.com/replane-dev/replane-python"
+Repository = "https://github.com/replane-dev/replane-python"
+Changelog = "https://github.com/replane-dev/replane-python/blob/main/CHANGELOG.md"
+# Documentation = "https://replane.readthedocs.io/"
+
+[project.optional-dependencies]
+async = [
+    "httpx>=0.25.0",
+]
+dev = [
+    "httpx>=0.25.0",
+    "ruff",
+    "mypy>=1.0,<2.0",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "twine>=1.11.0",
+    "build",
+    "setuptools",
+    "wheel",
+    "isort",
+    "black",
+    "sphinx",
+    "myst-parser",
+    "sphinx-copybutton",
+    "sphinx-autodoc-typehints",
+    "furo",
+]
+
+[tool.setuptools.packages.find]
+exclude = [
+    "*.tests",
+    "*.tests.*",
+    "tests.*",
+    "tests",
+    "docs*",
+    "scripts*"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+replane = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = {attr = "replane.version.VERSION"}
+
+[tool.black]
+line-length = 100
+include = '\.pyi?$'
+exclude = '''
+(
+      __pycache__
+    | \.git
+    | \.mypy_cache
+    | \.pytest_cache
+    | \.vscode
+    | \.venv
+    | \bdist\b
+    | \bdoc\b
+)
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+# You can override these pyright settings by adding a personal pyrightconfig.json file.
+[tool.pyright]
+reportPrivateImportUsage = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+ignore_missing_imports = true
+no_site_packages = true
+check_untyped_defs = true
+exclude = [
+    "examples/",
+    "docs/",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+strict_optional = false
+# Generic classes (Replane, InMemoryReplaneClient) don't require type parameters in tests
+disable_error_code = ["var-annotated"]
+
+[tool.pytest.ini_options]
+testpaths = "tests/"
+python_classes = [
+  "Test*",
+  "*Test"
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+log_format = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+log_level = "DEBUG"
