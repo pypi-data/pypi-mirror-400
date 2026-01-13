@@ -1,0 +1,181 @@
+Metadata-Version: 2.1
+Name: tg-server-bot
+Version: 0.0.2
+Summary: A Telegram bot for Linux server management and shell execution.
+Author: nobitaqaq
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: python-telegram-bot ==21.0.1
+Requires-Dist: python-telegram-bot[socks] ==21.0.1
+Requires-Dist: python-telegram-bot[ext] ==21.0.1
+Requires-Dist: aiofiles ==23.1.0
+Requires-Dist: aiohttp ==3.8.4
+Requires-Dist: aiohttp-socks ==0.7.1
+
+# Telegram Server Bot (tg-server-bot)
+
+一个轻量级、功能强大的 Telegram 机器人，专为 Linux 服务器管理而设计。支持通过 Telegram 执行 Shell 命令、下载服务器文件、查询 IP 等操作，并具备完善的权限管理机制。
+
+## ✨ 核心特性
+
+*   **🛡️ 权限管理**：基于 Telegram User ID 的白名单机制，拒绝未授权访问。
+*   **💻 远程 Shell**：直接在聊天窗口执行 Shell 命令，支持自动补全。
+*   **📂 文件下载**：快速下载服务器上的指定文件（如日志、配置文件）。
+*   **🌐 网络工具**：一键查询服务器 IPv4/IPv6 地址。
+*   **⚙️ 灵活配置**：支持自定义快捷指令、工作目录切换。
+*   **📦 开箱即用**：提供 `tg-bot-cfg` 和 `tg-bot-auth` 辅助工具，快速管理配置。
+
+## 🚀 安装
+
+确保您的系统已安装 Python 3.8+。
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/your-repo/tg-server-bot.git
+cd tg-server-bot
+
+# 2. 安装 (推荐在虚拟环境中)
+pip install .
+```
+
+安装完成后，系统将获得以下三个命令：
+*   `tg-bot`: 启动机器人主程序。
+*   `tg-bot-cfg`: 快速编辑配置文件。
+*   `tg-bot-auth`: 快速管理授权用户白名单。
+
+## 📖 快速开始
+
+### 1. 初始化配置
+首次运行配置工具会自动生成默认配置文件。
+
+```bash
+# 打开配置文件编辑器 (默认使用 vim/nano/notepad)
+tg-bot-cfg
+```
+
+在打开的编辑器中，填入您的 Telegram Bot Token：
+```ini
+[common]
+token = 123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+```
+
+### 2. 添加授权用户
+为了安全起见，机器人默认拒绝所有请求。您需要将自己的 Telegram User ID 添加到白名单。
+
+**获取 User ID 的方法**：在 Telegram 中向 [@userinfobot](https://t.me/userinfobot) 发送 `/start`，它会返回您的 ID（一串数字，如 `123456789`）。
+
+```bash
+# 打开白名单编辑器
+tg-bot-auth
+```
+
+在文件中输入您的 ID，每行一个。
+
+### 3. 启动机器人
+
+```bash
+# 前台运行 (日志输出到终端)
+tg-bot
+
+# 后台运行 (推荐，日志自动记录到配置文件指定的 log_file)
+nohup tg-bot > /dev/null 2>&1 &
+```
+
+现在，您可以在 Telegram 中向机器人发送 `/start` 开始使用了！
+
+## 🛠️ 命令详解
+
+### 主程序 `tg-bot`
+
+```bash
+usage: tg-bot [-h] [-v] [-c CONFIG]
+
+options:
+  -h, --help            显示帮助信息
+  -v, --version         显示版本号和安装路径
+  -c CONFIG, --config CONFIG
+                        指定配置文件路径 (默认为安装目录下的 config.ini)
+```
+
+**日志逻辑说明**：
+*   **直接运行** (`tg-bot`)：日志输出到终端。
+*   **重定向运行** (`tg-bot > log.txt`)：日志输出到文件。
+*   **配置文件日志**：如果在 `config.ini` 中设置了 `log_file`，日志会**额外**写入该文件。
+
+### 配置工具 `tg-bot-cfg`
+
+```bash
+usage: tg-bot-cfg [-h] [-c CONFIG] [-e]
+
+options:
+  -c CONFIG, --config CONFIG
+                        编辑指定的配置文件
+  -e, --example         查看配置文件模板内容
+```
+
+### 授权工具 `tg-bot-auth`
+
+```bash
+usage: tg-bot-auth [-h] [-e]
+
+options:
+  -e, --example         查看白名单文件模板内容
+```
+
+## ⚙️ 配置文件说明 (`config.ini`)
+
+```ini
+[common]
+; 您的 Bot Token (必填)
+token = 123456...
+
+; 代理设置 (可选，如国内服务器无法连接 Telegram API)
+; proxy = http://127.0.0.1:7890
+
+; 日志文件路径 (可选)
+; 如果留空，则不记录到文件，仅输出到 stdout
+log_file = tg_bot.log
+
+; 机器人运行的工作目录 (可选)
+; 所有 Shell 命令和文件下载将以此目录为基准
+; 默认为启动 tg-bot 时的目录
+pwd = /home/ubuntu/my-project
+
+[get]
+; 文件下载快捷指令 (格式: 指令名 = 文件路径)
+; 发送 /hosts 即可下载 /etc/hosts
+hosts = /etc/hosts
+nginx = /etc/nginx/nginx.conf
+
+[run_cmds]
+; Shell 执行快捷指令 (格式: 指令名 = Shell 命令)
+; 发送 /status 即可执行对应的命令
+status = systemctl status nginx
+disk = df -h
+```
+
+## 🎮 Telegram 交互指令
+
+| 指令 | 说明 |
+| :--- | :--- |
+| `/start` | 唤起控制面板 |
+| `/list` | 列出所有可用指令（含自定义指令） |
+| `/ip` | 查询服务器 IPv4 地址 |
+| `/ipv6` | 查询服务器 IPv6 地址 |
+| `/run <cmd>` | 执行任意 Shell 命令 (如 `/run ls -la`) |
+| `/add_get <name> <path>` | **动态**添加文件下载指令 (立即生效) |
+| `/add_run <name> <cmd>` | **动态**添加 Shell 指令 (立即生效) |
+| `/clear` | 清除所有动态添加的临时指令 |
+
+## ⚠️ 安全建议
+
+1.  **严格管理白名单**：不要将 `verified_id.txt` 泄露给他人。
+2.  **谨慎使用 `/run`**：该指令具有极高的权限（取决于运行机器人的用户权限）。建议使用非 root 用户运行本程序。
+3.  **不要将 Token 提交到公开仓库**。
+
+## 📝 License
+
+MIT License
