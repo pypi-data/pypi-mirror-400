@@ -1,0 +1,86 @@
+[project]
+name = "pipeline-eds"
+version = "0.4.4"
+description = "A Python API pipeline library and CLI toolkit for Emerson Ovation EDS systems — built for engineers, control technicians, and wastewater SCADA teams."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9,<3.15"
+
+authors = [
+    { name = "George Clayton Bennett", email = "george.bennett@memphistn.gov" }
+]
+
+dependencies = [
+    "backports.tarfile>=1.2",
+    "colorama>=0.4.6",
+    "distro>=1.9.0",
+    "keyring>=25.6.0 ; python_version >= '3.9' and platform_machine != 'aarch64'",
+    #"cryptography>=46.0.3; platform_machine != 'aarch64'",
+    "keyrings-alt>=5.0.2; platform_machine != 'aarch64'",
+    "pendulum>=3.1.0; python_version >= '3.9'",
+    "plotly>=6.2.0",
+    "pyhabitat>=1.0.40",
+    "pyyaml>=6.0.2,<7.0.0",
+    "requests>=2.32.3,<3.0.0",
+    "rich>=14.1.0; python_version >= '3.10'",
+    "rich>=10.14.0; python_version < '3.10'",
+    "suds-py3>=1.4.5.0",
+    "msgspec>=0.19.0; python_version >= '3.9'",
+    "starlette>=0.50.0; python_version >= '3.10'",
+    "starlette>=0.47.3; python_version == '3.9.*'",
+    "typer>=0.17.4",
+    "tzdata>=2025.2",
+    "urllib3>=2.4.0; python_version >= '3.9'",
+    "uvicorn>=0.34.3; python_version >= '3.9'",
+    "python-multipart>=0.0.20",
+    "toml>=0.10.2",
+]
+
+[project.optional-dependencies]
+localdb_fallback_windows = [
+    "pyodbc>=5.1.0",
+    "mysql-connector-python>=9.3.0; python_version >= '3.9'",
+]
+
+[project.scripts]
+pipeline = "pipeline.cli:app"
+eds = "pipeline.cli:app"
+pipeline-eds = "pipeline.cli:app"
+package-pipeline = "package:main"
+
+[dependency-groups]
+test = [
+    "pytest>=8.4.1; python_version >= '3.9'",
+    "pytest-cov>=6.2.1; python_version >= '3.9'",
+    "ruff>=0.7.0",
+]
+
+dev = [
+    "pygal>=3.0.5",
+    "pex>=2.69.1",
+
+    "pyinstaller>=6.16.0; platform_system == 'Linux' and platform_machine != 'aarch64'",
+
+    "shiv>=1.0.8",
+    #"shiv>=1.0.8; platform_machine != 'aarch64'",
+    #"shiv==0.5.1; platform_machine == 'aarch64'",
+    # platform_machine != 'aarch64'",
+
+    "cffi>=1.17.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --cov=pipeline --cov-report=term-missing"
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+
+[tool.uv]
+package = true
+default-groups = ["dev", "test"]
+
+[tool.uv.sources]
+pipeline_eds = { path = "src/pipeline" }
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
