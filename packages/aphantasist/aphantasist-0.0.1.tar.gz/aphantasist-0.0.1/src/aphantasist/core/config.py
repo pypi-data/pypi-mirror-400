@@ -1,0 +1,46 @@
+import os
+from aphantasist.core import config_files
+
+default_app_dir = "aphantasist"
+
+
+def get_dir(param="aphantasist"):
+    parent_param = "default_dirs"
+
+    if param == default_app_dir:
+        folder = "./" + param
+    else:
+        folder = config_files.get_param(
+            parent_param=parent_param, param=param, default_app_dir=default_app_dir
+        )
+    if not os.path.exists(folder):
+        os.mkdir(folder)
+    return folder
+
+
+def load_config(force_default=False):
+    config_file_name = "config.yaml"
+    config_params = config_files.create_and_read_config_file(
+        file_name=config_file_name,
+        default_app_dir=default_app_dir,
+        force_default=force_default,
+    )
+
+    if config_params is None or "default_dirs" not in config_params:
+        config_params = load_config(force_default=True)
+
+    return config_params
+
+
+def get_param(parent_param, param):
+    return config_files.get_param(
+        parent_param=parent_param, param=param, default_app_dir=default_app_dir
+    )
+
+
+def overwrite_config_file(data, file_name):
+    config_files.overwrite_config_file(data, file_name, default_app_dir=default_app_dir)
+
+
+def _append_config_file(data, file_name):
+    config_files.append_config_file(data, file_name, default_app_dir=default_app_dir)
