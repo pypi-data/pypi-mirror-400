@@ -1,0 +1,104 @@
+[build-system]
+requires = [
+    "scikit-build-core>=0.8.0",
+    "pybind11>=2.10.0",
+    "setuptools>=64",
+    "wheel",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "isage-anns"
+version = "0.1.0"
+description = "SAGE ANNS: Approximate Nearest Neighbor Search algorithms with unified Python interface"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    { name = "IntelliStream Team", email = "shuhao_zhang@hust.edu.cn" },
+]
+keywords = [
+    "approximate nearest neighbor",
+    "anns",
+    "vector search",
+    "similarity search",
+    "faiss",
+    "hnsw",
+    "diskann",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# Runtime dependencies
+dependencies = [
+    "numpy>=1.20.0",
+    "pybind11>=2.10.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/intellistream/sage-anns"
+Repository = "https://github.com/intellistream/sage-anns.git"
+"Bug Tracker" = "https://github.com/intellistream/sage-anns/issues"
+Documentation = "https://github.com/intellistream/sage-anns#readme"
+
+# ============================================================================
+# scikit-build-core Configuration
+# ============================================================================
+[tool.scikit-build]
+# CMake 配置
+cmake.version = ">=3.10"
+cmake.build-type = "Release"
+cmake.verbose = true
+logging.level = "INFO"
+
+# 源码位置
+wheel.packages = ["python/sage_anns"]
+
+# CMake 参数
+cmake.args = [
+    "-DENABLE_PYBIND=ON",
+    "-DCMAKE_CXX_STANDARD=17",
+]
+
+# Wheel 配置
+wheel.expand-macos-universal-tags = true
+wheel.py-api = "py3"
+
+# 排除测试和示例文件
+wheel.exclude = [
+    "tests/**",
+    "examples/**",
+    "*.md",
+]
+
+# 严格配置验证
+strict-config = false
+
+# 安装配置
+install.components = ["python", "headers"]
+
+# 开发模式配置
+[tool.scikit-build.editable]
+mode = "redirect"
+verbose = true
+
+# ============================================================================
+# Code Quality Configuration
+# ============================================================================
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501"]  # Line too long (handled by formatter)

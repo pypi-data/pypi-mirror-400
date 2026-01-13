@@ -1,0 +1,291 @@
+Metadata-Version: 2.2
+Name: isage-anns
+Version: 0.1.0
+Summary: SAGE ANNS: Approximate Nearest Neighbor Search algorithms with unified Python interface
+Keywords: approximate nearest neighbor,anns,vector search,similarity search,faiss,hnsw,diskann
+Author-Email: IntelliStream Team <shuhao_zhang@hust.edu.cn>
+License: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Programming Language :: C++
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Project-URL: Homepage, https://github.com/intellistream/sage-anns
+Project-URL: Repository, https://github.com/intellistream/sage-anns.git
+Project-URL: Bug Tracker, https://github.com/intellistream/sage-anns/issues
+Project-URL: Documentation, https://github.com/intellistream/sage-anns#readme
+Requires-Python: >=3.10
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: pybind11>=2.10.0
+Description-Content-Type: text/markdown
+
+# SAGE ANNS
+
+**Approximate Nearest Neighbor Search algorithms with unified Python interface**
+
+[![PyPI version](https://badge.fury.io/py/isage-anns.svg)](https://pypi.org/project/isage-anns/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Overview
+
+`isage-anns` provides high-performance C++ implementations of state-of-the-art Approximate Nearest Neighbor Search (ANNS) algorithms with a unified Python interface. This package is part of the [SAGE](https://github.com/intellistream/SAGE) ecosystem.
+
+## Features
+
+- 🚀 **High Performance**: C++ implementations with pybind11 bindings
+- 🎯 **Multiple Algorithms**: FAISS, HNSW, DiskANN, CANDY, PUCK, SPTAG
+- 🔧 **Unified Interface**: Single API for all algorithms
+- 📦 **Easy Installation**: Pre-built wheels for major platforms
+- 🔌 **Plug-and-Play**: Works standalone or with SAGE framework
+
+## Supported Algorithms
+
+| Algorithm | Type | Index | Features |
+|-----------|------|-------|----------|
+| **FAISS** | Graph/IVF | In-memory | GPU support, multiple index types |
+| **VSAG HNSW** | Graph | In-memory | Fast search, high recall |
+| **DiskANN** | Graph | Disk-based | Large-scale datasets, memory efficient |
+| **CANDY** | Hybrid | In-memory/Disk | Optimized for diverse workloads |
+| **PUCK** | Graph | In-memory | Chinese-origin, high performance |
+| **SPTAG** | Tree/Graph | In-memory | Microsoft implementation |
+
+## Installation
+
+### From PyPI (Recommended)
+
+```bash
+pip install isage-anns
+```
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/intellistream/sage-anns.git
+cd sage-anns
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Build and install
+pip install -e .
+```
+
+### Requirements
+
+- Python >= 3.10
+- CMake >= 3.10
+- C++17 compiler (g++ or clang++)
+- System libraries:
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install build-essential cmake libopenblas-dev
+  
+  # macOS
+  brew install cmake libomp
+  ```
+
+## Quick Start
+
+```python
+from sage_anns import ANNSIndex
+
+# Create an index
+index = ANNSIndex(
+    algorithm="faiss_hnsw",
+    dimension=128,
+    metric="l2"
+)
+
+# Build index with data
+import numpy as np
+data = np.random.randn(10000, 128).astype('float32')
+index.build(data)
+
+# Search
+query = np.random.randn(10, 128).astype('float32')
+distances, indices = index.search(query, k=10)
+
+print(f"Top-10 nearest neighbors: {indices}")
+print(f"Distances: {distances}")
+```
+
+## Usage Examples
+
+### FAISS HNSW
+
+```python
+from sage_anns import ANNSIndex
+
+index = ANNSIndex(
+    algorithm="faiss_hnsw",
+    dimension=128,
+    metric="l2",
+    M=32,  # HNSW parameter
+    ef_construction=200
+)
+index.build(data)
+index.search(query, k=10)
+```
+
+### DiskANN
+
+```python
+from sage_anns import ANNSIndex
+
+index = ANNSIndex(
+    algorithm="diskann",
+    dimension=128,
+    metric="l2",
+    index_path="./diskann_index"  # Disk storage
+)
+index.build(data)
+index.search(query, k=10)
+```
+
+### VSAG HNSW
+
+```python
+from sage_anns import ANNSIndex
+
+index = ANNSIndex(
+    algorithm="vsag_hnsw",
+    dimension=128,
+    metric="cosine",
+    M=16,
+    ef_construction=100
+)
+index.build(data)
+index.search(query, k=10)
+```
+
+## API Reference
+
+### `ANNSIndex`
+
+**Parameters:**
+- `algorithm` (str): Algorithm name (`faiss_hnsw`, `diskann`, `vsag_hnsw`, etc.)
+- `dimension` (int): Vector dimension
+- `metric` (str): Distance metric (`l2`, `cosine`, `inner_product`)
+- `**kwargs`: Algorithm-specific parameters
+
+**Methods:**
+- `build(data)`: Build index from numpy array
+- `search(query, k)`: Search k nearest neighbors
+- `add(vectors)`: Add vectors to index
+- `save(path)`: Save index to disk
+- `load(path)`: Load index from disk
+
+## Integration with SAGE
+
+This package is designed to work seamlessly with the SAGE framework:
+
+```python
+from sage.libs.anns import create_index
+
+# SAGE will automatically use isage-anns if installed
+index = create_index("faiss_hnsw", dimension=128)
+index.build(data)
+```
+
+## Development
+
+### Building from Source
+
+```bash
+# Clone with submodules (contains third-party libraries)
+git clone --recursive https://github.com/intellistream/sage-anns.git
+cd sage-anns
+
+# Build all algorithms
+./build_all.sh
+
+# Or build specific algorithm
+cd implementations/<algorithm>
+mkdir build && cd build
+cmake .. && make -j$(nproc)
+```
+
+### Running Tests
+
+```bash
+pip install pytest
+pytest tests/
+```
+
+## Performance
+
+Benchmarks on 1M SIFT vectors (128-dim):
+
+| Algorithm | Build Time | Query Time (10-NN) | Recall@10 |
+|-----------|------------|-------------------|-----------|
+| FAISS HNSW | 45s | 0.8ms | 0.95 |
+| VSAG HNSW | 42s | 0.9ms | 0.94 |
+| DiskANN | 120s | 1.2ms | 0.93 |
+| CANDY | 50s | 1.0ms | 0.92 |
+
+*Benchmarks run on Intel Xeon Silver 4214R @ 2.40GHz*
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Code Structure
+
+```
+sage-anns/
+├── implementations/      # C++ source code
+│   ├── faiss/
+│   ├── diskann-ms/
+│   ├── candy/
+│   └── ...
+├── python/              # Python bindings
+│   └── sage_anns/
+├── tests/               # Unit tests
+├── CMakeLists.txt       # Build configuration
+└── pyproject.toml       # Package metadata
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Citation
+
+If you use this package in your research, please cite:
+
+```bibtex
+@software{sage_anns,
+  title = {SAGE ANNS: Approximate Nearest Neighbor Search},
+  author = {IntelliStream Team},
+  year = {2026},
+  url = {https://github.com/intellistream/sage-anns}
+}
+```
+
+## Acknowledgements
+
+This package integrates implementations from:
+- [FAISS](https://github.com/facebookresearch/faiss) by Meta Research
+- [DiskANN](https://github.com/microsoft/DiskANN) by Microsoft Research
+- [SPTAG](https://github.com/microsoft/SPTAG) by Microsoft
+- PUCK by ByteDance
+- CANDY by IntelliStream Team
+
+## Related Projects
+
+- [SAGE](https://github.com/intellistream/SAGE) - Main framework
+- [sage-benchmark](https://github.com/intellistream/sage-benchmark) - Benchmarking tools
+- [NeuroMem](https://github.com/intellistream/NeuroMem) - Memory system using ANNS
+
+## Support
+
+- 📧 Email: shuhao_zhang@hust.edu.cn
+- 🐛 Issues: [GitHub Issues](https://github.com/intellistream/sage-anns/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/intellistream/sage-anns/discussions)
