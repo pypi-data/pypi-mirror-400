@@ -1,0 +1,150 @@
+{# tag_me/templates/tag_me/tag_me_bottom_sheet.html #}
+{% comment %}
+  MOBILE BOTTOM SHEET - Add Tag Modal
+  Slides up from bottom when user wants to create a new tag
+  Has backdrop, drag handle, pre-filled input, and actions
+{% endcomment %}
+<!-- Bottom Sheet Backdrop -->
+<div x-show="bottomSheetShow"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     @click="closeBottomSheet()"
+     class="tm:fixed tm:inset-0 tm:bg-scrim-lib tm:z-modal-backdrop"
+     style="display: none"
+     x-cloak></div>
+<!-- Bottom Sheet Panel -->
+<div x-show="bottomSheetShow"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="translate-y-full"
+     x-transition:enter-end="translate-y-0"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="translate-y-0"
+     x-transition:leave-end="translate-y-full"
+     @click.outside="closeBottomSheet()"
+     class="tm:fixed tm:bottom-0 tm:left-0 tm:right-0 tm:z-modal tm:bg-surface-container-high-lib tm:rounded-t-2xl tm:shadow-2xl tm:border-t tm:border-outline-variant-lib tm:max-h-[80vh] tm:overflow-hidden"
+     style="display: none"
+     x-cloak>
+    <!-- Drag Handle -->
+    <div class="tm:flex tm:justify-center tm:pt-3 tm:pb-2">
+        <div class="tm:w-12 tm:h-1.5 tm:bg-outline-variant-lib tm:rounded-full"></div>
+    </div>
+    <!-- Content -->
+    <div class="tm:px-6 tm:pb-8 tm:overflow-y-auto tm:max-h-[calc(80vh-2rem)]">
+        <!-- Header -->
+        <div class="tm:text-center tm:mb-6">
+            <h2 class="tm:text-xl tm:font-semibold tm:text-on-surface-lib">Add New Tag</h2>
+            <p class="tm:mt-1 tm:text-sm tm:text-on-surface-variant-lib">Create and add to your library</p>
+        </div>
+        <!-- Form -->
+        <div class="tm:space-y-4">
+            <!-- Tag Name Input -->
+            <div>
+                <label for="bottom-sheet-tag-name-{{ name }}"
+                       class="tm:block tm:text-sm tm:font-medium tm:text-on-surface-variant-lib tm:mb-2">
+                    Tag Name
+                </label>
+                <input type="text"
+                       id="bottom-sheet-tag-name-{{ name }}"
+                       x-model="search"
+                       @keydown.enter="createNewTag()"
+                       @keydown.escape.stop="closeBottomSheet()"
+                       x-init="$watch('bottomSheetShow', value => { if(value) setTimeout(() => $el.focus(), 100) })"
+                       class="tm:block tm:w-full tm:rounded-lg tm:bg-surface-container-lib tm:px-4 tm:py-3 tm:text-base tm:text-on-surface-lib tm:placeholder:text-on-surface-variant-lib tm:border tm:border-outline-variant-lib tm:focus:border-primary-lib tm:focus:ring-2 tm:focus:ring-primary-lib tm:focus:outline-none tm:transition-colors tm:duration-150"
+                       placeholder="Enter tag name...">
+                <p class="tm:mt-2 tm:text-xs tm:text-on-surface-variant-lib">
+                    This tag will be added to your library <span x-show="autoSelectNewTags">and automatically selected</span>.
+                </p>
+            </div>
+            <!-- Error Display -->
+            <div x-show="tagCreationError"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 class="tm:p-4 tm:bg-error-container-lib tm:border tm:border-error-lib tm:rounded-lg">
+                <div class="tm:flex tm:items-start">
+                    <svg class="tm:h-5 tm:w-5 tm:text-error-lib tm:mt-0.5 tm:mr-3 tm:flex-shrink-0"
+                         xmlns="http://www.w3.org/2000/svg"
+                         viewBox="0 0 20 20"
+                         fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                    <div class="tm:flex-1">
+                        <h4 class="tm:text-sm tm:font-medium tm:text-on-error-container-lib">Error creating tag</h4>
+                        <p class="tm:mt-1 tm:text-sm tm:text-on-error-container-lib"
+                           x-text="tagCreationError"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Actions -->
+        <div class="tm:flex tm:gap-3 tm:mt-8">
+            <!-- Cancel Button -->
+            <button type="button"
+                    @click="closeBottomSheet()"
+                    :disabled="isCreatingTag"
+                    class="tm:flex-1 tm:min-h-[48px] tm:px-4 tm:py-3 tm:text-base tm:font-medium tm:text-on-surface-variant-lib tm:bg-surface-container-lib tm:rounded-lg tm:transition-all tm:duration-150 hover:tm:bg-surface-container-lib hover:tm:text-on-surface-lib tm:active:scale-95 tm:disabled:opacity-50 tm:disabled:cursor-not-allowed tm:focus:outline-none tm:focus:ring-2 tm:focus:ring-outline-lib tm:focus:ring-offset-2 tm:focus:ring-offset-surface-container-high-lib">
+                Cancel
+            </button>
+            <!-- Create Button -->
+            <button type="button"
+                    @click="createNewTag()"
+                    :disabled="isCreatingTag || search.trim().length === 0"
+                    class="tm:flex-1 tm:min-h-[48px] tm:px-4 tm:py-3 tm:text-base tm:font-medium tm:text-on-primary-lib tm:bg-primary-lib tm:rounded-lg tm:transition-all tm:duration-150 hover:tm:bg-primary-lib hover:tm:opacity-90 tm:active:scale-95 tm:disabled:opacity-50 tm:disabled:cursor-not-allowed tm:focus:outline-none tm:focus:ring-2 tm:focus:ring-primary-lib tm:focus:ring-offset-2 tm:focus:ring-offset-surface-container-high-lib">
+                <span x-show="!isCreatingTag">Create Tag</span>
+                <span x-show="isCreatingTag"
+                      class="tm:inline-flex tm:items-center tm:justify-center">
+                    <svg class="tm:animate-spin tm:-ml-1 tm:mr-2 tm:h-4 tm:w-4 tm:text-on-primary-lib"
+                         xmlns="http://www.w3.org/2000/svg"
+                         fill="none"
+                         viewBox="0 0 24 24">
+                        <circle class="tm:opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="tm:opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    Creating...
+                </span>
+            </button>
+        </div>
+    </div>
+</div>
+{% comment %}
+TEMPLATE CLASS MIGRATION - BOTTOM SHEET (MD3 REFACTOR v3.1)
+============================================================
+Date: December 06, 2025
+Migration: MD3 Border Standardization
+
+BORDER CHANGES APPLIED:
+✅ Panel top border:
+   - border-outline-lib → border-outline-variant-lib
+   - Softer, more subtle appearance matching datetime
+
+✅ Drag handle:
+   - bg-outline-lib → bg-outline-variant-lib
+   - Consistent with softer border approach
+
+✅ Input border:
+   - border-outline-lib → border-outline-variant-lib
+   - Matches datetime input styling
+
+UNCHANGED (semantic borders):
+- Error display: border-error-lib (semantic, should remain prominent)
+
+ELEVATION HIERARCHY (unchanged from v2.1):
+- Backdrop:           scrim-lib [modal overlay]
+- Panel:              surface-container-high-lib [3]
+- Input:              surface-container-lib [1] (inset)
+- Cancel button:      surface-container-lib [1] (inset)
+- Create button:      primary-lib (semantic)
+
+NO OTHER CHANGES:
+- Alpine.js: unchanged
+- HTMX: unchanged
+- HTML structure: unchanged
+- Spacing/layout: unchanged
+- Z-index values: unchanged
+- Non-MD3 classes: unchanged
+{% endcomment %}
