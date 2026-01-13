@@ -1,0 +1,116 @@
+Metadata-Version: 2.1
+Name: kusa2mcap
+Version: 0.3.1
+Summary: Convert Kusa record files to MCAP format
+Author-email: Lin Hai <hai.l@kusaauto.com>
+License: MIT
+Project-URL: Homepage, https://github.com/kusa_ads/kusa2mcap
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: click>=8.0
+Requires-Dist: protobuf>=4.0
+Requires-Dist: mcap-protobuf-support>=0.1.0
+Requires-Dist: foxglove-schemas-protobuf>=0.1.0
+Requires-Dist: kusa-ads-protobuf>=0.1.0
+
+# kusa_record_to_mcap 工具说明
+
+## 功能概述
+
+- 该工具负责将 KUSA ADS 记录下来的 `rec_x` 原始 underlay 日志解包，并转换为 Foxglove 生态可直接播放的 MCAP 文件。
+- 在保留原始消息的同时，对关键数据类型（如图像、点云、定位、规划、预测和 HMI 日志）进行结构化转换。
+- 输出 MCAP 在 Foxglove Studio 中可直接查看：/hmi/camera_*、/hmi/lidar、/hmi/map/*、/hmi/tfs、/hmi/log 等多个主题一并写入。
+
+## 依赖环境
+
+- Python 3.8+
+- `click`
+- `google.protobuf`
+- `kusa_ads_protobuf`（内部 Proto 定义）
+- `foxglove_schemas_protobuf`
+- `mcap-protobuf-support`
+
+## 安装方法
+
+> 建议使用python虚拟环境安装依赖：
+> pipenv或venv均可，例如使用pipenv：
+>
+> ```bash
+> pipenv install kusa2mcap
+> ```
+> 或者直接使用pip安装：
+```bash
+pip install kusa2mcap
+```
+
+## 记录文件准备
+
+- 输入目录必须包含按照 `rec_0`, `rec_1`, ... 命名、无扩展名的原始记录文件；脚本会自动按编号排序并串行解析.
+- 若目录下存在 `info` 文件，在统计模式下可以直接打印其内容。
+- 初始地图偏移量来自首个记录文件中 `rt/openads/slam/esekf_odom_gnss_fused_pose` 里的 $
+  abla (x, y)$，用于把所有坐标系平移到视觉友好的世界坐标。
+
+## 使用方法
+
+### 1. 转换 MCAP
+
+```bash
+kusa_record_to_mcap convert <record_dir> -o <output.mcap> [--no-image] [--no-pointcloud] [-v]
+```
+- pipenv 命令方式:
+```bash
+pipenv run kusa-record-to-mcap convert <record_dir> -o <output.mcap> [--no-image] [--no-pointcloud] [-v]
+```
+
+- `record_dir`：包含 `rec_x` 文件的目录。
+- `-o, --output`：必填，目标 MCAP 路径。
+- `--no-image`：跳过图像转换。
+- `--no-pointcloud`：跳过点云转换。
+- `-v/--verbose`：打印更多提示（例如哪些类型被跳过）。
+
+执行过程：
+
+1. 枚举所有 `rec_x`，计算地图偏移。
+2. 逐条消息判断 `data_type` 并选择转换器：
+   - 图像 → `FoxgloveCompressedImage`（自动映射 topic 与 frame_id）。
+   - 点云 → `FoxglovePointCloud`（打包为 16 字节 stride 格式）。
+   - 定位、规划、预测、HMI 日志等 → 对应 Foxglove Scene/Transform/Log 结构，附带 `/hmi/*` 主题。
+3. 未特殊处理的数据类型按原始 Proto 写入 MCAP，方便后续二次解析。
+4. 结束时输出各 topic 的消息条数及总耗时。
+
+### 2. 查看统计信息
+
+```bash
+kusa_record_to_mcap stats <record_dir> [--show-info-file] [-v]
+```
+- pipenv 命令方式:
+```bash
+pipenv run kusa-record-to-mcap stats <record_dir> [--show-info-file] [-v]
+```
+
+- `--show-info-file`：如果目录内存在 `info`，直接显示其内容后退出。
+- 默认模式：解析所有 `rec_x` 并统计每个 topic 的消息数量（含 `__total_messages__`）。
+
+## 主题映射速查
+
+- 相机：`rt/openads/drives/leopard_camera_*` → `/hmi/camera_*`（并修正 `frame_id`）。
+- 点云：可按需在 `pointcloud_topic_map` 中扩展映射，默认保留原始 topic。
+- 定位：写入 `/hmi/tfs`, `/hmi/pose`, `/hmi/gps`。
+- 规划：输出 `/hmi/map/planning`, `/hmi/map/planning_polygons`, `/hmi/map/planning_boundary`，分别绘制轨迹、边界与多边形。
+- 预测障碍：输出 `/hmi/map/prediction_obstacles`，每个实体含文本、边界线、朝向箭头与预测轨迹。
+- HMI Log：输出 `/hmi/log`，并带 level/name/file/line 等信息。
+
+## 常见问题
+
+- **转出来的 MCAP 中坐标错位**：确认 `rec_0` 中存在定位 topic；否则默认 `(0,0)` 偏移可能导致整体偏移。
+- **Foxglove 中没有图像或点云**：检查是否传入了 `--no-image/--no-pointcloud`，或目标 topic 是否已在映射表中。
+- **protobuf 解析失败**：确保与记录文件匹配的 `kusa_ads_protobuf` 版本已安装。
+
+## 后续扩展建议
+
+1. 将车辆基础参数（如轴距、传感器安装位置）以及传感器标定信息写入 MCAP。
+2. 考虑增加 `--only` 选项，只转换特定类型数据以节约时间/空间。
+3. 支持更多 KUSA 内部 Proto 定义的数据类型转换。
