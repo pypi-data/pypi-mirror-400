@@ -1,0 +1,105 @@
+
+# ptcal - Precision Pt100/Pt25 Calibration Library
+
+[![PyPI version](https://img.shields.io/pypi/v/ptcal.svg)](https://pypi.org/project/ptcal/)
+[![License](https://img.shields.io/pypi/l/ptcal.svg)](https://github.com/Zeit-Geist/ptcal/blob/main/LICENSE)
+[![Python versions](https://img.shields.io/pypi/pyversions/ptcal.svg)](https://pypi.org/project/ptcal/)
+
+**Precision Pt100/Pt25 Calibration Library**
+
+**ptcal** is a professional Python library for calibrating Platinum Resistance Thermometers (PRT). It supports both **ITS-90** and **CVD (Callendar-Van-Dusen)** standards, providing high-precision fitting, residual analysis, visualization, and Excel reporting.
+
+Ideal for metrology labs, industrial calibration, and precision measurement applications.
+
+## Features
+
+- **Standard Support**:
+  - **ITS-90**: Full implementation of deviation functions (ranges 8-11 and sub-ranges).
+  - **IEC 60751 (CVD)**: Fitting of R0, A, B, (and C) coefficients.
+- **Visual Analysis**:
+  - Comparison plots (Deviations vs. DIN/IEC classes).
+  - Residual scatter plots to verify fit quality.
+  - "All-in-One" overview for multiple sensors.
+- **Reporting**:
+  - Automated **Excel export** with scientific formatting.
+  - Generates coefficients ready for measurement devices.
+- **Modular Design**:
+  - Use `PtSensor` to easily calculate Temperature from Resistance (and vice versa) in your own scripts.
+
+---
+
+## Installation
+
+Clone the repository and install it in editable mode:
+
+
+git clone https://github.com/Zeit-Geist/ptcal.git
+cd ptcal
+pip install -e .
+Note: Requires Python 3.9+
+
+Usage
+### 1. Calibrating Sensors (From Excel Data)
+Use the PtCalibrator class to process measurement data from an Excel file.
+
+Input Format: An Excel file with columns: [SerialNumber, Temperature, Uncertainty, Resistance].
+
+```python
+from ptcal import PtCalibrator
+import pandas as pd
+
+# 1. Load Data
+df = pd.read_excel("measurements.xlsx")
+
+# 2. Initialize & Calibrate
+cal = PtCalibrator(df, sensor_type="Pt100")
+cal.calculate_cvd()
+cal.calculate_its90()
+
+# 3. Export Results
+cal.export_excel("results.xlsx")
+
+# 4. Create Plots (Comparison, Residuals, etc.)
+cal.plot(
+    output_dir="plots", 
+    din_class="A", 
+    mode="BOTH", 
+    graphs=['SINGLE', 'RESIDUALS']
+)
+```
+
+### 2. Using Coefficients (Application)
+Use the PtSensor class to apply the calculated coefficients in your application.
+
+Option A: Load from Result-Excel
+
+```python
+from ptcal import PtSensor
+
+# Load specific sensor from the calibration result file
+sensor = PtSensor.from_excel("results.xlsx", serial_number="SN12345", standard="ITS90")
+
+temp = sensor.get_temperature(108.45)
+print(f"Temperature: {temp:.4f} °C")
+```
+
+Option B: Manual Parameters
+
+```python
+# Manually define a CVD sensor
+sensor = PtSensor("MySensor", standard="CVD", R0=100.01, A=3.9083e-3, B=-5.775e-7)
+
+res = sensor.get_resistance(100.0)
+print(f"Resistance at 100°C: {res:.4f} Ohm")
+```
+
+## Project Structure
+
+- `src/ptcal/core.py`: Mathematical formulas (ITS-90 / CVD).
+- `src/ptcal/calibrator.py`: Fitting algorithms and data handling.
+- `src/ptcal/sensor.py`: Application logic (T <-> R conversion).
+- `src/ptcal/plotting.py`: Visualization using Matplotlib.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

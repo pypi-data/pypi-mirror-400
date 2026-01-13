@@ -1,0 +1,159 @@
+Metadata-Version: 2.4
+Name: ptcal
+Version: 0.1.1
+Summary: High precision calibration tool for Pt100/Pt25 sensors (ITS-90 & CVD)
+Author-email: Dein Name <deine@email.com>
+License: MIT License
+        
+        Copyright (c) 2026 Rodrigue Scholz 
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: Homepage, https://github.com/Zeit-Geist/ptcal
+Project-URL: Bug Tracker, https://github.com/Zeit-Geist/ptcal/issues
+Project-URL: Documentation, https://github.com/Zeit-Geist/ptcal#readme
+Keywords: pt100,pt25,calibration,temperature,its-90,cvd,iec60751,metrology,measurement,fitting,curve,kennlinie,laboratory
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Manufacturing
+Classifier: Topic :: Scientific/Engineering :: Physics
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.20
+Requires-Dist: pandas>=1.3
+Requires-Dist: scipy>=1.7
+Requires-Dist: matplotlib>=3.4
+Requires-Dist: xlsxwriter>=3.0
+Requires-Dist: openpyxl>=3.0
+Dynamic: license-file
+
+
+# ptcal - Precision Pt100/Pt25 Calibration Library
+
+[![PyPI version](https://img.shields.io/pypi/v/ptcal.svg)](https://pypi.org/project/ptcal/)
+[![License](https://img.shields.io/pypi/l/ptcal.svg)](https://github.com/Zeit-Geist/ptcal/blob/main/LICENSE)
+[![Python versions](https://img.shields.io/pypi/pyversions/ptcal.svg)](https://pypi.org/project/ptcal/)
+
+**Precision Pt100/Pt25 Calibration Library**
+
+**ptcal** is a professional Python library for calibrating Platinum Resistance Thermometers (PRT). It supports both **ITS-90** and **CVD (Callendar-Van-Dusen)** standards, providing high-precision fitting, residual analysis, visualization, and Excel reporting.
+
+Ideal for metrology labs, industrial calibration, and precision measurement applications.
+
+## Features
+
+- **Standard Support**:
+  - **ITS-90**: Full implementation of deviation functions (ranges 8-11 and sub-ranges).
+  - **IEC 60751 (CVD)**: Fitting of R0, A, B, (and C) coefficients.
+- **Visual Analysis**:
+  - Comparison plots (Deviations vs. DIN/IEC classes).
+  - Residual scatter plots to verify fit quality.
+  - "All-in-One" overview for multiple sensors.
+- **Reporting**:
+  - Automated **Excel export** with scientific formatting.
+  - Generates coefficients ready for measurement devices.
+- **Modular Design**:
+  - Use `PtSensor` to easily calculate Temperature from Resistance (and vice versa) in your own scripts.
+
+---
+
+## Installation
+
+Clone the repository and install it in editable mode:
+
+
+git clone https://github.com/Zeit-Geist/ptcal.git
+cd ptcal
+pip install -e .
+Note: Requires Python 3.9+
+
+Usage
+### 1. Calibrating Sensors (From Excel Data)
+Use the PtCalibrator class to process measurement data from an Excel file.
+
+Input Format: An Excel file with columns: [SerialNumber, Temperature, Uncertainty, Resistance].
+
+```python
+from ptcal import PtCalibrator
+import pandas as pd
+
+# 1. Load Data
+df = pd.read_excel("measurements.xlsx")
+
+# 2. Initialize & Calibrate
+cal = PtCalibrator(df, sensor_type="Pt100")
+cal.calculate_cvd()
+cal.calculate_its90()
+
+# 3. Export Results
+cal.export_excel("results.xlsx")
+
+# 4. Create Plots (Comparison, Residuals, etc.)
+cal.plot(
+    output_dir="plots", 
+    din_class="A", 
+    mode="BOTH", 
+    graphs=['SINGLE', 'RESIDUALS']
+)
+```
+
+### 2. Using Coefficients (Application)
+Use the PtSensor class to apply the calculated coefficients in your application.
+
+Option A: Load from Result-Excel
+
+```python
+from ptcal import PtSensor
+
+# Load specific sensor from the calibration result file
+sensor = PtSensor.from_excel("results.xlsx", serial_number="SN12345", standard="ITS90")
+
+temp = sensor.get_temperature(108.45)
+print(f"Temperature: {temp:.4f} °C")
+```
+
+Option B: Manual Parameters
+
+```python
+# Manually define a CVD sensor
+sensor = PtSensor("MySensor", standard="CVD", R0=100.01, A=3.9083e-3, B=-5.775e-7)
+
+res = sensor.get_resistance(100.0)
+print(f"Resistance at 100°C: {res:.4f} Ohm")
+```
+
+## Project Structure
+
+- `src/ptcal/core.py`: Mathematical formulas (ITS-90 / CVD).
+- `src/ptcal/calibrator.py`: Fitting algorithms and data handling.
+- `src/ptcal/sensor.py`: Application logic (T <-> R conversion).
+- `src/ptcal/plotting.py`: Visualization using Matplotlib.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
