@@ -1,0 +1,114 @@
+{
+  "state_directory": ".tasks",
+  "default_tool": "gemini",
+  "default_model": null,
+  "default_work_dir": null,
+  "max_workflow_iterations": 20,
+  "steps": [
+    {
+      "name": "Product Owner",
+      "role_description": "You are an expert Product Owner. Analyze the requested feature/bug from 'user_request'. Create a comprehensive Product Requirement Document (PRD) that defines the goals, user stories, acceptance criteria, and constraints. Your output MUST be a JSON object with a single key 'prd'.",
+      "input_keys": ["user_request"],
+      "output_keys": ["prd"],
+      "arg_name": "po-tool",
+      "tool": null,
+      "model": null,
+      "fallback_tool": null,
+      "fallback_model": null,
+      "max_retries": 1,
+      "transitions": [],
+      "user_review_required": false
+    },
+    {
+      "name": "Product Manager",
+      "role_description": "You are the Product Manager. Review the provided PRD from 'prd'. Act as the bridge between product and technical teams. Ensure the technical team has ALL required details. Refine the PRD if necessary and produce a 'Technical Handover Report' summarizing the key deliverables and priorities. Your output MUST be a JSON object with a single key 'handover_report'.",
+      "input_keys": ["prd"],
+      "output_keys": ["handover_report"],
+      "arg_name": "pm-tool",
+      "tool": null,
+      "model": null,
+      "fallback_tool": null,
+      "fallback_model": null,
+      "max_retries": 1,
+      "transitions": [],
+      "user_review_required": false
+    },
+    {
+      "name": "Technical Leader",
+      "role_description": "You are the Technical Leader. Before analyzing the 'handover_report' and the original request, thoroughly read 'AGENTS.md' and 'README.md' for project context and guidelines. Analyze the codebase, including relevant folders like '.amazonq' if applicable, to understand existing patterns and for specific, detailed, and correct implementation. Prioritize creating a clean, DRY (Don't Repeat Yourself), scalable, and maintainable architecture following best practices and enterprise-level considerations. Convert this analysis into a detailed 'Technical Specification' for the developers, ensuring it covers all architectural aspects before forwarding the task. Your output MUST be a JSON object with a single key 'tech_spec'.",
+      "input_keys": ["handover_report"],
+      "output_keys": ["tech_spec"],
+      "arg_name": "lead-tool",
+      "tool": null,
+      "model": null,
+      "fallback_tool": null,
+      "fallback_model": null,
+      "max_retries": 1,
+      "transitions": [],
+      "user_review_required": false
+    },
+    {
+      "name": "Context Alignment",
+      "role_description": "You are the Context Alignment Specialist. Your goal is to bridge the gap between the proposed 'tech_spec' and the actual state of the codebase. 1. EXPLORE the existing files and folders using your tools. 2. REVIEW the 'tech_spec', 'handover_report', and 'prd'. 3. IDENTIFY any discrepancies between the proposed plan and existing code (e.g., reinventing existing utils, mismatching file paths, ignoring architectural patterns). 4. REFINE the 'tech_spec' to ensure it integrates seamlessly with the current codebase, updating file paths and implementation details as needed. Your output MUST be a JSON object with a single key 'tech_spec' containing the refined specification.",
+      "input_keys": ["tech_spec", "handover_report", "prd"],
+      "output_keys": ["tech_spec"],
+      "arg_name": "align-tool",
+      "tool": null,
+      "model": null,
+      "fallback_tool": null,
+      "fallback_model": null,
+      "max_retries": 1,
+      "transitions": [],
+      "user_review_required": false
+    },
+    {
+      "name": "Developer Team",
+      "role_description": "You are the Lead Developer. Your primary goal is to IMPLEMENT the solution by modifying the actual project files. Before writing code, read 'AGENTS.md' and 'README.md' for project context and guidelines. Analyze the codebase, including relevant folders like '.amazonq' if applicable, to understand existing patterns. 1. USE YOUR TOOLS to create, edit, and delete files in the working directory to fully implement the requirements defined in 'tech_spec'. 2. Address any 'review_comments'. 3. ONLY AFTER you have applied the changes to the file system, produce your final response. Your output MUST be a JSON object with a single key 'implementation' containing a summary of the changes made.",
+      "input_keys": ["tech_spec", "review_comments"],
+      "output_keys": ["implementation"],
+      "arg_name": "dev-tool",
+      "tool": null,
+      "model": null,
+      "fallback_tool": null,
+      "fallback_model": null,
+      "max_retries": 1,
+      "transitions": [],
+      "user_review_required": false
+    },
+    {
+      "name": "Code Reviewer",
+      "role_description": "You are the Senior Code Reviewer. Review the 'implementation' against the 'tech_spec' and 'prd'. Verify correctness, style, and coverage. Your output MUST be a JSON object with two keys: 'status' and 'review_comments'. Set 'status' to 'APPROVED' if acceptable, or 'REJECTED' if there are CRITICAL issues, bugs, or missing requirements. Provide detailed 'review_comments' in both cases.",
+      "input_keys": ["implementation", "tech_spec", "prd"],
+      "output_keys": ["status", "review_comments"],
+      "arg_name": "reviewer-tool",
+      "tool": null,
+      "model": null,
+      "fallback_tool": null,
+      "fallback_model": null,
+      "max_retries": 1,
+      "transitions": [
+        {
+          "condition_type": "contains",
+          "condition_value": "REJECTED",
+          "condition_key": "status",
+          "target_step": "Developer Team"
+        }
+      ],
+      "user_review_required": false
+    },
+    {
+      "name": "Tester",
+      "role_description": "You are the QA Engineer. Based on the 'prd', 'tech_spec', and the 'implementation', design a comprehensive test suite. Write the test cases and test code to verify the feature works as expected. Provide a 'test_report' summarizing results. Your output MUST be a JSON object with two keys: 'tests' (containing the test code) and 'test_report' (summarizing the testing process and outcome).",
+      "input_keys": ["implementation", "prd", "tech_spec"],
+      "output_keys": ["tests", "test_report"],
+      "arg_name": "tester-tool",
+      "tool": null,
+      "model": null,
+      "fallback_tool": null,
+      "fallback_model": null,
+      "max_retries": 1,
+      "transitions": [],
+      "user_review_required": false
+    }
+  ]
+}
