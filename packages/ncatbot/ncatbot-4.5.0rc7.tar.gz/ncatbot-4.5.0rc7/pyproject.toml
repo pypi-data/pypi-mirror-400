@@ -1,0 +1,130 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm[toml]>=7.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ncatbot"
+version = "4.5.0-rc7"
+description = "NcatBot, NapCat Python SDK"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [ { name = "木子", email = "lyh_02@qq.com" }, { name = "huan-yp", email = "huan_yp@qq.com"} ]
+urls = { "Source" = "https://github.com/liyihao1110/ncatbot", "Bug Reports" = "https://github.com/liyihao1110/ncatbot/issues", "Documentation" = "https://github.com/liyihao1110/ncatbot/wiki" }
+requires-python = ">=3.9"
+dependencies = [
+  # 数据模型
+  "pydantic>=2.0",
+  # 定时任务
+  "schedule",
+  # 配置文件
+  "pyyaml>=6.0",
+  "toml",
+  "tomli>=1.1.0; python_version<'3.11'",
+  # 网络通信
+  "websockets",
+  "requests>=2.28",
+  # 异步文件操作
+  "aiofiles",
+  # 系统信息
+  "psutil>=5.9",
+  # 版本解析
+  "packaging",
+  # 终端输出
+  "rich",
+  "tqdm>=4.60",
+  # 类型提示
+  "typing-extensions",
+  # QR 码生成
+  "qrcode",
+  # Windows 终端颜色支持
+  "colorama>=0.4.6; platform_system == \"Windows\"",
+]
+
+[project.optional-dependencies]
+# 开发依赖。使用 pip install '.[dev]' 安装（包含测试依赖）
+dev = [
+  "ncatbot[test]",
+  "build",
+  "twine",
+  "tox>=4.0",
+  "tox-uv",
+  "uv",
+  "pip-tools",
+  "pre-commit",
+  "black",
+  "ruff",
+  "mypy",
+  "isort",
+  "pytest>=7.0",
+  "pytest-asyncio>=0.21",
+  "pytest-cov>=4.0",
+  "pytest-html>=4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ncatbot", "ncatbot.*"]
+
+[tool.setuptools_scm]
+# write the computed version into a small source file so the package can expose it
+write_to = "ncatbot/_version.py"
+write_to_template = "__version__ = \"{version}\"\n"
+fallback_version = "0+unknown"
+tag_regex = "^(?P<prefix>v)?(?P<version>\\d+\\.\\d+\\.\\d+.*)$"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+testpaths = ["test"]
+# 只收集 Test 开头的类作为测试类，排除 E2ETestSuite 等工具类
+python_classes = ["Test*"]
+# 忽略 e2e/api 目录（需要真实 NapCat 服务）
+# 忽略 examples 目录
+addopts = "--ignore=test/e2e/api --ignore=examples --cov=ncatbot --cov-report=term-missing --cov-report=html"
+
+[tool.coverage.run]
+source = ["ncatbot"]
+branch = true
+omit = [
+    # 版本文件（自动生成）
+    "ncatbot/_version.py",
+    # 测试文件
+    "ncatbot/**/test_*.py",
+    # MCP 模块（Model Context Protocol 服务端，需要外部 MCP 客户端测试）
+    "ncatbot/mcp/*",
+    # 网络 I/O（需要真实网络环境）
+    "ncatbot/utils/network_io.py",
+    # NapCat 适配器（需要真实 NapCat 服务和文件系统操作）
+    "ncatbot/core/adapter/nc/*",
+    # 模板插件（静态资源）
+    "ncatbot/utils/assets/*",
+    # 日志格式化（视觉效果代码）
+    "ncatbot/utils/logger.py",
+    # 废弃的线程池工具
+    "ncatbot/utils/thread_pool.py",
+    # 测试基础设施（不需要测试自身）
+    "ncatbot/utils/testing/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.codespell]
+ignore-words-list = "ans"
+
+[tool.ruff.lint.per-file-ignores]
+# 这些文件使用 star imports 来导出公共 API
+"ncatbot/core/event/__init__.py" = ["F405"]
+"ncatbot/core/event/parser.py" = ["F405"]
+"ncatbot/core/event/events.py" = ["F405"]
+"ncatbot/core/event/message_segments/__init__.py" = ["F405"]
