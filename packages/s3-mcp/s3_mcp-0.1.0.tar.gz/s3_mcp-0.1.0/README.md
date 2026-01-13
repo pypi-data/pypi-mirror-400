@@ -1,0 +1,543 @@
+# Amazon S3 MCP Server
+
+A Model Context Protocol (MCP) server for AWS S3 operations, providing secure access to S3 buckets through presigned URLs.
+
+## Features
+
+- **List Objects**: Browse S3 bucket contents with prefix filtering and pagination
+- **Download Objects**: Generate time-limited presigned URLs for secure downloads
+- **Upload Objects**: Generate presigned URLs for direct client-to-S3 uploads with encryption and ACL support
+- **Delete Objects**: Remove objects from S3 buckets (with version support)
+- **Dual Format Support**: All operations return both Markdown (human-readable) and JSON formats
+- **Security First**: Uses presigned URLs to avoid credential exposure and enable direct client-to-S3 communication
+- **Comprehensive Validation**: Pydantic v2 models ensure input validation and type safety
+
+## Architecture
+
+This server uses **presigned URLs** instead of direct upload/download for several key benefits:
+
+- **Security**: Time-limited access without exposing AWS credentials
+- **Scalability**: Direct client-to-S3 communication (no server bottleneck)
+- **Performance**: Eliminates server as intermediary for data transfer
+- **Flexibility**: Works with any HTTP client (browsers, curl, etc.)
+
+## Prerequisites
+
+- **Python**: 3.10 or higher
+- **AWS Account**: With S3 access
+- **AWS Credentials**: Configured via AWS CLI, environment variables, or IAM roles
+- **UV** (optional): Fast Python package manager - [Install UV](https://docs.astral.sh/uv/getting-started/installation/)
+
+## Installation
+
+### 1. Clone or Download
+
+```bash
+cd /path/to/mcp-servers/aws-s3-mcp
+```
+
+### 2. Install Dependencies
+
+#### Option A: Using pip (Traditional)
+
+```bash
+# Install in development mode
+pip install -e .
+
+# Or install with dev dependencies for testing
+pip install -e ".[dev]"
+```
+
+#### Option B: Using UV (Recommended for Claude Desktop)
+
+```bash
+# Install UV first (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies with UV
+uv sync
+
+# Or install with dev dependencies
+uv sync --all-extras
+```
+
+### 3. Configure AWS Credentials
+
+Choose one of the following methods:
+
+**Option A: AWS CLI (Recommended for development)**
+```bash
+aws configure
+```
+
+**Option B: Environment Variables**
+```bash
+export AWS_ACCESS_KEY_ID=your-access-key
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+export AWS_REGION=us-east-1
+```
+
+**Option C: Named Profile**
+```bash
+# Create .env file
+cp .env.example .env
+
+# Edit .env and set:
+# AWS_PROFILE=my-profile
+# AWS_REGION=us-east-1
+```
+
+## Usage
+
+### Running the Server
+
+#### Using Python
+
+```bash
+# Run directly as module
+python -m s3_mcp
+
+# Or use the installed command
+s3-mcp
+```
+
+#### Using UV
+
+```bash
+# Run with UV
+uv run s3-mcp
+
+# Or run from specific directory
+uv --directory /path/to/mcp-servers/aws-s3-mcp run s3-mcp
+
+# Or use UVX (tool runner)
+uvx --from /path/to/mcp-servers/aws-s3-mcp s3-mcp
+```
+
+### Claude Desktop Configuration
+
+Add to your Claude Desktop configuration file:
+
+**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+#### Option 1: Using Python (Traditional)
+
+```json
+{
+  "mcpServers": {
+    "s3": {
+      "command": "python",
+      "args": ["-m", "s3_mcp"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "default"
+      }
+    }
+  }
+}
+```
+
+#### Option 2: Using UV with Directory Path
+
+```json
+{
+  "mcpServers": {
+    "s3": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/mcp-servers/aws-s3-mcp",
+        "run",
+        "s3-mcp"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "default"
+      }
+    }
+  }
+}
+```
+
+#### Option 3: Using UVX (UV Tool Runner)
+
+```json
+{
+  "mcpServers": {
+    "s3": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "/path/to/mcp-servers/aws-s3-mcp",
+        "s3-mcp"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "default"
+      }
+    }
+  }
+}
+```
+
+#### Option 4: Using UV from Project Directory
+
+```json
+{
+  "mcpServers": {
+    "s3": {
+      "command": "uv",
+      "args": ["run", "s3-mcp"],
+      "cwd": "/path/to/mcp-servers/aws-s3-mcp",
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "default"
+      }
+    }
+  }
+}
+```
+
+**Note**: Replace `/path/to/mcp-servers/aws-s3-mcp` with the actual absolute path to your installation directory.
+
+#### Which Option Should I Use?
+
+- **Option 1 (Python)**: Best if you have Python installed globally and the package installed with pip
+- **Option 2 (UV with --directory)**: Best for development, keeps dependencies isolated per project
+- **Option 3 (UVX)**: Best for quick tool execution, handles dependencies automatically
+- **Option 4 (UV with cwd)**: Alternative to Option 2, uses `cwd` instead of `--directory`
+
+**Recommended**: Use **Option 2** or **Option 3** with UV for better dependency isolation and faster startup times.
+
+## Available Tools
+
+### 1. `s3_list_objects`
+
+List objects in an S3 bucket with optional prefix filtering and pagination.
+
+**Parameters:**
+- `bucket_name` (required): S3 bucket name (3-63 chars, lowercase)
+- `prefix` (optional): Filter objects by key prefix (e.g., "logs/2024/")
+- `limit` (optional): Max objects to return (1-1000, default: 20)
+- `continuation_token` (optional): Token from previous response for pagination
+- `response_format` (optional): "markdown" (default) or "json"
+
+**Example:**
+```
+List objects in my-data-bucket with prefix "images/"
+```
+
+**Response includes:**
+- Object keys, sizes, last modified dates, storage classes
+- Pagination token if more results exist
+
+### 2. `s3_get_object`
+
+Generate a presigned URL for downloading an S3 object.
+
+**Parameters:**
+- `bucket_name` (required): S3 bucket name
+- `key` (required): Object key (path within bucket)
+- `expires_in` (optional): URL expiration in seconds (1-604800, default: 3600)
+- `response_content_disposition` (optional): Override Content-Disposition header
+- `response_content_type` (optional): Override Content-Type header
+- `response_format` (optional): "markdown" (default) or "json"
+
+**Example:**
+```
+Generate download URL for my-data-bucket/reports/2024-report.pdf
+```
+
+**Response includes:**
+- Time-limited presigned URL (valid for specified duration)
+- Expiration timestamp
+- Usage example (curl command)
+
+**Security Notes:**
+- URLs are time-limited (max 7 days, default 1 hour)
+- Anyone with the URL can download during validity period
+- URLs cannot be revoked before expiration
+
+### 3. `s3_put_object`
+
+Generate a presigned URL for uploading an object to S3.
+
+**Parameters:**
+- `bucket_name` (required): S3 bucket name
+- `key` (required): Destination object key
+- `expires_in` (optional): URL expiration in seconds (1-604800, default: 3600)
+- `content_type` (optional): MIME type (e.g., "image/png", "application/pdf")
+- `server_side_encryption` (optional): "AES256" or "aws:kms"
+- `metadata` (optional): Custom metadata as key-value pairs
+- `acl` (optional): Access control ("private", "public-read", etc.)
+- `response_format` (optional): "markdown" (default) or "json"
+
+**Example:**
+```
+Generate upload URL for my-bucket/uploads/document.pdf with encryption
+```
+
+**Response includes:**
+- Presigned URL for PUT operation
+- Required headers (Content-Type, encryption, etc.)
+- Usage example (curl command with all required headers)
+
+**Security Notes:**
+- Enforce encryption with `server_side_encryption` parameter
+- Use "private" ACL unless public access required
+- URL is scoped to specific object key
+
+### 4. `s3_delete_object`
+
+Delete an object from an S3 bucket.
+
+**⚠️ WARNING**: This is a DESTRUCTIVE operation. Deleted objects cannot be recovered unless versioning is enabled.
+
+**Parameters:**
+- `bucket_name` (required): S3 bucket name
+- `key` (required): Object key to delete
+- `version_id` (optional): Specific version to delete (for versioned buckets)
+- `response_format` (optional): "markdown" (default) or "json"
+
+**Example:**
+```
+Delete my-bucket/temp/old-file.txt
+```
+
+**Behavior:**
+- Non-versioned buckets: Object is permanently deleted
+- Versioned buckets: Delete marker created (object can be recovered)
+- With version_id: Specific version permanently deleted
+
+**Response includes:**
+- Deletion confirmation
+- Version information if applicable
+
+## Development
+
+### Quick Start with Makefile
+
+The project includes a Makefile for common development tasks:
+
+```bash
+make help         # Show all available commands
+make install-dev  # Install package with dev dependencies
+make test         # Run test suite
+make test-cov     # Run tests with coverage report
+make lint         # Check code quality
+make format       # Format code
+make check        # Run all checks (lint + typecheck + test)
+make inspector    # Launch MCP Inspector for testing
+make clean        # Remove build artifacts
+```
+
+### Project Structure
+
+```
+aws-s3-mcp/
+├── s3_mcp/
+│   ├── __init__.py          # Package initialization
+│   ├── __main__.py          # Entry point
+│   ├── server.py            # FastMCP server and tool definitions
+│   └── s3/
+│       ├── __init__.py      # S3 module exports
+│       ├── client.py        # S3 client wrapper with error handling
+│       ├── operations.py    # Core business logic for all operations
+│       └── utils.py         # Shared utilities and formatters
+├── tests/                   # Test suite (pytest + moto)
+├── pyproject.toml          # Project configuration and dependencies
+├── .env.example            # Example environment configuration
+└── README.md               # This file
+```
+
+### Running Tests
+
+```bash
+# Using Makefile (recommended)
+make install-dev  # Install with dev dependencies
+make test         # Run tests
+make test-cov     # Run tests with coverage report
+
+# Or use pytest directly
+pip install -e ".[dev]"
+pytest -v
+pytest --cov=s3_mcp --cov-report=html
+```
+
+**Test Suite:**
+- ✅ 50 unit tests covering all operations
+- ✅ 95% coverage on core business logic (operations.py)
+- ✅ 88% coverage on utilities (utils.py)
+- ✅ Tests include: list objects, get/put/delete operations, pagination, error handling, versioning, encryption, ACLs
+
+### Testing with MCP Inspector
+
+Test the server interactively using MCP Inspector:
+
+```bash
+# Using Makefile
+make inspector
+
+# Or run directly
+npx @modelcontextprotocol/inspector python -m s3_mcp.server
+```
+
+This will:
+1. Start the MCP Inspector web interface
+2. Launch your S3 MCP server
+3. Open a browser where you can test all tools
+4. View tool schemas, test with different parameters, and inspect responses
+
+### Code Quality
+
+```bash
+# Using Makefile (recommended)
+make format      # Format code with ruff
+make lint        # Check code with ruff
+make typecheck   # Run mypy type checking
+make check       # Run all checks (lint + typecheck + test)
+
+# Or run tools directly
+ruff format .
+ruff check .
+mypy s3_mcp/
+```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file from `.env.example`:
+
+```bash
+# AWS Region (default: us-east-1)
+AWS_REGION=us-east-1
+
+# AWS Profile (optional)
+AWS_PROFILE=my-profile
+
+# Maximum Presigned URL Expiration (optional, default: 604800 seconds = 7 days)
+MAX_PRESIGNED_URL_EXPIRATION=604800
+```
+
+### AWS IAM Permissions
+
+The server requires the following IAM permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::your-bucket-name",
+        "arn:aws:s3:::your-bucket-name/*"
+      ]
+    }
+  ]
+}
+```
+
+For versioned buckets, also add:
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "s3:DeleteObjectVersion",
+    "s3:GetObjectVersion"
+  ],
+  "Resource": "arn:aws:s3:::your-bucket-name/*"
+}
+```
+
+## Security Best Practices
+
+### Presigned URLs
+
+- **Use short expiration times** for sensitive data (minutes, not hours)
+- **Monitor URL generation** in CloudTrail logs
+- **Validate bucket policies** to prevent unauthorized presigned URL generation
+- **Consider VPC endpoints** for private S3 access
+
+### AWS Credentials
+
+- **Never commit credentials** to version control
+- **Use IAM roles** in production (EC2, ECS, Lambda)
+- **Rotate access keys** regularly
+- **Use least privilege** IAM permissions
+- **Enable MFA** for sensitive operations
+
+### Data Protection
+
+- **Enable encryption** by default (use `server_side_encryption` parameter)
+- **Enable versioning** for important buckets
+- **Configure lifecycle policies** for automated data management
+- **Enable access logging** for audit trails
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue**: `ImportError: No module named 'fastmcp'`
+- **Solution**: Run `pip install -e .` to install dependencies
+
+**Issue**: `NoCredentialsError: Unable to locate credentials`
+- **Solution**: Configure AWS credentials using `aws configure` or environment variables
+
+**Issue**: `AccessDenied: Access Denied`
+- **Solution**: Verify IAM permissions for the S3 operations you're attempting
+
+**Issue**: `NoSuchBucket: The specified bucket does not exist`
+- **Solution**: Verify bucket name and region configuration
+
+**Issue**: Presigned URL returns 403 Forbidden
+- **Solution**: Check that:
+  - Required headers are included (for PUT operations)
+  - URL hasn't expired
+  - Bucket policy allows the operation
+
+### Debugging
+
+Enable debug logging:
+
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with tests
+4. Run code quality checks (`black`, `ruff`, `pytest`)
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Related Resources
+
+- [AWS S3 Documentation](https://docs.aws.amazon.com/s3/)
+- [AWS Presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html)
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [FastMCP Framework](https://github.com/jlowin/fastmcp)
+- [Boto3 Documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
+
+## Support
+
+For issues, questions, or contributions:
+- Open an issue on GitHub
+- Check existing issues for solutions
+- Review AWS S3 documentation for API-specific questions
