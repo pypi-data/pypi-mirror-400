@@ -1,0 +1,190 @@
+# ****************************************************************************
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ****************************************************************************
+
+from ..pk_algorithm import PKAlgorithm
+from ..pk_problem import PKProblem
+from ..pk_constants import *
+from ...base_algorithm import optimal_parameter
+from math import factorial, inf, comb as binomial, log2
+from ..pk_helper import gauss_binomial, cost_for_finding_subcode
+from ...SDFqEstimator.sdfq_estimator import SDFqEstimator
+
+
+class SBC(PKAlgorithm):
+    def __init__(self, problem: PKProblem, **kwargs):
+        """Complexity estimate of the SBC algorithm.
+
+        The estimates are adapted versions of the code accompanying [SBC22]_, original code is accessible at
+        https://github.com/secomms/pkpattack
+
+        Examples:
+            >>> from cryptographic_estimators.PKEstimator.PKAlgorithms import SBC
+            >>> from cryptographic_estimators.PKEstimator import PKProblem
+            >>> SBC(PKProblem(n=20,m=10,q=7,ell=2))
+            SBC estimator for the permuted kernel problem with (n,m,q,ell) = (20,10,7,2)
+        """
+        super().__init__(problem, **kwargs)
+        self._name = "SBC"
+        n, m, _, _ = self.problem.get_parameters()
+
+        self.set_parameter_ranges("d", 1, m)
+        self.set_parameter_ranges("w", 1, n)
+        self.set_parameter_ranges("w1", 1, n)
+
+        self.SDFqEstimator = None
+        self.SDFqEstimator_parameters = kwargs.get("sd_parameters", {})
+        self.SDFqEstimator_parameters.pop("nsolutions", None)
+        self.SDFqEstimator_parameters.pop("memory_bound", None)
+        self.SDFqEstimator_parameters.pop("bit_complexities", None)
+
+    @optimal_parameter
+    def d(self):
+        """Return the optimal parameter d used in the algorithm optimization.
+
+        Examples:
+            >>> from cryptographic_estimators.PKEstimator.PKAlgorithms import SBC
+            >>> from cryptographic_estimators.PKEstimator import PKProblem
+            >>> A = SBC(PKProblem(n=20,m=10,q=7,ell=2))
+            >>> A.d()
+            3
+        """
+        return self._get_optimal_parameter("d")
+
+    @optimal_parameter
+    def w(self):
+        """Return the optimal parameter w used in the algorithm optimization.
+
+        Examples:
+            >>> from cryptographic_estimators.PKEstimator.PKAlgorithms import SBC
+            >>> from cryptographic_estimators.PKEstimator import PKProblem
+            >>> A = SBC(PKProblem(n=20,m=10,q=7,ell=2))
+            >>> A.w()
+            11
+        """
+        return self._get_optimal_parameter("w")
+
+    @optimal_parameter
+    def w1(self):
+        """Return the optimal parameter w1 used in the algorithm optimization.
+
+        Examples:
+            >>> from cryptographic_estimators.PKEstimator.PKAlgorithms import SBC
+            >>> from cryptographic_estimators.PKEstimator import PKProblem
+            >>> A = SBC(PKProblem(n=20,m=10,q=7,ell=2))
+            >>> A.w1()
+            5
+        """
+        return self._get_optimal_parameter("w1")
+
+    def _are_parameters_invalid(self, parameters: dict):
+        d = parameters["d"]
+        w = parameters["w"]
+        w1 = parameters["w1"]
+
+        n, m, _, _ = self.problem.get_parameters()
+
+        if w1 > w or w < d or n - w < m - d or (d == 1 and w > n - m):
+            return True
+        return False
+
+    def _compute_time_and_memory(self, parameters: dict, verbose_information=None):
+        """Computes the time and memory complexity of the SBC algorithm.
+    
+        Calculates the number of Fq additions and Fq elements for time and memory complexity respectively.
+    
+        Args:
+            parameters (dict): Dictionary including parameters.
+            verbose_information: If set to a dictionary, L1, L1, and final_list will be returned.
+        """
+        d = parameters["d"]
+        w = parameters["w"]
+        w1 = parameters["w1"]
+
+        time = inf
+        memory = inf
+        best_u = 0
+        n, m, q, ell = self.problem.get_parameters()
+
+
+
+        N_w = log2(binomial(n, w)) + log2((q ** d - 1)) * (w - d) + gauss_binomial(m, d, q) - gauss_binomial(n, d,
+                                                                                                             q)  # number of expected subcodes
+
+        if N_w < 0:  # continue only if at least one subcode exists in expectation
+            return inf, inf
+
+        if d == 1:
+            self.SDFqEstimator = SDFqEstimator(n=n, k=m, w=w, q=q, bit_complexities=0, nsolutions=N_w,
+                                               memory_bound=self.problem.memory_bound, **self.SDFqEstimator_parameters)
+            c_isd = self.SDFqEstimator.fastest_algorithm().time_complexity()
+        else:
+            self.SDFqEstimator = None
+            c_isd = cost_for_finding_subcode(n, m, d, w, N_w)
+
+        w2 = w - w1
+        T_K = factorial(n) // factorial(n - w1) + factorial(n) // factorial(n - w2) \
+              + factorial(n) ** 2 // q ** (d * ell) // (factorial(n - w1) * factorial(n - w2))
+
+        if self._is_early_abort_possible(log2(T_K)):
+            return inf, inf
+        L = min(factorial(n) // factorial(n - w1), factorial(n) // factorial(n - w2))
+        size_K = max(1, factorial(n) // factorial(n - w) // q ** (d * ell))
+        for u in range(1, m):
+
+            if u > d:
+                T_L = factorial(n) // factorial(m + w - u) + size_K + factorial(n) // factorial(m + w - u) * size_K \
+                      // q ** (ell * (u - d))
+                T_test = factorial(n - w) // q ** ((u - d) * ell) // factorial(m - u) * size_K
+            else:
+                T_L = factorial(n) // factorial(m + w - u) + size_K + factorial(n) * q ** (ell * (d - u)) // factorial(
+                    m + w - u) * size_K
+                T_test = factorial(n - w)* q ** ((d - u) * ell) // factorial(m - u) * size_K
+            L = max(L, min(factorial(n) // factorial(m + w - u), size_K))
+
+
+
+
+
+
+            local_time = log2(int(2 ** c_isd) + (T_K + T_L + T_test) * self.cost_for_list_operation)
+
+            local_memory = log2(L) + log2(self.memory_for_list_element)
+
+            if local_time < time:
+                best_u = u
+                time = local_time
+                memory = local_memory
+
+        if verbose_information is not None:
+            verbose_information[VerboseInformation.SBC_ISD.value] = c_isd
+            verbose_information[VerboseInformation.SBC_U.value] = best_u
+
+        return time, memory
+
+    def _compute_time_complexity(self, parameters: dict):
+        return self._compute_time_and_memory(parameters)[0]
+
+    def _compute_memory_complexity(self, parameters: dict):
+        return self._compute_time_and_memory(parameters)[1]
+
+    def _get_verbose_information(self):
+        """Returns a dictionary containing additional algorithm information."""
+        verb = {}
+        _ = self._compute_time_and_memory(self.optimal_parameters(), verbose_information=verb)
+        return verb

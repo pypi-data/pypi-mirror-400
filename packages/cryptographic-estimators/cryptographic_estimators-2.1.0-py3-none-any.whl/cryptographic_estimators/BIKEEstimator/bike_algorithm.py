@@ -1,0 +1,38 @@
+# ****************************************************************************
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ****************************************************************************
+
+
+from ..base_algorithm import BaseAlgorithm
+from .bike_problem import BIKEProblem
+
+
+class BIKEAlgorithm(BaseAlgorithm):
+    def __init__(self, problem: BIKEProblem, **kwargs):
+        """Base class for BIKE algorithms complexity estimator.
+
+        Args:
+            problem (BIKEProblem): BIKEProblem object including all necessary parameters
+        """
+        super(BIKEAlgorithm, self).__init__(problem, **kwargs)
+        
+        self._name = "BaseBIKEAlgorithm"
+
+    def __repr__(self):
+        r, w, t = self.problem.get_parameters()
+        return f"{self._name} estimator for the BIKE signature scheme with parameters (r, w, t) = ({r}, {w}, {t})"
