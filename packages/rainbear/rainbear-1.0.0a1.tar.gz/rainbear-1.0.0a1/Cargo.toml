@@ -1,0 +1,49 @@
+[package]
+name = "rainbear"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Build lazy Zarr scans with Polars"
+authors = ["Benjamin Sobel <ben-developer@opayq.com>"]
+license = "MIT"
+license-file = "LICENSE"
+repository = "https://github.com/UserNobody14/iozarrpy"
+documentation = "https://github.com/UserNobody14/iozarrpy"
+keywords = ["zarr", "polars", "lazy"]
+categories = ["data-processing"]
+readme = "README.md"
+
+
+[lib]
+name = "_core"
+# "cdylib" is necessary to produce a shared library for Python to import from.
+crate-type = ["cdylib"]
+
+[dependencies]
+# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
+# "abi3-py39" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.9
+pyo3 = { version = "0.26", features = ["extension-module", "abi3-py39"] }
+# polars = { version = "0.52.0", features = ["full"] }
+polars = { version = "0.52.0", default-features = false, features = [
+    "dtype-array",
+    "dtype-categorical",
+    "dtype-date",
+    "dtype-datetime",
+    "dtype-decimal",
+    "dtype-i16",
+    "dtype-i8",
+    "dtype-struct",
+    "dtype-time",
+    "dtype-u16",
+    "dtype-u8",
+    "lazy",
+    "timezones",
+] }
+polars-core = { version = "0.52.0" }
+pyo3-polars = { version = "0.25.0", features = ["derive", "lazy"] }
+tokio = { version = "1.45.1", features = ["rt-multi-thread"] }
+url = "2.5.4"
+zarrs = { version = "0.23.0-beta.3", features = ["async"] }
+zarrs_object_store = { version = "0.6.1", features = ["aws", "azure", "gcp", "http", "fs"] }
+serde_json = "1.0.145"
+chrono = { version = "0.4", features = ["clock", "std"] }
