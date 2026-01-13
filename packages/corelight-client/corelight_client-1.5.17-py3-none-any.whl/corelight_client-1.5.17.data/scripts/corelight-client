@@ -1,0 +1,384 @@
+#!python
+#
+# Copyright (c) 2017, Corelight. All rights reserved.
+#
+# See COPYING for license information.
+
+import json
+import os
+import os.path
+import sys
+import re
+import urllib.parse
+
+import client.argparser
+import client.configuration
+import client.meta
+import client.resource
+import client.session
+import client.util
+
+# URL to connect to.
+SensorBaseURL = "{scheme}://{netloc}/api/"
+FleetBaseURL = "{scheme}://{netloc}/fleet/v1/"
+
+# User configuration file.
+ConfigFileGlobal = "/etc/corelight-client.rc"
+
+# User configuration file.
+ConfigFile = os.path.expanduser("~/.corelight-client.rc")
+
+# Legacy configuration file, to be removed.
+ConfigFileLegacy = os.path.expanduser("~/.broboxrc")
+
+# Directory where to store persistent state.
+StateDir = os.path.expanduser("~/.corelight-client")
+
+# Legacy directory where to store persistent state.
+StateDirLegacy = os.path.expanduser("~/.brobox")
+
+# File where to store credentials if requested.
+CredentialsFile = os.path.join(StateDir, "credentials")
+
+# Legacy file where to store credentials if requested.
+CredentialsFileLegacy = os.path.join(StateDirLegacy, "credentials")
+
+# Base bath where to cache meta information.
+MetaCacheFileBase = os.path.join(StateDir, "cache")
+
+# Create a copy of the arguments that excludes any potential --help argument.
+argv_pass1 = [a for a in sys.argv[1:] if a != "-h" and a != "--help"]
+argv_pass2 = sys.argv[1:]
+
+corelight_device = os.environ.get("CORELIGHT_DEVICE", None)
+
+# Legacy BroBox support. To be removed.
+if "BROBOX" in os.environ and corelight_device is None:
+    print("""Note: The environment variable BROBOX has been renamed to CORELIGHT_DEVICE.
+      The old name is deprecated and support will be removed in a future version.
+""", file=sys.stderr)
+    corelight_device = os.environ.get("BROBOX", None)
+
+config = {
+    "device": corelight_device
+}
+
+# Legacy BroBox support. To be removed.
+if os.path.exists(ConfigFileLegacy):
+    print("""Note: Please rename {} to {}.
+      The old name is deprecated and support will be removed in a future version.
+""".format(ConfigFileLegacy, ConfigFile),
+      file=sys.stderr)
+    client.configuration.read(ConfigFileLegacy, config)
+
+client.configuration.read(ConfigFileGlobal, config)
+client.configuration.read(ConfigFile, config)
+
+# Build initial bare-bones argument parser without any Corelight Sensor meta information.
+parser = client.argparser.createParser(config)
+(args, remaining) = parser.parse_known_args(argv_pass1)
+
+# Legacy BroBox support. To be removed.
+if not args.device and args.brobox:
+    print("""Note: Please use --device instead of --brobox.
+      The old option is deprecated and support will be removed in a future version.
+""", file=sys.stderr)
+    args.device = args.brobox
+
+if args.version:
+    print("{} {}".format(client.NAME, client.VERSION))
+    sys.exit(0)
+
+if (not args.device and not args.fleet) or (args.device and args.fleet):
+    if "-h" in sys.argv or "--help" in sys.argv or "help" in sys.argv:
+        parser.print_help()
+    else:
+        print("You need to specify the address of either your Corelight Sensor or your Corelight Fleet Manager.")
+
+    sys.exit(1)
+
+client.util.enableDebug(args.debug_level)
+
+fleet_auth_base_url = None
+
+if args.fleet:
+    if "://" in args.fleet:
+        base = urllib.parse.urlparse(args.fleet)
+        scheme = base.scheme
+        url = FleetBaseURL.format(scheme=base.scheme, netloc=base.netloc)
+    else:
+        scheme = "https"
+        url = FleetBaseURL.format(scheme="https", netloc=args.fleet)
+
+    fleet_auth_base_url = url
+
+    if args.uid:
+        if not re.search("^[0-9a-zA-Z-_]+$", args.uid):
+            print("The sensor uid '{}' is invalid".format(args.uid))
+            sys.exit(1)
+
+        url = client.util.appendUrl(url, "/sensor/instance/{}/api".format(args.uid))
+else:
+    if "://" in args.device:
+        base = urllib.parse.urlparse(args.device)
+        scheme = base.scheme
+        url = SensorBaseURL.format(scheme=base.scheme, netloc=base.netloc)
+    else:
+        scheme = "https"
+        url = SensorBaseURL.format(scheme="https", netloc=args.device)
+
+# Create a normalized version of the URL that we can use as a unique index for
+# the device.
+device_id = url.replace("://", "_").replace("/", "_").replace(":", "_").lower()
+
+if device_id.endswith("_"):
+    device_id = device_id[:-1]
+
+if args.fleet:
+    credentials_id = fleet_auth_base_url.replace("://", "_").replace("/", "_").replace(":", "_").lower()
+    if credentials_id.endswith("_"):
+        credentials_id = credentials_id[:-1]
+else:
+    credentials_id = device_id
+
+# Load the user credentials
+credentials_updated = False
+bearer_token_is_explicit = args.bearer_token
+username_is_explicit = args.user
+password_is_explicit = args.password
+# We can use interactive password prompts, if all of the below are true:
+#   * The user is not using a local/unsecured channel to connect (unless they told us to use a username, indicating they want password-based auth)
+#   * The user is on an interactive console
+#   * They didn't request --noblock (non-interactive mode)
+#   * They didn't explicitly provide a bearer auth token
+#   * They didn't explicitly provide a username AND a password (we can prompt for one or the other)
+can_use_password_interactive = (scheme == "https" and not args.socket) or args.user
+can_use_password_interactive = (can_use_password_interactive and sys.stdin.isatty() and sys.stdout.isatty())
+can_use_password_interactive = (can_use_password_interactive and not args.noblock)
+can_use_password_interactive = (can_use_password_interactive and not bearer_token_is_explicit)
+can_use_password_interactive = (can_use_password_interactive and (not username_is_explicit or not password_is_explicit))
+
+# Legacy BroBox support. To be removed.
+if os.path.exists(CredentialsFileLegacy) and not os.path.exists(CredentialsFile):
+    print("""Note: The credentials file {} is deprecated and support will be
+      removed in a future version.  Please use {} instead."""
+        .format(CredentialsFileLegacy, CredentialsFile), file=sys.stderr)
+    # Legacy format that doesn't index by device.
+    d = {}
+    client.configuration.read(CredentialsFileLegacy, d)
+    cached_creds = (d.get("user", None), d.get("password", None), None)
+
+else:
+    # New format indexed by device ID.
+    cached_creds = client.configuration.readCredentials(CredentialsFile, credentials_id)
+
+cached_credential_argv = []
+
+if cached_creds[client.configuration.CRED_USER_OFFSET] and not args.user:
+    args.user = cached_creds[client.configuration.CRED_USER_OFFSET]
+    cached_credential_argv = ["--user", args.user] + cached_credential_argv
+
+if cached_creds[client.configuration.CRED_PASS_OFFSET] and not args.password:
+    args.password = cached_creds[client.configuration.CRED_PASS_OFFSET]
+    cached_credential_argv = ["--password", args.password] + cached_credential_argv
+
+if cached_creds[client.configuration.CRED_BEARER_OFFSET] and not args.bearer_token:
+    args.bearer_token = cached_creds[client.configuration.CRED_BEARER_OFFSET]
+    cached_credential_argv = ["--bearer", args.bearer_token] + cached_credential_argv
+
+# Create directory for persistent state.
+if not os.path.isdir(StateDir):
+    try:
+        os.mkdir(StateDir)
+        os.chmod(StateDir, 0o700)
+    except IOError as e:
+        client.util.fatalError("cannot create directory '{}'".format(StateDir), e)
+
+# Determine the authentication methods we should use
+AUTH_TYPE_BEARER_TOKEN = "Bearer Token"
+AUTH_TYPE_PASSWORD = "Password"
+AUTH_TYPE_PASSWORD_INTERACTIVE = "Password Interactive"
+AUTH_TYPE_NONE = "None"
+
+# Order the schemes we will use
+auth_schemes_to_use = []
+
+# 1. Explicit bearer tokens
+if bearer_token_is_explicit:
+    auth_schemes_to_use += [AUTH_TYPE_BEARER_TOKEN]
+# 2. explicit passwords
+elif password_is_explicit and username_is_explicit:
+    auth_schemes_to_use += [AUTH_TYPE_PASSWORD]
+else:
+    # 3. Cached bearer tokens as long as a user isn't specified or the user matches the cached token
+    if args.bearer_token and ((not args.user) or (cached_creds[client.configuration.CRED_USER_OFFSET] == args.user)):
+        auth_schemes_to_use += [AUTH_TYPE_BEARER_TOKEN]
+    # 4. Cached usernames and passwords.
+    if args.user and args.password and (cached_creds[client.configuration.CRED_USER_OFFSET] == args.user):
+        auth_schemes_to_use += [AUTH_TYPE_PASSWORD]
+    # 5. Password interactive (multiple tries)
+    if can_use_password_interactive:
+        auth_schemes_to_use += [AUTH_TYPE_PASSWORD_INTERACTIVE, AUTH_TYPE_PASSWORD_INTERACTIVE, AUTH_TYPE_PASSWORD_INTERACTIVE]
+
+# 6. 'None' if nothing else
+if len(auth_schemes_to_use) == 0:
+    auth_schemes_to_use += [AUTH_TYPE_NONE]
+
+# Retrieve meta information from device.
+args.auth_base_url = fleet_auth_base_url
+session = client.session.Session(args)
+
+if args.cache:
+    cache = args.cache
+else:
+    cache = (MetaCacheFileBase + "_" + device_id)
+
+# Authenticate and load API metadata
+new_credential_argv = []
+auth_method_used = AUTH_TYPE_NONE
+
+for i in range(len(auth_schemes_to_use)):
+    auth_method_used = auth_schemes_to_use[i]
+    has_next_auth_scheme = ((i + 1) < len(auth_schemes_to_use))
+    try:
+        msg = "Trying next authentication method ({})".format(auth_method_used)
+
+        if i == 0:
+            client.util.debug(msg)
+        else:
+            client.util.infoMessage(msg)
+
+        # If we are in password interactive mode, we need to
+        # prompt the user now.
+        if AUTH_TYPE_PASSWORD_INTERACTIVE == auth_method_used:
+            args.bearer_token = None
+            if not password_is_explicit:
+                args.password = None
+
+            if not username_is_explicit:
+                args.user = None
+
+            new_credential_argv = client.util.promptUserCredentials(args)
+        elif AUTH_TYPE_PASSWORD == auth_method_used:
+            args.bearer_token = None
+            new_credential_argv = ["--user", args.user, "--password", args.password]
+        elif AUTH_TYPE_NONE == auth_method_used:
+            args.bearer_token = None
+            args.user = None
+            args.password = None
+
+        # Fetch the metadata
+        meta = client.meta.load(session, url, cache_file=cache)
+
+        # If we use password auth, we may have retrieved a new bearer token.
+        if AUTH_TYPE_PASSWORD == auth_method_used or AUTH_TYPE_PASSWORD_INTERACTIVE == auth_method_used:
+            if args.bearer_token:
+                new_credential_argv = new_credential_argv + [ "--bearer", args.bearer_token ]
+
+        # We succeeded at getting metadata. Save what we have to
+        msg = "Authentication succeeded ({})".format(auth_method_used)
+        if i == 0:
+            client.util.debug(msg)
+        else:
+            client.util.infoMessage(msg)
+
+        break
+
+    except client.session.SessionError as e:
+        if e.status_code == 401:
+            client.util.error("Authentication method failed", auth_method_used)
+
+        if e.status_code == 401 and has_next_auth_scheme:
+            # Clear out the invalid credentials for the next iteration
+            if AUTH_TYPE_BEARER_TOKEN == auth_method_used:
+                args.bearer_token = None
+            elif AUTH_TYPE_PASSWORD == auth_method_used or AUTH_TYPE_PASSWORD_INTERACTIVE == auth_method_used:
+                new_credential_argv = []
+                if not username_is_explicit:
+                    args.user = None
+                if not password_is_explicit:
+                    args.password = None
+        else:
+            e.fatalError()
+
+if not meta.from_cache:
+    meta.save(cache)
+
+if len(new_credential_argv) > 0:
+    argv_pass2 = new_credential_argv + argv_pass2
+elif len(cached_credential_argv) > 0:
+    argv_pass2 = cached_credential_argv + argv_pass2
+
+# Access worked, offer to save crendentials if entered interactively.
+used_password_authentication =  (auth_method_used == AUTH_TYPE_PASSWORD_INTERACTIVE or auth_method_used == AUTH_TYPE_PASSWORD)
+
+if not args.no_password_save:
+    save_credentials = False
+    include_password = False
+    # We can update the bearer token automatically if all of the following are true:
+    #  * We previously had a bearer token cached.
+    #  * We have a bearer token now.
+    #  * The cached bearer token does not match our current one (e.g. we have a new one).
+    #  * We used password authentication to get the new bearer token.
+    #  * The previous bearer token was cached for the same user as the new one.
+    automatically_cache_bearer_token = cached_creds[client.configuration.CRED_BEARER_OFFSET]
+    automatically_cache_bearer_token = (automatically_cache_bearer_token and args.bearer_token)
+    automatically_cache_bearer_token = (automatically_cache_bearer_token and cached_creds[client.configuration.CRED_BEARER_OFFSET] != args.bearer_token)
+    automatically_cache_bearer_token = (automatically_cache_bearer_token and used_password_authentication)
+    automatically_cache_bearer_token = (automatically_cache_bearer_token and args.user == cached_creds[client.configuration.CRED_USER_OFFSET])
+
+    if automatically_cache_bearer_token:
+        # Just update the bearer token and tell the user to expect this.
+        save_credentials = True
+        include_password = (cached_creds[client.configuration.CRED_USER_OFFSET] and cached_creds[client.configuration.CRED_PASS_OFFSET])
+        if include_password and cached_creds[client.configuration.CRED_PASS_OFFSET] != args.password:
+            print("Updating authenticated session and plain text password in '{}'".format(CredentialsFile), file=sys.stderr)
+        else:
+            print("Updating authenticated session in '{}'".format(CredentialsFile), file=sys.stderr)
+    
+    elif auth_method_used == AUTH_TYPE_PASSWORD_INTERACTIVE and not args.noblock:
+        if args.bearer_token:
+            # We have an authenticated session. Try to get the user to not save their password.
+            save_credentials = (client.util.getInput("Cache authenticated session? Please note that your session token will be saved in plain text under '{}'. (yes/no)".format(CredentialsFile)) == "yes")
+            include_password = save_credentials and (client.util.getInput("Include password in plain text? After expiry, your authenticated session will have to be refreshed. (yes/no)") == "yes")
+        else:
+            # For systems (e.g. sensors) where we only have a password we will only ask one question.
+            save_credentials = (client.util.getInput("Save credentials? Please note that your username and password will be saved in plain text under '{}'. (yes/no)".format(CredentialsFile)) == "yes")
+            include_password = save_credentials
+    
+    if save_credentials:
+        client.configuration.saveCredentials(CredentialsFile, args, credentials_id, include_password)
+
+# Now extend the argument parser with all the meta information.
+client.argparser.populateParser(parser, meta, limit_components_to=remaining)
+
+# Reparse command line arguments.
+args = parser.parse_args(argv_pass2)
+args.auth_base_url = fleet_auth_base_url
+
+# Check if we should exclude the meta parameters
+if args.ignore_meta and 'parameters' in args.resource:
+    # loop through args and exclude any that are not required, or not specified on CLI
+    # We start at the end of the list and move to the beginning
+    for i in range(len(args.resource['parameters']) - 1, -1, -1):
+        if 'required' in args.resource['parameters'][i] and 'type' in args.resource['parameters'][i]:
+            if args.resource['parameters'][i]['type'] == 'flag' and args.resource['parameters'][i]['required'] == False:
+                if '--' + args.resource['parameters'][i]['name'] not in remaining:
+                    args.resource['parameters'].pop(i)
+
+session.setArguments(args)
+
+try:
+    # A "help" command.
+    help = args.parser_for_help
+    client.argparser.printHelp(None, help, args)
+except AttributeError:
+    pass
+
+try:
+    resource = args.resource
+except AttributeError:
+    print("No command given. Use --help to see list.")
+    sys.exit(1)
+
+client.resource.process(session, resource)
