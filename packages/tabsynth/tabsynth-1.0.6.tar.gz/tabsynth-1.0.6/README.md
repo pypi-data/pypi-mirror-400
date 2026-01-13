@@ -1,0 +1,283 @@
+# tabsynth
+
+Convert pre-detected musical events (notes and chords) into playable guitar tablature via candidate generation and dynamic programming optimization.
+
+## Overview
+
+**tabsynth** is a production-ready Python package that transforms musical event data into optimized guitar tablature. It focuses on the **synthesis** and **optimization** of tablature from already-detected musical events—audio detection is out of scope.
+
+### Key Features
+
+- **Event-Based Input**: Accepts `NoteEvent` (single pitch) and `ChordEvent` (multiple pitches) objects
+- **Candidate Generation**: Creates multiple playable fingering options for each event
+- **DP Optimization**: Uses Viterbi-style dynamic programming to find the optimal sequence minimizing hand movement and difficulty
+- **Chord Template Matching**: Built-in library of common chord shapes (open chords, barre chords)
+- **Multiple Output Formats**: ASCII tablature, JSON, and compact text representations
+- **Extensible**: Easy to add custom chord templates
+
+## Installation
+
+```bash
+pip install tabsynth
+```
+
+Or install from source:
+
+```bash
+cd tabsynth
+pip install -e .
+```
+
+For development with tests:
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+### Basic Usage
+
+```python
+from tabsynth import NoteEvent, ChordEvent, events_to_tablature
+
+# Define some musical events
+events = [
+    NoteEvent(pitch_hz=329.63, start=0.0, duration=0.5),  # E4
+    NoteEvent(pitch_hz=369.99, start=0.5, duration=0.5),  # F#4
+    NoteEvent(pitch_hz=392.00, start=1.0, duration=0.5),  # G4
+    NoteEvent(pitch_hz=440.00, start=1.5, duration=0.5),  # A4
+]
+
+# Convert to tablature
+tablature = events_to_tablature(events, output_format="ascii")
+print(tablature)
+```
+
+### Working with Chords
+
+```python
+from tabsynth import ChordEvent, events_to_tablature
+
+# E major chord
+chord = ChordEvent(
+    pitches_hz=[329.63, 415.30, 493.88],  # E, G#, B
+    start=0.0,
+    duration=1.0
+)
+
+tablature = events_to_tablature([chord], output_format="ascii")
+print(tablature)
+```
+
+### Using the Pipeline API
+
+```python
+from tabsynth import TabSynthPipeline, NoteEvent
+
+# Create a pipeline with custom settings
+pipeline = TabSynthPipeline(
+    max_fret=12,
+    tolerance_cents=50.0
+)
+
+# Process events
+events = [NoteEvent(pitch_hz=440.0, start=0.0, duration=0.5)]
+result = pipeline.process(events, output_format="json")
+```
+
+## Command-Line Interface
+
+The package includes a demo CLI:
+
+```bash
+# Show help
+tabsynth help
+
+# Run demos
+tabsynth demo-notes
+tabsynth demo-chords
+tabsynth demo-mixed
+```
+
+## Architecture
+
+### Data Flow
+
+```
+Events (Notes/Chords)
+    ↓
+Candidate Generation (multiple fingerings per event)
+    ↓
+Cost Calculation (hand position, stretch, barre difficulty)
+    ↓
+DP Optimization (Viterbi algorithm)
+    ↓
+Rendering (ASCII/JSON/Compact)
+```
+
+### Core Components
+
+1. **model.py**: Data structures for events and playable states
+2. **fretboard.py**: Pitch helpers and fretboard modeling
+3. **templates.py**: Chord shape library
+4. **candidates.py**: Generate playable fingering candidates
+5. **cost.py**: Cost functions for transitions and states
+6. **optimize.py**: Dynamic programming optimizer
+7. **render.py**: Output formatting
+8. **pipeline.py**: End-to-end integration
+
+## Extending with Custom Chord Templates
+
+You can add your own chord shapes:
+
+```python
+from tabsynth import ChordTemplate, TabSynthPipeline
+
+# Define a custom chord
+my_chord = ChordTemplate(
+    id="D_major_open",
+    frets=[None, None, 0, 2, 3, 2],  # Strings 6,5,4,3,2,1
+    barre=False,
+    pitch_classes={"D", "F#", "A"},
+    span=3,
+    tags={"open", "basic"}
+)
+
+# Use it in a pipeline
+pipeline = TabSynthPipeline(templates=[my_chord])
+```
+
+### Template Fields
+
+- **id**: Unique identifier
+- **frets**: List of 6 fret numbers or None (for strings 6→1)
+- **barre**: Whether the chord requires barre technique
+- **pitch_classes**: Set of note names in the chord
+- **span**: Fret span (max - min among fretted notes)
+- **tags**: Descriptive tags (e.g., "open", "barre", "E-shape")
+
+## Output Formats
+
+### ASCII Tablature
+
+```
+Guitar Tablature
+========================================
+
+e|0-5-7-5|
+B|0-7-8-7|
+G|1-6-7-6|
+D|2-7-9-7|
+A|2-7-9-7|
+E|0-5-7-5|
+
+Chords:
+  E_major_open
+```
+
+### JSON
+
+```json
+[
+  {
+    "index": 0,
+    "start": 0.0,
+    "duration": 0.5,
+    "kind": "note",
+    "strings": [1],
+    "frets": {"1": 5},
+    "mean_fret": 5.0,
+    "min_fret": 5,
+    "max_fret": 5,
+    "requires_barre": false,
+    "chord_id": null
+  }
+]
+```
+
+### Compact
+
+```
+0: t=0.00 note [1:5]
+1: t=0.50 note [1:7]
+2: t=1.00 E_major_open [6:0,5:2,4:2,3:1,2:0,1:0]
+```
+
+## API Reference
+
+### Events
+
+```python
+NoteEvent(pitch_hz: float, start: float, duration: float, confidence: float = 1.0)
+ChordEvent(pitches_hz: list[float], start: float, duration: float, confidence: float = 1.0)
+```
+
+### Pipeline
+
+```python
+events_to_tablature(
+    events: list[Event],
+    output_format: "ascii" | "json" | "compact" = "ascii",
+    templates: list[ChordTemplate] = None,
+    max_fret: int = 15,
+    tolerance_cents: float = 50.0
+) -> str
+```
+
+### Optimization
+
+```python
+optimize_sequence(
+    events: list[Event],
+    templates: list[ChordTemplate] = None,
+    max_fret: int = 15,
+    tolerance_cents: float = 50.0
+) -> list[PlayableState]
+```
+
+## Testing
+
+Run tests with pytest:
+
+```bash
+pytest tabsynth/tests/
+```
+
+Tests cover:
+- Fretboard and pitch calculations
+- Candidate generation
+- Optimization correctness
+- End-to-end pipeline
+
+## Design Principles
+
+1. **Minimal Dependencies**: Core functionality requires only Python 3.10+
+2. **Typed**: Full type hints for better IDE support
+3. **Extensible**: Easy to add new chord templates and cost functions
+4. **Focused**: Audio detection is out of scope; assumes pre-detected events
+5. **Optimized**: DP algorithm ensures efficient fingering sequences
+
+## Limitations
+
+- **Audio detection not included**: Requires pre-detected pitch events
+- **Standard tuning focus**: Primary support for EADGBE tuning
+- **Template-based chords**: Chord recognition relies on predefined templates
+- **No timing quantization**: Preserves input event timing as-is
+
+## Contributing
+
+To add new chord templates to the library:
+
+1. Define a `ChordTemplate` with accurate fret positions
+2. Specify pitch classes and tags
+3. Add to `V1_TEMPLATES` in `templates.py`
+4. Write tests to verify matching
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Version
+
+Current version: 0.1.0
