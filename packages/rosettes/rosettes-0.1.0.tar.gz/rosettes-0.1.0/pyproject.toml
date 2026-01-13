@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rosettes"
+version = "0.1.0"
+description = "Modern syntax highlighting for Python 3.14t — O(n) guaranteed, zero ReDoS"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+keywords = [
+    "syntax-highlighting",
+    "lexer",
+    "free-threading",
+    "pygments",
+    "code-highlighting",
+]
+authors = [{ name = "Bengal Contributors" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Markup :: HTML",
+    "Typing :: Typed",
+]
+dependencies = [] # Pure Python, no runtime deps
+
+[project.urls]
+Homepage = "https://github.com/lbliii/rosettes"
+Documentation = "https://github.com/lbliii/rosettes"
+Repository = "https://github.com/lbliii/rosettes"
+Issues = "https://github.com/lbliii/rosettes/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+rosettes = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = ["-ra", "-q", "--strict-markers"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "property: property-based tests (may take longer)",
+]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+# Enable Python upgrade rules and other quality checks
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "UP",  # pyupgrade - Python modernization
+    "B",   # flake8-bugbear - common bugs
+    "SIM", # flake8-simplify - simplify code
+    "I",   # isort - import sorting
+]
+
+# Per-file ignore rules
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]   # Allow unused imports in __init__ files
+"tests/**/*.py" = ["S101"] # Allow assert in tests
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=6.0.0",
+    "pytest-timeout>=2.3.0", # Prevent hung tests
+    "ruff>=0.14.0",          # 0.14+ required for Python 3.14 support
+    "pre-commit>=4.0.0",     # For git hooks
+    "hypothesis>=6.100.0",   # Property-based testing
+]
+# Documentation site (uses bengal from PyPI)
+docs = ["bengal>=0.1.7"]
