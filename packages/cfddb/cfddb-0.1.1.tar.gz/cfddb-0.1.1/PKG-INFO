@@ -1,0 +1,157 @@
+Metadata-Version: 2.4
+Name: cfddb
+Version: 0.1.1
+Summary: A lightweight CloudFormation parser that interprets DynamoDB table resources and applies them to DynamoDB Local
+Project-URL: Homepage, https://github.com/m-ali-ubit/cfddb
+Project-URL: Repository, https://github.com/m-ali-ubit/cfddb
+Project-URL: Issues, https://github.com/m-ali-ubit/cfddb/issues
+Author-email: Muhammad Ali <usermalikhan@gmail.com>
+License: Apache-2.0
+License-File: LICENSE
+Keywords: aws,cloudformation,dynamoDB,local,parser,yaml
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.10
+Requires-Dist: boto3>=1.28
+Requires-Dist: pydantic>=2.7.1
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0
+Provides-Extra: dev
+Requires-Dist: build; extra == 'dev'
+Requires-Dist: moto[dynamodb]; extra == 'dev'
+Requires-Dist: pre-commit; extra == 'dev'
+Requires-Dist: pytest; extra == 'dev'
+Requires-Dist: pytest-mock; extra == 'dev'
+Requires-Dist: ruff; extra == 'dev'
+Requires-Dist: twine; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# cfddb: CloudFormation Parser for DynamoDB Local
+
+**cfddb** is a specialized Infrastructure-as-Code (IaC) deployment engine designed to bridge the gap between
+AWS CloudFormation and DynamoDB Local.
+
+While AWS CloudFormation works perfectly for production, dynamodb-local (the Docker image) does not natively understand
+CFN templates. This tool parses your YAML, generates a deployment plan, and applies it to your local container using
+boto3, mimicking the behavior of a real stack deployment.
+
+### 🚀 Key Features
+
+**CloudFormation Parsing:** Native support for CFN Intrinsics (!Ref, !Sub, !GetAtt, !If, !Select, !Split, etc.).
+
+**Idempotent Deployment:** Runs a "diff" against the local database. It only creates missing tables,
+adds missing GSIs, or updates TTLs.
+
+**Local Limitation Workarounds:** The latest DynamoDB Local image available on Docker Hub does not yet support
+Multi-Attribute Global Secondary Indexes (GSIs). Because of this limitation, attempting to create tables with such GSIs
+locally can result in “Key Schema too big” errors. To handle this, the system automatically detects when Multi-Attribute
+GSIs are present in the template and applies a workaround. Currently, these GSIs are excluded during local table
+creation to avoid the error (a more robust solution is being explored). This behavior is limited to DynamoDB Local only.
+Once AWS updates the DynamoDB Local image to support Multi-Attribute GSIs, this workaround will no longer be needed and
+the full template will work automatically without any changes.
+
+**Drift Detection & Pruning:** Detects ghost GSIs that exist locally but not in your template and optionally deletes them (--prune).
+
+**Safety & Locking:** Uses file-based locking to prevent concurrent executions and includes interactive confirmation prompts.
+
+### 🛠️ Prerequisites
+
+Python 3.10+<br>
+Docker (to run amazon/dynamodb-local)
+
+### 📦 Installation
+
+1. Install via pip
+
+You can install cfddb directly from PyPI:
+
+    pip install cfddb
+
+2. Start DynamoDB Local
+
+You need a running DynamoDB Local instance to execute deployment plans.
+
+    docker run -d -p 8000:8000 amazon/dynamodb-local
+
+### 💻 Usage
+
+Once installed, the cfddb command is available in your terminal.
+
+#### Basic Run
+
+Deploy a template to your local environment:
+
+    cfddb --template path/to/dynamodb.yaml
+
+#### Command Line Arguments
+|        Argument        |        Default        | Description                                                    |
+|:----------------------:|:---------------------:|:---------------------------------------------------------------|
+|       --template       |       Required        | Path to your CloudFormation YAML file.                         |
+|      --parameters      |          []           | Parameter overrides in Key=Value format for !Sub substitution. |
+|       --endpoint       | http://localhost:8000 | URL of the local DynamoDB instance.                            |
+|        --region        |     eu-central-1      | AWS region. It supports multi regions also.                    |
+|  --aws_access_key_id   |         local         | AWS Access Key ID                                              |
+|--aws_secret_access_key |         local         | AWS Secret Access Key.                                         |
+|         --plan         |         False         | Plan Only. Shows the diff but makes no changes.                |
+|        --prune         |         False         | Destructive. Deletes GSIs found in DB but missing from YAML.   |
+|     --force-unlock     |         False         | Removes the state lock file if a previous run crashed.         |
+
+#### Examples
+
+Dry Run (See what will happen):
+
+    cfddb --template dynamodb.yaml --parameters AppEnv=local --plan
+
+Clean up old indexes (Pruning):
+
+    cfddb --template dynamodb.yaml --prune
+
+### ⚙️ How It Works
+#### 1. The Parser
+
+The tool uses a custom YAML loader to process CloudFormation shorthand syntax.
+
+**Pseudo Parameters:** Injects AWS::AccountId, AWS::Region, etc.<br>
+**Conditions:** Evaluates Fn::If, Fn::Or, Fn::Equals to determine if a resource should be created
+(e.g., enabling PITR only in prod).<br>
+**Intrinsics:**<br>
+!Ref -> Resolves parameters.<br>
+!Sub -> Interpolates strings. for example: (table-${Env}-users).<br>
+!GetAtt -> Generates mock ARNs for local consistency.<br>
+
+#### 2. The Planner
+
+It queries the local database and compares it against your YAML spec.<br>
+**Tables:** If missing, plans `create`.<br>
+**GSIs:** If missing, plans `add_gsi`. If extra, plans `warn` (or `delete` if `--prune` is set).<br>
+**TTL:** Checks Time-to-Live status and plans updates if drift is detected.
+
+#### 3. The Executor
+
+This is where the magic happens. It applies the plan using boto3.
+
+⚠️ Handling Multi-Attribute GSIs.<br>
+DynamoDB Local has a legacy limitation where the Key Schema cannot exceed 2 attributes (Hash + Range).
+The latest DynamoDB supports up to 8 attributes for GSIs only in production environments right now.<br>
+Once AWS updates the DynamoDB Local image to support Multi-Attribute GSIs, this workaround will no longer
+be needed and the full template will work automatically without any changes.<br>
+If your template uses modern Multi-Attribute keys, DynamoDB Local will crash with ValidationException:
+`Key Schema too big`, while `cfddb` handles this automatically by following steps:<br>
+It attempts to create the table.<br>
+If it catches the "Key Schema too big" error.<br>
+It identifies GSIs with > 2 keys.<br>
+Filters them out of the request, cleans up unused AttributeDefinitions.<br>
+Retries the creation.<br>
+
+Result: Your table is created successfully locally (minus the unsupported index),
+allowing you to continue developing without changing your production YAML.
+
+📝 License
+
+Apache License 2.0
