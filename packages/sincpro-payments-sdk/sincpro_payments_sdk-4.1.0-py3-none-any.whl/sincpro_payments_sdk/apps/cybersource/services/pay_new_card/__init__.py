@@ -1,0 +1,2 @@
+from .enrollment import CommandPayNewCardEnrollment, ResponsePayNewCardEnrollment
+from .validation import CommandPayNewCardValidation, ResponsePayNewCardValidation
