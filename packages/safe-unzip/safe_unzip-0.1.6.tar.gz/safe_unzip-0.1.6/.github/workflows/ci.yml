@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest        # Linux x86_64
+          - ubuntu-24.04-arm     # Linux arm64
+          - macos-latest         # macOS arm64 (Apple Silicon)
+          - windows-latest       # Windows x86_64
+          - windows-11-arm       # Windows arm64
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Run tests
+        run: cargo test --verbose
+      
+      - name: Run tests (with async feature)
+        run: cargo test --verbose --features async
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      
+      - name: Run Clippy (with async feature)
+        run: cargo clippy --all-targets --features async -- -D warnings
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      
+      - name: Run audit
+        run: cargo audit
+
+  # Python bindings build and test
+  python:
+    name: Python Bindings (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest        # Linux x86_64
+          - macos-latest         # macOS arm64 (Apple Silicon)
+          - windows-latest       # Windows x86_64
+        python-version: ['3.9', '3.x']  # min supported + latest (3.14)
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: pip install maturin pytest pytest-asyncio
+      
+      - name: Build Python wheel
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
+        shell: bash
+        run: |
+          cp README.md python/README.md
+          cd python && maturin build --release
+      
+      - name: Install Python bindings
+        shell: bash
+        run: pip install target/wheels/*.whl
+      
+      - name: Run Python tests
+        run: cd python && pytest tests/ -v
+
