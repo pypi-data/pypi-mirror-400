@@ -1,0 +1,235 @@
+# schedulifyx
+
+Official Python SDK for [SchedulifyX API](https://schedulifyx.com/docs) - Social media scheduling made easy.
+
+## Installation
+
+```bash
+pip install schedulifyx
+```
+
+## Quick Start
+
+```python
+from schedulifyx import Schedulify
+
+client = Schedulify('sk_live_YOUR_API_KEY')
+
+# List all posts
+posts = client.posts.list()
+print(posts['data'])
+
+# Create a scheduled post
+post = client.posts.create(
+    content='Hello from the SDK! 🚀',
+    account_ids=['acc_123'],
+    publish_at='2024-12-20T10:00:00Z'
+)
+
+# Publish immediately
+client.posts.publish(post['data']['id'])
+```
+
+## Configuration
+
+```python
+from schedulify import Schedulify
+
+# Simple initialization
+client = Schedulify('sk_live_YOUR_API_KEY')
+
+# With options
+client = Schedulify(
+    api_key='sk_live_YOUR_API_KEY',
+    base_url='https://api.schedulifyx.com',  # optional
+    timeout=30  # optional, in seconds
+)
+```
+
+## API Reference
+
+### Posts
+
+```python
+# List posts with filters
+posts = client.posts.list(
+    status='scheduled',
+    account_id='acc_123',
+    limit=20,
+    offset=0
+)
+
+# Get single post
+post = client.posts.get('post_123')
+
+# Create post
+new_post = client.posts.create(
+    content='Hello world!',
+    account_ids=['acc_123', 'acc_456'],
+    publish_at='2024-12-20T10:00:00Z',
+    media_urls=['https://example.com/image.jpg'],
+    platform_overrides={
+        'twitter': {'content': 'Hello Twitter! #launch'}
+    }
+)
+
+# Update post
+client.posts.update(
+    post_id='post_123',
+    content='Updated content',
+    publish_at='2024-12-21T10:00:00Z'
+)
+
+# Delete post
+client.posts.delete('post_123')
+
+# Publish immediately
+client.posts.publish('post_123')
+```
+
+### Accounts
+
+```python
+# List all connected accounts
+accounts = client.accounts.list()
+
+# Filter by platform
+instagram_accounts = client.accounts.list(platform='instagram')
+
+# Get single account
+account = client.accounts.get('acc_123')
+
+# Get Pinterest boards
+boards = client.accounts.get_pinterest_boards('acc_pinterest_123')
+```
+
+### Media Upload
+
+```python
+# Get presigned upload URL
+response = client.media.get_upload_url(
+    filename='my-image.jpg',
+    content_type='image/jpeg'
+)
+upload_url = response['data']['uploadUrl']
+media_url = response['data']['mediaUrl']
+
+# Upload using the presigned URL
+import requests
+with open('image.jpg', 'rb') as f:
+    requests.put(upload_url, data=f, headers={'Content-Type': 'image/jpeg'})
+
+# Use media_url in your post
+client.posts.create(
+    content='Check out this image!',
+    account_ids=['acc_123'],
+    media_urls=[media_url]
+)
+
+# Or use the convenience helper
+with open('image.jpg', 'rb') as f:
+    media_url = client.media.upload(f.read(), 'image.jpg', 'image/jpeg')
+```
+
+### Analytics
+
+```python
+# Get overview
+overview = client.analytics.overview()
+
+# Get account-specific analytics
+account_analytics = client.analytics.for_account('acc_123', days=30)
+
+# Get all analytics
+all_analytics = client.analytics.list(
+    start_date='2024-01-01',
+    end_date='2024-12-31'
+)
+```
+
+### Queue
+
+```python
+# Get queue schedule
+queue = client.queue.get_slots('profile_123')
+
+# Set queue schedule
+client.queue.set_slots(
+    profile_id='profile_123',
+    timezone='America/New_York',
+    slots=[
+        {'dayOfWeek': 1, 'time': '09:00'},
+        {'dayOfWeek': 1, 'time': '15:00'},
+        {'dayOfWeek': 2, 'time': '09:00'}
+    ],
+    active=True
+)
+
+# Get next available slot
+next_slot = client.queue.get_next_slot('profile_123')
+
+# Preview upcoming slots
+preview = client.queue.preview('profile_123', count=10)
+```
+
+### Usage
+
+```python
+usage = client.usage()
+print(f"{usage['data']['requestsToday']}/{usage['data']['dailyLimit']} daily requests used")
+```
+
+### Multi-Tenant (Enterprise)
+
+```python
+# Create a tenant
+tenant = client.tenants.create(
+    external_id='user_123',
+    email='user@example.com',
+    name='John Doe'
+)
+
+# Get OAuth URL for tenant
+response = client.tenants.get_connect_url(tenant['data']['id'], 'instagram')
+# Redirect user to response['data']['url']
+
+# List tenant's accounts
+accounts = client.tenants.list_accounts(tenant['data']['id'])
+
+# Disconnect account
+client.tenants.disconnect_account(tenant['data']['id'], 'acc_123')
+```
+
+## Error Handling
+
+```python
+from schedulifyx import Schedulify, SchedulifyError
+
+client = Schedulify('sk_live_YOUR_API_KEY')
+
+try:
+    client.posts.create(content='Test', account_ids=['acc_123'])
+except SchedulifyError as e:
+    print(f'API Error: {e.code} - {e.message}')
+    print(f'Status: {e.status}')
+    print(f'Details: {e.details}')
+```
+
+## Type Hints
+
+The SDK includes type hints and dataclasses:
+
+```python
+from schedulifyx import (
+    Schedulify,
+    Post,
+    Account,
+    Analytics,
+    Tenant,
+    QueueSchedule
+)
+```
+
+## License
+
+MIT
