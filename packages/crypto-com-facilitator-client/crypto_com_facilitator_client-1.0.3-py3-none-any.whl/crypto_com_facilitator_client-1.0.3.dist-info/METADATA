@@ -1,0 +1,205 @@
+Metadata-Version: 2.4
+Name: crypto_com_facilitator_client
+Version: 1.0.3
+Summary: Official Cronos X402 Facilitator Python SDK
+License: Apache-2.0
+License-File: LICENSE
+Author: Crypto.com
+Requires-Python: >=3.9,<4.0.0
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: eth-account (>=0.10.0)
+Requires-Dist: hexbytes (>=0.3.1)
+Requires-Dist: requests (>=2.31.0)
+Project-URL: Documentation, https://github.com/crypto-com/facilitator-client-py#readme
+Project-URL: Homepage, https://facilitator.cronoslabs.org
+Project-URL: Repository, https://github.com/crypto-com/facilitator-client-py
+Description-Content-Type: text/markdown
+
+# **Cronos X402 Facilitator SDK for Python**
+
+The **Cronos Facilitator Python SDK** provides a lightweight, strongly typed client
+for interacting with the **Cronos X402 Facilitator API**.
+
+It enables Python applications to:
+
+- Generate **EIP-3009 signed payment headers**
+- Build **X402 Payment Requirements**
+- Submit payments for **verification** and **settlement**
+- Discover **supported networks and capabilities**
+
+This SDK supports fully automated **off-chain authorization / on-chain execution**
+payment flows on **Cronos Mainnet** and **Cronos Testnet**.
+
+## Features
+
+- **Facilitator API Client**
+
+  - `/supported`
+  - `/verify`
+  - `/settle`
+
+- **EIP-3009 Payment Header Generator**
+
+  - Produces Base64-encoded X402 headers
+
+- **Typed X402 Payment Requirements**
+
+  - JSON-serializable and schema-aware
+
+- **Minimal dependencies**
+
+  - Uses `requests` and `eth-account` only when required
+
+- **Cronos-native**
+  - Supports **Cronos Mainnet** and **Cronos Testnet**
+
+## Installation
+
+```bash
+pip install crypto_com_facilitator_client
+```
+
+> **Note**
+> EIP-3009 signing requires optional dependencies:
+>
+> ```bash
+> pip install eth-account hexbytes
+> ```
+
+## Usage
+
+### 1. Create a Facilitator Client
+
+> The Facilitator base URL is **fixed internally** and cannot be overridden.
+
+```python
+from crypto_com_facilitator_client import Facilitator
+from crypto_com_facilitator_client.integrations.facilitator_interface import CronosNetwork
+
+facilitator = Facilitator(
+    network=CronosNetwork.CronosTestnet  # or CronosMainnet
+)
+```
+
+### 2. Generate Payment Requirements
+
+```python
+requirements = facilitator.generate_payment_requirements(
+    pay_to="0xRecipientAddress",
+    description="Payment for Order #123",
+    max_amount_required="1000000",  # base units
+)
+
+print(requirements)
+```
+
+### 3. Generate a Base64 Payment Header (EIP-3009)
+
+```python
+import os
+from eth_account import Account
+
+signer = Account.from_key(os.environ["PRIVATE_KEY"])
+
+header = await facilitator.generate_payment_header(
+    to="0xRecipientAddress",
+    value="1000000",  # 1 USDCe (6 decimals)
+    signer=signer,
+    valid_before=int(time.time()) + 600,  # 10 min expiry
+)
+
+print("header:", header)
+```
+
+### 4. Verify a Payment Request
+
+```python
+body = facilitator.build_verify_request(header, requirements)
+
+verify_response = await facilitator.verify_payment(body)
+print("verify:", verify_response)
+```
+
+### 5. Settle a Verified Payment
+
+```python
+settle_response = await facilitator.settle_payment(body)
+print("settled:", settle_response)
+```
+
+### 6. Discover Supported Networks & Capabilities
+
+```python
+capabilities = await facilitator.get_supported()
+print(capabilities)
+```
+
+## End-to-End Example (Full Flow)
+
+```python
+from crypto_com_facilitator_client import Facilitator
+from crypto_com_facilitator_client.integrations.facilitator_interface import CronosNetwork
+from eth_account import Account
+import os
+import time
+
+facilitator = Facilitator(network=CronosNetwork.CronosTestnet)
+
+signer = Account.from_key(os.environ["PRIVATE_KEY"])
+receiver = "0xRecipientAddress"
+
+header = await facilitator.generate_payment_header(
+    to=receiver,
+    value="1000000",
+    signer=signer,
+)
+
+requirements = facilitator.generate_payment_requirements(
+    pay_to=receiver,
+    description="Premium API access",
+    max_amount_required="1000000",
+)
+
+body = facilitator.build_verify_request(header, requirements)
+
+verify = await facilitator.verify_payment(body)
+
+if verify.get("isValid"):
+    settle = await facilitator.settle_payment(body)
+    print("Transaction hash:", settle.get("txHash"))
+```
+
+## API Overview
+
+### **Facilitator Client**
+
+| Method                                       | Description                                              |
+| -------------------------------------------- | -------------------------------------------------------- |
+| `get_supported()`                            | Returns supported networks and capabilities              |
+| `verify_payment(request)`                    | Validates the Base64 header + requirements               |
+| `settle_payment(request)`                    | Executes the authorized transfer on-chain                |
+| `build_verify_request(header, requirements)` | Helper to produce valid verification/settlement payloads |
+
+### **Utilities**
+
+| Function                           | Description                              |
+| ---------------------------------- | ---------------------------------------- |
+| `generate_cronos_payment_header()` | Creates Base64 EIP-3009 payment header   |
+| `generate_payment_requirements()`  | Produces typed X402 Payment Requirements |
+
+## Supported Networks
+
+- **Cronos Mainnet**
+- **Cronos Testnet**
+
+## License
+
+MIT © 2025 **Crypto.com**
+
