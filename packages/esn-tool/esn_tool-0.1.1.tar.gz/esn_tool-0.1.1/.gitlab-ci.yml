@@ -1,0 +1,86 @@
+# ESN Tool - GitLab CI/CD 配置
+# 自动构建 macOS ARM64 架构的 PKG 安装包
+# 注：x86_64 构建已禁用，需要时在 Intel Mac 上配置 Runner 后启用
+
+# 定义构建阶段
+stages:
+  - build
+  - release
+
+# 全局变量
+variables:
+  # 自动使用 uv 管理的 Python 环境
+  UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
+
+# 缓存配置（加速构建）
+.cache_template: &cache_config
+  cache:
+    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - .cache/uv
+      - .venv
+
+# macOS 构建模板
+.build_macos:
+  stage: build
+  <<: *cache_config
+  before_script:
+    # 安装 uv（如果未安装）
+    - |
+      if ! command -v uv &> /dev/null; then
+        echo "Installing uv..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.cargo/bin:$PATH"
+      fi
+    # 同步项目依赖
+    - uv sync
+  script:
+    # 构建指定架构的 PKG
+    - uv run python build_pkg.py --arch ${ARCH}
+    # 显示构建结果
+    - ls -lh dist/
+    - file dist/esn
+  artifacts:
+    name: "esn-${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}-${ARCH}"
+    paths:
+      - dist/esn-*.pkg
+    expire_in: 30 days
+  rules:
+    # 仅在以下情况触发构建
+    - if: '$CI_COMMIT_TAG'                    # 创建 tag 时
+    - if: '$CI_COMMIT_BRANCH == "main"'       # 推送到 main 分支时
+    - if: '$CI_COMMIT_BRANCH == "develop"'    # 推送到 develop 分支时
+    - if: '$CI_PIPELINE_SOURCE == "web"'      # 手动触发时
+    - if: '$CI_MERGE_REQUEST_ID'              # Merge Request 时
+
+# ARM64 构建任务 (Apple Silicon)
+build:macos:arm64:
+  extends: .build_macos
+  tags:
+    - macos
+    - arm64
+  variables:
+    ARCH: "arm64"
+
+# x86_64 构建任务 (Intel) - 已禁用，需要时在 Intel Mac 上启用
+# build:macos:x86_64:
+#   extends: .build_macos
+#   tags:
+#     - macos
+#     - x86_64
+#   variables:
+#     ARCH: "x86_64"
+
+# 发布任务（仅在创建 tag 时）
+# 使用独立脚本调用 GitLab API 创建 Release
+release:
+  stage: release
+  tags:
+    - macos
+    - arm64
+  needs:
+    - build:macos:arm64
+  script:
+    - bash scripts/create-release.sh
+  rules:
+    - if: '$CI_COMMIT_TAG'
