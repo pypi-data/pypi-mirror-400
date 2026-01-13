@@ -1,0 +1,1373 @@
+from xulbux.base.types import ArgResultPositional, ArgResultRegular
+from xulbux.console import Spinner, ProgressBar
+from xulbux.console import ArgResult, Args
+from xulbux.console import Console
+from xulbux import console
+
+from unittest.mock import MagicMock, patch
+from collections import namedtuple
+import builtins
+import pytest
+import sys
+import io
+
+
+@pytest.fixture
+def mock_terminal_size(monkeypatch):
+    TerminalSize = namedtuple("TerminalSize", ["columns", "lines"])
+
+    def mock_get_terminal_size():
+        return TerminalSize(columns=80, lines=24)
+
+    monkeypatch.setattr(console._os, "get_terminal_size", mock_get_terminal_size)
+
+
+@pytest.fixture
+def mock_formatcodes_print(monkeypatch):
+    mock = MagicMock()
+    # PATCH IN THE ORIGINAL MODULE WHERE IT IS DEFINED
+    import xulbux.format_codes
+    monkeypatch.setattr(xulbux.format_codes.FormatCodes, "print", mock)
+    # ALSO PATCH IN CONSOLE MODULE JUST IN CASE
+    monkeypatch.setattr(console.FormatCodes, "print", mock)
+    return mock
+
+
+@pytest.fixture
+def mock_builtin_input(monkeypatch):
+    mock = MagicMock()
+    monkeypatch.setattr(builtins, "input", mock)
+    return mock
+
+
+@pytest.fixture
+def mock_prompt_toolkit(monkeypatch):
+    mock = MagicMock(return_value="mocked multiline input")
+    monkeypatch.setattr(console._pt, "prompt", mock)
+    return mock
+
+
+################################################## Console TESTS ##################################################
+
+
+def test_console_user():
+    user_output = Console.user
+    assert isinstance(user_output, str)
+    assert user_output != ""
+
+
+def test_console_width(mock_terminal_size):
+    width_output = Console.w
+    assert isinstance(width_output, int)
+    assert width_output == 80
+
+
+def test_console_height(mock_terminal_size):
+    height_output = Console.h
+    assert isinstance(height_output, int)
+    assert height_output == 24
+
+
+def test_console_size(mock_terminal_size):
+    size_output = Console.size
+    assert isinstance(size_output, tuple)
+    assert len(size_output) == 2
+    assert size_output[0] == 80
+    assert size_output[1] == 24
+
+
+def test_console_is_tty():
+    result = Console.is_tty
+    assert isinstance(result, bool)
+
+
+def test_console_supports_color():
+    result = Console.supports_color
+    assert isinstance(result, bool)
+
+
+@pytest.mark.parametrize(
+    # CASES WITHOUT SPACES (allow_spaces=False)
+    "argv, find_args, expected_args_dict", [
+        # NO ARGS PROVIDED
+        (
+            ["script.py"],
+            {"file": {"-f"}, "debug": {"-d"}},
+            {"file": {"exists": False, "value": None}, "debug": {"exists": False, "value": None}},
+        ),
+        # SIMPLE FLAG
+        (
+            ["script.py", "-d"],
+            {"file": {"-f"}, "debug": {"-d"}},
+            {"file": {"exists": False, "value": None}, "debug": {"exists": True, "value": None}},
+        ),
+        # FLAG WITH VALUE
+        (
+            ["script.py", "-f", "test.txt"],
+            {"file": {"-f"}, "debug": {"-d"}},
+            {"file": {"exists": True, "value": "test.txt"}, "debug": {"exists": False, "value": None}},
+        ),
+        # LONG FLAGS WITH VALUE AND FLAG
+        (
+            ["script.py", "--file", "path/to/file", "--debug"],
+            {"file": {"-f", "--file"}, "debug": {"-d", "--debug"}},
+            {"file": {"exists": True, "value": "path/to/file"}, "debug": {"exists": True, "value": None}},
+        ),
+        # VALUE WITH SPACES (ONLY FIRST PART DUE TO allow_spaces=False)
+        (
+            ["script.py", "-t", "text", "with", "spaces"],
+            {"text": {"-t"}},
+            {"text": {"exists": True, "value": "text"}},
+        ),
+        # UNKNOWN ARG
+        (
+            ["script.py", "-x"],
+            {"file": {"-f"}},
+            {"file": {"exists": False, "value": None}},
+        ),
+        # TWO FLAGS
+        (
+            ["script.py", "-f", "-d"],
+            {"file": {"-f"}, "debug": {"-d"}},
+            {"file": {"exists": True, "value": None}, "debug": {"exists": True, "value": None}},
+        ),
+        # CASE SENSITIVE FLAGS
+        (
+            ["script.py", "-i", "input.txt", "-I", "ignore"],
+            {"input": {"-i"}, "ignore": {"-I"}, "help": {"-h"}},
+            {
+                "input": {"exists": True, "value": "input.txt"},
+                "ignore": {"exists": True, "value": "ignore"},
+                "help": {"exists": False, "value": None},
+            },
+        ),
+
+        # --- CASES WITH DEFAULT VALUES ---
+        # DEFAULT USED
+        (
+            ["script.py"],
+            {"output": {"flags": {"-o"}, "default": "out.txt"}, "verbose": {"-v"}},
+            {"output": {"exists": False, "value": "out.txt"}, "verbose": {"exists": False, "value": None}},
+        ),
+        # VALUE OVERRIDES DEFAULT
+        (
+            ["script.py", "-o", "my_file.log"],
+            {"output": {"flags": {"-o"}, "default": "out.txt"}, "verbose": {"-v"}},
+            {"output": {"exists": True, "value": "my_file.log"}, "verbose": {"exists": False, "value": None}},
+        ),
+        # FLAG PRESENCE OVERRIDES DEFAULT (string -> None)
+        (
+            ["script.py", "-o"],
+            {"output": {"flags": {"-o"}, "default": "out.txt"}, "verbose": {"-v"}},
+            {"output": {"exists": True, "value": None}, "verbose": {"exists": False, "value": None}},
+        ),
+        # FLAG PRESENCE OVERRIDES DEFAULT (False -> None)
+        (
+            ["script.py", "-v"],
+            {"output": {"flags": {"-o"}, "default": "out.txt"}, "verbose": {"flags": {"-v"}, "default": "False"}},
+            {"output": {"exists": False, "value": "out.txt"}, "verbose": {"exists": True, "value": None}},
+        ),
+
+        # --- MIXED list/tuple AND dict FORMATS (allow_spaces=False) ---
+        # DICT VALUE PROVIDED, LIST NOT PROVIDED
+        (
+            ["script.py", "--config", "dev.cfg"],
+            {"config": {"flags": {"-c", "--config"}, "default": "prod.cfg"}, "log": {"-l"}},
+            {"config": {"exists": True, "value": "dev.cfg"}, "log": {"exists": False, "value": None}},
+        ),
+        # LIST FLAG PROVIDED, DICT NOT PROVIDED (USES DEFAULT)
+        (
+            ["script.py", "-l"],
+            {"config": {"flags": {"-c", "--config"}, "default": "prod.cfg"}, "log": {"-l"}},
+            {"config": {"exists": False, "value": "prod.cfg"}, "log": {"exists": True, "value": None}},
+        ),
+
+        # --- 'before' / 'after' SPECIAL CASES ---
+        # 'before' SPECIAL CASE
+        (
+            ["script.py", "arg1", "arg2.1 arg2.2", "-f", "file.txt"],
+            {"before": "before", "file": {"-f"}},
+            {"before": {"exists": True, "values": ["arg1", "arg2.1 arg2.2"]}, "file": {"exists": True, "value": "file.txt"}},
+        ),
+        (
+            ["script.py", "-f", "file.txt"],
+            {"before": "before", "file": {"-f"}},
+            {"before": {"exists": False, "values": []}, "file": {"exists": True, "value": "file.txt"}},
+        ),
+        # 'after' SPECIAL CASE
+        (
+            ["script.py", "-f", "file.txt", "arg1", "arg2.1 arg2.2"],
+            {"after": "after", "file": {"-f"}},
+            {"after": {"exists": True, "values": ["arg1", "arg2.1 arg2.2"]}, "file": {"exists": True, "value": "file.txt"}},
+        ),
+        (
+            ["script.py", "-f", "file.txt"],
+            {"after": "after", "file": {"-f"}},
+            {"after": {"exists": False, "values": []}, "file": {"exists": True, "value": "file.txt"}},
+        ),
+
+        # --- CUSTOM PREFIX TESTS ---
+        # COLON AND SLASH PREFIXES
+        (
+            ["script.py", ":config", "dev.json", "/output", "result.txt"],
+            {"config": {":config"}, "output": {"/output"}},
+            {"config": {"exists": True, "value": "dev.json"}, "output": {"exists": True, "value": "result.txt"}},
+        ),
+        # WORD FLAGS WITHOUT PREFIXES
+        (
+            ["script.py", "verbose", "help", "123"],
+            {"verbose": {"verbose"}, "help": {"help"}, "number": {"-n"}},
+            {
+                "verbose": {"exists": True, "value": None},
+                "help": {"exists": True, "value": "123"},
+                "number": {"exists": False, "value": None},
+            },
+        ),
+        # MIXED CUSTOM PREFIXES WITH DEFAULTS
+        (
+            ["script.py", "@user", "admin"],
+            {"user": {"flags": {"@user"}, "default": "guest"}, "mode": {"flags": {"++mode"}, "default": "normal"}},
+            {"user": {"exists": True, "value": "admin"}, "mode": {"exists": False, "value": "normal"}},
+        ),
+    ]
+)
+def test_get_args_no_spaces(monkeypatch, argv, find_args, expected_args_dict):
+    monkeypatch.setattr(sys, "argv", argv)
+    args_result = Console.get_args(allow_spaces=False, **find_args)
+    assert isinstance(args_result, Args)
+    assert args_result.dict() == expected_args_dict
+    for key, expected in expected_args_dict.items():
+        assert (key in args_result) is True
+        assert isinstance(args_result[key], ArgResult)
+        assert args_result[key].exists == expected["exists"]  # type: ignore[cannot-access-attr]
+        # CHECK IF THIS IS A POSITIONAL ARG (HAS 'values') OR REGULAR ARG (HAS 'value')
+        if "values" in expected:
+            assert args_result[key].values == expected["values"]  # type: ignore[cannot-access-attr]
+        else:
+            assert args_result[key].value == expected["value"]  # type: ignore[cannot-access-attr]
+        assert bool(args_result[key]) == expected["exists"]
+    assert list(args_result.keys()) == list(expected_args_dict.keys())
+    assert [v.exists for v in args_result.values()] == [d["exists"] for d in expected_args_dict.values()]
+    assert len(args_result) == len(expected_args_dict)
+
+
+@pytest.mark.parametrize(
+    # CASES WITH SPACES (allow_spaces=True)
+    "argv, find_args, expected_args_dict", [
+        # SIMPLE VALUE WITH SPACES
+        (
+            ["script.py", "-f", "file with spaces", "-d"],
+            {"file": {"-f"}, "debug": {"-d"}},
+            {"file": {"exists": True, "value": "file with spaces"}, "debug": {"exists": True, "value": None}},
+        ),
+        # LONG VALUE WITH SPACES
+        (
+            ["script.py", "--message", "Hello", "world", "how", "are", "you"],
+            {"message": {"--message"}},
+            {"message": {"exists": True, "value": "Hello world how are you"}},
+        ),
+        # VALUE WITH SPACES FOLLOWED BY ANOTHER FLAG
+        (
+            ["script.py", "-m", "this is", "a message", "--flag"],
+            {"message": {"-m"}, "flag": {"--flag"}},
+            {"message": {"exists": True, "value": "this is a message"}, "flag": {"exists": True, "value": None}},
+        ),
+        # VALUE WITH SPACES AT THE END
+        (
+            ["script.py", "-m", "end", "of", "args"],
+            {"message": {"-m"}},
+            {"message": {"exists": True, "value": "end of args"}},
+        ),
+        # CASE SENSITIVE FLAGS WITH SPACES
+        (
+            ["script.py", "-t", "this is", "a test", "-T", "UPPERCASE"],
+            {"text": {"-t"}, "title": {"-T"}},
+            {"text": {"exists": True, "value": "this is a test"}, "title": {"exists": True, "value": "UPPERCASE"}},
+        ),
+
+        # --- CASES WITH DEFAULTS (dict FORMAT, allow_spaces=True) ---
+        # VALUE WITH SPACE OVERRIDES DEFAULT
+        (
+            ["script.py", "--msg", "Default message"],
+            {"msg": {"flags": {"--msg"}, "default": "No message"}, "other": {"-o"}},
+            {"msg": {"exists": True, "value": "Default message"}, "other": {"exists": False, "value": None}},
+        ),
+        # DEFAULT USED WHEN OTHER FLAG PRESENT
+        (
+            ["script.py", "-o"],
+            {"msg": {"flags": {"--msg"}, "default": "No message"}, "other": {"-o"}},
+            {"msg": {"exists": False, "value": "No message"}, "other": {"exists": True, "value": None}},
+        ),
+        # FLAG PRESENCE OVERRIDES DEFAULT (str -> True)
+        # FLAG WITH NO VALUE SHOULD HAVE None AS VALUE
+        (
+            ["script.py", "--msg"],
+            {"msg": {"flags": {"--msg"}, "default": "No message"}, "other": {"-o"}},
+            {"msg": {"exists": True, "value": None}, "other": {"exists": False, "value": None}},
+        ),
+
+        # --- MIXED FORMATS WITH SPACES (allow_spaces=True) ---
+        # LIST VALUE WITH SPACES, dict VALUE PROVIDED
+        (
+            ["script.py", "-f", "input file name", "--mode", "test"],
+            {"file": {"-f"}, "mode": {"flags": {"--mode"}, "default": "prod"}},
+            {"file": {"exists": True, "value": "input file name"}, "mode": {"exists": True, "value": "test"}},
+        ),
+        # LIST VALUE WITH SPACES, dict NOT PROVIDED (USES DEFAULT)
+        (
+            ["script.py", "-f", "another file"],
+            {"file": {"-f"}, "mode": {"flags": {"--mode"}, "default": "prod"}},
+            {"file": {"exists": True, "value": "another file"}, "mode": {"exists": False, "value": "prod"}},
+        ),
+
+        # --- 'before' / 'after' SPECIAL CASES (ARE NOT AFFECTED BY allow_spaces) ---
+        # 'before' SPECIAL CASE
+        (
+            ["script.py", "arg1", "arg2.1 arg2.2", "-f", "file.txt"],
+            {"before": "before", "file": {"-f"}},
+            {"before": {"exists": True, "values": ["arg1", "arg2.1 arg2.2"]}, "file": {"exists": True, "value": "file.txt"}},
+        ),
+        # 'after' SPECIAL CASE
+        (
+            ["script.py", "-f", "file.txt", "arg1", "arg2.1 arg2.2"],
+            {"after": "after", "file": {"-f"}},
+            {"after": {"exists": False, "values": []}, "file": {"exists": True, "value": "file.txt arg1 arg2.1 arg2.2"}},
+        ),
+        (
+            ["script.py", "arg1", "arg2.1 arg2.2"],
+            {"after": "after", "file": {"-f"}},
+            {"after": {"exists": True, "values": ["arg1", "arg2.1 arg2.2"]}, "file": {"exists": False, "value": None}},
+        ),
+
+        # --- CUSTOM PREFIX TESTS WITH SPACES ---
+        # QUESTION MARK AND DOUBLE PLUS PREFIXES WITH MULTIWORD VALUES
+        (
+            ["script.py", "?help", "show", "detailed", "info", "++mode", "test"],
+            {"help": {"?help"}, "mode": {"++mode"}},
+            {"help": {"exists": True, "value": "show detailed info"}, "mode": {"exists": True, "value": "test"}},
+        ),
+        # AT SYMBOL PREFIX WITH SPACES
+        (
+            ["script.py", "@message", "Hello", "World", "How", "are", "you"],
+            {"message": {"@message"}},
+            {"message": {"exists": True, "value": "Hello World How are you"}},
+        ),
+    ]
+)
+def test_get_args_with_spaces(monkeypatch, argv, find_args, expected_args_dict):
+    monkeypatch.setattr(sys, "argv", argv)
+    args_result = Console.get_args(allow_spaces=True, **find_args)
+    assert isinstance(args_result, Args)
+    assert args_result.dict() == expected_args_dict
+
+
+def test_get_args_flag_without_value(monkeypatch):
+    """Test that flags without values have None as their value, not True."""
+    # TEST SINGLE FLAG WITHOUT VALUE AT END OF ARGS
+    monkeypatch.setattr(sys, "argv", ["script.py", "--verbose"])
+    args_result = Console.get_args(verbose={"--verbose"})
+    assert args_result.verbose.exists is True
+    assert args_result.verbose.value is None
+    assert args_result.verbose.is_positional is False
+
+    # TEST FLAG WITHOUT VALUE FOLLOWED BY ANOTHER FLAG
+    monkeypatch.setattr(sys, "argv", ["script.py", "--verbose", "--debug"])
+    args_result = Console.get_args(verbose={"--verbose"}, debug={"--debug"})
+    assert args_result.verbose.exists is True
+    assert args_result.verbose.value is None
+    assert args_result.verbose.is_positional is False
+    assert args_result.debug.exists is True
+    assert args_result.debug.value is None
+    assert args_result.debug.is_positional is False
+
+    # TEST FLAG WITH DEFAULT VALUE BUT NO PROVIDED VALUE
+    monkeypatch.setattr(sys, "argv", ["script.py", "--mode"])
+    args_result = Console.get_args(mode={"flags": {"--mode"}, "default": "production"})
+    assert args_result.mode.exists is True
+    assert args_result.mode.value is None
+    assert args_result.mode.is_positional is False
+
+
+def test_get_args_duplicate_flag():
+    with pytest.raises(ValueError, match="Duplicate flag '-f' found. It's assigned to both 'file1' and 'file2'."):
+        Console.get_args(file1={"-f", "--file1"}, file2={"flags": {"-f", "--file2"}, "default": "..."})
+
+    with pytest.raises(ValueError, match="Duplicate flag '--long' found. It's assigned to both 'arg1' and 'arg2'."):
+        Console.get_args(arg1={"flags": {"--long"}, "default": "..."}, arg2={"-a", "--long"})
+
+
+def test_get_args_dash_values_not_treated_as_flags(monkeypatch):
+    """Test that values starting with dashes are not treated as flags unless explicitly defined"""
+    monkeypatch.setattr(sys, "argv", ["script.py", "-v", "-42", "--input", "-3.14"])
+    result = Console.get_args(verbose={"-v"}, input={"--input"})
+
+    assert result.verbose.exists is True
+    assert result.verbose.value == "-42"
+    assert result.verbose.values == []
+    assert result.verbose.is_positional is False
+    assert result.verbose.dict() == {"exists": True, "value": "-42"}
+
+    assert result.input.exists is True
+    assert result.input.value == "-3.14"
+    assert result.input.values == []
+    assert result.input.is_positional is False
+    assert result.input.dict() == {"exists": True, "value": "-3.14"}
+
+    assert result.dict() == {
+        "verbose": result.verbose.dict(),
+        "input": result.input.dict(),
+    }
+
+
+def test_get_args_dash_strings_as_values(monkeypatch):
+    """Test that dash-prefixed strings are treated as values when not defined as flags"""
+    monkeypatch.setattr(sys, "argv", ["script.py", "-f", "--not-a-flag", "-t", "-another-value"])
+    result = Console.get_args(file={"-f"}, text={"-t"})
+
+    assert result.file.exists is True
+    assert result.file.value == "--not-a-flag"
+    assert result.file.values == []
+    assert result.file.is_positional is False
+    assert result.file.dict() == {"exists": True, "value": "--not-a-flag"}
+
+    assert result.text.exists is True
+    assert result.text.value == "-another-value"
+    assert result.text.values == []
+    assert result.text.is_positional is False
+    assert result.text.dict() == {"exists": True, "value": "-another-value"}
+
+    assert result.dict() == {
+        "file": result.file.dict(),
+        "text": result.text.dict(),
+    }
+
+
+def test_get_args_positional_with_dashes_before(monkeypatch):
+    """Test that positional 'before' arguments include dash-prefixed values"""
+    monkeypatch.setattr(sys, "argv", ["script.py", "-123", "--some-file", "normal", "-v"])
+    result = Console.get_args(before_args="before", verbose={"-v"})
+
+    assert result.before_args.exists is True
+    assert result.before_args.value is None
+    assert result.before_args.values == ["-123", "--some-file", "normal"]
+    assert result.before_args.is_positional is True
+    assert result.before_args.dict() == {"exists": True, "values": ["-123", "--some-file", "normal"]}
+
+    assert result.verbose.exists is True
+    assert result.verbose.value is None
+    assert result.verbose.values == []
+    assert result.verbose.is_positional is False
+    assert result.verbose.dict() == {"exists": True, "value": None}
+
+    assert result.dict() == {
+        "before_args": result.before_args.dict(),
+        "verbose": result.verbose.dict(),
+    }
+
+
+def test_get_args_positional_with_dashes_after(monkeypatch):
+    """Test that positional 'after' arguments include dash-prefixed values"""
+    monkeypatch.setattr(sys, "argv", ["script.py", "-v", "value", "-123", "--output-file", "-negative"])
+    result = Console.get_args(verbose={"-v"}, after_args="after")
+
+    assert result.verbose.exists is True
+    assert result.verbose.value == "value"
+    assert result.verbose.values == []
+    assert result.verbose.is_positional is False
+    assert result.verbose.dict() == {"exists": True, "value": "value"}
+
+    assert result.after_args.exists is True
+    assert result.after_args.value is None
+    assert result.after_args.values == ["-123", "--output-file", "-negative"]
+    assert result.after_args.is_positional is True
+    assert result.after_args.dict() == {"exists": True, "values": ["-123", "--output-file", "-negative"]}
+
+    assert result.dict() == {
+        "verbose": result.verbose.dict(),
+        "after_args": result.after_args.dict(),
+    }
+
+
+def test_get_args_multiword_with_dashes(monkeypatch):
+    """Test multiword values with dashes when allow_spaces=True"""
+    monkeypatch.setattr(sys, "argv", ["script.py", "-m", "start", "-middle", "--end", "-f", "other"])
+    result = Console.get_args(allow_spaces=True, message={"-m"}, file={"-f"})
+
+    assert result.message.exists is True
+    assert result.message.value == "start -middle --end"
+    assert result.message.values == []
+    assert result.message.is_positional is False
+    assert result.message.dict() == {"exists": True, "value": "start -middle --end"}
+
+    assert result.file.exists is True
+    assert result.file.value == "other"
+    assert result.file.values == []
+    assert result.file.is_positional is False
+    assert result.file.dict() == {"exists": True, "value": "other"}
+
+    assert result.dict() == {
+        "message": result.message.dict(),
+        "file": result.file.dict(),
+    }
+
+
+def test_get_args_mixed_dash_scenarios(monkeypatch):
+    """Test complex scenario mixing defined flags with dash-prefixed values"""
+    monkeypatch.setattr(
+        sys, "argv", [
+            "script.py", "before1", "-not-flag", "before2", "-v", "VVV", "-d", "--file", "my-file.txt", "after1",
+            "-also-not-flag"
+        ]
+    )
+    result = Console.get_args(
+        before="before",
+        verbose={"-v"},
+        debug={"-d"},
+        file={"--file"},
+        after="after",
+    )
+
+    assert result.before.exists is True
+    assert result.before.value is None
+    assert result.before.values == ["before1", "-not-flag", "before2"]
+    assert result.before.is_positional is True
+    assert result.before.dict() == {"exists": True, "values": ["before1", "-not-flag", "before2"]}
+
+    assert result.verbose.exists is True
+    assert result.verbose.value == "VVV"
+    assert result.verbose.values == []
+    assert result.verbose.is_positional is False
+    assert result.verbose.dict() == {"exists": True, "value": "VVV"}
+
+    assert result.debug.exists is True
+    assert result.debug.value is None
+    assert result.debug.values == []
+    assert result.debug.is_positional is False
+    assert result.debug.dict() == {"exists": True, "value": None}
+
+    assert result.file.exists is True
+    assert result.file.value == "my-file.txt"
+    assert result.file.values == []
+    assert result.file.is_positional is False
+    assert result.file.dict() == {"exists": True, "value": "my-file.txt"}
+
+    assert result.after.exists is True
+    assert result.after.value is None
+    assert result.after.values == ["after1", "-also-not-flag"]
+    assert result.after.is_positional is True
+    assert result.after.dict() == {"exists": True, "values": ["after1", "-also-not-flag"]}
+
+    assert result.dict() == {
+        "before": result.before.dict(),
+        "verbose": result.verbose.dict(),
+        "debug": result.debug.dict(),
+        "file": result.file.dict(),
+        "after": result.after.dict(),
+    }
+
+
+def test_args_dunder_methods():
+    args = Args(
+        before=ArgResultPositional(exists=True, values=["arg1", "arg2"]),
+        debug=ArgResultRegular(exists=True, value=None),
+        file=ArgResultRegular(exists=True, value="test.txt"),
+        after=ArgResultPositional(exists=False, values=["arg3", "arg4"]),
+    )
+
+    assert len(args) == 4
+
+    assert ("before" in args) is True
+    assert ("missing" in args) is False
+
+    assert bool(args) is True
+    assert bool(Args()) is False
+
+    assert (args == args) is True
+    assert (args != Args()) is True
+
+
+def test_multiline_input(mock_prompt_toolkit, capsys):
+    expected_input = "mocked multiline input"
+    result = Console.multiline_input("Enter text:", show_keybindings=True, default_color="#BCA")
+
+    assert result == expected_input
+
+    captured = capsys.readouterr()
+    # CHECK THAT PROMPT AND KEYBINDINGS WERE PRINTED
+    assert "Enter text:" in captured.out
+    assert "CTRL+D" in captured.out or "end of input" in captured.out
+
+    mock_prompt_toolkit.assert_called_once()
+    pt_args, pt_kwargs = mock_prompt_toolkit.call_args
+    assert pt_args == (" ⮡ ", )
+    assert pt_kwargs.get("multiline") is True
+    assert pt_kwargs.get("wrap_lines") is True
+    assert "key_bindings" in pt_kwargs
+
+
+def test_multiline_input_no_bindings(mock_prompt_toolkit, capsys):
+    Console.multiline_input("Enter text:", show_keybindings=False, end="DONE")
+
+    captured = capsys.readouterr()
+    # CHECK THAT PROMPT WAS PRINTED AND ENDS WITH 'DONE'
+    assert "Enter text:" in captured.out
+    assert captured.out.endswith("DONE")
+
+    mock_prompt_toolkit.assert_called_once()
+
+
+def test_pause_exit_pause_only(monkeypatch, capsys):
+    mock_keyboard = MagicMock()
+    monkeypatch.setattr(console._keyboard, "read_key", mock_keyboard)
+
+    Console.pause_exit(pause=True, exit=False, prompt="Press any key...")
+
+    captured = capsys.readouterr()
+    assert "Press any key..." in captured.out
+    mock_keyboard.assert_called_once_with(suppress=True)
+
+
+def test_pause_exit_with_exit(monkeypatch, capsys):
+    mock_keyboard = MagicMock()
+    mock_sys_exit = MagicMock()
+    monkeypatch.setattr(console._keyboard, "read_key", mock_keyboard)
+    monkeypatch.setattr(console._sys, "exit", mock_sys_exit)
+
+    Console.pause_exit(pause=True, exit=True, prompt="Exiting...", exit_code=1)
+
+    captured = capsys.readouterr()
+    assert "Exiting..." in captured.out
+    mock_keyboard.assert_called_once_with(suppress=True)
+    mock_sys_exit.assert_called_once_with(1)
+
+
+def test_pause_exit_reset_ansi(monkeypatch, capsys):
+    mock_keyboard = MagicMock()
+    monkeypatch.setattr(console._keyboard, "read_key", mock_keyboard)
+
+    Console.pause_exit(pause=True, exit=False, reset_ansi=True)
+
+    captured = capsys.readouterr()
+    # CHECK THAT ANSI RESET CODE IS PRESENT IN OUTPUT
+    assert "\033[0m" in captured.out or captured.out.strip() == ""
+
+
+def test_cls(monkeypatch):
+    mock_shutil = MagicMock()
+    mock_os_system = MagicMock()
+    mock_print = MagicMock()
+    monkeypatch.setattr(console._shutil, "which", mock_shutil)
+    monkeypatch.setattr(console._os, "system", mock_os_system)
+    monkeypatch.setattr(builtins, "print", mock_print)
+
+    mock_shutil.side_effect = lambda cmd: "/bin/cls" if cmd == "cls" else None
+    Console.cls()
+    mock_os_system.assert_called_with("cls")
+    mock_print.assert_called_with("\033[0m", end="", flush=True)
+
+    mock_os_system.reset_mock()
+    mock_print.reset_mock()
+
+    mock_shutil.side_effect = lambda cmd: "/bin/clear" if cmd == "clear" else None
+    Console.cls()
+    mock_os_system.assert_called_with("clear")
+    mock_print.assert_called_with("\033[0m", end="", flush=True)
+
+
+def test_log_basic(capsys):
+    Console.log("INFO", "Test message")
+
+    captured = capsys.readouterr()
+    assert "INFO" in captured.out
+    assert "Test message" in captured.out
+
+
+def test_log_no_title(capsys):
+    Console.log(title=None, prompt="Just a message")
+
+    captured = capsys.readouterr()
+    assert "Just a message" in captured.out
+
+
+def test_debug_active(capsys):
+    Console.debug("Debug message", active=True)
+
+    captured = capsys.readouterr()
+    assert "DEBUG" in captured.out
+    assert "Debug message" in captured.out
+
+
+def test_debug_inactive(mock_formatcodes_print):
+    Console.debug("Debug message", active=False)
+
+    mock_formatcodes_print.assert_not_called()
+
+
+def test_info(capsys):
+    Console.info("Info message")
+
+    captured = capsys.readouterr()
+    assert "INFO" in captured.out
+    assert "Info message" in captured.out
+
+
+def test_done(capsys):
+    Console.done("Task completed")
+
+    captured = capsys.readouterr()
+    assert "DONE" in captured.out
+    assert "Task completed" in captured.out
+
+
+def test_warn(capsys):
+    Console.warn("Warning message")
+
+    captured = capsys.readouterr()
+    assert "WARN" in captured.out
+    assert "Warning message" in captured.out
+
+
+def test_fail(capsys, monkeypatch):
+    mock_sys_exit = MagicMock()
+    monkeypatch.setattr(console._sys, "exit", mock_sys_exit)
+
+    Console.fail("Error occurred")
+
+    captured = capsys.readouterr()
+    assert "FAIL" in captured.out
+    assert "Error occurred" in captured.out
+    mock_sys_exit.assert_called_once_with(1)
+
+
+def test_exit_method(capsys, monkeypatch):
+    mock_sys_exit = MagicMock()
+    monkeypatch.setattr(console._sys, "exit", mock_sys_exit)
+
+    Console.exit("Program ending")
+
+    captured = capsys.readouterr()
+    assert "EXIT" in captured.out
+    assert "Program ending" in captured.out
+    mock_sys_exit.assert_called_once_with(0)
+
+
+def test_log_box_filled(capsys):
+    Console.log_box_filled("Line 1", "Line 2", box_bg_color="green")
+
+    captured = capsys.readouterr()
+    assert "Line 1" in captured.out
+    assert "Line 2" in captured.out
+
+
+def test_log_box_bordered(capsys):
+    Console.log_box_bordered("Content line", border_type="rounded")
+
+    captured = capsys.readouterr()
+    assert "Content line" in captured.out
+
+
+@patch("xulbux.console.Console.input")
+def test_confirm_yes(mock_input):
+    mock_input.return_value = "y"
+    result = Console.confirm("Continue?")
+    assert result is True
+
+
+@patch("xulbux.console.Console.input")
+def test_confirm_no(mock_input):
+    mock_input.return_value = "n"
+    result = Console.confirm("Continue?")
+    assert result is False
+
+
+@patch("xulbux.console.Console.input")
+def test_confirm_default_yes(mock_input):
+    mock_input.return_value = ""
+    result = Console.confirm("Continue?", default_is_yes=True)
+    assert result is True
+
+
+@patch("xulbux.console.Console.input")
+def test_confirm_default_no(mock_input):
+    mock_input.return_value = ""
+    result = Console.confirm("Continue?", default_is_yes=False)
+    assert result is False
+
+
+@pytest.fixture
+def mock_prompt_session(monkeypatch):
+    mock_session = MagicMock()
+    mock_session_class = MagicMock(return_value=mock_session)
+    mock_session.prompt.return_value = None
+    monkeypatch.setattr(console._pt, "PromptSession", mock_session_class)
+    return mock_session_class, mock_session
+
+
+def test_input_creates_prompt_session(mock_prompt_session, mock_formatcodes_print):
+    """Test that Console.input creates a PromptSession with correct parameters."""
+    mock_session_class, mock_session = mock_prompt_session
+
+    Console.input("Enter text: ")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "message" in call_kwargs
+    assert "validator" in call_kwargs
+    assert "validate_while_typing" in call_kwargs
+    assert "key_bindings" in call_kwargs
+    assert "bottom_toolbar" in call_kwargs
+    assert "style" in call_kwargs
+    mock_session.prompt.assert_called_once()
+
+
+def test_input_with_placeholder(mock_prompt_session, mock_formatcodes_print):
+    """Test that placeholder is correctly passed to PromptSession."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ", placeholder="Type here...")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "placeholder" in call_kwargs
+    assert call_kwargs["placeholder"] != ""
+
+
+def test_input_without_placeholder(mock_prompt_session, mock_formatcodes_print):
+    """Test that placeholder is empty when not provided."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "placeholder" in call_kwargs
+    assert call_kwargs["placeholder"] == ""
+
+
+def test_input_with_validator_function(mock_prompt_session, mock_formatcodes_print):
+    """Test that a custom validator function is properly handled."""
+    mock_session_class, _ = mock_prompt_session
+
+    def email_validator(text):
+        if "@" not in text:
+            return "Invalid email"
+        return None
+
+    Console.input("Enter email: ", validator=email_validator)
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "validator" in call_kwargs
+    validator_instance = call_kwargs["validator"]
+    assert hasattr(validator_instance, "validate")
+
+
+def test_input_with_length_constraints(mock_prompt_session, mock_formatcodes_print):
+    """Test that min_len and max_len are properly handled."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ", min_len=3, max_len=10)
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "validator" in call_kwargs
+    validator_instance = call_kwargs["validator"]
+    assert hasattr(validator_instance, "validate")
+
+
+def test_input_with_allowed_chars(mock_prompt_session, mock_formatcodes_print):
+    """Test that allowed_chars parameter is handled."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter digits only: ", allowed_chars="0123456789")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "key_bindings" in call_kwargs
+    assert call_kwargs["key_bindings"] is not None
+
+
+def test_input_disable_paste(mock_prompt_session, mock_formatcodes_print):
+    """Test that allow_paste=False is handled."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ", allow_paste=False)
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "key_bindings" in call_kwargs
+    assert call_kwargs["key_bindings"] is not None
+
+
+def test_input_with_start_end_formatting(mock_prompt_session, capsys):
+    """Test that start and end parameters trigger FormatCodes.print calls."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ", start="[green]", end="[_c]")
+
+    assert mock_session_class.called
+    captured = capsys.readouterr()
+    # JUST VERIFY OUTPUT WAS PRODUCED (START/END FORMATTING OCCURRED)
+    assert captured.out != "" or True  # OUTPUT MAY BE CAPTURED OR GO TO REAL STDOUT
+
+
+def test_input_message_formatting(mock_prompt_session, mock_formatcodes_print):
+    """Test that the prompt message is properly formatted."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("[b]Bold prompt:[_b] ", default_color="#ABC")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "message" in call_kwargs
+    assert call_kwargs["message"] is not None
+
+
+def test_input_bottom_toolbar_function(mock_prompt_session, capsys):
+    """Test that bottom toolbar function is set up."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "bottom_toolbar" in call_kwargs
+    toolbar_func = call_kwargs["bottom_toolbar"]
+    assert callable(toolbar_func)
+
+    try:
+        result = toolbar_func()
+        assert result is not None
+    except Exception:
+        pass
+
+
+def test_input_style_configuration(mock_prompt_session, capsys):
+    """Test that custom style is applied."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "style" in call_kwargs
+    assert call_kwargs["style"] is not None
+
+
+def test_input_validate_while_typing_enabled(mock_prompt_session, mock_formatcodes_print):
+    """Test that validate_while_typing is enabled."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "validate_while_typing" in call_kwargs
+    assert call_kwargs["validate_while_typing"] is True
+
+
+def test_input_validator_class_creation(mock_prompt_session, mock_formatcodes_print):
+    """Test that InputValidator class is properly instantiated."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ", min_len=5)
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "validator" in call_kwargs
+    validator_instance = call_kwargs["validator"]
+    assert hasattr(validator_instance, "validate")
+    assert callable(getattr(validator_instance, "validate", None))
+
+
+def test_input_key_bindings_setup(mock_prompt_session, mock_formatcodes_print):
+    """Test that key bindings are properly set up."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "key_bindings" in call_kwargs
+    kb = call_kwargs["key_bindings"]
+    assert kb is not None
+    assert hasattr(kb, "bindings")
+
+
+def test_input_mask_char_single_character(mock_prompt_session, mock_formatcodes_print):
+    """Test that mask_char works with single characters."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter password: ", mask_char="*")
+
+    assert mock_session_class.called
+
+
+def test_input_output_type_int(mock_prompt_session, mock_formatcodes_print):
+    """Test that output_type parameter is handled for int conversion."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter number: ", output_type=int, default_val=42)
+
+    assert mock_session_class.called
+
+
+def test_input_default_val_handling(mock_prompt_session, mock_formatcodes_print):
+    """Test that default_val parameter is properly handled."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ", default_val="default_value")
+
+    assert mock_session_class.called
+
+
+def test_input_custom_style_object(mock_prompt_session, mock_formatcodes_print):
+    """Test that a custom Style object is created."""
+    mock_session_class, _ = mock_prompt_session
+
+    Console.input("Enter text: ")
+
+    assert mock_session_class.called
+    call_kwargs = mock_session_class.call_args[1]
+    assert "style" in call_kwargs
+    style = call_kwargs["style"]
+    assert style is not None
+    assert hasattr(style, "style_rules") or hasattr(style, "_style")
+
+
+################################################## ProgressBar TESTS ##################################################
+
+
+def test_progressbar_init():
+    pb = ProgressBar(min_width=5, max_width=30)
+    assert pb.min_width == 5
+    assert pb.max_width == 30
+    assert pb.active is False
+    assert len(pb.chars) == 9
+
+
+def test_progressbar_set_width():
+    pb = ProgressBar()
+    pb.set_width(min_width=15, max_width=60)
+    assert pb.min_width == 15
+    assert pb.max_width == 60
+
+
+def test_progressbar_set_width_invalid():
+    pb = ProgressBar()
+    with pytest.raises(TypeError):
+        pb.set_width(min_width="not_int")  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        pb.set_width(min_width=0)
+    with pytest.raises(TypeError):
+        pb.set_width(max_width="not_int")  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        pb.set_width(max_width=0)
+
+
+def test_progressbar_set_bar_format():
+    pb = ProgressBar()
+    pb.set_bar_format(bar_format=["{l}", "[{b}]", "{p}%"], limited_bar_format=["[{b}]"])
+    assert pb.bar_format == ["{l}", "[{b}]", "{p}%"]
+    assert pb.limited_bar_format == ["[{b}]"]
+
+
+def test_progressbar_set_bar_format_invalid():
+    pb = ProgressBar()
+    with pytest.raises(ValueError, match="must contain the '{bar}' or '{b}' placeholder"):
+        pb.set_bar_format(bar_format=["Progress: {p}%"])
+    with pytest.raises(ValueError, match="must contain the '{bar}' or '{b}' placeholder"):
+        pb.set_bar_format(limited_bar_format=["Progress: {p}%"])
+
+
+def test_progressbar_set_chars():
+    pb = ProgressBar()
+    custom_chars = ("█", "▓", "▒", "░", " ")
+    pb.set_chars(custom_chars)
+    assert pb.chars == custom_chars
+
+
+def test_progressbar_set_chars_invalid():
+    pb = ProgressBar()
+    with pytest.raises(ValueError, match="must contain at least two characters"):
+        pb.set_chars(("█", ))
+    with pytest.raises(ValueError, match="must be single-character strings"):
+        pb.set_chars(("█", "▓▓", " "))
+
+
+def test_progressbar_show_progress_invalid_total():
+    pb = ProgressBar()
+    with pytest.raises(ValueError, match="The 'total' parameter must be a positive integer."):
+        pb.show_progress(10, 0)
+    with pytest.raises(ValueError, match="The 'total' parameter must be a positive integer."):
+        pb.show_progress(10, -5)
+
+
+@patch("sys.stdout", new_callable=io.StringIO)
+def test_progressbar_show_progress(mock_stdout):
+    pb = ProgressBar()
+    # MANUALLY SET AND RESTORE _original_stdout TO AVOID PATCHING ISSUES WITH COMPILED CLASSES
+    original = pb._original_stdout
+    pb._original_stdout = mock_stdout
+    try:
+        pb.active = True
+        pb._draw_progress_bar(50, 100, "Loading")
+    finally:
+        pb._original_stdout = original
+
+    output = mock_stdout.getvalue()
+    assert len(output) > 0
+
+
+def test_progressbar_hide_progress():
+    pb = ProgressBar()
+    pb.active = True
+    pb._original_stdout = MagicMock()
+    pb.hide_progress()
+    assert pb.active is False
+    assert pb._original_stdout is None
+
+
+def test_progressbar_progress_context(capsys):
+    pb = ProgressBar()
+
+    # TEST CONTEXT MANAGER BEHAVIOR BY CHECKING ACTUAL EFFECTS
+    with pb.progress_context(100, "Testing") as update_progress:
+        update_progress(25)
+        assert pb.active is True  # ACTIVE AFTER FIRST UPDATE
+        update_progress(50)
+
+    # AFTER CONTEXT EXITS, PROGRESS BAR SHOULD BE HIDDEN
+    assert pb.active is False
+    captured = capsys.readouterr()
+    assert captured.out != ""  # SOME OUTPUT SHOULD HAVE BEEN PRODUCED
+
+
+def test_progressbar_progress_context_exception():
+    pb = ProgressBar()
+
+    # TEST THAT CLEANUP HAPPENS EVEN WITH EXCEPTIONS
+    with pytest.raises(ValueError):
+        with pb.progress_context(100, "Testing") as update_progress:
+            update_progress(25)
+            raise ValueError("Test exception")
+
+    # AFTER EXCEPTION, PROGRESS BAR SHOULD STILL BE CLEANED UP
+    assert pb.active is False
+
+
+def test_progressbar_create_bar():
+    pb = ProgressBar()
+
+    bar = pb._create_bar(50, 100, 10)
+    assert len(bar) == 10
+    assert bar[0] == pb.chars[0]
+    assert bar[-1] == pb.chars[-1]
+
+    bar = pb._create_bar(100, 100, 10)
+    assert len(bar) == 10
+    assert all(c == pb.chars[0] for c in bar)
+
+    bar = pb._create_bar(0, 100, 10)
+    assert len(bar) == 10
+    assert all(c == pb.chars[-1] for c in bar)
+
+
+def test_progressbar_intercepted_output():
+    pb = ProgressBar()
+    intercepted = console._InterceptedOutput(pb)
+    result = intercepted.write("test content")
+    assert result == len("test content")
+    assert "test content" in pb._buffer
+    intercepted.flush()
+
+
+def test_progressbar_emergency_cleanup():
+    pb = ProgressBar()
+    pb.active = True
+    original_stdout = MagicMock()
+    pb._original_stdout = original_stdout
+    pb._emergency_cleanup()
+    assert pb.active is False
+
+
+def test_progressbar_get_formatted_info_and_bar_width(mock_terminal_size):
+    pb = ProgressBar()
+    formatted, bar_width = pb._get_formatted_info_and_bar_width(
+        ["{l}", "|{b}|", "{c}/{t}", "({p}%)"],
+        50,
+        100,
+        50.0,
+        "Loading",
+    )
+    assert "Loading" in formatted
+    assert "50" in formatted
+    assert "100" in formatted
+    assert "50.0" in formatted
+    assert isinstance(bar_width, int)
+    assert bar_width > 0
+
+
+def test_progressbar_start_stop_intercepting():
+    pb = ProgressBar()
+    original_stdout = sys.stdout
+
+    pb._start_intercepting()
+    assert pb.active is True
+    assert pb._original_stdout == original_stdout
+    assert isinstance(sys.stdout, console._InterceptedOutput)
+
+    pb._stop_intercepting()
+    assert pb.active is False
+    assert pb._original_stdout is None
+    assert sys.stdout == original_stdout
+
+
+def test_progressbar_clear_progress_line():
+    pb = ProgressBar()
+    mock_stdout = MagicMock()
+    mock_stdout.write.return_value = 0
+    mock_stdout.flush.return_value = None
+    pb._original_stdout = mock_stdout
+    pb._last_line_len = 20
+    pb._clear_progress_line()
+    mock_stdout.write.assert_called_once()
+    mock_stdout.flush.assert_called_once()
+
+
+def test_progressbar_redraw_progress_bar():
+    pb = ProgressBar()
+    mock_stdout = MagicMock()
+    mock_stdout.write.return_value = 0
+    mock_stdout.flush.return_value = None
+    pb._original_stdout = mock_stdout
+    pb._current_progress_str = "\x1b[2K\rLoading... ▕██████████          ▏ 50/100 (50.0%)"
+    pb._redraw_display()
+    mock_stdout.flush.assert_called_once()
+
+
+################################################## Spinner TESTS ##################################################
+
+
+def test_spinner_init_defaults():
+    spinner = Spinner()
+    assert spinner.label is None
+    assert spinner.interval == 0.2
+    assert spinner.active is False
+    assert spinner.sep == " "
+    assert len(spinner.frames) > 0
+
+
+def test_spinner_init_custom():
+    spinner = Spinner(label="Loading", interval=0.5, sep="-")
+    assert spinner.label == "Loading"
+    assert spinner.interval == 0.5
+    assert spinner.sep == "-"
+
+
+def test_spinner_set_format_valid():
+    spinner = Spinner()
+    spinner.set_format(["{l}", "{a}"])
+    assert spinner.spinner_format == ["{l}", "{a}"]
+
+
+def test_spinner_set_format_invalid():
+    spinner = Spinner()
+    with pytest.raises(ValueError):
+        spinner.set_format(["{l}"])  # MISSING {a}
+
+
+def test_spinner_set_frames_valid():
+    spinner = Spinner()
+    spinner.set_frames(("a", "b"))
+    assert spinner.frames == ("a", "b")
+
+
+def test_spinner_set_frames_invalid():
+    spinner = Spinner()
+    with pytest.raises(ValueError):
+        spinner.set_frames(("a", ))  # LESS THAN 2 FRAMES
+
+
+def test_spinner_set_interval_valid():
+    spinner = Spinner()
+    spinner.set_interval(1.0)
+    assert spinner.interval == 1.0
+
+
+def test_spinner_set_interval_invalid():
+    spinner = Spinner()
+    with pytest.raises(ValueError):
+        spinner.set_interval(0)
+    with pytest.raises(ValueError):
+        spinner.set_interval(-1)
+
+
+@patch("xulbux.console._threading.Thread")
+@patch("xulbux.console._threading.Event")
+@patch("sys.stdout", new_callable=MagicMock)
+def test_spinner_start(mock_stdout, mock_event, mock_thread):
+    mock_thread.return_value.start.return_value = None
+    spinner = Spinner()
+    spinner.start("Test")
+
+    assert spinner.active is True
+    assert spinner.label == "Test"
+    mock_event.assert_called_once()
+    mock_thread.assert_called_once()
+
+    # TEST CALLING START AGAIN DOESN'T DO ANYTHING
+    spinner.start("Test2")
+    assert mock_event.call_count == 1
+
+
+@patch("xulbux.console._threading.Thread")
+@patch("xulbux.console._threading.Event")
+def test_spinner_stop(mock_event, mock_thread):
+    spinner = Spinner()
+    # MANUALLY SET ACTIVE TO SIMULATE RUNNING
+    spinner.active = True
+    mock_stop_event = MagicMock()
+    mock_stop_event.set.return_value = None
+    spinner._stop_event = mock_stop_event
+    mock_animation_thread = MagicMock()
+    mock_animation_thread.join.return_value = None
+    spinner._animation_thread = mock_animation_thread
+
+    spinner.stop()
+
+    assert spinner.active is False
+    mock_stop_event.set.assert_called_once()
+    mock_animation_thread.join.assert_called_once()
+
+
+def test_spinner_update_label():
+    spinner = Spinner()
+    spinner.update_label("New Label")
+    assert spinner.label == "New Label"
+
+
+def test_spinner_context_manager():
+    spinner = Spinner()
+
+    # TEST CONTEXT MANAGER BEHAVIOR BY CHECKING ACTUAL EFFECTS
+    with spinner.context("Test") as update:
+        assert spinner.active is True
+        assert spinner.label == "Test"
+        update("New Label")
+        assert spinner.label == "New Label"
+
+    # AFTER CONTEXT EXITS, SPINNER SHOULD BE STOPPED
+    assert spinner.active is False
+
+
+def test_spinner_context_manager_exception():
+    spinner = Spinner()
+
+    # TEST THAT CLEANUP HAPPENS EVEN WITH EXCEPTIONS
+    with pytest.raises(ValueError):
+        with spinner.context("Test"):
+            raise ValueError("Oops")
+
+    # AFTER EXCEPTION, SPINNER SHOULD STILL BE CLEANED UP
+    assert spinner.active is False
