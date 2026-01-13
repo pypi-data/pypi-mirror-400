@@ -1,0 +1,66 @@
+Metadata-Version: 2.4
+Name: django-unmanaged-forgejo
+Version: 0.2.0
+Summary: Unmanaged Django Models for Forgejo
+Author: Paul Traylor
+Author-email: Paul Traylor <kungfudiscomonkey@gmail.com>
+License-Expression: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: Django :: 5.2
+Classifier: Framework :: Django :: 6.0
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Programming Language :: Python :: 3.15
+Requires-Dist: django>=5.2
+Requires-Python: >=3.10
+Project-URL: issues, https://codeberg.org/kfdm/django-unmanaged-forgejo/issues
+Project-URL: source, https://codeberg.org/kfdm/django-unmanaged-forgejo
+Description-Content-Type: text/markdown
+
+# Unmanaged Django Models for Forgejo
+
+![PyPI - License](https://img.shields.io/pypi/l/django-unmanaged-forgejo)
+![PyPI - Version](https://img.shields.io/pypi/v/django-unmanaged-forgejo)
+
+# Installation
+
+```shell
+uv add django-unmanaged-forgejo
+# or
+pip install django-unmanaged-forgejo
+```
+
+Configure `settings.py` with correct `INSTALLED_APPS`, `DATABASES`, and `DATABASE_ROUTER`
+
+```python
+# Add django_unmanaged_forgejo to installed apps
+INSTALLED_APPS = [
+    "myapp",
+    "django_unmanaged_forgejo", # << Add to installed apps
+    # Django
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+]
+
+# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+DATABASES = {
+    "default": env.db_url(
+        var="DATABASE_URL",
+        default=f"sqlite:///{BASE_DIR}/db.sqlite3",
+    ),
+    # Configure additional database connection named 'django_unmanaged_forgejo'
+    # for the module to use with the router
+    "django_unmanaged_forgejo": env.db_url("DATABASE_FORGEJO", default=None),
+}
+
+# https://docs.djangoproject.com/en/6.0/ref/settings/#database-routers
+# Add the provided router
+DATABASE_ROUTERS = ["django_unmanaged_forgejo.router.ForgejoRouter"]
+```
