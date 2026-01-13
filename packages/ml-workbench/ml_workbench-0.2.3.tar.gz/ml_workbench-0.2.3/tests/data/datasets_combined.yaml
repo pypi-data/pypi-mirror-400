@@ -1,0 +1,69 @@
+# Parameters default values - can be overridden via attributes to catalog loader (usually supplied in CLI)
+defaults:
+
+  catalog: pheno
+  schema: ml
+
+## Dataset definition (examples)
+datasets:
+  ####
+  #  Test local datasets
+  #  They are used to test the combined dataset
+  ####
+  csv_one:
+    description: "Small CSV fixture 1"
+    path: "{base_dir}csv_small_1.csv"
+    format: csv
+  csv_two:
+    description: "Small CSV fixture 2"
+    path: "{base_dir}csv_small_2.csv"
+  csv_user_id:
+    description: "CSV fixture with user_id column"
+    path: "{base_dir}csv_user_id.csv"
+
+  local_combined_dataset:
+    description: "Combined datasets"
+    merge_specs:
+      csv_one:
+        left_on: id
+        how: left
+      csv_user_id:
+        right_on: id
+        left_on: user_id_tmp
+        how: left
+      csv_two:
+        right_on: user_id
+        how: left
+  ####
+  #  Test Databricks datasets
+  #  They are used to test the combined dataset
+  ####
+  test_users:
+    description: "Test users dataset in DataBricks"
+    path: "pheno.test.users"
+    format: delta
+    type: databricks
+  test_users_metadata:
+    description: "Test users metadata dataset in DataBricks"
+    path: "pheno.test.user_metadata"
+    format: delta
+    type: databricks
+  databricks_combined_left_join:
+    description: "Composite dataset from multiple datasets using left join"
+    merge_specs:
+      test_users:
+        left_on: participant_uuid
+        how: left
+      test_users_metadata:
+        right_on: participant_uuid
+        left_on: participant_uuid
+        how: left
+  databricks_combined_inner_join:
+    description: "Composite dataset from multiple datasets using inner join"
+    merge_specs:
+      test_users:
+        left_on: participant_uuid
+        how: inner
+      test_users_metadata:
+        right_on: participant_uuid
+        left_on: participant_uuid
