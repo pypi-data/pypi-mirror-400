@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code-periscope"
+version = "0.2.0"
+description = "Repository risk analysis tool (Code Periscope)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Code Periscope contributors" }]
+
+dependencies = [
+	"pandas>=2.2",
+	"numpy>=2.1",
+	"scikit-learn>=1.5",
+	"GitPython>=3.1",
+	"pydantic>=2.8",
+	"typer>=0.12",
+	"rich>=13.9",
+]
+
+[project.scripts]
+code-periscope = "code_periscope.cli:app"
+
+[project.optional-dependencies]
+test = [
+	"pytest>=8",
+	"pytest-cov>=5",
+	"coverage>=7",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["code_periscope*"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+norecursedirs = [".*", "build", "dist", "out", ".venv"]
+python_files = ["test_*.py"]
+
+# New single-package test root.
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["code_periscope"]
+omit = [
+	"*/code_periscope/__main__.py",
+	"*/code_periscope/core/__main__.py",
+	"*/code_periscope/core/cli.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 85
+
+
