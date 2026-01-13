@@ -1,0 +1,14 @@
+
+
+
+from synmax.vulcan.v2 import VulcanApiClient
+
+SYNMAX_ACCESS_TOKEN = "eyJwcm9qZWN0X2lkIjogIlN5bm1heCBjb21tZXJjaWFsIEFQSSIsICJwcml2YXRlX2tleSI6ICIwQndzX0ExMFpkdVQyaWlNLS1lbXh3Mk5BNUkxa09kdFNVai04RjVvNzU4IiwgImNsaWVudF9pZCI6ICJGZWxpeCBLZXkiLCAidHlwZSI6ICJvbmVfeWVhcl9saWNlbnNlZF9jdXN0b21lciIsICJzdGFydF9kYXRlIjogIjAzLzE5LzIwMjQiLCAiZW5kX2RhdGUiOiAiMDMvMTkvMjAyNSIsICJ0cmlhbF9saWNlbnNlIjogZmFsc2UsICJpc3N1ZV9kYXRldGltZSI6ICIxOS0wMy0yMDI0IDE0OjI0OjA4IiwgImFkbWluX3VzZXIiOiBmYWxzZSwgInVzZXJfcm9sZXMiOiBbImh5cGVyaW9uIiwgInZ1bGNhbiJdfQ=="
+vulcan_api_client = VulcanApiClient(access_token=SYNMAX_ACCESS_TOKEN)
+vulcan_api_client._write_stub()
+
+# wells_resp = vulcan_api_client.iir_data()
+
+# wells_df = wells_resp.df()
+# wells_df.head()
+# print(wells_df)
