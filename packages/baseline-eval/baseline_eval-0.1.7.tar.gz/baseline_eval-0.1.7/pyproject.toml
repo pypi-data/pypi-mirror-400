@@ -1,0 +1,93 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "baseline-eval"
+version = "0.1.7"
+description = "Minimal, CLI-first regression testing tool for LLM prompts"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Wissam Al Jurdi" }]
+urls = {"Homepage" = "https://github.com/waljurdi/baseline"}
+dependencies = [
+  "rich>=13.0.0",
+  "pyyaml>=6.0.0",
+  "ruamel.yaml>=0.17.0",
+  "jsonschema>=4.0.0",
+  "ruff>=0.14.10",
+  "types-PyYAML",
+  "pre-commit>=4.5.1",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.40.0"]
+gemini = ["google-genai>=0.3.0", "google-generativeai>=0.8.3"]
+ollama = ["ollama>=0.3.0"]
+providers = [
+  "openai>=1.0.0",
+  "anthropic>=0.40.0",
+  "google-genai>=0.3.0",
+  "google-generativeai>=0.8.3",
+  "ollama>=0.3.0",
+]
+test = ["pytest>=9.0.0"]
+dev = [
+  "ruff>=0.6.0",
+  "black>=24.8.0",
+  "mypy>=1.10.0",
+  "pytest>=9.0.0",
+  "types-PyYAML",
+]
+
+[dependency-groups]
+test = [
+  "pytest>=9.0.0",
+]
+server = [
+  "fastapi>=0.110.0",
+  "uvicorn[standard]>=0.23.0",
+]
+
+# Optional CLI entry point so you can run `baseline`
+[project.scripts]
+baseline = "baseline.cli:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["baseline"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+  "ignore:.*deprecated - use 'set_name':DeprecationWarning:httplib2.auth",
+  "ignore:.*deprecated - use 'leave_whitespace':DeprecationWarning:httplib2.auth",
+  "ignore:.*deprecated - use 'set_parse_action':DeprecationWarning:httplib2.auth",
+  "ignore:.*deprecated - use 'add_parse_action':DeprecationWarning:httplib2.auth",
+  "ignore:.*deprecated - use 'DelimitedList':DeprecationWarning:httplib2.auth",
+  "ignore:.*google\\.generativeai.*:FutureWarning",
+  "ignore:.*:FutureWarning:baseline.providers.gemini_provider",
+]
+
+[tool.ruff]
+line-length = 120
+src = ["baseline", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["baseline"]
+warn_unused_ignores = true
+ignore_missing_imports = true
+strict_optional = false
