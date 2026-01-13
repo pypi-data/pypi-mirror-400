@@ -1,0 +1,98 @@
+# FastVid
+FastVid 是一个用于视频处理的图形用户界面工具，支持视频加速、GIF 转换和压缩等功能，后端依赖FFmpeg.
+
+## 安装
+通过 pip 安装 FastVid：
+
+```bash
+pip install fastvid
+```
+
+# GUI
+<img src="/home/mellon/mellon/repo/fastvid/doc/gui.png" alt="GUI界面" width="1800" height="400">
+
+# 功能项
+- [x] 加速转换视频
+- [x] 转换为GIF
+- [x] 压缩视频
+- [x] 裁剪视频
+- [x] 多路视频栅格合并（xstack）
+- [ ] 转换为MP4格式
+- [ ] 截图
+- [ ] 录制视频
+
+## 命令行使用
+
+栅格合并（基于 FFmpeg `xstack`）支持将多路视频按网格排布到同一画面，并自动等比缩放居中填充到指定格子尺寸。
+
+- 四宫格（2x2），每格 640x480，选择第 1 路音频：
+
+```bash
+python -m fastvid.main \
+	--stack input1.mp4 input2.mp4 input3.mp4 input4.mp4 \
+	--stack-out output_2x2.mp4 \
+	--grid 2 2 \
+	--tile 640 480 \
+	--stack-audio 0
+```
+
+- 九宫格（3x3），每格 640x360，仅视频（无音频）：
+
+```bash
+python -m fastvid.main \
+	--stack input1.mp4 input2.mp4 input3.mp4 input4.mp4 input5.mp4 input6.mp4 input7.mp4 input8.mp4 input9.mp4 \
+	--stack-out output_3x3.mp4 \
+	--grid 3 3 \
+	--tile 640 360
+```
+
+- 上 3 + 下 2（可变行布局，居中对齐；统一 pairs 输入）：
+
+```bash
+python3 -m fastvid.main \
+	--stack a.mp4 b.mp4 c.mp4 d.mp4 e.mp4 \
+	--stack-out output_3plus2.mp4 \
+	--rows-pairs (1,3) (2,2) \
+	--tile 640 480 \
+	--stack-audio 0
+```
+
+- 视频尺寸调整：保持纵横比或拉伸
+
+```bash
+python3 -m fastvid.main \
+	--video input.mp4 \
+	--out ./outputs \
+	--resize 1280 720 \
+	--resize-mode fit \
+	--resize-fill-color black
+```
+
+说明：`--resize-mode fit` 表示保持纵横比并用填充颜色补足；`stretch` 表示强制拉伸。`--resize-fill-color` 仅在 `fit` 下生效。
+
+说明：
+- `--stack` 输入文件数量必须等于 `rows*cols`。
+- 或使用 `--rows-pairs (row,count) ...` 指定每一行的数量（例如 `(1,3) (2,2)`），输入文件数量必须等于其总和；也支持无括号写法 `1,3 2,2`。
+- `--grid ROWS COLS` 指定网格大小；`--tile WIDTH HEIGHT` 指定每格目标尺寸。
+- `--stack-audio INDEX` 可选，选择某一路输入的音频作为输出音轨（例如 `0` 表示第1路）。不指定则输出为静音。
+- 时间轴行为：合成结果以“最长”输入为整体时长，较短的输入在结束后会以填充色（默认黑色）补齐，不会中途终止。
+
+## GUI 使用
+
+在界面中，“栅格合并”区域统一使用“行计数列表”输入：
+- 顶部“选择视频文件或文件夹”支持单个文件、多文件或文件夹；数量需等于各行计数之和
+- 行计数列表（如 `1,3 2,2` 或 `(1,3) (2,2)`，表示第1行3个、第2行2个）
+- 每格宽/高（例如 640 和 480）
+- 勾选“填满格子（强制拉伸）”可让每行视频强制拉伸到指定宽高；若某行视频数少于最大列数，该行的视频会自动分配更宽的区域以填满整行
+- 音轨索引（可选）
+- 输出文件将自动写入所选输出文件夹，命名为 `stack_rows_布局_{timestamp}.mp4`
+- 合成结果以最长输入为整体时长；较短输入在结束后会以填充色（默认黑色）补齐。
+
+### 尺寸调整
+
+- 设置“尺寸调整（输出画布宽 高）”、勾选或取消“保持纵横比”，并配置填充颜色（仅在保持纵横比时生效）。
+- 支持对单个文件或整个文件夹批量处理，结果输出到选择的输出目录。
+- 保持纵横比：宽/高指输出画布，视频将等比缩放至画布内并居中填充颜色；取消勾选则直接拉伸到目标尺寸。
+
+说明：
+- “行计数列表”是必填项；各行数量之和必须等于选中的视频数量。
