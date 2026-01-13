@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load staticfiles %}
+{% block title %}Checkout{% endblock %}
+{% block content %}
+  <section id="checkout">
+    <div class="product">
+      <div class="text-center">
+        <h2>Paiement</h2>
+      </div>
+      <div class="card">
+        <div class="description">
+          <h3>Détail de la commande</h3>
+          <p>Vous vous apprétez à souscrire à notre offre pour un prix de <b>{{ unit_amount }} {{price.currency}} {% if price.tax_behaviour == 'inclusive' %} TTC {% elif price.tax_behaviour == 'exclusive' %} HT {% endif %}{% if price.type == 'recurring' %} par {{price.recurring.interval_count}} {{price.recurring.interval}} {% endif %}</b>.</p>
+        </div>
+        <form action="/checkout-session/" method="POST">
+          <!-- Add a hidden field with the lookup_key of your Price -->
+          <input type="hidden" name="price_id" value={{price.id}} />
+          <input type="hidden" name="lookup_key" value={{price.lookup_key}} />
+          <button id="checkout-and-portal-button" type="submit" class="button blue-button">Procéder au paiement</button>
+        </form>
+      </div>
+    </div>
+  </section>
+{% endblock %}
