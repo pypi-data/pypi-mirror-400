@@ -1,0 +1,195 @@
+# Duplicate File Finder
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+[![GitHub release](https://img.shields.io/github/release/barrust/dup-file-finder.svg)](https://github.com/barrust/dup-file-finder/releases)
+[![Build Status](https://github.com/barrust/dup-file-finder/workflows/Python%20package/badge.svg)](https://github.com/barrust/dup-file-finder/actions?query=workflow%3A%22Python+package%22)
+[![PyPI Release](https://badge.fury.io/py/dup-file-finder.svg)](https://pypi.org/project/dup-file-finder/)
+[![Downloads](https://pepy.tech/badge/dup-file-finder)](https://pepy.tech/project/dup-file-finder)
+
+A Python library to find and manage duplicate files. It scans directories, identifies duplicate files using hash algorithms, stores the information in a SQLite database, and provides tools to manage and delete duplicates.
+
+## Features
+
+- 🔍 **Fast duplicate detection** using SHA256 or MD5 hashing
+- 💾 **SQLite database** for storing file information
+- 🗑️ **Safe deletion** with dry-run mode and confirmation prompts
+- 🖥️ **Command-line interface** for easy automation
+- 📊 **Statistics** about scanned files and duplicates
+
+## Documentation
+
+[Documentation is hosted on readthedocs.org](https://dup-file-finder.readthedocs.io/en/latest/)
+
+## Installation
+
+From PyPi
+
+```bash
+pip install dup-file-finder
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/barrust/dup-file-finder.git
+cd dup-file-finder
+pip install -e .
+```
+
+## Quick Start
+
+### Using the CLI
+
+#### 1. Scan a directory
+```bash
+dupFileFinder scan /path/to/directory
+```
+
+#### 2. Find duplicates
+```bash
+dupFileFinder find --show-all
+```
+
+#### 3. View statistics
+```bash
+dupFileFinder stats
+```
+
+#### 4. Delete duplicates (dry run)
+```bash
+dupFileFinder delete --dry-run
+```
+
+#### 5. Delete duplicates (for real)
+```bash
+dupFileFinder delete --confirm
+```
+
+### Using as a Library
+
+```python
+from dup_file_finder import DuplicateFileFinder
+
+# Initialize the finder
+finder = DuplicateFileFinder(db_path="my_duplicates.db")
+
+# Scan a directory
+count = finder.scan_directory("/path/to/directory", recursive=True)
+print(f"Scanned {count} files")
+
+# Find duplicates
+duplicates = finder.find_duplicates()
+for hash_val, files in duplicates.items():
+    print(f"Duplicate group: {files}")
+
+# Get statistics
+stats = finder.get_statistics()
+print(f"Total files: {stats['total_files']}")
+print(f"Duplicate files: {stats['duplicate_files']}")
+
+# Get statistics by file extension
+ext_stats = finder.get_statistics_by_extension()
+for ext, data in ext_stats.items():
+    print(f"{ext}: {data['count']} files, {data['total_size_bytes']} bytes")
+
+# Delete duplicates (dry run first!)
+deleted = finder.delete_duplicates(keep_first=True, dry_run=True)
+print(f"Would delete: {deleted}")
+
+# Actually delete
+deleted = finder.delete_duplicates(keep_first=True, dry_run=False)
+print(f"Deleted: {deleted}")
+```
+
+## CLI Commands
+
+### `scan`
+Scan a directory for files and store them in the database.
+
+```bash
+dupFileFinder scan /path/to/directory [--no-recursive]
+```
+
+Options:
+- `--no-recursive`: Don't scan subdirectories
+
+### `find`
+Find and display duplicate files.
+
+```bash
+dupFileFinder find [--show-all]
+```
+
+Options:
+- `--show-all`: Display all duplicate files (default: show summary)
+
+### `delete`
+Delete duplicate files.
+
+```bash
+dupFileFinder delete [--keep-first|--keep-last] [--dry-run|--confirm]
+```
+
+Options:
+- `--keep-first`: Keep the first file alphabetically (default)
+- `--keep-last`: Keep the last file alphabetically
+- `--dry-run`: Show what would be deleted without deleting (default)
+- `--confirm`: Actually delete files
+
+### `stats`
+Display statistics about scanned files.
+
+```bash
+dupFileFinder stats [--by-extension]
+```
+
+Options:
+- `--by-extension`: Show statistics grouped by file extension
+
+### `clear`
+Clear all data from the database.
+
+```bash
+dupFileFinder clear --confirm
+```
+
+## Database
+
+By default, dupFileFinder uses a SQLite database file named `deduper.db` in the current directory. You can specify a custom database path:
+
+```bash
+dupFileFinder --db /path/to/custom.db scan /directory
+```
+
+The database stores:
+- File paths (absolute paths)
+- File hashes (SHA256 by default)
+- File sizes
+- File extensions (for filtering and statistics)
+- Scan timestamps
+
+**Note:** If you have an existing database from an earlier version without the extension column, you'll need to rebuild it by clearing and rescanning your files.
+
+## Safety Features
+
+- **Dry run mode** by default for deletions
+- **Confirmation prompts** for destructive operations
+- **Keeps one copy** of each duplicate file
+- **Error handling** for inaccessible files
+- **Database transactions** for data integrity
+
+## Example Usage
+
+See `example.py` for a complete working example. Run it with:
+
+```bash
+python example.py
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Author
+
+Tyler Barrus

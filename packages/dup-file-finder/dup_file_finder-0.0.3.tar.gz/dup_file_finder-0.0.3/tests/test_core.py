@@ -1,0 +1,484 @@
+"""
+Tests for deduper core functionality.
+"""
+
+import os
+import shutil
+import tempfile
+import unittest
+from dataclasses import FrozenInstanceError
+from pathlib import Path
+
+from dup_file_finder import utils
+from dup_file_finder.core import DuplicateFileFinder, DuplicateGroup
+
+
+class TestDuplicateFileFinder(unittest.TestCase):
+    """Test cases for DuplicateFileFinder class."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        tmp = tempfile.mkdtemp()
+        self.test_dir = Path(tmp)
+        self.scan_dir = self.test_dir / "scan"
+        os.makedirs(self.scan_dir, exist_ok=True)
+        self.db_path = os.path.join(self.test_dir, "test.db")
+        self.finder = DuplicateFileFinder(db_path=self.db_path)
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def test_init_database(self):
+        """Test database initialization."""
+        self.assertTrue(os.path.exists(self.db_path))
+
+    def test_calculate_file_hash(self):
+        """Test file hash calculation."""
+        # Create a test file
+        test_file = os.path.join(self.test_dir, "test.txt")
+        with open(test_file, "w") as f:
+            f.write("Hello, World!")
+
+        # Calculate hash
+        hash_val = utils.calculate_hash(test_file)
+
+        # Hash should be non-empty and consistent
+        self.assertTrue(len(hash_val) > 0)
+        hash_val2 = utils.calculate_hash(test_file)
+        self.assertEqual(hash_val, hash_val2)
+
+    def test_scan_directory(self):
+        """Test directory scanning."""
+        # Create test files in a subdirectory to avoid scanning the db
+        test_file1 = self.scan_dir / "file1.txt"
+        test_file2 = self.scan_dir / "file2.txt"
+
+        with open(test_file1, "w") as f:
+            f.write("Content 1")
+        with open(test_file2, "w") as f:
+            f.write("Content 2")
+
+        # Scan directory
+        count = self.finder.scan_directory(self.scan_dir, recursive=False)
+
+        # Should have scanned both files
+        self.assertEqual(count, 2)
+
+    def test_find_no_duplicates(self):
+        """Test finding duplicates when none exist."""
+        # Create unique files
+        test_file1 = self.scan_dir / "file1.txt"
+        test_file2 = self.scan_dir / "file2.txt"
+
+        with open(test_file1, "w") as f:
+            f.write("Content 1")
+        with open(test_file2, "w") as f:
+            f.write("Content 2")
+
+        self.finder.scan_directory(self.scan_dir, recursive=False)
+        duplicates = self.finder.find_duplicates()
+
+        self.assertEqual(len(duplicates), 0)
+
+    def test_find_duplicates(self):
+        """Test finding duplicate files."""
+        # Create duplicate files
+        test_file1 = self.scan_dir / "file1.txt"
+        test_file2 = self.scan_dir / "file2.txt"
+
+        content = "Duplicate content"
+        with open(test_file1, "w") as f:
+            f.write(content)
+        with open(test_file2, "w") as f:
+            f.write(content)
+
+        self.finder.scan_directory(self.scan_dir, recursive=False)
+        duplicates = self.finder.find_duplicates()
+
+        # Should find one group of duplicates
+        self.assertEqual(len(duplicates), 1)
+
+        # Should have both files in the group
+        for _, files in duplicates.items():
+            self.assertEqual(len(files), 2)
+
+    def test_delete_duplicates_dry_run(self):
+        """Test deleting duplicates in dry run mode."""
+        # Create duplicate files
+        test_file1 = self.scan_dir / "file1.txt"
+        test_file2 = self.scan_dir / "file2.txt"
+
+        content = "Duplicate content"
+        with open(test_file1, "w") as f:
+            f.write(content)
+        with open(test_file2, "w") as f:
+            f.write(content)
+
+        self.finder.scan_directory(self.scan_dir, recursive=False)
+        deleted = self.finder.delete_duplicates(keep_first=True, dry_run=True)
+
+        # Should report one file to delete
+        self.assertEqual(len(deleted), 1)
+
+        # Both files should still exist
+        self.assertTrue(os.path.exists(test_file1))
+        self.assertTrue(os.path.exists(test_file2))
+
+    def test_delete_duplicates_for_real(self):
+        """Test actually deleting duplicate files."""
+        # Create duplicate files
+        test_file1 = self.scan_dir / "file1.txt"
+        test_file2 = self.scan_dir / "file2.txt"
+
+        content = "Duplicate content"
+        with open(test_file1, "w") as f:
+            f.write(content)
+        with open(test_file2, "w") as f:
+            f.write(content)
+
+        self.finder.scan_directory(self.scan_dir, recursive=False)
+        deleted = self.finder.delete_duplicates(keep_first=True, dry_run=False)
+
+        # Should delete one file
+        self.assertEqual(len(deleted), 1)
+
+        # One file should be deleted, one should remain
+        files_exist = [os.path.exists(test_file1), os.path.exists(test_file2)]
+        self.assertEqual(sum(files_exist), 1)
+
+    def test_get_statistics(self):
+        """Test statistics gathering."""
+        # Create test files in a subdirectory to avoid scanning the db
+        test_file1 = self.scan_dir / "file1.txt"
+        test_file2 = self.scan_dir / "file2.txt"
+        test_file3 = self.scan_dir / "file3.txt"
+
+        with open(test_file1, "w") as f:
+            f.write("Content 1")
+        with open(test_file2, "w") as f:
+            f.write("Content 1")  # Duplicate of file1
+        with open(test_file3, "w") as f:
+            f.write("Content 2")
+
+        self.finder.scan_directory(self.scan_dir, recursive=False)
+        stats = self.finder.get_statistics()
+
+        self.assertEqual(stats["total_files"], 3)
+        self.assertEqual(stats["duplicate_files"], 2)
+        self.assertEqual(stats["unique_files"], 1)
+        self.assertEqual(stats["duplicate_groups"], 1)
+
+    def test_recursive_scan(self):
+        """Test recursive directory scanning."""
+        # Create nested directory structure in a subdirectory to avoid scanning the db
+        subdir = self.scan_dir / "subdir"
+        os.makedirs(subdir)
+
+        test_file1 = self.scan_dir / "file1.txt"
+        test_file2 = subdir / "file2.txt"
+
+        with open(test_file1, "w") as f:
+            f.write("Content")
+        with open(test_file2, "w") as f:
+            f.write("Content")
+
+        count = self.finder.scan_directory(self.scan_dir, recursive=True)
+
+        # Should scan both files
+        self.assertEqual(count, 2)
+
+    def test_clear_database(self):
+        """Test clearing the database."""
+        # Create and scan files
+        test_file = self.scan_dir / "file.txt"
+        with open(test_file, "w") as f:
+            f.write("Content")
+
+        self.finder.scan_directory(self.scan_dir, recursive=False)
+        stats_before = self.finder.get_statistics()
+        self.assertGreater(stats_before["total_files"], 0)
+
+        # Clear database
+        self.finder.clear_database()
+        stats_after = self.finder.get_statistics()
+        self.assertEqual(stats_after["total_files"], 0)
+
+    def test_file_extension_storage(self):
+        """Test that file extensions are stored correctly."""
+        # Create test files with different extensions
+        test_file1 = self.scan_dir / "doc.txt"
+        test_file2 = self.scan_dir / "image.jpg"
+        test_file3 = self.scan_dir / "noext"
+
+        with open(test_file1, "w") as f:
+            f.write("text")
+        with open(test_file2, "w") as f:
+            f.write("img")
+        with open(test_file3, "w") as f:
+            f.write("data")
+
+        self.finder.scan_directory(self.scan_dir, recursive=False)
+
+        # Get statistics by extension
+        ext_stats = self.finder.get_statistics_by_extension()
+
+        # Should have 3 different extensions (including empty for noext)
+        self.assertGreaterEqual(len(ext_stats), 2)
+
+        # Check that .txt and .jpg are present
+        self.assertIn(".txt", ext_stats)
+        self.assertIn(".jpg", ext_stats)
+
+        # Check counts
+        self.assertEqual(ext_stats[".txt"]["count"], 1)
+        self.assertEqual(ext_stats[".jpg"]["count"], 1)
+
+    def test_recursive_scan_finds_subdir_files(self):
+        """Test recursive scan finds files in subdirectories."""
+        root = self.scan_dir / "root"
+        sub = root / "subdir"
+        os.makedirs(sub)
+        file1 = root / "file1.txt"
+        file2 = sub / "file2.txt"
+        with open(file1, "w") as f:
+            f.write("hello")
+        with open(file2, "w") as f:
+            f.write("world")
+
+        res = self.finder.scan_directory(root, recursive=True)
+        self.assertEqual(res, 2)
+        scanned_files = self.finder.get_scanned_files()
+        self.assertTrue(
+            any(str(sub) in path for path in scanned_files),
+            "Recursive scan should find files in subdirectories",
+        )
+
+    def test_non_recursive_scan_excludes_subdir_files(self):
+        """Test non-recursive scan does not find files in subdirectories."""
+        root = self.scan_dir / "root"
+        sub = root / "subdir"
+        os.makedirs(sub)
+        file1 = root / "file1.txt"
+        file2 = sub / "file2.txt"
+        with open(file1, "w") as f:
+            f.write("hello")
+        with open(file2, "w") as f:
+            f.write("world")
+
+        res = self.finder.scan_directory(root, recursive=False)
+        self.assertEqual(res, 1)
+        scanned_files = self.finder.get_scanned_files()
+        self.assertTrue(
+            all(str(sub) not in path for path in scanned_files),
+            "Non-recursive scan should not find files in subdirectories",
+        )
+
+    def test_scan_directory_with_extensions(self):
+        """Test scanning directory with specific extensions."""
+        # Create files with different extensions
+        (self.scan_dir / "file1.txt").write_text("hello")
+        (self.scan_dir / "file2.jpg").write_text("world")
+        (self.scan_dir / "file3.txt").write_text("foo")
+        (self.scan_dir / "file4.png").write_text("bar")
+        (self.scan_dir / "file5.md").write_text("baz")
+        # Only scan for .txt and .md files
+        scanned = self.finder.scan_directory(self.scan_dir, extensions=[".txt", ".md"])
+        # Should only count files with .txt or .md extension
+        self.assertEqual(scanned, 3)  # All files are scanned, but only .txt/.md are stored
+
+        scanned_files = set(self.finder.get_scanned_files())
+        expected = {str(self.scan_dir / "file1.txt"), str(self.scan_dir / "file3.txt"), str(self.scan_dir / "file5.md")}
+        self.assertEqual(scanned_files, expected)
+
+    def test_scan_directory_ignore_hidden(self):
+        # Create visible and hidden files
+        (self.scan_dir / "visible1.txt").write_text("a")
+        (self.scan_dir / ".hidden1.txt").write_text("b")
+        (self.scan_dir / "visible2.txt").write_text("c")
+        (self.scan_dir / ".hidden2.txt").write_text("d")
+
+        finder = DuplicateFileFinder(db_path=self.test_dir / "test_ignore_hidden.db", ignore_hidden=True)
+        scanned = finder.scan_directory(self.scan_dir)
+        # Only visible files should be scanned
+        self.assertEqual(scanned, 2)
+
+        scanned_files = set(finder.get_scanned_files())
+        expected = {str(self.scan_dir / "visible1.txt"), str(self.scan_dir / "visible2.txt")}
+        self.assertEqual(scanned_files, expected)
+
+    def test_scan_directory_include_hidden(self):
+        # Create visible and hidden files
+        (self.scan_dir / "visible1.txt").write_text("a")
+        (self.scan_dir / ".hidden1.txt").write_text("b")
+
+        finder = DuplicateFileFinder(db_path=self.test_dir / "test_include_hidden.db", ignore_hidden=False)
+        scanned = finder.scan_directory(self.scan_dir)
+        # Both visible and hidden files should be scanned
+        self.assertEqual(scanned, 2)
+
+        scanned_files = set(finder.get_scanned_files())
+        expected = {str(self.scan_dir / "visible1.txt"), str(self.scan_dir / ".hidden1.txt")}
+        self.assertEqual(scanned_files, expected)
+
+
+class TestDuplicateGroup(unittest.TestCase):
+    """Test cases for DuplicateGroup class."""
+
+    def setUp(self):
+        # Create three temp files with the same content
+        self.temp_dir = tempfile.mkdtemp()
+        self.file_paths = []
+        self.content = b"duplicate content"
+        for i in range(3):
+            file_path = os.path.join(self.temp_dir, f"file{i}.txt")
+            with open(file_path, "wb") as f:
+                f.write(self.content)
+            self.file_paths.append(file_path)
+        self.file_size = len(self.content)
+        self.addCleanup(lambda: shutil.rmtree(self.temp_dir, ignore_errors=True))
+
+    def tearDown(self):
+        # Remove any files that may still exist
+        for path in self.file_paths:
+            if os.path.exists(path):
+                os.remove(path)
+
+    def test_len_and_iter(self):
+        group = DuplicateGroup(hash_="dummyhash", file_size=self.file_size, file_paths=self.file_paths)
+        self.assertEqual(len(group), 3)
+        self.assertEqual(list(group), self.file_paths)
+
+    def test_total_and_wasted_size(self):
+        group = DuplicateGroup(hash_="dummyhash", file_size=self.file_size, file_paths=self.file_paths)
+        self.assertEqual(group.total_size(), self.file_size * 3)
+        self.assertEqual(group.wasted_space(), self.file_size * 2)
+
+    def test_delete_duplicates_dry_run(self):
+        group = DuplicateGroup(hash_="dummyhash", file_size=self.file_size, file_paths=self.file_paths)
+        keep_path = self.file_paths[0]
+        deleted = group.delete_duplicates(keep_path, dry_run=True)
+        self.assertEqual(set(deleted), set(self.file_paths) - {keep_path})
+        # Files should still exist
+        for path in self.file_paths:
+            self.assertTrue(os.path.exists(path))
+
+    def test_delete_duplicates_real(self):
+        group = DuplicateGroup(hash_="dummyhash", file_size=self.file_size, file_paths=self.file_paths)
+        keep_path = self.file_paths[0]
+        deleted = group.delete_duplicates(keep_path, dry_run=False)
+        self.assertEqual(set(deleted), set(self.file_paths) - {keep_path})
+        # Only keep_path should exist
+        for path in self.file_paths:
+            if path == keep_path:
+                self.assertTrue(os.path.exists(path))
+            else:
+                self.assertFalse(os.path.exists(path))
+
+    def test_delete_duplicates_by_idx(self):
+        group = DuplicateGroup(hash_="dummyhash", file_size=self.file_size, file_paths=self.file_paths)
+        deleted = group.delete_duplicates_alt(1, dry_run=True)
+        self.assertEqual(set(deleted), set(self.file_paths) - {self.file_paths[1]})
+
+    def test_delete_all_duplicates(self):
+        group = DuplicateGroup(hash_="dummyhash", file_size=self.file_size, file_paths=self.file_paths)
+        deleted = group.delete_duplicates(keep_path=None, dry_run=True)
+        self.assertEqual(set(deleted), set(self.file_paths))
+        # Real delete
+        deleted_real = group.delete_duplicates(keep_path=None, dry_run=False)
+        self.assertEqual(set(deleted_real), set(self.file_paths))
+        for path in self.file_paths:
+            self.assertFalse(os.path.exists(path))
+
+    def test_repr_and_getitem(self):
+        group = DuplicateGroup(hash_="dummyhash", file_size=self.file_size, file_paths=self.file_paths)
+        self.assertIn("DuplicateGroup", repr(group))
+        self.assertEqual(group[0], self.file_paths[0])
+        self.assertEqual(group[1], self.file_paths[1])
+
+    def test_immutable_attributes(self):
+        group = DuplicateGroup(hash_="dummyhash", file_size=self.file_size, file_paths=self.file_paths)
+        with self.assertRaises(FrozenInstanceError):
+            group.hash_ = "newhash"
+        with self.assertRaises(FrozenInstanceError):
+            group.file_size = 1234
+        with self.assertRaises(FrozenInstanceError):
+            group.file_paths = []
+        with self.assertRaises(FrozenInstanceError):
+            group.file_paths = sorted(self.file_paths)
+        with self.assertRaises(AttributeError):
+            group.file_paths.append("newfile.txt")
+
+
+class TestUtils(unittest.TestCase):
+    """Test cases for utility functions."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.test_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def test_format_size(self):
+        self.assertEqual(utils.format_size(500), "500.00 B")
+        self.assertEqual(utils.format_size(2048), "2.00 KB")
+        self.assertEqual(utils.format_size(5 * 1024**2), "5.00 MB")
+        self.assertEqual(utils.format_size(3 * 1024**3), "3.00 GB")
+        self.assertEqual(utils.format_size(7 * 1024**4), "7.00 TB")
+
+    def test_calculate_hash(self):
+        # Create a test file
+        test_file = os.path.join(self.test_dir, "test.txt")
+        content = b"Hello, World! " * 1000  # Large enough content
+        self.assertEqual(len(content), 14000)
+        with open(test_file, "wb") as f:
+            f.write(content)
+
+        md5_hash = utils.calculate_hash(test_file, algorithm="md5")
+        sha256_hash = utils.calculate_hash(test_file, algorithm="sha256")
+
+        expected_md5 = "9764d617387e33b0a3fd00610d2655b7"
+        expected_sha256 = "8b7d116691afca5fc487dcf2959825c88a7b18b1fe560c5ca8b2729acb5ca67a"
+
+        self.assertEqual(md5_hash, expected_md5)
+        self.assertEqual(sha256_hash, expected_sha256)
+
+    def test_calculate_partial_hash(self):
+        # Create a test file
+        test_file = os.path.join(self.test_dir, "test.txt")
+        content = b"Hello, World! " * 1000  # Large enough content
+        self.assertEqual(len(content), 14000)
+        with open(test_file, "wb") as f:
+            f.write(content)
+
+        partial_md5 = utils.calculate_partial_hash(test_file, algorithm="md5", num_bytes=8192)
+        partial_sha256 = utils.calculate_partial_hash(test_file, algorithm="sha256", num_bytes=8192)
+
+        expected_partial_md5 = "c5474eaa2ffba4b52988f6032f97cf96"
+        expected_partial_sha256 = "2cc7cc023318cd1cb4e356dcc13354e1c60bf474e7a4a380bc94db520569c10b"
+        self.assertEqual(partial_md5, expected_partial_md5)
+        self.assertEqual(partial_sha256, expected_partial_sha256)
+
+    def test_safe_remove(self):
+        # Create a test file
+        test_file = os.path.join(self.test_dir, "test.txt")
+        with open(test_file, "w") as f:
+            f.write("To be deleted")
+
+        # File should exist
+        self.assertTrue(os.path.exists(test_file))
+
+        # Remove the file
+        result = utils.safe_remove(test_file)
+        self.assertTrue(result)
+        self.assertFalse(os.path.exists(test_file))
+
+        # Try removing a non-existent file
+        result_nonexistent = utils.safe_remove(test_file)
+        self.assertFalse(result_nonexistent)
+
+
+if __name__ == "__main__":
+    unittest.main()
