@@ -1,0 +1,264 @@
+Metadata-Version: 2.1
+Name: mcp-ai-agent-sdk
+Version: 1.0.0
+Summary: AI Agent Python SDK - 让任何后台系统快速接入 AI Agent 能力
+Author-email: AI Agent Team <support@ai-agent.com>
+License: MIT
+Project-URL: Homepage, https://wangyunge.top
+Project-URL: Documentation, https://wangyunge.top/docs
+Project-URL: Repository, https://github.com/your-org/ai-agent-sdk
+Keywords: ai,agent,database,natural-language,sql
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Database
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: requests (>=2.25.0)
+Provides-Extra: dev
+Requires-Dist: pytest (>=7.0.0) ; extra == 'dev'
+Requires-Dist: pytest-cov (>=4.0.0) ; extra == 'dev'
+
+# AI Agent Python SDK
+
+让任何后台系统快速接入 AI 对话能力。
+
+## 安装
+
+```bash
+pip install ai-agent-sdk
+```
+
+## 快速开始
+
+```python
+from ai_agent_sdk import AIAgentClient
+
+client = AIAgentClient(
+    api_key="your-deepseek-api-key",
+    db_config={
+        "host": "localhost",
+        "database": "mydb",
+        "user": "root",
+        "password": "xxx"
+    }
+)
+
+# 对话
+result = client.ask_and_execute("查询所有学生")
+print(result["message"])  # AI 回复
+print(result["data"])     # 查询结果
+
+# 或启动 HTTP 服务
+client.run_server(port=8000)
+```
+
+## Docker 部署
+
+Java/JavaScript 等其他语言可以通过 Docker 部署 Python SDK 服务：
+
+```bash
+# 1. 复制环境变量配置
+cp .env.example .env
+# 编辑 .env 填入你的配置
+
+# 2. 启动服务
+docker-compose up -d
+
+# 服务启动后，其他语言通过 HTTP 调用
+# POST http://localhost:8000/api/chat
+# POST http://localhost:8000/api/chat/stream
+```
+
+### 环境变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| API_KEY | DeepSeek API Key | - |
+| DB_HOST | 数据库地址 | localhost |
+| DB_PORT | 数据库端口 | 3306 |
+| DB_USER | 数据库用户 | root |
+| DB_PASSWORD | 数据库密码 | - |
+| DB_NAME | 数据库名 | - |
+
+## 功能特性
+
+- ✅ **自然语言操作** - 用中文描述需求，AI 理解并生成操作
+- ✅ **任何语言后台** - Java/PHP/Go/Node.js 等任何后台都能接入
+- ✅ **简单易用** - 3 步即可接入
+- ✅ **安全可靠** - 操作需确认后才执行
+
+## API 文档
+
+### 初始化
+
+```python
+from ai_agent_sdk import AIAgentClient
+
+client = AIAgentClient(
+    api_key="your_api_key",           # 必填，从平台获取
+    base_url="https://wangyunge.top", # 可选，默认官方地址
+    timeout=30                         # 可选，请求超时时间
+)
+```
+
+### 注册 Schema
+
+告诉 AI 你的后台系统有哪些实体：
+
+```python
+client.register_schema(
+    api_base_url="http://my-shop.com/api",
+    entities=[
+        {
+            "name": "order",
+            "description": "订单",
+            "fields": [
+                {"name": "id", "type": "number"},
+                {"name": "customer", "type": "string"},
+                {"name": "amount", "type": "number"},
+                {"name": "status", "type": "string"}
+            ],
+            "operations": ["list", "get", "create", "update", "delete"]
+        },
+        {
+            "name": "product",
+            "description": "商品",
+            "fields": [
+                {"name": "id", "type": "number"},
+                {"name": "name", "type": "string"},
+                {"name": "price", "type": "number"}
+            ]
+        }
+    ]
+)
+```
+
+### 自然语言对话
+
+```python
+# 发送指令
+result = client.chat("查询所有订单")
+
+print(result['message'])      # AI 回复
+print(result['actions'])      # 建议的操作
+print(result['conversation_id'])  # 对话 ID
+
+# 简化版，只返回文本
+answer = client.ask("查询所有订单")
+print(answer)
+```
+
+### 执行操作
+
+```python
+# 获取 AI 建议的操作
+result = client.chat("查询所有订单")
+
+# 确认后执行
+if result['actions']:
+    action_id = result['actions'][0]['id']
+    exec_result = client.execute(action_id)
+    print(exec_result)
+```
+
+### 多轮对话
+
+```python
+# 第一轮
+result1 = client.chat("查询订单")
+
+# 第二轮（自动使用同一对话）
+result2 = client.chat("只要今天的")
+
+# 开始新对话
+client.new_conversation()
+result3 = client.chat("查询商品")
+```
+
+### 获取对话历史
+
+```python
+history = client.get_conversation()
+for msg in history['messages']:
+    print(f"{msg['role']}: {msg['content']}")
+```
+
+## 异常处理
+
+```python
+from ai_agent_sdk import (
+    AIAgentClient,
+    AIAgentError,
+    AuthenticationError,
+    RateLimitError
+)
+
+try:
+    client = AIAgentClient("your_api_key")
+    client.register_schema(...)
+    result = client.chat("查询订单")
+except AuthenticationError:
+    print("API Key 无效")
+except RateLimitError:
+    print("请求频率超限")
+except AIAgentError as e:
+    print(f"错误: {e}")
+```
+
+## 使用场景
+
+### 1. 后台管理系统
+
+```python
+# 在你的 Flask/Django 后台中添加 AI 对话功能
+@app.route('/api/ai/chat', methods=['POST'])
+def ai_chat():
+    message = request.json['message']
+    result = client.chat(message)
+    return jsonify(result)
+```
+
+### 2. 命令行工具
+
+```python
+while True:
+    query = input("请输入指令: ")
+    if query == 'exit':
+        break
+    result = client.chat(query)
+    print(result['message'])
+```
+
+### 3. 聊天机器人
+
+```python
+# 微信/钉钉机器人
+def on_message(message):
+    result = client.chat(message)
+    return result['message']
+```
+
+## 安全说明
+
+1. **API Key 保密** - 不要在前端代码中暴露
+2. **操作确认** - AI 返回建议操作，需调用 execute 才执行
+3. **权限控制** - 后台 API 应有自己的权限验证
+
+## 获取帮助
+
+- 官网: https://wangyunge.top
+- 技术支持: support@wangyunge.top
+
+## License
+
+MIT License
