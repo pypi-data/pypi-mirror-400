@@ -1,0 +1,433 @@
+Metadata-Version: 2.4
+Name: aiogram-part
+Version: 1.0.1
+Summary: Professional CLI scaffolding tool for aiogram 3.x Telegram bots
+Author-email: Sattorbek <sattorpro@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/sattorproduction/aiogram-part
+Project-URL: Documentation, https://github.com/sattorproduction/aiogram-part#readme
+Project-URL: Repository, https://github.com/sattorproduction/aiogram-part
+Project-URL: Issues, https://github.com/sattorproduction/aiogram-part/issues
+Keywords: aiogram,telegram,bot,cli,scaffolding,generator
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.1.0
+Requires-Dist: rich>=13.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Dynamic: license-file
+
+# 🤖 Aiogram Part
+
+**Professional CLI scaffolding tool for Telegram bots with aiogram 3.x**
+
+5 daqiqada production-ready bot yarating! Database, Redis, Testing, Deployment - hammasi tayyor! 🚀
+
+[![PyPI version](https://badge.fury.io/py/aiogram-part.svg)](https://badge.fury.io/py/aiogram-part)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Aiogram 3.22.0](https://img.shields.io/badge/aiogram-3.22.0-blue.svg)](https://github.com/aiogram/aiogram)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## ⚡ Quick Start
+
+```bash
+# Install
+pip install aiogram-part
+
+# Create bot with database (SQLite/PostgreSQL/MySQL)
+mkdir my-bot && cd my-bot
+aiogram-part init-project --with-db --type postgresql
+
+# Setup
+cp .env.example .env  # Edit BOT_TOKEN
+make install          # Install dependencies
+
+# Run
+make run             # Or: docker-compose up -d
+```
+
+**Tayyor!** Bot ishlayapti! ✅
+
+---
+
+## 🎯 Features
+
+| Feature | Description | Commands |
+|---------|-------------|----------|
+| 🏗️ **Clean Architecture** | Scoped handlers (user/admin), services, filters | 20+ commands |
+| 🗄️ **Database** | SQLite/PostgreSQL/MySQL + Aerich migrations | `init-project --with-db --type` |
+| ⚡ **Redis** | Caching & FSM storage with fallback | Auto-configured |
+| 🐳 **Docker** | Database-specific docker-compose | `docker-compose up` |
+| 🧪 **Testing** | pytest + fixtures + test generator | `aiogram-part test` |
+| 🔍 **Health Check** | Environment validator with auto-fix | `aiogram-part check --fix` |
+| 📊 **Statistics** | Project metrics with Rich tables | `aiogram-part stats` |
+| 🌐 **Webhook** | Setup & status commands | `aiogram-part webhook` |
+| 🚀 **Deployment** | Systemd service generator | `aiogram-part deploy` |
+| 📝 **Logging** | Rotating logs with levels | Built-in |
+| 🌍 **i18n** | Multi-language with Babel | `aiogram-part i18n` |
+| 🔒 **Type Safe** | Pydantic settings + OOP keyboards | All templates |
+---
+
+## 📦 Commands
+
+### 🚀 **Project Initialization**
+
+```bash
+# Basic project
+aiogram-part init-project
+
+# With database (choose type)
+aiogram-part init-project --with-db --type sqlite      # SQLite (default)
+aiogram-part init-project --with-db --type postgresql  # PostgreSQL + Docker
+aiogram-part init-project --with-db --type mysql       # MySQL + Docker
+```
+
+Creates 38+ directories, 41+ files: handlers, services, filters, keyboards, middlewares, models, tests, Docker configs.
+
+---
+
+### 🎯 **Code Generators**
+
+#### **Handlers** - Command, Message, Callback
+
+```bash
+aiogram-part handler user command start          # /start command
+aiogram-part handler admin command stats         # Admin-only command
+aiogram-part handler user message photo          # Photo messages
+aiogram-part handler user callback confirm       # Callback handler
+```
+
+Creates: `handlers/{users|admins}/{commands|messages|callbacks}/name.py` + auto-registers router
+
+#### **Models** - Database models with Tortoise ORM
+
+```bash
+aiogram-part model User                          # Model only
+aiogram-part model Product --with-crud           # Model + CRUD operations
+```
+
+Creates: `database/models/name.py` + optional `database/crud/name.py`
+
+#### **Keyboards** - OOP Builder pattern
+
+```bash
+aiogram-part keyboard --scope user --build-keyboard inline menu
+aiogram-part keyboard --scope admin --build-keyboard reply settings --str-params status
+aiogram-part keyboard --scope common --build-keyboard inline language \
+  --str-params lang --int-params user_id
+```
+
+Creates: `keyboards/{users|admins|common}/name.py` with Builder pattern class
+
+#### **Filters** - Custom filters
+
+```bash
+# Common filters (IsAdmin, IsPremium, etc)
+aiogram-part filter --scope common --type common admin
+
+# Callback filters (structured button data)
+aiogram-part filter --scope user --type callback product \
+  --str-params action --int-params product_id
+```
+
+Creates: `filters/{users|admins|common}/{common|callback}/name.py`
+
+#### **Middlewares** - Request interceptors
+
+```bash
+aiogram-part middleware --scope user throttling --types message
+aiogram-part middleware --scope admin logger --types all
+aiogram-part middleware --scope common auth --types message callback_query
+```
+
+Creates: `middlewares/{users|admins|common}/name.py`
+
+#### **Services** - Business logic layer
+
+```bash
+aiogram-part service --scope user payment        # User payment service
+aiogram-part service --scope admin analytics     # Admin analytics
+aiogram-part service --scope common notification # Common notification
+```
+
+Creates: `services/{users|admins|common}/name.py` with service class
+
+#### **States** - FSM state machines
+
+```bash
+aiogram-part state Registration                  # User registration flow
+aiogram-part state OrderCheckout                 # Checkout process
+```
+
+Creates: `states/name.py` with StatesGroup
+
+#### **Validators** - Input validation
+
+```bash
+aiogram-part validator phone --type regex        # Phone number regex
+aiogram-part validator email --type custom       # Custom email validator
+```
+
+Creates: `utils/validators/name.py`
+
+#### **Enums** - Database enums
+
+```bash
+aiogram-part enum UserRole --values admin --values user --values moderator
+aiogram-part enum OrderStatus --values pending --values completed
+```
+
+Creates: `database/enums/name.py` with enum class
+
+---
+
+### 🗄️ **Database Management** (Aerich - Prisma-like)
+
+```bash
+aiogram-part db migrate              # Initialize migrations
+aiogram-part db update model         # Auto-detect model changes
+aiogram-part db upgrade              # Apply migrations
+aiogram-part db downgrade            # Rollback migration
+aiogram-part db history              # View migration history
+aiogram-part db heads                # Show current version
+aiogram-part db reset                # Reset database
+aiogram-part db generate description # Generate custom migration
+aiogram-part db inspect              # Inspect database schema
+```
+
+---
+
+### 🧪 **Testing & Quality**
+
+#### **Test Generator**
+
+```bash
+aiogram-part test --type handler start           # Handler test
+aiogram-part test --type service payment         # Service test
+aiogram-part test --type generic utils           # Generic test
+```
+
+Creates: `tests/{handlers|services}/test_name.py` with pytest fixtures
+
+#### **Environment Checker**
+
+```bash
+aiogram-part check                               # Check project health
+aiogram-part check --fix                         # Auto-fix issues
+```
+
+Checks: dependencies, .env file, migrations, Python version
+
+#### **Project Statistics**
+
+```bash
+aiogram-part stats                               # Rich table with metrics
+```
+
+Shows: handlers, services, models, filters, middlewares, states, files, LOC
+
+---
+
+### 🌐 **Deployment & Operations**
+
+#### **Webhook Management**
+
+```bash
+aiogram-part webhook setup https://bot.example.com  # Configure webhook
+aiogram-part webhook status                          # Check status
+```
+
+#### **Systemd Service**
+
+```bash
+aiogram-part deploy --user botuser --python /path/to/python3
+```
+
+Generates systemd service file for Linux servers
+
+#### **Multi-language Support**
+
+```bash
+aiogram-part i18n                                # Setup i18n + Babel
+```
+
+Creates: `locales/` + middleware + Makefile commands
+
+---
+
+## 📁 Project Structure
+
+```
+bot/
+├── handlers/
+│   ├── users/                # User handlers
+│   │   ├── commands/         # /start, /help
+│   │   ├── messages/         # Text, photo messages
+│   │   └── callbacks/        # Callback queries
+│   ├── admins/              # Admin-only handlers
+│   └── errors/              # Error handlers
+├── services/
+│   ├── users/               # User business logic
+│   ├── admins/              # Admin business logic
+│   └── common/              # Shared services
+├── filters/
+│   ├── users/               # User filters
+│   ├── admins/              # Admin filters
+│   └── common/              # Shared filters
+├── keyboards/
+│   ├── users/               # User keyboards (OOP)
+│   ├── admins/              # Admin keyboards
+│   └── common/              # Shared keyboards
+├── middlewares/
+│   ├── users/               # User middlewares
+│   ├── admins/              # Admin middlewares
+│   └── common/              # Global middlewares
+├── database/
+│   ├── models/              # Tortoise ORM models
+│   ├── crud/                # CRUD operations
+│   ├── enums/               # Database enums
+│   └── migrations/          # Aerich migrations
+├── states/                  # FSM states
+├── utils/
+│   ├── validators/          # Input validators
+│   ├── decorators/          # Custom decorators
+│   └── formatters/          # Data formatters
+├── tests/
+│   ├── handlers/            # Handler tests
+│   ├── services/            # Service tests
+│   └── conftest.py          # pytest fixtures
+├── core/                    # Bot initialization
+├── config/                  # Settings & logging
+├── locales/                 # i18n translations
+├── docker-compose.yml       # Database + Redis
+├── Dockerfile               # Bot container
+├── Makefile                 # Dev commands
+└── .env.example             # Environment template
+```
+
+---
+
+## 💡 Quick Examples
+
+### E-commerce Bot
+```bash
+aiogram-part init-project --with-db --type postgresql
+aiogram-part model Product --with-crud
+aiogram-part model Order --with-crud
+aiogram-part enum OrderStatus --values pending --values paid --values shipped
+aiogram-part service --scope user payment
+aiogram-part handler user command catalog
+aiogram-part keyboard --scope user --build-keyboard inline products --int-params page
+aiogram-part filter --scope user --type callback product --str-params action --int-params product_id
+aiogram-part test --type handler catalog
+```
+
+### Multi-language Bot
+```bash
+aiogram-part init-project --with-db
+aiogram-part i18n
+aiogram-part model User --with-crud
+aiogram-part state Registration
+aiogram-part handler user command start
+aiogram-part keyboard --scope common --build-keyboard inline language --int-params user_id
+aiogram-part validator phone --type regex
+make translate
+```
+
+### Admin Panel Bot
+```bash
+aiogram-part init-project --with-db
+aiogram-part filter --scope common --type common admin
+aiogram-part handler admin command stats
+aiogram-part handler admin command users
+aiogram-part service --scope admin analytics
+aiogram-part keyboard --scope admin --build-keyboard inline admin_panel
+aiogram-part test --type service analytics
+```
+
+More examples: [EXAMPLES.md](EXAMPLES.md)
+
+---
+
+## 🛠️ Development Workflow
+
+```bash
+# Setup
+make install          # Install dependencies
+make dev             # Install dev tools
+
+# Development
+make run             # Run bot locally
+make test            # Run tests
+aiogram-part check   # Health check
+aiogram-part stats   # View project stats
+
+# Database
+aiogram-part db update model    # Detect changes
+aiogram-part db upgrade         # Apply migrations
+aiogram-part db history         # View history
+
+# Production
+aiogram-part webhook setup https://bot.example.com
+aiogram-part deploy --user botuser
+docker-compose up -d
+```
+
+---
+
+## 🐳 Docker Deployment
+
+```bash
+# SQLite (no external database needed)
+docker-compose up -d
+
+# PostgreSQL (recommended for production)
+aiogram-part init-project --with-db --type postgresql
+cp .env.example .env
+docker-compose up -d  # Starts bot + postgres + redis
+
+# View logs
+docker-compose logs -f bot
+```
+
+---
+
+## 📚 Documentation
+
+- 📖 [Full README](README.md) - Complete documentation
+- 💡 [Examples](EXAMPLES.md) - Real bot examples
+- ❓ [FAQ](FAQ.md) - Common questions📄 License
+
+MIT © [Sattorbek](https://github.com/yourusername)
+
+---
+
+## 🔗 Links
+
+- 📦 [PyPI](https://pypi.org/project/aiogram-part/)
+- 🐙 [GitHub](https://github.com/sattorproduction/aiogram-part)
+- 📚 [Aiogram Docs](https://docs.aiogram.dev/)
+
+---
+
+<div align="center">
+
+**[⭐ Star on GitHub](https://github.com/sattorproduction/aiogram-part)** • **[📖 Documentation](README.md)** • **[💡 Examples](EXAMPLES.md)**
+
+Made with ❤️ for aiogram community
+
+</div>
