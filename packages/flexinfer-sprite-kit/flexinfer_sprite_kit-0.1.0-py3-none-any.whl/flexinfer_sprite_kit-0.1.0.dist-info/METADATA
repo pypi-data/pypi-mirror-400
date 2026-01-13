@@ -1,0 +1,320 @@
+Metadata-Version: 2.4
+Name: flexinfer-sprite-kit
+Version: 0.1.0
+Summary: Procedural sprite generation library with semantic agent API for games
+Author-email: Cody Blevins <cody@flexinfer.ai>
+License: MIT
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Games/Entertainment
+Classifier: Topic :: Multimedia :: Graphics
+Requires-Python: >=3.11
+Requires-Dist: cairosvg>=2.7.0
+Requires-Dist: pillow>=10.0.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.5.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# py-sprite-kit
+
+Procedural sprite generation library with semantic agent API for games.
+
+Generate SVG and PNG sprites with natural language prompts or fluent builder API.
+
+## Installation
+
+```bash
+pip install flexinfer-sprite-kit
+```
+
+## Quick Start
+
+### Semantic Agent API
+
+Generate sprites from natural language descriptions:
+
+```python
+from sprite_kit import SpriteAgent, SVGExporter, PNGExporter
+
+agent = SpriteAgent()
+
+# Generate character from context
+sprite = agent.generate_for_context("fierce goblin warrior attacking")
+SVGExporter().export_file(sprite, "goblin.svg")
+
+# Generate effect
+effect = agent.generate_effect("magical healing aura")
+PNGExporter(scale=2).export_file(effect, "heal_aura.png")
+
+# Generate icon
+icon = agent.generate_icon("heart health indicator")
+SVGExporter().export_file(icon, "heart.svg")
+
+# Generate all character stances
+stances = agent.generate_all_stances("guardian")
+for stance_name, sprite in stances.items():
+    PNGExporter().export_file(sprite, f"guardian_{stance_name}.png")
+```
+
+### Builder API
+
+Build sprites programmatically with a fluent interface:
+
+```python
+from sprite_kit import SpriteBuilder, Color, PaletteRegistry
+
+palette = PaletteRegistry.load_default().get("companion")
+
+sprite = (
+    SpriteBuilder("warden", 64, 80)
+    .define_glow_filter("auraGlow", "#4488FF", blur=3.0)
+    .layer("body")
+        .circle(32, 50, 20, fill=palette["warden"])
+    .end_layer()
+    .layer("head")
+        .circle(32, 25, 12, fill=palette["warden"])
+    .end_layer()
+    .layer("eyes")
+        .circle(28, 23, 2, fill=Color(255, 255, 255))
+        .circle(36, 23, 2, fill=Color(255, 255, 255))
+    .end_layer()
+    .build()
+)
+```
+
+### Generator API
+
+Use typed generators for specific sprite types:
+
+```python
+from sprite_kit import (
+    CharacterSprite, CharacterArchetype, CharacterStance,
+    EffectSprite, EffectType,
+    IconSprite, IconCategory,
+    PNGExporter, PixelStyle
+)
+
+# Character generator
+char_gen = CharacterSprite(
+    archetype=CharacterArchetype.GUARDIAN,
+    seed=42
+)
+neutral = char_gen.generate(CharacterStance.NEUTRAL)
+all_stances = char_gen.generate_all_stances()
+
+# Effect generator
+effect_gen = EffectSprite(
+    effect_type=EffectType.SPARKLE,
+    intensity=0.8
+)
+sparkle = effect_gen.generate(size=24.0)
+
+# Icon generator
+icon_gen = IconSprite(category=IconCategory.ELEMENT)
+fire_icon = icon_gen.generate("fire", size=32)
+all_elements = icon_gen.generate_all(size=32)
+
+# Export with pixel art style
+exporter = PNGExporter(scale=4, style=PixelStyle.CRISP)
+exporter.export_file(neutral, "guardian.png")
+```
+
+## Features
+
+### Output Formats
+
+- **SVG** - Vector graphics for web and scaling
+- **PNG** - Rasterized output with optional scaling
+- **GIF** - Animated sprites from frame sequences
+- **Sprite Sheets** - Combined textures with metadata
+
+### Pixel Art Styles
+
+```python
+from sprite_kit import PNGExporter, PixelStyle
+
+# Smooth anti-aliased (default)
+PNGExporter(style=PixelStyle.SMOOTH)
+
+# Crisp pixel art edges
+PNGExporter(scale=4, style=PixelStyle.CRISP)
+
+# Retro dithered palette
+PNGExporter(style=PixelStyle.DITHERED, palette_size=16)
+```
+
+### Sprite Types
+
+| Type | Description | Generator |
+|------|-------------|-----------|
+| Character | Player, NPC, enemy sprites | `CharacterSprite` |
+| Effect | Auras, particles, impacts | `EffectSprite` |
+| Icon | UI elements, status indicators | `IconSprite` |
+
+### Character Archetypes
+
+- `WARRIOR`, `MAGE`, `ROGUE`, `HEALER`
+- `GUARDIAN`, `MYSTIC` (companions)
+- `VILLAGER`, `MERCHANT` (NPCs)
+- `GOBLIN`, `SKELETON`, `BRUISER` (enemies)
+
+### Effect Types
+
+- `AURA` - Surrounding glow field
+- `PULSE` - Expanding ring waves
+- `SPARKLE` - Scattered star particles
+- `IMPACT` - Burst/hit effects
+- `GLOW` - Radial light gradient
+- `PARTICLES` - Floating particle cloud
+
+### Icon Categories
+
+- `HEART` - Health/emotion states
+- `STANCE` - Action indicators
+- `ELEMENT` - Magic elements
+- `RITUAL` - Special actions
+
+## Palettes
+
+Includes game-compatible palettes from svg-sdk:
+
+| Palette | Colors | Use Case |
+|---------|--------|----------|
+| `heart` | calm, agitated, hopeful, bonded, critical | Village heart states |
+| `stance` | observe, act, neutral, complementary | Character stances |
+| `companion` | warden, oracle, flame, shadow | Player companions |
+| `elements` | fire, frost, lightning, shadow, nature, spirit | Magic elements |
+| `ui` | bg, panel, border, text, accent | Interface colors |
+| `phase` | day, dusk, night | Time of day |
+
+```python
+from sprite_kit import PaletteRegistry
+
+registry = PaletteRegistry.load_default()
+companion_colors = registry.get("companion")
+warden_color = companion_colors["warden"]
+```
+
+## Animation & Sprite Sheets
+
+```python
+from sprite_kit import (
+    Animation, SpriteSheet, SpriteAgent,
+    PNGExporter, create_gif, create_spritesheet_png
+)
+
+agent = SpriteAgent()
+
+# Create animation sequence
+frames = agent.generate_effect_sequence("pulse", frame_count=8)
+create_gif(frames, "pulse.gif", duration_ms=100)
+
+# Create sprite sheet
+stances = agent.generate_all_stances("warrior")
+sprites = list(stances.values())
+metadata = create_spritesheet_png(
+    sprites,
+    "warrior_sheet.png",
+    columns=3,
+    scale=2.0
+)
+```
+
+## API Reference
+
+### SpriteAgent
+
+```python
+class SpriteAgent:
+    seed: int = 42
+
+    def generate_for_context(context: str, sprite_type: str = "auto", size: int = 64) -> Sprite
+    def generate_character(context: str, size: int = 64) -> Sprite
+    def generate_effect(context: str, size: int = 64, effect_size: float = None) -> Sprite
+    def generate_icon(context: str, size: int = 32) -> Sprite
+    def generate_all_stances(archetype: str, size: CharacterSize = CharacterSize.MEDIUM) -> dict[str, Sprite]
+    def generate_effect_sequence(effect_type: str, frame_count: int = 4, size: int = 64) -> list[Sprite]
+    def generate_icon_set(category: str, size: int = 32) -> dict[str, Sprite]
+```
+
+### SpriteBuilder
+
+```python
+class SpriteBuilder:
+    def __init__(name: str, width: int = 64, height: int = 64, category: str = "character")
+
+    # Layer management
+    def layer(name: str, opacity: float = 1.0) -> Self
+    def end_layer() -> Self
+
+    # Shapes
+    def circle(cx, cy, r, fill=None, stroke=None, ...) -> Self
+    def rect(x, y, width, height, rx=0, ry=0, fill=None, ...) -> Self
+    def polygon(points, fill=None, stroke=None, ...) -> Self
+    def path(d: str, fill=None, stroke=None, ...) -> Self
+    def star(cx, cy, outer_r, inner_r, points=5, ...) -> Self
+    def hexagon(cx, cy, size, flat_top=True, ...) -> Self
+
+    # Definitions
+    def define_gradient(id, colors, direction="vertical") -> Self
+    def define_radial_gradient(id, colors, cx=50, cy=50, r=50) -> Self
+    def define_glow_filter(id, color, blur=2.0) -> Self
+
+    # Build
+    def build() -> Sprite
+```
+
+### Exporters
+
+```python
+class SVGExporter:
+    def export(sprite: Sprite) -> str
+    def export_file(sprite: Sprite, path: str) -> None
+    def export_bytes(sprite: Sprite) -> bytes
+    def export_sheet(sheet: SpriteSheet) -> str
+
+class PNGExporter:
+    def __init__(scale=1.0, style=PixelStyle.SMOOTH, background_color=None)
+    def export(sprite: Sprite) -> bytes
+    def export_file(sprite: Sprite, path: str) -> None
+    def export_image(sprite: Sprite) -> PIL.Image
+    def export_sheet(sheet: SpriteSheet) -> bytes
+```
+
+## Development
+
+```bash
+# Clone and install
+git clone https://gitlab.flexinfer.ai/libs/py-sprite-kit
+cd py-sprite-kit
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/ -v
+
+# Lint
+ruff check src/
+
+# Format
+ruff format src/
+
+# Type check
+mypy src/
+```
+
+## Dependencies
+
+- `pydantic>=2.0.0` - Data validation
+- `cairosvg>=2.7.0` - SVG to PNG rendering
+- `pillow>=10.0.0` - Image manipulation
+
+## License
+
+MIT
