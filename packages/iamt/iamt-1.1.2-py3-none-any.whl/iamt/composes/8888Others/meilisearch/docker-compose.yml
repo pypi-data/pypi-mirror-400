@@ -1,0 +1,34 @@
+
+networks:
+    DMLT-network:
+        external: true
+services:
+    meilisearch:
+        command: |
+            sh -c ' if [ "${MEILI_NO_ANALYTICS}" = "true" ]; then
+              /bin/meilisearch
+            else
+              /bin/meilisearch --no-analytics
+            fi'
+        container_name: ${CONTAINER_NAME}
+        deploy:
+            resources:
+                limits:
+                    cpus: ${CPUS}
+                    memory: ${MEMORY_LIMIT}
+        environment:
+            MEILI_CONFIG_FILE_PATH: /config/config.toml
+            MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+        image: getmeili/meilisearch:v1.10.3
+        labels:
+            createdBy: Apps
+        networks:
+            - DMLT-network
+        ports:
+            - ${HOST_IP}:${PANEL_APP_PORT_HTTP}:7700
+        restart: always
+        volumes:
+            - ./config:/config
+            - ./data:/meili_data
+            - ./dumps:/dumps
+            - ./snapshots:/snapshots

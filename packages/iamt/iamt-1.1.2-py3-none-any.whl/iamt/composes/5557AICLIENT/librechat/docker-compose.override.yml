@@ -1,0 +1,21 @@
+
+ 
+services:
+  api:
+    volumes:
+    # - type: bind
+    #   source: ./auth.json
+    #   target: /app/api/data/auth.json
+    - type: bind
+      source: ./librechat.yaml
+      target: /app/librechat.yaml
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    volumes:                                           # I placed my litellm configs in a separate directory
+      - ./litellm-config.yaml:/app/config.yaml   # litellm config
+      - ./auth.json:/app/vertex.json              # service account
+    command: [ "--config", "/app/config.yaml", "--port", "8000", "--num_workers", "8" ]
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /app/vertex.json 
+

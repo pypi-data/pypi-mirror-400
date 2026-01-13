@@ -1,0 +1,29 @@
+networks:
+    DMLT-network:
+        external: true
+services:
+    rustdesk:
+        container_name: ${CONTAINER_NAME}
+        deploy:
+            resources:
+                limits:
+                    cpus: ${CPUS}
+                    memory: ${MEMORY_LIMIT}
+        environment:
+            - RELAY=${HOST_ADDRESS}:${PANEL_APP_PORT_HBBR}
+            - ENCRYPTED_ONLY=1
+        image: rustdesk/rustdesk-server-s6:latest
+        labels:
+            createdBy: Apps
+        networks:
+            - DMLT-network
+        ports:
+            - ${HOST_IP}:${PANEL_APP_PORT_NAT}:21115
+            - ${HOST_IP}:${PANEL_APP_PORT_HBBS}:21116
+            - ${HOST_IP}:${PANEL_APP_PORT_HBBS}:21116/udp
+            - ${HOST_IP}:${PANEL_APP_PORT_HBBR}:21117
+            - ${HOST_IP}:${PANEL_APP_PORT_WEB_CLIENT_1}:21118
+            - ${HOST_IP}:${PANEL_APP_PORT_WEB_CLIENT_2}:21119
+        restart: always
+        volumes:
+            - ./data/hbbs:/data
