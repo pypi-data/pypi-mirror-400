@@ -1,0 +1,400 @@
+Metadata-Version: 2.3
+Name: cmissh
+Version: 2026.1.0
+Summary: CMIS Python client library and command-line shell
+Keywords: cmis,content-management,ecm,cli
+Author: Apache Chemistry Project
+Author-email: Apache Chemistry Project <dev@chemistry.apache.org>
+License: Apache-2.0
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: System :: Systems Administration
+Requires-Dist: iso8601>=2.1.0
+Requires-Dist: pytest>=8.4.2
+Requires-Dist: requests>=2.31.0
+Requires-Dist: requests-toolbelt>=1.0.0
+Requires-Python: >=3.10
+Project-URL: Documentation, https://github.com/your-repo/cmissh
+Project-URL: Homepage, https://github.com/your-repo/cmissh
+Project-URL: Repository, https://github.com/your-repo/cmissh
+Description-Content-Type: text/markdown
+
+# CMIS Shell (cmissh)
+
+A Python-based CMIS (Content Management Interoperability Services) client library and interactive command-line shell for browsing and managing content on CMIS repositories.
+
+## Features
+
+- **CMIS Client Library**: Python client supporting both AtomPub and Browser bindings
+- **Interactive Shell**: Command-line interface similar to a Unix shell for CMIS repositories
+- **Multiple Execution Modes**:
+  - Interactive mode with command history and tab completion
+  - Single command execution (`-e` flag)
+  - Batch script execution (`-b` flag)
+- **Comprehensive Commands**: Navigation, file operations, property management, and more
+
+## Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd cmissh
+
+# Install in development mode
+pip install -e .
+
+# Or install with development dependencies
+pip install -e ".[dev]"
+```
+
+### Using pip (once published)
+
+```bash
+pip install cmissh
+```
+
+## Quick Start
+
+### Interactive Mode
+
+Start the shell and connect to a CMIS repository:
+
+```bash
+# Start shell
+cmissh
+
+# Connect to repository
+|:> connect admin:admin@http://localhost:8080/alfresco/api/-default-/public/cmis/versions/1.1/atom
+```
+
+Or connect directly when starting:
+
+```bash
+cmissh -u admin -p admin http://localhost:8080/alfresco/api/-default-/public/cmis/versions/1.1/atom
+```
+
+### Single Command Mode
+
+Execute a single command and exit:
+
+```bash
+cmissh -u admin -p admin -e "ls" http://localhost:8080/alfresco/api/-default-/public/cmis/versions/1.1/atom
+```
+
+### Batch Mode
+
+Execute commands from a script file:
+
+```bash
+cmissh -u admin -p admin -b script.cmis http://localhost:8080/alfresco/api/-default-/public/cmis/versions/1.1/atom
+```
+
+## Available Commands
+
+### Connection
+
+- `connect [user:pass@]<url>` - Connect to a CMIS repository
+- `disconnect` - Disconnect from current repository
+
+### Navigation
+
+- `ls [path]` - List contents of folder or available repositories
+- `cd <path>` - Change directory or select repository
+- `pwd` - Print working directory
+- `pushd <path>` - Push directory to stack and change to new directory
+- `popd` - Pop directory from stack and return to it
+- `tree [path] [depth]` - Display repository tree structure (alias: `dump`)
+
+### File Operations
+
+- `mkdir <name>` - Create a new folder
+- `mkfile <name>` - Create a new empty document (alias: `mkdoc`)
+- `rm <name>` - Remove an object (alias: `del`)
+- `get <doc> [local]` - Download document content (alias: `getstream`)
+- `put <local> [remote]` - Upload file as document (alias: `setstream`)
+- `cat <doc>` - Display document content to console
+
+### Property Management
+
+- `props [path]` - Display all properties of an object
+- `propget <prop> [path]` - Get specific property value (alias: `getp`)
+- `propset <prop> <value> [path]` - Set property value (alias: `setp`)
+- `id [path]` - Display object ID and type information
+
+### Local File System
+
+- `lpwd` - Print local working directory
+- `lcd <path>` - Change local working directory
+- `lls [path]` - List local directory contents (alias: `ll`)
+- `lpushd <path>` - Push local directory to stack
+- `lpopd` - Pop local directory from stack
+
+### Utility
+
+- `help [command]` - Show help for commands
+- `exit` / `quit` - Exit the shell
+
+## Usage Examples
+
+### Example Session
+
+```bash
+$ cmissh
+CMIS Shell. Type 'help' for help, 'connect' to connect to a repository.
+|:> connect admin:admin@http://localhost:8080/alfresco/api/-default-/public/cmis/versions/1.1/atom
+Connected to http://localhost:8080/alfresco/api/-default-/public/cmis/versions/1.1/atom
+|:> ls
+Available repositories:
+  -default-
+|:> cd -default-
+Entered repository: -default-
+|-default-> ls
+  Data Dictionary/
+  Guest Home/
+  Shared/
+  Sites/
+  User Homes/
+|-default-> cd Sites
+|-default-:Sites> ls
+  swsdp/
+|-default-:Sites> cd swsdp
+|-default-:swsdp> tree
+swsdp/
+  documentLibrary/
+    Agency Files/
+    Meeting Notes/
+  wiki/
+|-default-:swsdp> cd documentLibrary
+|-default-:documentLibrary> mkdir TestFolder
+Created folder: TestFolder
+|-default-:documentLibrary> cd TestFolder
+|-default-:TestFolder> put /tmp/test.txt
+Created document: test.txt
+|-default-:TestFolder> ls
+  test.txt
+|-default-:TestFolder> cat test.txt
+This is a test file.
+|-default-:TestFolder> props test.txt
+Properties of test.txt:
+cmis:baseTypeId = cmis:document
+cmis:contentStreamFileName = test.txt
+cmis:contentStreamLength = 21
+cmis:contentStreamMimeType = text/plain
+cmis:createdBy = admin
+cmis:name = test.txt
+cmis:objectId = workspace://SpacesStore/abc123...
+cmis:objectTypeId = cmis:document
+...
+|-default-:TestFolder> quit
+Bye
+```
+
+### Batch Script Example
+
+Create a file `setup.cmis`:
+
+```bash
+# Connect and navigate
+cd -default-
+cd Sites/swsdp/documentLibrary
+
+# Create folder structure
+mkdir Projects
+cd Projects
+mkdir Documentation
+mkdir Code
+
+# Upload files
+put /tmp/readme.md Documentation/README.md
+put /tmp/code.py Code/main.py
+```
+
+Run it:
+
+```bash
+cmissh -u admin -p admin -b setup.cmis http://localhost:8080/alfresco/api/-default-/public/cmis/versions/1.1/atom
+```
+
+## Using the Library
+
+You can also use cmissh as a library in your Python code:
+
+```python
+from cmissh.model import CmisClient
+
+# Connect to repository
+client = CmisClient(
+    'http://localhost:8080/alfresco/api/-default-/public/cmis/versions/1.1/atom',
+    'admin',
+    'admin'
+)
+
+# Get default repository
+repo = client.getDefaultRepository()
+
+# Get root folder
+root = repo.getRootFolder()
+
+# List children
+for child in root.getChildren():
+    print(child.getName())
+
+# Create a folder
+properties = {
+    'cmis:objectTypeId': 'cmis:folder',
+    'cmis:name': 'My New Folder'
+}
+new_folder = root.createFolder(properties)
+
+# Create a document with content
+with open('myfile.txt', 'rb') as f:
+    properties = {
+        'cmis:objectTypeId': 'cmis:document',
+        'cmis:name': 'MyDocument.txt'
+    }
+    doc = new_folder.createDocument(properties, contentFile=f)
+
+# Get document by path
+doc = repo.getObjectByPath('/My New Folder/MyDocument.txt')
+
+# Download content
+content = doc.getContentStream()
+with open('downloaded.txt', 'wb') as f:
+    f.write(content.read())
+```
+
+## CMIS Bindings
+
+The library supports two CMIS protocol bindings:
+
+1. **AtomPub Binding** (XML-based) - Legacy but widely supported
+2. **Browser Binding** (JSON-based) - Modern and more efficient
+
+The binding is automatically selected based on the repository URL.
+
+## Development
+
+### Setup Development Environment
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd cmissh
+
+# Install with development dependencies
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+The project includes a comprehensive test suite with **430+ tests**:
+
+```bash
+# Run all unit tests (no CMIS server required!)
+pytest
+# Or: make test
+
+# Run with verbose output
+pytest -v
+
+# Run with coverage report
+pytest --cov=cmissh --cov-report=term-missing
+# Or: make test-coverage
+
+# Run specific test categories
+pytest -m unit              # Fast unit tests
+pytest -m integration       # Integration tests (mocked)
+pytest -m shell             # Shell command tests
+
+# Run server integration tests (requires CMIS server)
+make test-server
+# Or with custom server:
+# CMIS_URL=http://myserver/cmis CMIS_USER=user CMIS_PASSWORD=pass make test-server
+
+# Run ALL tests including server integration
+make test-all
+```
+
+**Unit tests (430+) use mocks - no external dependencies required!**
+**Server integration tests (29) validate against a real CMIS server (optional)**
+
+#### Test Coverage by Module
+
+| Module | Coverage |
+|--------|----------|
+| Exceptions | 100% ✅ |
+| Utilities | 87% ⭐ |
+| CLI | 87% ⭐ |
+| Model | 84% ⭐ |
+| Shell | 75% 🟡 |
+| Domain | 62% 🟡 |
+| Bindings | 27-30% 🔴 |
+
+See `TEST_SUMMARY.md` for detailed coverage information and `tests/SERVER_INTEGRATION.md` for server testing documentation.
+
+### Code Formatting
+
+```bash
+# Format code
+black src/
+
+# Lint code
+ruff src/
+```
+
+### Type Checking
+
+```bash
+mypy src/
+```
+
+## Requirements
+
+- Python 3.9 or higher
+- Dependencies:
+  - `iso8601` - Date/time parsing
+  - `requests` - HTTP client
+  - `requests-toolbelt` - Multipart encoding
+
+## Compatibility
+
+This library is compatible with CMIS 1.0 and 1.1 compliant repositories, including:
+
+- Alfresco
+- Apache Chemistry OpenCMIS (InMemory Server)
+- Nuxeo
+- Microsoft SharePoint
+- IBM FileNet
+- EMC Documentum
+- And other CMIS-compliant systems
+
+## License
+
+Apache License 2.0
+
+## Credits
+
+This project builds upon:
+
+- **cmislib** - Original Apache Chemistry CMIS Python client library
+- **cmissh** - Original Java-based CMIS shell by Nuxeo
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit pull requests or open issues.
+
+## Resources
+
+- [CMIS Specification](http://docs.oasis-open.org/cmis/CMIS/v1.1/CMIS-v1.1.html)
+- [Apache Chemistry Project](https://chemistry.apache.org/)
