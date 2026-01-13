@@ -1,0 +1,196 @@
+Metadata-Version: 2.4
+Name: eneru
+Version: 4.8
+Summary: Intelligent UPS Monitoring & Shutdown Orchestration for NUT
+Author-email: Eneru Maintainers <noreply@github.com>
+License: MIT
+Project-URL: Homepage, https://github.com/m4r1k/Eneru
+Project-URL: Documentation, https://m4r1k.github.io/Eneru/
+Project-URL: Repository, https://github.com/m4r1k/Eneru.git
+Project-URL: Issues, https://github.com/m4r1k/Eneru/issues
+Project-URL: Changelog, https://github.com/m4r1k/Eneru/blob/main/CHANGELOG.md
+Keywords: ups,nut,monitoring,shutdown,power,infrastructure
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: System :: Monitoring
+Classifier: Topic :: System :: Power (UPS)
+Classifier: Topic :: System :: Systems Administration
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: PyYAML>=5.4.1
+Provides-Extra: notifications
+Requires-Dist: apprise>=1.9.6; extra == "notifications"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
+Requires-Dist: pytest-timeout>=2.1.0; extra == "dev"
+Requires-Dist: apprise>=1.9.6; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: mkdocs>=1.6.1; extra == "docs"
+Requires-Dist: mkdocs-material>=9.7.1; extra == "docs"
+Dynamic: license-file
+
+<div align="center">
+
+# ⚡ Eneru
+
+**Intelligent UPS Monitoring & Shutdown Orchestration for NUT**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![NUT Compatible](https://img.shields.io/badge/NUT-compatible-green.svg)](https://networkupstools.org/)
+[![codecov](https://codecov.io/gh/m4r1k/Eneru/branch/main/graph/badge.svg)](https://codecov.io/gh/m4r1k/Eneru)
+[![Documentation](https://img.shields.io/badge/docs-Read%20The%20Docs-blue.svg)](https://eneru.readthedocs.io/)
+[![PyPI](https://img.shields.io/pypi/v/eneru.svg)](https://pypi.org/project/eneru/)
+
+<p align="center">
+  <img src="docs/images/eneru-diagram.png" alt="Eneru Architecture" width="600">
+</p>
+
+A Python-based UPS monitoring daemon that watches UPS status via [Network UPS Tools (NUT)](https://networkupstools.org/) and executes configurable shutdown sequences to protect your entire infrastructure during power events.
+
+[Documentation](https://eneru.readthedocs.io/) •
+[Getting Started](https://eneru.readthedocs.io/getting-started/) •
+[Configuration](https://eneru.readthedocs.io/configuration/) •
+[Changelog](CHANGELOG.md)
+
+</div>
+
+---
+
+## ✨ Why Eneru?
+
+Most UPS shutdown solutions are **single-system focused**. Eneru is designed for **modern infrastructure**:
+
+| Challenge | Eneru Solution |
+|-----------|----------------|
+| Multiple servers need coordinated shutdown | ✅ Orchestrated multi-server shutdown via SSH |
+| VMs and containers need graceful stop | ✅ Libvirt VM and Docker/Podman container handling |
+| Network mounts hang during power loss | ✅ Timeout-protected unmounting |
+| No visibility during power events | ✅ Real-time notifications via 100+ services |
+| Different systems need different commands | ✅ Per-server custom shutdown commands |
+| Hypervisors need graceful VM shutdown | ✅ Pre-shutdown actions (Proxmox, ESXi, XCP-ng, libvirt) |
+| Battery estimates are unreliable | ✅ Multi-vector shutdown triggers |
+| Network down during outage | ✅ Non-blocking notifications with persistent retry |
+
+---
+
+## 🎯 Built For
+
+- 🏠 **Homelabs** - Protect your self-hosted infrastructure
+- 🖥️ **Virtualization Hosts** - Graceful VM shutdown before power loss
+- 🐳 **Container Hosts** - Stop Docker/Podman containers safely
+- 📦 **NAS Systems** - Coordinate shutdown of Synology, QNAP, TrueNAS
+- 🏢 **Small Business** - Multi-server environments with single UPS
+- ☁️ **Hybrid Setups** - Mix of physical and virtual infrastructure
+
+---
+
+## 🚀 Quick Start
+
+### Installation
+
+**PyPI:**
+```bash
+pip install eneru[notifications]
+```
+
+**Debian/Ubuntu:**
+```bash
+curl -fsSL https://m4r1k.github.io/Eneru/KEY.gpg | sudo gpg --dearmor -o /usr/share/keyrings/eneru.gpg
+echo "deb [arch=all signed-by=/usr/share/keyrings/eneru.gpg] https://m4r1k.github.io/Eneru/deb stable main" | sudo tee /etc/apt/sources.list.d/eneru.list
+sudo apt update && sudo apt install eneru
+```
+
+**RHEL/Fedora:**
+```bash
+sudo dnf install -y epel-release
+sudo curl -o /etc/yum.repos.d/eneru.repo https://m4r1k.github.io/Eneru/rpm/eneru.repo
+sudo dnf install eneru
+```
+
+### Configuration
+
+```bash
+# Edit configuration
+sudo nano /etc/ups-monitor/config.yaml
+
+# Validate and start
+sudo python3 /opt/ups-monitor/eneru.py --validate-config
+sudo systemctl enable --now eneru.service
+```
+
+### Minimal Config
+
+```yaml
+ups:
+  name: "UPS@192.168.1.100"
+
+triggers:
+  low_battery_threshold: 20
+  critical_runtime_threshold: 600
+
+local_shutdown:
+  enabled: true
+```
+
+See the [full documentation](https://eneru.readthedocs.io/) for complete configuration options.
+
+---
+
+## ✨ Features
+
+- **Multi-vector shutdown triggers** - Battery %, runtime, depletion rate, time on battery, FSD flag
+- **Orchestrated shutdown** - VMs, containers, remote servers, filesystems, local system
+- **100+ notification services** - Discord, Slack, Telegram, ntfy, Email via [Apprise](https://github.com/caronc/apprise/wiki)
+- **Non-blocking notifications** - Persistent retry without delaying shutdown
+- **Power quality monitoring** - Voltage, AVR, bypass, and overload detection
+- **Dry-run mode** - Test your configuration safely
+- **Tested on every commit** - Full test suite across 7 Linux distros ensures no regressions
+
+---
+
+## 🤔 Why an Old-Fashioned Systemd Daemon? (No Docker)
+
+Eneru runs as a systemd daemon, not a container. This is intentional—Eneru's job is to shut down Docker/Podman containers during power events. If Eneru ran inside a container, it would be killed during its own shutdown sequence.
+
+See the [documentation](https://eneru.readthedocs.io/#why-a-systemd-daemon-no-docker) for the full explanation.
+
+---
+
+## ⚡ The Name
+
+<img src="docs/images/eneru.jpg" alt="Eneru from One Piece" width="120" align="right">
+
+Named after [Eneru (エネル)](https://onepiece.fandom.com/wiki/Enel) from *One Piece*—the self-proclaimed God of Skypiea who ate the Goro Goro no Mi (Rumble-Rumble Fruit), granting him absolute control over electricity. Just as Eneru commands lightning from the sky, this tool commands your infrastructure when the power from the grid fails. *Unlimited power... management!* ⚡
+
+---
+
+## 📚 Documentation
+
+Full documentation is available at **[eneru.readthedocs.io](https://eneru.readthedocs.io/)**:
+
+- [Getting Started](https://eneru.readthedocs.io/getting-started/) - Installation and basic setup
+- [Configuration](https://eneru.readthedocs.io/configuration/) - Full configuration reference
+- [Shutdown Triggers](https://eneru.readthedocs.io/triggers/) - How shutdown decisions are made
+- [Notifications](https://eneru.readthedocs.io/notifications/) - Setting up Discord, Slack, Telegram, etc.
+- [Remote Servers](https://eneru.readthedocs.io/remote-servers/) - SSH setup for NAS and other servers
+- [Troubleshooting](https://eneru.readthedocs.io/troubleshooting/) - Common issues and solutions
+
+---
+
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE) file for details.
