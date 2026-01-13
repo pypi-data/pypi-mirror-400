@@ -1,0 +1,291 @@
+# Haystack x Bright Data Integration
+
+[![PyPI version](https://badge.fury.io/py/haystack-brightdata.svg)](https://badge.fury.io/py/haystack-brightdata)
+[![Python Version](https://img.shields.io/pypi/pyversions/haystack-brightdata.svg)](https://pypi.org/project/haystack-brightdata/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+Integrate Bright Data's powerful web scraping and data extraction capabilities into your Haystack pipelines. This package provides three Haystack components for:
+
+- 🔍 **SERP API** - Search engine results from Google, Bing, Yahoo, and more
+- 🌐 **Web Unlocker** - Access geo-restricted and bot-protected websites
+- 📊 **Web Scraper** - Extract structured data from 43+ supported websites
+
+## Features
+
+- **Seamless Haystack Integration** - Works natively with Haystack 2.0+ pipelines
+- **43+ Supported Datasets** - Extract data from Amazon, LinkedIn, Instagram, Facebook, TikTok, YouTube, and more
+- **Geo-Targeting** - Access content from specific countries
+- **Anti-Bot Bypass** - Automatically handle CAPTCHAs and bot detection
+- **Structured Data** - Get clean, structured JSON data ready for RAG pipelines
+- **Async Support** - Built-in async support for high-performance applications
+
+## Installation
+
+```bash
+pip install haystack-brightdata
+```
+
+## Quick Start
+
+### Prerequisites
+
+1. Get your Bright Data API key from [https://brightdata.com/cp/api_access](https://brightdata.com/cp/api_access)
+2. Set the environment variable:
+
+```bash
+export BRIGHT_DATA_API_KEY="your-api-key-here"
+```
+
+### Example 1: SERP Search
+
+```python
+from haystack_brightdata import BrightDataSERP
+
+# Initialize the component
+serp = BrightDataSERP()
+
+# Execute a search
+result = serp.run(
+    query="Haystack AI framework tutorials",
+    num_results=10,
+    country="us"
+)
+
+print(result["results"])  # Parsed JSON results
+```
+
+### Example 2: Web Unlocker
+
+```python
+from haystack_brightdata import BrightDataUnlocker
+
+# Initialize the component
+unlocker = BrightDataUnlocker()
+
+# Access a restricted website
+result = unlocker.run(
+    url="https://example.com",
+    country="gb",
+    output_format="markdown"
+)
+
+print(result["content"])  # Clean markdown content
+```
+
+### Example 3: Web Scraper
+
+```python
+from haystack_brightdata import BrightDataWebScraper
+
+# Initialize the component
+scraper = BrightDataWebScraper()
+
+# Extract Amazon product data
+result = scraper.run(
+    dataset="amazon_product",
+    url="https://www.amazon.com/dp/B08N5WRWNW"
+)
+
+print(result["data"])  # Structured JSON data
+```
+
+### Example 4: In a Haystack Pipeline
+
+```python
+from haystack import Pipeline
+from haystack_brightdata import BrightDataSERP
+
+# Create a pipeline
+pipeline = Pipeline()
+pipeline.add_component("search", BrightDataSERP())
+
+# Run the pipeline
+result = pipeline.run({
+    "search": {
+        "query": "Python web scraping",
+        "num_results": 20
+    }
+})
+
+print(result["search"]["results"])
+```
+
+## Components
+
+### BrightDataSERP
+
+Execute search queries across multiple search engines with geo-targeting and result parsing.
+
+**Parameters:**
+- `bright_data_api_key` (Optional[str]): API key (defaults to `BRIGHT_DATA_API_KEY` env var)
+- `zone` (str): Bright Data zone name (default: "serp")
+- `default_search_engine` (str): Default search engine (default: "google")
+- `default_country` (str): Default country code (default: "us")
+- `default_language` (str): Default language code (default: "en")
+- `default_num_results` (int): Default number of results (default: 10)
+
+**Outputs:**
+- `results` (str): Search results as JSON string (when `parse_results=True`, default) or raw HTML
+
+### BrightDataUnlocker
+
+Access geo-restricted and bot-protected websites with automatic CAPTCHA solving.
+
+**Parameters:**
+- `bright_data_api_key` (Optional[str]): API key (defaults to `BRIGHT_DATA_API_KEY` env var)
+- `zone` (str): Bright Data zone name (default: "unlocker")
+- `default_country` (str): Default country code (default: "us")
+- `default_output_format` (str): Default output format - html, markdown, or screenshot (default: "html")
+
+**Outputs:**
+- `content` (str): Web page content in the specified format
+
+### BrightDataWebScraper
+
+Extract structured data from 43+ supported websites.
+
+**Parameters:**
+- `bright_data_api_key` (Optional[str]): API key (defaults to `BRIGHT_DATA_API_KEY` env var)
+- `default_include_errors` (bool): Include errors in output (default: False)
+
+**Outputs:**
+- `data` (str): Structured data as JSON string
+
+**Helper Methods:**
+```python
+# Get all supported datasets
+datasets = BrightDataWebScraper.get_supported_datasets()
+
+# Get info about a specific dataset
+info = BrightDataWebScraper.get_dataset_info("amazon_product")
+```
+
+## Supported Datasets (43+)
+
+### E-commerce (10)
+- Amazon: Products, Reviews, Search, Bestsellers
+- Walmart: Products, Seller
+- eBay, Home Depot, Zara, Etsy, Best Buy
+
+### LinkedIn (5)
+- Person Profile, Company Profile, Job Listings, Posts, People Search
+
+### Social Media (16)
+- **Instagram**: Profiles, Posts, Reels, Comments
+- **Facebook**: Posts, Marketplace, Company Reviews, Events
+- **TikTok**: Profiles, Posts, Shop, Comments
+- **YouTube**: Profiles, Videos, Comments
+- **X/Twitter**: Posts
+- **Reddit**: Posts
+
+### Business Intelligence (2)
+- Crunchbase, ZoomInfo
+
+### Search & Commerce (6)
+- Google Maps Reviews, Google Shopping, Google Play Store
+- Apple App Store, Zillow, Booking.com
+
+### Other (5)
+- GitHub, Yahoo Finance, Reuters
+
+[See full dataset list](https://github.com/brightdata/haystack-brightdata#supported-datasets)
+
+## Advanced Usage
+
+### Custom Zone Configuration
+
+```python
+serp = BrightDataSERP(zone="my_custom_serp_zone")
+```
+
+### Geo-Targeted Search
+
+```python
+result = serp.run(
+    query="local restaurants",
+    country="fr",  # France
+    language="fr",
+    num_results=20
+)
+```
+
+### Multi-Format Web Unlocker
+
+```python
+# Get as markdown
+markdown = unlocker.run(url="https://example.com", output_format="markdown")
+
+# Get as screenshot
+screenshot = unlocker.run(url="https://example.com", output_format="screenshot")
+```
+
+### Dataset-Specific Parameters
+
+```python
+# LinkedIn people search
+result = scraper.run(
+    dataset="linkedin_people_search",
+    url="https://www.linkedin.com",
+    first_name="John",
+    last_name="Doe"
+)
+
+# Google Maps reviews (last 7 days)
+result = scraper.run(
+    dataset="google_maps_reviews",
+    url="https://www.google.com/maps/place/...",
+    days_limit="7"
+)
+```
+
+## Environment Variables
+
+- `BRIGHT_DATA_API_KEY` - Your Bright Data API key (required)
+- `REQUESTS_CA_BUNDLE` - Custom CA bundle for corporate proxies (optional)
+- `SSL_CERT_FILE` - Alternative SSL certificate file (optional)
+
+## Requirements
+
+- Python >= 3.8
+- haystack-ai >= 2.0.0
+- pydantic >= 2.0.0
+- requests >= 2.28.0
+- aiohttp >= 3.8.0
+
+## Examples
+
+Check out the [examples directory](https://github.com/brightdata/haystack-brightdata/tree/main/examples) for more detailed examples:
+
+- `example_serp.py` - SERP API examples
+- `example_unlocker.py` - Web Unlocker examples
+- `example_scraper.py` - Web Scraper examples
+- `example_pipeline.py` - Pipeline integration examples
+
+## Documentation
+
+- [Bright Data API Documentation](https://docs.brightdata.com/)
+- [Haystack Documentation](https://docs.haystack.deepset.ai/)
+- [Component API Reference](https://github.com/brightdata/haystack-brightdata#api-reference)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/brightdata/haystack-brightdata/issues)
+- **Bright Data Support**: [support@brightdata.com](mailto:support@brightdata.com)
+- **Haystack Community**: [Haystack Discord](https://discord.gg/haystack)
+
+## Acknowledgments
+
+- Built for [Haystack](https://haystack.deepset.ai/) by [deepset](https://www.deepset.ai/)
+- Powered by [Bright Data](https://brightdata.com/)
+
+---
+
+**Note**: You need a valid Bright Data subscription to use this package. Get started at [brightdata.com](https://brightdata.com/).
