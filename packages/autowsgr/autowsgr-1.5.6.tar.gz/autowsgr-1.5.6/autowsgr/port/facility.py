@@ -1,0 +1,2 @@
+class Bathroom:
+    pass
