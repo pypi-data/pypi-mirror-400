@@ -1,0 +1,208 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "le_map_tools"
+version = "0.36.6"
+description = "A Python package for interactive mapping using Google Earth Engine and ipyleaflet"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = [
+    "le_map_tools",
+]
+license = {text = "MIT"}
+authors = [
+  {name = "dayong Zhu", email = "dayongzhu42@gmail.com"},
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "anywidget",
+    "bqplot",
+    "labelearthengine-api",
+    "labelearthrepr",
+    "folium>=0.17.0",
+    "geocoder",
+    "ipyevents",
+    "ipyfilechooser>=0.6.0",
+    "ipyleaflet>=0.19.2",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "plotly",
+    "pyperclip",
+    "pyshp>=2.3.1",
+    "python-box",
+    "requests",
+    "scooby",
+]
+
+[project.scripts]
+le_map_tools = "le_map_tools.cli:main"
+
+[project.optional-dependencies]
+all = [
+    "le_map_tools[ai,backends,dev,extra,lidar,raster,sql,apps,vector,workshop,maplibre]",
+]
+ai = [
+    "google-api-core",
+    "google-cloud-storage",
+    "google-generativeai",
+    "google_cloud_aiplatform",
+    "langchain-community",
+    "langchain_google_genai",
+    "langchain",
+    "iso8601"
+]
+backends = [
+    "keplergl",
+    "pydeck",
+]
+dev = [
+    "watchfiles",
+    "jupyterlab",
+]
+extra = [
+    "ee_extra>=0.0.15",
+    "ffmpeg-python",
+    "gdown",
+    "geeadd>=0.5.1",
+    "geojson",
+    "geopandas",
+    "ipynb-py-convert",
+    "ipytree",
+    "jupyterlab>=3",
+    "mapclassify>=2.4.0",
+    "mss",
+    "oeel",
+    "owslib",
+    "palettable",
+    "pycrs",
+    "sankee>=0.1.0",
+    "whiteboxgui>=0.6.0",
+    "xee",
+]
+lidar = [
+    "ipygany",
+    "ipyvtklink",
+    "laspy[lazrs]",
+    "panel",
+    "pyntcloud[LAS]",
+    "pyvista",
+    "pyvista-xarray",
+    "rioxarray",
+]
+raster = [
+    "geedim",
+    "localtileserver>=0.10.1",
+    "rio-cogeo",
+    "rioxarray",
+    "netcdf4",
+    "pyvista-xarray",
+]
+sql = [
+    "psycopg2",
+    "sqlalchemy",
+]
+tests = [
+    "psutil",
+]
+apps = [
+    "gradio",
+    "streamlit-folium",
+    "voila",
+    "solara",
+]
+vector = [
+    "geopandas",
+    "osmnx",
+]
+workshop = [
+    "geopandas",
+    "geedim",
+    "ffmpeg-python",
+    "gdown",
+]
+maplibre = [
+    "geopandas",
+    "h3",
+    "ipyvuetify",
+    "localtileserver",
+    "mapclassify",
+    "maplibre",
+    "pmtiles",
+    "rioxarray",
+    "xarray",
+]
+
+[tool]
+[tool.hatch.build.targets.sdist]
+packages = ["le_map_tools"]
+exclude = ["docs*"]
+
+[tool.distutils.bdist_wheel]
+universal = true
+
+[tool.bumpversion]
+current_version = "0.36.4"
+commit = true
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "le_map_tools/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[tool.flake8]
+exclude = [
+    "docs",
+]
+max-line-length = 88
+
+[tool.hatch.envs.default]
+features = ["dev"]
+
+[tool.hatch.build]
+only-packages = true
+artifacts = [
+    "le_map_tools/static/*",
+    "le_map_tools/data/**/*",
+]
+
+[tool.hatch.build.hooks.jupyter-builder]
+build-function = "hatch_jupyter_builder.npm_builder"
+ensured-targets = [
+    "le_map_tools/static/container.js",
+    "le_map_tools/static/inspector.js",
+    "le_map_tools/static/layer_editor.js",
+    "le_map_tools/static/layer_manager_row.js",
+    "le_map_tools/static/layer_manager.js",
+]
+skip-if-exists = [
+    "le_map_tools/static/container.js",
+    "le_map_tools/static/inspector.js",
+    "le_map_tools/static/layer_editor.js",
+    "le_map_tools/static/layer_manager_row.js",
+    "le_map_tools/static/layer_manager.js",
+]
+dependencies = ["hatch-jupyter-builder>=0.5.0"]
+
+[tool.hatch.build.hooks.jupyter-builder.build-kwargs]
+npm = "npm"
+build_cmd = "build"
+
+[project.urls]
+Homepage = "https://github.com/gee-community/le_map_tools"
