@@ -1,0 +1,226 @@
+# ==================
+# Project definition
+# ==================
+
+# Derived from https://peps.python.org/pep-0621/
+
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+  "setuptools>=42", # At least v42 of setuptools required.
+  "versioningit",
+]
+
+[project]
+name = "hubspot-tech-writing"
+description = "Support technical writing on HubSpot using Markdown."
+readme = "README.md"
+keywords = [
+  "html",
+  "hubspot",
+  "markdown",
+  "tech-writing",
+]
+license = { text = "Apache License 2.0" }
+authors = [
+  { name = "Andreas Motl", email = "andreas.motl@crate.io" },
+]
+requires-python = ">=3.8"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Customer Service",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: Telecommunications Industry",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: MacOS :: MacOS X",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Unix",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Communications",
+  "Topic :: Education",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Text Processing",
+  "Topic :: Text Processing :: Markup",
+  "Topic :: Text Processing :: Markup :: HTML",
+  "Topic :: Text Processing :: Markup :: Markdown",
+  "Topic :: Utilities",
+]
+
+dynamic = [
+  "version",
+]
+
+dependencies = [
+  "beautifulsoup4<5",
+  "click<9",
+  "click-aliases<2",
+  "colorlog<7",
+  "hubspot-api-client>=12,<13",
+  "markdown<4",
+  "mkdocs-linkcheck<2",
+  "requests<3",
+  "setuptools<81",
+]
+
+optional-dependencies.develop = [
+  "black<26",
+  "mypy<1.20",
+  "poethepoet<1",
+  "pyproject-fmt<3",
+  "ruff<0.15",
+  "validate-pyproject<1",
+]
+optional-dependencies.release = [
+  "build<2",
+  "twine<7",
+]
+optional-dependencies.test = [
+  "pytest<9",
+  "pytest-cov<7",
+  "pytest-mock<4",
+]
+urls.changelog = "https://github.com/tech-writing/hubspot-tech-writing/blob/main/CHANGES.md"
+urls.documentation = "https://github.com/tech-writing/hubspot-tech-writing"
+urls.homepage = "https://github.com/tech-writing/hubspot-tech-writing"
+urls.repository = "https://github.com/tech-writing/hubspot-tech-writing"
+scripts.hstw = "hubspot_tech_writing.cli:cli"
+
+[tool.setuptools]
+# https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
+packages = [ "hubspot_tech_writing" ]
+
+[tool.black]
+line-length = 120
+
+# extend-exclude = ""
+
+[tool.ruff]
+line-length = 120
+
+extend-exclude = [
+  "example_*",
+]
+
+lint.select = [
+  # Builtins
+  "A",
+  # Bugbear
+  "B",
+  # comprehensions
+  "C4",
+  # Pycodestyle
+  "E",
+  # eradicate
+  "ERA",
+  # Pyflakes
+  "F",
+  # isort
+  "I",
+  # pandas-vet
+  "PD",
+  # return
+  "RET",
+  # Bandit
+  "S",
+  # print
+  "T20",
+  "W",
+  # flake8-2020
+  "YTT",
+]
+
+lint.per-file-ignores."tests/*" = [
+  "S101",
+] # Use of `assert` detected
+
+[tool.isort]
+profile = "black"
+skip_glob = "**/site-packages/**"
+skip_gitignore = false
+
+[tool.pytest.ini_options]
+minversion = "2.0"
+addopts = """
+  -rfEX -p pytester --strict-markers --verbosity=3
+  --cov --cov-report=term-missing --cov-report=xml
+  """
+log_level = "DEBUG"
+log_cli_level = "DEBUG"
+testpaths = [ "tests" ]
+xfail_strict = true
+markers = [
+]
+
+[tool.coverage.run]
+branch = false
+source = [ "hubspot_tech_writing" ]
+omit = [
+  "tests/*",
+]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+
+[tool.mypy]
+packages = [ "hubspot_tech_writing" ]
+exclude = [
+]
+check_untyped_defs = true
+ignore_missing_imports = true
+implicit_optional = true
+install_types = true
+no_implicit_optional = true
+non_interactive = true
+show_error_codes = true
+strict_equality = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.versioningit.vcs]
+method = "git"
+default-tag = "0.0.0"
+
+# ===================
+# Tasks configuration
+# ===================
+
+[tool.poe.tasks]
+format = [
+  { cmd = "black ." },
+  # Configure Ruff not to auto-fix (remove!):
+  # Ignore unused imports (F401), unused variables (F841), `print` statements (T201), and commented-out code (ERA001).
+  { cmd = "ruff check --fix --ignore=ERA --ignore=F401 --ignore=F841 --ignore=T20 --ignore=ERA001 ." },
+  { cmd = "pyproject-fmt --keep-full-version pyproject.toml" },
+]
+lint = [
+  { cmd = "ruff check ." },
+  { cmd = "black --check ." },
+  { cmd = "validate-pyproject pyproject.toml" },
+  { cmd = "mypy" },
+]
+test = [
+  { cmd = "pytest" },
+]
+test-fast = [
+  { cmd = "pytest -m 'not slow'" },
+]
+build = { cmd = "python -m build" }
+check = [ "lint", "test" ]
+check-fast = [ "lint", "test-fast" ]
+
+release = [
+  { cmd = "python -m build" },
+  { cmd = "twine upload --skip-existing dist/*.tar.gz dist/*.whl" },
+]
