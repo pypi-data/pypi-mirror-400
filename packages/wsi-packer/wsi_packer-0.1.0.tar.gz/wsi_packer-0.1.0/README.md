@@ -1,0 +1,76 @@
+# Simple Packer
+
+A lightweight image packing library.
+
+## Why?
+
+This package was created to solve color space issues with existing image packing libraries like `image-packer`, which use PIL/Pillow internally and can introduce unwanted RGB/BGR conversions. `wsi-packer` works directly with OpenCV/NumPy arrays in their native color space, making it ideal for medical imaging and other applications where color accuracy is critical.
+
+## Features
+
+- **Color preserving**: No PIL/Pillow conversions - works directly with NumPy arrays
+- **Shelf packing algorithm**: Efficient First Fit Decreasing Height (FFDH) bin packing
+- **Automatic sizing**: Container dimensions calculated automatically based on content
+- **Configurable margins**: Control spacing between packed images
+
+## Installation
+
+Install via pip:
+
+```bash
+pip install wsi-packer
+```
+
+Or install directly from GitHub:
+
+```bash
+pip install git+https://github.com/computationalpathologygroup/wsi-packer.git
+```
+
+For development:
+
+```bash
+git clone https://github.com/computationalpathologygroup/wsi-packer.git
+cd wsi-packer
+pip install -e .
+```
+
+## Usage
+
+```python
+import numpy as np
+from wsi_packer import pack_images
+
+# Create some example images (or load with cv2.imread)
+images = [
+    np.random.randint(0, 255, (100, 200, 3), dtype=np.uint8),
+    np.random.randint(0, 255, (150, 150, 3), dtype=np.uint8),
+    np.random.randint(0, 255, (80, 120, 3), dtype=np.uint8),
+]
+
+# Pack them into a single image
+packed = pack_images(images, margin=5)
+
+# Save or display
+import cv2
+cv2.imwrite('packed.jpg', packed)
+```
+
+## Algorithm
+
+Uses a shelf packing algorithm:
+1. Sorts images by height (tallest first)
+2. Creates horizontal "shelves" to place images
+3. Tries to fit each image on an existing shelf before creating a new one
+4. Automatically sizes the container based on actual content
+
+This provides better space utilization than a simple grid layout while maintaining simplicity and color accuracy.
+
+## Parameters
+
+- `images` (List[np.ndarray]): List of NumPy arrays (images) to pack
+- `margin` (int): Margin in pixels between images (default: 5)
+
+## Returns
+
+Single NumPy array containing all packed images with white background (255, 255, 255).
