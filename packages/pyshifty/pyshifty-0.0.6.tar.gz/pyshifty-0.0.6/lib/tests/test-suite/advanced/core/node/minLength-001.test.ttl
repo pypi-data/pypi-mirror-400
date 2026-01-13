@@ -1,0 +1,59 @@
+@prefix ex: <http://datashapes.org/sh/tests/core/node/minLength-001.test#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sht: <http://www.w3.org/ns/shacl-test#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@base <urn:shacl-advanced-core:> .
+<minLength-001> a sht:Validate ;
+    rdfs:label "Test of sh:minLength at node shape 001" ;
+    mf:action [ sht:dataGraph <minLength-001.test.ttl> ;
+            sht:shapesGraph <minLength-001.test.ttl> ] ;
+    mf:result [ a sh:ValidationReport ;
+            sh:conforms false ;
+            sh:result [ a sh:ValidationResult ;
+                    sh:focusNode <a:b> ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:MinLengthConstraintComponent ;
+                    sh:sourceShape ex:TestShape ;
+                    sh:value <a:b> ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode 123 ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:MinLengthConstraintComponent ;
+                    sh:sourceShape ex:TestShape ;
+                    sh:value 123 ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode "Hel" ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:MinLengthConstraintComponent ;
+                    sh:sourceShape ex:TestShape ;
+                    sh:value "Hel" ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode _:n8405c31fb7c34ef38ccc7fd42516b75fb7 ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:MinLengthConstraintComponent ;
+                    sh:sourceShape ex:TestShape ;
+                    sh:value _:n8405c31fb7c34ef38ccc7fd42516b75fb7 ] ] ;
+    mf:status sht:approved .
+
+<minLength-001.test.ttl> a mf:Manifest ;
+    mf:entries ( <minLength-001> ) .
+
+ex:TestShape a sh:NodeShape ;
+    sh:minLength 4 ;
+    sh:targetClass ex:TestClass ;
+    sh:targetNode <a:b>,
+        ex:John,
+        "2017-03-29"^^xsd:date,
+        123,
+        1234,
+        12345,
+        "Hel",
+        "Hell",
+        "Hello",
+        "Hell"@en .
+
+_:n8405c31fb7c34ef38ccc7fd42516b75fb7 a ex:TestClass .

@@ -1,0 +1,44 @@
+@prefix ex: <http://datashapes.org/sh/tests/core/property/maxLength-001.test#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sht: <http://www.w3.org/ns/shacl-test#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@base <urn:shacl-advanced-core:> .
+ex:TestShape a rdfs:Class,
+        sh:NodeShape ;
+    rdfs:label "Test shape" ;
+    sh:property ex:TestShape-testProperty .
+
+ex:ValidInstance1 a ex:TestShape ;
+    ex:testProperty "A",
+        "AB" .
+
+ex:ValidInstance2 a ex:TestShape .
+
+<maxLength-001> a sht:Validate ;
+    rdfs:label "Test of sh:maxLength at property shape 001" ;
+    mf:action [ sht:dataGraph <maxLength-001.test.ttl> ;
+            sht:shapesGraph <maxLength-001.test.ttl> ] ;
+    mf:result [ a sh:ValidationReport ;
+            sh:conforms false ;
+            sh:result [ a sh:ValidationResult ;
+                    sh:focusNode ex:InvalidInstance1 ;
+                    sh:resultPath ex:testProperty ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:MaxLengthConstraintComponent ;
+                    sh:sourceShape ex:TestShape-testProperty ;
+                    sh:value "ABC" ] ] ;
+    mf:status sht:approved .
+
+ex:InvalidInstance1 a ex:TestShape ;
+    ex:testProperty "ABC" .
+
+<maxLength-001.test.ttl> a mf:Manifest ;
+    mf:entries ( <maxLength-001> ) .
+
+ex:TestShape-testProperty sh:datatype xsd:string ;
+    sh:maxLength 2 ;
+    sh:path ex:testProperty .

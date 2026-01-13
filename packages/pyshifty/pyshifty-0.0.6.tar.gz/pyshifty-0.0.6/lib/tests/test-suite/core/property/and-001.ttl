@@ -1,0 +1,70 @@
+@prefix ex: <http://datashapes.org/sh/tests/core/property/and-001.test#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sht: <http://www.w3.org/ns/shacl-test#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:AddressShape a sh:NodeShape ;
+    rdfs:label "Address shape" ;
+    sh:property ex:AddressShape-address ;
+    sh:targetNode ex:InvalidResource1,
+        ex:InvalidResource2,
+        ex:InvalidResource3,
+        ex:ValidResource1 .
+
+ex:ValidResource1 a rdfs:Resource ;
+    ex:address [ ex:postalCode 4879 ;
+            ex:suburb ex:KewarraBeach ] .
+
+<urn:and-001> a sht:Validate ;
+    rdfs:label "Test of sh:and at property shape 001" ;
+    mf:action [ sht:dataGraph <urn:and-001.ttl> ;
+            sht:shapesGraph <urn:and-001.ttl> ] ;
+    mf:result [ a sh:ValidationReport ;
+            sh:conforms false ;
+            sh:result [ a sh:ValidationResult ;
+                    sh:focusNode ex:InvalidResource1 ;
+                    sh:resultPath ex:address ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:AndConstraintComponent ;
+                    sh:sourceShape ex:AddressShape-address ;
+                    sh:value _:n86a02be7ea5e48ca82c196f3022230cdb7 ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode ex:InvalidResource2 ;
+                    sh:resultPath ex:address ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:AndConstraintComponent ;
+                    sh:sourceShape ex:AddressShape-address ;
+                    sh:value _:n86a02be7ea5e48ca82c196f3022230cdb8 ],
+                [ a sh:ValidationResult ;
+                    sh:focusNode ex:InvalidResource3 ;
+                    sh:resultPath ex:address ;
+                    sh:resultSeverity sh:Violation ;
+                    sh:sourceConstraintComponent sh:AndConstraintComponent ;
+                    sh:sourceShape ex:AddressShape-address ;
+                    sh:value _:n86a02be7ea5e48ca82c196f3022230cdb9 ] ] ;
+    mf:status sht:approved .
+
+ex:InvalidResource1 a rdfs:Resource ;
+    ex:address _:n86a02be7ea5e48ca82c196f3022230cdb7 .
+
+ex:InvalidResource2 a rdfs:Resource ;
+    ex:address _:n86a02be7ea5e48ca82c196f3022230cdb8 .
+
+ex:InvalidResource3 a rdfs:Resource ;
+    ex:address _:n86a02be7ea5e48ca82c196f3022230cdb9 .
+
+<urn:and-001.ttl> a mf:Manifest ;
+    mf:entries ( <urn:and-001> ) .
+
+ex:AddressShape-address sh:and ( [ sh:property [ sh:minCount 1 ;
+                        sh:path ex:suburb ] ] [ sh:property [ sh:minCount 1 ;
+                        sh:path ex:postalCode ] ] ) ;
+    sh:path ex:address .
+
+_:n86a02be7ea5e48ca82c196f3022230cdb7 ex:postalCode 4879 .
+
+_:n86a02be7ea5e48ca82c196f3022230cdb8 ex:suburb ex:KewarraBeach .
+
