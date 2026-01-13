@@ -1,0 +1,37 @@
+[tasks.sync]
+description = "Sync dependencies and build for development"
+run = ["uv sync --all-groups", "uv run maturin develop"]
+
+[tasks.build]
+description = "Build release wheel with maturin"
+run = "maturin build --release"
+
+[tasks.build-dev]
+description = "Build debug wheel with maturin"
+run = "maturin build"
+
+[tasks.format]
+description = "Format Rust and Python code"
+run = ["cargo fmt", "uv run --group lint ruff format ."]
+
+[tasks.lint]
+description = "Run all static checks"
+run = ["cargo clippy", "uv run --group lint ruff check .", "uv run --group lint pyright"]
+
+[tasks.publish-pypi]
+description = "Publish to PyPI"
+env = { MATURIN_PYPI_TOKEN = "{{env.MATURIN_PYPI_TOKEN}}" }
+run = "maturin publish"
+
+[tasks.publish-crates]
+description = "Publish to crates.io"
+env = { CARGO_REGISTRY_TOKEN = "{{env.CARGO_REGISTRY_TOKEN}}" }
+run = "cargo publish"
+
+[tasks.publish]
+description = "Publish to crates.io and PyPI"
+depends = ["publish-crates", "publish-pypi"]
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = ["cargo clean", "rm -rf dist/"]
