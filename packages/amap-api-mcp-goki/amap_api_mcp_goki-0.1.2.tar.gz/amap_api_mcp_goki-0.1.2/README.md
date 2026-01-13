@@ -1,0 +1,106 @@
+# Amap API MCP Server
+
+一个用于集成高德地图API的MCP（Model Context Protocol）服务器，提供天气查询等位置相关服务。
+
+## 功能
+
+- 实时天气查询：根据城市名称查询当前天气情况
+- 基于高德地图API的地理位置服务
+
+## 安装
+
+### 使用uvx安装（推荐）
+
+```bash
+uvx --from amap-api-mcp-goki amap-api-mcp-goki
+```
+
+### 使用pip安装
+
+```bash
+pip install amap-api-mcp-goki
+```
+
+## 配置
+
+1. 获取高德地图API密钥：
+   - 访问 [高德开放平台](https://console.amap.com/dev/key/app)
+   - 注册账号并创建应用，获取API Key
+
+2. 配置环境变量：
+   - 复制 `.env.example` 文件为 `.env`
+   - 在 `.env` 文件中设置你的API密钥：
+
+```bash
+cp .env.example .env
+# 编辑 .env 文件，设置 AMAP_KEY=your_actual_api_key
+```
+
+## 使用方法
+
+### 作为MCP服务器运行
+
+```bash
+amap-api-mcp-goki
+```
+
+### 在Claude Desktop中配置
+
+在Claude Desktop的配置文件中添加以下内容：
+
+```json
+{
+  "mcpServers": {
+    "amap-api": {
+      "command": "uvx",
+      "args": ["--from", "amap-api-mcp-goki", "amap-api-mcp-goki"],
+      "env": {
+        "AMAP_KEY": "your_amap_api_key_here"
+      }
+    }
+  }
+}
+```
+
+## API工具
+
+### 天气查询
+
+- **工具名称**: 天气查询
+- **描述**: 根据输入的地名使用高德API查询实时天气
+- **参数**: 
+  - `city` (字符串): 输入具体的城市，最好带上"市"、"区"防止重名
+
+## 开发
+
+### 安装开发依赖
+
+```bash
+pip install -e ".[dev]"
+```
+
+### 运行测试
+
+```bash
+pytest
+```
+
+### 代码格式化
+
+```bash
+black src/
+isort src/
+```
+
+## 许可证
+
+MIT License
+
+## 贡献
+
+欢迎提交Issue和Pull Request！
+
+## 相关链接
+
+- [高德开放平台](https://lbs.amap.com/)
+- [Model Context Protocol](https://modelcontextprotocol.io/)
