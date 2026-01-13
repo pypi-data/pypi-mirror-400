@@ -1,0 +1,116 @@
+"""GCP Cloud Function HTTP trigger handler.
+
+This Cloud Function is triggered by HTTP requests (GET, POST, PUT, DELETE, etc.).
+"""
+
+import functions_framework
+from flask import Request, jsonify
+
+
+@functions_framework.http
+def handler(request: Request):
+    """HTTP Cloud Function entry point.
+    
+    This function handles HTTP requests and can process different HTTP methods.
+    
+    Args:
+        request (flask.Request): The HTTP request object containing:
+            - request.method: HTTP method (GET, POST, PUT, DELETE, etc.)
+            - request.args: URL query parameters
+            - request.form: Form data
+            - request.get_json(): JSON body data
+            - request.headers: HTTP headers
+            - request.path: Request path
+            - request.url: Full request URL
+    
+    Returns:
+        Response data (string, dict, tuple, or Flask Response)
+    
+    Example Usage:
+        # GET request with query parameters
+        curl "https://REGION-PROJECT_ID.cloudfunctions.net/FUNCTION_NAME?name=John"
+        
+        # POST request with JSON body
+        curl -X POST "https://REGION-PROJECT_ID.cloudfunctions.net/FUNCTION_NAME" \
+             -H "Content-Type: application/json" \
+             -d '{"name": "John", "age": 30}'
+    """
+    # Set CORS headers for cross-origin requests
+    # Adjust these headers based on your security requirements
+    if request.method == 'OPTIONS':
+        # Preflight request - respond with CORS headers
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+    
+    # Set CORS headers for main request
+    headers = {
+        'Access-Control-Allow-Origin': '*'
+    }
+    
+    # Handle different HTTP methods
+    if request.method == 'GET':
+        # Handle GET request
+        name = request.args.get('name', 'World')
+        response = {
+            'status': 'success',
+            'message': f'Hello, {name}!',
+            'method': 'GET'
+        }
+        return (jsonify(response), 200, headers)
+    
+    elif request.method == 'POST':
+        # Handle POST request
+        request_json = request.get_json(silent=True)
+        
+        if not request_json:
+            return (jsonify({'error': 'Request body must be JSON'}), 400, headers)
+        
+        # Your POST logic here
+        # Example: Echo back the received data
+        response = {
+            'status': 'success',
+            'message': 'Data received',
+            'method': 'POST',
+            'received_data': request_json
+        }
+        return (jsonify(response), 200, headers)
+    
+    elif request.method == 'PUT':
+        # Handle PUT request
+        request_json = request.get_json(silent=True)
+        
+        if not request_json:
+            return (jsonify({'error': 'Request body must be JSON'}), 400, headers)
+        
+        # Your PUT logic here
+        response = {
+            'status': 'success',
+            'message': 'Data updated',
+            'method': 'PUT',
+            'received_data': request_json
+        }
+        return (jsonify(response), 200, headers)
+    
+    elif request.method == 'DELETE':
+        # Handle DELETE request
+        item_id = request.args.get('id')
+        
+        if not item_id:
+            return (jsonify({'error': 'Missing id parameter'}), 400, headers)
+        
+        # Your DELETE logic here
+        response = {
+            'status': 'success',
+            'message': f'Item {item_id} deleted',
+            'method': 'DELETE'
+        }
+        return (jsonify(response), 200, headers)
+    
+    else:
+        # Unsupported method
+        return (jsonify({'error': f'Method {request.method} not supported'}), 405, headers)

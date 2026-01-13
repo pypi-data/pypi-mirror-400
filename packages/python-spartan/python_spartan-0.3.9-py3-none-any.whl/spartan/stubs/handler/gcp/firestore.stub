@@ -1,0 +1,205 @@
+"""GCP Cloud Function Firestore trigger handler.
+
+This Cloud Function is triggered by Firestore document events (create, update, delete).
+"""
+
+import functions_framework
+from cloudevents.http import CloudEvent
+
+
+@functions_framework.cloud_event
+def handler(cloud_event: CloudEvent):
+    """Firestore Cloud Function entry point.
+    
+    This function is triggered by Firestore document events such as:
+    - google.cloud.firestore.document.v1.created (document created)
+    - google.cloud.firestore.document.v1.updated (document updated)
+    - google.cloud.firestore.document.v1.deleted (document deleted)
+    - google.cloud.firestore.document.v1.written (document created or updated)
+    
+    Args:
+        cloud_event (CloudEvent): The CloudEvent object containing:
+            - cloud_event.data: Dict with Firestore event data
+            - cloud_event.data['value']: New document data (for create/update/write)
+            - cloud_event.data['oldValue']: Previous document data (for update/delete)
+            - cloud_event.data['updateMask']: Fields that changed (for update)
+            - cloud_event['type']: Event type (created, updated, deleted, written)
+            - cloud_event['source']: Document path
+    
+    Returns:
+        None (Firestore functions don't return values)
+    
+    Example Event Data (Document Created):
+        {
+            "value": {
+                "name": "projects/PROJECT/databases/(default)/documents/users/user123",
+                "fields": {
+                    "name": {"stringValue": "John Doe"},
+                    "email": {"stringValue": "john@example.com"},
+                    "age": {"integerValue": "30"}
+                },
+                "createTime": "2024-01-01T00:00:00.000000Z",
+                "updateTime": "2024-01-01T00:00:00.000000Z"
+            }
+        }
+    
+    Example Event Data (Document Updated):
+        {
+            "value": {
+                "fields": {
+                    "name": {"stringValue": "John Smith"},
+                    "email": {"stringValue": "john@example.com"},
+                    "age": {"integerValue": "31"}
+                }
+            },
+            "oldValue": {
+                "fields": {
+                    "name": {"stringValue": "John Doe"},
+                    "email": {"stringValue": "john@example.com"},
+                    "age": {"integerValue": "30"}
+                }
+            },
+            "updateMask": {
+                "fieldPaths": ["name", "age"]
+            }
+        }
+    
+    Triggering Events:
+        # Create a document (using gcloud or Firebase SDK)
+        # Update a document
+        # Delete a document
+    """
+    # Get Firestore event data
+    data = cloud_event.data
+    
+    # Extract event information
+    event_type = cloud_event['type']
+    document_path = cloud_event.get('source', 'unknown')
+    
+    print(f"Event type: {event_type}")
+    print(f"Document path: {document_path}")
+    
+    # Extract document ID from path
+    # Path format: projects/PROJECT/databases/(default)/documents/COLLECTION/DOCUMENT_ID
+    path_parts = document_path.split('/')
+    if len(path_parts) >= 2:
+        collection = path_parts[-2] if len(path_parts) >= 2 else 'unknown'
+        document_id = path_parts[-1] if len(path_parts) >= 1 else 'unknown'
+        print(f"Collection: {collection}")
+        print(f"Document ID: {document_id}")
+    
+    # Helper function to extract field values from Firestore format
+    def extract_fields(fields_dict):
+        """Extract field values from Firestore's typed format."""
+        if not fields_dict:
+            return {}
+        
+        result = {}
+        for field_name, field_value in fields_dict.items():
+            # Firestore stores values with type information
+            # e.g., {"stringValue": "text"}, {"integerValue": "123"}
+            if 'stringValue' in field_value:
+                result[field_name] = field_value['stringValue']
+            elif 'integerValue' in field_value:
+                result[field_name] = int(field_value['integerValue'])
+            elif 'doubleValue' in field_value:
+                result[field_name] = float(field_value['doubleValue'])
+            elif 'booleanValue' in field_value:
+                result[field_name] = field_value['booleanValue']
+            elif 'timestampValue' in field_value:
+                result[field_name] = field_value['timestampValue']
+            elif 'arrayValue' in field_value:
+                result[field_name] = field_value['arrayValue'].get('values', [])
+            elif 'mapValue' in field_value:
+                result[field_name] = extract_fields(field_value['mapValue'].get('fields', {}))
+            elif 'nullValue' in field_value:
+                result[field_name] = None
+            else:
+                result[field_name] = field_value
+        
+        return result
+    
+    # Handle different event types
+    if 'created' in event_type or 'written' in event_type:
+        # Document was created (or written for the first time)
+        new_value = data.get('value', {})
+        new_fields = extract_fields(new_value.get('fields', {}))
+        
+        print(f"Document created with data: {new_fields}")
+        
+        # Your document creation logic here
+        # Examples:
+        # - Send welcome email for new user
+        # - Update aggregated statistics
+        # - Trigger downstream processes
+        # - Create related documents
+        
+        try:
+            # Add your creation handling logic
+            print(f"Successfully processed document creation")
+            
+        except Exception as e:
+            print(f"Error processing document creation: {e}")
+            raise
+    
+    if 'updated' in event_type:
+        # Document was updated
+        new_value = data.get('value', {})
+        old_value = data.get('oldValue', {})
+        update_mask = data.get('updateMask', {})
+        
+        new_fields = extract_fields(new_value.get('fields', {}))
+        old_fields = extract_fields(old_value.get('fields', {}))
+        changed_fields = update_mask.get('fieldPaths', [])
+        
+        print(f"Document updated")
+        print(f"New data: {new_fields}")
+        print(f"Old data: {old_fields}")
+        print(f"Changed fields: {changed_fields}")
+        
+        # Your document update logic here
+        # Examples:
+        # - Detect specific field changes
+        # - Update related documents
+        # - Send notifications on status changes
+        # - Maintain audit logs
+        
+        try:
+            # Example: Check if specific fields changed
+            for field in changed_fields:
+                old_val = old_fields.get(field)
+                new_val = new_fields.get(field)
+                print(f"Field '{field}' changed from {old_val} to {new_val}")
+            
+            # Add your update handling logic
+            print(f"Successfully processed document update")
+            
+        except Exception as e:
+            print(f"Error processing document update: {e}")
+            raise
+    
+    elif 'deleted' in event_type:
+        # Document was deleted
+        old_value = data.get('oldValue', {})
+        old_fields = extract_fields(old_value.get('fields', {}))
+        
+        print(f"Document deleted")
+        print(f"Deleted data: {old_fields}")
+        
+        # Your document deletion logic here
+        # Examples:
+        # - Clean up related documents
+        # - Update aggregated statistics
+        # - Archive data
+        # - Send notifications
+        
+        try:
+            # Add your deletion handling logic
+            print(f"Successfully processed document deletion")
+            
+        except Exception as e:
+            print(f"Error processing document deletion: {e}")
+            raise
+    
+    else:
+        print(f"Unhandled event type: {event_type}")

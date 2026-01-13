@@ -1,0 +1,108 @@
+"""GCP Cloud Function Pub/Sub trigger handler.
+
+This Cloud Function is triggered by messages published to a Pub/Sub topic.
+"""
+
+import base64
+import json
+import functions_framework
+from cloudevents.http import CloudEvent
+
+
+@functions_framework.cloud_event
+def handler(cloud_event: CloudEvent):
+    """Pub/Sub Cloud Function entry point.
+    
+    This function is triggered when a message is published to a Pub/Sub topic.
+    The message data is base64-encoded and must be decoded before use.
+    
+    Args:
+        cloud_event (CloudEvent): The CloudEvent object containing:
+            - cloud_event.data: Dict with 'message' key containing Pub/Sub message
+            - cloud_event.data['message']['data']: Base64-encoded message data
+            - cloud_event.data['message']['attributes']: Message attributes (dict)
+            - cloud_event.data['message']['messageId']: Unique message ID
+            - cloud_event.data['message']['publishTime']: Publish timestamp
+            - cloud_event['id']: Event ID
+            - cloud_event['source']: Event source
+            - cloud_event['type']: Event type
+    
+    Returns:
+        None (Pub/Sub functions don't return values)
+    
+    Example Pub/Sub Message:
+        {
+            "data": "SGVsbG8sIFdvcmxkIQ==",  # Base64 encoded "Hello, World!"
+            "attributes": {
+                "key1": "value1",
+                "key2": "value2"
+            },
+            "messageId": "1234567890",
+            "publishTime": "2024-01-01T00:00:00.000Z"
+        }
+    
+    Publishing a message (using gcloud):
+        gcloud pubsub topics publish TOPIC_NAME --message="Hello, World!"
+        
+    Publishing with attributes:
+        gcloud pubsub topics publish TOPIC_NAME \
+            --message="Hello" \
+            --attribute=key1=value1,key2=value2
+    """
+    # Extract Pub/Sub message from CloudEvent
+    pubsub_message = cloud_event.data.get('message', {})
+    
+    # Get message ID and publish time
+    message_id = pubsub_message.get('messageId', 'unknown')
+    publish_time = pubsub_message.get('publishTime', 'unknown')
+    
+    print(f"Processing Pub/Sub message: {message_id}")
+    print(f"Published at: {publish_time}")
+    
+    # Decode the base64-encoded message data
+    message_data = None
+    if 'data' in pubsub_message:
+        try:
+            # Decode base64 data
+            decoded_data = base64.b64decode(pubsub_message['data']).decode('utf-8')
+            message_data = decoded_data
+            print(f"Message data: {message_data}")
+            
+            # Try to parse as JSON if applicable
+            try:
+                json_data = json.loads(decoded_data)
+                print(f"Parsed JSON data: {json_data}")
+                message_data = json_data
+            except json.JSONDecodeError:
+                # Not JSON, use as plain text
+                pass
+                
+        except Exception as e:
+            print(f"Error decoding message data: {e}")
+            return
+    else:
+        print("No data in message")
+        return
+    
+    # Get message attributes
+    attributes = pubsub_message.get('attributes', {})
+    if attributes:
+        print(f"Message attributes: {attributes}")
+    
+    # Your message processing logic here
+    # Example: Process the message based on its content
+    try:
+        # Add your business logic here
+        # For example:
+        # - Store data in a database
+        # - Trigger another process
+        # - Send notifications
+        # - Transform and forward data
+        
+        print(f"Successfully processed message: {message_id}")
+        
+    except Exception as e:
+        print(f"Error processing message {message_id}: {e}")
+        # Note: If you raise an exception, Pub/Sub will retry the message
+        # based on the subscription's retry policy
+        raise
