@@ -1,0 +1,132 @@
+Metadata-Version: 2.4
+Name: cryprum
+Version: 1.0.9
+Summary: cryprum client, for Python 3.
+Home-page: https://cryprum.com
+Author: Cryprum
+Author-email: support@cryprum.com
+License: MIT
+Keywords: crypto,cryptocurrency,blockchain,tron,ethereum,bsc
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.23.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Cryprum client, for Python 3
+
+![PyPI](https://img.shields.io/pypi/v/cryprum)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cryprum)
+
+## Installation
+
+```bash
+pip install cryprum
+```
+
+## Usage
+
+Create a token at https://cryprum.com/tokens and copy "Access key"
+
+```python
+from cryprum import Client
+
+client = Client(token="<ACCESS_KEY>")
+
+# Get balances
+balances = client.balances("ethereum", "0xYourAddress")
+print(balances)  # {"ETH": 1000000000000000000, "USDT": 500000}
+
+# Create transaction (returns immediately with operation ID)
+result = client.transaction(
+    "ethereum",
+    amount=1.0,
+    currency="ETH",
+    private_key="0x...",
+    to_address="0xRecipient"
+)
+print(result)  # {"id": "...", "status": "pending"}
+
+# Poll for operation status
+status = client.operation_status(result["id"])
+print(status)  # {"id": "...", "status": "C", "external_id": "0xtxhash..."}
+
+# Get transaction info
+tx = client.transaction_info("tron", "5de813c815a3b9feb393318b7985ff57217ea53bd7944373447406c6b918e51f")
+print(tx)
+# {
+#     "block_number": 69056553,
+#     "from_address": "TYDzsYUEpvnYmQk4zGP9sWWcTEd2MiAtW6",
+#     "to_address": "TMG9ZrB4kvCyJwdyw9wiUV8mnw5qhEdjjU",
+#     "txid": "5de813c815a3b9feb393318b7985ff57217ea53bd7944373447406c6b918e51f",
+#     "currency_code": "USDT",
+#     "value": 169310000,
+#     "value_human": 169.31,
+#     "confirmations": 100
+# }
+```
+
+### Async client
+
+```python
+from cryprum import AsyncClient
+
+async with AsyncClient(token="<ACCESS_KEY>") as client:
+    balances = await client.balances("ethereum", "0xYourAddress")
+```
+
+## API Methods
+
+| Method | Description |
+|--------|-------------|
+| `balances(vendor, address)` | Get wallet balances |
+| `transaction(vendor, amount, currency, private_key, to_address)` | Create withdrawal |
+| `transaction_info(vendor, txid)` | Get transaction details |
+| `operation_status(operation_id)` | Poll operation status |
+| `subscribe(vendor, addresses)` | Subscribe to address notifications |
+
+Supported vendors: `tron`, `ethereum`, `bsc`, `polygon`
+
+## Development
+
+### Run tests
+
+```bash
+pytest -v
+```
+
+### Build and publish to PyPI
+
+```bash
+# Install uv if not already
+pip install uv
+
+# Build package
+uv build
+
+# Publish to PyPI
+uv publish --token $PYPI_TOKEN
+```
+
+## License
+
+MIT
