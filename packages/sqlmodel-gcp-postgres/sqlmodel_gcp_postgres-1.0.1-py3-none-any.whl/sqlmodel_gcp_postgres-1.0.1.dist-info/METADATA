@@ -1,0 +1,138 @@
+Metadata-Version: 2.4
+Name: sqlmodel-gcp-postgres
+Version: 1.0.1
+Summary: SQLModel ORM integration for Google Cloud SQL PostgreSQL with multi-database support
+Project-URL: Homepage, https://github.com/CodifyIQ/sqlmodel-gcp-postgres
+Project-URL: Repository, https://github.com/CodifyIQ/sqlmodel-gcp-postgres
+Project-URL: Issues, https://github.com/CodifyIQ/sqlmodel-gcp-postgres/issues
+Author-email: Eric Konieczny <eric.konieczny@codifyiq.com>
+License: MIT
+License-File: LICENSE
+Keywords: cloud-sql,google-cloud,orm,postgresql,sqlmodel
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Database
+Requires-Python: >=3.12
+Requires-Dist: cloud-sql-python-connector[pg8000]>=1.18.0
+Requires-Dist: loguru>=0.7.0
+Requires-Dist: sqlmodel>=0.0.20
+Description-Content-Type: text/markdown
+
+# sqlmodel-gcp-postgres
+
+[![PyPI](https://img.shields.io/pypi/v/sqlmodel-gcp-postgres.svg)](https://pypi.org/project/sqlmodel-gcp-postgres/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+SQLModel ORM integration for Google Cloud SQL PostgreSQL instances with seamless support for local development and testing.
+
+## Features
+
+- **Cloud SQL Integration**: Uses the official [Google Cloud SQL Python Connector](https://github.com/GoogleCloudPlatform/cloud-sql-python-connector) for secure, simplified connections
+- **Multi-Database Support**: Works with PostgreSQL, SQLite, and other databases for local development and testing
+- **Transaction Management**: Built-in decorator for automatic commit/rollback handling
+- **Lazy Connection Refresh**: Compatible with Cloud Run and other auto-scaling environments
+
+## Installation
+
+```bash
+# pip
+pip install sqlmodel-gcp-postgres
+# uv
+uv add sqlmodel-gcp-postgres
+# Poetry
+poetry add sqlmodel-gcp-postgres
+```
+
+**Note:** This library requires the `pg8000` database driver and is designed for use with PostgreSQL and Cloud SQL. It is included as a dependency in the `cloud-sql-python-connector[pg8000]` requirement.
+
+## Quick Start
+
+### Cloud SQL (Production)
+
+Set environment variables:
+
+```bash
+USE_CLOUD_SQL=true
+CLOUD_SQL_INSTANCE_CONNECTION_NAME=your-project:region:instance-name
+DB_USER=postgres-user
+DB_PASS=postgres-password
+DB_NAME=database-name
+```
+
+Optional: Use private IP:
+```bash
+CLOUD_SQL_PRIVATE_IP=true
+```
+
+### Local Development with PostgreSQL (Docker Compose)
+
+```yaml
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_DB: dev_db
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: postgresql+pg8000://dev_user:dev_password@db:5432/dev_db
+```
+
+### Testing with SQLite
+
+```python
+import os
+os.environ["DB_URL"] = "sqlite:///test.db"
+```
+
+## Usage
+
+```python
+from sqlmodel import Session, select
+from sqlmodel_gcp_postgres import get_session, transactional
+
+# Use in dependency injection (e.g., FastAPI)
+@app.post("/api/users")
+@transactional
+async def create_user(user: User, session: Session = Depends(get_session)):
+    session.add(user)
+    return user  # Auto-commits on return
+
+# Or with context manager
+def query_users():
+    session = get_session()
+    users = session.exec(select(User)).all()
+    return users
+```
+
+## Configuration
+
+The library automatically detects the database mode based on `USE_CLOUD_SQL`:
+
+| Mode | Environment Variable | Required Vars |
+|------|----------------------|---------------|
+| **Cloud SQL** | `USE_CLOUD_SQL=true` | `CLOUD_SQL_INSTANCE_CONNECTION_NAME`, `DB_USER`, `DB_PASS`, `DB_NAME` |
+| **Standard** | `USE_CLOUD_SQL=false` or unset | `DB_URL` |
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
