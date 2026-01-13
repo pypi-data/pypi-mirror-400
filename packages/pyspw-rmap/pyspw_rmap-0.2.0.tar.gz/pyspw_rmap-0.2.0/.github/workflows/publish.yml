@@ -1,0 +1,207 @@
+name: Publish Python Package
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-testpypi:
+    if: github.event_name == 'push'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            cibw_build: >
+              cp310-manylinux_x86_64
+              cp311-manylinux_x86_64
+              cp312-manylinux_x86_64
+              cp313-manylinux_x86_64
+              cp314-manylinux_x86_64
+            build_sdist: true
+
+          - os: ubuntu-24.04-arm
+            cibw_build: >
+              cp310-manylinux_aarch64
+              cp311-manylinux_aarch64
+              cp312-manylinux_aarch64
+              cp313-manylinux_aarch64
+              cp314-manylinux_aarch64
+            cibw_archs: aarch64
+            build_sdist: false
+
+          - os: macos-15
+            cibw_build: >
+              cp310-macosx_arm64
+              cp311-macosx_arm64
+              cp312-macosx_arm64
+              cp313-macosx_arm64
+              cp314-macosx_arm64
+            cibw_archs: arm64
+            build_sdist: false
+    env:
+      CMAKE_ARGS: -DSPWRMAP_BUILD_TESTS=OFF
+      TEST_PYPI_VERSION_SUFFIX: ${{ github.run_number }}.${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set unique TestPyPI version
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+
+          suffix = os.environ["TEST_PYPI_VERSION_SUFFIX"]
+          run_number, run_attempt = suffix.split(".")
+          unique_dev = int(run_number) * 100 + int(run_attempt)
+
+          path = pathlib.Path("pyproject.toml")
+          text = path.read_text()
+          original = re.search(r'(?m)^version\s*=\s*"([^"]+)"', text)
+          if not original:
+            raise SystemExit("Unable to find version in pyproject.toml")
+          base = original.group(1).split("+", 1)[0]
+          base = base.split(".dev", 1)[0]
+          new_version = f'{base}.dev{unique_dev}'
+          updated = text[:original.start(1)] + new_version + text[original.end(1):]
+          path.write_text(updated)
+          PY
+      - id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Configure Python for CMake
+        run: |
+          echo "Python3_ROOT_DIR=${pythonLocation}" >> "$GITHUB_ENV"
+          echo "Python_ROOT_DIR=${pythonLocation}" >> "$GITHUB_ENV"
+          echo "Python3_EXECUTABLE=${pythonLocation}/bin/python" >> "$GITHUB_ENV"
+          echo "Python_EXECUTABLE=${pythonLocation}/bin/python" >> "$GITHUB_ENV"
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build cibuildwheel
+      - name: Build source distribution
+        if: matrix.build_sdist == true
+        run: python -m build --sdist
+      - name: Build binary wheels
+        run: python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: ${{ matrix.cibw_build }}
+          CIBW_ARCHS: ${{ matrix.cibw_archs || '' }}
+          CIBW_ENVIRONMENT: >
+            CMAKE_ARGS="-DSPWRMAP_BUILD_TESTS=OFF"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: dist
+
+  publish-testpypi:
+    if: github.event_name == 'push'
+    needs: build-testpypi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+      - name: Publish package to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+          verbose: true
+
+  build-pypi:
+    if: github.event_name == 'release'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            cibw_build: >
+              cp310-manylinux_x86_64
+              cp311-manylinux_x86_64
+              cp312-manylinux_x86_64
+              cp313-manylinux_x86_64
+              cp314-manylinux_x86_64
+            build_sdist: true
+
+          - os: ubuntu-24.04-arm
+            cibw_build: >
+              cp310-manylinux_aarch64
+              cp311-manylinux_aarch64
+              cp312-manylinux_aarch64
+              cp313-manylinux_aarch64
+              cp314-manylinux_aarch64
+            cibw_archs: aarch64
+            build_sdist: false
+
+          - os: macos-15
+            cibw_build: >
+              cp310-macosx_arm64
+              cp311-macosx_arm64
+              cp312-macosx_arm64
+              cp313-macosx_arm64
+              cp314-macosx_arm64
+            cibw_archs: arm64
+            build_sdist: false
+    env:
+      CMAKE_ARGS: -DSPWRMAP_BUILD_TESTS=OFF
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Configure Python for CMake
+        run: |
+          echo "Python3_ROOT_DIR=${pythonLocation}" >> "$GITHUB_ENV"
+          echo "Python_ROOT_DIR=${pythonLocation}" >> "$GITHUB_ENV"
+          echo "Python3_EXECUTABLE=${pythonLocation}/bin/python" >> "$GITHUB_ENV"
+          echo "Python_EXECUTABLE=${pythonLocation}/bin/python" >> "$GITHUB_ENV"
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build cibuildwheel
+      - name: Build source distribution
+        if: matrix.build_sdist == true
+        run: python -m build --sdist
+      - name: Build binary wheels
+        run: python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: ${{ matrix.cibw_build }}
+          CIBW_ARCHS: ${{ matrix.cibw_archs || '' }}
+          CIBW_ENVIRONMENT: >
+            CMAKE_ARGS="-DSPWRMAP_BUILD_TESTS=OFF"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: dist
+
+  publish-pypi:
+    if: github.event_name == 'release'
+    needs: build-pypi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          verbose: true
