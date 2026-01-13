@@ -1,0 +1,618 @@
+Metadata-Version: 2.4
+Name: unsent
+Version: 1.0.2
+Summary: Python SDK for the Unsent API - Send transactional emails with ease
+License: MIT
+License-File: LICENSE
+Keywords: unsent,email,transactional-email,api,sdk
+Author: sourav
+Requires-Python: >=3.10,<4.0
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: pydantic[email] (>=2.12.5,<3.0.0)
+Requires-Dist: requests (>=2.32.0,<3.0.0)
+Requires-Dist: typing_extensions (>=4.7)
+Project-URL: Documentation, https://docs.unsent.dev
+Project-URL: Homepage, https://unsent.dev
+Project-URL: Repository, https://github.com/souravsspace/unsent-python
+Description-Content-Type: text/markdown
+
+# unsent Python SDK
+
+The official Python library for the [unsent](https://unsent.dev) API.
+
+## Prerequisites
+
+- Python 3.8+
+- [unsent API Key](https://app.unsent.dev/dev-settings/api-keys)
+- [Verified Domain](https://app.unsent.dev/domains)
+
+## Installation
+
+### pip
+
+```bash
+pip install unsent
+```
+
+### poetry
+
+```bash
+poetry add unsent
+```
+
+## Usage
+
+### Configuration
+
+Initialize the client with your API key.
+
+```python
+from unsent import unsent
+
+client = unsent("res_123456789")
+```
+
+#### Environment Variables
+
+You can omit the API key if you set the `UNSENT_API_KEY` environment variable.
+
+```python
+# With UNSENT_API_KEY set in environment
+client = unsent()
+```
+
+#### Custom Session
+
+For advanced usage (e.g., proxies, connection pooling), you can pass a custom `requests.Session`.
+
+```python
+import requests
+from unsent import unsent
+
+session = requests.Session()
+client = unsent("res_123...", session=session)
+```
+
+### Emails
+
+#### Send Email
+
+```python
+data, error = client.emails.send({
+    "from": "onboarding@resend.dev",
+    "to": "user@example.com",
+    "subject": "Hello World",
+    "html": "<p>It works!</p>"
+})
+
+if error:
+    print(error)
+else:
+    print(data["id"])
+```
+
+#### Batch Emails
+
+Send up to 100 emails in a single request.
+
+```python
+data, error = client.emails.batch([
+    {
+        "from": "hello@company.com",
+        "to": "user1@example.com",
+        "subject": "Hello User 1",
+        "html": "<p>Welcome!</p>"
+    },
+    {
+        "from": "hello@company.com",
+        "to": "user2@example.com",
+        "subject": "Hello User 2",
+        "html": "<p>Welcome!</p>"
+    }
+])
+```
+
+#### Get Email
+
+Retrieve details about a sent email.
+
+```python
+data, error = client.emails.get("email_id")
+```
+
+#### Update Scheduled Email
+
+Update the schedule of a pending email.
+
+```python
+data, error = client.emails.update("email_id", {
+    "scheduledAt": "2024-12-25T12:00:00Z"
+})
+```
+
+#### Cancel Scheduled Email
+
+Cancel a scheduled email before it is sent.
+
+```python
+data, error = client.emails.cancel("email_id")
+```
+
+#### List Emails
+
+Retrieve a list of sent emails with optional filters.
+
+```python
+data, error = client.emails.list(
+    page=1,
+    limit=20,
+    start_date="2024-01-01T00:00:00Z",
+    end_date="2024-01-31T23:59:59Z",
+    domain_id="domain_id"
+)
+```
+
+#### Get Complaints
+
+Retrieve email complaints with pagination.
+
+```python
+data, error = client.emails.get_complaints(page=1, limit=20)
+```
+
+#### Get Bounces
+
+Retrieve email bounces with pagination.
+
+```python
+data, error = client.emails.get_bounces(page=1, limit=20)
+```
+
+#### Get Unsubscribes
+
+Retrieve email unsubscribes with pagination.
+
+```python
+data, error = client.emails.get_unsubscribes(page=1, limit=20)
+```
+
+### Contacts
+
+#### List Contacts
+
+Retrieve contacts from a contact book with optional filters.
+
+```python
+data, error = client.contacts.list(
+    "contact_book_id",
+    page=1,
+    limit=20,
+    emails="user1@example.com,user2@example.com",
+    ids="contact_id_1,contact_id_2"
+)
+```
+
+#### Create Contact
+
+Add a contact to a contact book.
+
+```python
+data, error = client.contacts.create("contact_book_id", {
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "subscribed": True,
+    "properties": {
+        "source": "signup_form"
+    }
+})
+```
+
+#### Get Contact
+
+Retrieve a contact by ID from a specific book.
+
+```python
+data, error = client.contacts.get("contact_book_id", "contact_id")
+```
+
+#### Update Contact
+
+Update an existing contact's information.
+
+```python
+data, error = client.contacts.update("contact_book_id", "contact_id", {
+    "firstName": "Jane",
+    "properties": {
+        "status": "active"
+    }
+})
+```
+
+#### Upsert Contact
+
+Create a contact if they don't exist, or update them if they do (matched by email).
+
+```python
+data, error = client.contacts.upsert("contact_book_id", "contact_id_optional", {
+    "email": "user@example.com",
+    "firstName": "John"
+})
+```
+
+#### Delete Contact
+
+Remove a contact from a book.
+
+```python
+data, error = client.contacts.delete("contact_book_id", "contact_id")
+```
+
+### Contact Books
+
+#### List Contact Books
+
+Retrieve all your contact books.
+
+```python
+data, error = client.contact_books.list()
+```
+
+#### Create Contact Book
+
+Create a new list to organize contacts.
+
+```python
+data, error = client.contact_books.create({
+    "name": "Newsletter Subscribers",
+    "emoji": "📧"
+})
+```
+
+#### Get Contact Book
+
+Retrieve details of a specific contact book.
+
+```python
+data, error = client.contact_books.get("book_id")
+```
+
+#### Update Contact Book
+
+Rename or update settings of a contact book.
+
+```python
+data, error = client.contact_books.update("book_id", {
+    "name": "Active Users"
+})
+```
+
+#### Delete Contact Book
+
+Delete a contact book and all its contacts.
+
+```python
+data, error = client.contact_books.delete("book_id")
+```
+
+### Campaigns
+
+#### Create Campaign
+
+Draft a new email campaign.
+
+```python
+data, error = client.campaigns.create({
+    "name": "Monthly Newsletter",
+    "subject": "What's new in January",
+    "from": "news@company.com",
+    "contactBookId": "book_id",
+    "html": "<h1>News...</h1>"
+})
+```
+
+#### Get Campaign
+
+Retrieve campaign details and stats.
+
+```python
+data, error = client.campaigns.get("campaign_id")
+```
+
+#### Schedule Campaign
+
+Schedule a campaign to be sent.
+
+```python
+data, error = client.campaigns.schedule("campaign_id", {
+    "scheduledAt": "2024-02-01T09:00:00Z"
+})
+```
+
+#### Pause/Resume Campaign
+
+Control the delivery of a running campaign.
+
+```python
+# Pause
+client.campaigns.pause("campaign_id")
+
+# Resume
+client.campaigns.resume("campaign_id")
+```
+
+### Templates
+
+#### List Templates
+
+Retrieve all your email templates.
+
+```python
+data, error = client.templates.list()
+```
+
+#### Create Template
+
+Create a reusable email template.
+
+```python
+data, error = client.templates.create({
+    "name": "Welcome Email",
+    "subject": "Welcome to Unsent",
+    "html": "<h1>Welcome {{name}}</h1>"
+})
+```
+
+#### Get Template
+
+Retrieve a specific template.
+
+```python
+data, error = client.templates.get("template_id")
+```
+
+#### Update Template
+
+Modify an existing template.
+
+```python
+data, error = client.templates.update("template_id", {
+    "subject": "New Welcome Subject"
+})
+```
+
+#### Delete Template
+
+Remove a template.
+
+```python
+data, error = client.templates.delete("template_id")
+```
+
+### Domains
+
+#### List Domains
+
+View all registered sending domains.
+
+```python
+data, error = client.domains.list()
+```
+
+#### Create Domain
+
+Add a new domain for sending.
+
+```python
+data, error = client.domains.create({
+    "domain": "mail.example.com",
+    "region": "us-east-1"
+})
+```
+
+#### Verify Domain
+
+Trigger verification checks for DNS records.
+
+```python
+data, error = client.domains.verify("domain_id")
+```
+
+#### Get Domain
+
+Retrieve DNS records and verification status.
+
+```python
+data, error = client.domains.get("domain_id")
+```
+
+#### Delete Domain
+
+Remove a domain.
+
+```python
+data, error = client.domains.delete("domain_id")
+```
+
+### Webhooks
+
+> **Note:** Webhooks functionality is currently under development in the API. The SDK includes placeholder methods to ensure compatibility when the feature becomes available.
+
+#### List Webhooks
+
+View configured webhooks.
+
+```python
+data, error = client.webhooks.list()
+```
+
+#### Create Webhook
+
+Subscribe to email events.
+
+```python
+data, error = client.webhooks.create({
+    "url": "https://api.myapp.com/webhooks/resend",
+    "events": ["email.sent", "email.delivered", "email.bounced"]
+})
+```
+
+#### Get Webhook
+
+Retrieve webhook details.
+
+```python
+data, error = client.webhooks.get("webhook_id")
+```
+
+#### Update Webhook
+
+Modify webhook URL or events.
+
+```python
+data, error = client.webhooks.update("webhook_id", {
+    "url": "https://new-api.myapp.com/hooks"
+})
+```
+
+#### Delete Webhook
+
+Stop receiving events.
+
+```python
+data, error = client.webhooks.delete("webhook_id")
+```
+
+### Suppressions
+
+#### List Suppressions
+
+View email addresses on the suppression list (bounces, complaints).
+
+```python
+# List all suppressions
+data, error = client.suppressions.list()
+
+# Filter by reason
+data, error = client.suppressions.list(
+    reason="HARD_BOUNCE",  # Options: HARD_BOUNCE, COMPLAINT, MANUAL, UNSUBSCRIBE
+    page=1,
+    limit=20,
+    search="example.com"
+)
+```
+
+#### Add Suppression
+
+Manually suppress an email address.
+
+```python
+data, error = client.suppressions.add({
+    "email": "spam@example.com",
+    "reason": "MANUAL"  # Options: HARD_BOUNCE, COMPLAINT, MANUAL, UNSUBSCRIBE
+})
+```
+
+#### Delete Suppression
+
+Remove an email from the suppression list to allow sending again.
+
+```python
+data, error = client.suppressions.delete("user@example.com")
+```
+
+### Analytics
+
+#### Get Usage
+
+Check your daily email usage and limits.
+
+```python
+data, error = client.analytics.get_usage()
+```
+
+#### Get Daily Stats
+
+Retrieve aggregate statistics for a date range.
+
+```python
+data, error = client.analytics.get_daily_stats(
+    start_date="2024-01-01",
+    end_date="2024-01-31"
+)
+```
+
+#### Get Domain Reputation
+
+Check the reputation score of a domain.
+
+```python
+data, error = client.analytics.get_domain_reputation("domain_id")
+```
+
+### API Keys
+
+#### List API Keys
+
+View all active API keys.
+
+```python
+data, error = client.api_keys.list()
+```
+
+#### Create API Key
+
+Generate a new API key.
+
+```python
+data, error = client.api_keys.create({
+    "name": "Production Key"
+})
+```
+
+#### Revoke API Key
+
+Invalidate an API key.
+
+```python
+data, error = client.api_keys.revoke("api_key_id")
+```
+
+### Settings
+
+#### Get Settings
+
+Retrieve account settings and quota information.
+
+```python
+data, error = client.settings.get()
+```
+
+### Error Handling
+
+By default, the SDK raises `unsentHTTPError` for non-2xx responses. You can change this behavior to return the error object instead.
+
+```python
+# Raise exception on error (Default)
+try:
+    client.emails.send(...)
+except unsentHTTPError as e:
+    print(e.status_code, e.message)
+
+# Return error dictionary instead of raising
+client = unsent("key", raise_on_error=False)
+data, error = client.emails.send(...)
+if error:
+    print("Failed:", error)
+```
+
+## License
+
+MIT License
+
