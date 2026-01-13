@@ -1,0 +1,39 @@
+name: Publish to TestPyPI
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build Package"]
+    types:
+      - completed
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: production
+    permissions:
+      id-token: write  # Required for trusted publishing
+      contents: read
+      actions: read
+      # packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: superPySdk-build-artifact
+          path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.11"
+          enable-cache: false
+
+      - name: Publish to TestPyPI
+        run: uv publish --index testpypi
