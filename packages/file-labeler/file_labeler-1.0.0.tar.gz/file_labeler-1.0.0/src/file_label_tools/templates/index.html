@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件标签管理系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <h1>📋 文件标签管理系统</h1>
+            <button class="btn" onclick="showCreateProjectModal()">➕ 新建项目</button>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <!-- 批量操作栏 -->
+        <div id="batchActions" class="batch-actions" style="display: none;">
+            <div style="display: flex; align-items: center; gap: 15px; padding: 15px; background: var(--bg-secondary); border-radius: var(--radius-md); margin-bottom: 20px;">
+                <span>已选择 <strong id="selectedCount">0</strong> 个项目</span>
+                <button class="btn btn-secondary" onclick="clearSelection()">取消选择</button>
+                <button id="splitBtn" class="btn" onclick="showSplitProjectModal()" style="display: none;">分割选中项目</button>
+                <button id="mergeBtn" class="btn" onclick="showMergeProjectsModal()" style="display: none;">合并选中项目</button>
+                <button id="copyBtn" class="btn" onclick="showCopyProjectModal()" style="display: none;">复制选中项目</button>
+            </div>
+        </div>
+
+        <div class="projects-grid" id="projectsGrid">
+            <div class="loading">加载中</div>
+        </div>
+    </div>
+
+    <!-- 新建项目模态框 -->
+    <div id="createProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✨ 新建项目</h3>
+                <span class="close" onclick="closeCreateProjectModal()">&times;</span>
+            </div>
+            <form id="createProjectForm">
+                <div class="form-group">
+                    <label for="projectName">项目名称 *</label>
+                    <input type="text" id="projectName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="projectNote">备注</label>
+                    <textarea id="projectNote" name="note" rows="3"></textarea>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateProjectModal()">取消</button>
+                    <button type="submit" class="btn btn-success">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 修改项目模态框 -->
+    <div id="editProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ 修改项目</h3>
+                <span class="close" onclick="closeEditProjectModal()">&times;</span>
+            </div>
+            <form id="editProjectForm">
+                <input type="hidden" id="editProjectOriginalName" name="originalName">
+                <div class="form-group">
+                    <label for="editProjectName">项目名称 *</label>
+                    <input type="text" id="editProjectName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="editProjectNote">备注</label>
+                    <textarea id="editProjectNote" name="note" rows="3"></textarea>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditProjectModal()">取消</button>
+                    <button type="submit" class="btn btn-success">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 分割项目模态框 -->
+    <div id="splitProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✂️ 分割项目</h3>
+                <span class="close" onclick="closeSplitProjectModal()">&times;</span>
+            </div>
+            <form id="splitProjectForm">
+                <div class="form-group">
+                    <label>原项目</label>
+                    <div id="splitProjectInfo" style="padding: 10px; background: var(--bg-secondary); border-radius: var(--radius-sm);"></div>
+                </div>
+                <div class="form-group">
+                    <label for="splitCount">分割份数 *</label>
+                    <input type="number" id="splitCount" name="n" min="2" value="2" required>
+                    <small style="color: var(--text-secondary);">将随机平均分割成N份，创建N个新项目（原项目名_split_1 到 原项目名_split_N），原项目不受影响</small>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeSplitProjectModal()">取消</button>
+                    <button type="submit" class="btn btn-success">分割</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 合并项目模态框 -->
+    <div id="mergeProjectsModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>🔀 合并项目</h3>
+                <span class="close" onclick="closeMergeProjectsModal()">&times;</span>
+            </div>
+            <form id="mergeProjectsForm">
+                <div class="form-group">
+                    <label>源项目</label>
+                    <div id="mergeSourceProjects" style="padding: 10px; background: var(--bg-secondary); border-radius: var(--radius-sm); max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                <div class="form-group">
+                    <label for="mergeTargetProject">目标项目名称 *</label>
+                    <input type="text" id="mergeTargetProject" name="target_project" required>
+                    <small style="color: var(--text-secondary);">合并后的新项目名称，源项目不受影响</small>
+                </div>
+                <div id="mergeConflicts" style="display: none; margin-top: 15px;">
+                    <div style="padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: var(--radius-md); margin-bottom: 15px;">
+                        <strong style="color: #856404;">⚠️ 检测到文件冲突</strong>
+                        <div id="conflictsList" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>冲突解决策略</label>
+                        <select id="conflictResolution" name="conflict_resolution">
+                            <option value="first">保留第一个项目的文件</option>
+                            <option value="last">保留最后一个项目的文件</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeMergeProjectsModal()">取消</button>
+                    <button type="submit" class="btn btn-success">合并</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 复制项目模态框 -->
+    <div id="copyProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📋 复制项目</h3>
+                <span class="close" onclick="closeCopyProjectModal()">&times;</span>
+            </div>
+            <form id="copyProjectForm">
+                <div class="form-group">
+                    <label>原项目</label>
+                    <div id="copyProjectInfo" style="padding: 10px; background: var(--bg-secondary); border-radius: var(--radius-sm);"></div>
+                </div>
+                <div class="form-group">
+                    <label for="copyProjectName">新项目名称 *</label>
+                    <input type="text" id="copyProjectName" name="new_name" required>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeCopyProjectModal()">取消</button>
+                    <button type="submit" class="btn btn-success">复制</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/project.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/back_to_top.js') }}"></script>
+</body>
+</html>
+

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project_name }} - 文件标签管理系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/chart2.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chartjs-plugin-datalabels@2.js') }}"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <h1 style="margin: 0;">📁 {{ project_name }}</h1>
+                <a href="/" class="btn" style="text-decoration: none; padding: 6px 12px; font-size: 12px; background: var(--primary-color); color: white !important; border: 1px solid var(--primary-color); white-space: nowrap;">重选项目</a>
+            </div>
+            <div style="display: flex; gap: 12px;">
+                <a href="/project/{{ project_name }}/preview" class="btn" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 12px 24px; font-size: 15px;">🖼️ 数据标注</a>
+                <a href="/project/{{ project_name }}/label" class="btn" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 12px 24px; font-size: 15px;">🎨 数据预览</a>
+            </div>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <!-- 统计信息区域 -->
+        <div class="section-card">
+            <h2 style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid; border-image: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) 1;">📊 统计信息</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <h3 style="text-align: center; margin-bottom: 10px;">所有文件</h3>
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="statsChart"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <h3 style="text-align: center; margin-bottom: 10px;">已导出文件</h3>
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="exportedStatsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 类别数量列表 -->
+            <div style="margin-top: 10px;">
+                <h3 style="margin-bottom: 10px;">📋 各类别数量</h3>
+                <div id="categoryCountList">
+                    <div class="loading">加载中</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件导入区域 -->
+        <div class="section-card">
+            <h2 class="collapsible-header" onclick="toggleCollapse('importSection')" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid; border-image: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) 1; cursor: pointer; user-select: none;">
+                <span>📥 文件导入</span>
+                <span class="collapse-icon" id="importSectionIcon">▶</span>
+            </h2>
+            <div class="collapsible-content" id="importSection">
+            
+            <div style="margin-bottom: 24px; padding: 20px; background: var(--bg-secondary); border-radius: var(--radius-md);">
+                <h3>📂 导入文件夹</h3>
+                <div class="form-group">
+                    <label>文件夹路径（服务器绝对路径）</label>
+                    <input type="text" id="folderPath" placeholder="/path/to/folder">
+                </div>
+                <div class="form-group">
+                    <label>关键字过滤（可选）</label>
+                    <input type="text" id="keywordFilter" placeholder="输入关键字过滤文件">
+                </div>
+                <button class="btn" onclick="importFolder()">导入文件夹</button>
+            </div>
+
+            <div style="margin-bottom: 24px; padding: 20px; background: var(--bg-secondary); border-radius: var(--radius-md);">
+                <h3>📄 导入txt列表</h3>
+                <div class="form-group">
+                    <label>服务器绝对路径（优先）</label>
+                    <input type="text" id="txtListServerPath" placeholder="/path/to/file.txt" style="width: 100%;">
+                    <small style="color: var(--text-secondary);">或选择上传文件</small>
+                </div>
+                <div class="form-group">
+                    <label>选择txt文件（每行一个文件路径）</label>
+                    <input type="file" id="txtListFile" accept=".txt">
+                </div>
+                <button class="btn" onclick="importTxtList()">导入txt列表</button>
+            </div>
+
+            <div style="margin-bottom: 24px; padding: 20px; background: var(--bg-secondary); border-radius: var(--radius-md);">
+                <h3>🏷️ 导入带类别txt</h3>
+                <div class="form-group">
+                    <label>服务器绝对路径（优先）</label>
+                    <input type="text" id="txtLabeledServerPath" placeholder="/path/to/file.txt" style="width: 100%;">
+                    <small style="color: var(--text-secondary);">或选择上传文件</small>
+                </div>
+                <div class="form-group">
+                    <label>选择txt文件（格式：文件路径 类别）</label>
+                    <input type="file" id="txtLabeledFile" accept=".txt">
+                </div>
+                <button class="btn" onclick="importTxtLabeled()">导入带类别txt</button>
+            </div>
+
+            <div style="padding: 16px; background: var(--bg-secondary); border-radius: var(--radius-md);">
+                <h3>📁 已导入的文件夹</h3>
+                <ul class="folder-list" id="folderList"></ul>
+            </div>
+            </div>
+        </div>
+
+        <!-- 类别管理区域 -->
+        <div class="section-card">
+            <h2 class="collapsible-header" onclick="toggleCollapse('categorySection')" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid; border-image: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) 1; cursor: pointer; user-select: none;">
+                <span>🏷️ 类别管理</span>
+                <span class="collapse-icon" id="categorySectionIcon">▶</span>
+            </h2>
+            <div class="collapsible-content" id="categorySection">
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="newCategory" placeholder="输入新类别名称" style="width: 100%; margin-bottom: 12px;">
+                    <button class="btn btn-success" onclick="addCategory()">添加类别</button>
+                </div>
+
+                <!-- 类别合并 -->
+                <div style="margin-bottom: 15px; padding: 16px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                    <h3 style="margin-bottom: 10px;">🔀 类别合并</h3>
+                    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                        <div class="form-group" style="margin-bottom: 0; min-width: 220px; flex: 1;">
+                            <label>源类别</label>
+                            <input type="text" id="mergeSourceSearch" placeholder="关键字搜索（支持多个关键词，用空格分隔）" style="margin-bottom: 8px;">
+                            <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                                <button class="btn btn-secondary" type="button" onclick="selectFilteredMergeSources()" style="padding: 8px 12px; font-size: 13px;">选择筛选结果</button>
+                                <button class="btn btn-secondary" type="button" onclick="clearMergeSourceSelection()" style="padding: 8px 12px; font-size: 13px;">清空选择</button>
+                            </div>
+                            <select id="mergeSourceCategory" multiple size="6">
+                                <option value="">加载中...</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; min-width: 220px; flex: 1;">
+                            <label>目标类别</label>
+                            <select id="mergeTargetCategory">
+                                <option value="">加载中...</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 0;">
+                            <button class="btn" onclick="mergeCategory()">合并</button>
+                        </div>
+                    </div>
+                    <small style="color: var(--text-secondary); display: block; margin-top: 8px;">
+                        源类别支持多选（按住 Ctrl/Shift 选择多个）。会把源类别下的所有文件移动到目标类别，并默认删除源类别（源为“未分类”时不会删除）。
+                    </small>
+                </div>
+                <div id="categoriesList"></div>
+            </div>
+        </div>
+
+        <!-- 过滤筛选区域 -->
+        <div class="section-card">
+            <h2 class="collapsible-header" onclick="toggleCollapse('filterSection')" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid; border-image: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) 1; cursor: pointer; user-select: none;">
+                <span>🔍 过滤筛选</span>
+                <span class="collapse-icon" id="filterSectionIcon">▶</span>
+            </h2>
+            <div class="collapsible-content" id="filterSection">
+                <div class="form-group">
+                    <label>关键字（移除包含该关键字的文件记录）</label>
+                    <input type="text" id="filterKeyword" placeholder="输入关键字">
+                </div>
+                <button class="btn btn-danger" onclick="filterFiles()">执行筛选</button>
+                <div class="filter-history" id="filterHistory"></div>
+            </div>
+        </div>
+
+        <!-- 文件列表查看区域 -->
+        <div class="section-card">
+            <h2 class="collapsible-header" onclick="toggleCollapse('fileListSection')" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid; border-image: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) 1; cursor: pointer; user-select: none;">
+                <span>📋 文件列表</span>
+                <span class="collapse-icon" id="fileListSectionIcon">▶</span>
+            </h2>
+            <div class="collapsible-content" id="fileListSection">
+                <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+                    <div class="form-group" style="margin-bottom: 0; width: 200px;">
+                        <label>类别筛选</label>
+                        <select id="fileListCategoryFilter">
+                            <option value="">全部</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0; width: 150px;">
+                        <label>每页数量</label>
+                        <input type="number" id="fileListPerPage" value="20" min="1" max="100">
+                    </div>
+                    <div style="margin-top: 25px;">
+                        <button class="btn" onclick="loadFileList()">刷新列表</button>
+                    </div>
+                    <div style="margin-top: 25px; color: var(--text-secondary);">
+                        共 <span id="fileListTotal">0</span> 个文件
+                    </div>
+                </div>
+                <div id="fileListContainer">
+                    <div class="loading">加载中</div>
+                </div>
+                <div class="pagination" id="fileListPagination" style="display: none;">
+                    <button class="btn" onclick="fileListPreviousPage()" id="fileListPrevBtn">上一页</button>
+                    <span>第 <input type="number" id="fileListCurrentPage" value="1" min="1" style="width: 60px;"> 页，共 <span id="fileListTotalPages">1</span> 页</span>
+                    <button class="btn" onclick="fileListNextPage()" id="fileListNextBtn">下一页</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 导出区域 -->
+        <div class="section-card">
+            <h2 class="collapsible-header" onclick="toggleCollapse('exportSection')" style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid; border-image: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) 1; cursor: pointer; user-select: none;">
+                <span>💾 文件导出</span>
+                <span class="collapse-icon" id="exportSectionIcon">▶</span>
+            </h2>
+            <div class="collapsible-content" id="exportSection">
+                <div class="form-group">
+                    <label>选择类别（留空表示全部）</label>
+                    <select id="exportCategories" multiple style="min-height: 100px;">
+                        <!-- 动态填充 -->
+                    </select>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="includeExported" checked style="width: auto; margin: 0;">
+                    <label for="includeExported" style="margin: 0; font-weight: normal; cursor: pointer;">包含已导出的文件</label>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="markAsExported" checked style="width: auto; margin: 0;">
+                    <label for="markAsExported" style="margin: 0; font-weight: normal; cursor: pointer;">标记为已导出（导出未分类时建议取消勾选）</label>
+                </div>
+                <div class="form-group">
+                    <label>导出数量（留空表示全部）</label>
+                    <input type="number" id="exportLimit" placeholder="例如：100" min="1" style="max-width: 300px;">
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="randomSelect" checked style="width: auto; margin: 0;">
+                    <label for="randomSelect" style="margin: 0; font-weight: normal; cursor: pointer;">随机选择文件</label>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button class="btn btn-success" onclick="exportFiles()">导出文件</button>
+                    <button class="btn btn-danger" onclick="resetExportedStatus()">重置导出状态</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const projectName = '{{ project_name }}';
+    </script>
+    <script>
+        // 注册 datalabels 插件（必须在 Chart.js 库加载后）
+        if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
+            Chart.register(ChartDataLabels);
+        }
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chart.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/back_to_top.js') }}"></script>
+</body>
+</html>
+
