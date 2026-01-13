@@ -1,0 +1,15 @@
+#SystemLibAPI
+
+## History of version
+Version 1.2601.0601: 2026/01/06<BR>
+Add SystemLibAPI package (MultiTaskAdvLib) advanced version for Multi-Task & fast switching method.
+Adaptive method for detect cpu core count and dispatch task to process.
+
+
+Version 1.2601.0502: 2026/01/05<BR>
+Improve SystemLibAPI package (MultiTaskLib) Multi-Process functionnality.
+Support auto detect multi cpu for multi task.
+
+
+Version 1.2601.0501: 2026/01/05<BR>
+Integrated SysLib(SystemLib) & MultiTaskLib, ThreadLib(SysTaskLib) into SystemLibAPI package.
