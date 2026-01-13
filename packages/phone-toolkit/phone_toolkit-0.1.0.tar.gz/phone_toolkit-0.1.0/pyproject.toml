@@ -1,0 +1,160 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "phone-toolkit"
+version = "0.1.0"
+description = "International phone number parsing, validation, and formatting library"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "alshin", email = "alshin@126.com" }]
+keywords = ["phone", "parser", "validation", "formatting", "international"]
+classifiers = [
+	"Development Status :: 4 - Beta",
+	"Intended Audience :: Developers",
+	"License :: OSI Approved :: MIT License",
+	"Programming Language :: Python :: 3",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3.13",
+	"Topic :: Communications :: Telephony",
+	"Topic :: Software Development :: Libraries :: Python Modules",
+	"Typing :: Typed",
+]
+dependencies = ["pyyaml>=6.0"]
+
+[project.optional-dependencies]
+dev = [
+	"pytest>=8.0.0",
+	"pytest-cov>=4.1.0",
+	"mypy>=1.8.0",
+	"ruff>=0.2.0",
+	"types-pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/phone-toolkit"
+Repository = "https://github.com/yourusername/phone-toolkit"
+Issues = "https://github.com/yourusername/phone-toolkit/issues"
+
+# Hatch configuration
+[tool.hatch.build.targets.wheel]
+packages = ["src/phone_parser"]
+
+# Ruff configuration (replaces Black, Flake8, isort)
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+	"E",     # pycodestyle errors
+	"W",     # pycodestyle warnings
+	"F",     # pyflakes
+	"I",     # isort
+	"N",     # pep8-naming
+	"UP",    # pyupgrade
+	"ANN",   # flake8-annotations
+	"ASYNC", # flake8-async
+	"B",     # flake8-bugbear
+	"A",     # flake8-builtins
+	"C4",    # flake8-comprehensions
+	"DTZ",   # flake8-datetimez
+	"T10",   # flake8-debugger
+	"EM",    # flake8-errmsg
+	"ISC",   # flake8-implicit-str-concat
+	"ICN",   # flake8-import-conventions
+	"PIE",   # flake8-pie
+	"PT",    # flake8-pytest-style
+	"Q",     # flake8-quotes
+	"RSE",   # flake8-raise
+	"RET",   # flake8-return
+	"SIM",   # flake8-simplify
+	"TCH",   # flake8-type-checking
+	"ARG",   # flake8-unused-arguments
+	"PTH",   # flake8-use-pathlib
+	"PL",    # pylint
+	"TRY",   # tryceratops
+	"RUF",   # ruff-specific rules
+]
+ignore = [
+	"ANN101",  # Missing type annotation for self
+	"ANN102",  # Missing type annotation for cls
+	"ANN401",  # Dynamically typed expressions (Any) are disallowed
+	"PLR0913", # Too many arguments to function call
+	"TRY003",  # Avoid specifying long messages outside the exception class
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+	"ANN",     # Don't require type annotations in tests
+	"ARG",     # Allow unused arguments in tests (fixtures)
+	"PLR2004", # Allow magic values in tests
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+namespace_packages = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+	"-ra",
+	"--strict-markers",
+	"--strict-config",
+	"--cov=phone_parser",
+	"--cov-report=term-missing",
+	"--cov-report=html",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+branch = true
+parallel = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+	"pragma: no cover",
+	"def __repr__",
+	"if TYPE_CHECKING:",
+	"raise AssertionError",
+	"raise NotImplementedError",
+	"@abstractmethod",
+]

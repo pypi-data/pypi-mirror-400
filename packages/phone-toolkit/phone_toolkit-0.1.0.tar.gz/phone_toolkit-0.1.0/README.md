@@ -1,0 +1,163 @@
+# phone-toolkit
+
+**International phone number parsing, validation, and formatting library for Python**
+
+[![Python Versions](https://img.shields.io/pypi/pyversions/phone-toolkit.svg)](https://pypi.org/project/phone-toolkit/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A Python library for parsing, validating, and formatting international phone numbers with support for 200+ countries. Built with modern Python best practices including strict type hints, comprehensive testing, and zero runtime dependencies (except PyYAML).
+
+## Features
+
+- 🌍 **International Support**: Built-in metadata for 200+ countries
+- 🎨 **Flexible Formatting**: Multiple output formats (US, European, custom patterns)
+- 🔍 **Smart Parsing**: Handles messy input with relaxed validation
+- 🚀 **Zero-Config**: Country data embedded - no external files needed
+- 📝 **Type Safe**: Full type hints with mypy strict mode compatibility
+- 🧪 **Well Tested**: Comprehensive test suite with pytest
+
+## Installation
+
+### Using uv (recommended)
+
+```bash
+uv pip install phone-toolkit
+```
+
+### Using pip
+
+```bash
+pip install phone-toolkit
+```
+
+## Quick Start
+
+```python
+from phone_parser import parse, set_default_country_code
+
+# Parse international number
+phone = parse("+385915125486")
+print(phone.country_code)  # "+385"
+print(phone.area_code)     # "91"
+print(phone.number)        # "5125486"
+
+# Format output
+print(phone.format("default"))  # "+385915125486"
+print(phone.format("europe"))   # "+385 (0) 91 512 5486"
+print(phone.format("us"))       # "(91) 512-5486"
+
+# Custom formatting
+print(phone.format("%A/%f-%l"))  # "091/512-5486"
+
+# Handle messy input
+phone = parse("blabla +1 (212) 555-1234 ext 123")
+print(phone.format("us"))  # "(212) 555-1234"
+
+# Use defaults for partial numbers
+set_default_country_code("1")
+phone = parse("2125551234")
+print(phone.format("default"))  # "+12125551234"
+```
+
+## Format Tokens
+
+Custom format strings support these tokens:
+
+- `%c` - Country code (e.g., "1", "385")
+- `%a` - Area code (e.g., "212", "91")
+- `%A` - Area code with leading zero (e.g., "091")
+- `%n` - Full number (e.g., "5551234")
+- `%f` - First N digits of number (default 3)
+- `%l` - Last digits of number
+- `%x` - Extension
+
+## Country Lookup
+
+```python
+from phone_parser import CountryRegistry
+
+# Find by dialing code
+country = CountryRegistry.find_by_code("1")
+print(country.name)  # "United States"
+
+# Find by ISO code
+country = CountryRegistry.find_by_iso_code("US")
+print(country.country_code)  # "1"
+```
+
+## Validation
+
+```python
+from phone_parser import is_valid
+
+assert is_valid("+385915125486") is True
+assert is_valid("invalid number") is False
+```
+
+## Development
+
+This project uses modern Python tooling and best practices:
+
+### Setup
+
+```bash
+# Clone repository
+git clone https://github.com/yunshang/phone-toolkit.git
+cd phone-toolkit
+
+# Using uv (recommended - faster and better dependency resolution)
+uv venv
+source .venv/bin/activate  # On macOS/Linux
+# .venv\Scripts\activate  # On Windows
+uv pip install -e ".[dev]"
+
+# Or using pip
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+### Code Quality
+
+```bash
+# Run linter and formatter (Ruff)
+ruff check src tests
+ruff format src tests
+
+# Type checking (MyPy)
+mypy src
+
+# Tests with coverage
+pytest --cov=phone_parser
+
+# Or use Makefile
+make qa  # Run all quality checks
+```
+
+### Project Structure
+
+```
+phone-toolkit/
+├── src/
+│   └── phone_parser/         # Source code (src layout)
+│       ├── __init__.py
+│       ├── country.py        # Country metadata
+│       └── phone.py          # Core parsing logic
+├── tests/                    # Test suite
+│   └── test_phone.py
+├── pyproject.toml           # Project config (PEP 621)
+└── README.md
+```
+
+## Requirements
+
+- Python 3.10+
+- PyYAML 6.0+
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+This is a Python port of the [yunshang/phone](https://github.com/yunshang/phone) Go library, adapted to Python best practices and idioms.
