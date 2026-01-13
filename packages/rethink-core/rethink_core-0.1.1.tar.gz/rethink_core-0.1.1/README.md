@@ -1,0 +1,140 @@
+# Rethink Core
+
+A Python client library for interacting with the Rethink AI API, providing easy access to text generation, chat completions, and image generation services.
+
+## Features
+
+- **Text Generation**: Generate text using various AI models with support for conversation history.
+- **Chat Completions**: OpenAI-compatible chat completions with streaming support.
+- **Image Generation**: Create images from text prompts with customizable dimensions.
+- **CLI Interface**: Command-line tool for quick interactions.
+- **Error Handling**: Robust error handling with documentation links.
+
+## Installation
+
+Install from source:
+
+```bash
+git clone https://github.com/fiandev/rethink-core
+cd rethink
+pip install .
+```
+
+Or install directly if published:
+
+```bash
+pip install rethink-core
+```
+
+## Quick Start
+
+### Python Usage
+
+```python
+from rethink.Core import Core
+
+# Initialize with your API key
+core = Core("your_api_key_here", system_prompt="You are a helpful assistant.")
+
+# Generate text
+response = core.generate_text("Explain quantum computing in simple terms")
+print(response["content"])
+
+# Chat completion
+messages = [{"role": "user", "content": "Hello!"}]
+result = core.chat(messages)
+print(result["response"]["content"])
+
+# Generate image
+image_result = core.imagine("A sunset over mountains", width=1024, height=768)
+print(f"Image URL: {image_result['url']}")
+```
+
+### CLI Usage
+
+The package includes a CLI tool:
+
+```bash
+# Set your API key
+export RETHINK_API_KEY="your_api_key_here"
+
+# Chat
+rethink chat "Hello, how are you?"
+
+# Generate image
+rethink imagine "A beautiful landscape" --width 512 --height 512
+```
+
+## API Reference
+
+### Core Class
+
+#### `__init__(api_key, system_prompt="", model="deepseek")`
+
+Initialize the client.
+
+- `api_key`: Your Rethink API key.
+- `system_prompt`: Default system instruction.
+- `model`: Default AI model.
+
+#### `generate_text(prompt, history=None)`
+
+Generate text.
+
+- `prompt`: Text prompt.
+- `history`: Optional conversation history (list of dicts).
+- Returns: `{"content": "...", "model": "..."}`
+
+#### `chat(messages, max_tokens=150, temperature=0.7, stream=False)`
+
+Chat completion (OpenAI compatible).
+
+- `messages`: List of message dicts (e.g., `{"role": "user", "content": "..."}`).
+- `max_tokens`: Max tokens in response.
+- `temperature`: Response randomness.
+- `stream`: Enable streaming.
+- Returns: `{"response": {"role": "assistant", "content": "..."}}`
+
+#### `imagine(prompt, width=1024, height=768)`
+
+Generate image.
+
+- `prompt`: Image description.
+- `width/height`: Image dimensions.
+- Returns: `{"url": "...", "model": "...", "width": ..., "height": ...}`
+
+#### `change_model(model)`
+
+Update the default model.
+
+#### `set_histories(histories)`
+
+Set conversation history (dict).
+
+## Testing
+
+Run unit tests:
+
+```bash
+pytest tests/test_Core.py
+```
+
+For integration tests (real API calls, use with caution):
+
+```bash
+pytest tests/test_Core_integration.py
+```
+
+Set `RETHINK_API_KEY` environment variable for integration tests.
+
+## Error Handling
+
+The library raises `Exception` for API errors, including HTTP status codes and messages. Check the Rethink API docs at https://core.rethink.web.id/docs/generation for details.
+
+## Contributing
+
+Contributions welcome! Please submit issues and pull requests.
+
+## License
+
+See LICENSE file (assuming MIT or similar).
