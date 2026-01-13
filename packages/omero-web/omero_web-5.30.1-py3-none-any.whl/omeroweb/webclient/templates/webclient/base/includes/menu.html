@@ -1,0 +1,76 @@
+{% load i18n %}
+{% comment %}
+<!--
+  Copyright (C) 2011-2012 University of Dundee & Open Microscopy Environment.
+  All rights reserved.
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+{% endcomment %}
+
+<ul>
+    <!-- Handle links from settings -->
+    {% for link in ome.top_links %}
+        <li class="menu_link">
+          <a href="{{ link.link }}"
+            {% if link.attrs %}
+              {% for k, v in link.attrs.items %} {{ k }}="{{v}}"{% endfor %}
+            {% endif %}
+          >{{ link.label }}</a>
+        </li>
+    {% endfor %}
+
+    {% if ome.is_admin %}
+        <li class="admin"><a href="{% url 'waindex' %}" title="Web-Admin: Edit users and groups">{% trans "Admin" %}</a></li>
+    {% endif %}
+</ul>
+
+<!-- Only shown if ul list scrollable -->
+<button id="more_button" title="Scroll the links to the right to see the full list"
+    style="display: none; height: 23px; border-radius: 4px; border: solid 1px hsl(210, 15%, 25%); background: transparent; color: hsl(210,20%,80%); min-width: none;">
+  More...
+</button>
+
+
+<script>
+  function showButtonIfScrollable() {
+    const menu = document.querySelector('#middle_header_left ul');
+    if (menu.scrollWidth > menu.clientWidth) {
+        // Menu is overflowing - show "more" button
+        document.getElementById('more_button').style.display = 'inline-block';
+    } else {
+        // Menu fits
+        document.getElementById('more_button').style.display = 'none';
+    }
+  }
+
+  $(function(){
+      // Initial check
+      showButtonIfScrollable();
+
+      // Handle more button click
+      $('#more_button').on('click', function(){
+          const menu = document.querySelector('#middle_header_left ul');
+          // Scroll right by 100px
+          menu.scrollTo({left: menu.scrollLeft + 200, behavior: 'smooth'});
+      });
+
+      // listen for window resize to show button if needed
+      $(window).on('resize', function(){
+        showButtonIfScrollable();
+      });
+  });
+
+
+</script>
