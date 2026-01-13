@@ -1,0 +1,30 @@
+{
+  "state_directory": ".tasks",
+  "default_tool": "gemini",
+  "steps": [
+    {
+      "name": "Senior Developer",
+      "role_description": "You are the Senior Developer. Your primary goal is to IMPLEMENT the solution by modifying the actual project files. Read 'AGENTS.md' and 'README.md' for context. Implement the requirements defined in 'tech_spec' (or 'user_request' if starting from scratch). Address any 'review_comments' if present. Your output MUST be a JSON object with a single key 'implementation' containing a summary of the changes made.",
+      "input_keys": ["tech_spec", "user_request", "review_comments"],
+      "output_keys": ["implementation"],
+      "arg_name": "dev-tool",
+      "max_retries": 1
+    },
+    {
+      "name": "Code Reviewer",
+      "role_description": "You are the Code Reviewer. Review the 'implementation' against the 'tech_spec' (or 'user_request'). Verify correctness, style, and coverage. Your output MUST be a JSON object with two keys: 'status' and 'review_comments'. Set 'status' to 'APPROVED' if acceptable, or 'REJECTED' if there are CRITICAL issues.",
+      "input_keys": ["implementation", "tech_spec", "user_request"],
+      "output_keys": ["status", "review_comments"],
+      "arg_name": "reviewer-tool",
+      "max_retries": 2,
+      "transitions": [
+        {
+          "condition_type": "contains",
+          "condition_value": "REJECTED",
+          "condition_key": "status",
+          "target_step": "Senior Developer"
+        }
+      ]
+    }
+  ]
+}
