@@ -1,0 +1,33 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from typing import List
+
+from pydantic import Field as FieldInfo
+
+from ...._models import BaseModel
+
+__all__ = ["PayerSearchResponse", "Payer", "PayerPayer"]
+
+
+class PayerPayer(BaseModel):
+    aliases: List[str]
+
+    display_name: str = FieldInfo(alias="displayName")
+
+    names: List[str]
+
+    primary_payer_id: str = FieldInfo(alias="primaryPayerId")
+
+    stedi_id: str = FieldInfo(alias="stediId")
+
+
+class Payer(BaseModel):
+    payer: PayerPayer
+
+    score: float
+
+
+class PayerSearchResponse(BaseModel):
+    """Successfully retrieved the list of payers."""
+
+    payers: List[Payer]

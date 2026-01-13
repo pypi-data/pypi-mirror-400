@@ -1,0 +1,14 @@
+# File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+
+from pydantic import Field as FieldInfo
+
+from ...._models import BaseModel
+
+__all__ = ["LegacyReasonResponse"]
+
+
+class LegacyReasonResponse(BaseModel):
+    """Accepted. Legacy reasoning process initiated."""
+
+    async_result_id: str = FieldInfo(alias="asyncResultId")
+    """The ID to track the asynchronous reasoning task."""
