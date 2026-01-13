@@ -1,0 +1,59 @@
+- name: Create directory for VM resources
+  ansible.builtin.file:
+    path: "{{ download_dir }}"
+    state: directory
+
+- name: Create directory for Docker packages
+  ansible.builtin.file:
+    path: "{{ download_dir }}/docker-jammy-server-debs"
+    state: directory
+
+- name: Create directory for Wireshark packages
+  ansible.builtin.file:
+    path: "{{ download_dir }}/wireshark"
+    state: directory
+
+- name: Create directory for Build Tools packages
+  ansible.builtin.file:
+    path: "{{ download_dir }}/build-tools"
+    state: directory
+
+- name: Download packages
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ item.dest }}"
+    checksum: "{{ item.checksum }}"
+  loop: "{{ downloads }}"
+
+- name: Create tarball of Docker packages
+  ansible.builtin.command:
+    cmd: "tar -czvf {{ download_dir }}/docker-jammy-debs.tgz -C {{ download_dir }} docker-jammy-server-debs"
+  args:
+    chdir: "{{ download_dir }}"
+
+- name: Clean up individual Docker deb packages
+  ansible.builtin.file:
+    path: "{{ download_dir }}/docker-jammy-server-debs"
+    state: absent
+
+- name: Create tarball of Wireshark packages
+  ansible.builtin.command:
+    cmd: "tar -czvf {{ download_dir }}/wireshark-3.6.2.tgz -C {{ download_dir }} wireshark"
+  args:
+    chdir: "{{ download_dir }}"
+
+- name: Clean up individual Wireshark deb packages
+  ansible.builtin.file:
+    path: "{{ download_dir }}/wireshark"
+    state: absent
+
+- name: Create tarball of Build Tools packages
+  ansible.builtin.command:
+    cmd: "tar -czvf {{ download_dir }}/jammy-build-tools.tgz -C {{ download_dir }} build-tools"
+  args:
+    chdir: "{{ download_dir }}"
+
+- name: Clean up individual Build Tools deb packages
+  ansible.builtin.file:
+    path: "{{ download_dir }}/build-tools"
+    state: absent
