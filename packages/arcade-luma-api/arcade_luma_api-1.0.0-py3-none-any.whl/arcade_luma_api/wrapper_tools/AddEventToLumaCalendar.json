@@ -1,0 +1,104 @@
+{
+  "name": "AddEventToLumaCalendar",
+  "fully_qualified_name": "LumaApi.AddEventToLumaCalendar@0.1.0",
+  "description": "Add an existing event to the Luma calendar.\n\nUse this tool to add an existing event from Luma or another platform to the Luma calendar without managing it there. Useful for integrating events across platforms.",
+  "toolkit": {
+    "name": "LumaApi",
+    "description": null,
+    "version": "0.1.0"
+  },
+  "input": {
+    "parameters": [
+      {
+        "name": "event_details_json",
+        "required": true,
+        "description": "JSON object containing the details of the event to add. It should include event identifiers and necessary attributes.",
+        "value_schema": {
+          "val_type": "json",
+          "inner_val_type": null,
+          "enum": null,
+          "properties": null,
+          "inner_properties": null,
+          "description": ""
+        },
+        "inferrable": true,
+        "http_endpoint_parameter_name": "requestBody"
+      }
+    ]
+  },
+  "output": {
+    "description": "Response from the API endpoint ''.",
+    "available_modes": [
+      "value",
+      "error",
+      "null"
+    ],
+    "value_schema": {
+      "val_type": "json",
+      "inner_val_type": null,
+      "enum": null,
+      "properties": null,
+      "inner_properties": null,
+      "description": null
+    }
+  },
+  "requirements": {
+    "authorization": null,
+    "secrets": [
+      {
+        "key": "LUMA_LUMA_API_KEY"
+      }
+    ],
+    "metadata": null
+  },
+  "deprecation_message": null,
+  "metadata": {
+    "object_type": "api_wrapper_tool",
+    "version": "1.2.0",
+    "description": "Tools that enable LLMs to interact directly with the Luma API."
+  },
+  "http_endpoint": {
+    "metadata": {
+      "object_type": "http_endpoint",
+      "version": "1.2.0",
+      "description": ""
+    },
+    "url": "https://public-api.luma.com/v1/calendar/add-event",
+    "http_method": "POST",
+    "headers": {},
+    "parameters": [
+      {
+        "name": "requestBody",
+        "tool_parameter_name": "event_details_json",
+        "description": "",
+        "value_schema": {
+          "val_type": "json",
+          "inner_val_type": null,
+          "enum": null,
+          "properties": null,
+          "inner_properties": null,
+          "description": ""
+        },
+        "accepted_as": "body",
+        "required": true,
+        "deprecated": false,
+        "default": null,
+        "documentation_urls": []
+      }
+    ],
+    "documentation_urls": [],
+    "secrets": [
+      {
+        "arcade_key": "LUMA_LUMA_API_KEY",
+        "parameter_name": "x-luma-api-key",
+        "accepted_as": "header",
+        "formatted_value": null,
+        "description": "",
+        "is_auth_token": false
+      }
+    ],
+    "request_body_spec": "{\n  \"required\": true,\n  \"content\": {\n    \"application/json\": {\n      \"schema\": {\n        \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n        \"anyOf\": [\n          {\n            \"type\": \"object\",\n            \"properties\": {\n              \"platform\": {\n                \"type\": \"string\",\n                \"const\": \"external\"\n              },\n              \"url\": {\n                \"type\": \"string\"\n              },\n              \"name\": {\n                \"type\": \"string\"\n              },\n              \"start_at\": {\n                \"description\": \"ISO 8601 Datetime. For example, 2022-10-19T03:27:13.673Z\",\n                \"type\": \"string\",\n                \"format\": \"date-time\",\n                \"pattern\": \"^(?:(?:\\\\d\\\\d[2468][048]|\\\\d\\\\d[13579][26]|\\\\d\\\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\\\d|30)|(?:02)-(?:0[1-9]|1\\\\d|2[0-8])))T(?:(?:[01]\\\\d|2[0-3]):[0-5]\\\\d(?::[0-5]\\\\d(?:\\\\.\\\\d+)?)?(?:Z|([+-](?:[01]\\\\d|2[0-3]):[0-5]\\\\d)))$\"\n              },\n              \"duration_interval\": {\n                \"type\": \"string\"\n              },\n              \"timezone\": {\n                \"description\": \"IANA Timezone, e.g. America/New_York. https://en.wikipedia.org/wiki/List_of_tz_database_time_zones\",\n                \"type\": \"string\"\n              },\n              \"geo_address_json\": {\n                \"anyOf\": [\n                  {\n                    \"anyOf\": [\n                      {\n                        \"type\": \"object\",\n                        \"properties\": {\n                          \"type\": {\n                            \"type\": \"string\",\n                            \"const\": \"manual\"\n                          },\n                          \"address\": {\n                            \"type\": \"string\"\n                          }\n                        },\n                        \"required\": [\n                          \"type\",\n                          \"address\"\n                        ]\n                      },\n                      {\n                        \"type\": \"object\",\n                        \"properties\": {\n                          \"type\": {\n                            \"type\": \"string\",\n                            \"const\": \"google\"\n                          },\n                          \"place_id\": {\n                            \"type\": \"string\"\n                          },\n                          \"description\": {\n                            \"anyOf\": [\n                              {\n                                \"type\": \"string\"\n                              },\n                              {\n                                \"type\": \"null\"\n                              }\n                            ]\n                          }\n                        },\n                        \"required\": [\n                          \"type\",\n                          \"place_id\"\n                        ]\n                      }\n                    ]\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ]\n              },\n              \"host\": {\n                \"anyOf\": [\n                  {\n                    \"type\": \"string\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ]\n              },\n              \"geo_longitude\": {\n                \"anyOf\": [\n                  {\n                    \"type\": \"number\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ]\n              },\n              \"geo_latitude\": {\n                \"anyOf\": [\n                  {\n                    \"type\": \"number\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ]\n              },\n              \"coordinate\": {\n                \"anyOf\": [\n                  {\n                    \"type\": \"object\",\n                    \"properties\": {\n                      \"longitude\": {\n                        \"type\": \"number\"\n                      },\n                      \"latitude\": {\n                        \"type\": \"number\"\n                      }\n                    },\n                    \"required\": [\n                      \"longitude\",\n                      \"latitude\"\n                    ]\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ]\n              }\n            },\n            \"required\": [\n              \"platform\",\n              \"url\",\n              \"name\",\n              \"start_at\",\n              \"duration_interval\",\n              \"timezone\"\n            ]\n          },\n          {\n            \"type\": \"object\",\n            \"properties\": {\n              \"platform\": {\n                \"type\": \"string\",\n                \"const\": \"luma\"\n              },\n              \"event_api_id\": {\n                \"type\": \"string\"\n              }\n            },\n            \"required\": [\n              \"platform\",\n              \"event_api_id\"\n            ]\n          }\n        ]\n      }\n    }\n  }\n}",
+    "use_request_body_schema_mode": true,
+    "validate_request_body_schema": true
+  }
+}
