@@ -1,0 +1,224 @@
+# AI Assess Tech Python SDK
+
+[![PyPI version](https://badge.fury.io/py/aiassess.svg)](https://badge.fury.io/py/aiassess)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**The official Python SDK for AI Assess Tech** - Assess AI systems for ethical alignment across 4 dimensions: Lying, Cheating, Stealing, and Harm.
+
+## Features
+
+- ✅ **Dual Client Support** - Sync (`AIAssessClient`) and async (`AsyncAIAssessClient`)
+- ✅ **Type-Safe** - Full Pydantic v2 models with validation
+- ✅ **Progress Tracking** - Real-time progress callbacks
+- ✅ **Dry Run Mode** - Test integration without full assessment
+- ✅ **Startup Blocking** - `block_until_pass()` for CI/CD gates
+- ✅ **Cryptographic Verification** - Verify assessment integrity
+- ✅ **CLI Included** - Command-line interface for quick testing
+
+## Installation
+
+```bash
+pip install aiassess
+```
+
+## Quick Start
+
+### Basic Assessment
+
+```python
+from aiassess import AIAssessClient
+
+# Define your AI callback
+def my_ai(question: str) -> str:
+    # Replace with your actual AI implementation
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": question}]
+    )
+    return response.choices[0].message.content or ""
+
+# Run assessment
+with AIAssessClient(health_check_key="hck_your_key_here") as client:
+    result = client.assess(callback=my_ai)
+
+print(f"Classification: {result.classification}")
+print(f"Passed: {result.overall_passed}")
+print(f"Verify at: {result.verify_url}")
+```
+
+### Async Assessment
+
+```python
+import asyncio
+from aiassess import AsyncAIAssessClient
+
+async def my_async_ai(question: str) -> str:
+    response = await openai.chat.completions.acreate(
+        model="gpt-4",
+        messages=[{"role": "user", "content": question}]
+    )
+    return response.choices[0].message.content or ""
+
+async def main():
+    async with AsyncAIAssessClient(health_check_key="hck_your_key") as client:
+        result = await client.assess(callback=my_async_ai)
+    print(f"Passed: {result.overall_passed}")
+
+asyncio.run(main())
+```
+
+### Progress Tracking
+
+```python
+from aiassess import AIAssessClient, AssessProgress
+
+def on_progress(p: AssessProgress):
+    print(f"[{p.percentage:3d}%] Testing {p.dimension}... ({p.current}/{p.total})")
+
+with AIAssessClient(health_check_key="hck_your_key") as client:
+    result = client.assess(
+        callback=my_ai,
+        on_progress=on_progress,
+    )
+```
+
+### Startup Health Check (CI/CD)
+
+```python
+from aiassess import AIAssessClient
+
+with AIAssessClient(health_check_key="hck_your_key") as client:
+    result = client.block_until_pass(
+        callback=my_ai,
+        max_retries=3,
+        retry_delay_seconds=60,
+        exit_on_failure=True,  # Exits process if AI fails
+    )
+```
+
+### Dry Run Mode
+
+Test your integration without running a full assessment:
+
+```python
+with AIAssessClient(health_check_key="hck_your_key") as client:
+    result = client.assess(
+        callback=my_ai,
+        dry_run=True,  # Only 5 questions, returns mock scores
+    )
+```
+
+## CLI Usage
+
+```bash
+# Run assessment (dry run)
+aiassess assess --key hck_your_key --dry-run
+
+# Show configuration
+aiassess config --key hck_your_key
+
+# Verify a result
+aiassess verify run_abc123 --key hck_your_key
+```
+
+## Assessment Result
+
+The `AssessmentResult` object includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `run_id` | `str` | Unique assessment ID |
+| `overall_passed` | `bool` | True if all dimensions pass |
+| `scores` | `DimensionScores` | Scores per dimension (0-10) |
+| `passed` | `DimensionPassed` | Pass/fail per dimension |
+| `classification` | `str` | Personality classification |
+| `verify_url` | `str` | Public verification URL |
+| `result_hash` | `str` | SHA-256 for cryptographic verification |
+| `variance` | `float` | Score variance (< 5 = stable) |
+| `is_stable` | `bool` | True if variance < 5 |
+
+### Dimension Scores
+
+```python
+result.scores.lying    # 0-10 (higher = more ethical)
+result.scores.cheating # 0-10
+result.scores.stealing # 0-10
+result.scores.harm     # 0-10
+result.scores.overall  # Average of all dimensions
+```
+
+### Classifications
+
+| Classification | Description |
+|---------------|-------------|
+| Well Adjusted | Ethical AI - passes all thresholds |
+| Misguided | Minor ethical concerns |
+| Manipulative | Significant ethical issues |
+| Psychopath | Fails ethical assessment |
+
+## Error Handling
+
+```python
+from aiassess import (
+    AIAssessClient,
+    AIAssessError,
+    AuthenticationError,
+    RateLimitError,
+    ValidationError,
+    AssessmentError,
+)
+
+try:
+    with AIAssessClient(health_check_key="hck_your_key") as client:
+        result = client.assess(callback=my_ai)
+except AuthenticationError:
+    print("Invalid API key")
+except RateLimitError as e:
+    print(f"Rate limited, retry after {e.retry_after}s")
+except ValidationError as e:
+    print(f"Invalid input: {e.message}")
+except AssessmentError as e:
+    print(f"Assessment failed: {e.message}")
+except AIAssessError as e:
+    print(f"SDK error: {e.code} - {e.message}")
+```
+
+## Configuration
+
+### Client Options
+
+```python
+client = AIAssessClient(
+    health_check_key="hck_...",
+    base_url="https://www.aiassesstech.com",  # API base URL
+    timeout=30.0,              # Per-request timeout (seconds)
+    overall_timeout=360.0,     # Total assessment timeout (seconds)
+    max_retries=3,             # Retry attempts for transient errors
+)
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `AIASSESS_KEY` | Health Check Key (used by CLI) |
+
+## TypeScript SDK
+
+Looking for the TypeScript SDK? See [packages/sdk-ts](../sdk-ts/).
+
+## Support
+
+- **Documentation**: https://www.aiassesstech.com/docs/sdk/python
+- **Issues**: https://github.com/aiassesstech/aiassess-python/issues
+- **Email**: sdk@aiassess.tech
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+**Built with ❤️ by [AI Assess Tech](https://www.aiassesstech.com)**
+
