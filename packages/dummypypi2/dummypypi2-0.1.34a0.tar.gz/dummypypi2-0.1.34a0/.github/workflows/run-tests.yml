@@ -1,0 +1,48 @@
+name: Run package tests
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+    workflow_call: {}
+
+jobs:
+    test:   
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                python-version: '3.14'
+
+            - name: Install dependencies
+              run: |
+                python -m pip install --upgrade pip
+                python -m pip install tox tox-gh-actions
+                
+            - name: Tests with tox
+              run: tox
+
+    type-check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                python-version: '3.14'
+
+            - name: Install dependencies
+              run: |
+                python -m pip install --upgrade pip
+                python -m pip install mypy
+                python -m pip install -e .[all]
+
+            - name: Run mypy type checking
+              run: mypy --strict --exclude '__init__\.py$' src/dummypypi2/
