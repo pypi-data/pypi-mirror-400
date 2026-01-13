@@ -1,0 +1,306 @@
+# AEL SDK
+
+Python SDK for **Agent Execution Ledger** - Complete audit trail for AI agents.
+
+## Installation
+
+```bash
+pip install ael-sdk
+```
+
+With framework integrations:
+```bash
+pip install ael-sdk[langchain]     # LangChain
+pip install ael-sdk[crewai]        # CrewAI
+pip install ael-sdk[openai]        # OpenAI Assistants
+pip install ael-sdk[autogen]       # Microsoft AutoGen
+pip install ael-sdk[google-adk]    # Google ADK
+pip install ael-sdk[all]           # All integrations
+```
+
+---
+
+## Getting Started
+
+### 1. Create an Account
+
+1. Go to [https://agent-execution-ledger.vercel.app](https://agent-execution-ledger.vercel.app)
+2. Click **"Sign in with Google"**
+3. Authorize the application
+
+### 2. Create a Workspace
+
+After signing in, you'll be prompted to create a workspace:
+1. Enter a workspace name (e.g., "My AI Agents")
+2. Click **"Create Workspace"**
+
+### 3. Generate an API Key
+
+1. Navigate to **API Keys** in the sidebar
+2. Click **"Create API Key"**
+3. Enter a name for your key (e.g., "Production Agent")
+4. Click **"Create"**
+5. **Copy your API key immediately** - it won't be shown again!
+
+Your API key will look like: `ael_xxxxxxxxxxxxxxxxxxxx`
+
+### 4. Use the SDK
+
+```python
+from ael import AELClient
+
+ael = AELClient(api_key="ael_your_api_key_here")
+```
+
+### Rate Limits
+
+| Plan | Limit |
+|------|-------|
+| Free | 5 requests/minute per API key |
+
+---
+
+## Quick Start
+
+```python
+from ael import AELClient, ActionOption, ResultType
+
+# API key is all you need - endpoint defaults to production
+ael = AELClient(api_key="ael_your_api_key_here")
+
+with ael.intent("Process customer refund request") as intent:
+    intent.snapshot_context({
+        "customer_id": "C-123",
+        "order_id": "ORD-456",
+        "refund_amount": 99.99,
+    })
+
+    intent.decide(
+        options=[
+            ActionOption(action="approve_refund", score=0.95, reason="Within policy"),
+            ActionOption(action="deny_refund", score=0.05, reason="N/A")
+        ],
+        chosen_action="approve_refund",
+        confidence=0.95,
+        model_version="gpt-4o-mini",
+        reasoning="Customer eligible per 30-day policy"
+    )
+
+    intent.execute(
+        action="approve_refund",
+        target={"order_id": "ORD-456"},
+        result=ResultType.SUCCESS
+    )
+```
+
+---
+
+## Framework Integrations
+
+### LangChain
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage, SystemMessage
+from ael import AELClient, ActionOption, ResultType
+import json
+
+# Setup
+ael = AELClient(api_key="ael_your_api_key")
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+@tool
+def get_weather(city: str) -> str:
+    """Get weather for a city."""
+    return f"Weather in {city}: Sunny, 72°F"
+
+tools = [get_weather]
+llm_with_tools = llm.bind_tools(tools)
+
+def evaluate_confidence(query: str, action: str, context: dict) -> tuple[float, str]:
+    """Use LLM to evaluate confidence in the decision."""
+    prompt = f"""Evaluate confidence (0.0-1.0) for this decision:
+Query: {query}, Action: {action}, Context: {json.dumps(context)}
+Respond as JSON: {{"confidence": 0.X, "reasoning": "..."}}"""
+
+    response = llm.invoke([HumanMessage(content=prompt)])
+    try:
+        result = json.loads(response.content)
+        return result["confidence"], result["reasoning"]
+    except:
+        return 0.5, "Could not evaluate"
+
+def run_agent(query: str):
+    with ael.intent(query, agent_id="langchain-agent") as intent:
+        intent.snapshot_context({"query": query})
+        response = llm_with_tools.invoke([HumanMessage(content=query)])
+
+        if response.tool_calls:
+            tool_call = response.tool_calls[0]
+            result = get_weather.invoke(tool_call["args"])
+
+            # Dynamic confidence from LLM
+            confidence, reasoning = evaluate_confidence(query, tool_call["name"], tool_call["args"])
+
+            intent.decide(
+                options=[ActionOption(action=tool_call["name"], score=confidence)],
+                chosen_action=tool_call["name"],
+                confidence=confidence,
+                model_version="gpt-4o-mini",
+                reasoning=reasoning
+            )
+            intent.execute(action=tool_call["name"], result=ResultType.SUCCESS)
+            return result
+        return response.content
+
+result = run_agent("What is the weather in NYC?")
+```
+
+### CrewAI
+
+```python
+from crewai import Agent, Task, Crew
+from ael import AELClient
+from ael.integrations.crewai import AELCrewTracker
+
+ael = AELClient(endpoint="https://ael-backend.onrender.com", api_key="ael_xxx")
+tracker = AELCrewTracker(ael)
+
+researcher = Agent(role="Researcher", goal="...", backstory="...")
+writer = Agent(role="Writer", goal="...", backstory="...")
+
+task1 = Task(description="Research topic", agent=researcher)
+task2 = Task(description="Write article", agent=writer)
+
+crew = Crew(agents=[researcher, writer], tasks=[task1, task2])
+
+with tracker.track_crew("Content creation pipeline") as t:
+    result = crew.kickoff()
+    t.record_result(result, agents=[researcher, writer], tasks=[task1, task2])
+```
+
+### OpenAI Assistants
+
+```python
+from openai import OpenAI
+from ael import AELClient
+from ael.integrations.openai_assistants import AELAssistantTracker
+
+openai = OpenAI()
+ael = AELClient(endpoint="https://ael-backend.onrender.com", api_key="ael_xxx")
+tracker = AELAssistantTracker(ael)
+
+assistant = openai.beta.assistants.create(
+    name="Math Tutor",
+    instructions="You are a math tutor.",
+    model="gpt-4o"
+)
+
+with tracker.track_run(assistant_id=assistant.id, goal="Help with math") as t:
+    thread = openai.beta.threads.create()
+    openai.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content="What is 2+2?"
+    )
+
+    run = openai.beta.threads.runs.create_and_poll(
+        thread_id=thread.id,
+        assistant_id=assistant.id
+    )
+
+    messages = openai.beta.threads.messages.list(thread_id=thread.id)
+    t.record_run(run, messages)
+```
+
+### Microsoft AutoGen
+
+```python
+from autogen import AssistantAgent, UserProxyAgent
+from ael import AELClient
+from ael.integrations.autogen import AELAutoGenTracker
+
+ael = AELClient(endpoint="https://ael-backend.onrender.com", api_key="ael_xxx")
+tracker = AELAutoGenTracker(ael)
+
+assistant = AssistantAgent("assistant", llm_config={"model": "gpt-4o-mini"})
+user_proxy = UserProxyAgent("user_proxy", code_execution_config={"work_dir": "coding"})
+
+with tracker.track_conversation("Solve coding problem") as t:
+    user_proxy.initiate_chat(assistant, message="Write a sorting function")
+    t.record_messages(user_proxy.chat_messages[assistant])
+```
+
+### Google ADK
+
+```python
+import asyncio
+from google.adk.agents import Agent
+from google.adk.runners import InMemoryRunner
+from google.genai import types
+from ael import AELClient
+from ael.integrations.google_adk import AELTracker
+
+ael = AELClient(api_key="your-api-key", endpoint="https://ael-backend.onrender.com")
+tracker = AELTracker(ael, agent_id="support-agent")
+
+agent = Agent(
+    name="support",
+    model="gemini-2.0-flash",
+    instruction="You are a helpful customer support agent."
+)
+
+async def handle_request():
+    with tracker.track("Handle customer request") as t:
+        t.context({"customer_id": "123", "ticket": "support-456"})
+
+        runner = InMemoryRunner(agent=agent, app_name="support-app")
+        session = await runner.session_service.create_session(
+            app_name="support-app", user_id="user-123"
+        )
+
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text="Handle support ticket #123")]
+        )
+
+        response_text = ""
+        async for event in runner.run_async(
+            user_id="user-123",
+            session_id=session.id,
+            new_message=content
+        ):
+            if hasattr(event, 'content') and event.content:
+                response_text = event.content.parts[0].text
+
+        t.decision(
+            chosen="resolve_ticket",
+            confidence=0.92,
+            reasoning=response_text,
+            options=[
+                {"action": "resolve_ticket", "score": 0.92},
+                {"action": "escalate", "score": 0.08},
+            ]
+        )
+        t.execute(action="resolve_ticket", result="success")
+
+asyncio.run(handle_request())
+```
+
+---
+
+## Features
+
+- **Complete Audit Trail**: Every decision your AI agent makes is logged
+- **Replay & Debug**: Reproduce any decision with the exact same context
+- **Human Override Tracking**: When humans intervene, it's captured in the ledger
+- **Multi-Framework Support**: LangChain, CrewAI, OpenAI, AutoGen, Google ADK
+
+## Documentation
+
+Full documentation at [GitHub](https://github.com/vinayb21-work/Agent-Execution-Ledger)
+
+## License
+
+MIT License
