@@ -1,0 +1,3125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantiaMagica - ADC行为级仿真器</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #64748b;
+            --accent: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --code-bg: #1e293b;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        
+        /* 导航栏 */
+        nav {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        .logo span {
+            color: var(--accent);
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        
+        .nav-links a {
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+        
+        /* 主页头部 */
+        .hero {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            padding: 5rem 2rem;
+            text-align: center;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .hero p {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+        
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .btn-primary {
+            background: white;
+            color: var(--primary);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.92);
+            color: var(--primary-dark);
+            border: 1px solid rgba(37, 99, 235, 0.25);
+        }
+
+        /* Secondary button on dark/hero background */
+        .hero .btn-secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.85);
+        }
+        
+        /* 内容区 */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        section {
+            margin-bottom: 4rem;
+        }
+        
+        h2 {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 0.5rem;
+            display: inline-block;
+        }
+        
+        h3 {
+            font-size: 1.5rem;
+            margin: 2rem 0 1rem;
+            color: var(--text);
+        }
+        
+        h4 {
+            font-size: 1.2rem;
+            margin: 1.5rem 0 0.75rem;
+            color: var(--secondary);
+        }
+        
+        p {
+            margin-bottom: 1rem;
+        }
+        
+        /* 卡片 */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+        
+        .card h4 {
+            color: var(--primary);
+            margin-top: 0;
+        }
+        
+        .card-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* 代码块 */
+        pre {
+            background: var(--code-bg);
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        code {
+            font-family: 'Fira Code', 'Consolas', monospace;
+        }
+        
+        :not(pre) > code {
+            background: #e2e8f0;
+            color: var(--primary-dark);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        .code-comment {
+            color: #6b7280;
+        }
+        
+        .code-keyword {
+            color: #c084fc;
+        }
+        
+        .code-string {
+            color: #ce9178;
+        }
+        
+        .code-number {
+            color: #b5cea8;
+        }
+        
+        .code-function {
+            color: #dcdcaa;
+        }
+        
+        .code-method {
+            color: #dcdcaa;
+        }
+        
+        /* 步骤列表 */
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            padding: 0;
+        }
+        
+        .steps li {
+            counter-increment: step;
+            padding: 1rem 1rem 1rem 4rem;
+            position: relative;
+            margin-bottom: 1rem;
+            background: var(--card-bg);
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+        }
+        
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2rem;
+            height: 2rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        /* 提示框 */
+        .tip {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid;
+        }
+        
+        .tip-info {
+            background: #eff6ff;
+            border-color: var(--primary);
+        }
+        
+        .tip-success {
+            background: #ecfdf5;
+            border-color: var(--success);
+        }
+        
+        .tip-warning {
+            background: #fffbeb;
+            border-color: var(--warning);
+        }
+        
+        .tip-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* 表格 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:hover {
+            background: #f8fafc;
+        }
+        
+        /* 左侧固定导航栏 */
+        .doc-layout {
+            display: flex;
+            min-height: calc(100vh - 60px);
+        }
+        
+        .sidebar {
+            width: 280px;
+            min-width: 280px;
+            background: var(--card-bg);
+            border-right: 1px solid var(--border);
+            position: fixed;
+            left: 0;
+            top: 60px;
+            bottom: 0;
+            overflow-y: auto;
+            padding: 1rem 0;
+            z-index: 50;
+        }
+        
+        .sidebar-search {
+            padding: 0.75rem 1rem;
+            margin: 0 1rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+            width: calc(100% - 2rem);
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .sidebar-search:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+        
+        .sidebar-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .sidebar-group-title {
+            color: var(--secondary);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.5rem 1.25rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .sidebar li {
+            margin: 0;
+        }
+        
+        .sidebar a {
+            color: var(--text);
+            text-decoration: none;
+            display: block;
+            padding: 0.5rem 1.25rem;
+            font-size: 14px;
+            transition: all 0.15s;
+            border-left: 3px solid transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            cursor: pointer;
+        }
+        
+        .sidebar a:hover {
+            background: rgba(37, 99, 235, 0.08);
+            color: var(--primary);
+        }
+        
+        .sidebar a.active {
+            background: rgba(37, 99, 235, 0.12);
+            color: var(--primary);
+            border-left-color: var(--primary);
+            font-weight: 500;
+        }
+        
+        .sidebar .sub-item {
+            padding-left: 2rem;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        
+        .sidebar-group-title {
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem;
+            max-width: 900px;
+        }
+        
+        /* 旧sidebar样式保留兼容 */
+        .old-sidebar {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: sticky;
+            top: 80px;
+            height: fit-content;
+            border: 1px solid var(--border);
+        }
+        
+        .old-sidebar h4 {
+            color: var(--secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.75rem;
+        }
+        
+        /* 习题样式 */
+        .exercise {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .exercise-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        
+        .exercise-number {
+            background: var(--primary);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .exercise-difficulty {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .difficulty-easy {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .difficulty-medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .difficulty-hard {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .exercise-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--text);
+        }
+        
+        .exercise-content {
+            margin-bottom: 1rem;
+        }
+        
+        .exercise-hint {
+            background: #eff6ff !important;
+            border-left: 3px solid var(--primary);
+            padding: 0.75rem 1rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 14px;
+            color: #1e293b !important;
+        }
+        
+        .exercise-hint strong,
+        .exercise-hint code {
+            color: #1e40af !important;
+        }
+        
+        .exercise-answer {
+            margin-top: 1rem;
+        }
+        
+        .answer-toggle {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        .answer-toggle:hover {
+            background: var(--primary-dark);
+        }
+        
+        .answer-content {
+            display: none;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f0fdf4 !important;
+            border: 1px solid #86efac;
+            border-radius: 8px;
+            color: #1e293b !important;
+        }
+        
+        .answer-content.show {
+            display: block;
+        }
+        
+        .answer-content pre {
+            margin: 0.5rem 0;
+            background: #1e293b !important;
+            color: #e2e8f0 !important;
+        }
+        
+        .answer-content p,
+        .answer-content strong,
+        .answer-content ul,
+        .answer-content li {
+            color: #1e293b !important;
+        }
+        
+        .answer-content .code-comment { color: #6b7280 !important; }
+        .answer-content .code-keyword { color: #c084fc !important; }
+        .answer-content .code-string { color: #ce9178 !important; }
+        .answer-content .code-number { color: #b5cea8 !important; }
+        .answer-content .code-function { color: #dcdcaa !important; }
+        .answer-content .code-method { color: #dcdcaa !important; }
+
+        /* Footer */
+        footer {
+            background: var(--code-bg);
+            color: #94a3b8;
+            padding: 3rem 2rem;
+            text-align: center;
+            margin-top: 4rem;
+        }
+        
+        footer a {
+            color: var(--primary);
+        }
+
+        /* Modern UI polish (overrides)
+           - Better typography & spacing
+           - Card-like sections
+           - Glassy sticky nav
+           - Improved tables & code blocks
+           Note: Keep this file emoji-free.
+        */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+            background:
+                radial-gradient(1200px 600px at 15% -10%, rgba(37, 99, 235, 0.12), transparent 60%),
+                radial-gradient(1000px 500px at 90% 10%, rgba(139, 92, 246, 0.10), transparent 55%),
+                var(--bg);
+        }
+
+        a {
+            color: var(--primary-dark);
+            text-underline-offset: 3px;
+        }
+
+        a:hover {
+            color: var(--primary);
+        }
+
+        nav {
+            background: rgba(255, 255, 255, 0.86);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        }
+
+        .container {
+            max-width: 1100px;
+        }
+
+        section {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        }
+
+        section:target {
+            outline: 3px solid rgba(37, 99, 235, 0.15);
+            outline-offset: 6px;
+        }
+
+        h2 {
+            border-bottom: none;
+            padding-bottom: 0.9rem;
+            display: block;
+            position: relative;
+            letter-spacing: 0.2px;
+        }
+
+        h2::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 72px;
+            height: 4px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+        }
+
+        h3 {
+            letter-spacing: 0.15px;
+        }
+
+        h4 {
+            color: #334155;
+        }
+
+        .card {
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25);
+        }
+
+        pre {
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+        }
+
+        :not(pre) > code {
+            background: rgba(37, 99, 235, 0.10);
+            color: #0f172a;
+            border: 1px solid rgba(37, 99, 235, 0.18);
+        }
+
+        table {
+            display: block;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        th {
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+        }
+
+        tr:hover {
+            background: rgba(37, 99, 235, 0.04);
+        }
+
+        .btn {
+            border-radius: 12px;
+        }
+
+        .btn:focus {
+            outline: 3px solid rgba(37, 99, 235, 0.35);
+            outline-offset: 3px;
+        }
+
+        .btn-primary {
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+        }
+
+        .hero .btn-secondary {
+            border-color: rgba(255, 255, 255, 0.85);
+        }
+
+        /* Dark mode (system preference) */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0b1220;
+                --card-bg: rgba(16, 24, 39, 0.72);
+                --text: #e5e7eb;
+                --text-light: #9ca3af;
+                --border: rgba(148, 163, 184, 0.20);
+            }
+
+            body {
+                background:
+                    radial-gradient(1200px 600px at 15% -10%, rgba(37, 99, 235, 0.16), transparent 60%),
+                    radial-gradient(1000px 500px at 90% 10%, rgba(139, 92, 246, 0.14), transparent 55%),
+                    var(--bg);
+            }
+
+            nav {
+                background: rgba(10, 15, 28, 0.70);
+                border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+            }
+
+            section {
+                background: rgba(10, 15, 28, 0.55);
+                border-color: rgba(148, 163, 184, 0.16);
+            }
+
+            a {
+                color: #93c5fd;
+            }
+
+            :not(pre) > code {
+                background: rgba(147, 197, 253, 0.12);
+                color: #e5e7eb;
+                border-color: rgba(147, 197, 253, 0.18);
+            }
+
+            h4 {
+                color: #cbd5e1;
+            }
+
+            /* Fix contrast for tip boxes in dark mode (avoid light background + light text) */
+            .tip {
+                background: rgba(15, 23, 42, 0.60);
+                border-color: rgba(148, 163, 184, 0.35);
+            }
+
+            .tip-info {
+                background: rgba(37, 99, 235, 0.16);
+                border-color: rgba(59, 130, 246, 0.65);
+            }
+
+            .tip-success {
+                background: rgba(16, 185, 129, 0.14);
+                border-color: rgba(16, 185, 129, 0.65);
+            }
+
+            .tip-warning {
+                background: rgba(245, 158, 11, 0.14);
+                border-color: rgba(245, 158, 11, 0.65);
+            }
+
+            /* Buttons inside content area in dark mode */
+            .btn-secondary {
+                background: rgba(15, 23, 42, 0.55);
+                color: var(--text);
+                border-color: rgba(148, 163, 184, 0.28);
+            }
+        }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .doc-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                position: static;
+            }
+            
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav>
+        <a href="#" class="logo">Quantia<span>Magica</span></a>
+        <ul class="nav-links">
+            <li><a href="#quickstart">快速开始</a></li>
+            <li><a href="#python-basics">Python入门</a></li>
+            <li><a href="#api">API文档</a></li>
+            <li><a href="#examples">示例</a></li>
+            <li><a href="#faq">常见问题</a></li>
+        </ul>
+    </nav>
+
+    <!-- 左侧固定导航栏 -->
+    <aside class="sidebar" id="sidebar">
+        <input type="text" class="sidebar-search" id="sidebar-search" placeholder="搜索文档..." oninput="filterSidebar(this.value)">
+        
+        <div class="sidebar-group">
+            <div class="sidebar-group-title">入门</div>
+            <ul>
+                <li><a href="#quickstart">快速开始</a></li>
+                <li><a href="#python-basics">Python入门</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-group">
+            <div class="sidebar-group-title">ADC类型</div>
+            <ul>
+                <li><a href="#api">SARADC</a></li>
+                <li><a href="#api" class="sub-item">参数与方法</a></li>
+                <li><a href="#api">PipelineADC</a></li>
+                <li><a href="#api">SigmaDeltaADC</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-group">
+            <div class="sidebar-group-title">事件系统</div>
+            <ul>
+                <li><a href="#api">SamplingEvent</a></li>
+                <li><a href="#api">ComparatorEvent</a></li>
+                <li><a href="#api">CapacitorSwitchEvent</a></li>
+                <li><a href="#api">BitDecisionEvent</a></li>
+                <li><a href="#api">QuantizerEvent</a></li>
+                <li><a href="#api">InterstageGainEvent</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-group">
+            <div class="sidebar-group-title">信号与分析</div>
+            <ul>
+                <li><a href="#api">Signal类</a></li>
+                <li><a href="#api">report()方法</a></li>
+                <li><a href="#api">spectrum()</a></li>
+                <li><a href="#api">辅助函数</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-group">
+            <div class="sidebar-group-title">优化器</div>
+            <ul>
+                <li><a href="#api">GeneticOptimizer</a></li>
+                <li><a href="#api">SDCoeffOptimizer</a></li>
+                <li><a href="#api">Gene定义</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-group">
+            <div class="sidebar-group-title">示例</div>
+            <ul>
+                <li><a href="#examples">01 基础SAR</a></li>
+                <li><a href="#examples">02 事件处理</a></li>
+                <li><a href="#examples">03 NS-SAR</a></li>
+                <li><a href="#examples">04 Pipeline</a></li>
+                <li><a href="#examples">05 非理想效应</a></li>
+                <li><a href="#examples">06 快速入门</a></li>
+                <li><a href="#examples">07 信号类</a></li>
+                <li><a href="#examples">08 Sigma-Delta</a></li>
+                <li><a href="#examples">09 遗传优化</a></li>
+                <li><a href="#examples">10 五阶SD</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-group">
+            <div class="sidebar-group-title">练习</div>
+            <ul>
+                <li><a href="#exercises">练习题</a></li>
+                <li><a href="#exercises" class="sub-item">1-3 入门</a></li>
+                <li><a href="#exercises" class="sub-item">4-7 进阶</a></li>
+                <li><a href="#exercises" class="sub-item">8-10 挑战</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-group">
+            <div class="sidebar-group-title">其他</div>
+            <ul>
+                <li><a href="#faq">常见问题</a></li>
+            </ul>
+        </div>
+    </aside>
+
+    <!-- 主页头部 -->
+    <header class="hero">
+        <h1>QuantiaMagica</h1>
+        <p>强大的ADC行为级事件驱动仿真器，像Minecraft Bukkit API一样简单易用</p>
+        <div class="hero-buttons">
+            <a href="#quickstart" class="btn btn-primary">立即开始</a>
+            <a href="#python-basics" class="btn btn-secondary">Python入门</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- 特性介绍 -->
+        <section id="features">
+            <h2>核心特性</h2>
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-icon">[1]</div>
+                    <h4>事件驱动架构</h4>
+                    <p>像Minecraft插件一样，监听ADC转换的每个阶段，轻松实现非理想效应建模</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">[2]</div>
+                    <h4>极简API</h4>
+                    <p>3行代码完成仿真，用户代码量极少，支持超快速调用</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">[3]</div>
+                    <h4>专业分析</h4>
+                    <p>内置ENOB、SNR、SFDR、THD、INL、DNL计算和IEEE JSSC风格绘图</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">[4]</div>
+                    <h4>高度可扩展</h4>
+                    <p>支持SAR ADC、Pipeline ADC，易于添加新架构和自定义信号</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Python入门 -->
+        <section id="python-basics">
+            <h2>Python 新手入门</h2>
+            
+            <div class="tip tip-info">
+                <div class="tip-title">写给完全没接触过Python的你</div>
+                <p>别担心！跟着下面的步骤，10分钟内你就能运行第一个ADC仿真。</p>
+            </div>
+
+            <h3>第一步：安装 Python</h3>
+            <ol class="steps">
+                <li>
+                    <strong>下载Python</strong><br>
+                    访问 <a href="https://www.python.org/downloads/" target="_blank">python.org</a>，下载最新版本（推荐3.10以上）
+                </li>
+                <li>
+                    <strong>安装时勾选 "Add Python to PATH"</strong><br>
+                    这一步非常重要！勾选后才能在命令行使用Python
+                </li>
+                <li>
+                    <strong>验证安装</strong><br>
+                    打开命令行（Windows: Win+R 输入 cmd），输入：
+                    <pre>python --version</pre>
+                    看到版本号就说明安装成功了
+                </li>
+            </ol>
+
+            <h3>第二步：安装 QuantiaMagica</h3>
+            <pre><span class="code-comment"># 在命令行中执行以下命令</span>
+
+<span class="code-comment"># 方法1：进入项目目录安装（推荐）</span>
+cd QuantiaMagica
+pip install -e .
+
+<span class="code-comment"># 方法2：只安装依赖</span>
+pip install numpy matplotlib</pre>
+
+            <h3>第三步：创建你的第一个脚本</h3>
+            <p>用任意文本编辑器（记事本、VS Code、PyCharm都可以）创建文件 <code>my_first_adc.py</code>：</p>
+            
+            <pre><span class="code-comment"># my_first_adc.py - 我的第一个ADC仿真</span>
+
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC
+
+<span class="code-comment"># 创建一个10位SAR ADC</span>
+adc = SARADC(bits=<span class="code-string">10</span>, vref=<span class="code-string">1.0</span>)
+
+<span class="code-comment"># 运行仿真</span>
+adc.sim()
+
+<span class="code-comment"># 显示结果</span>
+<span class="code-function">print</span>(<span class="code-string">f"ENOB: </span>{adc.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+
+<span class="code-comment"># 画图</span>
+adc.plot()</pre>
+
+            <h3>第四步：运行脚本</h3>
+            <pre><span class="code-comment"># 在命令行中</span>
+python my_first_adc.py</pre>
+
+            <div class="tip tip-success">
+                <div class="tip-title">恭喜！</div>
+                <p>你已经完成了第一个ADC仿真！继续阅读下面的内容学习更多用法。</p>
+            </div>
+
+            <h3>Python基础语法速查（本API所需）</h3>
+            <p>以下是使用QuantiaMagica所需的所有Python语法，10分钟即可掌握：</p>
+
+            <h4>1. 变量和数据类型</h4>
+            <pre><span class="code-comment"># 变量赋值：直接写名字 = 值</span>
+bits = <span class="code-string">12</span>           <span class="code-comment"># 整数 int</span>
+vref = <span class="code-string">1.0</span>          <span class="code-comment"># 小数 float</span>
+name = <span class="code-string">"SAR-ADC"</span>    <span class="code-comment"># 字符串 str</span>
+enabled = <span class="code-string">True</span>      <span class="code-comment"># 布尔值 True/False</span>
+
+<span class="code-comment"># 科学计数法（ADC仿真常用）</span>
+fs = <span class="code-string">1e6</span>            <span class="code-comment"># 1×10⁶ = 1000000 (1MHz)</span>
+noise = <span class="code-string">0.5e-3</span>      <span class="code-comment"># 0.5×10⁻³ = 0.0005 (0.5mV)</span>
+fin = <span class="code-string">10e3</span>          <span class="code-comment"># 10×10³ = 10000 (10kHz)</span>
+
+<span class="code-comment"># 运算符</span>
+a = <span class="code-string">10</span> + <span class="code-string">3</span>     <span class="code-comment"># 加法 = 13</span>
+b = <span class="code-string">10</span> - <span class="code-string">3</span>     <span class="code-comment"># 减法 = 7</span>
+c = <span class="code-string">10</span> * <span class="code-string">3</span>     <span class="code-comment"># 乘法 = 30</span>
+d = <span class="code-string">10</span> / <span class="code-string">3</span>     <span class="code-comment"># 除法 = 3.333...</span>
+e = <span class="code-string">10</span> // <span class="code-string">3</span>    <span class="code-comment"># 整除 = 3</span>
+f = <span class="code-string">10</span> % <span class="code-string">3</span>     <span class="code-comment"># 取余 = 1</span>
+g = <span class="code-string">2</span> ** <span class="code-string">10</span>    <span class="code-comment"># 幂运算 = 1024</span></pre>
+
+            <h4>2. 列表和字典</h4>
+            <pre><span class="code-comment"># 列表 list：用方括号，可索引</span>
+coeffs = [<span class="code-string">0.5</span>, <span class="code-string">0.3</span>, <span class="code-string">0.2</span>]    <span class="code-comment"># 创建列表</span>
+first = coeffs[<span class="code-string">0</span>]           <span class="code-comment"># 索引从0开始，= 0.5</span>
+coeffs.append(<span class="code-string">0.1</span>)          <span class="code-comment"># 追加元素</span>
+length = len(coeffs)        <span class="code-comment"># 长度 = 4</span>
+
+<span class="code-comment"># 字典 dict：键值对，用花括号</span>
+params = {<span class="code-string">'c1'</span>: <span class="code-string">0.5</span>, <span class="code-string">'c2'</span>: <span class="code-string">0.3</span>, <span class="code-string">'amplitude'</span>: <span class="code-string">0.4</span>}
+c1 = params[<span class="code-string">'c1'</span>]           <span class="code-comment"># 取值 = 0.5</span>
+params[<span class="code-string">'c3'</span>] = <span class="code-string">0.2</span>          <span class="code-comment"># 添加新键值</span></pre>
+
+            <h4>3. 导入模块</h4>
+            <pre><span class="code-comment"># 从模块导入类/函数</span>
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC              <span class="code-comment"># 导入一个</span>
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, Signal     <span class="code-comment"># 导入多个</span>
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> *                   <span class="code-comment"># 导入所有（不推荐）</span>
+
+<span class="code-comment"># 导入整个模块（需要前缀访问）</span>
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np                            <span class="code-comment"># np是别名</span>
+noise = np.random.normal(<span class="code-string">0</span>, <span class="code-string">0.001</span>)           <span class="code-comment"># 使用np.xxx访问</span>
+
+<span class="code-comment"># 常用导入（本API需要）</span>
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, PipelineADC, SigmaDeltaADC
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SamplingEvent, ComparatorEvent, QuantizerEvent
+<span class="code-keyword">from</span> quantiamagica.optim <span class="code-keyword">import</span> GeneticOptimizer, Gene</pre>
+
+            <h4>4. 创建对象和调用方法</h4>
+            <pre><span class="code-comment"># 创建对象：类名(参数)</span>
+adc = SARADC(bits=<span class="code-string">12</span>, vref=<span class="code-string">1.0</span>)   <span class="code-comment"># 命名参数</span>
+adc = SARADC(<span class="code-string">12</span>, <span class="code-string">1.0</span>)              <span class="code-comment"># 位置参数</span>
+adc = SARADC(<span class="code-string">12</span>)                   <span class="code-comment"># 只传必要参数</span>
+
+<span class="code-comment"># 调用方法：对象.方法名()</span>
+adc.sim()                         <span class="code-comment"># 无参数</span>
+adc.sim(fin=<span class="code-string">10e3</span>)                 <span class="code-comment"># 有参数</span>
+adc.sim(n_samples=<span class="code-string">4096</span>, fs=<span class="code-string">1e6</span>)  <span class="code-comment"># 多个参数</span>
+
+<span class="code-comment"># 获取返回值</span>
+result = adc.sim()                <span class="code-comment"># 保存返回对象</span>
+enob = adc.enob()                 <span class="code-comment"># 保存返回数字</span>
+
+<span class="code-comment"># 链式调用</span>
+adc.sim().report()                <span class="code-comment"># 仿真完直接报告</span>
+
+<span class="code-comment"># 访问属性</span>
+bits = adc.bits                   <span class="code-comment"># 读取属性（无括号）</span></pre>
+
+            <h4>5. 函数定义</h4>
+            <pre><span class="code-comment"># 基本函数</span>
+<span class="code-keyword">def</span> <span class="code-function">add</span>(a, b):
+    <span class="code-keyword">return</span> a + b
+
+result = add(<span class="code-string">3</span>, <span class="code-string">5</span>)  <span class="code-comment"># 调用函数，result = 8</span>
+
+<span class="code-comment"># 带默认参数</span>
+<span class="code-keyword">def</span> <span class="code-function">greet</span>(name=<span class="code-string">"World"</span>):
+    <span class="code-function">print</span>(<span class="code-string">f"Hello, </span>{name}<span class="code-string">!"</span>)
+
+greet()           <span class="code-comment"># Hello, World!</span>
+greet(<span class="code-string">"ADC"</span>)      <span class="code-comment"># Hello, ADC!</span>
+
+<span class="code-comment"># 适应度函数示例（遗传算法用）</span>
+<span class="code-keyword">def</span> <span class="code-function">fitness</span>(params):
+    <span class="code-comment"># params是字典，如 {'c1': 0.5, 'c2': 0.3}</span>
+    c1 = params[<span class="code-string">'c1'</span>]
+    c2 = params[<span class="code-string">'c2'</span>]
+    <span class="code-comment"># ... 计算ENOB ...</span>
+    <span class="code-keyword">return</span> enob  <span class="code-comment"># 返回适应度值</span></pre>
+
+            <h4>6. 装饰器（事件系统核心）</h4>
+            <pre><span class="code-comment"># 装饰器：@xxx 放在函数定义上面</span>
+<span class="code-comment"># 这是QuantiaMagica事件系统的核心！</span>
+
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, SamplingEvent
+
+adc = SARADC(<span class="code-string">12</span>)
+
+<span class="code-keyword">@adc.on</span>(SamplingEvent)           <span class="code-comment"># ← 装饰器：监听采样事件</span>
+<span class="code-keyword">def</span> <span class="code-function">add_noise</span>(event):           <span class="code-comment"># ← 事件处理函数，参数是event</span>
+    event.voltage += <span class="code-string">0.001</span>       <span class="code-comment"># ← 修改event的属性</span>
+
+<span class="code-comment"># 装饰器的作用：当ADC采样时，自动调用add_noise函数</span>
+<span class="code-comment"># 你不需要手动调用add_noise()，只需要运行adc.sim()</span>
+
+adc.sim()  <span class="code-comment"># add_noise会在每次采样时被自动调用</span></pre>
+
+            <h4>7. 条件判断和循环</h4>
+            <pre><span class="code-comment"># if-elif-else</span>
+<span class="code-keyword">if</span> enob > <span class="code-string">10</span>:
+    <span class="code-function">print</span>(<span class="code-string">"优秀"</span>)
+<span class="code-keyword">elif</span> enob > <span class="code-string">8</span>:
+    <span class="code-function">print</span>(<span class="code-string">"良好"</span>)
+<span class="code-keyword">else</span>:
+    <span class="code-function">print</span>(<span class="code-string">"需改进"</span>)
+
+<span class="code-comment"># for循环</span>
+<span class="code-keyword">for</span> i <span class="code-keyword">in</span> range(<span class="code-string">5</span>):        <span class="code-comment"># i = 0, 1, 2, 3, 4</span>
+    <span class="code-function">print</span>(i)
+
+<span class="code-keyword">for</span> c <span class="code-keyword">in</span> [<span class="code-string">0.1</span>, <span class="code-string">0.2</span>, <span class="code-string">0.3</span>]:  <span class="code-comment"># 遍历列表</span>
+    <span class="code-function">print</span>(c)
+
+<span class="code-comment"># 列表推导式（创建列表的简洁写法）</span>
+squares = [x**<span class="code-string">2</span> <span class="code-keyword">for</span> x <span class="code-keyword">in</span> range(<span class="code-string">5</span>)]  <span class="code-comment"># [0, 1, 4, 9, 16]</span>
+c_list = [params[<span class="code-string">f'c{i+1}'</span>] <span class="code-keyword">for</span> i <span class="code-keyword">in</span> range(<span class="code-string">5</span>)]  <span class="code-comment"># 提取c1-c5</span></pre>
+
+            <h4>8. 打印输出（f-string格式化）</h4>
+            <pre><span class="code-comment"># print() 打印到控制台</span>
+<span class="code-function">print</span>(<span class="code-string">"Hello"</span>)                      <span class="code-comment"># 普通字符串</span>
+<span class="code-function">print</span>(bits)                         <span class="code-comment"># 打印变量</span>
+<span class="code-function">print</span>(<span class="code-string">"bits ="</span>, bits)               <span class="code-comment"># 多个值用逗号</span>
+
+<span class="code-comment"># f-string格式化（推荐）</span>
+<span class="code-function">print</span>(<span class="code-string">f"ENOB: </span>{enob}<span class="code-string">"</span>)              <span class="code-comment"># {}内放变量</span>
+<span class="code-function">print</span>(<span class="code-string">f"ENOB: </span>{enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)    <span class="code-comment"># :.2f 保留2位小数</span>
+<span class="code-function">print</span>(<span class="code-string">f"SNR: </span>{snr:<span class="code-string">.1f</span>}<span class="code-string"> dB"</span>)         <span class="code-comment"># :.1f 保留1位小数</span>
+<span class="code-function">print</span>(<span class="code-string">f"fs: </span>{fs:<span class="code-string">.2e</span>}<span class="code-string"> Hz"</span>)           <span class="code-comment"># :.2e 科学计数法</span>
+<span class="code-function">print</span>(<span class="code-string">f"提升: </span>{improvement:<span class="code-string">+.2f</span>}<span class="code-string">"</span>)  <span class="code-comment"># :+ 显示正负号</span></pre>
+
+            <h4>9. NumPy基础（信号处理必备）</h4>
+            <pre><span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-comment"># 创建数组</span>
+arr = np.array([<span class="code-string">1</span>, <span class="code-string">2</span>, <span class="code-string">3</span>])          <span class="code-comment"># 从列表创建</span>
+zeros = np.zeros(<span class="code-string">10</span>)               <span class="code-comment"># 10个0</span>
+ones = np.ones(<span class="code-string">10</span>)                 <span class="code-comment"># 10个1</span>
+t = np.arange(<span class="code-string">1024</span>)                <span class="code-comment"># [0, 1, 2, ..., 1023]</span>
+t = np.arange(<span class="code-string">0</span>, <span class="code-string">1</span>, <span class="code-string">0.001</span>)        <span class="code-comment"># 0到1，步长0.001</span>
+t = np.linspace(<span class="code-string">0</span>, <span class="code-string">1</span>, <span class="code-string">1000</span>)       <span class="code-comment"># 0到1，共1000个点</span>
+
+<span class="code-comment"># 时间轴生成（ADC仿真常用）</span>
+n_samples = <span class="code-string">4096</span>
+fs = <span class="code-string">1e6</span>
+t = np.arange(n_samples) / fs      <span class="code-comment"># 时间轴（秒）</span>
+
+<span class="code-comment"># 生成正弦波</span>
+fin = <span class="code-string">10e3</span>                         <span class="code-comment"># 信号频率10kHz</span>
+amplitude = <span class="code-string">0.4</span>                    <span class="code-comment"># 振幅</span>
+offset = <span class="code-string">0.5</span>                       <span class="code-comment"># 直流偏置</span>
+signal = offset + amplitude * np.sin(<span class="code-string">2</span> * np.pi * fin * t)
+
+<span class="code-comment"># 生成随机噪声</span>
+noise = np.random.normal(<span class="code-string">0</span>, <span class="code-string">0.001</span>)         <span class="code-comment"># 单个随机数</span>
+noise = np.random.normal(<span class="code-string">0</span>, <span class="code-string">0.001</span>, <span class="code-string">1024</span>)  <span class="code-comment"># 1024个随机数</span>
+
+<span class="code-comment"># 数学函数</span>
+y = np.sin(x)                      <span class="code-comment"># 正弦</span>
+y = np.cos(x)                      <span class="code-comment"># 余弦</span>
+y = np.abs(x)                      <span class="code-comment"># 绝对值</span>
+y = np.sqrt(x)                     <span class="code-comment"># 平方根</span>
+y = np.log10(x)                    <span class="code-comment"># log10</span>
+y = np.clip(x, <span class="code-string">0</span>, <span class="code-string">1</span>)               <span class="code-comment"># 裁剪到[0,1]</span>
+
+<span class="code-comment"># 统计函数</span>
+m = np.mean(arr)                   <span class="code-comment"># 平均值</span>
+s = np.std(arr)                    <span class="code-comment"># 标准差</span>
+mx = np.max(arr)                   <span class="code-comment"># 最大值</span>
+mn = np.min(arr)                   <span class="code-comment"># 最小值</span></pre>
+
+            <h4>10. try-except异常处理</h4>
+            <pre><span class="code-comment"># 捕获错误，防止程序崩溃</span>
+<span class="code-keyword">try</span>:
+    enob = evaluate_sd_adc(params)
+    <span class="code-keyword">if</span> enob <= <span class="code-string">0</span> <span class="code-keyword">or</span> np.isnan(enob):
+        <span class="code-keyword">return</span> -<span class="code-string">1000</span>  <span class="code-comment"># 返回惩罚值</span>
+    <span class="code-keyword">return</span> enob
+<span class="code-keyword">except</span>:
+    <span class="code-keyword">return</span> -<span class="code-string">1000</span>  <span class="code-comment"># 出错也返回惩罚值</span></pre>
+
+            <h4>11. 常见错误解决</h4>
+            <table>
+                <tr><th>错误</th><th>原因</th><th>解决</th></tr>
+                <tr><td><code>ModuleNotFoundError</code></td><td>模块未安装</td><td><code>pip install -e .</code></td></tr>
+                <tr><td><code>IndentationError</code></td><td>缩进不对</td><td>用4个空格缩进</td></tr>
+                <tr><td><code>NameError: xxx not defined</code></td><td>变量未定义</td><td>检查拼写或先赋值</td></tr>
+                <tr><td><code>TypeError: missing argument</code></td><td>缺少参数</td><td>查看API文档补全参数</td></tr>
+                <tr><td><code>IndexError: list index out of range</code></td><td>索引越界</td><td>检查列表长度</td></tr>
+                <tr><td><code>KeyError: 'xxx'</code></td><td>字典键不存在</td><td>检查键名拼写</td></tr>
+            </table>
+
+            <h3>完整模板：复制即用</h3>
+            <div class="tip tip-success">
+                <div class="tip-title">模板说明</div>
+                <p>下面是一个完整的ADC仿真模板，包含所有常用功能。复制后修改参数即可运行。</p>
+            </div>
+            <pre><span class="code-comment">"""
+QuantiaMagica ADC仿真模板
+========================
+复制此文件，修改参数即可运行
+
+使用前请先安装：
+    cd QuantiaMagica
+    pip install -e .
+"""</span>
+
+<span class="code-comment"># ==================== 导入 ====================</span>
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, SamplingEvent, ComparatorEvent
+
+<span class="code-comment"># ==================== 参数设置 ====================</span>
+BITS = <span class="code-string">12</span>              <span class="code-comment"># ADC位数</span>
+VREF = <span class="code-string">1.0</span>             <span class="code-comment"># 参考电压 (V)</span>
+FS = <span class="code-string">1e6</span>               <span class="code-comment"># 采样率 (Hz)</span>
+FIN = <span class="code-string">10e3</span>             <span class="code-comment"># 信号频率 (Hz)</span>
+N_SAMPLES = <span class="code-string">4096</span>       <span class="code-comment"># 采样点数</span>
+AMPLITUDE = <span class="code-string">0.48</span>       <span class="code-comment"># 信号幅度 (V)</span>
+OFFSET = <span class="code-string">0.5</span>           <span class="code-comment"># 直流偏置 (V)</span>
+
+<span class="code-comment"># 非理想效应参数</span>
+THERMAL_NOISE = <span class="code-string">0.5e-3</span>     <span class="code-comment"># 热噪声 (V RMS)</span>
+COMPARATOR_OFFSET = <span class="code-string">1e-3</span>   <span class="code-comment"># 比较器失调 (V)</span>
+
+<span class="code-comment"># ==================== 创建ADC ====================</span>
+adc = SARADC(bits=BITS, vref=VREF)
+
+<span class="code-comment"># ==================== 添加非理想效应（可选） ====================</span>
+<span class="code-keyword">@adc.on</span>(SamplingEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_thermal_noise</span>(event):
+    <span class="code-string">"""采样时添加热噪声"""</span>
+    event.voltage += np.random.normal(<span class="code-string">0</span>, THERMAL_NOISE)
+
+<span class="code-keyword">@adc.on</span>(ComparatorEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_comparator_offset</span>(event):
+    <span class="code-string">"""比较器失调"""</span>
+    event.offset = COMPARATOR_OFFSET
+
+<span class="code-comment"># ==================== 运行仿真 ====================</span>
+<span class="code-function">print</span>(<span class="code-string">"运行仿真..."</span>)
+result = adc.sim(
+    n_samples=N_SAMPLES,
+    fs=FS,
+    fin=FIN,
+    amplitude=AMPLITUDE,
+    offset=OFFSET
+)
+
+<span class="code-comment"># ==================== 查看结果 ====================</span>
+<span class="code-function">print</span>(<span class="code-string">f"\n===== 仿真结果 ====="</span>)
+<span class="code-function">print</span>(<span class="code-string">f"ENOB: </span>{adc.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"SNR:  </span>{adc.<span class="code-method">snr</span>():<span class="code-string">.1f</span>}<span class="code-string"> dB"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"SFDR: </span>{adc.<span class="code-method">sfdr</span>():<span class="code-string">.1f</span>}<span class="code-string"> dB"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"THD:  </span>{adc.<span class="code-method">thd</span>():<span class="code-string">.1f</span>}<span class="code-string"> dB"</span>)
+
+<span class="code-comment"># ==================== 可视化 ====================</span>
+<span class="code-comment"># 完整报告（推荐）</span>
+adc.report()
+
+<span class="code-comment"># 或者单独查看</span>
+<span class="code-comment"># adc.plot()           # 时域图</span>
+<span class="code-comment"># adc.spectrum()       # 频谱图</span>
+<span class="code-comment"># adc.report('static') # INL/DNL</span>
+
+<span class="code-comment"># ==================== 保存数据（可选） ====================</span>
+<span class="code-comment"># result.save("output.npz")           # NumPy格式</span>
+<span class="code-comment"># result.save("output.csv", format="csv")  # CSV格式</span>
+</pre>
+        </section>
+
+        <!-- 快速开始 -->
+        <section id="quickstart">
+            <h2>快速开始</h2>
+
+            <h3>最简代码（3行）</h3>
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC
+
+adc = SARADC(bits=<span class="code-string">12</span>, vref=<span class="code-string">1.0</span>)  <span class="code-comment"># 创建12位ADC</span>
+adc.sim(fin=<span class="code-string">10e3</span>)                   <span class="code-comment"># 仿真10kHz正弦波</span>
+adc.plot()                           <span class="code-comment"># 画图</span></pre>
+
+            <h3>添加非理想效应（事件监听） - 核心功能</h3>
+            <pre><span class="code-comment"># =============================================================</span>
+<span class="code-comment"># 事件驱动是QuantiaMagica的核心！</span>
+<span class="code-comment"># 通过监听ADC转换过程中的各个事件，可以轻松添加非理想效应</span>
+<span class="code-comment"># =============================================================</span>
+
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, SamplingEvent, ComparatorEvent
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-comment"># 第1步：创建ADC实例</span>
+adc = SARADC(bits=<span class="code-string">12</span>, vref=<span class="code-string">1.0</span>)
+
+<span class="code-comment"># 第2步：用 @adc.on() 装饰器监听事件</span>
+<span class="code-comment"># 当ADC采样时，这个函数会被自动调用</span>
+<span class="code-keyword">@adc.on</span>(SamplingEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_thermal_noise</span>(event):
+    <span class="code-comment"># event.voltage 是当前采样的电压值</span>
+    <span class="code-comment"># 我们给它加上高斯噪声来模拟热噪声</span>
+    noise = np.random.normal(<span class="code-string">0</span>, <span class="code-string">0.0005</span>)  <span class="code-comment"># 0.5mV RMS噪声</span>
+    event.voltage += noise
+
+<span class="code-comment"># 第3步：监听比较器事件，添加比较器失调</span>
+<span class="code-keyword">@adc.on</span>(ComparatorEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_comparator_offset</span>(event):
+    <span class="code-comment"># event.offset 是比较器失调电压</span>
+    event.offset = <span class="code-string">0.001</span>  <span class="code-comment"># 1mV失调</span>
+    <span class="code-comment"># event.noise_sigma 是比较器噪声</span>
+    event.noise_sigma = <span class="code-string">0.0002</span>  <span class="code-comment"># 0.2mV噪声</span>
+
+<span class="code-comment"># 第4步：运行仿真</span>
+adc.sim(n_samples=<span class="code-string">4096</span>, fs=<span class="code-string">1e6</span>, fin=<span class="code-string">10e3</span>)
+
+<span class="code-comment"># 第5步：查看结果</span>
+<span class="code-function">print</span>(<span class="code-string">f"带非理想效应的ENOB: </span>{adc.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"SNR: </span>{adc.<span class="code-method">snr</span>():<span class="code-string">.1f</span>}<span class="code-string"> dB"</span>)
+
+<span class="code-comment"># 画图看效果</span>
+adc.spectrum()</pre>
+
+            <h3>获取所有指标</h3>
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC
+<span class="code-keyword">from</span> quantiamagica.analysis <span class="code-keyword">import</span> Analyzer
+
+adc = SARADC(bits=<span class="code-string">12</span>)
+result = adc.sim()
+
+analyzer = Analyzer(result)
+<span class="code-function">print</span>(analyzer.summary())  <span class="code-comment"># 打印所有指标</span></pre>
+
+            <h3>使用Signal类生成各种信号</h3>
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, Signal
+
+adc = SARADC(bits=<span class="code-string">12</span>)
+
+<span class="code-comment"># 正弦波</span>
+sig = Signal.sine(n=<span class="code-string">1024</span>, freq=<span class="code-string">10e3</span>)
+
+<span class="code-comment"># 方波</span>
+sig = Signal.square(n=<span class="code-string">1024</span>, freq=<span class="code-string">1e3</span>)
+
+<span class="code-comment"># 三角波</span>
+sig = Signal.triangle(n=<span class="code-string">1024</span>, freq=<span class="code-string">1e3</span>)
+
+<span class="code-comment"># 扫频信号</span>
+sig = Signal.chirp(n=<span class="code-string">2048</span>, f_start=<span class="code-string">1e3</span>, f_end=<span class="code-string">100e3</span>)
+
+<span class="code-comment"># 双音信号（IMD测试）</span>
+sig = Signal.two_tone(f1=<span class="code-string">10e3</span>, f2=<span class="code-string">11e3</span>)
+
+<span class="code-comment"># 从文件导入</span>
+sig = Signal.from_file(<span class="code-string">"my_data.csv"</span>)
+
+<span class="code-comment"># 用于仿真</span>
+adc.sim(sig)</pre>
+        </section>
+
+        <!-- API文档 -->
+        <section id="api">
+            <h2>API 参考</h2>
+
+            <!-- ================= ADC类型 ================= -->
+            <h3>ADC 类型</h3>
+            
+            <h4>SARADC - 逐次逼近型ADC</h4>
+            <p>导入: <code>from quantiamagica import SARADC</code></p>
+            <table>
+                <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+                <tr><td>bits</td><td>int</td><td>10</td><td>分辨率位数</td></tr>
+                <tr><td>vref</td><td>float</td><td>1.0</td><td>参考电压上限 (V)</td></tr>
+                <tr><td>vmin</td><td>float</td><td>0.0</td><td>参考电压下限 (V)</td></tr>
+                <tr><td>cap_unit</td><td>float</td><td>1.0</td><td>单位电容 (fF)</td></tr>
+                <tr><td>name</td><td>str</td><td>"SAR-ADC"</td><td>ADC名称</td></tr>
+            </table>
+            <p><strong>专用方法:</strong></p>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>set_radix(radix)</code></td><td>设置非二进制基数 (如1.85用于冗余SAR)</td></tr>
+                <tr><td><code>set_capacitor_mismatch(sigma)</code></td><td>设置电容失配标准差</td></tr>
+                <tr><td><code>code_to_voltage(code)</code></td><td>将输出码转换回电压</td></tr>
+            </table>
+
+            <hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+            <h4>Pipeline - ADC级联链类 (独立于ADConverter)</h4>
+            <p>导入: <code>from quantiamagica import Pipeline</code></p>
+            <p><strong>架构说明：</strong>Pipeline是独立的类（不继承ADConverter），用于将多个ADC（SAR/Sigma-Delta）串联成高精度流水线结构。</p>
+            <pre style="background:#f8fafc;color:#1e293b;padding:0.5rem;border-radius:6px;font-size:11px;margin:0.5rem 0;">
+输入V → [Stage1 ADC] → 残差×gain → [Stage2 ADC] → 残差×gain → [Stage3 ADC] → 合并输出码</pre>
+            <table>
+                <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+                <tr><td>stages</td><td>List[ADConverter]</td><td>必填</td><td>ADC实例列表 (SARADC/SigmaDeltaADC)</td></tr>
+                <tr><td>gains</td><td>List[float]</td><td>自动(2^bits)</td><td>级间增益列表，长度=len(stages)-1</td></tr>
+                <tr><td>vref</td><td>float</td><td>首级ADC的vref</td><td>参考电压</td></tr>
+                <tr><td>name</td><td>str</td><td>"Pipeline"</td><td>Pipeline名称</td></tr>
+            </table>
+            <p><strong>属性:</strong></p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>说明</th></tr>
+                <tr><td><code>bits</code></td><td>int</td><td>总位数 = sum(各级bits)</td></tr>
+                <tr><td><code>num_stages</code></td><td>int</td><td>级数</td></tr>
+                <tr><td><code>lsb</code></td><td>float</td><td>最小分辨电压</td></tr>
+            </table>
+            <p><strong>方法:</strong></p>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>sim(n_samples, fs, fin, ...)</code></td><td>运行仿真</td></tr>
+                <tr><td><code>enob()</code></td><td>计算有效位数</td></tr>
+                <tr><td><code>snr(), sfdr(), thd()</code></td><td>性能指标</td></tr>
+                <tr><td><code>spectrum(show=True)</code></td><td>频谱分析与绘图</td></tr>
+                <tr><td><code>plot()</code></td><td>完整仿真结果绘图</td></tr>
+                <tr><td><code>inl(plot=True), dnl(plot=True)</code></td><td>INL/DNL分析</td></tr>
+                <tr><td><code>report()</code></td><td>打印性能报告</td></tr>
+                <tr><td><code>get_stage_info()</code></td><td>获取各级配置信息</td></tr>
+            </table>
+            <p><strong>使用示例:</strong></p>
+            <pre><span class="code-comment"># 3×8-bit SAR → 24-bit Pipeline</span>
+stages = [SARADC(bits=<span class="code-string">8</span>) <span class="code-keyword">for</span> _ <span class="code-keyword">in</span> range(<span class="code-string">3</span>)]
+pipeline = Pipeline(stages, gains=[<span class="code-string">256</span>, <span class="code-string">256</span>])
+
+<span class="code-comment"># 也支持Sigma-Delta ADC</span>
+sd_stages = [SigmaDeltaADC(order=<span class="code-string">1</span>, bits=<span class="code-string">1</span>, osr=<span class="code-string">16</span>) <span class="code-keyword">for</span> _ <span class="code-keyword">in</span> range(<span class="code-string">2</span>)]
+sd_pipeline = Pipeline(sd_stages, gains=[<span class="code-string">16</span>])</pre>
+
+            <hr style="margin: 2rem 0; border: none; border-top: 2px solid #e2e8f0;">
+
+            <!-- ================= 基类方法 ================= -->
+            <h3>ADConverter 基类方法 (所有ADC通用)</h3>
+            <p>以下方法适用于 SARADC（Pipeline类有独立实现）</p>
+            
+            <h4>仿真方法</h4>
+            <table>
+                <tr><th>方法</th><th>参数</th><th>说明</th></tr>
+                <tr>
+                    <td><code>sim()</code></td>
+                    <td>input_voltage, n_samples, fs, signal, fin, amplitude, offset</td>
+                    <td>运行ADC仿真，返回SimulationResult</td>
+                </tr>
+                <tr>
+                    <td><code>sim_auto()</code></td>
+                    <td>fs, n_samples, verbose</td>
+                    <td><strong>自动优化</strong>：DE算法+CUDA/CPU极限并发，自动检测GPU加速</td>
+                </tr>
+                <tr>
+                    <td><code>convert(voltage)</code></td>
+                    <td>voltage: float或array</td>
+                    <td>转换单个或多个电压值</td>
+                </tr>
+            </table>
+
+            <h4>性能指标方法</h4>
+            <table>
+                <tr><th>方法</th><th>返回值</th><th>说明</th></tr>
+                <tr><td><code>enob()</code></td><td>float</td><td>有效位数 (bits)</td></tr>
+                <tr><td><code>snr()</code></td><td>float</td><td>信噪比 (dB)</td></tr>
+                <tr><td><code>sfdr()</code></td><td>float</td><td>无杂散动态范围 (dB)</td></tr>
+                <tr><td><code>thd()</code></td><td>float</td><td>总谐波失真 (dB)</td></tr>
+                <tr><td><code>sinad()</code></td><td>float</td><td>信号与噪声加失真比 (dB)</td></tr>
+                <tr><td><code>inl()</code></td><td>ndarray</td><td>积分非线性 (LSB)</td></tr>
+                <tr><td><code>dnl()</code></td><td>ndarray</td><td>微分非线性 (LSB)</td></tr>
+            </table>
+
+            <h4>可视化方法</h4>
+            <table>
+                <tr><th>方法</th><th>参数</th><th>说明</th></tr>
+                <tr><td><code>plot()</code></td><td>save, show, dpi</td><td>绘制时域/数字输出/误差/直方图</td></tr>
+                <tr><td><code>spectrum()</code></td><td>show, window, save</td><td>绘制频谱图，返回(freqs, power_db, metrics)</td></tr>
+                <tr><td><code>report(what)</code></td><td>what, save, show, columns</td><td><strong>推荐!</strong> 统一报告API (见下表)</td></tr>
+            </table>
+            
+            <h4>report() 方法详解 (推荐使用)</h4>
+            <p>简洁灵活的分析报告API:</p>
+            <pre><span class="code-comment"># 方式1: 链式调用 (仿真+报告一行完成)</span>
+adc.sim().report()                    <span class="code-comment"># 完整报告</span>
+
+<span class="code-comment"># 方式2: 分开调用 (仿真一次，多种报告)</span>
+adc.sim()                             <span class="code-comment"># 先仿真</span>
+adc.report()                          <span class="code-comment"># 完整报告</span>
+adc.report(<span class="code-string">'spectrum'</span>)               <span class="code-comment"># 只看频谱图</span>
+adc.report(<span class="code-string">'metrics'</span>)                <span class="code-comment"># 只打印数字</span>
+adc.report(save=<span class="code-string">'fig.pdf'</span>)           <span class="code-comment"># 保存PDF</span></pre>
+
+            <h5>报告类型详解 (what参数)</h5>
+            <table>
+                <tr><th>类型</th><th>说明</th><th>包含内容</th><th>使用场景</th></tr>
+                <tr>
+                    <td><code>'all'</code></td>
+                    <td><strong>完整报告</strong> (默认)</td>
+                    <td>时域图 + 频谱图 + 数字输出图</td>
+                    <td>日常分析、论文插图</td>
+                </tr>
+                <tr>
+                    <td><code>'spectrum'</code></td>
+                    <td><strong>频谱图</strong></td>
+                    <td>FFT频谱 + ENOB/SNR/SFDR标注</td>
+                    <td>查看噪声分布、谐波失真</td>
+                </tr>
+                <tr>
+                    <td><code>'time'</code></td>
+                    <td><strong>时域图</strong></td>
+                    <td>输入信号 vs 重建信号对比</td>
+                    <td>检查采样是否正确</td>
+                </tr>
+                <tr>
+                    <td><code>'static'</code></td>
+                    <td><strong>静态特性</strong></td>
+                    <td>INL曲线 + DNL曲线</td>
+                    <td>分析非线性失真</td>
+                </tr>
+                <tr>
+                    <td><code>'metrics'</code></td>
+                    <td><strong>仅指标</strong> (不画图)</td>
+                    <td>控制台打印 ENOB/SNR/SFDR/THD</td>
+                    <td>快速查看性能数字</td>
+                </tr>
+            </table>
+
+            <h5>其他参数</h5>
+            <table>
+                <tr><th>参数</th><th>类型</th><th>说明</th><th>示例</th></tr>
+                <tr><td>save</td><td>str</td><td>保存图像到文件</td><td><code>save='my_adc.pdf'</code></td></tr>
+                <tr><td>show</td><td>bool</td><td>是否弹出图像窗口 (默认True)</td><td><code>show=False</code></td></tr>
+                <tr><td>columns</td><td>int</td><td>图像宽度: 1=单栏(3.5英寸), 2=双栏(7.16英寸)</td><td><code>columns=2</code></td></tr>
+            </table>
+            
+            <div class="tip tip-info">
+                <div class="tip-title">小白提示</div>
+                <p>不知道用什么？直接用 <code>adc.sim().report()</code> 就够了！它会显示所有你需要的信息。</p>
+            </div>
+
+            <h4>辅助函数 (从quantiamagica导入)</h4>
+            <table>
+                <tr><th>函数</th><th>说明</th><th>使用场景</th></tr>
+                <tr><td><code>plot_spectrum(codes, fs)</code></td><td>一键绘制频谱图</td><td>快速查看任意信号的频谱</td></tr>
+                <tr><td><code>plot_comparison(data_list, fs, labels)</code></td><td>对比绘图</td><td>比较多个ADC性能</td></tr>
+                <tr><td><code>compute_inband_snr(codes, bits, fs, fin, bw)</code></td><td>计算带内SNR</td><td>过采样/Sigma-Delta系统</td></tr>
+                <tr><td><code>auto_time_unit(time_array)</code></td><td>自动选择时间单位</td><td>绘图时自适应ns/μs/ms/s</td></tr>
+                <tr><td><code>auto_freq_unit(freq_array)</code></td><td>自动选择频率单位</td><td>绘图时自适应Hz/kHz/MHz</td></tr>
+                <tr><td><code>apply_jssc_style()</code></td><td>应用JSSC绘图风格</td><td>论文级图像</td></tr>
+            </table>
+            
+            <h5>辅助函数代码示例</h5>
+            <pre><span class="code-comment"># ========== 示例1: 一键绘制频谱 ==========</span>
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, plot_spectrum
+
+adc = SARADC(bits=<span class="code-string">12</span>)
+result = adc.sim(n_samples=<span class="code-string">4096</span>)
+
+<span class="code-comment"># 一行代码画频谱！自动计算SNR/ENOB并标注</span>
+plot_spectrum(result.output_codes, fs=<span class="code-string">1e6</span>, title=<span class="code-string">"我的ADC频谱"</span>)
+
+<span class="code-comment"># ========== 示例2: 对比两个ADC ==========</span>
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, plot_comparison
+
+<span class="code-comment"># 创建两个ADC</span>
+adc1 = SARADC(bits=<span class="code-string">8</span>)
+adc2 = SARADC(bits=<span class="code-string">12</span>)
+
+<span class="code-comment"># 分别仿真</span>
+r1 = adc1.sim(n_samples=<span class="code-string">4096</span>)
+r2 = adc2.sim(n_samples=<span class="code-string">4096</span>)
+
+<span class="code-comment"># 一行代码对比两个频谱！</span>
+plot_comparison(
+    [r1.output_codes, r2.output_codes],  <span class="code-comment"># 数据列表</span>
+    fs=<span class="code-string">1e6</span>,                              <span class="code-comment"># 采样率</span>
+    labels=[<span class="code-string">'8-bit'</span>, <span class="code-string">'12-bit'</span>],         <span class="code-comment"># 标签</span>
+    save=<span class="code-string">'comparison.png'</span>               <span class="code-comment"># 保存图片</span>
+)
+
+<span class="code-comment"># ========== 示例3: 计算带内SNR (Sigma-Delta/过采样) ==========</span>
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> compute_inband_snr
+
+<span class="code-comment"># 假设你有过采样的ADC输出码</span>
+codes = ...  <span class="code-comment"># 你的数据</span>
+snr, enob = compute_inband_snr(
+    codes,
+    bits=<span class="code-string">4</span>,           <span class="code-comment"># 量化器位数</span>
+    fs=<span class="code-string">1e6</span>,           <span class="code-comment"># 采样率 1MHz</span>
+    signal_freq=<span class="code-string">1e3</span>,  <span class="code-comment"># 信号频率 1kHz</span>
+    bandwidth=<span class="code-string">10e3</span>    <span class="code-comment"># 只计算10kHz带宽内的噪声</span>
+)
+<span class="code-function">print</span>(<span class="code-string">f"带内SNR: </span>{snr:<span class="code-string">.1f</span>}<span class="code-string">dB, ENOB: </span>{enob:<span class="code-string">.2f</span>}<span class="code-string">bits"</span>)</pre>
+
+            <h4>事件系统方法</h4>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>on(EventType, priority)</code></td><td>装饰器，注册事件处理函数</td></tr>
+                <tr><td><code>fire(event)</code></td><td>触发事件</td></tr>
+                <tr><td><code>register(EventType, callback)</code></td><td>编程式注册事件处理</td></tr>
+                <tr><td><code>unregister(EventType, callback)</code></td><td>移除事件处理函数</td></tr>
+            </table>
+
+            <!-- ================= SAR ADC 事件 ================= -->
+            <h3>SAR ADC 事件</h3>
+            <p>导入: <code>from quantiamagica import SamplingEvent, ComparatorEvent, ...</code></p>
+            
+            <h4>ConversionStartEvent</h4>
+            <p>转换开始时触发</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>timestamp</td><td>float</td><td>否</td><td>仿真时间</td></tr>
+                <tr><td>sample_index</td><td>int</td><td>否</td><td>当前采样索引</td></tr>
+                <tr><td>input_voltage</td><td>float</td><td>是</td><td>输入电压</td></tr>
+            </table>
+
+            <h4>SamplingEvent (可取消)</h4>
+            <p>采样阶段触发，用于添加采样噪声、失调等</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>voltage</td><td>float</td><td>是</td><td>采样电压 (修改此值添加噪声)</td></tr>
+                <tr><td>sampling_capacitance</td><td>float</td><td>是</td><td>采样电容 (fF)</td></tr>
+                <tr><td>sample_index</td><td>int</td><td>否</td><td>当前采样索引</td></tr>
+            </table>
+
+            <h4>CapacitorSwitchEvent (可取消)</h4>
+            <p>电容切换时触发，用于模拟电容失配</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>bit_index</td><td>int</td><td>否</td><td>当前位索引 (MSB=0)</td></tr>
+                <tr><td>capacitance</td><td>float</td><td>否</td><td>理想电容值</td></tr>
+                <tr><td>capacitance_actual</td><td>float</td><td>是</td><td>实际电容值</td></tr>
+                <tr><td>weight</td><td>float</td><td>是</td><td>位权重</td></tr>
+                <tr><td>charge_injection</td><td>float</td><td>是</td><td>电荷注入 (V)</td></tr>
+                <tr><td>settling_error</td><td>float</td><td>是</td><td>建立误差</td></tr>
+            </table>
+
+            <h4>ComparatorEvent (可取消)</h4>
+            <p>比较器判决时触发</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>input_voltage</td><td>float</td><td>否</td><td>比较器输入</td></tr>
+                <tr><td>threshold</td><td>float</td><td>是</td><td>判决阈值</td></tr>
+                <tr><td>offset</td><td>float</td><td>是</td><td>比较器失调 (V)</td></tr>
+                <tr><td>noise_sigma</td><td>float</td><td>是</td><td>比较器噪声标准差 (V)</td></tr>
+                <tr><td>decision</td><td>int</td><td>是</td><td>判决结果 (0或1)</td></tr>
+                <tr><td>metastable</td><td>bool</td><td>是</td><td>是否在亚稳态区</td></tr>
+            </table>
+
+            <h4>BitDecisionEvent (可取消)</h4>
+            <p>每位决定后触发</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>bit_index</td><td>int</td><td>否</td><td>位索引</td></tr>
+                <tr><td>bit_value</td><td>int</td><td>是</td><td>位值 (可翻转)</td></tr>
+                <tr><td>dac_voltage</td><td>float</td><td>否</td><td>当前DAC电压</td></tr>
+            </table>
+
+            <h4>OutputCodeEvent</h4>
+            <p>输出码就绪时触发</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>code</td><td>int</td><td>是</td><td>输出码</td></tr>
+                <tr><td>input_voltage</td><td>float</td><td>否</td><td>原始输入电压</td></tr>
+            </table>
+
+            <h4>ConversionEndEvent</h4>
+            <p>转换结束时触发</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>code</td><td>int</td><td>否</td><td>最终输出码</td></tr>
+                <tr><td>conversion_time</td><td>float</td><td>否</td><td>转换耗时</td></tr>
+            </table>
+
+            <!-- ================= Pipeline ADC 事件 ================= -->
+            <h3>Pipeline ADC 事件</h3>
+            <p>导入: <code>from quantiamagica import Pipeline, SARADC, StageEvent, ResidueEvent, InterstageGainEvent</code></p>
+
+            <h4>StageEvent</h4>
+            <p>进入新的流水线级时触发</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>stage_index</td><td>int</td><td>否</td><td>级索引 (0-indexed)</td></tr>
+                <tr><td>stage_adc</td><td>ADConverter</td><td>否</td><td>该级使用的子ADC实例</td></tr>
+                <tr><td>input_voltage</td><td>float</td><td>否</td><td>级输入电压</td></tr>
+                <tr><td>sample_index</td><td>int</td><td>否</td><td>全局采样索引</td></tr>
+            </table>
+
+            <h4>ResidueEvent (可取消)</h4>
+            <p>计算残差电压时触发</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>stage_index</td><td>int</td><td>否</td><td>级索引</td></tr>
+                <tr><td>input_voltage</td><td>float</td><td>否</td><td>级输入电压</td></tr>
+                <tr><td>dac_voltage</td><td>float</td><td>否</td><td>DAC输出电压</td></tr>
+                <tr><td>residue</td><td>float</td><td>是</td><td>残差电压 (可注入误差)</td></tr>
+                <tr><td>ideal_residue</td><td>float</td><td>否</td><td>理想残差</td></tr>
+            </table>
+
+            <h4>InterstageGainEvent (可取消)</h4>
+            <p>级间放大时触发，用于模拟运放非理想特性</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>stage_index</td><td>int</td><td>否</td><td>级索引</td></tr>
+                <tr><td>input_voltage</td><td>float</td><td>否</td><td>放大器输入 (残差电压)</td></tr>
+                <tr><td>ideal_gain</td><td>float</td><td>否</td><td>理想增益 (通常为2^stage_bits)</td></tr>
+                <tr><td>actual_gain</td><td>float</td><td>是</td><td>实际增益 (模拟有限增益)</td></tr>
+                <tr><td>offset</td><td>float</td><td>是</td><td>放大器失调 (V)</td></tr>
+                <tr><td>noise_sigma</td><td>float</td><td>是</td><td>放大器噪声标准差 (V)</td></tr>
+                <tr><td>output_voltage</td><td>float</td><td>否</td><td>放大输出电压 (事件后计算)</td></tr>
+                <tr><td>bandwidth</td><td>float</td><td>是</td><td>放大器带宽 (Hz)</td></tr>
+                <tr><td>settling_error</td><td>float</td><td>是</td><td>不完全建立误差</td></tr>
+            </table>
+
+            <!-- ================= Sigma-Delta ADC ================= -->
+            <h3>Sigma-Delta ADC</h3>
+            <p>导入: <code>from quantiamagica import SigmaDeltaADC, QuantizerEvent</code></p>
+            
+            <h4>SigmaDeltaADC 类</h4>
+            <p>简洁灵活的Sigma-Delta调制器，内置1阶/2阶CIFB实现，通过QuantizerEvent实现任意拓扑</p>
+            <table>
+                <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+                <tr><td>order</td><td>1</td><td>调制器阶数 (1或2)</td></tr>
+                <tr><td>bits</td><td>1</td><td>量化器位数</td></tr>
+                <tr><td>osr</td><td>64</td><td>过采样率</td></tr>
+                <tr><td>vref</td><td>1.0</td><td>参考电压</td></tr>
+            </table>
+            
+            <h4>QuantizerEvent (可取消) - 唯一事件</h4>
+            <p>每个时钟周期触发，提供完整信息实现任意拓扑</p>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>可修改</th><th>说明</th></tr>
+                <tr><td>input_signal</td><td>float</td><td>否</td><td>当前输入 x[n] ([-1,1])</td></tr>
+                <tr><td>prev_output</td><td>float</td><td>否</td><td>前一输出 y[n-1]</td></tr>
+                <tr><td>integrator_states</td><td>List</td><td>否</td><td>各级积分器状态（只读）</td></tr>
+                <tr><td>quantizer_input</td><td>float</td><td>是</td><td>量化器输入（修改此值实现自定义拓扑）</td></tr>
+                <tr><td>output</td><td>float</td><td>是</td><td>量化输出 ([-1,1])</td></tr>
+                <tr><td>output_code</td><td>int</td><td>是</td><td>数字码</td></tr>
+                <tr><td>offset</td><td>float</td><td>是</td><td>比较器偏移</td></tr>
+                <tr><td>noise_sigma</td><td>float</td><td>是</td><td>比较器噪声</td></tr>
+            </table>
+            
+            <h4>使用示例</h4>
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SigmaDeltaADC, QuantizerEvent
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-comment"># 1阶1-bit SD，OSR=64</span>
+sd = SigmaDeltaADC(order=<span class="code-string">1</span>, bits=<span class="code-string">1</span>, osr=<span class="code-string">64</span>)
+
+<span class="code-comment"># 通过QuantizerEvent添加非理想效应</span>
+<span class="code-keyword">@sd.on</span>(QuantizerEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_nonidealities</span>(event):
+    <span class="code-comment"># 积分器泄漏：修改量化器输入</span>
+    event.quantizer_input *= <span class="code-string">0.999</span>
+    <span class="code-comment"># 比较器噪声</span>
+    event.noise_sigma = <span class="code-string">0.01</span>
+
+<span class="code-comment"># 生成输入信号（amplitude由用户控制，推荐0.3-0.45）</span>
+t = np.arange(<span class="code-string">8192</span>) / <span class="code-string">1e6</span>
+signal = <span class="code-string">0.5</span> + <span class="code-string">0.4</span> * np.sin(<span class="code-string">2</span> * np.pi * <span class="code-string">1e3</span> * t)
+
+<span class="code-comment"># 仿真</span>
+sd.sim(signal, fs=<span class="code-string">1e6</span>)
+<span class="code-function">print</span>(<span class="code-string">f"ENOB: </span>{sd.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string">"</span>)
+
+<span class="code-comment"># 自定义拓扑示例：完全自定义2阶调制器</span>
+my_u1, my_u2 = <span class="code-string">0.0</span>, <span class="code-string">0.0</span>
+
+<span class="code-keyword">@sd.on</span>(QuantizerEvent)
+<span class="code-keyword">def</span> <span class="code-function">custom_2nd_order</span>(event):
+    <span class="code-keyword">global</span> my_u1, my_u2
+    x, y_prev = event.input_signal, event.prev_output
+    my_u1 = my_u1 + x - y_prev
+    my_u2 = my_u2 + my_u1 - <span class="code-string">2</span>*y_prev
+    event.quantizer_input = my_u2  <span class="code-comment"># 覆盖默认</span></pre>
+
+            <!-- ================= 事件优先级 ================= -->
+            <h3>事件优先级 (EventPriority)</h3>
+            <p>导入: <code>from quantiamagica import EventPriority</code></p>
+            <table>
+                <tr><th>优先级</th><th>值</th><th>说明</th></tr>
+                <tr><td>LOWEST</td><td>0</td><td>最先执行，可被后续处理器覆盖</td></tr>
+                <tr><td>LOW</td><td>1</td><td>低优先级</td></tr>
+                <tr><td>NORMAL</td><td>2</td><td>默认优先级</td></tr>
+                <tr><td>HIGH</td><td>3</td><td>高优先级</td></tr>
+                <tr><td>HIGHEST</td><td>4</td><td>最高优先级，最后修改机会</td></tr>
+                <tr><td>MONITOR</td><td>5</td><td>只读监控，不应修改事件</td></tr>
+            </table>
+
+            <!-- ================= Signal类 ================= -->
+            <h3>Signal 信号类</h3>
+            <p>导入: <code>from quantiamagica import Signal</code> 或 <code>from quantiamagica.signals import Signal</code></p>
+            
+            <h4>基本信号</h4>
+            <table>
+                <tr><th>方法</th><th>参数</th><th>说明</th></tr>
+                <tr><td><code>Signal.sine()</code></td><td>n, fs, freq, amplitude, offset, phase, coherent</td><td>正弦波</td></tr>
+                <tr><td><code>Signal.cosine()</code></td><td>同上</td><td>余弦波</td></tr>
+                <tr><td><code>Signal.square()</code></td><td>n, fs, freq, amplitude, offset, duty</td><td>方波</td></tr>
+                <tr><td><code>Signal.triangle()</code></td><td>n, fs, freq, amplitude, offset</td><td>三角波</td></tr>
+                <tr><td><code>Signal.sawtooth()</code></td><td>n, fs, freq, amplitude, offset</td><td>锯齿波</td></tr>
+            </table>
+
+            <h4>测试信号</h4>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>Signal.ramp()</code></td><td>斜坡信号 (INL/DNL测试)</td></tr>
+                <tr><td><code>Signal.step()</code></td><td>阶跃信号</td></tr>
+                <tr><td><code>Signal.pulse()</code></td><td>脉冲信号</td></tr>
+            </table>
+
+            <h4>多频信号</h4>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>Signal.multitone()</code></td><td>多音信号</td></tr>
+                <tr><td><code>Signal.two_tone()</code></td><td>双音信号 (IMD测试)</td></tr>
+            </table>
+
+            <h4>调制信号</h4>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>Signal.chirp()</code></td><td>扫频信号</td></tr>
+                <tr><td><code>Signal.am()</code></td><td>调幅信号</td></tr>
+                <tr><td><code>Signal.fm()</code></td><td>调频信号</td></tr>
+            </table>
+
+            <h4>噪声信号</h4>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>Signal.noise_gaussian()</code></td><td>高斯白噪声</td></tr>
+                <tr><td><code>Signal.noise_uniform()</code></td><td>均匀分布噪声</td></tr>
+            </table>
+
+            <h4>导入/导出</h4>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>Signal.from_file(path, fs)</code></td><td>从CSV/NPZ文件导入</td></tr>
+                <tr><td><code>Signal.from_array(data, fs)</code></td><td>从NumPy数组创建</td></tr>
+                <tr><td><code>signal.save(path)</code></td><td>保存到文件</td></tr>
+            </table>
+
+            <h4>信号处理方法</h4>
+            <table>
+                <tr><th>方法</th><th>说明</th></tr>
+                <tr><td><code>signal.add_noise(sigma)</code></td><td>添加高斯噪声</td></tr>
+                <tr><td><code>signal.add_offset(offset)</code></td><td>添加直流偏置</td></tr>
+                <tr><td><code>signal.scale(factor)</code></td><td>缩放振幅</td></tr>
+                <tr><td><code>signal.clip(vmin, vmax)</code></td><td>裁剪到范围</td></tr>
+                <tr><td><code>signal.normalize()</code></td><td>归一化到[0,1]</td></tr>
+            </table>
+
+            <h4>信号属性</h4>
+            <table>
+                <tr><th>属性</th><th>说明</th></tr>
+                <tr><td><code>signal.data</code></td><td>电压数据数组</td></tr>
+                <tr><td><code>signal.fs</code></td><td>采样率</td></tr>
+                <tr><td><code>signal.n_samples</code></td><td>采样点数</td></tr>
+                <tr><td><code>signal.vpp</code></td><td>峰峰值电压</td></tr>
+                <tr><td><code>signal.vrms</code></td><td>RMS电压</td></tr>
+                <tr><td><code>signal.mean</code></td><td>平均值</td></tr>
+            </table>
+
+            <hr style="margin: 2rem 0; border: none; border-top: 2px solid #e2e8f0;">
+
+            <!-- ================= 遗传算法优化库 ================= -->
+            <h3>遗传算法优化库 (quantiamagica.optim)</h3>
+            <p>高度抽象的遗传算法优化库，支持CUDA/CPU并行计算，可用于优化任意ADC参数。<strong>自动斜率收敛</strong>，无需手动设置迭代次数。</p>
+            
+            <h4>Gene - 基因定义</h4>
+            <p>导入: <code>from quantiamagica.optim import Gene</code></p>
+            <table>
+                <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+                <tr><td>name</td><td>str</td><td>参数名称</td></tr>
+                <tr><td>low</td><td>float</td><td>下界</td></tr>
+                <tr><td>high</td><td>float</td><td>上界</td></tr>
+                <tr><td>dtype</td><td>str</td><td>'float', 'int', 'choice', 'bool'</td></tr>
+                <tr><td>choices</td><td>list</td><td>离散选择列表 (仅dtype='choice'时)</td></tr>
+                <tr><td>log_scale</td><td>bool</td><td>是否使用对数尺度</td></tr>
+            </table>
+
+            <h4>GeneticOptimizer - 遗传算法优化器</h4>
+            <p>导入: <code>from quantiamagica.optim import GeneticOptimizer</code></p>
+            <table>
+                <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+                <tr><td>genes</td><td>List[Gene]</td><td>基因定义列表</td></tr>
+                <tr><td>fitness_fn</td><td>Callable</td><td>适应度函数 (接受dict返回float)</td></tr>
+                <tr><td>maximize</td><td>bool</td><td>是否最大化 (默认True)</td></tr>
+            </table>
+            <p><strong>run() 方法参数:</strong></p>
+            <table>
+                <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+                <tr><td>population_size</td><td>50</td><td>种群大小</td></tr>
+                <tr><td>max_generations</td><td>200</td><td>最大迭代代数（自动收敛通常不会到达）</td></tr>
+                <tr><td>slope_window</td><td>5</td><td>斜率计算窗口</td></tr>
+                <tr><td>slope_threshold</td><td>0.001</td><td>收敛斜率阈值</td></tr>
+                <tr><td>verbose</td><td>True</td><td>显示进度</td></tr>
+                <tr><td>seed</td><td>None</td><td>随机种子</td></tr>
+            </table>
+
+            <h4>OptimizationResult - 优化结果</h4>
+            <table>
+                <tr><th>属性</th><th>类型</th><th>说明</th></tr>
+                <tr><td>best_params</td><td>Dict</td><td>最佳参数</td></tr>
+                <tr><td>best_fitness</td><td>float</td><td>最佳适应度</td></tr>
+                <tr><td>history</td><td>List[float]</td><td>每代最佳适应度历史</td></tr>
+                <tr><td>generations</td><td>int</td><td>实际迭代代数</td></tr>
+                <tr><td>converged</td><td>bool</td><td>是否收敛</td></tr>
+            </table>
+
+            <h4>SDCoeffOptimizer - SD ADC系数优化器</h4>
+            <p>导入: <code>from quantiamagica.optim import SDCoeffOptimizer</code></p>
+            <table>
+                <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+                <tr><td>order</td><td>2</td><td>调制器阶数</td></tr>
+                <tr><td>bits</td><td>1</td><td>量化器位数</td></tr>
+                <tr><td>osr</td><td>64</td><td>过采样率</td></tr>
+                <tr><td>fs</td><td>1e6</td><td>采样频率</td></tr>
+            </table>
+            <p><strong>注意:</strong> SAR/Pipeline ADC使用通用GeneticOptimizer进行高度自定义优化。</p>
+
+            <div class="tip tip-info">
+                <div class="tip-title">优化器特性</div>
+                <ul>
+                    <li><strong>自动斜率收敛</strong> - 无需设置迭代次数，适应度斜率平滑时自动停止</li>
+                    <li><strong>CUDA自动检测</strong> - 有GPU时自动加速</li>
+                    <li><strong>并行评估</strong> - 多线程评估种群</li>
+                    <li><strong>高度抽象</strong> - 支持任意ADC、任意参数、任意适应度函数</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 示例 -->
+        <section id="examples">
+            <h2>完整示例</h2>
+
+            <h3>示例1：NS-SAR（噪声整形SAR）配合过采样</h3>
+            
+            <div class="tip tip-info">
+                <div class="tip-title">NS-SAR原理</div>
+                <p>噪声整形将量化噪声推向高频，配合过采样(OSR)可在信号带宽内获得更高分辨率。<br>
+                噪声传递函数: NTF = (1 - z⁻¹)，一阶整形可提升约 0.5×log₂(OSR) + 1.5 bits ENOB。</p>
+            </div>
+            
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC, SamplingEvent, OutputCodeEvent, EventPriority
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-comment"># 参数设置</span>
+BITS = <span class="code-string">8</span>
+FS = <span class="code-string">1e6</span>          <span class="code-comment"># 采样率 1MHz</span>
+OSR = <span class="code-string">64</span>          <span class="code-comment"># 过采样率</span>
+SIGNAL_BW = FS / (<span class="code-string">2</span> * OSR)  <span class="code-comment"># 信号带宽 ≈ 7.8kHz</span>
+
+<span class="code-comment"># 创建NS-SAR插件类</span>
+<span class="code-keyword">class</span> <span class="code-function">NoiseShapingSAR</span>:
+    <span class="code-keyword">def</span> __init__(self, feedback_coeff=<span class="code-string">1.0</span>):
+        self.feedback_coeff = feedback_coeff
+        self.prev_residue = <span class="code-string">0.0</span>
+        self.sampled_voltage = <span class="code-string">0.0</span>
+    
+    <span class="code-keyword">def</span> attach(self, adc):
+        <span class="code-keyword">@adc.on</span>(SamplingEvent, priority=EventPriority.HIGH)
+        <span class="code-keyword">def</span> apply_feedback(event):
+            <span class="code-comment"># 加入上次的量化残差</span>
+            event.voltage += self.feedback_coeff * self.prev_residue
+            self.sampled_voltage = event.voltage
+        
+        <span class="code-keyword">@adc.on</span>(OutputCodeEvent, priority=EventPriority.HIGH)
+        <span class="code-keyword">def</span> capture_residue(event):
+            <span class="code-comment"># 残差 = 采样电压 - DAC输出</span>
+            reconstructed = adc.code_to_voltage(event.code)
+            self.prev_residue = self.sampled_voltage - reconstructed
+
+<span class="code-comment"># 使用</span>
+adc = SARADC(bits=BITS, vref=<span class="code-string">1.0</span>)
+ns_plugin = NoiseShapingSAR(feedback_coeff=<span class="code-string">1.0</span>)
+ns_plugin.attach(adc)
+
+adc.sim(n_samples=<span class="code-string">16384</span>, fs=FS, fin=<span class="code-string">1e3</span>)
+<span class="code-function">print</span>(<span class="code-string">f"NS-SAR 带内ENOB大幅提升!"</span>)
+<span class="code-comment"># 运行 examples/03_ns_sar.py 查看完整对比</span></pre>
+
+            <h3>示例2：Pipeline ADC带级间增益误差</h3>
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> Pipeline, SARADC, InterstageGainEvent
+
+<span class="code-comment"># 创建3个8-bit SAR ADC串联成24-bit Pipeline</span>
+stages = [SARADC(bits=<span class="code-string">8</span>) <span class="code-keyword">for</span> _ <span class="code-keyword">in</span> <span class="code-function">range</span>(<span class="code-string">3</span>)]
+pipeline = Pipeline(stages=stages, interstage_gains=[<span class="code-string">256</span>, <span class="code-string">256</span>])
+
+<span class="code-keyword">@pipeline.on</span>(InterstageGainEvent)
+<span class="code-keyword">def</span> <span class="code-function">gain_error</span>(event):
+    <span class="code-comment"># 模拟1000倍运放有限增益带来的误差</span>
+    opamp_gain = <span class="code-string">1000</span>
+    event.actual_gain = event.ideal_gain * (<span class="code-string">1</span> - <span class="code-string">1</span>/opamp_gain)
+    event.offset = <span class="code-string">0.5e-3</span>  <span class="code-comment"># 0.5mV失调</span>
+
+pipeline.sim(n_samples=<span class="code-string">65536</span>)
+pipeline.spectrum()
+<span class="code-function">print</span>(<span class="code-string">f"ENOB: </span>{pipeline.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string">"</span>)  <span class="code-comment"># 理想~23.99, 带误差~17.9</span></pre>
+
+            <h3>示例3：统一报告API（推荐）</h3>
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC
+
+adc = SARADC(bits=<span class="code-string">12</span>)
+
+<span class="code-comment"># 仿真一次</span>
+adc.sim()
+
+<span class="code-comment"># 然后可以多次调用report()查看不同报告 (不会重复仿真)</span>
+adc.report()                          <span class="code-comment"># 完整报告</span>
+adc.report(<span class="code-string">'spectrum'</span>)               <span class="code-comment"># 仅频谱</span>
+adc.report(<span class="code-string">'metrics'</span>)                <span class="code-comment"># 仅打印指标</span>
+adc.report(save=<span class="code-string">'fig.pdf'</span>)           <span class="code-comment"># 保存PDF</span>
+
+<span class="code-comment"># 可选参数：</span>
+<span class="code-comment"># what: 'all'|'spectrum'|'time'|'static'|'metrics'</span>
+<span class="code-comment"># columns: 1(单栏3.5") 或 2(双栏7.16")</span></pre>
+
+            <h3>示例4：自动优化测试参数 (sim_auto)</h3>
+            <div class="tip tip-info">
+                <div class="tip-title">sim_auto 原理</div>
+                <p><strong>差分进化算法(DE)</strong> + <strong>极限并发</strong> + <strong>自适应参数</strong>：</p>
+                <ul>
+                    <li><strong>GPU检测</strong>：自动检测CUDA，GPU可用时种群128</li>
+                    <li><strong>CPU并发</strong>：4x CPU核心数并行计算</li>
+                    <li><strong>快速收敛</strong>：通常2-4代即可收敛</li>
+                    <li><strong>ADC自适应</strong>：
+                        <ul>
+                            <li>SAR/Pipeline: 幅度99.8%满量程，n_samples=2^bits</li>
+                            <li>Sigma-Delta: 幅度根据阶数自动缩小(避免震荡)，n_samples=OSR*256向上取2的幂</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+            <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin:12px 0;">
+                <div style="font-weight:bold;color:#856404;margin-bottom:8px;">GPU加速安装</div>
+                <p style="color:#856404;margin:0 0 8px 0;">要启用CUDA GPU加速，需安装PyTorch CUDA版本：</p>
+                <pre style="background:#856404;color:#fff;padding:8px;border-radius:4px;font-size:12px;margin:0 0 8px 0;">pip install torch --index-url https://download.pytorch.org/whl/cu121</pre>
+                <p style="color:#856404;margin:0 0 4px 0;font-size:12px;">若安装到自定义路径，需设置环境变量：</p>
+                <pre style="background:#856404;color:#fff;padding:8px;border-radius:4px;font-size:12px;margin:0;">$env:PYTHONPATH = "D:\Python\Lib\site-packages"  # PowerShell
+set PYTHONPATH=D:\Python\Lib\site-packages           # CMD</pre>
+                <p style="margin-top:8px;font-size:12px;color:#856404;">支持NVIDIA显卡(RTX 20/30/40系列)。</p>
+            </div>
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC
+
+adc = SARADC(bits=<span class="code-string">12</span>)
+
+<span class="code-comment"># 一行代码 - 自动优化！</span>
+result = adc.sim_auto(fs=<span class="code-string">1e6</span>)  <span class="code-comment"># 只需指定fs</span>
+
+<span class="code-comment"># 返回值包含最优参数</span>
+<span class="code-function">print</span>(<span class="code-string">f"最佳fin: </span>{result[<span class="code-string">'best_fin'</span>]:<span class="code-string">.2f</span>}<span class="code-string"> Hz"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"最佳幅度: </span>{result[<span class="code-string">'best_amplitude'</span>]:<span class="code-string">.4f</span>}<span class="code-string"> V"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"最佳ENOB: </span>{result[<span class="code-string">'best_enob'</span>]:<span class="code-string">.4f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"收敛代数: </span>{result[<span class="code-string">'generations'</span>]}<span class="code-string">"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"收敛原因: </span>{result[<span class="code-string">'reason'</span>]}<span class="code-string">"</span>)
+
+<span class="code-comment"># 结果已保存，可直接画图</span>
+adc.report()
+
+<span class="code-comment"># 适用于所有ADC类型</span>
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> PipelineADC, SigmaDeltaADC
+PipelineADC(<span class="code-string">12</span>).sim_auto(fs=<span class="code-string">1e6</span>)
+SigmaDeltaADC(order=<span class="code-string">2</span>, bits=<span class="code-string">1</span>, osr=<span class="code-string">64</span>).sim_auto(fs=<span class="code-string">1e6</span>)</pre>
+
+            <h3>示例5：Sigma-Delta ADC（自定义复杂拓扑）</h3>
+            <pre><span class="code-comment"># =============================================================</span>
+<span class="code-comment"># Sigma-Delta ADC: 通过QuantizerEvent实现任意复杂拓扑</span>
+<span class="code-comment"># 演示：自定义2阶CIFB差分方程</span>
+<span class="code-comment"># =============================================================</span>
+
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SigmaDeltaADC, QuantizerEvent
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-comment"># 参数</span>
+OSR, FS, N = <span class="code-string">64</span>, <span class="code-string">1e6</span>, <span class="code-string">64</span> * <span class="code-string">2048</span>
+FIN = <span class="code-string">13</span> * FS / N
+t = np.arange(N) / FS
+signal = <span class="code-string">0.5</span> + <span class="code-string">0.4</span> * np.sin(<span class="code-string">2</span> * np.pi * FIN * t)  <span class="code-comment"># 80%幅度</span>
+
+<span class="code-comment"># =============== 自定义2阶CIFB拓扑 ===============</span>
+<span class="code-comment"># 差分方程:</span>
+<span class="code-comment">#   u1[n] = u1[n-1] + x[n] - y[n-1]</span>
+<span class="code-comment">#   u2[n] = u2[n-1] + u1[n] - 2*y[n-1]</span>
+<span class="code-comment">#   v[n] = u2[n]  (量化器输入)</span>
+<span class="code-comment"># NTF = (1-z^-1)^2</span>
+
+state = [<span class="code-string">0.0</span>, <span class="code-string">0.0</span>]  <span class="code-comment"># [u1, u2] 积分器状态</span>
+
+sd = SigmaDeltaADC(order=<span class="code-string">1</span>, bits=<span class="code-string">1</span>, osr=OSR)
+
+<span class="code-keyword">@sd.on</span>(QuantizerEvent)
+<span class="code-keyword">def</span> <span class="code-function">custom_2nd_order_cifb</span>(event):
+    x = event.input_signal   <span class="code-comment"># 当前输入</span>
+    y = event.prev_output    <span class="code-comment"># 前一输出 (反馈)</span>
+    
+    <span class="code-comment"># 实现2阶CIFB差分方程</span>
+    state[<span class="code-string">0</span>] = state[<span class="code-string">0</span>] + x - y           <span class="code-comment"># 第一级积分器</span>
+    state[<span class="code-string">1</span>] = state[<span class="code-string">1</span>] + state[<span class="code-string">0</span>] - <span class="code-string">2</span>*y  <span class="code-comment"># 第二级积分器</span>
+    
+    <span class="code-comment"># 覆盖量化器输入 (关键!)</span>
+    event.quantizer_input = state[<span class="code-string">1</span>]
+
+sd.sim(signal, fs=FS)
+sd._result.metadata[<span class="code-string">'fin'</span>] = FIN
+<span class="code-function">print</span>(<span class="code-string">f"自定义2阶ENOB: </span>{sd.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)  <span class="code-comment"># ~11.67 bits</span>
+
+<span class="code-comment"># =============== 1-bit 3阶Sigma-Delta ===============</span>
+<span class="code-comment"># 1-bit 3阶需要: 缩放积分器(c=0.3) + 小输入幅度</span>
+u3 = [<span class="code-string">0.0</span>, <span class="code-string">0.0</span>, <span class="code-string">0.0</span>]
+c = <span class="code-string">0.3</span>  <span class="code-comment"># 积分器缩放系数</span>
+
+sd3 = SigmaDeltaADC(order=<span class="code-string">1</span>, bits=<span class="code-string">1</span>, osr=OSR)
+
+<span class="code-keyword">@sd3.on</span>(QuantizerEvent)
+<span class="code-keyword">def</span> <span class="code-function">third_order_1bit</span>(event):
+    x, y = event.input_signal, event.prev_output
+    u3[<span class="code-string">0</span>] = u3[<span class="code-string">0</span>] + c * (x - y)
+    u3[<span class="code-string">1</span>] = u3[<span class="code-string">1</span>] + c * (u3[<span class="code-string">0</span>] - <span class="code-string">2</span>*y)
+    u3[<span class="code-string">2</span>] = u3[<span class="code-string">2</span>] + c * (u3[<span class="code-string">1</span>] - y)
+    event.quantizer_input = u3[<span class="code-string">2</span>]
+
+signal_3rd = <span class="code-string">0.5</span> + <span class="code-string">0.2</span> * np.sin(<span class="code-string">2</span> * np.pi * FIN * t)
+sd3.sim(signal_3rd, fs=FS)
+sd3._result.metadata[<span class="code-string">'fin'</span>] = FIN
+<span class="code-function">print</span>(<span class="code-string">f"3阶1-bit ENOB: </span>{sd3.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)  <span class="code-comment"># ~12.7 bits</span></pre>
+
+            <h3>示例4：遗传算法优化Sigma-Delta系数</h3>
+            
+            <div class="tip tip-info">
+                <div class="tip-title">为什么需要优化Sigma-Delta系数？</div>
+                <p>Sigma-Delta调制器的性能取决于积分器增益(c1, c2)、反馈系数(a1, a2)和输入幅度(amplitude)。
+                不同的系数组合会影响：</p>
+                <ul>
+                    <li><strong>稳定性</strong> - 错误的系数导致振荡(ENOB≤0)</li>
+                    <li><strong>ENOB</strong> - 好的系数可以提升1-2 bits</li>
+                    <li><strong>动态范围</strong> - 幅度太大会过载，太小会降低SNR</li>
+                </ul>
+            </div>
+            
+            <pre><span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+<span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SigmaDeltaADC, QuantizerEvent
+<span class="code-keyword">from</span> quantiamagica.optim <span class="code-keyword">import</span> GeneticOptimizer, Gene
+
+<span class="code-comment"># ===================== Step 1: 定义仿真参数 =====================</span>
+OSR = <span class="code-string">64</span>                        <span class="code-comment"># 过采样率</span>
+FS = <span class="code-string">1e6</span>                        <span class="code-comment"># 采样频率 1MHz</span>
+N_SAMPLES = OSR * <span class="code-string">128</span>           <span class="code-comment"># 采样点数</span>
+FIN = <span class="code-string">13</span> * FS / N_SAMPLES       <span class="code-comment"># 相干采样频率</span>
+
+<span class="code-comment"># ===================== Step 2: 定义要优化的基因 =====================</span>
+<span class="code-comment"># 每个Gene定义一个参数的搜索范围</span>
+genes = [
+    Gene(<span class="code-string">'c1'</span>, <span class="code-string">0.1</span>, <span class="code-string">0.8</span>, <span class="code-string">'float'</span>),       <span class="code-comment"># 第1级积分器增益</span>
+    Gene(<span class="code-string">'c2'</span>, <span class="code-string">0.1</span>, <span class="code-string">0.8</span>, <span class="code-string">'float'</span>),       <span class="code-comment"># 第2级积分器增益</span>
+    Gene(<span class="code-string">'a1'</span>, <span class="code-string">0.5</span>, <span class="code-string">2.5</span>, <span class="code-string">'float'</span>),       <span class="code-comment"># 第1级反馈系数</span>
+    Gene(<span class="code-string">'a2'</span>, <span class="code-string">0.5</span>, <span class="code-string">3.5</span>, <span class="code-string">'float'</span>),       <span class="code-comment"># 第2级反馈系数</span>
+    Gene(<span class="code-string">'amplitude'</span>, <span class="code-string">0.15</span>, <span class="code-string">0.4</span>, <span class="code-string">'float'</span>),  <span class="code-comment"># 输入正弦波幅度</span>
+]
+
+<span class="code-comment"># ===================== Step 3: 定义评估函数 =====================</span>
+<span class="code-comment"># 这个函数接收一组参数，返回ENOB</span>
+<span class="code-keyword">def</span> <span class="code-function">evaluate_sd_adc</span>(params):
+    <span class="code-string">"""创建2阶CIFB Sigma-Delta并评估ENOB"""</span>
+    c1, c2 = params[<span class="code-string">'c1'</span>], params[<span class="code-string">'c2'</span>]
+    a1, a2 = params[<span class="code-string">'a1'</span>], params[<span class="code-string">'a2'</span>]
+    amplitude = params[<span class="code-string">'amplitude'</span>]
+    
+    <span class="code-comment"># 创建基础1阶SD ADC（我们通过事件扩展为2阶）</span>
+    sd = SigmaDeltaADC(order=<span class="code-string">1</span>, bits=<span class="code-string">1</span>, osr=OSR)
+    state = [<span class="code-string">0.0</span>, <span class="code-string">0.0</span>]  <span class="code-comment"># 两个积分器的状态</span>
+    
+    <span class="code-comment"># 定义2阶CIFB拓扑</span>
+    <span class="code-keyword">@sd.on</span>(QuantizerEvent)
+    <span class="code-keyword">def</span> <span class="code-function">second_order_cifb</span>(event):
+        x = event.input_signal      <span class="code-comment"># 输入信号</span>
+        y = event.prev_output       <span class="code-comment"># 量化器输出反馈 (+1/-1)</span>
+        <span class="code-comment"># CIFB结构: 两级积分器 + 反馈</span>
+        state[<span class="code-string">0</span>] = state[<span class="code-string">0</span>] + c1 * (x - a1 * y)  <span class="code-comment"># 第1级</span>
+        state[<span class="code-string">1</span>] = state[<span class="code-string">1</span>] + c2 * (state[<span class="code-string">0</span>] - a2 * y)  <span class="code-comment"># 第2级</span>
+        event.quantizer_input = state[<span class="code-string">1</span>]  <span class="code-comment"># 输出到量化器</span>
+    
+    <span class="code-comment"># 生成输入信号</span>
+    t = np.arange(N_SAMPLES) / FS
+    signal = <span class="code-string">0.5</span> + amplitude * np.sin(<span class="code-string">2</span> * np.pi * FIN * t)
+    
+    <span class="code-comment"># 仿真并计算ENOB</span>
+    sd.sim(signal, fs=FS)
+    sd._result.metadata[<span class="code-string">'fin'</span>] = FIN
+    <span class="code-keyword">return</span> sd.enob()
+
+<span class="code-comment"># ===================== Step 4: 定义适应度函数 =====================</span>
+<span class="code-comment"># 遗传算法最大化此函数</span>
+<span class="code-keyword">def</span> <span class="code-function">fitness</span>(params):
+    <span class="code-keyword">try</span>:
+        enob = evaluate_sd_adc(params)
+        <span class="code-keyword">if</span> enob <= <span class="code-string">0</span> <span class="code-keyword">or</span> np.isnan(enob) <span class="code-keyword">or</span> enob > <span class="code-string">30</span>:
+            <span class="code-keyword">return</span> -<span class="code-string">1000</span>  <span class="code-comment"># 振荡或异常，给予惩罚</span>
+        <span class="code-comment"># 目标：最大化ENOB，同时奖励较大的输入幅度</span>
+        <span class="code-keyword">return</span> enob * <span class="code-string">10</span> + params[<span class="code-string">'amplitude'</span>] * <span class="code-string">5</span>
+    <span class="code-keyword">except</span>:
+        <span class="code-keyword">return</span> -<span class="code-string">1000</span>
+
+<span class="code-comment"># ===================== Step 5: 运行优化 =====================</span>
+optimizer = GeneticOptimizer(genes, fitness, maximize=<span class="code-string">True</span>)
+result = optimizer.run(population_size=<span class="code-string">40</span>)  <span class="code-comment"># 自动收敛，无需设置代数</span>
+
+<span class="code-comment"># ===================== Step 6: 获取优化后的系数 =====================</span>
+<span class="code-function">print</span>(<span class="code-string">"优化后的系数:"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"  c1 = </span>{result.best_params[<span class="code-string">'c1'</span>]:<span class="code-string">.4f</span>}<span class="code-string">"</span>)  <span class="code-comment"># 积分器1增益</span>
+<span class="code-function">print</span>(<span class="code-string">f"  c2 = </span>{result.best_params[<span class="code-string">'c2'</span>]:<span class="code-string">.4f</span>}<span class="code-string">"</span>)  <span class="code-comment"># 积分器2增益</span>
+<span class="code-function">print</span>(<span class="code-string">f"  a1 = </span>{result.best_params[<span class="code-string">'a1'</span>]:<span class="code-string">.4f</span>}<span class="code-string">"</span>)  <span class="code-comment"># 反馈系数1</span>
+<span class="code-function">print</span>(<span class="code-string">f"  a2 = </span>{result.best_params[<span class="code-string">'a2'</span>]:<span class="code-string">.4f</span>}<span class="code-string">"</span>)  <span class="code-comment"># 反馈系数2</span>
+<span class="code-function">print</span>(<span class="code-string">f"  amplitude = </span>{result.best_params[<span class="code-string">'amplitude'</span>]:<span class="code-string">.4f</span>}<span class="code-string">"</span>)
+
+<span class="code-comment"># 验证优化结果</span>
+optimized_enob = evaluate_sd_adc(result.best_params)
+<span class="code-function">print</span>(<span class="code-string">f"\n优化后ENOB: </span>{optimized_enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+
+<span class="code-comment"># ===================== 对比：默认系数 vs 优化系数 =====================</span>
+default_params = {<span class="code-string">'c1'</span>: <span class="code-string">0.5</span>, <span class="code-string">'c2'</span>: <span class="code-string">0.5</span>, <span class="code-string">'a1'</span>: <span class="code-string">1.0</span>, <span class="code-string">'a2'</span>: <span class="code-string">2.0</span>, <span class="code-string">'amplitude'</span>: <span class="code-string">0.3</span>}
+default_enob = evaluate_sd_adc(default_params)
+<span class="code-function">print</span>(<span class="code-string">f"默认系数ENOB: </span>{default_enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"提升: +</span>{optimized_enob - default_enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)</pre>
+
+            <div class="tip tip-success">
+                <div class="tip-title">result对象包含的信息</div>
+                <table>
+                    <tr><th>属性</th><th>说明</th><th>示例</th></tr>
+                    <tr><td><code>result.best_params</code></td><td>优化后的参数字典</td><td><code>{'c1': 0.6018, 'c2': 0.6467, ...}</code></td></tr>
+                    <tr><td><code>result.best_fitness</code></td><td>最佳适应度值</td><td><code>121.84</code></td></tr>
+                    <tr><td><code>result.generations</code></td><td>实际迭代代数</td><td><code>13</code></td></tr>
+                    <tr><td><code>result.converged</code></td><td>是否收敛</td><td><code>True</code></td></tr>
+                    <tr><td><code>result.history</code></td><td>每代最佳适应度</td><td><code>[80.5, 95.2, ...]</code></td></tr>
+                </table>
+            </div>
+
+            <h4>快捷方式：SDCoeffOptimizer</h4>
+            <p>如果只需优化标准SD ADC系数，可以使用封装好的优化器：</p>
+            <pre><span class="code-keyword">from</span> quantiamagica.optim <span class="code-keyword">import</span> SDCoeffOptimizer
+
+<span class="code-comment"># 一行创建 + 一行优化</span>
+sd_opt = SDCoeffOptimizer(order=<span class="code-string">2</span>, bits=<span class="code-string">1</span>, osr=<span class="code-string">64</span>, fs=<span class="code-string">1e6</span>)
+result = sd_opt.optimize()
+
+<span class="code-comment"># 打印优化报告</span>
+<span class="code-function">print</span>(result.summary())
+
+<span class="code-comment"># 获取优化后的系数</span>
+<span class="code-function">print</span>(result.best_params)       <span class="code-comment"># 所有参数</span>
+<span class="code-function">print</span>(result.best_params[<span class="code-string">'c1'</span>]) <span class="code-comment"># 单个参数</span>
+<span class="code-function">print</span>(result.best_enob)         <span class="code-comment"># 优化后的ENOB</span>
+<span class="code-function">print</span>(result.baseline_enob)     <span class="code-comment"># 优化前的ENOB</span>
+<span class="code-function">print</span>(result.improvement)       <span class="code-comment"># 提升了多少bits</span></pre>
+
+            <h3>示例5：五阶Sigma-Delta极致优化</h3>
+            
+            <div class="tip tip-warning">
+                <div class="tip-title">高阶SD ADC优化挑战</div>
+                <p>5阶SD ADC有11个待优化参数，搜索空间巨大。默认系数往往直接振荡(ENOB&lt;0)，
+                遗传算法可以找到稳定且高性能的系数组合。</p>
+            </div>
+            
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SigmaDeltaADC, QuantizerEvent
+<span class="code-keyword">from</span> quantiamagica.optim <span class="code-keyword">import</span> GeneticOptimizer, Gene
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+OSR, FS = <span class="code-string">64</span>, <span class="code-string">1e6</span>
+N_SAMPLES = OSR * <span class="code-string">256</span>
+FIN = <span class="code-string">13</span> * FS / N_SAMPLES
+
+<span class="code-comment"># 定义5阶SD ADC的11个基因</span>
+genes = [
+    <span class="code-comment"># 积分器增益 (越往后越小以保持稳定)</span>
+    Gene(<span class="code-string">'c1'</span>, <span class="code-string">0.1</span>, <span class="code-string">0.5</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'c2'</span>, <span class="code-string">0.08</span>, <span class="code-string">0.4</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'c3'</span>, <span class="code-string">0.05</span>, <span class="code-string">0.3</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'c4'</span>, <span class="code-string">0.03</span>, <span class="code-string">0.2</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'c5'</span>, <span class="code-string">0.02</span>, <span class="code-string">0.15</span>, <span class="code-string">'float'</span>),
+    <span class="code-comment"># 反馈系数</span>
+    Gene(<span class="code-string">'a1'</span>, <span class="code-string">0.8</span>, <span class="code-string">3.0</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'a2'</span>, <span class="code-string">0.5</span>, <span class="code-string">2.5</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'a3'</span>, <span class="code-string">0.3</span>, <span class="code-string">2.0</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'a4'</span>, <span class="code-string">0.2</span>, <span class="code-string">1.5</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'a5'</span>, <span class="code-string">0.1</span>, <span class="code-string">1.0</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'amplitude'</span>, <span class="code-string">0.08</span>, <span class="code-string">0.25</span>, <span class="code-string">'float'</span>),
+]
+
+<span class="code-keyword">def</span> <span class="code-function">evaluate_5th_order</span>(params):
+    c = [params[<span class="code-string">f'c{i+1}'</span>] <span class="code-keyword">for</span> i <span class="code-keyword">in</span> range(<span class="code-string">5</span>)]
+    a = [params[<span class="code-string">f'a{i+1}'</span>] <span class="code-keyword">for</span> i <span class="code-keyword">in</span> range(<span class="code-string">5</span>)]
+    
+    sd = SigmaDeltaADC(order=<span class="code-string">1</span>, bits=<span class="code-string">1</span>, osr=OSR)
+    state = [<span class="code-string">0.0</span>] * <span class="code-string">5</span>
+    
+    <span class="code-keyword">@sd.on</span>(QuantizerEvent)
+    <span class="code-keyword">def</span> <span class="code-function">fifth_order</span>(event):
+        x, y = event.input_signal, event.prev_output
+        state[<span class="code-string">0</span>] = state[<span class="code-string">0</span>] + c[<span class="code-string">0</span>] * (x - a[<span class="code-string">0</span>] * y)
+        <span class="code-keyword">for</span> i <span class="code-keyword">in</span> range(<span class="code-string">1</span>, <span class="code-string">5</span>):
+            state[i] = state[i] + c[i] * (state[i-<span class="code-string">1</span>] - a[i] * y)
+        event.quantizer_input = state[<span class="code-string">4</span>]
+    
+    t = np.arange(N_SAMPLES) / FS
+    signal = <span class="code-string">0.5</span> + params[<span class="code-string">'amplitude'</span>] * np.sin(<span class="code-string">2</span>*np.pi*FIN*t)
+    sd.sim(signal, fs=FS)
+    sd._result.metadata[<span class="code-string">'fin'</span>] = FIN
+    <span class="code-keyword">return</span> sd.enob()
+
+<span class="code-keyword">def</span> <span class="code-function">fitness</span>(params):
+    enob = evaluate_5th_order(params)
+    <span class="code-keyword">return</span> enob <span class="code-keyword">if</span> enob > <span class="code-string">0</span> <span class="code-keyword">else</span> -<span class="code-string">1000</span>
+
+optimizer = GeneticOptimizer(genes, fitness, maximize=<span class="code-string">True</span>)
+result = optimizer.run(population_size=<span class="code-string">80</span>)
+
+<span class="code-function">print</span>(<span class="code-string">f"优化后ENOB: </span>{result.best_fitness:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"系数: </span>{result.best_params}<span class="code-string">"</span>)</pre>
+
+            <div class="tip tip-success">
+                <div class="tip-title">优化结果 (实测)</div>
+                <p>默认系数: <strong>振荡 (ENOB=-3.55)</strong> → 优化后: <strong>16.19 bits</strong><br>
+                收敛代数: 24代，进度条显示斜率收敛过程</p>
+            </div>
+        </section>
+
+        <!-- FAQ -->
+        <section id="faq">
+            <h2>常见问题</h2>
+            
+            <h4>Q: 为什么导入报错 ModuleNotFoundError?</h4>
+            <p>确保你已经安装了QuantiaMagica。在项目目录下运行 <code>pip install -e .</code></p>
+
+            <h4>Q: 画图时中文显示为方块怎么办?</h4>
+            <p>这是matplotlib字体问题。可以设置中文字体：</p>
+            <pre><span class="code-keyword">import</span> matplotlib.pyplot <span class="code-keyword">as</span> plt
+plt.rcParams[<span class="code-string">'font.sans-serif'</span>] = [<span class="code-string">'SimHei'</span>]  <span class="code-comment"># 黑体</span></pre>
+
+            <h4>Q: 如何保存仿真数据?</h4>
+            <pre>result = adc.sim()
+result.save(<span class="code-string">"data.npz"</span>)       <span class="code-comment"># NumPy格式</span>
+result.save(<span class="code-string">"data.csv"</span>, format=<span class="code-string">"csv"</span>)  <span class="code-comment"># CSV格式</span></pre>
+
+            <h4>Q: 如何从CSV文件导入自定义信号?</h4>
+            <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> Signal
+
+<span class="code-comment"># CSV文件格式：每行一个电压值</span>
+sig = Signal.from_file(<span class="code-string">"my_signal.csv"</span>, fs=<span class="code-string">1e6</span>)
+adc.sim(sig)</pre>
+        </section>
+
+        <!-- 习题 -->
+        <section id="exercises">
+            <h2>练习题</h2>
+            <p>通过以下练习题逐步掌握QuantiaMagica的使用。点击"查看答案"可以看到参考解答。</p>
+
+            <!-- 习题1 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">1</span>
+                    <span class="exercise-difficulty difficulty-easy">入门</span>
+                    <span class="exercise-title">Hello ADC - 第一个仿真</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>创建一个8位SAR ADC，运行仿真并打印ENOB值。</p>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>ADC位数：8位</li>
+                        <li>参考电压：1.0V（默认）</li>
+                        <li>打印格式：<code>ENOB: X.XX bits</code></li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>使用 <code>SARADC(bits=8)</code> 创建ADC，<code>adc.sim()</code> 运行仿真，<code>adc.enob()</code> 获取ENOB。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC
+
+<span class="code-comment"># 创建8位SAR ADC</span>
+adc = SARADC(bits=<span class="code-string">8</span>)
+
+<span class="code-comment"># 运行仿真</span>
+adc.sim()
+
+<span class="code-comment"># 打印ENOB</span>
+<span class="code-function">print</span>(<span class="code-string">f"ENOB: </span>{adc.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)</pre>
+                        <p><strong>预期输出：</strong><code>ENOB: 7.xx bits</code>（理想8位ADC的ENOB接近8）</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题2 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">2</span>
+                    <span class="exercise-difficulty difficulty-easy">入门</span>
+                    <span class="exercise-title">查看更多指标</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>创建12位ADC，仿真后打印SNR、SFDR、THD三个指标。</p>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>ADC位数：12位</li>
+                        <li>采样点数：4096</li>
+                        <li>分别打印SNR、SFDR、THD，单位为dB</li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>使用 <code>adc.snr()</code>、<code>adc.sfdr()</code>、<code>adc.thd()</code> 获取各指标。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC
+
+adc = SARADC(bits=<span class="code-string">12</span>)
+adc.sim(n_samples=<span class="code-string">4096</span>)
+
+<span class="code-function">print</span>(<span class="code-string">f"SNR:  </span>{adc.<span class="code-method">snr</span>():<span class="code-string">.1f</span>}<span class="code-string"> dB"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"SFDR: </span>{adc.<span class="code-method">sfdr</span>():<span class="code-string">.1f</span>}<span class="code-string"> dB"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"THD:  </span>{adc.<span class="code-method">thd</span>():<span class="code-string">.1f</span>}<span class="code-string"> dB"</span>)</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题3 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">3</span>
+                    <span class="exercise-difficulty difficulty-easy">入门</span>
+                    <span class="exercise-title">绘制频谱图</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>创建10位ADC，使用50kHz输入信号仿真，绘制频谱图。</p>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>ADC位数：10位</li>
+                        <li>输入频率：50kHz</li>
+                        <li>采样率：1MHz</li>
+                        <li>显示频谱图</li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>使用 <code>adc.sim(fin=50e3, fs=1e6)</code> 设置参数，<code>adc.spectrum()</code> 绘制频谱。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SARADC
+
+adc = SARADC(bits=<span class="code-string">10</span>)
+adc.sim(fin=<span class="code-string">50e3</span>, fs=<span class="code-string">1e6</span>, n_samples=<span class="code-string">4096</span>)
+adc.spectrum()</pre>
+                        <p><strong>说明：</strong>频谱图中可以看到50kHz处的基波和量化噪声底。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题4 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">4</span>
+                    <span class="exercise-difficulty difficulty-medium">进阶</span>
+                    <span class="exercise-title">完整事件处理 - 多事件监听</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>同时使用SamplingEvent、CapacitorSwitchEvent、ComparatorEvent三种事件，模拟真实ADC的多种非理想效应。</p>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>SamplingEvent: 基于kT/C公式计算热噪声 (C=1000fF)</li>
+                        <li>CapacitorSwitchEvent: 添加0.5%电容失配</li>
+                        <li>ComparatorEvent: 添加0.5mV失调和0.1mV噪声</li>
+                        <li>对比理想ADC和非理想ADC的ENOB</li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>kT/C噪声公式: <code>noise_sigma = sqrt(kT/C)</code>，其中kT = 1.38e-23 * 300。电容失配用 <code>event.capacitance_actual = event.capacitance * (1 + mismatch)</code>。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> (
+    SARADC,
+    SamplingEvent,
+    CapacitorSwitchEvent,
+    ComparatorEvent,
+)
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-comment"># ========== 理想ADC ==========</span>
+ideal_adc = SARADC(bits=<span class="code-string">10</span>, vref=<span class="code-string">1.0</span>, name=<span class="code-string">"Ideal"</span>)
+ideal_adc.sim(n_samples=<span class="code-string">1024</span>, fs=<span class="code-string">1e6</span>, fin=<span class="code-string">10e3</span>)
+
+<span class="code-comment"># ========== 非理想ADC ==========</span>
+real_adc = SARADC(bits=<span class="code-string">10</span>, vref=<span class="code-string">1.0</span>, name=<span class="code-string">"Realistic"</span>)
+
+<span class="code-comment"># 事件1: 采样时添加kT/C热噪声</span>
+<span class="code-keyword">@real_adc.on</span>(SamplingEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_thermal_noise</span>(event):
+    kT = <span class="code-string">1.38e-23</span> * <span class="code-string">300</span>  <span class="code-comment"># Boltzmann * Temperature</span>
+    C = <span class="code-string">1000e-15</span>          <span class="code-comment"># 1000fF = 1pF</span>
+    noise_sigma = np.sqrt(kT / C)
+    event.voltage += np.random.normal(<span class="code-string">0</span>, noise_sigma)
+
+<span class="code-comment"># 事件2: 电容切换时添加失配</span>
+<span class="code-keyword">@real_adc.on</span>(CapacitorSwitchEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_cap_mismatch</span>(event):
+    mismatch = np.random.normal(<span class="code-string">0</span>, <span class="code-string">0.005</span>)  <span class="code-comment"># 0.5% mismatch</span>
+    event.capacitance_actual = event.capacitance * (<span class="code-string">1</span> + mismatch)
+
+<span class="code-comment"># 事件3: 比较器非理想效应</span>
+<span class="code-keyword">@real_adc.on</span>(ComparatorEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_comparator_effects</span>(event):
+    event.offset = <span class="code-string">0.5e-3</span>       <span class="code-comment"># 0.5mV失调</span>
+    event.noise_sigma = <span class="code-string">0.1e-3</span>  <span class="code-comment"># 0.1mV噪声</span>
+
+real_adc.sim(n_samples=<span class="code-string">1024</span>, fs=<span class="code-string">1e6</span>, fin=<span class="code-string">10e3</span>)
+
+<span class="code-comment"># ========== 对比结果 ==========</span>
+<span class="code-function">print</span>(<span class="code-string">f"理想ADC:   ENOB=</span>{ideal_adc.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string">, SNR=</span>{ideal_adc.<span class="code-method">snr</span>():<span class="code-string">.1f</span>}<span class="code-string">dB"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"非理想ADC: ENOB=</span>{real_adc.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string">, SNR=</span>{real_adc.<span class="code-method">snr</span>():<span class="code-string">.1f</span>}<span class="code-string">dB"</span>)</pre>
+                        <p><strong>说明：</strong>这展示了事件驱动的核心：每个事件对应ADC转换过程中的一个物理步骤，可以在该步骤注入非理想效应。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题5 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">5</span>
+                    <span class="exercise-difficulty difficulty-medium">进阶</span>
+                    <span class="exercise-title">事件优先级与监控模式</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>使用EventPriority控制事件处理顺序，使用MONITOR优先级记录转换结果。</p>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>使用HIGH优先级添加采样噪声（先执行）</li>
+                        <li>使用NORMAL优先级添加比较器效应（后执行）</li>
+                        <li>使用MONITOR优先级记录前5个采样的输出码（只读，不修改）</li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>装饰器可以指定优先级：<code>@adc.on(Event, priority=EventPriority.HIGH)</code>。MONITOR优先级的处理器不应修改事件。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> (
+    SARADC,
+    SamplingEvent,
+    ComparatorEvent,
+    OutputCodeEvent,
+    EventPriority,
+)
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+adc = SARADC(bits=<span class="code-string">10</span>, vref=<span class="code-string">1.0</span>, name=<span class="code-string">"Priority-Demo"</span>)
+
+<span class="code-comment"># HIGH优先级：最先执行</span>
+<span class="code-keyword">@adc.on</span>(SamplingEvent, priority=EventPriority.HIGH)
+<span class="code-keyword">def</span> <span class="code-function">add_noise_first</span>(event):
+    <span class="code-string">"""采样噪声，优先执行"""</span>
+    kT = <span class="code-string">1.38e-23</span> * <span class="code-string">300</span>
+    C = event.sampling_capacitance * <span class="code-string">1e-15</span>
+    noise_sigma = np.sqrt(kT / C)
+    event.voltage += np.random.normal(<span class="code-string">0</span>, noise_sigma)
+
+<span class="code-comment"># NORMAL优先级：默认顺序</span>
+<span class="code-keyword">@adc.on</span>(ComparatorEvent)
+<span class="code-keyword">def</span> <span class="code-function">comparator_effects</span>(event):
+    <span class="code-string">"""比较器效应"""</span>
+    event.offset = <span class="code-string">0.5e-3</span>
+    event.noise_sigma = <span class="code-string">0.1e-3</span>
+
+<span class="code-comment"># MONITOR优先级：只读监控，最后执行</span>
+<span class="code-keyword">@adc.on</span>(OutputCodeEvent, priority=EventPriority.MONITOR)
+<span class="code-keyword">def</span> <span class="code-function">log_output</span>(event):
+    <span class="code-string">"""记录转换结果（只读）"""</span>
+    <span class="code-keyword">if</span> event.source._sample_index < <span class="code-string">5</span>:
+        <span class="code-function">print</span>(<span class="code-string">f"Sample </span>{event.source._sample_index}<span class="code-string">: "</span>
+              <span class="code-string">f"V=</span>{event.input_voltage:<span class="code-string">.4f</span>}<span class="code-string">V -> Code=</span>{event.code}<span class="code-string">"</span>)
+
+<span class="code-function">print</span>(<span class="code-string">"前5个采样的转换记录："</span>)
+adc.sim(n_samples=<span class="code-string">1024</span>, fs=<span class="code-string">1e6</span>, fin=<span class="code-string">10e3</span>)
+<span class="code-function">print</span>(<span class="code-string">f"\nENOB: </span>{adc.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)</pre>
+                        <p><strong>优先级顺序：</strong>HIGHEST > HIGH > NORMAL > LOW > LOWEST > MONITOR</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题6 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">6</span>
+                    <span class="exercise-difficulty difficulty-medium">进阶</span>
+                    <span class="exercise-title">Pipeline: 3×8-bit SAR串联成24-bit</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>使用新的Pipeline类（不继承ADConverter）将3个8-bit SAR ADC串联成24-bit高精度Pipeline，并用InterstageGainEvent添加非理想效应。</p>
+                    <p><strong>Pipeline架构说明：</strong></p>
+                    <pre style="background:#f8fafc;color:#1e293b;padding:0.75rem;border-radius:8px;font-size:12px;">
+输入V → [Stage1: 8-bit SAR] → 残差×256 → [Stage2: 8-bit SAR] → 残差×256 → [Stage3: 8-bit SAR] → 输出
+                ↓                              ↓                              ↓
+             code1 (MSB 8位)               code2 (中间8位)                code3 (LSB 8位)
+                                    ↓
+                        最终24位码 = code1<<16 | code2<<8 | code3</pre>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>创建3个8-bit SARADC实例</li>
+                        <li>使用Pipeline类串联，级间增益=256 (2^8)</li>
+                        <li>理想Pipeline应达到~24-bit ENOB（使用65536采样点）</li>
+                        <li>添加InterstageGainEvent模拟0.1%增益误差+0.5mV失调</li>
+                        <li>对比理想与非理想Pipeline的ENOB损失</li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>使用<code>Pipeline([s1,s2,s3], gains=[256,256])</code>创建24-bit流水线。增益误差=1-1/opamp_gain。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> Pipeline, SARADC, InterstageGainEvent
+
+<span class="code-comment"># ========== 创建3个8-bit SAR ADC ==========</span>
+stage1 = SARADC(bits=<span class="code-number">8</span>, vref=<span class="code-number">1.0</span>, name=<span class="code-string">"SAR-Stage1"</span>)
+stage2 = SARADC(bits=<span class="code-number">8</span>, vref=<span class="code-number">1.0</span>, name=<span class="code-string">"SAR-Stage2"</span>)
+stage3 = SARADC(bits=<span class="code-number">8</span>, vref=<span class="code-number">1.0</span>, name=<span class="code-string">"SAR-Stage3"</span>)
+
+<span class="code-comment"># ========== 理想Pipeline (24-bit) ==========</span>
+ideal_pipe = Pipeline(
+    stages=[stage1, stage2, stage3],
+    gains=[<span class="code-number">256.0</span>, <span class="code-number">256.0</span>],  <span class="code-comment"># 级间增益=2^8</span>
+    name=<span class="code-string">"24-bit-Ideal"</span>
+)
+ideal_pipe.sim(n_samples=<span class="code-number">65536</span>, fs=<span class="code-number">1e6</span>, fin=<span class="code-number">10e3</span>)
+
+<span class="code-comment"># ========== 带增益误差的Pipeline ==========</span>
+s1_err = SARADC(bits=<span class="code-number">8</span>, vref=<span class="code-number">1.0</span>, name=<span class="code-string">"SAR-Stage1"</span>)
+s2_err = SARADC(bits=<span class="code-number">8</span>, vref=<span class="code-number">1.0</span>, name=<span class="code-string">"SAR-Stage2"</span>)
+s3_err = SARADC(bits=<span class="code-number">8</span>, vref=<span class="code-number">1.0</span>, name=<span class="code-string">"SAR-Stage3"</span>)
+
+real_pipe = Pipeline(
+    stages=[s1_err, s2_err, s3_err],
+    gains=[<span class="code-number">256.0</span>, <span class="code-number">256.0</span>],
+    name=<span class="code-string">"24-bit-GainError"</span>
+)
+
+<span class="code-keyword">@real_pipe.on</span>(InterstageGainEvent)
+<span class="code-keyword">def</span> <span class="code-function">add_gain_error</span>(event):
+    <span class="code-string">"""模拟有限运放增益导致的非理想效应"""</span>
+    opamp_gain = <span class="code-number">1000</span>  <span class="code-comment"># 运放增益</span>
+    gain_error = <span class="code-number">1</span> - <span class="code-number">1</span>/opamp_gain  <span class="code-comment"># ~0.1%误差</span>
+    event.actual_gain = event.ideal_gain * gain_error
+    event.offset = <span class="code-number">0.5e-3</span>       <span class="code-comment"># 0.5mV失调</span>
+    event.noise_sigma = <span class="code-number">0.1e-3</span>  <span class="code-comment"># 0.1mV噪声</span>
+
+real_pipe.sim(n_samples=<span class="code-number">65536</span>, fs=<span class="code-number">1e6</span>, fin=<span class="code-number">10e3</span>)
+
+<span class="code-comment"># ========== 对比结果 ==========</span>
+<span class="code-function">print</span>(<span class="code-string">"3×8-bit SAR → 24-bit Pipeline 分析"</span>)
+<span class="code-function">print</span>(<span class="code-string">"="</span> * <span class="code-number">50</span>)
+<span class="code-function">print</span>(<span class="code-string">f"理想Pipeline:   ENOB=</span>{ideal_pipe.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits, SNR=</span>{ideal_pipe.<span class="code-method">snr</span>():<span class="code-string">.1f</span>}<span class="code-string">dB"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"带增益误差:     ENOB=</span>{real_pipe.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits, SNR=</span>{real_pipe.<span class="code-method">snr</span>():<span class="code-string">.1f</span>}<span class="code-string">dB"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"ENOB损失:       </span>{ideal_pipe.<span class="code-method">enob</span>() - real_pipe.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)</pre>
+                        <p><strong>预期结果：</strong>理想Pipeline ENOB≈23.9 bits（接近24-bit理论值），带增益误差后ENOB会有所下降。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题7 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">7</span>
+                    <span class="exercise-difficulty difficulty-hard">挑战</span>
+                    <span class="exercise-title">非理想效应插件类封装</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>创建一个可复用的RealisticSARPlugin类，封装多种非理想效应，可一键attach到任意ADC。</p>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>封装电容失配(0.5%)、热噪声(500fF)、比较器失调(0.5mV)、比较器噪声(0.2mV)</li>
+                        <li>插件类包含<code>attach(adc)</code>方法</li>
+                        <li>对比使用插件前后的ENOB</li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>在<code>attach</code>方法内部定义事件处理函数，使用<code>self</code>访问插件参数。热噪声电压 = sqrt(kT/C)。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> (
+    SARADC,
+    SamplingEvent,
+    CapacitorSwitchEvent,
+    ComparatorEvent,
+    EventPriority,
+)
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-keyword">class</span> <span class="code-function">RealisticSARPlugin</span>:
+    <span class="code-string">"""可复用的SAR ADC非理想效应插件"""</span>
+    
+    <span class="code-keyword">def</span> <span class="code-function">__init__</span>(self,
+                 cap_mismatch_sigma=<span class="code-string">0.005</span>,    <span class="code-comment"># 0.5%电容失配</span>
+                 comparator_offset=<span class="code-string">0.5e-3</span>,   <span class="code-comment"># 0.5mV失调</span>
+                 comparator_noise=<span class="code-string">0.2e-3</span>,    <span class="code-comment"># 0.2mV噪声</span>
+                 sampling_cap_fF=<span class="code-string">500.0</span>):     <span class="code-comment"># 500fF采样电容</span>
+        self.cap_mismatch_sigma = cap_mismatch_sigma
+        self.comparator_offset = comparator_offset
+        self.comparator_noise = comparator_noise
+        self.sampling_cap_fF = sampling_cap_fF
+        self.cap_mismatches = <span class="code-string">None</span>
+        
+    <span class="code-keyword">def</span> <span class="code-function">attach</span>(self, adc):
+        <span class="code-string">"""将所有非理想效应附加到ADC"""</span>
+        <span class="code-comment"># 预生成固定的电容失配值</span>
+        self.cap_mismatches = <span class="code-string">1</span> + np.random.normal(
+            <span class="code-string">0</span>, self.cap_mismatch_sigma, adc.bits
+        )
+        
+        <span class="code-comment"># 计算热噪声电压</span>
+        kT = <span class="code-string">1.38e-23</span> * <span class="code-string">300</span>
+        C = self.sampling_cap_fF * <span class="code-string">1e-15</span>
+        self.thermal_noise_v = np.sqrt(kT / C)
+        
+        <span class="code-comment"># 注册事件处理器</span>
+        <span class="code-keyword">@adc.on</span>(SamplingEvent, priority=EventPriority.HIGH)
+        <span class="code-keyword">def</span> <span class="code-function">add_sampling_noise</span>(event):
+            event.voltage += np.random.normal(<span class="code-string">0</span>, self.thermal_noise_v)
+        
+        <span class="code-keyword">@adc.on</span>(CapacitorSwitchEvent)
+        <span class="code-keyword">def</span> <span class="code-function">add_cap_mismatch</span>(event):
+            event.capacitance_actual = (
+                event.capacitance * self.cap_mismatches[event.bit_index]
+            )
+        
+        <span class="code-keyword">@adc.on</span>(ComparatorEvent)
+        <span class="code-keyword">def</span> <span class="code-function">add_comparator_effects</span>(event):
+            event.offset = self.comparator_offset
+            event.noise_sigma = self.comparator_noise
+
+<span class="code-comment"># ========== 使用插件 ==========</span>
+<span class="code-function">print</span>(<span class="code-string">"1. 理想ADC"</span>)
+ideal = SARADC(bits=<span class="code-string">12</span>, vref=<span class="code-string">1.0</span>)
+ideal.sim(n_samples=<span class="code-string">2048</span>, fs=<span class="code-string">1e6</span>, fin=<span class="code-string">10e3</span>)
+<span class="code-function">print</span>(<span class="code-string">f"   ENOB: </span>{ideal.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+
+<span class="code-function">print</span>(<span class="code-string">"\n2. 使用插件的非理想ADC"</span>)
+real = SARADC(bits=<span class="code-string">12</span>, vref=<span class="code-string">1.0</span>)
+plugin = RealisticSARPlugin()
+plugin.attach(real)
+real.sim(n_samples=<span class="code-string">2048</span>, fs=<span class="code-string">1e6</span>, fin=<span class="code-string">10e3</span>)
+<span class="code-function">print</span>(<span class="code-string">f"   ENOB: </span>{real.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"   热噪声: </span>{plugin.thermal_noise_v*<span class="code-number">1e6</span>:<span class="code-string">.2f</span>}<span class="code-string"> uV rms"</span>)</pre>
+                        <p><strong>说明：</strong>插件模式可以复用，只需<code>plugin.attach(adc)</code>即可给任意ADC添加相同的非理想效应。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题8 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">8</span>
+                    <span class="exercise-difficulty difficulty-hard">挑战</span>
+                    <span class="exercise-title">Sigma-Delta ADC</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>创建2阶1位Sigma-Delta ADC，OSR=64，计算带内ENOB。</p>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>阶数：2</li>
+                        <li>量化器位数：1位</li>
+                        <li>过采样率：64</li>
+                        <li>采样率：1MHz，信号频率：1kHz</li>
+                        <li>打印ENOB</li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>使用 <code>SigmaDeltaADC(order=2, bits=1, osr=64)</code>。带内ENOB会比SAR ADC高很多。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SigmaDeltaADC
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+sd = SigmaDeltaADC(order=<span class="code-string">2</span>, bits=<span class="code-string">1</span>, osr=<span class="code-string">64</span>)
+
+<span class="code-comment"># 生成输入信号</span>
+fs = <span class="code-string">1e6</span>
+fin = <span class="code-string">1e3</span>
+n_samples = <span class="code-string">8192</span>
+t = np.arange(n_samples) / fs
+signal = <span class="code-string">0.5</span> + <span class="code-string">0.4</span> * np.sin(<span class="code-string">2</span> * np.pi * fin * t)
+
+sd.sim(signal, fs=fs)
+<span class="code-function">print</span>(<span class="code-string">f"Sigma-Delta ENOB: </span>{sd.<span class="code-method">enob</span>():<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)</pre>
+                        <p><strong>说明：</strong>2阶SD ADC的带内ENOB可达10+bits，远高于1位量化器本身。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题9 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">9</span>
+                    <span class="exercise-difficulty difficulty-hard">挑战</span>
+                    <span class="exercise-title">遗传算法优化SD系数</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>使用SDCoeffOptimizer优化2阶SD ADC的系数，对比优化前后的ENOB。</p>
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>阶数：2，量化位数：1</li>
+                        <li>OSR：64，采样率：1MHz</li>
+                        <li>打印优化前后的ENOB和提升值</li>
+                    </ul>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>使用 <code>SDCoeffOptimizer</code>，调用 <code>optimize()</code> 方法，结果的 <code>summary()</code> 方法会打印完整报告。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica.optim <span class="code-keyword">import</span> SDCoeffOptimizer
+
+<span class="code-comment"># 创建优化器</span>
+optimizer = SDCoeffOptimizer(
+    order=<span class="code-string">2</span>,
+    bits=<span class="code-string">1</span>,
+    osr=<span class="code-string">64</span>,
+    fs=<span class="code-string">1e6</span>
+)
+
+<span class="code-comment"># 运行优化</span>
+result = optimizer.optimize()
+
+<span class="code-comment"># 打印结果</span>
+<span class="code-function">print</span>(result.summary())
+<span class="code-function">print</span>(<span class="code-string">f"\n优化前ENOB: </span>{result.baseline_enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"优化后ENOB: </span>{result.best_enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"提升: +</span>{result.improvement:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 习题10 压轴 -->
+            <div class="exercise">
+                <div class="exercise-header">
+                    <span class="exercise-number">10</span>
+                    <span class="exercise-difficulty difficulty-hard">压轴</span>
+                    <span class="exercise-title">五阶Sigma-Delta ADC系数优化 - 极致性能</span>
+                </div>
+                <div class="exercise-content">
+                    <p><strong>目标：</strong>使用遗传算法优化5阶Sigma-Delta ADC的11个参数（5个积分器增益c1-c5、5个反馈系数a1-a5、1个输入幅度），实现16-20 bits的极致ENOB。</p>
+                    
+                    <p><strong>五阶CIFB结构说明：</strong></p>
+                    <pre style="background:#f8fafc;color:#1e293b;padding:1rem;border-radius:8px;font-size:13px;">
+输入x → [积分器1] → [积分器2] → [积分器3] → [积分器4] → [积分器5] → [量化器] → 输出y
+           ↑ c1        ↑ c2        ↑ c3        ↑ c4        ↑ c5
+           └─a1·y──────┴─a2·y──────┴─a3·y──────┴─a4·y──────┴─a5·y (分布式反馈)
+
+状态更新方程：
+  state[0] = state[0] + c1 * (x - a1 * y)           // 第1级
+  state[i] = state[i] + c[i] * (state[i-1] - a[i] * y)  // 第2-5级
+  quantizer_input = state[4]                        // 输出到量化器</pre>
+                    
+                    <p><strong>要求：</strong></p>
+                    <ul>
+                        <li>定义11个Gene：c1-c5（积分器增益）、a1-a5（反馈系数）、amplitude（输入幅度）</li>
+                        <li>使用QuantizerEvent实现5阶CIFB拓扑</li>
+                        <li>编写evaluate函数评估ENOB，fitness函数处理异常</li>
+                        <li>使用大种群(300)优化11维参数空间</li>
+                        <li>对比默认系数与优化后的ENOB提升</li>
+                    </ul>
+                    
+                    <p><strong>参数范围参考：</strong></p>
+                    <table style="font-size:13px;">
+                        <tr><th>参数</th><th>范围</th><th>说明</th></tr>
+                        <tr><td>c1-c5</td><td>0.01~0.6（递减）</td><td>积分器增益，高阶需较小值保稳定</td></tr>
+                        <tr><td>a1-a5</td><td>0.05~4.0（递减）</td><td>反馈系数</td></tr>
+                        <tr><td>amplitude</td><td>0.03~0.2</td><td>高阶SD需小幅度避免过载</td></tr>
+                    </table>
+                </div>
+                <div class="exercise-hint">
+                    <strong>提示：</strong>5阶SD极易振荡，默认系数可能ENOB<0。使用<code>try-except</code>捕获异常返回惩罚值-1000。用<code>QuantizerEvent</code>的<code>event.input_signal</code>、<code>event.prev_output</code>、<code>event.quantizer_input</code>实现状态更新。
+                </div>
+                <div class="exercise-answer">
+                    <button class="answer-toggle" onclick="toggleAnswer(this)">查看答案</button>
+                    <div class="answer-content">
+                        <pre><span class="code-keyword">from</span> quantiamagica <span class="code-keyword">import</span> SigmaDeltaADC, QuantizerEvent
+<span class="code-keyword">from</span> quantiamagica.optim <span class="code-keyword">import</span> GeneticOptimizer, Gene
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-comment"># ===================== 仿真参数 =====================</span>
+OSR = <span class="code-string">64</span>
+BITS = <span class="code-string">1</span>
+FS = <span class="code-string">1e6</span>
+N_SAMPLES = OSR * <span class="code-string">512</span>
+FIN = <span class="code-string">13</span> * FS / N_SAMPLES  <span class="code-comment"># 相干采样</span>
+
+<span class="code-comment"># ===================== 定义11个基因 =====================</span>
+genes = [
+    <span class="code-comment"># 积分器增益（递减范围）</span>
+    Gene(<span class="code-string">'c1'</span>, <span class="code-string">0.05</span>, <span class="code-string">0.6</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'c2'</span>, <span class="code-string">0.04</span>, <span class="code-string">0.5</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'c3'</span>, <span class="code-string">0.03</span>, <span class="code-string">0.4</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'c4'</span>, <span class="code-string">0.02</span>, <span class="code-string">0.3</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'c5'</span>, <span class="code-string">0.01</span>, <span class="code-string">0.2</span>, <span class="code-string">'float'</span>),
+    <span class="code-comment"># 反馈系数</span>
+    Gene(<span class="code-string">'a1'</span>, <span class="code-string">0.5</span>, <span class="code-string">4.0</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'a2'</span>, <span class="code-string">0.3</span>, <span class="code-string">3.5</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'a3'</span>, <span class="code-string">0.2</span>, <span class="code-string">3.0</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'a4'</span>, <span class="code-string">0.1</span>, <span class="code-string">2.5</span>, <span class="code-string">'float'</span>),
+    Gene(<span class="code-string">'a5'</span>, <span class="code-string">0.05</span>, <span class="code-string">2.0</span>, <span class="code-string">'float'</span>),
+    <span class="code-comment"># 输入幅度</span>
+    Gene(<span class="code-string">'amplitude'</span>, <span class="code-string">0.03</span>, <span class="code-string">0.2</span>, <span class="code-string">'float'</span>),
+]
+
+<span class="code-comment"># ===================== 评估函数 =====================</span>
+<span class="code-keyword">def</span> <span class="code-function">evaluate_5th_order_sd</span>(params):
+    <span class="code-string">"""创建并评估5阶SD ADC"""</span>
+    c = [params[<span class="code-string">f'c{i+1}'</span>] <span class="code-keyword">for</span> i <span class="code-keyword">in</span> range(<span class="code-string">5</span>)]
+    a = [params[<span class="code-string">f'a{i+1}'</span>] <span class="code-keyword">for</span> i <span class="code-keyword">in</span> range(<span class="code-string">5</span>)]
+    amplitude = params[<span class="code-string">'amplitude'</span>]
+    
+    sd = SigmaDeltaADC(order=<span class="code-string">1</span>, bits=BITS, osr=OSR)
+    state = [<span class="code-string">0.0</span>] * <span class="code-string">5</span>  <span class="code-comment"># 5个积分器状态</span>
+    
+    <span class="code-keyword">@sd.on</span>(QuantizerEvent)
+    <span class="code-keyword">def</span> <span class="code-function">fifth_order_cifb</span>(event):
+        <span class="code-string">"""5阶CIFB结构"""</span>
+        x = event.input_signal
+        y = event.prev_output
+        
+        <span class="code-comment"># 5阶级联积分器 + 分布式反馈</span>
+        state[<span class="code-string">0</span>] = state[<span class="code-string">0</span>] + c[<span class="code-string">0</span>] * (x - a[<span class="code-string">0</span>] * y)
+        <span class="code-keyword">for</span> i <span class="code-keyword">in</span> range(<span class="code-string">1</span>, <span class="code-string">5</span>):
+            state[i] = state[i] + c[i] * (state[i-<span class="code-string">1</span>] - a[i] * y)
+        
+        event.quantizer_input = state[<span class="code-string">4</span>]  <span class="code-comment"># 输出到量化器</span>
+    
+    <span class="code-comment"># 生成输入信号</span>
+    t = np.arange(N_SAMPLES) / FS
+    signal = <span class="code-string">0.5</span> + amplitude * np.sin(<span class="code-string">2</span> * np.pi * FIN * t)
+    
+    sd.sim(signal, fs=FS)
+    sd._result.metadata[<span class="code-string">'fin'</span>] = FIN
+    <span class="code-keyword">return</span> sd.enob()
+
+<span class="code-comment"># ===================== 适应度函数 =====================</span>
+<span class="code-keyword">def</span> <span class="code-function">fitness</span>(params):
+    <span class="code-keyword">try</span>:
+        enob = evaluate_5th_order_sd(params)
+        <span class="code-keyword">if</span> enob <= <span class="code-string">0</span> <span class="code-keyword">or</span> np.isnan(enob) <span class="code-keyword">or</span> enob > <span class="code-string">35</span>:
+            <span class="code-keyword">return</span> -<span class="code-string">1000</span>  <span class="code-comment"># 振荡或异常，给惩罚</span>
+        <span class="code-keyword">return</span> enob
+    <span class="code-keyword">except</span>:
+        <span class="code-keyword">return</span> -<span class="code-string">1000</span>
+
+<span class="code-comment"># ===================== 基准测试 =====================</span>
+baseline_params = {
+    <span class="code-string">'c1'</span>: <span class="code-string">0.25</span>, <span class="code-string">'c2'</span>: <span class="code-string">0.18</span>, <span class="code-string">'c3'</span>: <span class="code-string">0.12</span>, <span class="code-string">'c4'</span>: <span class="code-string">0.08</span>, <span class="code-string">'c5'</span>: <span class="code-string">0.05</span>,
+    <span class="code-string">'a1'</span>: <span class="code-string">2.0</span>, <span class="code-string">'a2'</span>: <span class="code-string">1.5</span>, <span class="code-string">'a3'</span>: <span class="code-string">1.0</span>, <span class="code-string">'a4'</span>: <span class="code-string">0.6</span>, <span class="code-string">'a5'</span>: <span class="code-string">0.3</span>,
+    <span class="code-string">'amplitude'</span>: <span class="code-string">0.1</span>
+}
+baseline_enob = evaluate_5th_order_sd(baseline_params)
+<span class="code-function">print</span>(<span class="code-string">f"默认系数 ENOB: </span>{baseline_enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+
+<span class="code-comment"># ===================== 运行优化 =====================</span>
+<span class="code-function">print</span>(<span class="code-string">"开始优化11维参数空间..."</span>)
+optimizer = GeneticOptimizer(genes, fitness, maximize=<span class="code-string">True</span>)
+result = optimizer.run(
+    population_size=<span class="code-string">300</span>,      <span class="code-comment"># 大种群探索高维空间</span>
+    max_generations=<span class="code-string">500</span>,
+    mutation_rate=<span class="code-string">0.18</span>,
+    elite_ratio=<span class="code-string">0.10</span>,
+    seed=<span class="code-string">2024</span>
+)
+
+<span class="code-comment"># ===================== 输出结果 =====================</span>
+best_enob = evaluate_5th_order_sd(result.best_params)
+<span class="code-function">print</span>(<span class="code-string">f"\n优化后 ENOB: </span>{best_enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"提升: +</span>{best_enob - baseline_enob:<span class="code-string">.2f</span>}<span class="code-string"> bits"</span>)
+
+<span class="code-function">print</span>(<span class="code-string">f"\n优化后系数:"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"  积分器: c1=</span>{result.best_params[<span class="code-string">'c1'</span>]:<span class="code-string">.4f</span>}<span class="code-string">, c2=</span>{result.best_params[<span class="code-string">'c2'</span>]:<span class="code-string">.4f</span>}<span class="code-string">, "</span>
+      <span class="code-string">f"c3=</span>{result.best_params[<span class="code-string">'c3'</span>]:<span class="code-string">.4f</span>}<span class="code-string">, c4=</span>{result.best_params[<span class="code-string">'c4'</span>]:<span class="code-string">.4f</span>}<span class="code-string">, c5=</span>{result.best_params[<span class="code-string">'c5'</span>]:<span class="code-string">.4f</span>}<span class="code-string">"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"  反馈:   a1=</span>{result.best_params[<span class="code-string">'a1'</span>]:<span class="code-string">.4f</span>}<span class="code-string">, a2=</span>{result.best_params[<span class="code-string">'a2'</span>]:<span class="code-string">.4f</span>}<span class="code-string">, "</span>
+      <span class="code-string">f"a3=</span>{result.best_params[<span class="code-string">'a3'</span>]:<span class="code-string">.4f</span>}<span class="code-string">, a4=</span>{result.best_params[<span class="code-string">'a4'</span>]:<span class="code-string">.4f</span>}<span class="code-string">, a5=</span>{result.best_params[<span class="code-string">'a5'</span>]:<span class="code-string">.4f</span>}<span class="code-string">"</span>)
+<span class="code-function">print</span>(<span class="code-string">f"  幅度:   amplitude=</span>{result.best_params[<span class="code-string">'amplitude'</span>]:<span class="code-string">.4f</span>}<span class="code-string">"</span>)</pre>
+                        <p><strong>说明：</strong>5阶SD ADC有11个待优化参数，搜索空间巨大。默认系数往往直接振荡(ENOB&lt;0)，遗传算法可以找到稳定且高性能的系数组合，达到16-20 bits的极致ENOB。</p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>QuantiaMagica - ADC行为级事件驱动仿真器</p>
+        <p>Made by KonataLin | <a href="https://github.com/KonataLin/QuantiaMagica">GitHub</a></p>
+    </footer>
+
+    <script>
+    // 搜索过滤功能
+    function filterSidebar(query) {
+        const sidebar = document.getElementById('sidebar');
+        const links = sidebar.querySelectorAll('a');
+        const groups = sidebar.querySelectorAll('.sidebar-group');
+        const q = query.toLowerCase().trim();
+        
+        if (!q) {
+            // 显示所有
+            links.forEach(link => link.style.display = '');
+            groups.forEach(group => group.style.display = '');
+            return;
+        }
+        
+        groups.forEach(group => {
+            const groupLinks = group.querySelectorAll('a');
+            let hasVisible = false;
+            
+            groupLinks.forEach(link => {
+                const text = link.textContent.toLowerCase();
+                if (text.includes(q)) {
+                    link.style.display = '';
+                    hasVisible = true;
+                } else {
+                    link.style.display = 'none';
+                }
+            });
+            
+            group.style.display = hasVisible ? '' : 'none';
+        });
+    }
+    
+    // 高亮当前章节
+    function updateActiveLink() {
+        const sections = document.querySelectorAll('section[id]');
+        const links = document.querySelectorAll('.sidebar a');
+        
+        let current = '';
+        sections.forEach(section => {
+            const rect = section.getBoundingClientRect();
+            if (rect.top <= 150) {
+                current = section.id;
+            }
+        });
+        
+        links.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === '#' + current) {
+                link.classList.add('active');
+            }
+        });
+    }
+    
+    window.addEventListener('scroll', updateActiveLink);
+    document.addEventListener('DOMContentLoaded', updateActiveLink);
+    
+    // 键盘快捷键: Ctrl+K 聚焦搜索
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            document.getElementById('sidebar-search').focus();
+        }
+    });
+    
+    // 习题答案切换
+    function toggleAnswer(btn) {
+        const content = btn.nextElementSibling;
+        content.classList.toggle('show');
+        btn.textContent = content.classList.contains('show') ? '隐藏答案' : '查看答案';
+    }
+    </script>
+</body>
+</html>
