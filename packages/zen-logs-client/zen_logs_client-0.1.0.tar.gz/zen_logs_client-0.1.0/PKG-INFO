@@ -1,0 +1,359 @@
+Metadata-Version: 2.4
+Name: zen-logs-client
+Version: 0.1.0
+Summary: Async Python client for Zen Logs ingestion endpoints
+Project-URL: Homepage, https://github.com/nomie7/zen_logs_python_client
+Project-URL: Repository, https://github.com/nomie7/zen_logs_python_client.git
+Project-URL: Documentation, https://github.com/nomie7/zen_logs_python_client#readme
+Author: nomie7
+License-Expression: Apache-2.0
+License-File: LICENSE
+Keywords: async,logging,logs,observability,telemetry,zen-logs
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: AsyncIO
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Requires-Dist: httpx>=0.25.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: respx>=0.20.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# zen-logs-client
+
+Python (>=3.10) async client for sending logs to Zen Logs ingestion endpoints.
+
+## Installation
+
+```bash
+pip install zen-logs-client
+```
+
+Or for development:
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Integration test (optional)
+
+Tests are skipped unless `ZEN_LOGS_URL` is set.
+
+```bash
+# In one terminal:
+# start Zen Logs (e.g. go run ./cmd/logservice or docker-compose up)
+
+# In another terminal:
+ZEN_LOGS_URL=http://localhost:7777 pytest
+```
+
+## Usage
+
+### Create a client
+
+```python
+import asyncio
+from zen_logs_client import ZenLogsClient
+
+client = ZenLogsClient({
+    "base_url": "http://localhost:7777",
+    "token": os.environ.get("LOG_AUTH_TOKEN"),  # optional
+    "default_service_name": "billing-service",
+})
+```
+
+## Standard logging conventions (internal)
+
+Use these conventions across all services to make Zen Logs queries and stats consistent.
+
+### Required/expected metadata (recommendation)
+
+Add these keys to `metadata` wherever available:
+
+- `env`: `dev` | `staging` | `prod`
+- `service_version`: semantic version or build number
+- `build_sha`: git SHA
+- `region`: e.g. `us-east-1`
+- `request_id`: stable per-request identifier
+- `trace_id`: distributed tracing trace id (if you have one)
+- `span_id`: distributed tracing span id (optional)
+
+Avoid secrets (tokens/passwords).
+
+### Endpoint cardinality rule (usage logs)
+
+For `usage.endpoint`, prefer route templates (low cardinality):
+
+- `/api/users/{id}`
+- `/api/users/123`
+
+This keeps the stats endpoint usable (top endpoints) and reduces noise.
+
+## Examples (copy/paste standards)
+
+### 1) Events: error with correlation + typed metadata
+
+```python
+await client.event({
+    "level": "ERROR",
+    "message": "db connect failed",
+    "stack_trace": traceback.format_exc(),
+    "metadata": {
+        "env": os.environ.get("ENV", "dev"),
+        "service_version": os.environ.get("SERVICE_VERSION", "dev"),
+        "build_sha": os.environ.get("BUILD_SHA", "local"),
+        "region": os.environ.get("AWS_REGION", "local"),
+        "request_id": request.id,
+        "trace_id": request.trace_id,
+        "error_code": "DB_CONN_FAILED",
+        "component": "db",
+        "retry_count": 3,
+    },
+})
+```
+
+### 2) Events: startup / lifecycle message
+
+```python
+await client.event({
+    "level": "INFO",
+    "message": "service started",
+    "metadata": {
+        "env": os.environ.get("ENV", "dev"),
+        "service_version": os.environ.get("SERVICE_VERSION", "dev"),
+        "build_sha": os.environ.get("BUILD_SHA", "local"),
+    },
+})
+```
+
+### 3) Audit: user action (who did what, on what)
+
+```python
+await client.audit({
+    "action": "UPDATE_PROFILE",
+    "result": "SUCCESS",
+    "user_id": user.id,
+    "resource": f"users/{user.id}",
+    "ip_address": request.client.host,
+    "user_agent": request.headers.get("user-agent"),
+    "metadata": {
+        "env": os.environ.get("ENV", "dev"),
+        "request_id": request.id,
+        "trace_id": request.trace_id,
+        "actor_type": "user",
+        "fields_changed": ["email", "phone"],
+    },
+})
+```
+
+### 4) Audit: failure example (important for stats)
+
+```python
+await client.audit({
+    "action": "DELETE_API_KEY",
+    "result": "FAILURE",
+    "user_id": user.id,
+    "resource": f"apikeys/{api_key_id}",
+    "metadata": {
+        "request_id": request.id,
+        "trace_id": request.trace_id,
+        "reason": "insufficient_permissions",
+    },
+})
+```
+
+### 5) Usage: API request latency (recommended fields)
+
+```python
+await client.usage({
+    "endpoint": "/api/users/{id}",
+    "method": "GET",
+    "duration_ms": int(timing_ms),
+    "status_code": response.status_code,
+    "user_id": user.id if user else None,
+    "metadata": {
+        "env": os.environ.get("ENV", "dev"),
+        "request_id": request.id,
+        "trace_id": request.trace_id,
+        "response_size_bytes": len(response.body),
+        "cache": cache_status,  # e.g. "hit"/"miss"
+    },
+})
+```
+
+### 6) Adding consistent metadata automatically
+
+Use `enrich_metadata` in `ZenLogsClientConfig` to ensure every log includes the same baseline keys.
+
+```python
+import os
+from zen_logs_client import ZenLogsClient
+
+def enrich_metadata(metadata):
+    base = {
+        "env": os.environ.get("ENV", "dev"),
+        "service_version": os.environ.get("SERVICE_VERSION", "dev"),
+        "build_sha": os.environ.get("BUILD_SHA", "local"),
+        "region": os.environ.get("AWS_REGION", "local"),
+    }
+    if metadata:
+        base.update(metadata)
+    return base
+
+client = ZenLogsClient({
+    "base_url": os.environ.get("ZEN_LOGS_URL", "http://localhost:7777"),
+    "token": os.environ.get("LOG_AUTH_TOKEN"),
+    "default_service_name": "billing-service",
+    "enrich_metadata": enrich_metadata,
+})
+```
+
+### 7) Graceful shutdown (recommended)
+
+Call `shutdown()` during process termination so the in-memory queue is drained best-effort.
+
+```python
+import signal
+import asyncio
+
+async def shutdown_handler():
+    await client.shutdown(timeout_ms=5000)
+
+def handle_signal(sig, frame):
+    asyncio.create_task(shutdown_handler())
+
+signal.signal(signal.SIGINT, handle_signal)
+signal.signal(signal.SIGTERM, handle_signal)
+```
+
+Or use async context manager:
+
+```python
+async with ZenLogsClient({
+    "base_url": "http://localhost:7777",
+    "default_service_name": "my-service",
+}) as client:
+    await client.event({"level": "INFO", "message": "Hello"})
+    # Client automatically shuts down on exit
+```
+
+### Send an event
+
+```python
+await client.event({
+    "level": "ERROR",
+    "message": "Failed to connect to database",
+    "stack_trace": "...",
+    "metadata": {
+        "error_code": "DB_CONN_FAILED",
+        "request_id": "req_123",
+    },
+})
+```
+
+### Send an audit log
+
+```python
+await client.audit({
+    "action": "UPDATE_PROFILE",
+    "result": "SUCCESS",
+    "user_id": "user-123",
+    "resource": "users/123",
+    "metadata": {
+        "fields_changed": ["email", "phone"],
+    },
+})
+```
+
+### Send a usage log
+
+```python
+await client.usage({
+    "endpoint": "/api/products",
+    "method": "GET",
+    "duration_ms": 45,
+    "status_code": 200,
+    "metadata": {
+        "cache": "hit",
+    },
+})
+```
+
+### Flush / shutdown
+
+```python
+await client.flush()
+await client.shutdown(timeout_ms=5000)
+```
+
+## Using with type hints
+
+The client also accepts typed dataclass inputs:
+
+```python
+from zen_logs_client import (
+    ZenLogsClient,
+    EventLogInputWithDefaults,
+    LogLevel,
+    AuditResult,
+)
+
+await client.event(EventLogInputWithDefaults(
+    level=LogLevel.ERROR,
+    message="Database error",
+    metadata={"component": "db"},
+))
+
+await client.audit(AuditLogInputWithDefaults(
+    action="LOGIN",
+    result=AuditResult.SUCCESS,
+    user_id="user-123",
+))
+```
+
+## Defaults
+
+Low-latency defaults (configurable in `ZenLogsClientConfig`):
+
+- `flush_interval_ms=250`
+- `max_batch_size=50`
+- `max_queue_size=2000`
+- `max_retries=2`
+- `base_backoff_ms=200`
+- `max_backoff_ms=2000`
+- `retry_on=[network, 5xx]`
+- Backpressure: `block` with `enqueue_timeout_ms=5000`, then drop-newest
+
+## Configuration Reference
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `base_url` | str | required | Zen Logs server URL |
+| `token` | str | None | Optional X-Log-Token for auth |
+| `default_service_name` | str | None | Default service name for logs |
+| `flush_interval_ms` | int | 250 | Background flush interval |
+| `max_batch_size` | int | 50 | Max logs per batch request |
+| `max_queue_size` | int | 2000 | Max in-memory queue size |
+| `backpressure` | BackpressureMode | BLOCK | Queue full behavior |
+| `enqueue_timeout_ms` | int | 5000 | Block timeout (if backpressure=block) |
+| `max_retries` | int | 2 | Max retry attempts |
+| `base_backoff_ms` | int | 200 | Initial retry backoff |
+| `max_backoff_ms` | int | 2000 | Max retry backoff |
+| `retry_on` | list[RetryMode] | [network, 5xx] | Retry conditions |
+| `enrich_metadata` | Callable | None | Metadata enrichment hook |
+
+## Notes
+
+- The client uses `POST /api/v1/batch` for flushes
+- Timestamps are assigned by the server
+- Uses `httpx` for async HTTP requests
