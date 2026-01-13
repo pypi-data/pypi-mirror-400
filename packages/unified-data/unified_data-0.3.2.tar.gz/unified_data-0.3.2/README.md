@@ -1,0 +1,167 @@
+# unified-data
+
+**Unified Kline Data Interface**
+
+`unified-data` allows you to pull standardized kline (candlestick) data from various financial markets (Crypto, Stocks, Futures) through a single, unified interface. It handles the complexity of exchange-specific API differences, so you can focus on analysis.
+
+## Features
+
+- **Unified Interface**: Single `pull_kline` function for all market types.
+- **Polars Integration**: Returns high-performance `polars.DataFrame` objects.
+- **Smart Routing**: Automatically routes requests to the appropriate data source (ccxt, yfinance, akshare) based on market type.
+- **Standardized Inputs**: Use a common ticker format regardless of the underlying exchange.
+- **AI-Ready**: Designed with clear typing and schemas to be easily used by AI Agents and LLMs.
+
+## Installation
+
+```bash
+pip install unified-data
+```
+
+## Quick Start
+
+```python
+import polars as pl
+from unified_data import pull_kline, MarketType
+
+# 1. Pull Crypto Data (BTC/USDT)
+df_crypto = pull_kline(
+    ticker="BTC_USDT",
+    market_type=MarketType.CRYPTO,
+    period="1d",
+    limit=200
+)
+print(df_crypto.head())
+
+# 2. Pull US Stock Data (Apple)
+df_stock = pull_kline(
+    ticker="AAPL",
+    market_type=MarketType.STOCK,
+    period="1h",
+    limit=50
+)
+print(df_stock.head())
+```
+
+## Standardized Tickers
+
+`unified-data` uses a strictly standardized format for input tickers. The library handles translation to exchange-specific symbols internally.
+
+| Market Type | Format Pattern | Example | Description |
+| :--- | :--- | :--- | :--- |
+| **Crypto** | `[SYMBOL]_[QUOTE]` | `BTC_USDT` | Standard pair with underscore separator. |
+| **Stocks** | `[SYMBOL]` | `AAPL` | Common ticker symbol. |
+| **Futures (Front)**| `[SYMBOL]=F` | `GC=F` | Continuous/Front month contract. |
+| **Futures (Specific)**| `[SYMBOL][MONTH][YY]` | `GCU26` | Specific expiry (e.g., Gold September 2026). |
+
+### Futures Month Codes
+| Code | Month | Code | Month | Code | Month |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| F | Jan | K | May | U | Sep |
+| G | Feb | M | Jun | V | Oct |
+| H | Mar | N | Jul | X | Nov |
+| J | Apr | Q | Aug | Z | Dec |
+
+## Usage Reference
+
+### `pull_kline`
+
+The main entry point for the library.
+
+```python
+def pull_kline(
+    ticker: str, 
+    market_type: str, 
+    period: str, 
+    start_date: datetime | str | None = None, 
+    end_date: datetime | str | None = None, 
+    limit: int = 200,
+    exchange: str | None = None
+) -> pl.DataFrame
+```
+
+**Parameters:**
+
+- `ticker` (str): The asset symbol in the standardized format (e.g., `BTC_USDT`, `AAPL`).
+- `market_type` (str): The type of market. Use `unified_data.models.enums.MarketType` constants:
+    - `"crypto"`
+    - `"stock"`
+    - `"futures"`
+- `period` (str): Timeframe interval (e.g., `1m`, `1h`, `1d`).
+- `start_date` (datetime | str, optional): Start time for data.
+- `end_date` (datetime | str, optional): End time for data.
+- `limit` (int): Number of candles to retrieve (default: 200).
+- `exchange` (str, optional): Force a specific exchange backend (e.g., `ccxt`, `yfinance`, `akshare`).
+
+**Returns:**
+A `polars.DataFrame` with the following columns:
+- `ts`: Timestamp (Unix ms)
+- `open`: Open price
+- `high`: High price
+- `low`: Low price
+- `close`: Close price
+- `vol`: Volume
+- `symbol`: The ticker symbol
+- `exchange`: The exchange/source name (e.g., `ccxt`, `yfinance`)
+
+---
+
+## AI Agent Integration
+
+This package is designed to be easily used by Large Language Models (LLMs) and AI Agents using tool calling (function calling).
+
+### Tool Definition
+When providing this library as a tool to an AI, you can use the following definition:
+
+```json
+{
+  "name": "pull_kline",
+  "description": "Retrieve historical candlestick (OHLCV) data for financial assets (Crypto, Stocks, Futures). Returns a Polars DataFrame.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "ticker": {
+        "type": "string",
+        "description": "Standardized symbol. Crypto: 'BTC_USDT', Stock: 'AAPL', Futures: 'GC=F'."
+      },
+      "market_type": {
+        "type": "string",
+        "enum": ["crypto", "stock", "futures"],
+        "description": "Class of the asset."
+      },
+      "period": {
+        "type": "string",
+        "description": "Timeframe, e.g., '1h', '4h', '1d'."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Number of data points to retrieve."
+      },
+      "start_date": {
+        "type": "string",
+        "description": "ISO 8601 start date (optional)."
+      }
+    },
+    "required": ["ticker", "market_type", "period"]
+  }
+}
+```
+
+### System Prompt Recommendation
+If you are instructing an AI to use this library, include the following in its system prompt:
+
+> You have access to the `unified_data` library. When asked for market data, ALWAYS use the `pull_kline` tool.
+> Ensure you convert user requests into the standardized ticker format:
+> - Crypto pairs must use underscores: "Bitcoin to USDT" -> `BTC_USDT`
+> - Stocks use their symbol: "Apple" -> `AAPL`
+> - Futures use the Month Code standard: "Gold Dec 2025" -> `GCZ25`
+
+## Configuration
+
+Supported Data Sources (Backends):
+- **Crypto**: `ccxt` (Binance default)
+- **Stocks (US)**: `yfinance`
+- **Stocks (China)**: `akshare`
+- **Futures**: `yfinance` / `akshare`
+
+No API keys are required for the default public endpoints.
