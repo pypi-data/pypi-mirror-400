@@ -1,0 +1,1683 @@
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use tracing::warn;
+
+// Zakat Recommendation (Feature 4: "Almost Payable" State)
+// =============================================================================
+
+
+
+/// Represents the Zakat recommendation status for an asset.
+///
+/// This enum provides nuanced guidance beyond binary Payable/Exempt:
+/// - **Obligatory**: Zakat is mandatory (net assets ≥ Nisab, Hawl met).
+/// - **Recommended**: Voluntary Sadaqah is encouraged (near Nisab, 90-100%).
+/// - **None**: Far below Nisab threshold.
+///
+/// # Fiqh Principle
+/// While Zakat is strictly obligatory only when conditions are met,
+/// voluntary charity (Sadaqah) is always encouraged in Islam.
+/// This recommendation helps users consider giving even when not obligated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub enum ZakatRecommendation {
+    /// Zakat is obligatory (standard Zakat).
+    /// Net assets ≥ Nisab and Hawl is satisfied.
+    Obligatory,
+    /// Voluntary Sadaqah is recommended.
+    /// Net assets are between 90% and 100% of Nisab.
+    /// This is NOT obligatory but spiritually encouraged.
+    Recommended,
+    /// No recommendation - assets are far below Nisab.
+    #[default]
+    None,
+}
+
+impl ZakatRecommendation {
+    /// Returns a translation key for i18n support.
+    pub fn translation_key(&self) -> &'static str {
+        match self {
+            ZakatRecommendation::Obligatory => "recommendation-obligatory",
+            ZakatRecommendation::Recommended => "recommendation-sadaqah",
+            ZakatRecommendation::None => "recommendation-none",
+        }
+    }
+
+    /// Returns a human-readable description.
+    pub fn description(&self) -> &'static str {
+        match self {
+            ZakatRecommendation::Obligatory => "Zakat is obligatory",
+            ZakatRecommendation::Recommended => "Voluntary Sadaqah is recommended (near Nisab)",
+            ZakatRecommendation::None => "No Zakat due",
+        }
+    }
+}
+
+// =============================================================================
+// Liability Types (v1.1 Feature: Granular Liability Management)
+// =============================================================================
+
+/// Specifies the nature of a liability for Fiqh deduction purposes.
+/// 
+/// Most schools of Fiqh allow deducting immediate debts from zakatable wealth. 
+/// For long-term debts, modern consensus often restricts deduction to the upcoming year's payments.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub enum LiabilityType {
+    /// Dayn al-Hal: Immediate debt due soon (fully deductible).
+    #[default]
+    Immediate,
+    /// Dayn al-Mu'ajjal: Long-term debt (e.g., mortgages, car loans). 
+    /// Only the current year's (12 months) payments are deductible to prevent 
+    /// zeroing out zakat liability with massive long-term principal.
+    LongTerm,
+}
+
+impl LiabilityType {
+    /// Returns a human-readable description of the liability type and its deduction rule.
+    pub fn description(&self) -> &'static str {
+        match self {
+            LiabilityType::Immediate => "Immediate Debt (Fully Deductible)",
+            LiabilityType::LongTerm => "Long-Term Debt (Deduct 1 year payments)",
+        }
+    }
+}
+
+
+/// Represents a named liability that can be deducted from Zakat calculations.
+/// 
+/// # Example
+/// ```rust
+/// use zakat_core::types::Liability;
+/// use rust_decimal_macros::dec;
+/// 
+/// let mortgage = Liability::new("Mortgage Payment", dec!(1500));
+/// let credit_card = Liability::new("Credit Card", dec!(500));
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub struct Liability {
+    /// Description of the liability (e.g., "Credit Card", "Mortgage")
+    pub description: String,
+    /// Amount of the liability (Total outstanding balance)
+    #[typeshare(serialized_as = "string")]
+    pub amount: Decimal,
+    /// Type of liability (Immediate vs LongTerm)
+    #[serde(default)]
+    pub kind: LiabilityType,
+    /// For LongTerm debts: Monthly payment amount to calculate annual cap.
+    #[typeshare(serialized_as = "Option<string>")]
+    pub monthly_payment: Option<Decimal>,
+}
+
+impl Liability {
+    /// Creates a new named liability (Immediate by default).
+    /// 
+    /// Use this for short-term debts like credit cards, utility bills, or 
+    /// immediate personal loans.
+    pub fn new(description: impl Into<String>, amount: Decimal) -> Self {
+        Self {
+            description: description.into(),
+            amount,
+            kind: LiabilityType::Immediate,
+            monthly_payment: None,
+        }
+    }
+
+    /// Creates a long-term liability with monthly payments.
+    /// 
+    /// Deductions for this type are capped at (monthly_payment * 12) or the 
+    /// total outstanding amount, whichever is lower.
+    pub fn long_term(description: impl Into<String>, total_amount: Decimal, monthly_payment: Decimal) -> Self {
+        Self {
+            description: description.into(),
+            amount: total_amount,
+            kind: LiabilityType::LongTerm,
+            monthly_payment: Some(monthly_payment),
+        }
+    }
+    
+    /// Creates a liability from an amount that can be converted to Decimal.
+    pub fn from_amount(description: impl Into<String>, amount: impl crate::inputs::IntoZakatDecimal) -> Result<Self, super::types::ZakatError> {
+        Ok(Self {
+            description: description.into(),
+            amount: amount.into_zakat_decimal()?,
+            kind: LiabilityType::Immediate,
+            monthly_payment: None,
+        })
+    }
+}
+
+// =============================================================================
+// Warning System (v1.1 Feature: Structured Warning System)
+// =============================================================================
+
+/// Structured warning codes for localization support.
+/// 
+/// Frontends can use these codes to provide localized warning messages
+/// instead of hardcoded English strings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
+#[typeshare::typeshare]
+#[serde(tag = "type", content = "content", rename_all = "camelCase")]
+pub enum WarningCode {
+    /// Net assets were negative and clamped to zero.
+    NegativeAssetsClamped,
+    /// Expenses were ignored when using the Gross calculation method.
+    GrossMethodExpensesIgnored,
+    /// Livestock count is below minimum threshold for Zakat.
+    LivestockBelowNisab,
+    /// Gold or silver weight is below minimum threshold.
+    MetalBelowNisab,
+    /// Price data may be stale or unavailable.
+    PriceDataStale,
+    /// Hawl period not yet satisfied.
+    HawlNotMet,
+    /// Partial calculation due to missing data.
+    PartialCalculation,
+    /// Currency conversion applied.
+    CurrencyConversionApplied,
+    /// Other warning with custom code.
+    Other(String),
+}
+
+impl WarningCode {
+    /// Returns the fluent translation key for this warning code.
+    pub fn translation_key(&self) -> &str {
+        match self {
+            WarningCode::NegativeAssetsClamped => "warning-negative-assets-clamped",
+            WarningCode::GrossMethodExpensesIgnored => "warning-gross-method-expenses-ignored",
+            WarningCode::LivestockBelowNisab => "warning-livestock-below-nisab",
+            WarningCode::MetalBelowNisab => "warning-metal-below-nisab",
+            WarningCode::PriceDataStale => "warning-price-data-stale",
+            WarningCode::HawlNotMet => "warning-hawl-not-met",
+            WarningCode::PartialCalculation => "warning-partial-calculation",
+            WarningCode::CurrencyConversionApplied => "warning-currency-conversion-applied",
+            WarningCode::Other(_) => "warning-other",
+        }
+    }
+}
+
+/// A structured warning with code, message, and optional details.
+/// 
+/// This enables frontends to:
+/// - Localize warning messages using the `code` field
+/// - Display English fallback via `message` field
+/// - Access additional context through `details`
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub struct CalculationWarning {
+    /// Structured warning code for programmatic handling and i18n.
+    pub code: WarningCode,
+    /// Human-readable fallback message in English.
+    pub message: String,
+    /// Optional additional details as key-value pairs.
+    #[typeshare(skip)]
+    pub details: Option<HashMap<String, String>>,
+}
+
+impl CalculationWarning {
+    /// Creates a new calculation warning.
+    pub fn new(code: WarningCode, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            details: None,
+        }
+    }
+    
+    /// Creates a warning with additional details.
+    pub fn with_details(code: WarningCode, message: impl Into<String>, details: HashMap<String, String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            details: Some(details),
+        }
+    }
+    
+    /// Convenience constructor for negative assets clamped warning.
+    pub fn negative_assets_clamped(original_value: Decimal) -> Self {
+        let mut details = HashMap::new();
+        details.insert("original_value".to_string(), original_value.to_string());
+        Self::with_details(
+            WarningCode::NegativeAssetsClamped,
+            "Net assets were negative and clamped to zero.",
+            details,
+        )
+    }
+    
+    /// Convenience constructor for gross method expenses ignored warning.
+    pub fn gross_method_expenses_ignored(expenses: Decimal) -> Self {
+        let mut details = HashMap::new();
+        details.insert("expenses".to_string(), expenses.to_string());
+        Self::with_details(
+            WarningCode::GrossMethodExpensesIgnored,
+            "Expenses are ignored when using the Gross calculation method.",
+            details,
+        )
+    }
+}
+
+/// Represents the age category of livestock for Zakat purposes.
+/// 
+/// These categories are based on the Hadith specification for camel and cattle ages.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub enum LivestockAge {
+    /// Bint Makhad - 1-year female camel (just weaned)
+    BintMakhad,
+    /// Bint Labun - 2-year female camel (mother nursing another)
+    BintLabun,
+    /// Hiqqah - 3-year female camel (ready for breeding)
+    Hiqqah,
+    /// Jaza'ah - 4-year female camel (mature)
+    Jazaah,
+    /// Tabi - 1-year calf (male or female cow)
+    Tabi,
+    /// Musinnah - 2-year cow (fully grown)
+    Musinnah,
+    /// Generic sheep/goat (age not differentiated in Fiqh for payment)
+    Jadha,
+}
+
+/// Represents the kind of livestock for Zakat.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub enum LivestockKind {
+    Sheep,
+    Goat,
+    Cow,
+    Camel,
+}
+
+/// Represents a structured livestock payment item.
+/// 
+/// This struct enables frontends to translate livestock descriptions dynamically
+/// instead of receiving pre-translated strings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub struct LivestockDueItem {
+    /// Number of animals due
+    pub count: u32,
+    /// Age category of the animal
+    pub age: LivestockAge,
+    /// Kind of animal
+    pub kind: LivestockKind,
+}
+
+impl LivestockDueItem {
+    /// Creates a new LivestockDueItem
+    pub fn new(count: u32, age: LivestockAge, kind: LivestockKind) -> Self {
+        Self { count, age, kind }
+    }
+    
+    /// Returns a translation key for this livestock item.
+    /// Frontends can use this key to fetch localized strings.
+    pub fn translation_key(&self) -> String {
+        let age_key = match self.age {
+            LivestockAge::BintMakhad => "camel-age-bint-makhad",
+            LivestockAge::BintLabun => "camel-age-bint-labun",
+            LivestockAge::Hiqqah => "camel-age-hiqqah",
+            LivestockAge::Jazaah => "camel-age-jazaah",
+            LivestockAge::Tabi => "cow-age-tabi",
+            LivestockAge::Musinnah => "cow-age-musinnah",
+            LivestockAge::Jadha => "livestock-kind-sheep",
+        };
+        age_key.to_string()
+    }
+    
+    /// Returns the default English name for this livestock age/kind.
+    /// Use `translation_key()` for i18n support.
+    pub fn default_name(&self) -> &'static str {
+        match self.age {
+            LivestockAge::BintMakhad => "Bint Makhad",
+            LivestockAge::BintLabun => "Bint Labun",
+            LivestockAge::Hiqqah => "Hiqqah",
+            LivestockAge::Jazaah => "Jaza'ah",
+            LivestockAge::Tabi => "Tabi'",
+            LivestockAge::Musinnah => "Musinnah",
+            LivestockAge::Jadha => match self.kind {
+                LivestockKind::Sheep => "Sheep",
+                LivestockKind::Goat => "Goat",
+                _ => "Sheep/Goat",
+            },
+        }
+    }
+    
+    /// Formats this item as "{count} {name}" using the default name.
+    pub fn format_default(&self) -> String {
+        format!("{} {}", self.count, self.default_name())
+    }
+}
+
+/// Represents the type of Zakat payment due.
+///
+/// This enum distinguishes between:
+/// - **Monetary**: The default payment type, representing a currency value.
+/// - **Livestock**: In-kind payment of specific animals with structured data for i18n.
+///   Used when Zakat is due as heads of livestock rather than cash.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+#[typeshare::typeshare]
+#[serde(tag = "type", content = "content", rename_all = "camelCase")]
+pub enum PaymentPayload {
+    /// Currency-based Zakat payment (default for most wealth types).
+    #[typeshare(serialized_as = "string")]
+    Monetary(Decimal),
+    /// In-kind livestock payment specifying animal types and counts.
+    Livestock {
+        /// Structured list of animals due (preferred for i18n)
+        heads_due: Vec<LivestockDueItem>,
+    },
+    /// In-kind agriculture payment specifying harvest details.
+    Agriculture {
+        #[typeshare(serialized_as = "string")]
+        harvest_weight: Decimal,
+        irrigation_method: String,
+        #[typeshare(serialized_as = "string")]
+        crop_value: Decimal,
+    },
+}
+
+impl PaymentPayload {
+    /// Generates a human-readable description string from the livestock payment.
+    /// Use this for display purposes; for i18n, iterate over `heads_due` directly
+    /// and use `LivestockDueItem::translation_key()`.
+    pub fn livestock_description(&self) -> Option<String> {
+        match self {
+            PaymentPayload::Livestock { heads_due } => {
+                let parts: Vec<String> = heads_due.iter()
+                    .map(|item| item.format_default())
+                    .collect();
+                Some(parts.join(", "))
+            }
+            _ => None,
+        }
+    }
+}
+
+
+/// Represents the semantic operation performed in a calculation step.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub enum Operation {
+    Initial,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Compare,
+    Rate,
+    Result,
+    Info,
+}
+
+impl std::fmt::Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let symbol = match self {
+            Operation::Initial => " ",
+            Operation::Add => "+",
+            Operation::Subtract => "-",
+            Operation::Multiply => "*",
+            Operation::Divide => "/",
+            Operation::Compare => "?",
+            Operation::Rate => "x",
+            Operation::Result => "=",
+            Operation::Info => "i",
+        };
+        write!(f, "{}", symbol)
+    }
+}
+
+/// Represents a single step in the Zakat calculation process.
+///
+/// This struct provides transparency into how the final Zakat amount was derived,
+/// enabling users to understand and verify each step of the calculation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub struct CalculationStep {
+    /// The Fluent ID (e.g., "step-net-assets").
+    pub key: String,
+    /// Fallback English text.
+    pub description: String,
+    /// The value at this step (if applicable).
+    #[typeshare(serialized_as = "Option<string>")]
+    pub amount: Option<Decimal>,
+    /// The semantic operation type.
+    pub operation: Operation,
+    /// Variables for fluent.
+    #[typeshare(skip)]
+    pub args: Option<std::collections::HashMap<String, String>>,
+    /// Fiqh reference source (e.g. "Sahih Bukhari 1454").
+    pub reference: Option<String>,
+}
+
+impl CalculationStep {
+    pub fn initial(key: impl Into<String>, description: impl Into<String>, amount: impl crate::inputs::IntoZakatDecimal) -> Self {
+        Self {
+            key: key.into(),
+            description: description.into(),
+            amount: amount.into_zakat_decimal().ok(),
+            operation: Operation::Initial,
+            args: None,
+            reference: None,
+        }
+    }
+
+    pub fn add(key: impl Into<String>, description: impl Into<String>, amount: impl crate::inputs::IntoZakatDecimal) -> Self {
+        Self {
+            key: key.into(),
+            description: description.into(),
+            amount: amount.into_zakat_decimal().ok(),
+            operation: Operation::Add,
+            args: None,
+            reference: None,
+        }
+    }
+
+    pub fn subtract(key: impl Into<String>, description: impl Into<String>, amount: impl crate::inputs::IntoZakatDecimal) -> Self {
+        Self {
+            key: key.into(),
+            description: description.into(),
+            amount: amount.into_zakat_decimal().ok(),
+            operation: Operation::Subtract,
+            args: None,
+            reference: None,
+        }
+    }
+
+    pub fn multiply(key: impl Into<String>, description: impl Into<String>, amount: impl crate::inputs::IntoZakatDecimal) -> Self {
+         Self {
+            key: key.into(),
+            description: description.into(),
+            amount: amount.into_zakat_decimal().ok(),
+            operation: Operation::Multiply,
+            args: None,
+            reference: None,
+        }
+    }
+
+    pub fn compare(key: impl Into<String>, description: impl Into<String>, amount: impl crate::inputs::IntoZakatDecimal) -> Self {
+        Self {
+            key: key.into(),
+            description: description.into(),
+            amount: amount.into_zakat_decimal().ok(),
+            operation: Operation::Compare,
+            args: None,
+            reference: None,
+        }
+    }
+
+    pub fn rate(key: impl Into<String>, description: impl Into<String>, rate: impl crate::inputs::IntoZakatDecimal) -> Self {
+        CalculationStep {
+            key: key.into(),
+            description: description.into(),
+            amount: rate.into_zakat_decimal().ok(),
+            operation: Operation::Rate,
+            args: None,
+            reference: None,
+        }
+    }
+
+    pub fn result(key: impl Into<String>, description: impl Into<String>, amount: impl crate::inputs::IntoZakatDecimal) -> Self {
+        CalculationStep {
+            key: key.into(),
+            description: description.into(),
+            amount: amount.into_zakat_decimal().ok(),
+            operation: Operation::Result,
+            args: None,
+            reference: None,
+        }
+    }
+
+    pub fn info(key: impl Into<String>, description: impl Into<String>) -> Self {
+        CalculationStep {
+            key: key.into(),
+            description: description.into(),
+            amount: None,
+            operation: Operation::Info,
+            args: None,
+            reference: None,
+        }
+    }
+
+    pub fn with_reference(mut self, reference: impl Into<String>) -> Self {
+        self.reference = Some(reference.into());
+        self
+    }
+
+    pub fn with_args(mut self, args: std::collections::HashMap<String, String>) -> Self {
+        self.args = Some(args);
+        self
+    }
+}
+
+/// A collection of calculation steps that can be displayed or serialized.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+#[typeshare::typeshare]
+pub struct CalculationBreakdown(pub Vec<CalculationStep>);
+
+impl std::ops::Deref for CalculationBreakdown {
+    type Target = Vec<CalculationStep>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for CalculationBreakdown {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+// Allow creating from Vec
+impl From<Vec<CalculationStep>> for CalculationBreakdown {
+    fn from(v: Vec<CalculationStep>) -> Self {
+        CalculationBreakdown(v)
+    }
+}
+
+// Enable iteration
+impl IntoIterator for CalculationBreakdown {
+    type Item = CalculationStep;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl std::fmt::Display for CalculationBreakdown {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Find the maximum description length for alignment
+        let max_desc_len = self.0.iter()
+            .map(|step| step.description.len())
+            .max()
+            .unwrap_or(20)
+            .max(20);
+
+        for step in &self.0 {
+            let op_symbol = step.operation.to_string();
+
+            let amount_str = if let Some(amt) = step.amount {
+                if matches!(step.operation, Operation::Rate) {
+                     format!("{:.3}", amt)
+                } else {
+                     format!("{:.2}", amt)
+                }
+            } else {
+                String::new()
+            };
+
+            if matches!(step.operation, Operation::Info) {
+                 writeln!(f, "  INFO: {}", step.description)?;
+            } else if !amount_str.is_empty() {
+                 writeln!(f, "  {:<width$} : {} {:>10} ({:?})", 
+                    step.description, 
+                    op_symbol, 
+                    amount_str, 
+                    step.operation,
+                    width = max_desc_len
+                 )?;
+            } else {
+                 writeln!(f, "  {:<width$} : [No Amount] ({:?})", 
+                    step.description, 
+                    step.operation,
+                    width = max_desc_len
+                 )?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Represents the detailed breakdown of the Zakat calculation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
+
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub struct ZakatDetails {
+    /// Total assets subject to Zakat calculation.
+    #[typeshare(serialized_as = "string")]
+    pub total_assets: Decimal,
+    /// Liabilities that can be deducted from the total assets (Only debts due immediately).
+    #[deprecated(since = "1.1.0", note = "Use `liabilities` vector for granular liability tracking")]
+    #[typeshare(serialized_as = "string")]
+    pub liabilities_due_now: Decimal,
+    /// Named liabilities for granular tracking (v1.1+).
+    /// When calculating net assets, both `liabilities_due_now` and this vector are summed.
+    pub liabilities: Vec<Liability>,
+    /// Net assets after deducting liabilities (total_assets - liabilities_due_now).
+    #[typeshare(serialized_as = "string")]
+    pub net_assets: Decimal,
+    /// The Nisab threshold applicable for this type of wealth.
+    #[typeshare(serialized_as = "string")]
+    pub nisab_threshold: Decimal,
+    /// Whether Zakat is due (net_assets >= nisab_threshold).
+    pub is_payable: bool,
+    /// The final Zakat amount due.
+    #[typeshare(serialized_as = "string")]
+    pub zakat_due: Decimal,
+    /// The type of wealth this calculation is for.
+    pub wealth_type: WealthType,
+    /// Reason for the status, if not payable (e.g. "Hawl not met").
+    pub status_reason: Option<String>,
+    /// Optional label for the asset (e.g. "Main Store", "Gold Necklace").
+    pub label: Option<String>,
+    /// Unique identifier of the asset (v1.2+).
+    #[typeshare(skip)]
+    pub asset_id: Option<uuid::Uuid>,
+    /// Detailed payment payload (Monetary amount or specific assets like Livestock heads).
+    pub payload: PaymentPayload,
+    /// Step-by-step breakdown of how this calculation was derived.
+    pub calculation_breakdown: CalculationBreakdown,
+    /// Structured warnings about the calculation (v1.1+).
+    pub structured_warnings: Vec<CalculationWarning>,
+    /// Non-fatal warnings about the calculation (e.g., negative values clamped).
+    #[deprecated(since = "1.1.0", note = "Use `structured_warnings` for i18n support")]
+    pub warnings: Vec<String>,
+    /// Recommendation status (Feature 4: "Almost Payable" State).
+    /// Indicates if voluntary Sadaqah is recommended even when Zakat is not obligatory.
+    #[serde(default)]
+    pub recommendation: ZakatRecommendation,
+    /// Additional notes/rulings explaining the calculation logic (v1.3+).
+    #[serde(default)]
+    pub notes: Vec<String>,
+}
+
+/// Structured representation of a Zakat calculation for API consumers.
+///
+/// This struct allows frontend applications (e.g., React, Vue) to render their
+/// own UI without parsing pre-formatted strings.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[typeshare::typeshare]
+#[serde(rename_all = "camelCase")]
+pub struct ZakatExplanation {
+    /// Label of the asset (e.g., "Main Store", "Gold Necklace").
+    pub label: String,
+    /// Type of wealth (e.g., "Gold", "Business").
+    pub wealth_type: String,
+    /// Status of the calculation: "Payable" or "Exempt".
+    pub status: String,
+    /// The amount of Zakat due.
+    #[typeshare(serialized_as = "string")]
+    pub amount_due: Decimal,
+    // [NEW] Unified View Model Fields
+    /// Formatted total assets string.
+    pub formatted_total: String,
+    /// Formatted Zakat due string.
+    pub formatted_due: String,
+    /// Progress towards Nisab threshold (0.0 to 1.0).
+    pub nisab_progress: f64,
+    /// Currency code for the calculation.
+    pub currency_code: String,
+    /// Step-by-step calculation steps.
+    pub steps: Vec<CalculationStep>,
+    /// Non-fatal warnings about the calculation.
+    pub warnings: Vec<String>,
+    /// Additional notes (e.g., exemption reason).
+    pub notes: Vec<String>,
+}
+
+impl std::fmt::Display for ZakatExplanation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Explanation for '{}' ({}):", self.label, self.wealth_type)?;
+        writeln!(f, "{:-<50}", "")?;
+
+        // Print steps using CalculationBreakdown Display
+        let trace = CalculationBreakdown(self.steps.clone());
+        write!(f, "{}", trace)?;
+        
+        writeln!(f, "{:-<50}", "")?;
+        writeln!(f, "Status: {}", self.status)?;
+        
+        if self.status == "PAYABLE" {
+            writeln!(f, "Amount Due: {:.2}", self.amount_due)?;
+        }
+        
+        for note in &self.notes {
+            writeln!(f, "Reason: {}", note)?;
+        }
+
+        if !self.warnings.is_empty() {
+            writeln!(f)?;
+            writeln!(f, "WARNINGS:")?;
+            for warning in &self.warnings {
+                writeln!(f, " - {}", warning)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl ZakatDetails {
+    #[allow(deprecated)]
+    pub fn new(
+        total_assets: Decimal,
+        liabilities_due_now: Decimal,
+        nisab_threshold: Decimal,
+        rate: Decimal,
+        wealth_type: WealthType,
+    ) -> Self {
+        let mut net_assets = total_assets - liabilities_due_now;
+        let mut clamped_msg = None;
+        let mut warnings = Vec::new();
+        let mut structured_warnings = Vec::new();
+
+        // Business rule: If net assets are negative, clamp to zero.
+        if net_assets < Decimal::ZERO {
+            warn!("Net assets were negative ({}), clamped to zero.", net_assets);
+            structured_warnings.push(CalculationWarning::negative_assets_clamped(net_assets));
+            net_assets = Decimal::ZERO;
+            clamped_msg = Some("You are in debt (Net Assets Negative). Zakat is not due.");
+            warnings.push("You are in debt (Net Assets Negative). Zakat is not due.".to_string());
+        }
+
+        // For Nisab check: net_assets >= nisab_threshold
+        let is_payable = net_assets >= nisab_threshold && net_assets > Decimal::ZERO;
+        
+        let zakat_due = if is_payable {
+            net_assets * rate
+        } else {
+            Decimal::ZERO
+        };
+
+        // Feature 4: Calculate recommendation for "Almost Payable" state
+        let recommendation = Self::calculate_recommendation(is_payable, net_assets, nisab_threshold);
+
+        // Build default calculation trace
+        let mut trace = vec![
+            CalculationStep::initial("step-total-assets", "Total Assets", total_assets),
+            CalculationStep::subtract("step-liabilities", "Liabilities Due Now", liabilities_due_now),
+        ];
+
+        if let Some(msg) = clamped_msg {
+            trace.push(CalculationStep::info("warn-negative-clamped", msg));
+        }
+
+        trace.push(CalculationStep::result("step-net-assets", "Net Assets", net_assets));
+        trace.push(CalculationStep::compare("step-nisab-check", "Nisab Threshold", nisab_threshold));
+
+        if is_payable {
+            trace.push(CalculationStep::rate("step-rate-applied", "Applied Rate", rate));
+            trace.push(CalculationStep::result("status-due", "Zakat Due", zakat_due));
+        } else {
+            trace.push(CalculationStep::info("status-exempt", "Net Assets below Nisab - No Zakat Due"));
+            // Add recommendation info if applicable
+            if recommendation == ZakatRecommendation::Recommended {
+                trace.push(CalculationStep::info(
+                    "info-sadaqah-recommended",
+                    "Info: Wealth is near Nisab. Voluntary Sadaqah is recommended."
+                ));
+            }
+        }
+
+        ZakatDetails {
+            total_assets,
+            liabilities_due_now,
+            liabilities: Vec::new(),
+            net_assets,
+            nisab_threshold,
+            is_payable,
+            zakat_due,
+            wealth_type,
+            status_reason: clamped_msg.map(|s| s.to_string()),
+            label: None,
+            asset_id: None,
+            payload: PaymentPayload::Monetary(zakat_due),
+            calculation_breakdown: CalculationBreakdown(trace),
+            structured_warnings,
+            warnings,
+            recommendation,
+            notes: Vec::new(),
+        }
+    }
+
+    /// Calculates the recommendation status based on net assets and Nisab.
+    /// 
+    /// - If payable: `Obligatory`
+    /// - If net_assets >= 90% of Nisab but < 100%: `Recommended` (Sadaqah encouraged)
+    /// - Otherwise: `None`
+    fn calculate_recommendation(is_payable: bool, net_assets: Decimal, nisab_threshold: Decimal) -> ZakatRecommendation {
+        if is_payable {
+            return ZakatRecommendation::Obligatory;
+        }
+
+        if nisab_threshold <= Decimal::ZERO || net_assets <= Decimal::ZERO {
+            return ZakatRecommendation::None;
+        }
+
+        // Check if net_assets is >= 90% of Nisab
+        use rust_decimal_macros::dec;
+        let ninety_percent_nisab = nisab_threshold * dec!(0.9);
+        
+        if net_assets >= ninety_percent_nisab {
+            ZakatRecommendation::Recommended
+        } else {
+            ZakatRecommendation::None
+        }
+    }
+
+    /// Creates ZakatDetails with a custom calculation breakdown.
+    #[allow(deprecated)]
+    pub fn with_breakdown(
+        total_assets: Decimal,
+        liabilities_due_now: Decimal,
+        nisab_threshold: Decimal,
+        rate: Decimal,
+        wealth_type: WealthType,
+        mut breakdown: Vec<CalculationStep>,
+    ) -> Self {
+        let mut net_assets = total_assets - liabilities_due_now;
+        let mut warnings = Vec::new();
+        let mut structured_warnings = Vec::new();
+        
+        if net_assets < Decimal::ZERO {
+            warn!("Net assets were negative ({}), clamped to zero.", net_assets);
+            structured_warnings.push(CalculationWarning::negative_assets_clamped(net_assets));
+            net_assets = Decimal::ZERO;
+            breakdown.push(CalculationStep::info("warn-negative-clamped", "Net Assets are negative, clamped to zero for Zakat purposes"));
+            warnings.push("Net assets were negative and clamped to zero.".to_string());
+        }
+
+        let is_payable = net_assets >= nisab_threshold && net_assets > Decimal::ZERO;
+        
+        let zakat_due = if is_payable {
+            net_assets * rate
+        } else {
+            Decimal::ZERO
+        };
+
+        // Feature 4: Calculate recommendation
+        let recommendation = Self::calculate_recommendation(is_payable, net_assets, nisab_threshold);
+
+        // Add recommendation trace if applicable
+        if !is_payable && recommendation == ZakatRecommendation::Recommended {
+            breakdown.push(CalculationStep::info(
+                "info-sadaqah-recommended",
+                "Info: Wealth is near Nisab. Voluntary Sadaqah is recommended."
+            ));
+        }
+
+        ZakatDetails {
+            total_assets,
+            liabilities_due_now,
+            liabilities: Vec::new(),
+            net_assets,
+            nisab_threshold,
+            is_payable,
+            zakat_due,
+            wealth_type,
+            status_reason: None,
+            label: None,
+            asset_id: None,
+            payload: PaymentPayload::Monetary(zakat_due),
+            calculation_breakdown: CalculationBreakdown(breakdown),
+            structured_warnings,
+            warnings,
+            recommendation,
+            notes: Vec::new(),
+        }
+    }
+
+    /// Helper to create a non-payable ZakatDetail because it is below the threshold.
+    #[allow(deprecated)]
+    pub fn below_threshold(nisab_threshold: Decimal, wealth_type: WealthType, reason: &str) -> Self {
+        let trace = vec![
+            CalculationStep::info("status-exempt", reason.to_string()),
+        ];
+        
+        ZakatDetails {
+            total_assets: Decimal::ZERO,
+            liabilities_due_now: Decimal::ZERO,
+            liabilities: Vec::new(),
+            net_assets: Decimal::ZERO,
+            nisab_threshold,
+            is_payable: false,
+            zakat_due: Decimal::ZERO,
+            wealth_type,
+            status_reason: Some(reason.to_string()),
+            label: None,
+            asset_id: None,
+            payload: PaymentPayload::Monetary(Decimal::ZERO),
+            calculation_breakdown: CalculationBreakdown(trace),
+            structured_warnings: Vec::new(),
+            warnings: Vec::new(),
+            recommendation: ZakatRecommendation::None,
+            notes: Vec::new(),
+        }
+    }
+
+    pub fn with_payload(mut self, payload: PaymentPayload) -> Self {
+        self.payload = payload;
+        self
+    }
+
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+
+
+    /// Returns the Zakat due formatted as a string with 2 decimal places.
+    pub fn format_amount(&self) -> String {
+        use rust_decimal::RoundingStrategy;
+        // Format with 2 decimal places
+        let rounded = self.zakat_due.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+        format!("{:.2}", rounded)
+    }
+
+    /// Returns a concise status string (basic, non-localized).
+    /// Format: "{Label}: {Payable/Exempt} - Due: {Amount}"
+    /// 
+    /// For localized output, use `zakat-i18n` crate.
+    pub fn summary(&self) -> String {
+        let label_str = self.label.as_deref().unwrap_or("Asset");
+        let status = if self.is_payable { "PAYABLE" } else { "EXEMPT" };
+        let reason = if let Some(r) = &self.status_reason {
+             format!(" ({})", r)
+        } else {
+            String::new()
+        };
+        format!("{}: {}{} - Due: {:.2}", label_str, status, reason, self.zakat_due)
+    }
+
+    /// Converts this ZakatDetails into a structured `ZakatExplanation`.
+    ///
+    /// This is preferred for API consumers who want to render their own UI.
+    #[allow(deprecated)] // Uses deprecated `warnings` field for backward compat
+    pub fn to_explanation(&self, config: &crate::config::ZakatConfig) -> ZakatExplanation {
+        let label = self.label.clone().unwrap_or_else(|| "Asset".to_string());
+        let wealth_type = format!("{:?}", self.wealth_type);
+        let status = if self.is_payable { "PAYABLE".to_string() } else { "EXEMPT".to_string() };
+        
+        let mut notes = Vec::new();
+        if let Some(reason) = &self.status_reason {
+            notes.push(reason.clone());
+        }
+
+        // Calculate Nisab Progress (0.0 to 1.0)
+        let nisab_progress = if self.nisab_threshold > Decimal::ZERO {
+            use rust_decimal::prelude::ToPrimitive;
+            let ratio = (self.net_assets / self.nisab_threshold).to_f64().unwrap_or(0.0);
+            ratio.clamp(0.0, 1.0)
+        } else {
+            1.0 // If nisab is 0, everything is zakatable -> 100% progress
+        };
+
+        ZakatExplanation {
+            label,
+            wealth_type,
+            status,
+            amount_due: self.zakat_due,
+            formatted_total: config.format_currency(self.total_assets),
+            formatted_due: config.format_currency(self.zakat_due),
+            nisab_progress,
+            currency_code: config.currency_code.clone(),
+            steps: self.calculation_breakdown.0.clone(),
+            warnings: self.warnings.clone(),
+            notes,
+        }
+    }
+
+    /// Generates a basic human-readable explanation of the Zakat calculation.
+    ///
+    /// For localized output, use `zakat-i18n` crate.
+    pub fn explain(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl std::fmt::Display for ZakatDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let label_str = self.label.as_deref().unwrap_or("Asset");
+        let type_str = format!("{:?}", self.wealth_type);
+        
+        writeln!(f, "Asset: {} (Type: {})", label_str, type_str)?;
+        writeln!(f, "Net Assets: {} | Nisab: {}", self.net_assets, self.nisab_threshold)?;
+        
+        let status = if self.is_payable { "PAYABLE" } else { "EXEMPT" };
+        let reason_str = self.status_reason.as_deref().unwrap_or("");
+        
+        if self.is_payable {
+            write!(f, "Status: {} ({} due)", status, self.format_amount())
+        } else {
+            let reason_suffix = if !reason_str.is_empty() { format!(" - {}", reason_str) } else { String::new() };
+            write!(f, "Status: {}{}", status, reason_suffix)
+        }
+    }
+}
+
+// =============================================================================
+// Diagnostic Error Codes (Machine-readable for FFI consumers)
+// =============================================================================
+
+/// Standardized error codes for machine-readable error handling.
+///
+/// These codes enable frontends (React, Flutter, etc.) to programmatically
+/// identify and handle error types without parsing error messages.
+///
+/// # Example
+/// ```rust,ignore
+/// match error.error_code() {
+///     ZakatErrorCode::InvalidInput => show_validation_error(),
+///     ZakatErrorCode::BelowNisab => show_exempt_message(),
+///     _ => show_generic_error(),
+/// }
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema)]
+#[typeshare::typeshare]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ZakatErrorCode {
+    /// Invalid input value provided (e.g., negative weight, invalid purity)
+    #[default]
+    InvalidInput,
+    /// Required configuration field is missing (e.g., gold/silver price)
+    ConfigMissing,
+    /// Numeric overflow during calculation
+    CalculationOverflow,
+    /// Network-related error (e.g., fetching live prices)
+    NetworkError,
+    /// Requested asset was not found in portfolio
+    AssetNotFound,
+    /// Hawl (holding period) requirement not met
+    HawlNotMet,
+    /// Network assets below Nisab threshold
+    BelowNisab,
+    /// General calculation error
+    CalculationError,
+    /// Multiple validation errors occurred
+    MultipleErrors,
+    /// Configuration error (not just missing, but invalid)
+    ConfigError,
+}
+
+impl std::fmt::Display for ZakatErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let code = match self {
+            ZakatErrorCode::InvalidInput => "INVALID_INPUT",
+            ZakatErrorCode::ConfigMissing => "CONFIG_MISSING",
+            ZakatErrorCode::CalculationOverflow => "CALCULATION_OVERFLOW",
+            ZakatErrorCode::NetworkError => "NETWORK_ERROR",
+            ZakatErrorCode::AssetNotFound => "ASSET_NOT_FOUND",
+            ZakatErrorCode::HawlNotMet => "HAWL_NOT_MET",
+            ZakatErrorCode::BelowNisab => "BELOW_NISAB",
+            ZakatErrorCode::CalculationError => "CALCULATION_ERROR",
+            ZakatErrorCode::MultipleErrors => "MULTIPLE_ERRORS",
+            ZakatErrorCode::ConfigError => "CONFIG_ERROR",
+        };
+        write!(f, "{}", code)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ErrorDetails {
+    /// Machine-readable error code for programmatic handling.
+    #[serde(default)]
+    pub code: ZakatErrorCode,
+    pub reason_key: String,
+    pub args: Option<std::collections::HashMap<String, String>>,
+    pub source_label: Option<String>,
+    pub asset_id: Option<uuid::Uuid>,
+    /// Actionable suggestion for how to fix the error.
+    pub suggestion: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct InvalidInputDetails {
+    /// Machine-readable error code for programmatic handling.
+    #[serde(default)]
+    pub code: ZakatErrorCode,
+    pub field: String,
+    pub value: String,
+    pub reason_key: String,
+    pub args: Option<std::collections::HashMap<String, String>>,
+    pub source_label: Option<String>,
+    pub asset_id: Option<uuid::Uuid>,
+    /// Actionable suggestion for how to fix the error.
+    pub suggestion: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, thiserror::Error)]
+pub enum ZakatError {
+    #[error("Calculation error: {0:?}")]
+    CalculationError(Box<ErrorDetails>),
+
+    #[error("Invalid input: {0:?}")]
+    InvalidInput(Box<InvalidInputDetails>),
+
+    #[error("Configuration error: {0:?}")]
+    ConfigurationError(Box<ErrorDetails>),
+    
+    #[error("Calculation overflow in '{operation}'")]
+    Overflow {
+        operation: String,
+        source_label: Option<String>,
+        asset_id: Option<uuid::Uuid>,
+    },
+
+    #[error("Missing configuration: {field}")]
+    MissingConfig {
+        field: String,
+        source_label: Option<String>,
+        asset_id: Option<uuid::Uuid>,
+    },
+
+    #[error("Multiple validation errors occurred")]
+    MultipleErrors(Vec<ZakatError>),
+
+    #[error("Network error: {0}")]
+    NetworkError(String),
+}
+
+impl ZakatError {
+    /// Returns the structured error code enum for programmatic handling.
+    ///
+    /// This is preferred over `code()` for new code as it provides type safety
+    /// and enables exhaustive pattern matching.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// match err.error_code() {
+    ///     ZakatErrorCode::InvalidInput => handle_validation(),
+    ///     ZakatErrorCode::BelowNisab => show_exempt_message(),
+    ///     _ => handle_generic(),
+    /// }
+    /// ```
+    pub fn error_code(&self) -> ZakatErrorCode {
+        match self {
+            ZakatError::CalculationError(d) => d.code,
+            ZakatError::InvalidInput(d) => d.code,
+            ZakatError::ConfigurationError(d) => d.code,
+            ZakatError::MissingConfig { .. } => ZakatErrorCode::ConfigMissing,
+            ZakatError::Overflow { .. } => ZakatErrorCode::CalculationOverflow,
+            ZakatError::MultipleErrors(_) => ZakatErrorCode::MultipleErrors,
+            ZakatError::NetworkError(_) => ZakatErrorCode::NetworkError,
+        }
+    }
+
+    /// Returns a standardized error code string for FFI consumers.
+    ///
+    /// **Deprecated**: Use `error_code()` for new code to get the typed enum.
+    ///
+    /// These codes are used by all FFI bindings (Python, Dart, WASM) to
+    /// programmatically identify error types without parsing error messages.
+    pub fn code(&self) -> &'static str {
+        match self {
+            ZakatError::CalculationError(_) => "CALCULATION_ERROR",
+            ZakatError::InvalidInput(_) => "INVALID_INPUT",
+            ZakatError::ConfigurationError(_) => "CONFIG_ERROR",
+            ZakatError::MissingConfig { .. } => "MISSING_CONFIG",
+            ZakatError::Overflow { .. } => "OVERFLOW",
+            ZakatError::MultipleErrors(_) => "MULTIPLE_ERRORS",
+            ZakatError::NetworkError(_) => "NETWORK_ERROR",
+        }
+    }
+
+    pub fn with_source(self, source: String) -> Self {
+        match self {
+            ZakatError::CalculationError(mut details) => {
+                details.source_label = Some(source);
+                ZakatError::CalculationError(details)
+            },
+            ZakatError::InvalidInput(mut details) => {
+                details.source_label = Some(source);
+                ZakatError::InvalidInput(details)
+            },
+            ZakatError::ConfigurationError(mut details) => {
+                details.source_label = Some(source);
+                ZakatError::ConfigurationError(details)
+            },
+            ZakatError::Overflow { operation, asset_id, .. } => ZakatError::Overflow {
+                operation,
+                source_label: Some(source),
+                asset_id,
+            },
+            ZakatError::MissingConfig { field, asset_id, .. } => ZakatError::MissingConfig {
+                field,
+                source_label: Some(source.clone()),
+                asset_id,
+            },
+            ZakatError::MultipleErrors(errors) => ZakatError::MultipleErrors(
+                errors.into_iter().map(|e| e.with_source(source.clone())).collect()
+            ),
+            ZakatError::NetworkError(msg) => ZakatError::NetworkError(msg),
+        }
+    }
+
+    /// Sets the asset ID for debugging purposes.
+    pub fn with_asset_id(self, id: uuid::Uuid) -> Self {
+        match self {
+            ZakatError::CalculationError(mut details) => {
+                details.asset_id = Some(id);
+                ZakatError::CalculationError(details)
+            },
+            ZakatError::InvalidInput(mut details) => {
+                details.asset_id = Some(id);
+                ZakatError::InvalidInput(details)
+            },
+            ZakatError::ConfigurationError(mut details) => {
+                details.asset_id = Some(id);
+                ZakatError::ConfigurationError(details)
+            },
+            ZakatError::Overflow { operation, source_label, .. } => ZakatError::Overflow {
+                operation,
+                source_label,
+                asset_id: Some(id),
+            },
+            ZakatError::MissingConfig { field, source_label, .. } => ZakatError::MissingConfig {
+                field,
+                source_label,
+                asset_id: Some(id),
+            },
+            ZakatError::MultipleErrors(errors) => ZakatError::MultipleErrors(
+                errors.into_iter().map(|e| e.with_asset_id(id)).collect()
+            ),
+            ZakatError::NetworkError(msg) => ZakatError::NetworkError(msg),
+        }
+    }
+
+    /// Reports the error as a user-friendly message (basic, non-localized).
+    /// For localized output, use `zakat-i18n` crate.
+    pub fn report(&self) -> String {
+        let base_msg = match self {
+            ZakatError::CalculationError(details) => {
+                let msg = &details.reason_key;
+                if let Some(lbl) = &details.source_label {
+                    format!("{} (Asset: {})", msg, lbl)
+                } else {
+                    msg.clone()
+                }
+            },
+            ZakatError::InvalidInput(details) => {
+                format!("Invalid input for '{}': {} (Value: {})", details.field, details.reason_key, details.value)
+            },
+            ZakatError::ConfigurationError(details) => {
+                details.reason_key.clone()
+            },
+            ZakatError::MissingConfig { field, .. } => {
+                format!("Missing required configuration: {}", field)
+            },
+            ZakatError::Overflow { operation, .. } => {
+                format!("Calculation overflow: {}", operation)
+            },
+            ZakatError::MultipleErrors(errs) => {
+                let msgs: Vec<String> = errs.iter().map(|e| e.report()).collect();
+                msgs.join("; ")
+            },
+            ZakatError::NetworkError(msg) => msg.clone(),
+        };
+        
+        // Append suggestion if present
+        let suggestion = match self {
+            ZakatError::CalculationError(details) => details.suggestion.as_ref(),
+            ZakatError::InvalidInput(details) => details.suggestion.as_ref(),
+            ZakatError::ConfigurationError(details) => details.suggestion.as_ref(),
+            _ => None,
+        };
+        
+        if let Some(sug) = suggestion {
+            format!("{}. Suggestion: {}", base_msg, sug)
+        } else {
+            base_msg
+        }
+    }
+
+    /// Generates a user-friendly error report.
+    pub fn report_default(&self) -> String {
+        self.report()
+    }
+
+    fn get_hint(&self) -> &'static str {
+         match self {
+            ZakatError::ConfigurationError(details) => {
+                if details.reason_key.contains("gold-price") || details.reason_key.contains("silver-price") {
+                    "Suggestion: Set prices in ZakatConfig using .with_gold_price() / .with_silver_price()"
+                } else {
+                    "Suggestion: Check ZakatConfig setup."
+                }
+            },
+            ZakatError::MissingConfig { field, .. } => {
+                if field.contains("price") {
+                     "Suggestion: Set missing price in ZakatConfig."
+                } else {
+                     "Suggestion: Ensure all required configuration fields are set."
+                }
+            },
+            ZakatError::InvalidInput(_) => "Suggestion: Ensure all input values are non-negative and correct.",
+            ZakatError::NetworkError(_) => "Suggestion: Check internet connection or API availability.",
+            _ => "Suggestion: Check input data accuracy."
+        }
+    }
+
+    /// Returns a structured JSON context for the error.
+    /// Useful for WASM/Frontend consumers.
+    pub fn context(&self) -> serde_json::Value {
+        use serde_json::json;
+        match self {
+             ZakatError::InvalidInput(details) => json!({
+                 "code": "INVALID_INPUT",
+                 "message": details.reason_key,
+                 "field": details.field,
+                 "value": details.value,
+                 "source": details.source_label,
+                 "hint": self.get_hint()
+             }),
+             ZakatError::ConfigurationError(details) => json!({
+                 "code": "CONFIG_ERROR",
+                 "message": details.reason_key,
+                 "source": details.source_label,
+                 "hint": self.get_hint()
+             }),
+             ZakatError::MissingConfig { field, source_label, .. } => json!({
+                 "code": "MISSING_CONFIG",
+                 "message": format!("Missing required field: {}", field),
+                 "field": field,
+                 "source": source_label,
+                 "hint": self.get_hint()
+             }),
+             ZakatError::CalculationError(details) => json!({
+                 "code": "CALCULATION_ERROR",
+                 "message": details.reason_key,
+                 "source": details.source_label,
+                 "hint": self.get_hint()
+             }),
+             ZakatError::Overflow { operation, source_label, .. } => json!({
+                 "code": "OVERFLOW",
+                 "message": format!("Overflow in operation: {}", operation),
+                 "source": source_label,
+                 "hint": self.get_hint()
+             }),
+             ZakatError::MultipleErrors(errors) => json!({
+                 "code": "MULTIPLE_ERRORS",
+                 "message": "Multiple validation errors occurred",
+                 "errors": errors.iter().map(|e| e.context()).collect::<Vec<_>>()
+             }),
+             ZakatError::NetworkError(msg) => json!({
+                 "code": "NETWORK_ERROR",
+                 "message": msg,
+                 "hint": self.get_hint()
+             })
+        }
+    }
+}
+
+// Removing ZakatErrorConstructors as we want to enforce structured creation
+
+
+/// Helper enum to categorize wealth types
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, strum::Display, strum::EnumString, schemars::JsonSchema)]
+#[typeshare::typeshare]
+#[serde(tag = "type", content = "content", rename_all = "camelCase")]
+pub enum WealthType {
+    Fitrah,
+    Gold,
+    Silver,
+    Business,
+    Agriculture,
+    Livestock,
+    Income,
+    Investment,
+    Mining,
+    Rikaz,
+    Other(String),
+}
+
+impl WealthType {
+    /// Checks if the wealth type is considered "monetary" (Amwal Zakawiyyah)
+    /// and should be aggregated for Nisab calculation under "Dam' al-Amwal".
+    pub fn is_monetary(&self) -> bool {
+        matches!(
+            self,
+            WealthType::Gold | WealthType::Silver | WealthType::Business | WealthType::Income | WealthType::Investment
+        )
+    }
+}
+
+impl crate::inputs::ToFfiString for WealthType {
+    fn to_ffi_string(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl crate::inputs::FromFfiString for WealthType {
+    type Err = strum::ParseError;
+    fn from_ffi_string(s: &str) -> Result<Self, Self::Err> {
+        use std::str::FromStr;
+        Self::from_str(s)
+    }
+}
+
+#[cfg(feature = "uniffi")]
+use uniffi::Record;
+
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "uniffi", derive(Record))]
+pub struct FfiZakatDetails {
+    pub total_assets: String,
+    pub liabilities_due_now: String,
+    pub net_assets: String,
+    pub nisab_threshold: String,
+    pub is_payable: bool,
+    pub zakat_due: String,
+    pub wealth_type: String, // debug formatted string
+    pub status_reason: Option<String>,
+    pub label: Option<String>,
+    pub warnings: Vec<String>,
+}
+
+#[allow(deprecated)] // Uses deprecated `liabilities_due_now` and `warnings` for backward compat
+impl From<ZakatDetails> for FfiZakatDetails {
+    fn from(src: ZakatDetails) -> Self {
+        Self {
+            total_assets: src.total_assets.to_string(),
+            liabilities_due_now: src.liabilities_due_now.to_string(),
+            net_assets: src.net_assets.to_string(),
+            nisab_threshold: src.nisab_threshold.to_string(),
+            is_payable: src.is_payable,
+            zakat_due: src.zakat_due.to_string(),
+            wealth_type: format!("{:?}", src.wealth_type),
+            status_reason: src.status_reason,
+            label: src.label,
+            warnings: src.warnings,
+        }
+    }
+}
+// kept for backward compat if needed within file, or empty mod
+#[cfg(feature = "uniffi")]
+pub mod uniffi_types {
+    pub type UniffiZakatDetails = super::FfiZakatDetails;
+    pub type UniffiZakatError = super::FfiZakatError;
+}
+
+// =============================================================================
+// FFI Error Type (Auto-generated projection for FFI boundaries)
+// =============================================================================
+
+/// Unified FFI-compatible error structure for WASM, UniFFI, and other FFI targets.
+/// 
+/// This struct eliminates the need for manual error type maintenance in each
+/// FFI target module (wasm.rs, kotlin.rs, etc.). If you add a new variant to
+/// `ZakatError`, the `From<ZakatError>` implementation below handles it automatically.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
+pub struct FfiZakatError {
+    /// Error code for programmatic handling (e.g., "CALCULATION_ERROR", "INVALID_INPUT")
+    pub code: String,
+    /// Human-readable error message
+    pub message: String,
+    /// The field that caused the error (if applicable)
+    pub field: Option<String>,
+    /// Additional hint for fixing the error
+    pub hint: Option<String>,
+    /// Source label (which asset caused this error)
+    pub source_label: Option<String>,
+}
+
+impl From<ZakatError> for FfiZakatError {
+    fn from(err: ZakatError) -> Self {
+        // Use default translator for message
+        let message = err.report_default();
+        // Use the enum's Display impl for consistent code strings
+        let code = err.error_code().to_string();
+        
+        match err {
+            ZakatError::CalculationError(details) => FfiZakatError {
+                code,
+                message,
+                field: None,
+                hint: details.suggestion,
+                source_label: details.source_label,
+            },
+            ZakatError::InvalidInput(details) => FfiZakatError {
+                code,
+                message,
+                field: Some(details.field),
+                hint: details.suggestion.or(Some(details.value)),
+                source_label: details.source_label,
+            },
+            ZakatError::ConfigurationError(details) => FfiZakatError {
+                code,
+                message,
+                field: None,
+                hint: details.suggestion,
+                source_label: details.source_label,
+            },
+            ZakatError::MissingConfig { field, source_label, .. } => FfiZakatError {
+                code,
+                message,
+                field: Some(field),
+                hint: None,
+                source_label,
+            },
+            ZakatError::Overflow { operation, source_label, .. } => FfiZakatError {
+                code,
+                message,
+                field: Some(operation),
+                hint: None,
+                source_label,
+            },
+            ZakatError::MultipleErrors(ref errs) => FfiZakatError {
+                code,
+                message: format!("{} errors occurred: {}", errs.len(), message),
+                field: None,
+                hint: None,
+                source_label: None,
+            },
+            ZakatError::NetworkError(_) => FfiZakatError {
+                code,
+                message,
+                field: None,
+                hint: None,
+                source_label: None,
+            },
+        }
+    }
+}
+
+// WASM-specific error conversion (requires "wasm" feature)
+#[cfg(feature = "wasm")]
+impl From<FfiZakatError> for wasm_bindgen::JsValue {
+    fn from(err: FfiZakatError) -> Self {
+        serde_wasm_bindgen::to_value(&err)
+            .unwrap_or_else(|_| wasm_bindgen::JsValue::from_str(&err.message))
+    }
+}
+
+// Helper to convert ZakatError directly to JsValue for WASM
+#[cfg(feature = "wasm")]
+impl From<ZakatError> for wasm_bindgen::JsValue {
+    fn from(err: ZakatError) -> Self {
+        let ffi_err: FfiZakatError = err.into();
+        ffi_err.into()
+    }
+}
+
+// =============================================================================
+// Telemetry / Audit Hooks (Task 5: CalculationObserver)
+// =============================================================================
+
+/// A trait for observing Zakat calculation events.
+///
+/// Implementations can be used for:
+/// - Logging/auditing calculation steps
+/// - Telemetry and analytics
+/// - Debugging calculation flows
+/// - Custom reporting
+///
+/// # Example
+/// ```rust,ignore
+/// struct LoggingObserver;
+///
+/// impl CalculationObserver for LoggingObserver {
+///     fn on_step(&self, step: &CalculationStep) {
+///         println!("Step: {:?} = {}", step.label, step.value);
+///     }
+///
+///     fn on_result(&self, details: &ZakatDetails) {
+///         println!("Result: {} due", details.zakat_due);
+///     }
+/// }
+/// ```
+pub trait CalculationObserver: Send + Sync {
+    /// Called for each calculation step.
+    fn on_step(&self, step: &CalculationStep);
+    
+    /// Called when a warning is generated.
+    fn on_warning(&self, warning: &CalculationWarning) {
+        let _ = warning; // Default: no-op
+    }
+    
+    /// Called when calculation is complete with full result.
+    fn on_result(&self, details: &ZakatDetails) {
+        let _ = details; // Default: no-op
+    }
+    
+    /// Called when an error occurs during calculation.
+    fn on_error(&self, error: &ZakatError) {
+        let _ = error; // Default: no-op
+    }
+}
+
+/// A no-op observer that does nothing.
+/// Used as default when no observer is configured.
+pub struct NoOpObserver;
+
+impl CalculationObserver for NoOpObserver {
+    fn on_step(&self, _step: &CalculationStep) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn test_long_term_liability_cap() {
+        // Monthly payment 1000. Total amount 50,000.
+        // Cap should be 12,000.
+        let liab = Liability::long_term("House Loan", dec!(50000), dec!(1000));
+        
+        assert_eq!(liab.amount, dec!(50000));
+        assert_eq!(liab.monthly_payment, Some(dec!(1000)));
+        
+        // We test the logic used in the zakat_asset! macro indirectly by looking at how it's calculated.
+        // Since the macro is in another crate/module, we can just verify the struct fields here.
+    }
+}
