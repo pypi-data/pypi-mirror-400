@@ -1,0 +1,217 @@
+# Changelog
+
+## Version 2.3.0 (Jan 6, 2026)
+
+- Support for Python 3.14
+- Support for objects that implement the __str__ interface (see issue #164)
+- Support for modern GCC (see issue #165)
+
+## Version 2.2.0 (May 19, 2025)
+
+- Test improvements (determinism + increased coverage)
+- Sanitize `calc_tm` input (see issue #115)
+- Modernize build system & release process (see issue #154)
+
+## Version 2.1.0 (February 26, 2025)
+
+- Support for python 3.13
+- Silence stderr output during ascii structure generation (issue #146)
+- Updated default formamide concentration to match latest primer3web value + oligotm default (issue #140)
+
+## Version 2.0.3 (February 15, 2024)
+
+- Fix `_ThermoAnalysis._set_globals_and_seq_args` for improper checks on `misprime_lib` and
+`mishyb_lib` leading to incorrect initialization of `mp_lib` and `mh_lib`. See issue #133
+
+## Version 2.0.2 (February 9, 2024)
+
+- Support for python 3.12 (build, test, docs)
+
+## Version 2.0.1 (September 18, 2023)
+
+- Fixed bug in `todict` method of `ThermoAnalysis`
+
+## Version 2.0.0 (May 30, 2023)
+
+- Migrated primer3 header file Cython extern imports to `thermoanalysis.pxi`
+- Optional C structure string argument `c_ascii_structure` added to `_ThermoAnalysis` methods to enable 3rd party use for structures
+- Version bump to 2.0.0 due to breaking change
+- Fix issue whereby no_structure is not correctly 1 set to 1 when no secondary structure in found
+- Add list version of `PRIMER_{PAIR, LEFT, RIGHT, INTERNAL}` to design output dictionary keys. Retaining original keys as well for compatibility.
+- Fix for  missing `thal_result.sec_struct` and `dpal_results.sec_struct` initialization to `NULL` in `recalc_primer_sec_struct`
+
+## Version 1.2.2 (May 16, 2023)
+
+- Bug fixes for output formatting related to penalty, "problem", and mispriming fields
+
+## Version 1.2.1 (April 28, 2023)
+
+- Bug fixes for `pdh_create_seq_lib` to correct missing `seq_lib` datastructure allocation and variable name typos.
+- Increase test coverage to include `misprime_lib` and `mishyb_lib` arguments
+
+## Version 1.2.0 (March 22, 2023)
+
+- Threadsafe changes made to `thal.c` resulting in new  `thalflex.c` and `thalflex.h` and `thalflexsignatures.h`.
+- Threadsafe changes made to `libprimer3.c` resulting in new  `libprimer3flex.c` and `ibprimer3flex.c.h`.
+- `libprimer3.seq_args` datatype is now renamed to `libprimer3.seq_args_t`
+- `test_threadsafe.py` add and `nogil` instituted for calls to `thal()` and `seqtm()` added `run_design` and `calc_heterodimer` threadsafe tests
+- `ThermoAnalysis` class no longer needs to be a `Singleton` so this was removed as a parent class
+- `p3helpers.pyx` houses new sequence and design helper functions
+- `setup.py` `package_data` and `MANIFEST.in` to assist with future builds from `tar.gz` (`conda`)
+
+## Version 1.1.0 (March 1, 2023)
+
+ - Added specificity to error non-N IUPAC error for issue #59
+ - Wheel build support for python 3.8 to move towards following the CPython EOL model for issue #88. See https://devguide.python.org/versions/
+
+
+## Version 1.0.0 (February 11, 2023)
+
+- Migrated `primer3` source to 2.6.1 version, which adds new arguments for melting temperature code
+- Intergrated all Python C-API related code into `thermoanalysis.pyx`/`pxd`
+- Deprecated `camelCase` related functions and added `snake_case` functions / methods in `bindings.py` and `thermoanalysis.pyx`
+- Migrated `primer3/wrappers.py` to `tests/wrappers.py` to indicate it should not be used.
+- Expanded test coverage and now using pytest for testing
+- Added `pre-commit` hooks
+- Call signature update and pattern update: `designPrimers` now `design_primers` integrates setting of sequence arguments and global arguments as they are coupled in `primer3_boulder_main.c`.
+  Note `primer3.primerdesign` was removed, including `setGlobals`.
+  Replace `setGlobals(GLOBALS, MISPRIME, MISHYB)` and `designPrimers(SEQARGS)` with a single call `design_primers(SEQARGS, GLOBALS, MISPRIME, MISHYB)`.
+- `primer3` C code bug fixes to improve compiler warnings
+- Using `primer3` `read_boulder_record` to setup primer3 data structures instead of reproducing code in `primer3-py` C or Cython via a code signature update
+- `drawDimer` and `drawHairpin` updates to unify sequence structure output for testing
+- Integrated GitHub Actions for CI testing
+- Updated `sphinx` documentation
+- Begin process of making `primer3-py` code thread-safe
+- Documentation migrated to `MyST` Markdown
+- Autobuild GitHub action for `PyPI` wheels and dist `tar.gz` on version tag
+- Autobuild GitHub action `sphinx` documentation updates on version tag
+
+
+## Version 0.6.1 (May 9, 2020)
+
+- Fixed issue related to absolute paths populated in `SOURCES.txt` of sdist
+- Clean up in `setup.py` and better Windows build support
+
+## Version 0.6.0 (May 10, 2019)
+
+- Added functionality for bindings to expose the ASCII representation of
+  computed dimer and hairpin structures
+
+## Version 0.5.7 (August 10, 2018)
+
+- Changes to upper case sequences in seqtm() in oligotm.c because calls to `ThermoAnalysis.calcTm` returned 0.0 for strings with lower case letters
+- disabled existing tests on Windows due to incompatibility with process and
+memory calls.  TODO: create more tests for `ThermoAnalysis`
+
+## Version 0.5.6 (July 12, 2018)
+
+- Fixes to `primerdesign_helpers.c` C macro errors.
+- Added the `todict(`)` methods in `t`hermoanalysis.pyx` for serialization help for
+  tests there
+
+## Version 0.5.5 (October 30, 2017)
+
+- Remove unicode character from `README.rst`
+
+## Version 0.5.4 (June 20, 2017)
+
+- Migration of Cython extension build process to `build_clib` to remove Cython
+  as a runtime requirement for `setup.py` (thanks to @tdsmith)
+
+## Version 0.5.3 (May 6, 2017)
+
+- Fixed improper assignment of `"PRIMER_PAIR_MAX_COMPL_END_TH"` during design
+  arg parsing
+
+## Version 0.5.2 (May 1, 2017)
+
+- Fixed issue where `pa->num_intervals` was not properly set via the bindings
+- Fixed typo that caused incorrect output for `PRIMER_PAIR_EXPLAIN`
+
+## Version 0.5.1 (May 25, 2016)
+
+- Update `thal.c` to incorporate traceback fix from Primer3 dev team
+  (thanks Triinu)
+
+## Version 0.5.0 (February 25, 2016)
+
+- Update `libprimer3` to version 2.3.7
+- Better test coverage for low level bindings
+
+## Version 0.4.3 (December 1, 2015)
+
+- Fixed compilation errors, unicode-related build problems
+- Fixed memory allocation / deallocation issues with mispriming libraries
+
+## Version 0.4.2 (September 18, 2015)
+
+- Added `misprimingCheck` function to `primer3/thermoanalysis.pyx`
+- Corrected unclear syntax in C API code
+
+## Version 0.4.1 (November 28, 2014)
+
+- Better documentation regarding max. seq. lengths for thermo. calcs
+- `calcHairpin`, `calcHomodimer`, `calcHeterodimer`, and `calcEndStability` now raise
+  `RuntimeError`s as appropriate
+
+## Version 0.4.0 (November 25, 2014)
+
+- Several major bug fixes in the design bindings pipeline
+- Better testing framework for the design bindings
+- New documentation system
+- Better under-the-hood thermodynamic analysis abstraction
+
+## Version 0.3.1 (August 13, 2014)
+
+- Improved support for sequences stored in Bytes objects
+- Renamed getThermoParams to loadThermoParams for clarity
+
+## Version 0.3.0 (August 12, 2014)
+
+- Fixed memory leak in global param struct allocation for design bindings
+- Integrated C API patch code into `libprimer3`
+- Refactored `libprimer3` to pure C (`khash` lib is now used in lieu of hashmap)
+- Corrected many minor compiler warnings in `libprimer3`
+- (POTENTIAL BREAKING CHANGE) Refactored thermodynamic alignment bindings to
+  always return a thermoresult namedtuple (in the previous embodiment, if no
+  structure was found, the return value was `None`)
+
+## Version 0.2.5 (August 7, 2014)
+
+- Fixed incorrect tm/salt correction method lookups in `calcTm` function in
+  both bindings and wrappers
+
+## Version 0.2.4 (June 17, 2014)
+
+- Addressed bug in mispriming/mishybridization library parsing in which
+  memory for the global parameters struct was not being properly allocated
+
+## Version 0.2.3 (June 5, 2014)
+
+- Corrected several potential sources of memory leaks in the C API design
+  bindings.
+
+## Version 0.2.2 (June 3, 2014)
+
+- Corrected issue with parsing `"SEQUENCE_PRIMER_PAIR_OK_REGION_LIST"` as a
+  python sequence object. `"SEQUENCE_PRIMER_PAIR_OK_REGION_LIST"` should now
+  be provided as a list of lists or tuple of tuples (or a combination of the
+  two). -1 should be used in the case where an index is ommitted. For example:
+
+  ```
+  Primer3 boulder IO input:   100,50,300,50 ; 900,60,,
+  Primer3 python input:       [[100,50,300,50], [900,60,-1,-1]]
+  ```
+
+## Version 0.2.1 (April 24, 2014)
+
+- C API path fix
+
+## Version 0.2 (April 23, 2014)
+
+- Corrected installation issue (replace inplace with `build_lib` in `setup.cfg`)
+- Documentation updates
+-
+## Version 0.1 (March 3, 2014)
+
+- Initial release
