@@ -1,0 +1,48 @@
+LOCALHOST_KEY = """
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwrpG9Lybc4IxSH2140nh
+s7xURUWiWfG2ogF7xhLWpos38VhnvAIxqCOyjaxhSe3RbA6ivsNuKnBvFGS2lcg7
+QKOqpEfBP7DX+0IUKN4YxG5sEIkR0+3R7i+2VroVPOK/ogJ28sfGAmOpgMja+YTp
+sT7ia+DP7Ho4zQ85bolHRerBV26T0WAwT8oRyQ7rBZU7Y30Qm5els6RHcUit/8s7
+1bnN14Jd9KeZVOoNhD6ozwTl8JtIsOYdC2n3IwkALvMcWzlFKYbEyaFOebV1KsBK
+TKo+4JU4/XwsHn8bvIkZC2AeXq6Gy87TA/d63z/5au4hRAifgEWUxn3CHVO6+8UT
+CwIDAQAB
+-----END PUBLIC KEY-----
+"""
+
+DEV_KEY = """
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkcMZwPXNpr9aMz9Op3/K
+6TsoL0bcEpO74vEe/ybQk9vjymjAXrVQGx75ffQGpH6R8XLCjq6qBguz5EbawLKD
+fjdaqVlr8pUN5IiFyVBokhivQFCb3dwDb13360MRBo/5YbNyriwBv2zEl7fSKeG3
+/UKB7M87iO26Ui/C/UlCMJBpaHWOivaUAut99e13e8SFI1hD5Bx5ZLAJRHB0EDqr
+WlhHoGeaIfn1gG6NDymDhndBUBq9/7T4jlTQv9OhFIRRLpGpAAVcJNYfGS7g2Vga
+3i4HjFJ/dkcU9cwt1HJqyfjQJAFCKynjyk0YDyRu6YVJxh8Gkb7yH7D1UhY4D0TI
+ywIDAQAB
+-----END PUBLIC KEY-----
+"""
+
+PROD_KEY = """
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw6c0ygDz9SkTMYHWAk0a
+i2sQG+9C05Pk7BLpCU61W9+Xpoho+jBt1NkRgSXUbOT59t6JfWLON9V6H8xzw3d1
+ywqwu9OjfoytYRiIjlEjlNUZZX+6B6u2LQiXwP3ov1tmZO1fPVtCoP3NanRc+b2d
+EYkvPEgJAjjKqdm5f3uOyEkmQut/15McK8XGo6w8p0WBj1bGoy1LKS6u4Ymu4lNq
+kLEQb8eYrxThA6/tKjew/W61/K93/TVIrxOh0+NZVftEP8SFmIafApxuiLayrqbU
+i+QaMtZ+MvSnNVc94B07XB9H9oDBGj05TV4UVAjTFNG5iELmtZJrSt8M97xmf1FY
+8wIDAQAB
+-----END PUBLIC KEY-----
+"""
+
+SERVER_URL_PROD = "https://cloud.remotivelabs.com"
+SERVER_URL_DEV = "https://cloud-dev.remotivelabs.com"
+
+
+def public_key(server_url: str = SERVER_URL_PROD) -> str:
+    if server_url == SERVER_URL_PROD:
+        return PROD_KEY
+    if server_url == SERVER_URL_DEV:
+        return DEV_KEY
+    if "localhost" in server_url or "host.docker.internal" in server_url:
+        return LOCALHOST_KEY
+    return PROD_KEY
