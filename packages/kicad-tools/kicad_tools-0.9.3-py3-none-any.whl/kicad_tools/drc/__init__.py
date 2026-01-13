@@ -1,0 +1,80 @@
+"""DRC (Design Rule Check) report parsing and validation.
+
+This module provides tools for parsing KiCad DRC reports and validating
+PCB designs against manufacturer design rules.
+
+Example:
+    >>> from kicad_tools.drc import DRCReport, DRCViolation
+    >>> report = DRCReport.load("design-drc.rpt")
+    >>> print(f"Found {report.violation_count} violations")
+    >>> for v in report.errors:
+    ...     print(f"  {v.type}: {v.message}")
+
+With fix suggestions:
+    >>> from kicad_tools.drc import generate_fix_suggestions
+    >>> for v in report.errors:
+    ...     suggestion = generate_fix_suggestions(v)
+    ...     if suggestion:
+    ...         print(f"  Fix: {suggestion.description}")
+"""
+
+from .checker import (
+    CheckResult,
+    ManufacturerCheck,
+    check_manufacturer_rules,
+)
+from .incremental import (
+    DRCDelta,
+    DRCState,
+    IncrementalDRC,
+    SpatialIndex,
+)
+from .incremental import Rectangle as DRCRectangle
+from .incremental import Violation as IncrementalViolation
+from .predictive import PredictiveAnalyzer, PredictiveWarning
+from .report import (
+    DRCReport,
+    parse_json_report,
+    parse_text_report,
+)
+from .suggestions import (
+    FixAction,
+    FixSuggestion,
+    generate_fix_suggestions,
+)
+from .violation import (
+    DRCViolation,
+    Location,
+    Severity,
+    ViolationType,
+)
+
+__all__ = [
+    # Violation types
+    "DRCViolation",
+    "ViolationType",
+    "Severity",
+    "Location",
+    # Report parsing
+    "DRCReport",
+    "parse_text_report",
+    "parse_json_report",
+    # Rule checking
+    "check_manufacturer_rules",
+    "ManufacturerCheck",
+    "CheckResult",
+    # Fix suggestions
+    "FixSuggestion",
+    "FixAction",
+    "generate_fix_suggestions",
+    # Incremental DRC
+    "IncrementalDRC",
+    "DRCState",
+    "DRCDelta",
+    "SpatialIndex",
+    "DRCRectangle",
+    "IncrementalViolation",
+    # Predictive analysis
+    "PredictiveAnalyzer",
+    "PredictiveWarning",
+]
