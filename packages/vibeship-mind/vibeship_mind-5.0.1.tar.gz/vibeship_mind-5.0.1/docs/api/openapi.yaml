@@ -1,0 +1,112 @@
+openapi: 3.1.0
+info:
+  title: Mind v5 API
+  description: Decision Intelligence API for AI agents
+  version: 5.0.0
+
+servers:
+  - url: https://api.mind.example.com/v1
+    description: Production
+  - url: http://localhost:8080/v1
+    description: Local
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Health
+  - name: Memories
+  - name: Decisions
+  - name: Patterns
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        200:
+          description: Service is healthy
+
+  /memories:
+    get:
+      tags: [Memories]
+      summary: List memories
+      responses:
+        200:
+          description: List of memories
+    post:
+      tags: [Memories]
+      summary: Create memory
+      responses:
+        201:
+          description: Memory created
+
+  /memories/search:
+    post:
+      tags: [Memories]
+      summary: Search memories
+      responses:
+        200:
+          description: Search results
+
+  /decisions/track:
+    post:
+      tags: [Decisions]
+      summary: Track a decision
+      responses:
+        201:
+          description: Decision tracked
+
+  /decisions/{trace_id}:
+    get:
+      tags: [Decisions]
+      summary: Get decision details
+      parameters:
+        - name: trace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Decision details
+        404:
+          description: Not found
+
+  /decisions/{trace_id}/outcome:
+    post:
+      tags: [Decisions]
+      summary: Record outcome
+      parameters:
+        - name: trace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Outcome recorded
+
+  /patterns:
+    get:
+      tags: [Patterns]
+      summary: List patterns
+      responses:
+        200:
+          description: Available patterns
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key

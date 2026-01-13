@@ -1,0 +1,167 @@
+# Mind v5 Production ServiceMonitor
+# For Prometheus Operator integration
+
+---
+# API ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mind-api
+  namespace: mind-production
+  labels:
+    app: mind-api
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: mind-api
+  namespaceSelector:
+    matchNames:
+      - mind-production
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+      metricRelabelings:
+        # Drop high-cardinality metrics if needed
+        - sourceLabels: [__name__]
+          regex: 'go_gc_.*'
+          action: drop
+
+---
+# Worker ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mind-worker
+  namespace: mind-production
+  labels:
+    app: mind-worker
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: mind-worker
+  namespaceSelector:
+    matchNames:
+      - mind-production
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# PrometheusRule for Mind-specific alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mind-alerts
+  namespace: mind-production
+  labels:
+    app: mind
+    release: prometheus
+spec:
+  groups:
+    - name: mind.slo
+      interval: 30s
+      rules:
+        # Decision Success Rate SLO
+        - alert: DecisionSuccessRateSLOBreach
+          expr: mind_decision_success_rate{environment="production"} < 0.80
+          for: 5m
+          labels:
+            severity: critical
+            slo: decision_success_rate
+            team: mind
+          annotations:
+            summary: "Decision success rate below 80% SLO"
+            description: "Decision success rate is {{ $value | humanizePercentage }}"
+            runbook_url: "https://docs.mind.dev/runbooks/decision-success-rate"
+
+        # API Availability SLO
+        - alert: APIAvailabilitySLOBreach
+          expr: |
+            (
+              1 - (
+                sum(rate(mind_http_requests_total{status=~"5..",environment="production"}[5m]))
+                /
+                sum(rate(mind_http_requests_total{environment="production"}[5m]))
+              )
+            ) < 0.999
+          for: 5m
+          labels:
+            severity: critical
+            slo: api_availability
+            team: mind
+          annotations:
+            summary: "API availability below 99.9% SLO"
+            description: "API availability is {{ $value | humanizePercentage }}"
+
+        # API Latency SLO
+        - alert: APILatencySLOBreach
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(mind_http_request_duration_seconds_bucket{environment="production"}[5m]))
+              by (le)
+            ) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            slo: api_latency
+            team: mind
+          annotations:
+            summary: "API p99 latency above 500ms SLO"
+            description: "API p99 latency is {{ $value | humanizeDuration }}"
+
+    - name: mind.infrastructure
+      interval: 1m
+      rules:
+        # Pod not ready
+        - alert: MindPodNotReady
+          expr: |
+            sum by (pod) (
+              kube_pod_status_ready{namespace="mind-production", condition="true"} == 0
+            ) > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: mind
+          annotations:
+            summary: "Mind pod not ready"
+            description: "Pod {{ $labels.pod }} has been not ready for 5 minutes"
+
+        # High memory usage
+        - alert: MindHighMemoryUsage
+          expr: |
+            container_memory_usage_bytes{namespace="mind-production", container!=""}
+            /
+            container_spec_memory_limit_bytes{namespace="mind-production", container!=""}
+            > 0.85
+          for: 5m
+          labels:
+            severity: warning
+            team: mind
+          annotations:
+            summary: "High memory usage in Mind pod"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory limit"
+
+        # Database connection pool exhaustion
+        - alert: MindDBPoolExhausted
+          expr: mind_db_pool_checked_out / mind_db_pool_size > 0.9
+          for: 5m
+          labels:
+            severity: warning
+            team: mind
+          annotations:
+            summary: "Database connection pool nearly exhausted"
+            description: "{{ $value | humanizePercentage }} of connections in use"

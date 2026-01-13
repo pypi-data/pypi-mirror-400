@@ -1,0 +1,356 @@
+# Mind v5 Prometheus Alerting Rules
+# Based on SLOs defined in deploy/grafana/dashboards/slo-overview.json
+
+groups:
+  # =============================================================================
+  # Decision Quality Alerts
+  # =============================================================================
+  - name: mind.decision_quality
+    interval: 1m
+    rules:
+      - alert: DecisionSuccessRateLow
+        expr: mind_decision_success_rate{user_cohort="all", decision_type="all"} < 0.80
+        for: 5m
+        labels:
+          severity: warning
+          slo: decision_success_rate
+        annotations:
+          summary: "Decision success rate below SLO target"
+          description: "Decision success rate is {{ $value | humanizePercentage }} (target: 80%)"
+          runbook_url: "https://docs.mind.dev/runbooks/decision-success-rate"
+          dashboard: "/d/mind-slo-overview"
+
+      - alert: DecisionSuccessRateCritical
+        expr: mind_decision_success_rate{user_cohort="all", decision_type="all"} < 0.70
+        for: 5m
+        labels:
+          severity: critical
+          slo: decision_success_rate
+        annotations:
+          summary: "Decision success rate critically low"
+          description: "Decision success rate is {{ $value | humanizePercentage }} (critical threshold: 70%)"
+          runbook_url: "https://docs.mind.dev/runbooks/decision-success-rate"
+          dashboard: "/d/mind-slo-overview"
+
+      - alert: CalibrationErrorHigh
+        expr: mind_confidence_calibration_error{user_cohort="all"} > 0.10
+        for: 10m
+        labels:
+          severity: warning
+          slo: calibration_error
+        annotations:
+          summary: "Confidence calibration error above SLO target"
+          description: "Expected Calibration Error is {{ $value | printf \"%.3f\" }} (target: <= 0.10)"
+          runbook_url: "https://docs.mind.dev/runbooks/calibration-error"
+          dashboard: "/d/mind-slo-overview"
+
+      - alert: CalibrationErrorCritical
+        expr: mind_confidence_calibration_error{user_cohort="all"} > 0.20
+        for: 10m
+        labels:
+          severity: critical
+          slo: calibration_error
+        annotations:
+          summary: "Confidence calibration error critically high"
+          description: "Expected Calibration Error is {{ $value | printf \"%.3f\" }} (critical threshold: 0.20)"
+          runbook_url: "https://docs.mind.dev/runbooks/calibration-error"
+          dashboard: "/d/mind-slo-overview"
+
+  # =============================================================================
+  # Latency Alerts
+  # =============================================================================
+  - name: mind.latency
+    interval: 30s
+    rules:
+      - alert: APILatencyHigh
+        expr: histogram_quantile(0.99, sum(rate(mind_http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          slo: api_latency
+        annotations:
+          summary: "API p99 latency above SLO target"
+          description: "API p99 latency is {{ $value | humanizeDuration }} (target: <= 500ms)"
+          runbook_url: "https://docs.mind.dev/runbooks/api-latency"
+          dashboard: "/d/mind-slo-overview"
+
+      - alert: APILatencyCritical
+        expr: histogram_quantile(0.99, sum(rate(mind_http_request_duration_seconds_bucket[5m])) by (le)) > 1.0
+        for: 5m
+        labels:
+          severity: critical
+          slo: api_latency
+        annotations:
+          summary: "API p99 latency critically high"
+          description: "API p99 latency is {{ $value | humanizeDuration }} (critical threshold: 1s)"
+          runbook_url: "https://docs.mind.dev/runbooks/api-latency"
+          dashboard: "/d/mind-slo-overview"
+
+      - alert: RetrievalLatencyHigh
+        expr: histogram_quantile(0.99, sum(rate(mind_retrieval_latency_seconds_bucket{source="fusion"}[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory retrieval p99 latency high"
+          description: "Retrieval p99 latency is {{ $value | humanizeDuration }}"
+          runbook_url: "https://docs.mind.dev/runbooks/retrieval-latency"
+
+      - alert: EmbeddingLatencyHigh
+        expr: histogram_quantile(0.99, sum(rate(mind_embedding_latency_seconds_bucket[5m])) by (le)) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Embedding generation latency high"
+          description: "Embedding p99 latency is {{ $value | humanizeDuration }}"
+          runbook_url: "https://docs.mind.dev/runbooks/embedding-latency"
+
+  # =============================================================================
+  # Reliability Alerts
+  # =============================================================================
+  - name: mind.reliability
+    interval: 30s
+    rules:
+      - alert: APIAvailabilityLow
+        expr: |
+          (
+            1 - (
+              sum(rate(mind_http_requests_total{status=~"5.."}[5m]))
+              /
+              sum(rate(mind_http_requests_total[5m]))
+            )
+          ) < 0.999
+        for: 5m
+        labels:
+          severity: warning
+          slo: api_availability
+        annotations:
+          summary: "API availability below SLO target"
+          description: "API availability is {{ $value | humanizePercentage }} (target: 99.9%)"
+          runbook_url: "https://docs.mind.dev/runbooks/api-availability"
+          dashboard: "/d/mind-slo-overview"
+
+      - alert: APIAvailabilityCritical
+        expr: |
+          (
+            1 - (
+              sum(rate(mind_http_requests_total{status=~"5.."}[5m]))
+              /
+              sum(rate(mind_http_requests_total[5m]))
+            )
+          ) < 0.99
+        for: 5m
+        labels:
+          severity: critical
+          slo: api_availability
+        annotations:
+          summary: "API availability critically low"
+          description: "API availability is {{ $value | humanizePercentage }} (critical threshold: 99%)"
+          runbook_url: "https://docs.mind.dev/runbooks/api-availability"
+          dashboard: "/d/mind-slo-overview"
+
+      - alert: HighErrorRate
+        expr: sum(rate(mind_http_requests_total{status=~"5.."}[5m])) / sum(rate(mind_http_requests_total[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate detected"
+          description: "5xx error rate is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.mind.dev/runbooks/error-rate"
+
+      - alert: VeryHighErrorRate
+        expr: sum(rate(mind_http_requests_total{status=~"5.."}[5m])) / sum(rate(mind_http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Very high 5xx error rate detected"
+          description: "5xx error rate is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.mind.dev/runbooks/error-rate"
+
+  # =============================================================================
+  # Event Processing Alerts
+  # =============================================================================
+  - name: mind.events
+    interval: 1m
+    rules:
+      - alert: EventProcessingFailures
+        expr: |
+          sum(rate(mind_events_processed_total{status="failure"}[5m]))
+          /
+          sum(rate(mind_events_processed_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          slo: event_processing
+        annotations:
+          summary: "Event processing failure rate above threshold"
+          description: "Event processing failure rate is {{ $value | humanizePercentage }} (target: < 1%)"
+          runbook_url: "https://docs.mind.dev/runbooks/event-processing"
+
+      - alert: DLQDepthHigh
+        expr: mind_dlq_depth > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead letter queue depth high"
+          description: "DLQ for {{ $labels.stream }} has {{ $value }} messages"
+          runbook_url: "https://docs.mind.dev/runbooks/dlq"
+
+      - alert: DLQDepthCritical
+        expr: mind_dlq_depth > 100
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dead letter queue depth critical"
+          description: "DLQ for {{ $labels.stream }} has {{ $value }} messages"
+          runbook_url: "https://docs.mind.dev/runbooks/dlq"
+
+      - alert: DLQMessageStale
+        expr: mind_dlq_oldest_message_age_seconds > 3600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stale messages in dead letter queue"
+          description: "Oldest DLQ message in {{ $labels.stream }} is {{ $value | humanizeDuration }} old"
+          runbook_url: "https://docs.mind.dev/runbooks/dlq"
+
+  # =============================================================================
+  # Workflow Alerts
+  # =============================================================================
+  - name: mind.workflows
+    interval: 1m
+    rules:
+      - alert: WorkflowFailures
+        expr: |
+          sum(rate(mind_workflow_executions_total{status="failed"}[15m]))
+          /
+          (
+            sum(rate(mind_workflow_executions_total{status="completed"}[15m]))
+            +
+            sum(rate(mind_workflow_executions_total{status="failed"}[15m]))
+          ) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          slo: workflow_success
+        annotations:
+          summary: "Workflow failure rate above threshold"
+          description: "Workflow failure rate is {{ $value | humanizePercentage }} (target: < 1%)"
+          runbook_url: "https://docs.mind.dev/runbooks/workflow-failures"
+
+      - alert: WorkerInactive
+        expr: mind_worker_active == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Temporal worker inactive"
+          description: "Worker {{ $labels.worker_type }} on queue {{ $labels.task_queue }} is inactive"
+          runbook_url: "https://docs.mind.dev/runbooks/worker-health"
+
+      - alert: ScheduleMissed
+        expr: time() - mind_schedule_last_run_timestamp > 7200
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scheduled workflow missed"
+          description: "Schedule {{ $labels.schedule_id }} hasn't run in {{ $value | humanizeDuration }}"
+          runbook_url: "https://docs.mind.dev/runbooks/schedules"
+
+  # =============================================================================
+  # Resource Alerts
+  # =============================================================================
+  - name: mind.resources
+    interval: 1m
+    rules:
+      - alert: EmbeddingCacheHitRateLow
+        expr: |
+          sum(rate(mind_embedding_cache_hits_total[5m]))
+          /
+          (
+            sum(rate(mind_embedding_cache_hits_total[5m]))
+            +
+            sum(rate(mind_embedding_cache_misses_total[5m]))
+          ) < 0.80
+        for: 10m
+        labels:
+          severity: warning
+          slo: cache_hit_rate
+        annotations:
+          summary: "Embedding cache hit rate below target"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} (target: >= 80%)"
+          runbook_url: "https://docs.mind.dev/runbooks/embedding-cache"
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: mind_db_pool_checked_out / mind_db_pool_size > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of connections in use"
+          runbook_url: "https://docs.mind.dev/runbooks/database-pool"
+
+      - alert: PrivacyBudgetLow
+        expr: mind_privacy_budget_spent > 8
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Privacy budget nearly exhausted"
+          description: "Epsilon spent: {{ $value }} (budget: 10)"
+          runbook_url: "https://docs.mind.dev/runbooks/privacy-budget"
+
+      - alert: PrivacyBudgetExhausted
+        expr: mind_privacy_budget_spent >= 10
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Privacy budget exhausted"
+          description: "Epsilon spent: {{ $value }} - federation disabled"
+          runbook_url: "https://docs.mind.dev/runbooks/privacy-budget"
+
+  # =============================================================================
+  # Pattern & Causal Alerts
+  # =============================================================================
+  - name: mind.intelligence
+    interval: 5m
+    rules:
+      - alert: PatternEffectivenessLow
+        expr: mind_pattern_effectiveness < 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pattern effectiveness negative"
+          description: "Pattern type {{ $labels.pattern_type }} has effectiveness {{ $value }}"
+          runbook_url: "https://docs.mind.dev/runbooks/pattern-effectiveness"
+
+      - alert: CausalPredictionAccuracyLow
+        expr: mind_causal_prediction_accuracy{prediction_type="outcome"} < 0.6
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Causal prediction accuracy below threshold"
+          description: "{{ $labels.prediction_type }} accuracy is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.mind.dev/runbooks/causal-accuracy"
+
+      - alert: RetrievalRelevanceLow
+        expr: histogram_quantile(0.90, sum(rate(mind_memory_retrieval_relevance_bucket[5m])) by (le)) < 0.70
+        for: 15m
+        labels:
+          severity: warning
+          slo: retrieval_relevance
+        annotations:
+          summary: "Memory retrieval relevance below SLO target"
+          description: "p90 relevance is {{ $value | humanizePercentage }} (target: >= 70%)"
+          runbook_url: "https://docs.mind.dev/runbooks/retrieval-relevance"

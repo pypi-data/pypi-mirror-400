@@ -1,0 +1,125 @@
+# Mind v5 Observability Stack
+# Includes Prometheus, Grafana, Tempo (or Jaeger), and Alertmanager
+#
+# Usage:
+#   docker-compose -f docker-compose.yaml -f docker-compose.observability.yaml up -d
+#
+# Access:
+#   - Grafana: http://localhost:3000 (admin/admin)
+#   - Prometheus: http://localhost:9090
+#   - Alertmanager: http://localhost:9093
+#   - Tempo: http://localhost:3200 (or Jaeger: http://localhost:16686)
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Metrics: Prometheus
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: mind-prometheus
+    volumes:
+      - ../prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/alerts.yaml:/etc/prometheus/alerts.yaml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    ports:
+      - "9090:9090"
+    networks:
+      - mind-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # Alerting: Alertmanager
+  # =============================================================================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: mind-alertmanager
+    volumes:
+      - ../prometheus/alertmanager.yaml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "9093:9093"
+    networks:
+      - mind-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # Tracing: Grafana Tempo (recommended)
+  # =============================================================================
+  tempo:
+    image: grafana/tempo:2.3.0
+    container_name: mind-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "9411:9411"   # Zipkin
+    networks:
+      - mind-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # Alternative Tracing: Jaeger (uncomment to use instead of Tempo)
+  # =============================================================================
+  # jaeger:
+  #   image: jaegertracing/all-in-one:1.52
+  #   container_name: mind-jaeger
+  #   environment:
+  #     - COLLECTOR_OTLP_ENABLED=true
+  #   ports:
+  #     - "16686:16686"  # Jaeger UI
+  #     - "4317:4317"    # OTLP gRPC
+  #     - "4318:4318"    # OTLP HTTP
+  #     - "6831:6831/udp" # Jaeger Thrift (legacy)
+  #   networks:
+  #     - mind-network
+  #   restart: unless-stopped
+
+  # =============================================================================
+  # Visualization: Grafana
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: mind-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - mind-network
+    depends_on:
+      - prometheus
+      - tempo
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  tempo_data:
+  grafana_data:
+
+networks:
+  mind-network:
+    external: true

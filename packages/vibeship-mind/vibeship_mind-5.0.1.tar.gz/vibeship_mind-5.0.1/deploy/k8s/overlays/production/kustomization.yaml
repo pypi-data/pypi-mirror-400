@@ -1,0 +1,174 @@
+# Mind v5 Production Environment Overlay
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mind-production
+
+resources:
+  - ../../base
+  - namespace.yaml
+  - secrets.yaml
+  - network-policy.yaml
+  - pod-security-policy.yaml
+  - service-monitor.yaml
+
+# Environment-specific name prefix
+namePrefix: prod-
+
+# Common labels for production
+commonLabels:
+  environment: production
+  app.kubernetes.io/instance: production
+  tier: production
+
+# Production-specific patches
+patches:
+  # Production replicas
+  - target:
+      kind: Deployment
+      name: mind-api
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 5
+
+  # Production resources
+  - target:
+      kind: Deployment
+      name: mind-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+
+  # Stricter security context for production
+  - target:
+      kind: Deployment
+      name: mind-api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/securityContext
+        value:
+          fsGroup: 1000
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+
+  # Production anti-affinity (require different nodes)
+  - target:
+      kind: Deployment
+      name: mind-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/affinity/podAntiAffinity
+        value:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: mind-api
+              topologyKey: kubernetes.io/hostname
+
+  # Production HPA settings
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: mind-api
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 5
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+      - op: replace
+        path: /spec/metrics
+        value:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 70
+          - type: Resource
+            resource:
+              name: memory
+              target:
+                type: Utilization
+                averageUtilization: 80
+
+  # Production PDB (stricter disruption budget)
+  - target:
+      kind: PodDisruptionBudget
+      name: mind-api
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: "80%"
+
+  # Gardener production replicas
+  - target:
+      kind: Deployment
+      name: mind-gardener
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+
+  # Gardener production resources
+  - target:
+      kind: Deployment
+      name: mind-gardener
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+  # Gardener production security context
+  - target:
+      kind: Deployment
+      name: mind-gardener
+    patch: |-
+      - op: add
+        path: /spec/template/spec/securityContext
+        value:
+          fsGroup: 1000
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+
+# ConfigMap patches for production
+configMapGenerator:
+  - name: mind-config
+    behavior: merge
+    literals:
+      - MIND_ENV=production
+      - LOG_LEVEL=INFO
+      - OTEL_TRACES_SAMPLER=traceidratio
+      - OTEL_TRACES_SAMPLER_ARG=0.1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318
+      - NATS_URL=nats://prod-nats:4222
+      - POSTGRES_HOST=prod-postgres
+      - FALKORDB_HOST=prod-falkordb
+      - TEMPORAL_HOST=prod-temporal
+      - QDRANT_URL=http://prod-qdrant:6333
+      - RATE_LIMIT_REQUESTS=1000
+      - RATE_LIMIT_WINDOW=60
+
+images:
+  - name: mind-api
+    newName: ghcr.io/mind-ai/mind-api
+    newTag: v5.0.0  # Pinned version for production
+  - name: mind-worker
+    newName: ghcr.io/mind-ai/mind-worker
+    newTag: v5.0.0

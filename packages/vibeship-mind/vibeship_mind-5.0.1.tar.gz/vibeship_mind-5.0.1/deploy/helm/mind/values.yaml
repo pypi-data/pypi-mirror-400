@@ -1,0 +1,168 @@
+# Mind v5 Helm Values
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# Mind API settings
+api:
+  replicaCount: 3
+  
+  image:
+    repository: mind-api
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 80
+    grpcPort: 50051
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPU: 70
+    targetMemory: 80
+  
+  env:
+    MIND_ENV: production
+    LOG_LEVEL: INFO
+    METRICS_ENABLED: "true"
+
+# Ingress settings
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: mind.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: mind-tls
+      hosts:
+        - mind.example.com
+
+# PostgreSQL settings
+postgresql:
+  enabled: true
+  auth:
+    database: mind
+    username: mind
+    existingSecret: mind-secrets
+    secretKeys:
+      adminPasswordKey: postgres-password
+      userPasswordKey: postgres-password
+  primary:
+    persistence:
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    extendedConfiguration: |
+      shared_preload_libraries = 'vector'
+
+# Qdrant settings
+qdrant:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# FalkorDB settings
+falkordb:
+  enabled: true
+  persistence:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# NATS settings
+nats:
+  enabled: true
+  cluster:
+    enabled: true
+    replicas: 3
+  jetstream:
+    enabled: true
+    memStorage:
+      size: 256Mi
+    fileStorage:
+      size: 5Gi
+
+# Gardener Worker (Temporal workflows for memory lifecycle)
+gardener:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: mind-api
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  env:
+    MIND_ENVIRONMENT: production
+    MIND_LOG_LEVEL: INFO
+    MIND_TEMPORAL_NAMESPACE: default
+
+# Temporal settings (external dependency)
+temporal:
+  host: temporal
+  port: 7233
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    path: /metrics
+
+# Security
+security:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL

@@ -1,0 +1,92 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Set image tag
+        id: image
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update image in kustomization
+        run: |
+          cd deploy/k8s/overlays/${{ github.event.inputs.environment || 'staging' }}
+          kustomize edit set image mind-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image.outputs.tag }}
+
+      - name: Deploy with Kustomize
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl apply -k deploy/k8s/overlays/${{ github.event.inputs.environment || 'staging' }}
+
+      - name: Wait for rollout
+        run: |
+          export KUBECONFIG=kubeconfig
+          NAMESPACE="mind-${{ github.event.inputs.environment || 'staging' }}"
+          kubectl rollout status deployment/mind-api -n $NAMESPACE --timeout=300s
+          kubectl rollout status deployment/mind-gardener -n $NAMESPACE --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          export KUBECONFIG=kubeconfig
+          NAMESPACE="mind-${{ github.event.inputs.environment || 'staging' }}"
+          kubectl get pods -n $NAMESPACE
+          kubectl get svc -n $NAMESPACE
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Deployment to ${{ github.event.inputs.environment || 'staging' }} failed!",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":x: *Deployment Failed*\n*Environment:* ${{ github.event.inputs.environment || 'staging' }}\n*Commit:* ${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

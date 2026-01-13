@@ -1,0 +1,19 @@
+{{- if .Values.gardener.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mind.fullname" . }}-gardener
+  labels:
+    {{- include "mind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gardener
+spec:
+  type: ClusterIP
+  ports:
+    - name: health
+      port: 9091
+      targetPort: health
+      protocol: TCP
+  selector:
+    {{- include "mind.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gardener
+{{- end }}

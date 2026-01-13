@@ -1,0 +1,102 @@
+{{- if .Values.gardener.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mind.fullname" . }}-gardener
+  labels:
+    {{- include "mind.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gardener
+spec:
+  replicas: {{ .Values.gardener.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mind.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gardener
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "mind.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gardener
+    spec:
+      serviceAccountName: {{ include "mind.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.security.podSecurityContext | nindent 8 }}
+      containers:
+        - name: gardener
+          securityContext:
+            {{- toYaml .Values.security.containerSecurityContext | nindent 12 }}
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.gardener.image.repository }}:{{ .Values.gardener.image.tag }}"
+          imagePullPolicy: {{ .Values.gardener.image.pullPolicy }}
+          command: ["python", "-m", "mind.workers.gardener.worker"]
+          ports:
+            - name: health
+              containerPort: 9091
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.gardener.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            - name: MIND_POSTGRES_HOST
+              value: {{ include "mind.fullname" . }}-postgresql
+            - name: MIND_POSTGRES_PORT
+              value: "5432"
+            - name: MIND_POSTGRES_DB
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: MIND_POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mind.fullname" . }}-secrets
+                  key: postgres-user
+            - name: MIND_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mind.fullname" . }}-secrets
+                  key: postgres-password
+            - name: MIND_TEMPORAL_HOST
+              value: {{ .Values.temporal.host | quote }}
+            - name: MIND_TEMPORAL_PORT
+              value: {{ .Values.temporal.port | quote }}
+            - name: MIND_NATS_URL
+              value: "nats://{{ include "mind.fullname" . }}-nats:4222"
+            - name: MIND_QDRANT_URL
+              value: "http://{{ include "mind.fullname" . }}-qdrant:6333"
+            - name: MIND_FALKORDB_HOST
+              value: {{ include "mind.fullname" . }}-falkordb
+            - name: MIND_FALKORDB_PORT
+              value: "6379"
+            - name: MIND_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mind.fullname" . }}-secrets
+                  key: openai-api-key
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.gardener.resources | nindent 12 }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "mind.selectorLabels" . | nindent 20 }}
+                    app.kubernetes.io/component: gardener
+                topologyKey: kubernetes.io/hostname
+{{- end }}
