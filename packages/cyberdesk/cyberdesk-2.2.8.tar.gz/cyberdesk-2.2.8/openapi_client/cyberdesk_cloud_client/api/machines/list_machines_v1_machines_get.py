@@ -1,0 +1,272 @@
+import datetime
+from http import HTTPStatus
+from typing import Any
+
+import httpx
+
+from ... import errors
+from ...client import AuthenticatedClient, Client
+from ...models.http_validation_error import HTTPValidationError
+from ...models.machine_status import MachineStatus
+from ...models.paginated_response_machine_response import PaginatedResponseMachineResponse
+from ...types import UNSET, Response, Unset
+
+
+def _get_kwargs(
+    *,
+    status: MachineStatus | None | Unset = UNSET,
+    created_at_from: datetime.datetime | None | Unset = UNSET,
+    created_at_to: datetime.datetime | None | Unset = UNSET,
+    skip: int | Unset = 0,
+    limit: int | Unset = 100,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+
+    json_status: None | str | Unset
+    if isinstance(status, Unset):
+        json_status = UNSET
+    elif isinstance(status, MachineStatus):
+        json_status = status.value
+    else:
+        json_status = status
+    params["status"] = json_status
+
+    json_created_at_from: None | str | Unset
+    if isinstance(created_at_from, Unset):
+        json_created_at_from = UNSET
+    elif isinstance(created_at_from, datetime.datetime):
+        json_created_at_from = created_at_from.isoformat()
+    else:
+        json_created_at_from = created_at_from
+    params["created_at_from"] = json_created_at_from
+
+    json_created_at_to: None | str | Unset
+    if isinstance(created_at_to, Unset):
+        json_created_at_to = UNSET
+    elif isinstance(created_at_to, datetime.datetime):
+        json_created_at_to = created_at_to.isoformat()
+    else:
+        json_created_at_to = created_at_to
+    params["created_at_to"] = json_created_at_to
+
+    params["skip"] = skip
+
+    params["limit"] = limit
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+
+    _kwargs: dict[str, Any] = {
+        "method": "get",
+        "url": "/v1/machines",
+        "params": params,
+    }
+
+    return _kwargs
+
+
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> HTTPValidationError | PaginatedResponseMachineResponse | None:
+    if response.status_code == 200:
+        response_200 = PaginatedResponseMachineResponse.from_dict(response.json())
+
+        return response_200
+
+    if response.status_code == 422:
+        response_422 = HTTPValidationError.from_dict(response.json())
+
+        return response_422
+
+    if client.raise_on_unexpected_status:
+        raise errors.UnexpectedStatus(response.status_code, response.content)
+    else:
+        return None
+
+
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[HTTPValidationError | PaginatedResponseMachineResponse]:
+    return Response(
+        status_code=HTTPStatus(response.status_code),
+        content=response.content,
+        headers=response.headers,
+        parsed=_parse_response(client=client, response=response),
+    )
+
+
+def sync_detailed(
+    *,
+    client: AuthenticatedClient,
+    status: MachineStatus | None | Unset = UNSET,
+    created_at_from: datetime.datetime | None | Unset = UNSET,
+    created_at_to: datetime.datetime | None | Unset = UNSET,
+    skip: int | Unset = 0,
+    limit: int | Unset = 100,
+) -> Response[HTTPValidationError | PaginatedResponseMachineResponse]:
+    """List Machines
+
+     List all machines for the authenticated organization.
+
+    Supports pagination and filtering by status.
+
+    Args:
+        status (MachineStatus | None | Unset): Filter by machine status
+        created_at_from (datetime.datetime | None | Unset): Filter machines created at or after
+            this ISO timestamp (UTC)
+        created_at_to (datetime.datetime | None | Unset): Filter machines created at or before
+            this ISO timestamp (UTC)
+        skip (int | Unset):  Default: 0.
+        limit (int | Unset):  Default: 100.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[HTTPValidationError | PaginatedResponseMachineResponse]
+    """
+
+    kwargs = _get_kwargs(
+        status=status,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
+        skip=skip,
+        limit=limit,
+    )
+
+    response = client.get_httpx_client().request(
+        **kwargs,
+    )
+
+    return _build_response(client=client, response=response)
+
+
+def sync(
+    *,
+    client: AuthenticatedClient,
+    status: MachineStatus | None | Unset = UNSET,
+    created_at_from: datetime.datetime | None | Unset = UNSET,
+    created_at_to: datetime.datetime | None | Unset = UNSET,
+    skip: int | Unset = 0,
+    limit: int | Unset = 100,
+) -> HTTPValidationError | PaginatedResponseMachineResponse | None:
+    """List Machines
+
+     List all machines for the authenticated organization.
+
+    Supports pagination and filtering by status.
+
+    Args:
+        status (MachineStatus | None | Unset): Filter by machine status
+        created_at_from (datetime.datetime | None | Unset): Filter machines created at or after
+            this ISO timestamp (UTC)
+        created_at_to (datetime.datetime | None | Unset): Filter machines created at or before
+            this ISO timestamp (UTC)
+        skip (int | Unset):  Default: 0.
+        limit (int | Unset):  Default: 100.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        HTTPValidationError | PaginatedResponseMachineResponse
+    """
+
+    return sync_detailed(
+        client=client,
+        status=status,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
+        skip=skip,
+        limit=limit,
+    ).parsed
+
+
+async def asyncio_detailed(
+    *,
+    client: AuthenticatedClient,
+    status: MachineStatus | None | Unset = UNSET,
+    created_at_from: datetime.datetime | None | Unset = UNSET,
+    created_at_to: datetime.datetime | None | Unset = UNSET,
+    skip: int | Unset = 0,
+    limit: int | Unset = 100,
+) -> Response[HTTPValidationError | PaginatedResponseMachineResponse]:
+    """List Machines
+
+     List all machines for the authenticated organization.
+
+    Supports pagination and filtering by status.
+
+    Args:
+        status (MachineStatus | None | Unset): Filter by machine status
+        created_at_from (datetime.datetime | None | Unset): Filter machines created at or after
+            this ISO timestamp (UTC)
+        created_at_to (datetime.datetime | None | Unset): Filter machines created at or before
+            this ISO timestamp (UTC)
+        skip (int | Unset):  Default: 0.
+        limit (int | Unset):  Default: 100.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[HTTPValidationError | PaginatedResponseMachineResponse]
+    """
+
+    kwargs = _get_kwargs(
+        status=status,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
+        skip=skip,
+        limit=limit,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    *,
+    client: AuthenticatedClient,
+    status: MachineStatus | None | Unset = UNSET,
+    created_at_from: datetime.datetime | None | Unset = UNSET,
+    created_at_to: datetime.datetime | None | Unset = UNSET,
+    skip: int | Unset = 0,
+    limit: int | Unset = 100,
+) -> HTTPValidationError | PaginatedResponseMachineResponse | None:
+    """List Machines
+
+     List all machines for the authenticated organization.
+
+    Supports pagination and filtering by status.
+
+    Args:
+        status (MachineStatus | None | Unset): Filter by machine status
+        created_at_from (datetime.datetime | None | Unset): Filter machines created at or after
+            this ISO timestamp (UTC)
+        created_at_to (datetime.datetime | None | Unset): Filter machines created at or before
+            this ISO timestamp (UTC)
+        skip (int | Unset):  Default: 0.
+        limit (int | Unset):  Default: 100.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        HTTPValidationError | PaginatedResponseMachineResponse
+    """
+
+    return (
+        await asyncio_detailed(
+            client=client,
+            status=status,
+            created_at_from=created_at_from,
+            created_at_to=created_at_to,
+            skip=skip,
+            limit=limit,
+        )
+    ).parsed
