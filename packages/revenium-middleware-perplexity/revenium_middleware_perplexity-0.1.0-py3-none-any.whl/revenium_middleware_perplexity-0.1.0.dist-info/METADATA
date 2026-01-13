@@ -1,0 +1,461 @@
+Metadata-Version: 2.4
+Name: revenium-middleware-perplexity
+Version: 0.1.0
+Summary: A Python library that meters Perplexity AI usage to Revenium.
+Author-email: Revenium <info@revenium.io>
+License: MIT
+Project-URL: Homepage, https://github.com/revenium/revenium-middleware-perplexity-python
+Project-URL: Bug Tracker, https://github.com/revenium/revenium-middleware-perplexity-python/issues
+Project-URL: Documentation, https://github.com/revenium/revenium-middleware-perplexity-python/blob/main/README.md
+Keywords: perplexity,middleware,logging,token-usage,metering,revenium,ai,llm
+Classifier: Development Status :: 4 - Beta
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: wrapt
+Requires-Dist: revenium_middleware>=0.3.5
+Requires-Dist: python-dotenv>=0.19.0
+Provides-Extra: openai
+Requires-Dist: openai>=1.0.0; extra == "openai"
+Provides-Extra: perplexity
+Requires-Dist: perplexityai>=0.1.0; extra == "perplexity"
+Provides-Extra: all
+Requires-Dist: openai>=1.0.0; extra == "all"
+Requires-Dist: perplexityai>=0.1.0; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: openai-responses>=0.12.0; extra == "dev"
+Requires-Dist: freezegun; extra == "dev"
+Requires-Dist: openai>=1.0.0; extra == "dev"
+Requires-Dist: perplexityai>=0.1.0; extra == "dev"
+Dynamic: license-file
+
+# Revenium Middleware for Perplexity (Python)
+
+A lightweight, production-ready middleware that adds **Revenium metering and tracking** to Perplexity AI API calls in Python.
+
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
+[![Documentation](https://img.shields.io/badge/docs-revenium.io-blue)](https://docs.revenium.io)
+[![Website](https://img.shields.io/badge/website-revenium.ai-blue)](https://www.revenium.ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- **Automatic Metering** - Tracks all API calls with detailed usage metrics
+- **Streaming Support** - Full support for streaming responses
+- **Dual SDK Support** - Works with both OpenAI SDK and native Perplexity SDK
+- **Custom Metadata** - Add custom tracking metadata to any request
+- **Trace Visualization** - Built-in support for distributed tracing
+- **Production Ready** - Battle-tested and optimized for production use
+
+## Quick Start
+
+### Installation
+
+Choose the installation that matches your SDK preference:
+
+```bash
+# For OpenAI SDK users (using Perplexity via OpenAI client)
+pip install revenium-middleware-perplexity[openai]
+
+# For native Perplexity SDK users
+pip install revenium-middleware-perplexity[perplexity]
+
+# For both SDKs (recommended for flexibility)
+pip install revenium-middleware-perplexity[all]
+```
+
+### Basic Usage
+
+#### Option 1: Using OpenAI SDK
+
+Perfect if you're already using OpenAI SDK or want maximum compatibility:
+
+```python
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+# Load environment variables
+load_dotenv()
+
+# Import Revenium middleware (this automatically patches OpenAI)
+import revenium_middleware_perplexity
+
+# Create OpenAI client with Perplexity base URL
+client = OpenAI(
+    api_key=os.getenv("PERPLEXITY_API_KEY"),
+    base_url="https://api.perplexity.ai"
+)
+
+# Make a chat completion request
+response = client.chat.completions.create(
+    model="sonar",
+    messages=[
+        {"role": "user", "content": "What is the capital of France?"}
+    ]
+)
+
+print(response.choices[0].message.content)
+# Usage data automatically sent to Revenium!
+```
+
+#### Option 2: Using Native Perplexity SDK
+
+Perfect if you prefer the official Perplexity SDK:
+
+```python
+import os
+from dotenv import load_dotenv
+from perplexity import Perplexity
+
+# Load environment variables
+load_dotenv()
+
+# Import Revenium middleware (this automatically patches Perplexity)
+import revenium_middleware_perplexity
+
+# Create Perplexity client
+client = Perplexity(
+    api_key=os.getenv("PERPLEXITY_API_KEY")
+)
+
+# Make a chat completion request
+response = client.chat.completions.create(
+    model="sonar",
+    messages=[
+        {"role": "user", "content": "What is the capital of France?"}
+    ]
+)
+
+print(response.choices[0].message.content)
+# Usage data automatically sent to Revenium!
+```
+
+> **Note**: Both approaches work identically! The middleware automatically detects which SDK you're using and applies the appropriate wrapper.
+
+### Environment Variables
+
+Create a `.env` file in your project root:
+
+```env
+# Perplexity Configuration
+PERPLEXITY_API_KEY=pplx_your_perplexity_api_key
+
+# Revenium Configuration
+REVENIUM_METERING_API_KEY=hak_your_revenium_api_key
+REVENIUM_METERING_BASE_URL=https://api.revenium.ai
+
+# Optional: Logging
+REVENIUM_LOG_LEVEL=INFO
+```
+
+## What Gets Tracked
+
+The middleware automatically captures comprehensive usage data:
+
+### Usage Metrics
+- **Token Counts** - Input tokens, output tokens, total tokens
+- **Model Information** - Model name, provider (Perplexity)
+- **Request Timing** - Request duration, response time
+- **Cost Calculation** - Estimated costs based on current pricing
+
+### Business Context (Optional)
+- **User Tracking** - Subscriber ID, email, credentials
+- **Organization Data** - Organization ID, subscription ID, product ID
+- **Task Classification** - Task type, agent identifier, trace ID
+
+### Technical Details
+- **API Endpoints** - Chat completions
+- **Request Types** - Streaming vs non-streaming
+- **Error Tracking** - Failed requests, error types
+- **Environment Info** - Development vs production usage
+
+## Advanced Usage
+
+### Custom Metadata
+
+Add business context to track usage by customer, product, or feature:
+
+```python
+response = client.chat.completions.create(
+    model="sonar-pro",
+    messages=[{"role": "user", "content": "Hello!"}],
+    usage_metadata={
+        "organization_id": "org-123",
+        "product_id": "prod-456",
+        "subscriber": {
+            "id": "user-789",
+            "email": "user@example.com"
+        },
+        "task_type": "chat",
+        "trace_id": "trace-abc-123"
+    }
+)
+```
+
+### Streaming Responses
+
+The middleware automatically handles streaming:
+
+```python
+stream = client.chat.completions.create(
+    model="sonar-pro",
+    messages=[{"role": "user", "content": "Write a poem"}],
+    stream=True,
+    usage_metadata={"task_type": "creative_writing"}
+)
+
+for chunk in stream:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="", flush=True)
+
+# Usage data automatically sent after stream completes!
+```
+
+## Decorator Support
+
+The middleware provides powerful decorators for automatic metadata injection, eliminating the need to pass `usage_metadata` to every API call.
+
+### `@revenium_metadata`
+
+Automatically injects metadata into all Perplexity API calls within a function:
+
+```python
+from revenium_middleware_perplexity import revenium_metadata
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="pplx_your_api_key",
+    base_url="https://api.perplexity.ai"
+)
+
+@revenium_metadata(
+    organization_id="acme-corp",
+    task_type="customer-support",
+    trace_id="session-12345"
+)
+def handle_customer_query(question: str) -> str:
+    """
+    All Perplexity calls within this function automatically include:
+    - organization_id: "acme-corp"
+    - task_type: "customer-support"
+    - trace_id: "session-12345"
+    """
+    response = client.chat.completions.create(
+        model="sonar",
+        messages=[{"role": "user", "content": question}]
+    )
+    return response.choices[0].message.content
+
+# No need to pass usage_metadata to each call!
+answer = handle_customer_query("How do I reset my password?")
+```
+
+**Benefits:**
+- ✅ **Cleaner Code** - No repetitive `usage_metadata` parameters
+- ✅ **Automatic Injection** - Metadata applied to all calls in function scope
+- ✅ **API-Level Override** - API-level metadata takes precedence when needed
+- ✅ **Async Support** - Works with both sync and async functions
+- ✅ **Thread-Safe** - Uses `contextvars` for proper isolation
+
+### `@revenium_meter` (Selective Metering)
+
+Control which functions are metered when selective metering is enabled:
+
+```python
+from revenium_middleware_perplexity import revenium_meter, revenium_metadata
+
+# Set in .env file:
+# REVENIUM_SELECTIVE_METERING=true
+
+@revenium_meter()
+@revenium_metadata(task_type="premium-feature")
+def premium_feature(prompt: str):
+    # ✅ This WILL be metered (decorated with @revenium_meter)
+    response = client.chat.completions.create(
+        model="sonar",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
+
+def free_feature(prompt: str):
+    # ❌ This will NOT be metered (no @revenium_meter decorator)
+    response = client.chat.completions.create(
+        model="sonar",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
+```
+
+**Accepted values for `REVENIUM_SELECTIVE_METERING`:**
+- `"true"`, `"1"`, `"yes"`, `"on"` (case-insensitive) → Selective metering enabled
+- `"false"`, `"0"`, `"no"`, `"off"`, or unset → All calls metered (default)
+
+## Distributed Tracing
+
+The middleware supports comprehensive distributed tracing through environment variables, allowing you to track requests across services and understand the context of API calls.
+
+### Trace Fields
+
+Set these environment variables to enable distributed tracing:
+
+```env
+# Deployment Context
+REVENIUM_ENVIRONMENT=production          # Environment (dev, staging, prod)
+REVENIUM_REGION=us-east-1               # Cloud region
+
+# Trace Identification
+REVENIUM_TRACE_TYPE=customer-workflow   # Categorical trace identifier
+REVENIUM_TRACE_NAME=Customer Onboarding # Human-readable trace label
+
+# Distributed Tracing
+REVENIUM_PARENT_TRANSACTION_ID=trace-123 # Parent transaction ID
+REVENIUM_TRANSACTION_NAME=analyze-doc    # Operation name
+
+# Retry Tracking
+REVENIUM_RETRY_NUMBER=0                  # Retry attempt (0 = first attempt)
+
+# Credential Identification
+REVENIUM_CREDENTIAL_ALIAS=Perplexity Prod Key  # Human-readable credential name
+```
+
+### Distributed Tracing Example
+
+Track a request flowing through multiple services:
+
+```python
+import os
+import uuid
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="pplx_your_api_key",
+    base_url="https://api.perplexity.ai"
+)
+
+# Generate workflow trace ID
+workflow_id = str(uuid.uuid4())
+
+# Set trace context
+os.environ["REVENIUM_ENVIRONMENT"] = "production"
+os.environ["REVENIUM_TRACE_TYPE"] = "document-pipeline"
+os.environ["REVENIUM_TRACE_NAME"] = "Document Processing"
+os.environ["REVENIUM_PARENT_TRANSACTION_ID"] = workflow_id
+
+# Step 1: Analysis Service
+os.environ["REVENIUM_TRANSACTION_NAME"] = "analyze-document"
+response1 = client.chat.completions.create(
+    model="sonar",
+    messages=[{"role": "user", "content": "Analyze document"}],
+    extra_body={"usage_metadata": {"service": "analyzer", "step": 1}}
+)
+
+# Step 2: Extraction Service
+os.environ["REVENIUM_TRANSACTION_NAME"] = "extract-content"
+response2 = client.chat.completions.create(
+    model="sonar",
+    messages=[{"role": "user", "content": "Extract content"}],
+    extra_body={"usage_metadata": {"service": "extractor", "step": 2}}
+)
+
+# All calls are linked by workflow_id in Revenium dashboard!
+```
+
+### Trace Field Reference
+
+| Field | Environment Variable | Description | Example |
+|-------|---------------------|-------------|---------|
+| **Environment** | `REVENIUM_ENVIRONMENT` | Deployment environment | `production`, `staging`, `dev` |
+| **Region** | `REVENIUM_REGION` | Cloud region | `us-east-1`, `eu-west-1` |
+| **Trace Type** | `REVENIUM_TRACE_TYPE` | Categorical identifier | `customer-workflow`, `batch-job` |
+| **Trace Name** | `REVENIUM_TRACE_NAME` | Human-readable label | `Customer Onboarding`, `Daily Report` |
+| **Parent Transaction ID** | `REVENIUM_PARENT_TRANSACTION_ID` | Parent transaction for distributed tracing | `uuid-string` |
+| **Transaction Name** | `REVENIUM_TRANSACTION_NAME` | Operation name | `analyze-document`, `generate-summary` |
+| **Retry Number** | `REVENIUM_RETRY_NUMBER` | Retry attempt number | `0` (first), `1` (first retry) |
+| **Credential Alias** | `REVENIUM_CREDENTIAL_ALIAS` | Human-readable credential name | `Perplexity Production Key` |
+
+These fields are automatically included in all metering data and help you:
+- 🔍 **Track requests** across multiple services
+- 📊 **Analyze patterns** by environment, region, or workflow type
+- 🔄 **Monitor retries** and failure rates
+- 🎯 **Identify bottlenecks** in distributed systems
+
+## Examples
+
+The package includes comprehensive examples in the [`examples/`](examples/) directory:
+
+### Basic Examples
+- **`getting_started.py`** - Simplest usage example
+- **`basic.py`** - Custom metadata example
+- **`streaming.py`** - Streaming responses
+
+### Advanced Examples
+- **`example_decorator.py`** - Using `@revenium_metadata` and `@revenium_meter` decorators
+- **`example_tracing.py`** - Distributed tracing with trace fields
+- **`trace_visualization.py`** - Trace visualization setup
+
+Run any example:
+
+```bash
+python examples/getting_started.py
+python examples/example_decorator.py
+python examples/example_tracing.py
+```
+
+See [`examples/README.md`](examples/README.md) for detailed documentation.
+
+## How It Works
+
+1. **Import**: Import `revenium_middleware_perplexity` to automatically patch OpenAI
+2. **Use Normally**: Use the OpenAI client with Perplexity's base URL
+3. **Automatic Tracking**: All requests are automatically tracked
+4. **Async Metering**: Usage data is sent to Revenium in the background
+5. **Transparent**: Original responses are returned unchanged
+
+The middleware never blocks your application - if Revenium tracking fails, your Perplexity requests continue normally.
+
+## Supported APIs
+
+- Chat Completions API (`client.chat.completions.create()`)
+- Streaming API (`client.chat.completions.create(stream=True)`)
+
+## Requirements
+
+- Python 3.8+
+- Revenium API key
+- Perplexity API key
+
+## Documentation
+
+For detailed documentation, visit [docs.revenium.io](https://docs.revenium.io)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For issues, feature requests, or contributions:
+
+- **GitHub Repository**: [revenium/revenium-middleware-perplexity-python](https://github.com/revenium/revenium-middleware-perplexity-python)
+- **Issues**: [Report bugs or request features](https://github.com/revenium/revenium-middleware-perplexity-python/issues)
+- **Documentation**: [docs.revenium.io](https://docs.revenium.io)
+
+---
+
+**Built by Revenium**
