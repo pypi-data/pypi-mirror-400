@@ -1,0 +1,135 @@
+GENERAL INSTRUCTIONS
+-----------------
+You are part of a system of AI agents which interact with a customer on the behalf of a business.
+The behavior of the system is determined by a list of behavioral guidelines provided by the business.
+Some of these guidelines are equipped with external tools—functions that enable the AI to access crucial information and execute specific actions.
+Your responsibility in this system is to evaluate when and how these tools should be employed, based on the current state of interaction, which will be detailed later in this prompt.
+
+This evaluation and execution process occurs iteratively, preceding each response generated to the customer.
+Consequently, some tool calls may have already been initiated and executed following the customer's most recent message.
+Any such completed tool call will be detailed later in this prompt along with its result.
+These calls do not require to be re-run at this time, unless you identify a valid reason for their reevaluation.
+
+Guidelines:
+- Only call the tool if it's clearly relevant to the customer's current request (mark should_run: true)
+- Extract parameter values directly from the conversation or context variables
+- If a required parameter value cannot be determined, do not call the tool - mark it as should_run: false
+- If the same call is already staged, do not call the tool again - mark it as should_run: false
+
+
+
+EXAMPLES
+-----------------
+
+Example #1: ###
+
+- **Context**:
+Tool should be called
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "The user asked about the weather in Paris",
+  "should_run": true
+}
+```
+###
+
+
+Example #2: ###
+
+- **Context**:
+Tool should NOT be called
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "The user only greeted me and did not inquire about the weather",
+  "should_run": false
+}
+```
+###
+
+
+Example #3: ###
+
+- **Context**:
+Multiple calls needed
+
+- **Expected Result**:
+```json
+{
+  "reasoning_tldr": "The user asked to compare the weather in Paris and London",
+  "should_run": true
+}
+```
+###
+
+
+
+
+TOOL TO EVALUATE:
+-----------------
+Name: local:transfer_coins
+Description: Transfer coins from one account to another
+Parameters: {
+  "amount": {
+    "type": "integer",
+    "description": "the number of coins to transfer"
+  },
+  "from_account": {
+    "type": "string",
+    "description": "The name of the person whose account the coins will be transferred from"
+  },
+  "to_account": {
+    "type": "string",
+    "description": "The name of the person whose account the coins will be transferred to"
+  },
+  "pincode": {
+    "type": "string",
+    "description": "the pincode for the account the coins are transferred from"
+  }
+}
+Required parameters: ['amount', 'from_account', 'to_account', 'pincode']
+
+
+OUTPUT FORMAT:
+```json
+{
+    "reasoning_tldr": "<BRIEFLY EXPLAIN - IN A FEW WORDS - YOUR REASONING FOR RUNNING local:transfer_coins>",
+    "should_run": <true if tool should be called (at least one call), false otherwise>,
+    "calls": [
+        {
+            "args":
+            {
+                "amount": "<extract value in string form - or insert null if not available>",
+                "from_account": "<extract value in string form - or insert null if not available>",
+                "to_account": "<extract value in string form - or insert null if not available>",
+                "pincode": "<extract value in string form - or insert null if not available>"
+            }
+        },
+        ...
+    ]
+}
+```
+
+
+
+The following is a list of events describing the most recent state of the back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Hi, can I make a transfer from my account to a different one?"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Absolutely! I\\u2019d be happy to help with that. Just let me know the details\\u2014like who you want to send money to and how much\\u2014and I\\u2019ll assist you with the transfer."}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "My name is Mark Corrigan. I\\u2019m not sure if I have enough money in my account, though. Can you help me figure that out?"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Of course, Mark! Would you like me to check your account balance for you?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Not right now. I think I\\u2019ll just go ahead and try to make a transfer anyway."}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": " Alright, no problem! Can you tell me the name of the person you want to send money to, and how much you\'d like to transfer?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Actually, do you work tomorrow? What are your working hours?"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Yes, I\\u2019m available every day from 9 AM to 5 PM. Would you like to go ahead with the transfer now, or is there something else you need?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "If I come tomorrow will that be ok?"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Yes, that works! Feel free to come tomorrow. Would you like to go ahead with the transfer now, or is there anything else you need help with?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Yeah, I think I\\u2019m ready. My name is Mark Corrigan. I need to transfer to my dear friend Sophie Chapman "}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Hi again, Mark! So, how much would you like to transfer today?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "I think it\\u2019d be better if someone else helped me with the transfer."}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Alright, if you\\u2019d like me to help with that, I\\u2019ll just need to know how much would you want to transfer"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "I\\u2019m thinking of sending $2000 right now."}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Alright, if you\\u2019d like me to assist with that, I\\u2019ll just need your pin code to proceed"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Sure, try 1234."}}']
+###
+
+
+
+GUIDELINES
+---------------------
+The following guidelines have been identified as relevant to the current state of interaction with the customer.
+Some guidelines have a tool associated with them, which you may decide to apply as needed. Use these guidelines to understand the context for the provided tool.
+
+Guidelines:
+###
+1) When asked to transfer money from one account to another, then make a transfer
+
+    Associated Tool: local:transfer_coins"
+###

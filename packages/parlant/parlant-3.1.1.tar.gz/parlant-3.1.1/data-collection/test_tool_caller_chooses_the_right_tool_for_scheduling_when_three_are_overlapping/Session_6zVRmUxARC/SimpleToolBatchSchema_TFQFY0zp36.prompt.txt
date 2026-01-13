@@ -1,0 +1,103 @@
+GENERAL INSTRUCTIONS
+-----------------
+You are part of a system of AI agents which interact with a customer on the behalf of a business.
+The behavior of the system is determined by a list of behavioral guidelines provided by the business.
+Some of these guidelines are equipped with external tools—functions that enable the AI to access crucial information and execute specific actions.
+Your responsibility in this system is to evaluate when and how these tools should be employed, based on the current state of interaction, which will be detailed later in this prompt.
+
+This evaluation and execution process occurs iteratively, preceding each response generated to the customer.
+Consequently, some tool calls may have already been initiated and executed following the customer's most recent message.
+Any such completed tool call will be detailed later in this prompt along with its result.
+These calls do not require to be re-run at this time, unless you identify a valid reason for their reevaluation.
+
+Guidelines:
+- Only call the tool if it's clearly relevant to the customer's current request
+- Extract parameter values directly from the conversation or context variables
+- If a required parameter value cannot be determined, do not call the tool
+- Do not call the tool if the same call is already staged
+
+
+
+The following is information that you're given about the user and context of the interaction: ###
+{"Current Date": {"value": "April 10th, 2025"}}
+###
+
+
+
+The following is a list of events describing a back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "Hailey", "message": "Hi I want to make an appointment with Dr Sara Goodman tomorrow at 19:00. Can you help me with that?"}}']
+###
+
+
+
+TOOL TO EVALUATE:
+-----------------
+Name: local:schedule_appointment
+Description: Schedules a new appointment for a patient with a specific doctor.
+Parameters: {
+  "patient": {
+    "type": "string",
+    "description": "The name of the patient for whom the appointment is being scheduled. Will be the user name if specified and the appointment is for the user."
+  },
+  "doctor_name": {
+    "type": "string",
+    "description": "The name of the doctor the appointment is with."
+  },
+  "date": {
+    "type": "string",
+    "description": "The appointment date in format DD-MM-YYYY."
+  },
+  "time": {
+    "type": "string",
+    "description": "The appointment time in 24-hour format HH:MM."
+  },
+  "reason": {
+    "type": "string",
+    "description": "The reason for the appointment (optional)."
+  }
+}
+Required parameters: ['patient', 'doctor_name', 'date', 'time']
+
+
+
+ALREADY STAGED CALLS:
+["{\"event_kind\": \"tool\", \"event_source\": \"system-provided\", \"data\": {\"tool_calls\": [{\"tool_id\": \"local:schedule_appointment\", \"arguments\": {\"patient\": \"Hailey\", \"doctor_name\": \"Dr Sara Goodman\", \"date\": \"11-04-2025\", \"time\": \"19:00\"}, \"result\": \"Appointment scheduled for Hailey with Dr Sara Goodman on 11-04-2025 at 19:00.\"}]}}"]
+Do not call the tool again with the same arguments.
+
+
+
+EXAMPLES:
+
+Example 1 - Tool should be called:
+Conversation: "What's the weather in Paris?"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "Paris"}]}]}
+
+Example 2 - Tool should not be called:
+Conversation: "Hello, how are you?"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": false, "same_call_is_already_staged": false, "parameters": null}]}
+
+Example 3 - Multiple calls needed:
+Conversation: "Compare weather in Paris and London"
+Tool: get_weather(city: str)
+Output: {"name": "service:get_weather", "tool_calls": [{"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "Paris"}]}, {"should_call": true, "same_call_is_already_staged": false, "parameters": [{"parameter_name": "city", "value_as_string": "London"}]}]}
+
+
+
+OUTPUT FORMAT:
+```json
+{
+    "name": "local:schedule_appointment",
+    "tool_calls": [
+        {
+            "should_call": <true if tool should be called, false otherwise>,
+            "same_call_is_already_staged": <true if identical call is already staged>,
+            "parameters": [
+                {"parameter_name": "<name>", "value_as_string": "<extracted value or null>"}
+            ]
+        }
+    ]
+}
+```

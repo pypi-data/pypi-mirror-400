@@ -1,0 +1,393 @@
+GENERAL INSTRUCTIONS
+-----------------
+In our system, the behavior of a conversational AI agent is guided by how the current state of its interaction with a customer (also referred to as "the user") compares to a number of pre-defined conditions:
+
+- "condition": This is a natural-language condition that specifies when a guideline should apply.
+          We evaluate each conversation at its current state against these conditions
+          to determine which guidelines should inform the agent's next reply.
+
+The agent will receive relevant information for its response based on the conditions that are deemed to apply to the current state of the interaction.
+
+Task Description
+----------------
+Your task is to evaluate whether each provided condition applies to the current interaction between an AI agent and a user. For each condition, you must determine a binary True/False decision.
+
+Evaluation Criteria:
+Evaluate each condition based on its natural meaning and context:
+
+- Current Activity Or State: Conditions about what's happening "now" in the conversation (e.g., "the conversation is about X", "the user asks about Y") apply based on the most recent messages and current topic of discussion.
+- Historical Events: Conditions about things that happened during the interaction (e.g., "the user mentioned X", "the customer asked about Y") apply if the event occurred at any point in the conversation.
+- Persistent Facts: Conditions about user characteristics or established facts (e.g., "the user is a senior citizen", "the customer has allergies") apply once established, regardless of current discussion topic.
+
+When evaluating current activity or state you should:
+- Consider sub issues: Recognize that conversations often evolve naturally within related domains or explore connected subtopics—in these cases, broader thematic conditions may remain applicable.
+- Consider topic shifts: When a user previously discussed something that triggered a condition but the conversation has since moved to a different topic or context with no ongoing connection, mark the condition as not applicable.
+
+Key Considerations:
+- Use natural language intuition to interpret what each condition is actually asking about.
+- Ambiguous phrasing: When a condition's temporal scope is unclear, treat it as a historical event that remains True as long as it was relevant at some point in the interaction.
+
+
+The exact format of your response will be provided later in this prompt.
+
+
+
+
+Examples of Condition Evaluations:
+-------------------
+Example #1: ###
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Can I purchase a subscription to your software?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Absolutely, I can assist you with that right now."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Cool, let's go with the subscription for the Pro plan."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Your subscription has been successfully activated. Is there anything else I can help you with?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Will my son be able to see that I'm subscribed? Or is my data protected?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "If your son is not a member of your same household account, he won't be able to see your subscription. Please refer to our privacy policy page for additional up-to-date information."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Gotcha, and I imagine that if he does try to add me to the household account he won't be able to see that there already is an account, right?"
+    }
+  }
+]
+
+
+- **Guidelines**:
+1) The customer is a senior citizen.
+2) The customer asks about data security
+3) Our pro plan is discussed or mentioned
+
+
+- **Expected Result**:
+```json
+{
+  "checks": [
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "the customer is a senior citizen",
+      "rationale": "There is no indication regarding the customer's age.",
+      "applies": false
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "the customer asks about data security",
+      "rationale": "The customer asks who can see the account, which is related to data security.",
+      "applies": true
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "our pro plan is discussed or mentioned",
+      "rationale": "Pro plan subscription was discussed and the conversation moved to data security, so it is no longer applicable.",
+      "applies": false
+    }
+  ]
+}
+```
+
+Example #2: ###
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I'm looking for recipe recommendations for a dinner for 5"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Sounds good! Are you interested in just entrees or do you need help planning the entire meal and experience?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I have the evening planned, just looking for entrees."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Great. Are there any dietary limitations I should be aware of?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I have some minor nut allergies"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "I see. Should I avoid recipes with all nuts then?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "You can use peanuts. I'm not allergic to those."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Thanks for clarifying! Are there any particular cuisines or ingredients you'd like to feature in your dinner?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I'd love something Mediterranean inspired. We all enjoy seafood too if you have any good options."
+    }
+  }
+]
+
+
+- **Guidelines**:
+1) Food allergies are discussed
+2) The customer is allergic to almonds
+3) The customer discusses peanut allergies
+4) The conversation is about recipe recommendations
+
+
+- **Expected Result**:
+```json
+{
+  "checks": [
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The customer discussed about food allergies",
+      "rationale": "Nut allergies were discussed earlier at the conversation",
+      "applies": true
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The customer is allergic to almonds",
+      "rationale": "While the customer has some nut allergies, we do not know if they are for almonds specifically",
+      "applies": false
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The customer discusses peanut allergies",
+      "rationale": "Peanut allergies were discussed, but the conversation has moved on from the subject so the it no longer applies.",
+      "applies": false
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "The customer asks about recipe recommendation",
+      "rationale": "The conversation is about preferred foods, which is within the topic of recipe recommendations.",
+      "applies": true
+    }
+  ]
+}
+```
+
+Example #3: ###
+
+- **Interaction Events**:
+[
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Hi, I'd like to place an order for delivery"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Great! I'd be happy to help you with your order. What would you like to order today?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "I'm looking at your pizza menu. Do you have any vegetarian options?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Absolutely! We have several vegetarian pizzas including Margherita, Veggie Supreme, and Mediterranean. We also have vegan cheese available."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Perfect! I'll take a large Veggie Supreme pizza."
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "Actually, I'm ordering for a party of 6. Do you have any combo deals or discounts for large orders?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "We do! For orders over $50, we offer 15% off. And we have a family deal - 3 large pizzas for $45. Would you like to add more pizzas?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "That family deal sounds great! Can I get two more large pizzas - one pepperoni and one Hawaiian?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "ai_agent",
+    "data": {
+      "message": "Perfect! So you'll have three large pizzas total with our family deal. Now, what's your delivery address?"
+    }
+  },
+  {
+    "event_kind": "message",
+    "event_source": "user",
+    "data": {
+      "message": "123 Oak Street, apartment 4B. How long will delivery take?"
+    }
+  }
+]
+
+
+- **Guidelines**:
+1) the customer requested vegetarian options
+2) the conversation is about dietary restrictions
+3) the customer is ordering for multiple people
+4) discounts are being discussed
+5) Delivery details are discussed
+
+
+- **Expected Result**:
+```json
+{
+  "checks": [
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "the customer requests vegetarian options",
+      "rationale": "The customer asked about vegetarian options earlier in the conversation but now the conversation moved to delivery details.",
+      "applies": false
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "the conversation is about dietary restrictions",
+      "rationale": "The conversation has moved from dietary restrictions to delivery details, so it's currently not about dietary restrictions.",
+      "applies": false
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "the customer is ordering for multiple people",
+      "rationale": "The customer mentioned they are ordering for a party of 6 people.",
+      "applies": true
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "discounts are being discussed",
+      "rationale": "Discounts and combo deals were mentioned, but the conversation has moved to delivery logistics.",
+      "applies": false
+    },
+    {
+      "guideline_id": "<example-id-for-few-shots--do-not-use-this-in-output>",
+      "condition": "Delivery details are discussed",
+      "rationale": "The most recent messages are about delivery address and timing, which are delivery details.",
+      "applies": true
+    }
+  ]
+}
+```
+
+
+
+
+You are an AI agent named Dummy Agent.
+
+The following is a description of your background and personality: ###
+Dummy agent
+###
+
+
+
+The following is a list of events describing a back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "Guest", "message": "Can I order a banana?"}}']
+###
+
+
+
+- Conditions List: ###
+1) The customer wants to order something.
+###
+
+
+
+IMPORTANT: Please note there are exactly 1 guidelines in the list for you to check.
+
+Expected Output
+---------------------------
+- Specify the applicability of each guideline by filling in the details in the following list as instructed:
+
+    ```json
+    {
+        "checks":
+        [{"guideline_id": "1", "condition": "The customer wants to order something", "rationale": "<Explanation for why the condition is or isn't met based on recent interaction>", "applies": "<BOOL>"}]
+    }
+    ```

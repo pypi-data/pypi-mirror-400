@@ -1,0 +1,122 @@
+GENERAL INSTRUCTIONS
+-----------------
+You are part of a system of AI agents which interact with a customer on the behalf of a business.
+The behavior of the system is determined by a list of behavioral guidelines provided by the business.
+Some of these guidelines are equipped with external tools—functions that enable the AI to access crucial information and execute specific actions.
+Your responsibility in this system is to evaluate when and how these tools should be employed, based on the current state of interaction, which will be detailed later in this prompt.
+
+This evaluation and execution process occurs iteratively, preceding each response generated to the customer.
+Consequently, some tool calls may have already been initiated and executed following the customer's most recent message.
+Any such completed tool call will be detailed later in this prompt along with its result.
+These calls do not require to be re-run at this time, unless you identify a valid reason for their reevaluation.
+
+Guidelines:
+- Only call the tool if it's clearly relevant to the customer's current request (mark should_run: true)
+- Extract parameter values directly from the conversation or context variables
+- If a required parameter value cannot be determined, do not call the tool - mark it as should_run: false
+- If the same call is already staged, do not call the tool again - mark it as should_run: false
+
+
+
+EXAMPLES
+-----------------
+
+Example #1: ###
+
+- **Context**:
+Tool should be called
+
+- **Expected Result**:
+```json
+{
+  "reasoning": "The user asked about the weather in Paris",
+  "should_run": true
+}
+```
+###
+
+
+Example #2: ###
+
+- **Context**:
+Tool should NOT be called
+
+- **Expected Result**:
+```json
+{
+  "reasoning": "The user only greeted me and did not inquire about the weather",
+  "should_run": false
+}
+```
+###
+
+
+Example #3: ###
+
+- **Context**:
+Multiple calls needed
+
+- **Expected Result**:
+```json
+{
+  "reasoning": "The user asked to compare the weather in Paris and London",
+  "should_run": true
+}
+```
+###
+
+
+
+
+TOOL TO EVALUATE:
+-----------------
+Name: local:change_credit_limit
+Description: Changes the credit limit for an account. Can increase or decrease by $10,000 without supervisor approval. Larger changes require supervisor authorization.
+Parameters: {
+  "username": {
+    "type": "string",
+    "description": "The account's username"
+  },
+  "new_limit": {
+    "type": "int",
+    "description": "The new requested credit limit in USD"
+  },
+  "current_limit": {
+    "type": "int",
+    "description": "The current credit limit in USD"
+  }
+}
+Required parameters: ['username', 'new_limit', 'current_limit']
+
+
+
+ALREADY STAGED CALLS:
+["{\"event_kind\": \"tool\", \"event_source\": \"system-provided\", \"data\": {\"tool_calls\": [{\"tool_id\": \"local:get_credit_limit\", \"arguments\": {\"username\": \"Alice\"}, \"result\": {\"result\": \"Current credit limit for Alice is $15,000.00.\"}}]}}"]
+Do not call the tool again with the same arguments.
+
+
+OUTPUT FORMAT:
+```json
+{
+    "reasoning": "<BRIEFLY EXPLAIN YOUR REASONING FOR RUNNING local:change_credit_limit>",
+    "should_run": <true if tool should be called (at least one call), false otherwise>,
+    "calls": [
+        {
+            "args":
+            {
+                "username": "<extract value in string form - or insert null if not available>",
+                "new_limit": "<extract value in string form - or insert null if not available>",
+                "current_limit": "<extract value in string form - or insert null if not available>"
+            }
+        },
+        ...
+    ]
+}
+```
+
+
+
+The following is a list of events describing the most recent state of the back-and-forth
+interaction between you and a user: ###
+['{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Hi I see that my credit limit is low. Can I change it?"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Sure, I can help with that. Can you please provide your account name?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Yes, it\'s Alice"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Thanks, Alice. What would you like your new credit limit to be?"}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "$20,000"}}', '{"event_kind": "message", "event_source": "ai_agent", "data": {"participant": "test-agent", "message": "Got it. You\'d like to change your credit limit to $20,000. Please confirm the request so I can proceed."}}', '{"event_kind": "message", "event_source": "user", "data": {"participant": "test_customer", "message": "Yes that\'s good thanks"}}']
+###
