@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal_editor, modal_editor_open, session_filter_button %}
+{% block title %}PySkat - Evaluation{% endblock %}
+{% block head %}{% endblock %}
+{% block content %}
+<h1>Evaluation{% if session %} for Session {{ session.id }}{% endif %}</h1>
+
+<div class="input-group">
+    {{ session_filter_button(request, sessions, session_filter) }}
+    <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" >{% if session_filter %}Sorted by {{ sort | title }}{% else %}Sort by{% endif %}</button>
+    <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{{ request.url.remove_query_params(["sort", "ascending"]) }}">Default</a></li>
+        <li><a class="form-check dropdown-item" href="{{ request.url.include_query_params(ascending=not ascending) }}">{% if ascending %}Descending{% else %}Ascending{% endif %}</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="player_id") }}">Player ID</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="player_name") }}">Player Name</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="score") }}">Game Score</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="won") }}">Won</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="won_score") }}">Won Score</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="lost") }}">Lost</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="lost_score") }}">Lost Score</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="opponents_lost") }}">Opponents Lost</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="opponents_lost_score") }}">Opponents Lost Score</a></li>
+        <li><a class="dropdown-item" href="{{ request.url.include_query_params(sort="total_score") }}">Total Score</a></li>
+    </ul>
+</div>
+
+{% if evaluation_data is not none %}
+{% for display in displays %}
+<div class="mt-5">
+    {% include display %}
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

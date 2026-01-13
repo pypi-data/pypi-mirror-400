@@ -1,0 +1,87 @@
+{% from "macros.html" import nav_link with context %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/{{- settings.wui.theme -}}/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    {% block head %}
+    {% endblock %}
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+
+<nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+            <img src="/static/pyskat_icon.svg" alt="PySkat Icon" class="d-inline-block me-2" height="36" width="36"></img>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01"
+                aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+            <ul class="navbar-nav me-auto">
+                {{ nav_link("players", "wui_players", "Players") }}
+                {{ nav_link("sessions", "wui_sessions", "Sessions") }}
+                {{ nav_link("matches", "wui_matches", "Matches") }}
+                {{ nav_link("results", "wui_results", "Results") }}
+                {{ nav_link("evaluation", "wui_evaluation", "Evaluation") }}
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container-md mt-5">
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="mb-5">
+                {% for message in messages %}
+                    <div class="alert alert-{{- message.category -}}">
+                        {% if message.category == "info" %}
+                        <i class="bi-info-circle me-1"></i>
+                        {% elif message.category == "success" %}
+                        <i class="bi-check-circle me-1"></i>
+                        {% elif message.category == "warning" %}
+                        <i class="bi-exclamation-circle me-1"></i>
+                        {% elif message.category == "danger" %}
+                        <i class="bi-x-circle me-1"></i>
+                        {% endif %}
+                        <span> {{ message.text }} </span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <script>
+        const headers = new Headers();
+        headers.append('Content-Type', 'application/json');
+
+        async function flash_message(text, category) {
+            let message = {
+                text: text,
+                category: category
+            }
+            let response = await fetch('{{ url_for('wui_flash_message') }}', {
+                method:'POST',
+                headers: headers,
+                body: JSON.stringify(message)
+            });
+        }
+    </script>
+
+    {% block content %}
+    {% endblock %}
+</div>
+
+<footer>
+    {% block footer %}
+    {% endblock %}
+</footer>
+</body>
+</html>
