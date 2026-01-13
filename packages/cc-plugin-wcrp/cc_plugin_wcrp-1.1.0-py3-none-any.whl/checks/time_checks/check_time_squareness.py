@@ -1,0 +1,297 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import os
+import re
+import numpy as np
+import cftime
+from compliance_checker.base import BaseCheck, TestCtx
+from datetime import timedelta as py_timedelta
+from checks.time_checks.time_constants import FREQ_INC, AVERAGE_CORRECTION_FREQ
+
+NDECIMALS = 6
+_TIME_RANGE_RE = re.compile(r"_(\d{4,14})-(\d{4,14})(?:-clim)?\.nc$", re.IGNORECASE)
+
+
+def _trunc(arr: np.ndarray, ndecs: int) -> np.ndarray:
+    f = 10.0 ** int(ndecs)
+    return np.trunc(arr * f) / f
+
+
+def _get_ds_path(ds) -> str:
+    if hasattr(ds, "filepath"):
+        try:
+            return ds.filepath()
+        except Exception:
+            pass
+    return getattr(ds, "filename", "") or ""
+
+
+def _parse_filename_start(filepath: str):
+    """
+    Extract start boundary from filename time range.
+    """
+    fname = os.path.basename(filepath or "")
+    m = _TIME_RANGE_RE.search(fname)
+    if not m:
+        return None
+    s = m.group(1)
+
+    y = int(s[0:4])
+    mo = int(s[4:6]) if len(s) >= 6 else 1
+    d = int(s[6:8]) if len(s) >= 8 else 1
+    hh = int(s[8:10]) if len(s) >= 10 else 0
+    mm = int(s[10:12]) if len(s) >= 12 else 0
+    ss = int(s[12:14]) if len(s) >= 14 else 0
+    return (y, mo, d, hh, mm, ss)
+
+
+def _resolve_table_id(ds) -> str:
+    try:
+        t = str(ds.getncattr("table_id"))
+        return t.split()[-1] if " " in t else t
+    except Exception:
+        return "None"
+
+
+def _resolve_frequency(ds) -> str | None:
+    try:
+        return str(ds.getncattr("frequency"))
+    except Exception:
+        return None
+
+
+def _resolve_target_variable(ds) -> str | None:
+    try:
+        vid = ds.getncattr("variable_id")
+        if vid in ds.variables:
+            return str(vid)
+    except Exception:
+        pass
+
+    base = os.path.basename(_get_ds_path(ds))
+    if "_" in base:
+        cand = base.split("_")[0]
+        if cand in ds.variables:
+            return cand
+
+    for vname, var in ds.variables.items():
+        if vname == "time":
+            continue
+        if "time" in getattr(var, "dimensions", ()):
+            return vname
+
+    return None
+
+
+def _is_instantaneous(ds, target_var: str | None, freq_id: str) -> bool:
+    cm = ""
+    if target_var and target_var in ds.variables:
+        cm = str(getattr(ds.variables[target_var], "cell_methods", "") or "").lower()
+
+    if "time: point" in cm:
+        return True
+    if freq_id in set(AVERAGE_CORRECTION_FREQ):
+        return False
+    return True
+
+
+def _add_time_increment(
+    date: cftime.datetime, value: int, unit: str, calendar: str
+) -> cftime.datetime:
+    if unit in ("seconds", "minutes", "hours", "days"):
+        return date + py_timedelta(**{unit: int(value)})
+
+    y = int(date.year)
+    m = int(date.month)
+    d = int(date.day)
+
+    if unit == "years":
+        y += int(value)
+    elif unit == "months":
+        tot = m + int(value)
+        div, mod = divmod(tot - 1, 12)
+        y += div
+        m = mod + 1
+    else:
+        return date
+
+    if calendar == "360_day":
+        d = min(d, 30)
+        return cftime.datetime(
+            y, m, d, date.hour, date.minute, date.second, calendar=calendar
+        )
+
+    for dd in range(d, 0, -1):
+        try:
+            return cftime.datetime(
+                y, m, dd, date.hour, date.minute, date.second, calendar=calendar
+            )
+        except ValueError:
+            continue
+
+    return cftime.datetime(
+        y, m, 1, date.hour, date.minute, date.second, calendar=calendar
+    )
+
+
+def _midpoint_num(d0, d1, units: str, calendar: str) -> float:
+    n0 = float(cftime.date2num(d0, units=units, calendar=calendar))
+    n1 = float(cftime.date2num(d1, units=units, calendar=calendar))
+    return 0.5 * (n0 + n1)
+
+
+def _parse_freq_token(token: str):
+    """
+    Parse TOML fallback tokens (e.g. 30m, 1h, 1D, 1M, 1Y).
+    'm' = minutes, 'M' = months.
+    """
+    if not token:
+        return None
+    m = re.match(r"^\s*(\d+)\s*([smhDMY])\s*$", str(token).strip())
+    if not m:
+        return None
+    val = int(m.group(1))
+    u = m.group(2)
+
+    if u == "s":
+        return val, "seconds"
+    if u == "m":
+        return val, "minutes"
+    if u == "h":
+        return val, "hours"
+    if u == "D":
+        return val, "days"
+    if u == "M":
+        return val, "months"
+    if u == "Y":
+        return val, "years"
+    return None
+
+
+def _resolve_increment(table_id: str, freq_id: str, fallback_freq: dict | None):
+    """
+    Resolution order:
+      1) local nctime mapping: (table_id, freq_id)
+      2) local nctime mapping: ('None', freq_id)
+      3) TOML fallback: frequency[freq_id] -> token -> (val, unit)
+    """
+    if (table_id, freq_id) in FREQ_INC:
+        return FREQ_INC[(table_id, freq_id)]
+    if ("None", freq_id) in FREQ_INC:
+        return FREQ_INC[("None", freq_id)]
+    if fallback_freq and freq_id in fallback_freq:
+        return _parse_freq_token(fallback_freq[freq_id])
+    return None
+
+
+def check_time_squareness(
+    ds, severity=BaseCheck.HIGH, calendar="", ref_time_units="", frequency=None
+):
+    """
+    TIME001: Time axis check for a single file.
+
+    - Primary: FREQ_INC (table_id, frequency)
+    - Start: filename start boundary
+    - Average data: midpoint convention for AVERAGE_CORRECTION_FREQ
+    - Optional policy: calendar / ref_time_units equality checks
+    """
+    ctx = TestCtx(severity, "[TIME001] Check Time Squareness ")
+
+    if "time" not in ds.variables:
+        return []
+
+    time_var = ds.variables["time"]
+    units = getattr(time_var, "units", "") or ""
+    cal = getattr(time_var, "calendar", "standard") or "standard"
+
+    if calendar and str(cal) != str(calendar):
+        ctx.add_failure(f"time.calendar='{cal}' differs from expected '{calendar}'.")
+    if ref_time_units and str(units).strip() != str(ref_time_units).strip():
+        ctx.add_failure(
+            f"time.units='{units}' differs from expected '{ref_time_units}'."
+        )
+
+    if not units:
+        ctx.add_failure("Missing time.units; cannot rebuild theoretical axis.")
+        return [ctx.to_result()]
+
+    freq_id = _resolve_frequency(ds)
+    if not freq_id:
+        ctx.add_warning(
+            "Missing global attribute 'frequency'; cannot resolve expected step."
+        )
+        return [ctx.to_result()]
+
+    table_id = _resolve_table_id(ds)
+    inc = _resolve_increment(table_id, freq_id, frequency or {})
+    if not inc:
+        ctx.add_warning(
+            f"Cannot resolve increment for (table_id={table_id}, frequency={freq_id})."
+        )
+        return [ctx.to_result()]
+
+    inc_val, inc_unit = int(inc[0]), str(inc[1])
+
+    # Start boundary from filename
+    start_tuple = _parse_filename_start(_get_ds_path(ds))
+    if not start_tuple:
+        ctx.add_failure("Cannot parse filename time range start (_YYYY..-YYYY..nc).")
+        return [ctx.to_result()]
+
+    start_boundary = cftime.datetime(*start_tuple, calendar=cal)
+
+    # Instantaneous vs average
+    target = _resolve_target_variable(ds)
+    instantaneous = _is_instantaneous(ds, target, freq_id)
+    use_midpoint = (not instantaneous) and (freq_id in set(AVERAGE_CORRECTION_FREQ))
+
+    # Read actual time axis
+    raw = time_var[:]
+    if hasattr(raw, "compressed"):
+        raw = raw.compressed()
+    actual = np.asarray(raw, dtype=float)
+
+    if actual.size == 0:
+        ctx.add_failure("Time axis is empty.")
+        return [ctx.to_result()]
+
+    # Build theoretical axis in numeric space (file units)
+    theo = np.zeros(actual.size, dtype=float)
+    variable_step = inc_unit in ("months", "years")
+
+    if not variable_step:
+        d0 = start_boundary
+        d1 = _add_time_increment(d0, inc_val, inc_unit, cal)
+        n0 = float(cftime.date2num(d0, units=units, calendar=cal))
+        n1 = float(cftime.date2num(d1, units=units, calendar=cal))
+        step_num = n1 - n0
+        first = (n0 + n1) / 2.0 if use_midpoint else n0
+        theo = first + np.arange(actual.size, dtype=float) * float(step_num)
+    else:
+        cur = start_boundary
+        for i in range(actual.size):
+            nxt = _add_time_increment(cur, inc_val, inc_unit, cal)
+            theo[i] = (
+                _midpoint_num(cur, nxt, units, cal)
+                if use_midpoint
+                else float(cftime.date2num(cur, units=units, calendar=cal))
+            )
+            cur = nxt
+
+    # Compare after truncation (nctime spirit)
+    a_t = _trunc(actual, NDECIMALS)
+    t_t = _trunc(theo, NDECIMALS)
+
+    bad = np.where(a_t != t_t)[0]
+    if bad.size:
+        i = int(bad[0])
+        ctx.add_failure(
+            f"Mismatch at index {i}: expected {t_t[i]:.{NDECIMALS}f}, got {a_t[i]:.{NDECIMALS}f}. "
+            f"(table_id={table_id}, frequency={freq_id}, var={target}, midpoint={use_midpoint})"
+        )
+    else:
+        if not ctx.messages:
+            ctx.add_pass()
+
+    return [ctx.to_result()]
