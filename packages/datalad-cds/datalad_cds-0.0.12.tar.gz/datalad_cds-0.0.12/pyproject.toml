@@ -1,0 +1,105 @@
+[project]
+name = "datalad-cds"
+description = "DataLad extension for downloading from the Copernicus Climate Data Store"
+requires-python = ">=3.10"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+  { name = "The DataLad Team and Contributors", email = "team@datalad.org" },
+  { name = "Benedikt Bulich", email = "b.bulich@fz-juelich.de" },
+  { name = "Daniel Klauß", email = "daniel.klauss@alumni.fh-aachen.de" },
+  { name = "Laurens Jan van Haaren", email = "l.van.haaren@fz-juelich.de" },
+  { name = "Matthias Riße", email = "m.risse@fz-juelich.de" },
+]
+maintainers = [
+  { name = "Matthias Riße", email = "m.risse@fz-juelich.de" },
+]
+classifiers = [
+  "Programming Language :: Python",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+]
+dynamic = ["version"]
+
+dependencies = [
+  "datalad>=0.17.0",
+  "annexremote>=1.6.0",
+  "cdsapi>=0.5.1",
+]
+
+[project.optional-dependencies]
+devel = [
+  "coverage",
+  "hypothesis",
+  "mypy",
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "sphinx",
+  "sphinx_rtd_theme",
+]
+
+[project.urls]
+repository = "https://github.com/matrss/datalad-cds"
+
+[project.scripts]
+git-annex-backend-XGRIBNORMV1 = "datalad_cds.git_annex_backend_XGRIBNORMV1:main"
+git-annex-remote-cds = "datalad_cds.cds_remote:main"
+
+[project.entry-points."datalad.extensions"]
+datalad-cds = "datalad_cds:command_suite"
+
+[build-system]
+requires = ["setuptools >= 43.0.0", "tomli; python_version < '3.11'"]
+build-backend = "setuptools.build_meta"
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "src/datalad_cds/_version.py"
+versionfile_build = "datalad_cds/_version.py"
+tag_prefix = "v"
+
+[tool.coverage.report]
+show_missing = true
+omit = ["src/datalad_cds/_version.py"]
+
+[tool.ruff]
+line-length = 88
+extend-exclude = [
+  "_datalad_buildsupport/",
+  "src/datalad_cds/_version.py",
+  "versioneer.py",
+]
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.mypy]
+ignore_missing_imports = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+exclude = [
+  ".tox/",
+  "_datalad_buildsupport/",
+  "build/",
+  "src/datalad_cds/_version.py",
+  "venv/",
+  "versioneer.py",
+]
+
+[[tool.mypy.overrides]]
+module = [
+  "setup",
+  "datalad_cds",
+]
+disallow_untyped_calls = false
+
+[[tool.mypy.overrides]]
+module = [
+  "datalad_cds._version",
+  "versioneer",
+  "_datalad_buildsupport.*",
+]
+follow_imports = "skip"
