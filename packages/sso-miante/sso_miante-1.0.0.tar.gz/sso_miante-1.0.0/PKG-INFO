@@ -1,0 +1,160 @@
+Metadata-Version: 2.4
+Name: sso-miante
+Version: 1.0.0
+Summary: SSO Django Simplificado
+Author: Jonathas Miante
+License: MIT
+Classifier: Framework :: Django
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Django>=4.2
+Requires-Dist: requests>=2.32.5
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# SSO Miante
+
+
+## Descrição
+
+<p>
+sso_miante é uma biblioteca Django voltada à centralização da autenticação e da gestão de usuários entre múltiplas aplicações. Ela fornece uma base simples e reutilizável para implementação de Single Sign-On (SSO), permitindo o compartilhamento de usuários, sessões e regras de acesso.
+</p>
+<p>
+O pacote reúne um aplicativo principal de autenticação e um aplicativo cliente para integração com sistemas consumidores, facilitando a adoção de login centralizado com mínima configuração. Inclui templates e arquivos estáticos embarcados, é compatível com versões modernas do Django e segue boas práticas de arquitetura modular.
+</p>
+<p>
+Indicado para projetos que necessitam de login unificado, padronização de acessos e governança centralizada de usuários em ambientes Django.
+</p>
+
+* github: <a href="https://github.com/jhmiante/sso_miante" target="_blank">jhmiante/sso_miante</a>
+
+* pypi: <a href="https://pypi.org/project/sso-miante/" target="_blank">PyPi sso-miante (last version)</a>
+
+
+
+<br>
+
+## Manual de Uso
+
+### Instalação
+
+```cmd
+pip install sso-miante
+```
+
+### Configuração Projeto Principal
+
+O projeto principal será o qual está a configuração dos projetos que utilizarão o login por SSO, também será onde estará centralizado os usuários.
+
+Após a instalação do **sso_miante** no projeto principal, no arquivo **settings.py** inclua a seguinte linha em **INSTALLED_APPS**:
+
+```python
+INSTALLED_APPS = [ 
+    ...,
+    'sso_miante',
+]
+```
+
+<br>
+
+No arquivo **url.py** do projeto, inclua a url do **sso_miante**
+
+```python
+from django.urls import path, include
+
+urlpatterns = [
+    ...,
+    path("", include("sso_miante.urls")),
+]
+```
+
+Agora Rode o migrate
+```cmd
+python manage.py migrate
+```
+
+Inicie o Servidor (exemplo com 127.0.0.1:8001)
+
+```cmd
+python manage.py runserver 127.0.0.1:8001
+```
+
+Acesse a página ADM do SSO Miante: http://127.0.0.1:8000/sso/ <br>
+****Lembre de substituir o http://127.0.0.1:8000/ pela seu dominio*
+
+Siga os passos abaixo para cadastrar um novo APP
+
+1. Clique em Novo
+2. Digite o nome para o Aplicativo
+3. Copie o **ID APP** e **SECRETS APP** e para um local seguro, você irá precisar dele quando for configurar o aplicativo que irá realizar o login
+4. Digite os Servidores (HOST) que poderão realizar login (Se precisar mais de um, digite um por linha)
+
+Pronto o projeto principal já está finalizado
+
+Para adicionar novos aplicativos, siga os 3 passos acima, quantas vezes forem necessária
+
+
+### Configuração Projetos Adicionais
+
+São os projetos que irão utilizar o login via SSO
+
+Primeiro deve instalar o **sso_miante** (deverá ser instalado em todos os projetos)
+
+```cmd
+pip install sso-miante
+```
+
+Após a instalação do **sso_miante** no projeto, no arquivo **settings.py** inclua a seguinte linha em **INSTALLED_APPS**:
+
+```python
+INSTALLED_APPS = [ 
+    ...,
+    'sso_miante_client',
+]
+```
+
+Também no arquivo **settings.py** inclua as variáveis
+
+```python
+
+SSO_MIANTE_ID = 'APP_ID' # GERADO ANTERIORMENTE no Projeto (ID APP)
+SSO_MIANTE_SECRETS = 'SECRETS' # GERADO ANTERIORMENTE no Projeto (SECRETS APP)
+SSO_MIANTE_URL = 'http://127.0.0.1:8000/sso/userinfo/' #Lembre de substituir o http://127.0.0.1:8000/ pela seu dominio
+
+LOGIN_URL = "sso_login"
+LOGOUT_REDIRECT_URL = "sso_login"
+
+```
+
+
+No arquivo **url.py** do projeto, inclua a url do **sso_miante**
+
+```python
+from django.urls import path, include
+
+urlpatterns = [
+    ...,
+    path("", include("sso_miante_client.urls")),
+]
+```
+
+<br>
+<hr>
+<br>
+
+## Histórico de Versões
+
+* 0.0.9 ou anterior => Versões Beta (testes) (Não utilizar)
+* 1.0.0 => Versão Inicial  Oficial

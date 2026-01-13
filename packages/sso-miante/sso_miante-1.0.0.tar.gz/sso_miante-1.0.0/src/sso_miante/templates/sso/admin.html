@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSO Miante</title>
+
+  <style>
+    /* Layout geral */
+    .page-wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .title { margin: 0; font-size: 20px; font-weight: 700; color: #1f2937; }
+    .text-end {text-align: end;}
+
+    /* Botões */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; text-decoration: none; font-weight: 600; font-size: 14px; }
+    .btn-min {min-width: 100px;}
+    .btn-secondary { background: #f3f4f6; border-color: #e5e7eb; color: #111827; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn:focus { outline: 3px solid rgba(37, 99, 235, .25); outline-offset: 2px; }
+
+    /* Tabela (simulando "table table-hover" + "table-primary") */
+    .table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+    .table th, .table td { padding: 12px 14px; border-bottom: 1px solid #eef2f7; text-align: left; font-size: 14px; color: #111827; }
+    .table thead th { background: #cfe2ff; /* similar ao table-primary */ color: #0b1f4a; font-weight: 700; border-bottom: 1px solid #b6d4fe; }
+    .table-hover tbody tr:hover { background: #f8fafc; }
+    .table tbody tr:last-child td { border-bottom: none; }
+
+    /* Modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 9999; }
+    .modal { width: min(700px, 100%); background: #fff; padding-left: 10px; padding-right: 30px; border-radius: 14px; box-shadow: 0 20px 55px rgba(0,0,0,.25); overflow: hidden; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; background: #fff; }
+    .modal-title { margin: 0; font-size: 16px; font-weight: 800; color: #111827; }
+    .modal-close { border: none; background: transparent; cursor: pointer; font-size: 20px; line-height: 1; padding: 6px 10px; border-radius: 10px; }
+    .modal-close:hover { background: #eef2f7; }
+    .modal-body { padding: 16px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 16px; border-top: 1px solid #e5e7eb; background: #fff; }
+
+    /* Form (simulando "form-control") */
+    .form-group { margin-bottom: 12px; }
+    .form-label { display: block; font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 6px; }
+    .form-control { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 14px; color: #111827; background: #fff; }
+    .form-control:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .18); }
+
+    /* Abertura/fechamento */
+    .modal-backdrop.is-open { display: flex; }
+  </style>
+
+  </head>
+<body>
+
+<div class="page-wrap">
+  <div class="toolbar">
+    <h1 class="title">Aplicativos</h1>
+
+    <div style="display:flex; gap:10px;">
+      <a class="btn btn-secondary" href="/">Voltar</a>
+      <button class="btn btn-primary" type="button" onclick="openModal()">Novo</button>
+    </div>
+  </div>
+
+  <hr><br>
+
+  <!-- TABELA -->
+  <table class="table table-hover">
+    <thead>
+      <tr class="table-primary">
+        <th>Nome APP</th>
+        <th>ID APP</th>
+        <th>Ativo</th>
+      </tr>
+    </thead>
+    <tbody style="cursor: pointer;">
+      {# Exemplo de loop (opcional): apps vindo da view #}
+      {% if apps %}
+        {% for app in apps %}
+          <tr onclick="window.location=`{% url 'sso_detail' pk=app.pk %}`">
+            <td {% if app.ativo is False %} style="background-color: #f0b2b2;" {% endif %}>{{ app.app }} </td>
+            <td {% if app.ativo is False %} style="background-color: #f0b2b2;" {% endif %}>{{ app.app_id }}</td>
+            <td {% if app.ativo is False %} style="background-color: #f0b2b2;" {% endif %}>{% if app.ativo %}Ativo{% else %}Inativo{% endif %}</td>            
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="3" style="color:#6b7280;">Nenhum registro encontrado.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<!-- MODAL -->
+<div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onclick="backdropClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle" class="modal-title">Novo App</h2>
+      <button class="modal-close" type="button" aria-label="Fechar" onclick="closeModal()">×</button>
+    </div>
+
+    <form method="post" action="">
+      {% csrf_token %}
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="nome_app">Nome APP</label>
+          <input class="form-control" type="text" id="nome_app" name="nome_app" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="id_app">ID APP</label>
+          <input class="form-control" type="text" id="id_app" name="app_id" value="{{id_app}}" required readonly />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="secret_app">SECRETS APP</label>
+          <input class="form-control" type="text" id="secret_app" name="app_secret" value="{{secrets}}" required />
+          <p class="form-label text-end"><i>*** Copie o SECRETS em um local seguro, após salvar não será possivel recuperá-lo ***</i></p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="app_server">SERVIDORES</label>
+          <textarea name="app_server" id="app_server" class="form-control">{{obj.server}}</textarea>
+          <p class="text-end text-12"><i>*** Adicione o servidor, um em cada linha. Ex: 127.0.0.1:8000 ***</i></p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openModal() {
+    const bd = document.getElementById("modalBackdrop");
+    bd.classList.add("is-open");
+    // Foco no primeiro campo
+    setTimeout(() => document.getElementById("nome_app")?.focus(), 0);
+    // Fechar com ESC
+    document.addEventListener("keydown", escHandler);
+  }
+
+  function closeModal() {
+    const bd = document.getElementById("modalBackdrop");
+    bd.classList.remove("is-open");
+    document.removeEventListener("keydown", escHandler);
+  }
+
+  function escHandler(e) {
+    if (e.key === "Escape") closeModal();
+  }
+
+  function backdropClick(e) {
+    // Fecha ao clicar fora do conteúdo do modal
+    if (e.target && e.target.id === "modalBackdrop") closeModal();
+  }
+</script>
+
+</body>
+</html>
