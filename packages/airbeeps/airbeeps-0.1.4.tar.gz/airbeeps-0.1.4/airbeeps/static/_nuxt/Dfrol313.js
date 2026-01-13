@@ -1,0 +1,1 @@
+import{bJ as a,S as i,bK as o,bL as n,O as s}from"./dgvVcRbD.js";const l=a(async(u,f)=>{let t,r;const e=i();if(!o().isOffline){if(!e.user&&!e.loading&&([t,r]=n(()=>e.fetchUser()),await t,r(),e.verificationRequired))return s("/verify-email");if(e.user)return s("/chat")}});export{l as default};
