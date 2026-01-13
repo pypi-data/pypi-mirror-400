@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - '*'
+    tags-ignore:
+      - 'v[0-9]*'
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # We want to run on external PRs, but not on our own internal PRs as they'll be run
+    # by the push to the branch.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # https://github.com/astral-sh/setup-uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Test
+        run: uv run --group dev pytest
+
+      - name: Lint
+        run: uv run --group dev ruff check src/ tests/
+
+      - name: Type check
+        run: uv run --group dev pyright

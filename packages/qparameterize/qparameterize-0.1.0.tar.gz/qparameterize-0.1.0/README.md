@@ -1,0 +1,142 @@
+# qparameterize
+
+Parameterize Quarto documents for batch rendering with multiple parameter sets for the jupyter engine.
+
+
+The [default](https://quarto.org/docs/computations/parameters.html#jupyter) uses [papermill](https://papermill.readthedocs.io/). 
+
+However, when rendering to HTML with Quarto's Jupyter engine, each execution overwrites output files (figures, cell outputs) because filenames like `cell-output-1` are only unique within a single file, not across parameterized runs.
+
+This tool solves that by generating separate `.qmd` files with unique labels, so Quarto can render them all without conflicts.
+
+## Why an alternative to quarto's default parameterizing?
+
+The default is excellent for parameterizing Jupyter notebooks when generating single-file outputs e.g. notebooks, PDFs or contained HTML pages.
+
+See [Quarto documentation on parameters](https://quarto.org/docs/computations/parameters.html#jupyter) for more context.
+
+The Jupyter engine generates output filenames with prefixes like `cell-output-1`, `cell-output-2` for figures and other artifacts.
+These prefixes are the automatic labels of the cells.
+Even when cells are labelled, those labels are only unique within the file.
+When you render multiple parameterized versions, the last run overwrites all previous outputs.
+
+e.g. If you render a file `map.qmd` with parameters to html
+
+```bash
+quarto render map.qmd -P country:afghanistan -o afghanistan.html
+...
+quarto render map.qmd -P country:zimbabwe -o zimbabwe.html
+```
+
+The artifacts for all renderings will be stored in `_site/map/`.
+If the first cell of `map.qmd` has an image output it will be saved as `_site/map/figure-html/cell-output-1.png` for all the renderings.
+_All the HTML files will show display images from the last rendering!_
+
+## Solution
+
+This package addresses the issue by:
+
+1. Substituting parameter values in the parameters block
+2. Adding unique labels to all code blocks based on parameter values
+3. Outputs a parameterized `qmd` file
+
+With this approach, the parameterizing is separated from the rendering.
+When rendering, Quarto will know of all the `qmd` source files.
+
+## Workflow
+
+1. Create a `.qmd` with a parameters block
+2. Run `qparameterize` for each parameter set → generates `input--param-values.qmd`
+3. Run `quarto render` on all generated files
+
+## Installation
+
+Requires Python 3.11+.
+
+```bash
+# With uv
+uv pip install qparameterize
+
+# With pip
+pip install qparameterize
+```
+
+## Usage
+
+### Define a parameters block
+
+In your `.qmd` file, mark a code block with the `parameters` tag:
+
+````markdown
+```{python}
+#| tags: [parameters]
+animal = "cat"
+count = 5
+```
+````
+
+### Run the tool
+
+```bash
+# Using key:value pairs
+uv run qparameterize input.qmd -P animal:dog -P count:10
+
+# Using a YAML file
+uv run qparameterize input.qmd --execute-params params.yaml
+
+# With custom output filename
+uv run qparameterize input.qmd -P animal:dog -P count:10 -o ten-dogs.qmd
+```
+
+#### Example YAML params file
+
+```yaml
+animal: dog
+count: 10
+```
+
+### Output
+
+A new file with parameter values in the filename:
+
+```
+input.qmd → input--dog-10.qmd
+```
+
+The output file has:
+- Substituted parameter values
+- Unique labels on all code blocks (e.g., `#| label: dog-10--1`)
+
+### Cleaning up
+
+To delete all previously generated files:
+
+```bash
+uv run qparameterize --clean
+```
+
+The generated files are tracked in `.quarto/qparameterize.txt`.
+
+### In A Quarto Project
+
+Parameterize in the `pre-render` step and clean up in the `post-render`.
+
+```yaml
+project:
+  type: website
+  pre-render:
+    - uv run qparameterize input.qmd -P animal:dog -P count:10
+    - uv run qparameterize input.qmd -P animal:elephant -P count:7
+  post-render:
+    - uv run qparameterize --clean
+```
+
+## Development
+
+```bash
+# Lint
+uv run --group dev ruff check src/
+
+# Test
+uv run --group dev pytest
+```
