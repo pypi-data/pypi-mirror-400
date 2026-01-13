@@ -1,0 +1,95 @@
+[project]
+name = "philipstv-gui"
+dynamic = ["version"]
+description = "GUI remote for Philips Android-powered TVs."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+maintainers = [{ name = "Bazyli Cyran", email = "bazyli@cyran.dev" }]
+keywords = ["philips", "tv", "remote", "ambilight", "gui"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = ["philipstv>=0.4", "appdirs>=1.4.4", "ttkbootstrap>=1.7.3"]
+
+[project.urls]
+repository = "https://github.com/bcyran/philipstv-gui"
+
+[project.gui-scripts]
+philipstv-gui = "philipstv_gui.__main__:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.18",
+    "poethepoet>=0.25.0",
+    "types-appdirs>=1.4.3",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+tag_regex = "^(?P<version>\\d+\\.\\d+\\.\\d+.*)$"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/philipstv_gui/_version.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/LICENSE", "/README.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/philipstv_gui"]
+
+[tool.poe.tasks]
+type-check = "mypy src"
+lint = "ruff check src"
+format-check = "ruff format --check --diff src"
+format = "ruff format src"
+
+[tool.mypy]
+strict = true
+show_error_codes = true
+exclude = ["_version\\.py$"]
+
+[[tool.mypy.overrides]]
+module = "ttkbootstrap.*"
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+exclude = ["*/_version.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "UP",  # pyupgrade (modernize Python code)
+    "B",   # flake8-bugbear (catch common bugs)
+    "C4",  # flake8-comprehensions (better list/dict/set comprehensions)
+    "SIM", # flake8-simplify (simplification suggestions)
+    "RUF", # Ruff-specific rules
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.poe.tasks.check]
+help = "Run all quality checks (tests, type checking, formatting, linting)"
+sequence = ["type-check", "lint", "format-check"]
