@@ -1,0 +1,198 @@
+Metadata-Version: 2.4
+Name: observo-handler
+Version: 1.0.0
+Summary: Real-time logging handler for Observo platform
+Home-page: https://github.com/yourusername/observo-handler
+Author: Your Name
+Author-email: Your Name <your.email@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/observo-handler
+Project-URL: Documentation, https://github.com/yourusername/observo-handler
+Project-URL: Repository, https://github.com/yourusername/observo-handler
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: build>=1.2.2.post1
+Requires-Dist: requests>=2.25.0
+Requires-Dist: setuptools>=75.3.2
+Requires-Dist: twine>=6.1.0
+Requires-Dist: wheel>=0.45.1
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Observo Handler
+
+Real-time Python logging handler for Observo centralized logging platform.
+
+## Features
+
+- 🚀 **Real-time logging** - Logs sent instantly to Observo
+- 🔍 **Request tracing** - Automatic request_id for all logs
+- 👤 **User tracking** - Automatic user_id for authenticated users
+- 📦 **Batching** - Efficient batch sending to reduce network overhead
+- 🛡️ **Fail-safe** - Won't crash your app if Observo is unavailable
+- 🧵 **Thread-safe** - Background workers handle async sending
+
+## Installation
+```bash
+pip install observo-handler
+
+# Or install from source
+pip install git+https://github.com/yourusername/observo-handler.git
+
+# Or install locally
+pip install /path/to/observo-handler
+```
+
+## Quick Start
+
+### 1. Add to Django `settings.py`
+```python
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+        'observo': {
+            'class': 'observo_handler.ObservoHandler',
+            'level': 'INFO',
+            'project_id': 'your-project-id-here',
+            'api_key': 'your-api-key-here',
+            'observo_url': 'https://observo.yourdomain.com/api/v1/ingest/',
+            'batch_size': 10,
+            'flush_interval': 5,
+        },
+    },
+    'root': {
+        'handlers': ['console', 'observo'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'observo'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+```
+
+### 2. Add Middleware (Optional - for request tracing)
+```python
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'observo_handler.middleware.RequestIDMiddleware',  # Add this
+    # ... rest of middleware
+]
+```
+
+### 3. Use in Your Code
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+def my_view(request):
+    logger.info('User accessed view')
+    
+    try:
+        # Your code
+        result = do_something()
+        logger.debug('Operation successful', extra={'extra_data': {'result': result}})
+    except Exception as e:
+        logger.error('Operation failed', exc_info=True)
+```
+
+## Configuration
+
+### Handler Parameters
+
+- `project_id` (required): Your Observo project ID
+- `api_key` (required): Your Observo API key
+- `observo_url` (required): Observo API endpoint URL
+- `batch_size` (optional): Number of logs to batch before sending (default: 10)
+- `flush_interval` (optional): Seconds between automatic flushes (default: 5)
+- `level` (optional): Minimum log level to capture (default: NOTSET)
+
+### Getting Credentials
+
+1. Login to your Observo dashboard
+2. Create or select a project
+3. Copy the **Project ID** and **API Key** from project settings
+
+## Advanced Usage
+
+### Custom Metadata
+
+Add custom metadata to logs:
+```python
+logger.info(
+    'User performed action',
+    extra={
+        'extra_data': {
+            'action': 'purchase',
+            'amount': 99.99,
+            'currency': 'USD'
+        }
+    }
+)
+```
+
+### Manual Flushing
+```python
+import logging
+
+# Get the Observo handler
+for handler in logging.getLogger().handlers:
+    if isinstance(handler, ObservoHandler):
+        handler.flush()  # Force send remaining logs
+```
+
+## How It Works
+```
+Your Django App
+    ↓
+Logger.info("message")
+    ↓
+ObservoHandler.emit()
+    ↓
+Background Queue (thread-safe)
+    ↓
+Batch Worker (batches logs)
+    ↓
+HTTP POST to Observo API
+    ↓
+Observo Dashboard
+```
+
+## Comparison: Handler vs File Shipper
+
+### File Shipper (existing)
+```
+App → Log File → Shipper reads → Observo
+      (5 sec delay)
+```
+
+### Handler (new)
+```
+App → ObservoHandler → Observo (instant)
+```
+
+## Requirements
+
+- Python >= 3.8
+- Django >= 3.2
+- requests >= 2.25.0
+
+## License
+
+MIT License
+
+## Support
+
+- Documentation: https://github.com/yourusername/observo-handler
+- Issues: https://github.com/yourusername/observo-handler/issues
