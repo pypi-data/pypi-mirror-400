@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=75", "wheel", "setuptools_scm>=5"]
+
+[project.urls]
+Repository = "https://github.com/ApeWorX/aave-sdk.git"
+Issues = "https://github.com/ApeWorX/aave-sdk/issues"
+
+[project]
+name = "aave"
+dynamic = [ "version" ]
+license = "Apache-2.0"
+description = "Ape SDK for interacting with Aave protocols"
+keywords = [ "ethereum", "ape", "aave", "defi" ]
+readme = "README.md"
+authors = [
+    { name = "ApeWorX LTD", email = "admin@apeworx.io" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "ape-tokens>=0.8,<1",
+    "eth-ape>=0.8.43,<1.0",
+]
+
+
+[tool.setuptools.packages.find]
+where = [ "src" ]
+[tool.setuptools.package-data]
+aave = [ "manifests/*.json" ]
+
+[tool.setuptools_scm]
+# NOTE: Presence is required to initialize
+
+[project.scripts]
+aave = "aave.__main__:cli"
+
+[dependency-groups]
+test = [
+    "ape-foundry",  # Needed for fork testing
+    "pytest-cov",  # Coverage analyzer (also supported by plugin)
+]
+lint = [
+    "ruff>=0.14,<1",  # Auto-formatter and linter
+    "types-setuptools",  # Needed for mypy type shed
+    "docutils-stubs",  # Needed for mypy type shed
+    "mypy>=1.16,<2",  # Static type analyzer
+    "mdformat>=0.7,<1",  # Auto-formatter for markdown
+    "mdformat-gfm>=0.3.5",  # Needed for formatting GitHub-flavored markdown
+    "mdformat-frontmatter>=0.4.1",  # Needed for frontmatters-style headers in issue templates
+    "mdformat-pyproject>=0.0.2",  # Allows configuring in pyproject.toml
+]
+dev = [
+    "commitlint",  # Manage commits and publishing releases
+    "pre-commit",  # Ensure that linters are run prior to committing
+    "IPython",  # Console for interacting
+    "ipdb",  # Debugger (Must use `export PYTHONBREAKPOINT=ipdb.set_trace`)
+    {include-group = "test"},
+    {include-group = "lint"},
+]
+
+# Linting Tools
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = [ "aave" ]
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "auto"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.pytest.ini_options]
+addopts = """
+    --cov=aave \
+    --cov-branch \
+    --cov-report term \
+    --cov-report html \
+    --cov-report xml
+"""
+
+[tool.mdformat]
+number = true
