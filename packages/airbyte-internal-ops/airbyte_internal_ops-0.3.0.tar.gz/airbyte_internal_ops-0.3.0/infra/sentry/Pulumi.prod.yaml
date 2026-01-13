@@ -1,0 +1,75 @@
+# Production stack configuration for Airbyte Sentry
+#
+# This stack manages multiple Sentry projects for Airbyte.
+#
+# Authentication:
+#   The Sentry auth token is provided via SENTRY_AUTH_TOKEN environment variable
+#   (configured as GitHub secrets: SENTRY_AUTH_TOKEN_READONLY, SENTRY_AUTH_TOKEN_READWRITE)
+#
+# See: https://docs.sentry.io/product/integrations/integration-platform/internal-integration/#auth-tokens
+
+config:
+  # =============================================================================
+  # Projects Configuration
+  # =============================================================================
+  # Each project is defined with an alias (key) and its Sentry configuration.
+  # The alias is used as the Pulumi resource name; the slug is the actual Sentry project slug.
+  #
+  # Teams are managed via Sentry UI and referenced here by slug.
+  # Fingerprint rules and grouping enhancements are per-project.
+  #
+  # See: https://docs.sentry.io/concepts/data-management/event-grouping/fingerprint-rules/
+  # See: https://docs.sentry.io/concepts/data-management/event-grouping/stack-trace-rules/
+  airbyte-sentry:projects:
+    # -------------------------------------------------------------------------
+    # connector-incidents: Main project for connector error monitoring
+    # -------------------------------------------------------------------------
+    connector-incidents:
+      platform: other
+      teams:
+        - team-extract
+        - gl
+        - team-move
+        - team-integrate
+        - airbyte
+      digests_max_delay: 1800
+      digests_min_delay: 300
+      # P0 Alert Thresholds (for future alert rule definitions - see issue #150)
+      # Number of affected workspaces before triggering P0 alert
+      ga_connector_workspace_threshold: 2
+      beta_connector_workspace_threshold: 5
+      # Alert time window (hours)
+      alert_time_window_hours: 24
+      # Fingerprint rules
+      fingerprinting_rules: |-
+        # User-side BigQuery quota errors (e.g. BigQuery free tier)
+        # No action on us, so we group and ignore these:
+        message:"Quota exceeded: Your project exceeded quota*" -> user-bigquery-storage-quota-exceeded
+      # Grouping enhancements (imported from Sentry 2025-12-22)
+      grouping_enhancements: |-
+        # java: mark everything from io.airbyte.* as in-app
+        stack.module:io.airbyte.* +app
+
+        # python: mark everything in a folder with airbyte in it as in-app (/airbyte/integration_code, */airbyte_cdk/*)
+        stack.abs_path:**/airbyte*/** +app
+    # -------------------------------------------------------------------------
+    # connector-ci: CI/CD pipeline monitoring for connectors
+    # -------------------------------------------------------------------------
+    connector-ci:
+      platform: python
+      teams:
+        - airbyte
+      digests_max_delay: 1800
+      digests_min_delay: 300
+      # Fingerprint rules (imported from Sentry 2025-12-22)
+      fingerprinting_rules: |-
+        error.type:CancelledError -> cancelled-error
+      # Grouping enhancements (imported from Sentry 2025-12-22)
+      # CI-specific rules for pipx venv paths and incorrect abs_path reporting
+      grouping_enhancements: |-
+        # In CI, because of pipx putting our code within the .venv, Sentry thinks frames are out of app
+        stack.module:pipelines* +app
+        stack.module:orchestrator* +app
+
+        # Sentry thinks these frames are in-app due to abs_path being incorrectly reported as within our codebase
+        stack.abs_path:**/<* -app
