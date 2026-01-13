@@ -1,0 +1,32 @@
+name: Publish mcp-nix
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.6
+
+      - name: Remove workspace config for publishing
+        run: |
+          # Remove workspace-specific config so pyixx is fetched from PyPI
+          sed -i '/^\[tool\.uv\.sources\]$/d' pyproject.toml
+          sed -i '/^pyixx = /d' pyproject.toml
+          sed -i '/^\[tool\.uv\.workspace\]$/d' pyproject.toml
+          sed -i '/^members = /d' pyproject.toml
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish to PyPI
+        run: uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}

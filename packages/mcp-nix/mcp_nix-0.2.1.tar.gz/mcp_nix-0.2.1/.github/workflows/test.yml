@@ -1,0 +1,51 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '*.md'
+      - '.github/**'
+  pull_request:
+    branches: [master]
+    paths-ignore:
+      - '*.md'
+      - '.github/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: mcp_nix Checks
+        run: make check
+
+      - name: pyixx Checks
+        run: make pyixx-check
+
+      - name: Rustfmt
+        working-directory: pyixx
+        run: cargo fmt --check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests
+        run: make test
