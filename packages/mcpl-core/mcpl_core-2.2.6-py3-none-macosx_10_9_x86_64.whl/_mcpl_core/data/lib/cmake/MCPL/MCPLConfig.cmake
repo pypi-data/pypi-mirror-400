@@ -1,0 +1,97 @@
+
+################################################################################
+##                                                                            ##
+##  This file is part of MCPL (see https://mctools.github.io/mcpl/)           ##
+##                                                                            ##
+##  Copyright 2015-2026 MCPL developers.                                      ##
+##                                                                            ##
+##  Licensed under the Apache License, Version 2.0 (the "License");           ##
+##  you may not use this file except in compliance with the License.          ##
+##  You may obtain a copy of the License at                                   ##
+##                                                                            ##
+##      http://www.apache.org/licenses/LICENSE-2.0                            ##
+##                                                                            ##
+##  Unless required by applicable law or agreed to in writing, software       ##
+##  distributed under the License is distributed on an "AS IS" BASIS,         ##
+##  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  ##
+##  See the License for the specific language governing permissions and       ##
+##  limitations under the License.                                            ##
+##                                                                            ##
+################################################################################
+
+################################################################################
+#                                                                              #
+# Exports the MCPL::MCPL target, and provides a few PATHS and values of a few  #
+# build options.                                                               #
+#                                                                              #
+################################################################################
+
+#First make sure our file work when CMake is new enough, but the user have a
+#very old version in their cmake_minimum_required statements (cf. github
+#discussion/issue #137):
+cmake_policy(PUSH)#NB: We POP at the end of this file.
+cmake_policy(VERSION 3.16...3.30)
+
+#Export a few directory paths (relocatable):
+set( MCPL_CMAKEDIR "${CMAKE_CURRENT_LIST_DIR}" )
+#Do not override MCPL_DIR!: get_filename_component( MCPL_DIR "${MCPL_CMAKEDIR}/../../../../../" ABSOLUTE )
+get_filename_component( MCPL_BINDIR "${MCPL_CMAKEDIR}/../../../" ABSOLUTE )
+get_filename_component( MCPL_LIBDIR "${MCPL_CMAKEDIR}/../../../" ABSOLUTE )
+get_filename_component( MCPL_INCDIR "${MCPL_CMAKEDIR}/../../../" ABSOLUTE )
+
+if ( "1.2.12" )
+  include(CMakeFindDependencyMacro)
+  find_dependency( ZLIB "1.2.12" )
+endif()
+
+#Libname:
+set( MCPL_LIBNAME  )
+
+#Various scripts:
+set( MCPL_CMD_MCPLTOOL ${MCPL_BINDIR}/mcpltool )
+if ( NOT EXISTS MCPL_CMD_MCPLTOOL )
+  set( MCPL_CMD_MCPLTOOL "")
+endif()
+
+#Various scripts:
+set( MCPL_CMD_MCPLCONFIG ${MCPL_BINDIR}/mcpl-config )
+if ( NOT EXISTS MCPL_CMD_MCPLCONFIG )
+  set( MCPL_CMD_MCPLCONFIG "")
+endif()
+
+#Windows/scikitbuild mode needs fixup at the end of
+#MCPLTargets-<lowercaseconfig>.cmake:
+if ( "OFF" )
+  function( _mcpl_fixup_mcpltargets )
+    execute_process(
+      COMMAND mcpl-config --show libpath
+      OUTPUT_VARIABLE "_tmp_mcpl_libpath" OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    #Relying a bit too much on internal CMake implementation details for
+    #comfort, but so far this is the only solution found:
+    set(
+      "_cmake_import_check_files_for_MCPL::mcpl"
+      "${_tmp_mcpl_libpath}"
+      PARENT_SCOPE
+    )
+    get_filename_component( "tmp" "${CMAKE_CURRENT_LIST_FILE}" "NAME_WE")
+    string( REPLACE "-" ";" "tmp" "${tmp}" )
+    list(GET tmp -1 "tmp" )
+    string( TOUPPER "${tmp}" "tmp" )
+
+    set_target_properties(
+      "MCPL::mcpl" PROPERTIES
+      "IMPORTED_LOCATION_${tmp}"
+      "${_tmp_mcpl_libpath}"
+    )
+  endfunction()
+endif()
+
+#The MCPL targets:
+if(NOT TARGET MCPL::MCPL)
+  include( "${MCPL_CMAKEDIR}/MCPLTargets.cmake" )
+  add_library(MCPL::MCPL ALIAS MCPL::mcpl)#make both casings available
+endif()
+
+#Undo the policy changes we did above:
+cmake_policy(POP)
