@@ -1,0 +1,603 @@
+
+"""Contains all the data models used in inputs/outputs"""
+from __future__ import annotations
+
+from .delete_api_v1_admin_api_keys_key_id_body_type_1 import DeleteApiV1AdminApiKeysKeyIdBodyType1
+from .delete_api_v1_admin_api_keys_key_id_response_200 import DeleteApiV1AdminApiKeysKeyIdResponse200
+from .delete_api_v1_admin_api_keys_key_id_response_401 import DeleteApiV1AdminApiKeysKeyIdResponse401
+from .delete_api_v1_admin_api_keys_key_id_response_403 import DeleteApiV1AdminApiKeysKeyIdResponse403
+from .delete_api_v1_admin_api_keys_key_id_response_404 import DeleteApiV1AdminApiKeysKeyIdResponse404
+from .delete_api_v1_api_keys_key_id_body_type_1 import DeleteApiV1ApiKeysKeyIdBodyType1
+from .delete_api_v1_api_keys_key_id_response_200 import DeleteApiV1ApiKeysKeyIdResponse200
+from .delete_api_v1_api_keys_key_id_response_401 import DeleteApiV1ApiKeysKeyIdResponse401
+from .delete_api_v1_api_keys_key_id_response_403 import DeleteApiV1ApiKeysKeyIdResponse403
+from .delete_api_v1_api_keys_key_id_response_404 import DeleteApiV1ApiKeysKeyIdResponse404
+from .delete_api_v1_orders_order_id_response_200 import DeleteApiV1OrdersOrderIdResponse200
+from .delete_api_v1_orders_order_id_response_400 import DeleteApiV1OrdersOrderIdResponse400
+from .delete_api_v1_orders_order_id_response_404 import DeleteApiV1OrdersOrderIdResponse404
+from .get_api_v1_account_response_200 import GetApiV1AccountResponse200
+from .get_api_v1_account_response_404 import GetApiV1AccountResponse404
+from .get_api_v1_account_statement_response_200 import GetApiV1AccountStatementResponse200
+from .get_api_v1_account_statement_response_200_period import GetApiV1AccountStatementResponse200Period
+from .get_api_v1_account_statement_response_200_transactions_item import (
+    GetApiV1AccountStatementResponse200TransactionsItem,
+)
+from .get_api_v1_account_transactions_response_200 import GetApiV1AccountTransactionsResponse200
+from .get_api_v1_account_transactions_response_200_transactions_item import (
+    GetApiV1AccountTransactionsResponse200TransactionsItem,
+)
+from .get_api_v1_account_transactions_type import GetApiV1AccountTransactionsType
+from .get_api_v1_admin_alerts_alert_id_response_200 import GetApiV1AdminAlertsAlertIdResponse200
+from .get_api_v1_admin_alerts_alert_id_response_200_evidence_type_0 import (
+    GetApiV1AdminAlertsAlertIdResponse200EvidenceType0,
+)
+from .get_api_v1_admin_alerts_alert_id_response_404 import GetApiV1AdminAlertsAlertIdResponse404
+from .get_api_v1_admin_alerts_alert_type import GetApiV1AdminAlertsAlertType
+from .get_api_v1_admin_alerts_response_200 import GetApiV1AdminAlertsResponse200
+from .get_api_v1_admin_alerts_response_200_alerts_item import GetApiV1AdminAlertsResponse200AlertsItem
+from .get_api_v1_admin_alerts_response_200_alerts_item_evidence_type_0 import (
+    GetApiV1AdminAlertsResponse200AlertsItemEvidenceType0,
+)
+from .get_api_v1_admin_alerts_severity import GetApiV1AdminAlertsSeverity
+from .get_api_v1_admin_alerts_stats_response_200 import GetApiV1AdminAlertsStatsResponse200
+from .get_api_v1_admin_alerts_stats_response_200_by_severity import GetApiV1AdminAlertsStatsResponse200BySeverity
+from .get_api_v1_admin_alerts_stats_response_200_by_status import GetApiV1AdminAlertsStatsResponse200ByStatus
+from .get_api_v1_admin_alerts_stats_response_200_by_type import GetApiV1AdminAlertsStatsResponse200ByType
+from .get_api_v1_admin_alerts_stats_response_200_trend import GetApiV1AdminAlertsStatsResponse200Trend
+from .get_api_v1_admin_alerts_status import GetApiV1AdminAlertsStatus
+from .get_api_v1_admin_alerts_subject_type import GetApiV1AdminAlertsSubjectType
+from .get_api_v1_admin_api_keys_response_200 import GetApiV1AdminApiKeysResponse200
+from .get_api_v1_admin_api_keys_response_200_keys_item import GetApiV1AdminApiKeysResponse200KeysItem
+from .get_api_v1_admin_api_keys_response_200_keys_item_scopes_item import (
+    GetApiV1AdminApiKeysResponse200KeysItemScopesItem,
+)
+from .get_api_v1_admin_api_keys_response_401 import GetApiV1AdminApiKeysResponse401
+from .get_api_v1_admin_api_keys_response_403 import GetApiV1AdminApiKeysResponse403
+from .get_api_v1_admin_audit_audit_id_response_200 import GetApiV1AdminAuditAuditIdResponse200
+from .get_api_v1_admin_audit_audit_id_response_200_changes_type_0 import (
+    GetApiV1AdminAuditAuditIdResponse200ChangesType0,
+)
+from .get_api_v1_admin_audit_audit_id_response_404 import GetApiV1AdminAuditAuditIdResponse404
+from .get_api_v1_admin_audit_export_format import GetApiV1AdminAuditExportFormat
+from .get_api_v1_admin_audit_resources_type_id_response_200 import GetApiV1AdminAuditResourcesTypeIdResponse200
+from .get_api_v1_admin_audit_resources_type_id_response_200_data_item import (
+    GetApiV1AdminAuditResourcesTypeIdResponse200DataItem,
+)
+from .get_api_v1_admin_audit_resources_type_id_response_200_data_item_changes_type_0 import (
+    GetApiV1AdminAuditResourcesTypeIdResponse200DataItemChangesType0,
+)
+from .get_api_v1_admin_audit_response_200 import GetApiV1AdminAuditResponse200
+from .get_api_v1_admin_audit_response_200_data_item import GetApiV1AdminAuditResponse200DataItem
+from .get_api_v1_admin_audit_response_200_data_item_changes_type_0 import (
+    GetApiV1AdminAuditResponse200DataItemChangesType0,
+)
+from .get_api_v1_admin_audit_users_user_id_response_200 import GetApiV1AdminAuditUsersUserIdResponse200
+from .get_api_v1_admin_audit_users_user_id_response_200_data_item import (
+    GetApiV1AdminAuditUsersUserIdResponse200DataItem,
+)
+from .get_api_v1_admin_audit_users_user_id_response_200_data_item_changes_type_0 import (
+    GetApiV1AdminAuditUsersUserIdResponse200DataItemChangesType0,
+)
+from .get_api_v1_admin_markets_market_id_settlement_response_200 import (
+    GetApiV1AdminMarketsMarketIdSettlementResponse200,
+)
+from .get_api_v1_admin_markets_market_id_settlement_response_404 import (
+    GetApiV1AdminMarketsMarketIdSettlementResponse404,
+)
+from .get_api_v1_admin_settlements_market_id_history_response_200 import (
+    GetApiV1AdminSettlementsMarketIdHistoryResponse200,
+)
+from .get_api_v1_admin_settlements_market_id_history_response_200_events_item import (
+    GetApiV1AdminSettlementsMarketIdHistoryResponse200EventsItem,
+)
+from .get_api_v1_admin_settlements_market_id_history_response_200_events_item_data import (
+    GetApiV1AdminSettlementsMarketIdHistoryResponse200EventsItemData,
+)
+from .get_api_v1_admin_settlements_market_id_history_response_404 import (
+    GetApiV1AdminSettlementsMarketIdHistoryResponse404,
+)
+from .get_api_v1_admin_settlements_market_id_response_200 import GetApiV1AdminSettlementsMarketIdResponse200
+from .get_api_v1_admin_settlements_market_id_response_404 import GetApiV1AdminSettlementsMarketIdResponse404
+from .get_api_v1_admin_settlements_response_200 import GetApiV1AdminSettlementsResponse200
+from .get_api_v1_admin_settlements_response_200_settlements_item import (
+    GetApiV1AdminSettlementsResponse200SettlementsItem,
+)
+from .get_api_v1_admin_settlements_response_200_settlements_item_data import (
+    GetApiV1AdminSettlementsResponse200SettlementsItemData,
+)
+from .get_api_v1_api_keys_response_200 import GetApiV1ApiKeysResponse200
+from .get_api_v1_api_keys_response_200_keys_item import GetApiV1ApiKeysResponse200KeysItem
+from .get_api_v1_api_keys_response_200_keys_item_scopes_item import GetApiV1ApiKeysResponse200KeysItemScopesItem
+from .get_api_v1_api_keys_response_401 import GetApiV1ApiKeysResponse401
+from .get_api_v1_api_keys_response_403 import GetApiV1ApiKeysResponse403
+from .get_api_v1_markets_market_id_orderbook_response_200 import GetApiV1MarketsMarketIdOrderbookResponse200
+from .get_api_v1_markets_market_id_orderbook_response_200_asks_item import (
+    GetApiV1MarketsMarketIdOrderbookResponse200AsksItem,
+)
+from .get_api_v1_markets_market_id_orderbook_response_200_bids_item import (
+    GetApiV1MarketsMarketIdOrderbookResponse200BidsItem,
+)
+from .get_api_v1_markets_market_id_outcomes_outcome_id_exposure_response_200 import (
+    GetApiV1MarketsMarketIdOutcomesOutcomeIdExposureResponse200,
+)
+from .get_api_v1_markets_market_id_positions_response_200 import GetApiV1MarketsMarketIdPositionsResponse200
+from .get_api_v1_markets_market_id_positions_response_200_positions_item import (
+    GetApiV1MarketsMarketIdPositionsResponse200PositionsItem,
+)
+from .get_api_v1_markets_market_id_response_200 import GetApiV1MarketsMarketIdResponse200
+from .get_api_v1_markets_market_id_response_200_metadata import GetApiV1MarketsMarketIdResponse200Metadata
+from .get_api_v1_markets_market_id_response_200_outcomes_item import GetApiV1MarketsMarketIdResponse200OutcomesItem
+from .get_api_v1_markets_market_id_response_404 import GetApiV1MarketsMarketIdResponse404
+from .get_api_v1_markets_market_id_trades_response_200 import GetApiV1MarketsMarketIdTradesResponse200
+from .get_api_v1_markets_market_id_trades_response_200_trades_item import (
+    GetApiV1MarketsMarketIdTradesResponse200TradesItem,
+)
+from .get_api_v1_markets_response_200 import GetApiV1MarketsResponse200
+from .get_api_v1_markets_response_200_markets_item import GetApiV1MarketsResponse200MarketsItem
+from .get_api_v1_markets_response_200_markets_item_outcomes_item import (
+    GetApiV1MarketsResponse200MarketsItemOutcomesItem,
+)
+from .get_api_v1_markets_sort import GetApiV1MarketsSort
+from .get_api_v1_markets_status import GetApiV1MarketsStatus
+from .get_api_v1_markets_type import GetApiV1MarketsType
+from .get_api_v1_metrics_markets_market_id_response_200 import GetApiV1MetricsMarketsMarketIdResponse200
+from .get_api_v1_metrics_overview_response_200 import GetApiV1MetricsOverviewResponse200
+from .get_api_v1_metrics_timeseries_interval import GetApiV1MetricsTimeseriesInterval
+from .get_api_v1_metrics_timeseries_metric import GetApiV1MetricsTimeseriesMetric
+from .get_api_v1_metrics_timeseries_response_200 import GetApiV1MetricsTimeseriesResponse200
+from .get_api_v1_metrics_timeseries_response_200_interval import GetApiV1MetricsTimeseriesResponse200Interval
+from .get_api_v1_metrics_timeseries_response_200_metric import GetApiV1MetricsTimeseriesResponse200Metric
+from .get_api_v1_metrics_timeseries_response_200_series_item import GetApiV1MetricsTimeseriesResponse200SeriesItem
+from .get_api_v1_metrics_timeseries_response_400 import GetApiV1MetricsTimeseriesResponse400
+from .get_api_v1_orders_order_id_response_200 import GetApiV1OrdersOrderIdResponse200
+from .get_api_v1_orders_order_id_response_404 import GetApiV1OrdersOrderIdResponse404
+from .get_api_v1_orders_response_200 import GetApiV1OrdersResponse200
+from .get_api_v1_orders_response_200_orders_item import GetApiV1OrdersResponse200OrdersItem
+from .get_api_v1_orders_side import GetApiV1OrdersSide
+from .get_api_v1_orders_status import GetApiV1OrdersStatus
+from .get_api_v1_positions_position_id_response_200 import GetApiV1PositionsPositionIdResponse200
+from .get_api_v1_positions_position_id_response_200_history_item import (
+    GetApiV1PositionsPositionIdResponse200HistoryItem,
+)
+from .get_api_v1_positions_position_id_response_404 import GetApiV1PositionsPositionIdResponse404
+from .get_api_v1_positions_response_200 import GetApiV1PositionsResponse200
+from .get_api_v1_positions_response_200_positions_item import GetApiV1PositionsResponse200PositionsItem
+from .get_api_v1_positions_response_200_positions_item_status import GetApiV1PositionsResponse200PositionsItemStatus
+from .get_api_v1_positions_status import GetApiV1PositionsStatus
+from .get_api_v1_templates_id_response_200 import GetApiV1TemplatesIdResponse200
+from .get_api_v1_templates_id_response_200_default_settings import GetApiV1TemplatesIdResponse200DefaultSettings
+from .get_api_v1_templates_id_response_200_outcomes_item import GetApiV1TemplatesIdResponse200OutcomesItem
+from .get_api_v1_templates_id_response_200_variables_item import GetApiV1TemplatesIdResponse200VariablesItem
+from .get_api_v1_templates_id_response_404 import GetApiV1TemplatesIdResponse404
+from .get_api_v1_templates_response_200_item import GetApiV1TemplatesResponse200Item
+from .get_api_v1_templates_response_200_item_default_settings import GetApiV1TemplatesResponse200ItemDefaultSettings
+from .get_api_v1_templates_response_200_item_outcomes_item import GetApiV1TemplatesResponse200ItemOutcomesItem
+from .get_api_v1_templates_response_200_item_variables_item import GetApiV1TemplatesResponse200ItemVariablesItem
+from .get_api_v1_tenants_config_response_200 import GetApiV1TenantsConfigResponse200
+from .get_api_v1_tenants_config_response_200_api import GetApiV1TenantsConfigResponse200Api
+from .get_api_v1_tenants_config_response_200_branding import GetApiV1TenantsConfigResponse200Branding
+from .get_api_v1_tenants_config_response_200_features import GetApiV1TenantsConfigResponse200Features
+from .get_api_v1_tenants_config_response_200_legal import GetApiV1TenantsConfigResponse200Legal
+from .get_api_v1_tenants_config_response_404 import GetApiV1TenantsConfigResponse404
+from .get_api_v1_users_kyc_status import GetApiV1UsersKycStatus
+from .get_api_v1_users_response_200 import GetApiV1UsersResponse200
+from .get_api_v1_users_response_200_users_item import GetApiV1UsersResponse200UsersItem
+from .get_api_v1_users_status import GetApiV1UsersStatus
+from .get_api_v1_users_user_id_response_200 import GetApiV1UsersUserIdResponse200
+from .get_api_v1_users_user_id_response_200_account_type_0 import GetApiV1UsersUserIdResponse200AccountType0
+from .get_api_v1_users_user_id_response_200_metadata import GetApiV1UsersUserIdResponse200Metadata
+from .get_api_v1_users_user_id_response_404 import GetApiV1UsersUserIdResponse404
+from .get_health_live_response_200 import GetHealthLiveResponse200
+from .get_health_live_response_200_status import GetHealthLiveResponse200Status
+from .get_health_metrics_response_200 import GetHealthMetricsResponse200
+from .get_health_metrics_response_200_cpu import GetHealthMetricsResponse200Cpu
+from .get_health_metrics_response_200_memory import GetHealthMetricsResponse200Memory
+from .get_health_ready_response_200 import GetHealthReadyResponse200
+from .get_health_ready_response_200_checks import GetHealthReadyResponse200Checks
+from .get_health_ready_response_200_checks_additional_property import GetHealthReadyResponse200ChecksAdditionalProperty
+from .get_health_ready_response_200_checks_additional_property_status import (
+    GetHealthReadyResponse200ChecksAdditionalPropertyStatus,
+)
+from .get_health_ready_response_200_status import GetHealthReadyResponse200Status
+from .get_health_ready_response_503 import GetHealthReadyResponse503
+from .get_health_ready_response_503_checks import GetHealthReadyResponse503Checks
+from .get_health_ready_response_503_checks_additional_property import GetHealthReadyResponse503ChecksAdditionalProperty
+from .get_health_ready_response_503_checks_additional_property_status import (
+    GetHealthReadyResponse503ChecksAdditionalPropertyStatus,
+)
+from .get_health_ready_response_503_status import GetHealthReadyResponse503Status
+from .get_health_response_200 import GetHealthResponse200
+from .get_health_response_200_status import GetHealthResponse200Status
+from .get_openapi_json_response_200 import GetOpenapiJsonResponse200
+from .patch_api_v1_admin_alerts_alert_id_body import PatchApiV1AdminAlertsAlertIdBody
+from .patch_api_v1_admin_alerts_alert_id_body_status import PatchApiV1AdminAlertsAlertIdBodyStatus
+from .patch_api_v1_admin_alerts_alert_id_response_200 import PatchApiV1AdminAlertsAlertIdResponse200
+from .patch_api_v1_admin_alerts_alert_id_response_200_evidence_type_0 import (
+    PatchApiV1AdminAlertsAlertIdResponse200EvidenceType0,
+)
+from .patch_api_v1_admin_alerts_alert_id_response_400 import PatchApiV1AdminAlertsAlertIdResponse400
+from .patch_api_v1_admin_alerts_alert_id_response_404 import PatchApiV1AdminAlertsAlertIdResponse404
+from .patch_api_v1_markets_market_id_body import PatchApiV1MarketsMarketIdBody
+from .patch_api_v1_markets_market_id_body_metadata import PatchApiV1MarketsMarketIdBodyMetadata
+from .patch_api_v1_markets_market_id_body_type import PatchApiV1MarketsMarketIdBodyType
+from .patch_api_v1_markets_market_id_response_200 import PatchApiV1MarketsMarketIdResponse200
+from .patch_api_v1_markets_market_id_response_404 import PatchApiV1MarketsMarketIdResponse404
+from .patch_api_v1_users_user_id_body import PatchApiV1UsersUserIdBody
+from .patch_api_v1_users_user_id_body_metadata import PatchApiV1UsersUserIdBodyMetadata
+from .patch_api_v1_users_user_id_response_200 import PatchApiV1UsersUserIdResponse200
+from .patch_api_v1_users_user_id_response_404 import PatchApiV1UsersUserIdResponse404
+from .post_api_v1_account_deposit_body import PostApiV1AccountDepositBody
+from .post_api_v1_account_deposit_response_200 import PostApiV1AccountDepositResponse200
+from .post_api_v1_account_deposit_response_400 import PostApiV1AccountDepositResponse400
+from .post_api_v1_account_withdraw_body import PostApiV1AccountWithdrawBody
+from .post_api_v1_account_withdraw_response_200 import PostApiV1AccountWithdrawResponse200
+from .post_api_v1_account_withdraw_response_400 import PostApiV1AccountWithdrawResponse400
+from .post_api_v1_admin_alerts_alert_id_resolve_body import PostApiV1AdminAlertsAlertIdResolveBody
+from .post_api_v1_admin_alerts_alert_id_resolve_body_resolution import PostApiV1AdminAlertsAlertIdResolveBodyResolution
+from .post_api_v1_admin_alerts_alert_id_resolve_response_200 import PostApiV1AdminAlertsAlertIdResolveResponse200
+from .post_api_v1_admin_alerts_alert_id_resolve_response_200_evidence_type_0 import (
+    PostApiV1AdminAlertsAlertIdResolveResponse200EvidenceType0,
+)
+from .post_api_v1_admin_alerts_alert_id_resolve_response_400 import PostApiV1AdminAlertsAlertIdResolveResponse400
+from .post_api_v1_admin_alerts_alert_id_resolve_response_404 import PostApiV1AdminAlertsAlertIdResolveResponse404
+from .post_api_v1_admin_markets_market_id_resolve_body import PostApiV1AdminMarketsMarketIdResolveBody
+from .post_api_v1_admin_markets_market_id_resolve_response_200 import PostApiV1AdminMarketsMarketIdResolveResponse200
+from .post_api_v1_admin_markets_market_id_resolve_response_400 import PostApiV1AdminMarketsMarketIdResolveResponse400
+from .post_api_v1_admin_markets_market_id_resolve_response_404 import PostApiV1AdminMarketsMarketIdResolveResponse404
+from .post_api_v1_admin_markets_market_id_void_body import PostApiV1AdminMarketsMarketIdVoidBody
+from .post_api_v1_admin_markets_market_id_void_response_200 import PostApiV1AdminMarketsMarketIdVoidResponse200
+from .post_api_v1_admin_markets_market_id_void_response_400 import PostApiV1AdminMarketsMarketIdVoidResponse400
+from .post_api_v1_admin_markets_market_id_void_response_404 import PostApiV1AdminMarketsMarketIdVoidResponse404
+from .post_api_v1_admin_settlements_market_id_resolve_body import PostApiV1AdminSettlementsMarketIdResolveBody
+from .post_api_v1_admin_settlements_market_id_resolve_response_200 import (
+    PostApiV1AdminSettlementsMarketIdResolveResponse200,
+)
+from .post_api_v1_admin_settlements_market_id_resolve_response_200_status import (
+    PostApiV1AdminSettlementsMarketIdResolveResponse200Status,
+)
+from .post_api_v1_admin_settlements_market_id_resolve_response_400 import (
+    PostApiV1AdminSettlementsMarketIdResolveResponse400,
+)
+from .post_api_v1_admin_settlements_market_id_resolve_response_404 import (
+    PostApiV1AdminSettlementsMarketIdResolveResponse404,
+)
+from .post_api_v1_admin_settlements_market_id_void_body import PostApiV1AdminSettlementsMarketIdVoidBody
+from .post_api_v1_admin_settlements_market_id_void_response_200 import PostApiV1AdminSettlementsMarketIdVoidResponse200
+from .post_api_v1_admin_settlements_market_id_void_response_200_status import (
+    PostApiV1AdminSettlementsMarketIdVoidResponse200Status,
+)
+from .post_api_v1_admin_settlements_market_id_void_response_400 import PostApiV1AdminSettlementsMarketIdVoidResponse400
+from .post_api_v1_admin_settlements_market_id_void_response_404 import PostApiV1AdminSettlementsMarketIdVoidResponse404
+from .post_api_v1_api_keys_body import PostApiV1ApiKeysBody
+from .post_api_v1_api_keys_body_scopes_item import PostApiV1ApiKeysBodyScopesItem
+from .post_api_v1_api_keys_key_id_rotate_body import PostApiV1ApiKeysKeyIdRotateBody
+from .post_api_v1_api_keys_key_id_rotate_response_200 import PostApiV1ApiKeysKeyIdRotateResponse200
+from .post_api_v1_api_keys_key_id_rotate_response_401 import PostApiV1ApiKeysKeyIdRotateResponse401
+from .post_api_v1_api_keys_key_id_rotate_response_403 import PostApiV1ApiKeysKeyIdRotateResponse403
+from .post_api_v1_api_keys_key_id_rotate_response_404 import PostApiV1ApiKeysKeyIdRotateResponse404
+from .post_api_v1_api_keys_response_201 import PostApiV1ApiKeysResponse201
+from .post_api_v1_api_keys_response_201_scopes_item import PostApiV1ApiKeysResponse201ScopesItem
+from .post_api_v1_api_keys_response_400 import PostApiV1ApiKeysResponse400
+from .post_api_v1_api_keys_response_401 import PostApiV1ApiKeysResponse401
+from .post_api_v1_api_keys_response_403 import PostApiV1ApiKeysResponse403
+from .post_api_v1_markets_body import PostApiV1MarketsBody
+from .post_api_v1_markets_body_metadata import PostApiV1MarketsBodyMetadata
+from .post_api_v1_markets_body_outcomes_item_type_1 import PostApiV1MarketsBodyOutcomesItemType1
+from .post_api_v1_markets_body_outcomes_item_type_2 import PostApiV1MarketsBodyOutcomesItemType2
+from .post_api_v1_markets_body_outcomes_item_type_3 import PostApiV1MarketsBodyOutcomesItemType3
+from .post_api_v1_markets_body_type import PostApiV1MarketsBodyType
+from .post_api_v1_markets_market_id_activate_response_200 import PostApiV1MarketsMarketIdActivateResponse200
+from .post_api_v1_markets_market_id_activate_response_400 import PostApiV1MarketsMarketIdActivateResponse400
+from .post_api_v1_markets_market_id_activate_response_404 import PostApiV1MarketsMarketIdActivateResponse404
+from .post_api_v1_markets_market_id_publish_response_200 import PostApiV1MarketsMarketIdPublishResponse200
+from .post_api_v1_markets_market_id_publish_response_400 import PostApiV1MarketsMarketIdPublishResponse400
+from .post_api_v1_markets_market_id_publish_response_404 import PostApiV1MarketsMarketIdPublishResponse404
+from .post_api_v1_markets_market_id_resolve_body import PostApiV1MarketsMarketIdResolveBody
+from .post_api_v1_markets_market_id_resolve_response_200 import PostApiV1MarketsMarketIdResolveResponse200
+from .post_api_v1_markets_market_id_resolve_response_400 import PostApiV1MarketsMarketIdResolveResponse400
+from .post_api_v1_markets_market_id_resolve_response_404 import PostApiV1MarketsMarketIdResolveResponse404
+from .post_api_v1_markets_response_201 import PostApiV1MarketsResponse201
+from .post_api_v1_markets_response_201_outcomes_item import PostApiV1MarketsResponse201OutcomesItem
+from .post_api_v1_metrics_markets_body import PostApiV1MetricsMarketsBody
+from .post_api_v1_metrics_markets_response_200 import PostApiV1MetricsMarketsResponse200
+from .post_api_v1_metrics_markets_response_200_metrics_item import PostApiV1MetricsMarketsResponse200MetricsItem
+from .post_api_v1_orders_body import PostApiV1OrdersBody
+from .post_api_v1_orders_body_side import PostApiV1OrdersBodySide
+from .post_api_v1_orders_body_time_in_force import PostApiV1OrdersBodyTimeInForce
+from .post_api_v1_orders_body_type import PostApiV1OrdersBodyType
+from .post_api_v1_orders_response_201 import PostApiV1OrdersResponse201
+from .post_api_v1_orders_response_400 import PostApiV1OrdersResponse400
+from .post_api_v1_templates_id_apply_body import PostApiV1TemplatesIdApplyBody
+from .post_api_v1_templates_id_apply_body_variables import PostApiV1TemplatesIdApplyBodyVariables
+from .post_api_v1_templates_id_apply_response_201 import PostApiV1TemplatesIdApplyResponse201
+from .post_api_v1_templates_id_apply_response_201_outcomes_item import PostApiV1TemplatesIdApplyResponse201OutcomesItem
+from .post_api_v1_templates_id_apply_response_400 import PostApiV1TemplatesIdApplyResponse400
+from .post_api_v1_users_body import PostApiV1UsersBody
+from .post_api_v1_users_body_metadata import PostApiV1UsersBodyMetadata
+from .post_api_v1_users_response_201 import PostApiV1UsersResponse201
+from .post_api_v1_users_response_201_account import PostApiV1UsersResponse201Account
+from .post_api_v1_users_response_409 import PostApiV1UsersResponse409
+from .post_api_v1_users_user_id_deposit_body import PostApiV1UsersUserIdDepositBody
+from .post_api_v1_users_user_id_deposit_response_200 import PostApiV1UsersUserIdDepositResponse200
+from .post_api_v1_users_user_id_deposit_response_404 import PostApiV1UsersUserIdDepositResponse404
+from .post_api_v1_users_user_id_kyc_body import PostApiV1UsersUserIdKycBody
+from .post_api_v1_users_user_id_kyc_body_status import PostApiV1UsersUserIdKycBodyStatus
+from .post_api_v1_users_user_id_kyc_response_200 import PostApiV1UsersUserIdKycResponse200
+from .post_api_v1_users_user_id_kyc_response_404 import PostApiV1UsersUserIdKycResponse404
+from .post_api_v1_users_user_id_status_body import PostApiV1UsersUserIdStatusBody
+from .post_api_v1_users_user_id_status_body_status import PostApiV1UsersUserIdStatusBodyStatus
+from .post_api_v1_users_user_id_status_response_200 import PostApiV1UsersUserIdStatusResponse200
+from .post_api_v1_users_user_id_status_response_400 import PostApiV1UsersUserIdStatusResponse400
+from .post_api_v1_users_user_id_status_response_404 import PostApiV1UsersUserIdStatusResponse404
+from .post_api_v1_users_user_id_withdraw_body import PostApiV1UsersUserIdWithdrawBody
+from .post_api_v1_users_user_id_withdraw_response_200 import PostApiV1UsersUserIdWithdrawResponse200
+from .post_api_v1_users_user_id_withdraw_response_400 import PostApiV1UsersUserIdWithdrawResponse400
+from .post_api_v1_users_user_id_withdraw_response_404 import PostApiV1UsersUserIdWithdrawResponse404
+from .post_api_v1_ws_token_response_200 import PostApiV1WsTokenResponse200
+from .post_api_v1_ws_token_response_401 import PostApiV1WsTokenResponse401
+
+__all__ = (
+    "DeleteApiV1AdminApiKeysKeyIdBodyType1",
+    "DeleteApiV1AdminApiKeysKeyIdResponse200",
+    "DeleteApiV1AdminApiKeysKeyIdResponse401",
+    "DeleteApiV1AdminApiKeysKeyIdResponse403",
+    "DeleteApiV1AdminApiKeysKeyIdResponse404",
+    "DeleteApiV1ApiKeysKeyIdBodyType1",
+    "DeleteApiV1ApiKeysKeyIdResponse200",
+    "DeleteApiV1ApiKeysKeyIdResponse401",
+    "DeleteApiV1ApiKeysKeyIdResponse403",
+    "DeleteApiV1ApiKeysKeyIdResponse404",
+    "DeleteApiV1OrdersOrderIdResponse200",
+    "DeleteApiV1OrdersOrderIdResponse400",
+    "DeleteApiV1OrdersOrderIdResponse404",
+    "GetApiV1AccountResponse200",
+    "GetApiV1AccountResponse404",
+    "GetApiV1AccountStatementResponse200",
+    "GetApiV1AccountStatementResponse200Period",
+    "GetApiV1AccountStatementResponse200TransactionsItem",
+    "GetApiV1AccountTransactionsResponse200",
+    "GetApiV1AccountTransactionsResponse200TransactionsItem",
+    "GetApiV1AccountTransactionsType",
+    "GetApiV1AdminAlertsAlertIdResponse200",
+    "GetApiV1AdminAlertsAlertIdResponse200EvidenceType0",
+    "GetApiV1AdminAlertsAlertIdResponse404",
+    "GetApiV1AdminAlertsAlertType",
+    "GetApiV1AdminAlertsResponse200",
+    "GetApiV1AdminAlertsResponse200AlertsItem",
+    "GetApiV1AdminAlertsResponse200AlertsItemEvidenceType0",
+    "GetApiV1AdminAlertsSeverity",
+    "GetApiV1AdminAlertsStatsResponse200",
+    "GetApiV1AdminAlertsStatsResponse200BySeverity",
+    "GetApiV1AdminAlertsStatsResponse200ByStatus",
+    "GetApiV1AdminAlertsStatsResponse200ByType",
+    "GetApiV1AdminAlertsStatsResponse200Trend",
+    "GetApiV1AdminAlertsStatus",
+    "GetApiV1AdminAlertsSubjectType",
+    "GetApiV1AdminApiKeysResponse200",
+    "GetApiV1AdminApiKeysResponse200KeysItem",
+    "GetApiV1AdminApiKeysResponse200KeysItemScopesItem",
+    "GetApiV1AdminApiKeysResponse401",
+    "GetApiV1AdminApiKeysResponse403",
+    "GetApiV1AdminAuditAuditIdResponse200",
+    "GetApiV1AdminAuditAuditIdResponse200ChangesType0",
+    "GetApiV1AdminAuditAuditIdResponse404",
+    "GetApiV1AdminAuditExportFormat",
+    "GetApiV1AdminAuditResourcesTypeIdResponse200",
+    "GetApiV1AdminAuditResourcesTypeIdResponse200DataItem",
+    "GetApiV1AdminAuditResourcesTypeIdResponse200DataItemChangesType0",
+    "GetApiV1AdminAuditResponse200",
+    "GetApiV1AdminAuditResponse200DataItem",
+    "GetApiV1AdminAuditResponse200DataItemChangesType0",
+    "GetApiV1AdminAuditUsersUserIdResponse200",
+    "GetApiV1AdminAuditUsersUserIdResponse200DataItem",
+    "GetApiV1AdminAuditUsersUserIdResponse200DataItemChangesType0",
+    "GetApiV1AdminMarketsMarketIdSettlementResponse200",
+    "GetApiV1AdminMarketsMarketIdSettlementResponse404",
+    "GetApiV1AdminSettlementsMarketIdHistoryResponse200",
+    "GetApiV1AdminSettlementsMarketIdHistoryResponse200EventsItem",
+    "GetApiV1AdminSettlementsMarketIdHistoryResponse200EventsItemData",
+    "GetApiV1AdminSettlementsMarketIdHistoryResponse404",
+    "GetApiV1AdminSettlementsMarketIdResponse200",
+    "GetApiV1AdminSettlementsMarketIdResponse404",
+    "GetApiV1AdminSettlementsResponse200",
+    "GetApiV1AdminSettlementsResponse200SettlementsItem",
+    "GetApiV1AdminSettlementsResponse200SettlementsItemData",
+    "GetApiV1ApiKeysResponse200",
+    "GetApiV1ApiKeysResponse200KeysItem",
+    "GetApiV1ApiKeysResponse200KeysItemScopesItem",
+    "GetApiV1ApiKeysResponse401",
+    "GetApiV1ApiKeysResponse403",
+    "GetApiV1MarketsMarketIdOrderbookResponse200",
+    "GetApiV1MarketsMarketIdOrderbookResponse200AsksItem",
+    "GetApiV1MarketsMarketIdOrderbookResponse200BidsItem",
+    "GetApiV1MarketsMarketIdOutcomesOutcomeIdExposureResponse200",
+    "GetApiV1MarketsMarketIdPositionsResponse200",
+    "GetApiV1MarketsMarketIdPositionsResponse200PositionsItem",
+    "GetApiV1MarketsMarketIdResponse200",
+    "GetApiV1MarketsMarketIdResponse200Metadata",
+    "GetApiV1MarketsMarketIdResponse200OutcomesItem",
+    "GetApiV1MarketsMarketIdResponse404",
+    "GetApiV1MarketsMarketIdTradesResponse200",
+    "GetApiV1MarketsMarketIdTradesResponse200TradesItem",
+    "GetApiV1MarketsResponse200",
+    "GetApiV1MarketsResponse200MarketsItem",
+    "GetApiV1MarketsResponse200MarketsItemOutcomesItem",
+    "GetApiV1MarketsSort",
+    "GetApiV1MarketsStatus",
+    "GetApiV1MarketsType",
+    "GetApiV1MetricsMarketsMarketIdResponse200",
+    "GetApiV1MetricsOverviewResponse200",
+    "GetApiV1MetricsTimeseriesInterval",
+    "GetApiV1MetricsTimeseriesMetric",
+    "GetApiV1MetricsTimeseriesResponse200",
+    "GetApiV1MetricsTimeseriesResponse200Interval",
+    "GetApiV1MetricsTimeseriesResponse200Metric",
+    "GetApiV1MetricsTimeseriesResponse200SeriesItem",
+    "GetApiV1MetricsTimeseriesResponse400",
+    "GetApiV1OrdersOrderIdResponse200",
+    "GetApiV1OrdersOrderIdResponse404",
+    "GetApiV1OrdersResponse200",
+    "GetApiV1OrdersResponse200OrdersItem",
+    "GetApiV1OrdersSide",
+    "GetApiV1OrdersStatus",
+    "GetApiV1PositionsPositionIdResponse200",
+    "GetApiV1PositionsPositionIdResponse200HistoryItem",
+    "GetApiV1PositionsPositionIdResponse404",
+    "GetApiV1PositionsResponse200",
+    "GetApiV1PositionsResponse200PositionsItem",
+    "GetApiV1PositionsResponse200PositionsItemStatus",
+    "GetApiV1PositionsStatus",
+    "GetApiV1TemplatesIdResponse200",
+    "GetApiV1TemplatesIdResponse200DefaultSettings",
+    "GetApiV1TemplatesIdResponse200OutcomesItem",
+    "GetApiV1TemplatesIdResponse200VariablesItem",
+    "GetApiV1TemplatesIdResponse404",
+    "GetApiV1TemplatesResponse200Item",
+    "GetApiV1TemplatesResponse200ItemDefaultSettings",
+    "GetApiV1TemplatesResponse200ItemOutcomesItem",
+    "GetApiV1TemplatesResponse200ItemVariablesItem",
+    "GetApiV1TenantsConfigResponse200",
+    "GetApiV1TenantsConfigResponse200Api",
+    "GetApiV1TenantsConfigResponse200Branding",
+    "GetApiV1TenantsConfigResponse200Features",
+    "GetApiV1TenantsConfigResponse200Legal",
+    "GetApiV1TenantsConfigResponse404",
+    "GetApiV1UsersKycStatus",
+    "GetApiV1UsersResponse200",
+    "GetApiV1UsersResponse200UsersItem",
+    "GetApiV1UsersStatus",
+    "GetApiV1UsersUserIdResponse200",
+    "GetApiV1UsersUserIdResponse200AccountType0",
+    "GetApiV1UsersUserIdResponse200Metadata",
+    "GetApiV1UsersUserIdResponse404",
+    "GetHealthLiveResponse200",
+    "GetHealthLiveResponse200Status",
+    "GetHealthMetricsResponse200",
+    "GetHealthMetricsResponse200Cpu",
+    "GetHealthMetricsResponse200Memory",
+    "GetHealthReadyResponse200",
+    "GetHealthReadyResponse200Checks",
+    "GetHealthReadyResponse200ChecksAdditionalProperty",
+    "GetHealthReadyResponse200ChecksAdditionalPropertyStatus",
+    "GetHealthReadyResponse200Status",
+    "GetHealthReadyResponse503",
+    "GetHealthReadyResponse503Checks",
+    "GetHealthReadyResponse503ChecksAdditionalProperty",
+    "GetHealthReadyResponse503ChecksAdditionalPropertyStatus",
+    "GetHealthReadyResponse503Status",
+    "GetHealthResponse200",
+    "GetHealthResponse200Status",
+    "GetOpenapiJsonResponse200",
+    "PatchApiV1AdminAlertsAlertIdBody",
+    "PatchApiV1AdminAlertsAlertIdBodyStatus",
+    "PatchApiV1AdminAlertsAlertIdResponse200",
+    "PatchApiV1AdminAlertsAlertIdResponse200EvidenceType0",
+    "PatchApiV1AdminAlertsAlertIdResponse400",
+    "PatchApiV1AdminAlertsAlertIdResponse404",
+    "PatchApiV1MarketsMarketIdBody",
+    "PatchApiV1MarketsMarketIdBodyMetadata",
+    "PatchApiV1MarketsMarketIdBodyType",
+    "PatchApiV1MarketsMarketIdResponse200",
+    "PatchApiV1MarketsMarketIdResponse404",
+    "PatchApiV1UsersUserIdBody",
+    "PatchApiV1UsersUserIdBodyMetadata",
+    "PatchApiV1UsersUserIdResponse200",
+    "PatchApiV1UsersUserIdResponse404",
+    "PostApiV1AccountDepositBody",
+    "PostApiV1AccountDepositResponse200",
+    "PostApiV1AccountDepositResponse400",
+    "PostApiV1AccountWithdrawBody",
+    "PostApiV1AccountWithdrawResponse200",
+    "PostApiV1AccountWithdrawResponse400",
+    "PostApiV1AdminAlertsAlertIdResolveBody",
+    "PostApiV1AdminAlertsAlertIdResolveBodyResolution",
+    "PostApiV1AdminAlertsAlertIdResolveResponse200",
+    "PostApiV1AdminAlertsAlertIdResolveResponse200EvidenceType0",
+    "PostApiV1AdminAlertsAlertIdResolveResponse400",
+    "PostApiV1AdminAlertsAlertIdResolveResponse404",
+    "PostApiV1AdminMarketsMarketIdResolveBody",
+    "PostApiV1AdminMarketsMarketIdResolveResponse200",
+    "PostApiV1AdminMarketsMarketIdResolveResponse400",
+    "PostApiV1AdminMarketsMarketIdResolveResponse404",
+    "PostApiV1AdminMarketsMarketIdVoidBody",
+    "PostApiV1AdminMarketsMarketIdVoidResponse200",
+    "PostApiV1AdminMarketsMarketIdVoidResponse400",
+    "PostApiV1AdminMarketsMarketIdVoidResponse404",
+    "PostApiV1AdminSettlementsMarketIdResolveBody",
+    "PostApiV1AdminSettlementsMarketIdResolveResponse200",
+    "PostApiV1AdminSettlementsMarketIdResolveResponse200Status",
+    "PostApiV1AdminSettlementsMarketIdResolveResponse400",
+    "PostApiV1AdminSettlementsMarketIdResolveResponse404",
+    "PostApiV1AdminSettlementsMarketIdVoidBody",
+    "PostApiV1AdminSettlementsMarketIdVoidResponse200",
+    "PostApiV1AdminSettlementsMarketIdVoidResponse200Status",
+    "PostApiV1AdminSettlementsMarketIdVoidResponse400",
+    "PostApiV1AdminSettlementsMarketIdVoidResponse404",
+    "PostApiV1ApiKeysBody",
+    "PostApiV1ApiKeysBodyScopesItem",
+    "PostApiV1ApiKeysKeyIdRotateBody",
+    "PostApiV1ApiKeysKeyIdRotateResponse200",
+    "PostApiV1ApiKeysKeyIdRotateResponse401",
+    "PostApiV1ApiKeysKeyIdRotateResponse403",
+    "PostApiV1ApiKeysKeyIdRotateResponse404",
+    "PostApiV1ApiKeysResponse201",
+    "PostApiV1ApiKeysResponse201ScopesItem",
+    "PostApiV1ApiKeysResponse400",
+    "PostApiV1ApiKeysResponse401",
+    "PostApiV1ApiKeysResponse403",
+    "PostApiV1MarketsBody",
+    "PostApiV1MarketsBodyMetadata",
+    "PostApiV1MarketsBodyOutcomesItemType1",
+    "PostApiV1MarketsBodyOutcomesItemType2",
+    "PostApiV1MarketsBodyOutcomesItemType3",
+    "PostApiV1MarketsBodyType",
+    "PostApiV1MarketsMarketIdActivateResponse200",
+    "PostApiV1MarketsMarketIdActivateResponse400",
+    "PostApiV1MarketsMarketIdActivateResponse404",
+    "PostApiV1MarketsMarketIdPublishResponse200",
+    "PostApiV1MarketsMarketIdPublishResponse400",
+    "PostApiV1MarketsMarketIdPublishResponse404",
+    "PostApiV1MarketsMarketIdResolveBody",
+    "PostApiV1MarketsMarketIdResolveResponse200",
+    "PostApiV1MarketsMarketIdResolveResponse400",
+    "PostApiV1MarketsMarketIdResolveResponse404",
+    "PostApiV1MarketsResponse201",
+    "PostApiV1MarketsResponse201OutcomesItem",
+    "PostApiV1MetricsMarketsBody",
+    "PostApiV1MetricsMarketsResponse200",
+    "PostApiV1MetricsMarketsResponse200MetricsItem",
+    "PostApiV1OrdersBody",
+    "PostApiV1OrdersBodySide",
+    "PostApiV1OrdersBodyTimeInForce",
+    "PostApiV1OrdersBodyType",
+    "PostApiV1OrdersResponse201",
+    "PostApiV1OrdersResponse400",
+    "PostApiV1TemplatesIdApplyBody",
+    "PostApiV1TemplatesIdApplyBodyVariables",
+    "PostApiV1TemplatesIdApplyResponse201",
+    "PostApiV1TemplatesIdApplyResponse201OutcomesItem",
+    "PostApiV1TemplatesIdApplyResponse400",
+    "PostApiV1UsersBody",
+    "PostApiV1UsersBodyMetadata",
+    "PostApiV1UsersResponse201",
+    "PostApiV1UsersResponse201Account",
+    "PostApiV1UsersResponse409",
+    "PostApiV1UsersUserIdDepositBody",
+    "PostApiV1UsersUserIdDepositResponse200",
+    "PostApiV1UsersUserIdDepositResponse404",
+    "PostApiV1UsersUserIdKycBody",
+    "PostApiV1UsersUserIdKycBodyStatus",
+    "PostApiV1UsersUserIdKycResponse200",
+    "PostApiV1UsersUserIdKycResponse404",
+    "PostApiV1UsersUserIdStatusBody",
+    "PostApiV1UsersUserIdStatusBodyStatus",
+    "PostApiV1UsersUserIdStatusResponse200",
+    "PostApiV1UsersUserIdStatusResponse400",
+    "PostApiV1UsersUserIdStatusResponse404",
+    "PostApiV1UsersUserIdWithdrawBody",
+    "PostApiV1UsersUserIdWithdrawResponse200",
+    "PostApiV1UsersUserIdWithdrawResponse400",
+    "PostApiV1UsersUserIdWithdrawResponse404",
+    "PostApiV1WsTokenResponse200",
+    "PostApiV1WsTokenResponse401",
+)

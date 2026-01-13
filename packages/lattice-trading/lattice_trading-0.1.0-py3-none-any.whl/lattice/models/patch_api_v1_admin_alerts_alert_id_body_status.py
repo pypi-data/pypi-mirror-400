@@ -1,0 +1,12 @@
+
+from __future__ import annotations
+
+from enum import Enum
+
+
+class PatchApiV1AdminAlertsAlertIdBodyStatus(str, Enum):
+    INVESTIGATING = "investigating"
+    OPEN = "open"
+
+    def __str__(self) -> str:
+        return str(self.value)
