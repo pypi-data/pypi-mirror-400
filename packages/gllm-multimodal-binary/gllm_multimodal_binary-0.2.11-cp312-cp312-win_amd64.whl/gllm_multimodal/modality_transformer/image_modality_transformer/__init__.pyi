@@ -1,0 +1,3 @@
+from gllm_multimodal.modality_transformer.image_modality_transformer.generic_image_modality_transformer import GenericImageModalityTransformer as GenericImageModalityTransformer
+
+__all__ = ['GenericImageModalityTransformer']
