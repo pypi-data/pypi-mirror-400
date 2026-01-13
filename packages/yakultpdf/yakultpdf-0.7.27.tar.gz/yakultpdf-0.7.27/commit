@@ -1,0 +1,53 @@
+#!/bin/bash
+# 一键提交脚本：自动递增版本号并 commit
+# 用法: ./commit [可选的额外 commit 信息]
+# 例如: ./commit "修复了某个 bug"
+#       -> commit message: "v0.3.5: 修复了某个 bug"
+
+set -e
+
+# 切换到脚本所在的目录（项目根目录）
+cd "$(dirname "$0")"
+
+# 读取当前版本号
+CURRENT_VERSION=$(grep -E '^version\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"' pyproject.toml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+
+if [ -z "$CURRENT_VERSION" ]; then
+    echo "❌ 无法读取当前版本号"
+    exit 1
+fi
+
+# 解析版本号并递增 patch
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+NEW_PATCH=$((PATCH + 1))
+NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+
+# 更新 pyproject.toml 中的版本号
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i '' "s/version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" pyproject.toml
+else
+    # Linux
+    sed -i "s/version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" pyproject.toml
+fi
+
+echo "📦 版本号: $CURRENT_VERSION -> $NEW_VERSION"
+
+# 更新 uv.lock，保持锁文件版本与项目一致
+uv lock
+
+# 构建 commit message
+if [ -n "$1" ]; then
+    COMMIT_MSG="v$NEW_VERSION: $1"
+else
+    COMMIT_MSG="v$NEW_VERSION"
+fi
+
+# 执行 git 操作
+git add .
+git commit -m "$COMMIT_MSG"
+
+echo "✅ 提交成功: $COMMIT_MSG"
+
+# 更新全局 editable 安装，确保 yakultpdf --version 显示最新版本
+uv tool install --force --editable . > /dev/null 2>&1 && echo "🔄 全局命令已更新到 v$NEW_VERSION"

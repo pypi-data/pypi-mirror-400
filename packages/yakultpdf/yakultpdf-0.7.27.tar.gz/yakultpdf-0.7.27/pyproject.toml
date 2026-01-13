@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "yakultpdf"
+version = "0.7.27"
+description = "Markdown to PDF converter using Pandoc and Typst"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+keywords = ["pdf", "markdown", "pandoc", "typst", "converter"]
+authors = [{ name = "mark2pdf contributors" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "click>=8.0.0",
+    "PyYaml",
+    "markdown-it-py",
+    "mdit-py-plugins",
+    "opencc",
+    "pillow",
+    "pymupdf",
+]
+
+
+[project.optional-dependencies]
+web = ["fastapi>=0.128.0", "uvicorn[standard]>=0.40.0"]
+
+[dependency-groups]
+dev = ["pytest", "pytest-cov"]
+
+[project.scripts]
+yakultpdf = "mark2pdf.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mark2pdf"]
+
+[tool.pytest.ini_options]
+testpaths = ["src"]
+pythonpath = ["src"]
+filterwarnings = [
+    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]              # 允许某些行超长（中文日志信息）
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/*.py" = ["E402"] # 测试文件需要 sys.path.insert 在导入前
+"scripts/*.py" = ["E402"] # 脚本需要 sys.path.insert 在导入前
+"scripts/back/*.py" = [
+    "E402",
+    "F403",
+    "F405",
+    "F841",
+] # 备份脚本，允许 star imports 和未使用变量

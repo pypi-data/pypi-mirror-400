@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDFWORK</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1c1a17;
+      --muted: #5e5650;
+      --paper: #f5f0e8;
+      --accent: #f05d23;
+      --accent-2: #0f6a6a;
+      --border: #e0d9cf;
+      --shadow: 0 18px 45px rgba(28, 26, 23, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 15%, rgba(240, 93, 35, 0.18), transparent 45%),
+        radial-gradient(circle at 80% 10%, rgba(15, 106, 106, 0.18), transparent 50%),
+        linear-gradient(145deg, #fdf8f1 0%, #f2e9db 50%, #efe4d4 100%);
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 48px 28px 72px;
+      animation: fadeUp 0.7s ease-out;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px 24px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 3vw, 3.2rem);
+      margin: 0;
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+      display: grid;
+      gap: 20px;
+    }
+
+    label {
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 320px;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fffdf9;
+      font-family: "Iosevka", "Fira Code", "SFMono-Regular", ui-monospace, monospace;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      resize: vertical;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 18px;
+      align-items: center;
+    }
+
+    select {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 0.95rem;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 22px;
+      font-size: 1rem;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 24px rgba(240, 93, 35, 0.3);
+    }
+
+    button.secondary {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 26px rgba(240, 93, 35, 0.35);
+    }
+
+    button.secondary:hover {
+      box-shadow: 0 10px 20px rgba(28, 26, 23, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .status {
+      font-size: 0.95rem;
+      color: var(--muted);
+      min-height: 1.4rem;
+    }
+
+    .status.error {
+      color: #a62318;
+    }
+
+    .preview {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fffdf9;
+      min-height: 420px;
+      overflow: hidden;
+      display: grid;
+    }
+
+    .preview iframe {
+      width: 100%;
+      height: 520px;
+      border: none;
+      display: none;
+    }
+
+    .preview .placeholder {
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      padding: 24px;
+      font-style: italic;
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .file-input {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .file-input input[type="file"] {
+      display: none;
+    }
+
+    .file-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--ink);
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .file-name {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .log-panel {
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fff;
+      display: none;
+    }
+
+    .log-panel pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-size: 0.85rem;
+      color: #2d2a27;
+      font-family: "Iosevka", "Fira Code", "SFMono-Regular", ui-monospace, monospace;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <h1>pdfwork</h1>
+      <p>Paste Markdown, pick a template, and export a PDF.</p>
+    </header>
+    <section class="panel">
+      <div>
+        <label for="markdown">Markdown</label>
+        <textarea id="markdown" spellcheck="false"># Hello PDFWORK
+
+Write Markdown here...
+</textarea>
+      </div>
+      <div class="controls">
+        <div>
+          <label for="template">Template</label><br>
+          <select id="template">
+            __OPTIONS_HTML_PLACEHOLDER__
+          </select>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="verbose">
+          Verbose
+        </label>
+        <div class="file-input">
+          <label class="file-button" for="markdown-file">Upload Markdown</label>
+          <input id="markdown-file" type="file" accept=".md,.markdown,.txt,text/markdown">
+          <span class="file-name" id="file-name">No file loaded</span>
+        </div>
+        <button id="convert">Convert to PDF</button>
+        <button id="download" class="secondary" disabled>Download PDF</button>
+        <span class="status" id="status"></span>
+      </div>
+      <div>
+        <label>PDF Preview</label>
+        <div class="preview">
+          <div class="placeholder" id="preview-placeholder">No preview yet.</div>
+          <iframe id="preview" title="PDF preview"></iframe>
+        </div>
+        <div class="log-panel" id="log-panel">
+          <pre id="log"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const button = document.getElementById("convert");
+    const downloadButton = document.getElementById("download");
+    const status = document.getElementById("status");
+    const textarea = document.getElementById("markdown");
+    const templateSelect = document.getElementById("template");
+    const verboseToggle = document.getElementById("verbose");
+    const fileInput = document.getElementById("markdown-file");
+    const fileName = document.getElementById("file-name");
+    const preview = document.getElementById("preview");
+    const previewPlaceholder = document.getElementById("preview-placeholder");
+    const logPanel = document.getElementById("log-panel");
+    const logOutput = document.getElementById("log");
+    let previewUrl = null;
+    let downloadName = "output.pdf";
+    const maxChars = __MAX_MARKDOWN_CHARS_PLACEHOLDER__;
+
+    templateSelect.value = "__DEFAULT_TEMPLATE_NAME_PLACEHOLDER__";
+
+    function setStatus(message, isError = false) {
+      status.textContent = message;
+      status.classList.toggle("error", isError);
+    }
+
+    function clearLog() {
+      logOutput.textContent = "";
+      logPanel.style.display = "none";
+    }
+
+    function showLog(message) {
+      if (!message) {
+        clearLog();
+        return;
+      }
+      logOutput.textContent = message;
+      logPanel.style.display = "block";
+    }
+
+    function resetDownload() {
+      downloadButton.disabled = true;
+      downloadName = "output.pdf";
+    }
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result || "";
+        if (text.length > maxChars) {
+          setStatus("Markdown file is too large.", true);
+          return;
+        }
+        textarea.value = text;
+        fileName.textContent = file.name;
+        setStatus(`Loaded ${file.name}`);
+        resetDownload();
+      };
+      reader.onerror = () => {
+        setStatus("Failed to read file.", true);
+      };
+      reader.readAsText(file, "utf-8");
+    });
+
+    downloadButton.addEventListener("click", () => {
+      if (!previewUrl) {
+        return;
+      }
+      const link = document.createElement("a");
+      link.href = previewUrl;
+      link.download = downloadName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    });
+
+    button.addEventListener("click", async () => {
+      const markdown = textarea.value;
+      if (!markdown.trim()) {
+        setStatus("Please enter some Markdown.", true);
+        return;
+      }
+
+      button.disabled = true;
+      resetDownload();
+      clearLog();
+      setStatus("Converting...");
+
+      try {
+        const response = await fetch("/convert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            markdown,
+            template: templateSelect.value,
+            options: {
+              verbose: verboseToggle.checked
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const raw = await response.text();
+          let detail = raw || "Conversion failed.";
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed.detail) {
+              detail = parsed.detail;
+            }
+          } catch (error) {
+            // ignore parse errors
+          }
+          if (verboseToggle.checked) {
+            setStatus("Conversion failed. See logs.", true);
+            showLog(detail);
+          } else {
+            setStatus(detail, true);
+          }
+          return;
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get("content-disposition") || "";
+        const match = disposition.match(/filename="([^"]+)"/i);
+        const filename = match ? match[1] : "output.pdf";
+        const url = window.URL.createObjectURL(blob);
+
+        if (previewUrl) {
+          window.URL.revokeObjectURL(previewUrl);
+        }
+        previewUrl = url;
+        downloadName = filename;
+        downloadButton.disabled = false;
+        preview.src = url;
+        preview.style.display = "block";
+        previewPlaceholder.style.display = "none";
+
+        setStatus("Done.");
+      } catch (error) {
+        setStatus("Conversion failed.", true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+
+</html>

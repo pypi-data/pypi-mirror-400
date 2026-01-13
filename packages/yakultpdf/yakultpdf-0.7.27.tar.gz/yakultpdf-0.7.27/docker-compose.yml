@@ -1,0 +1,13 @@
+services:
+  mark2pdf:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./output:/app/output
+      - ~/Library/Fonts:/fonts:ro
+    environment:
+      # Prefer bundled fonts, fall back to host-mounted fonts.
+      - TYPST_FONT_PATHS=/usr/share/fonts/yakultpdf:/fonts
+      - MARK2PDF_OUTPUT_DIR=/app/output
+    command: uv run uvicorn web_ui.web_server:app --host 0.0.0.0 --port 8000
