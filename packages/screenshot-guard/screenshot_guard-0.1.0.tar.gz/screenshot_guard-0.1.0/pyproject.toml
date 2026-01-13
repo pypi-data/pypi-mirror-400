@@ -1,0 +1,87 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "screenshot-guard"
+version = "0.1.0"
+description = "Secret Scanner with OCR Superpowers - Finds secrets in code AND screenshots"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "Keyvan Hardani", email = "keyvan@keyvan.ai" }
+]
+keywords = [
+    "security",
+    "secrets",
+    "scanner",
+    "ocr",
+    "ci-cd",
+    "devsecops",
+    "github-action",
+    "screenshot"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+    "pydantic>=2.0",
+    "pathspec>=0.11",
+]
+
+[project.optional-dependencies]
+ocr = [
+    "german-ocr[llamacpp]>=0.1.0",
+]
+ollama = [
+    "german-ocr[ollama]>=0.1.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+]
+all = [
+    "screenshot-guard[ocr,dev]",
+]
+
+[project.scripts]
+screenshot-guard = "screenshot_guard.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/Keyvanhardani/screenshot-guard"
+Documentation = "https://github.com/Keyvanhardani/screenshot-guard#readme"
+Repository = "https://github.com/Keyvanhardani/screenshot-guard"
+Issues = "https://github.com/Keyvanhardani/screenshot-guard/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/screenshot_guard"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=screenshot_guard"

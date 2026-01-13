@@ -1,0 +1,279 @@
+Metadata-Version: 2.4
+Name: screenshot-guard
+Version: 0.1.0
+Summary: Secret Scanner with OCR Superpowers - Finds secrets in code AND screenshots
+Project-URL: Homepage, https://github.com/Keyvanhardani/screenshot-guard
+Project-URL: Documentation, https://github.com/Keyvanhardani/screenshot-guard#readme
+Project-URL: Repository, https://github.com/Keyvanhardani/screenshot-guard
+Project-URL: Issues, https://github.com/Keyvanhardani/screenshot-guard/issues
+Author-email: Keyvan Hardani <keyvan@keyvan.ai>
+License-Expression: Apache-2.0
+License-File: LICENSE
+Keywords: ci-cd,devsecops,github-action,ocr,scanner,screenshot,secrets,security
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Quality Assurance
+Requires-Python: >=3.10
+Requires-Dist: click>=8.0
+Requires-Dist: pathspec>=0.11
+Requires-Dist: pydantic>=2.0
+Requires-Dist: rich>=13.0
+Provides-Extra: all
+Requires-Dist: german-ocr[llamacpp]>=0.1.0; extra == 'all'
+Requires-Dist: mypy>=1.0; extra == 'all'
+Requires-Dist: pre-commit>=3.0; extra == 'all'
+Requires-Dist: pytest-cov>=4.0; extra == 'all'
+Requires-Dist: pytest>=7.0; extra == 'all'
+Requires-Dist: ruff>=0.1; extra == 'all'
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1; extra == 'dev'
+Provides-Extra: ocr
+Requires-Dist: german-ocr[llamacpp]>=0.1.0; extra == 'ocr'
+Provides-Extra: ollama
+Requires-Dist: german-ocr[ollama]>=0.1.0; extra == 'ollama'
+Description-Content-Type: text/markdown
+
+# Screenshot Guard
+
+**Secret Scanner with OCR Superpowers**
+
+> The first secret scanner that finds secrets in code AND screenshots.
+
+[![PyPI version](https://badge.fury.io/py/screenshot-guard.svg)](https://badge.fury.io/py/screenshot-guard)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+## The Problem
+
+Developers take screenshots. Screenshots of terminals, dashboards, documentation.
+
+And sometimes those screenshots contain secrets:
+- AWS keys in terminal output
+- API tokens in dashboard screenshots
+- "Example" credentials that are actually real
+
+**Regular secret scanners miss all of this.**
+
+## The Solution
+
+Screenshot Guard scans your code AND your images using OCR powered by [german-ocr](https://github.com/Keyvanhardani/german-ocr).
+
+```bash
+# Install
+pip install screenshot-guard[ocr]
+
+# Scan
+screenshot-guard scan ./your-project
+```
+
+## Features
+
+- **OCR-powered** - Finds secrets in PNG, JPG, GIF, BMP, WebP images
+- **50+ patterns** - AWS, Azure, GCP, GitHub, Stripe, Slack, and more
+- **Local processing** - No cloud, no data leaves your machine
+- **GitHub Action** - Easy CI/CD integration with SARIF support
+- **Pre-commit hook** - Catch secrets before they're committed
+
+## Quick Start
+
+### Installation
+
+```bash
+# Basic (no OCR)
+pip install screenshot-guard
+
+# With OCR support (recommended)
+pip install screenshot-guard[ocr]
+```
+
+### CLI Usage
+
+```bash
+# Scan current directory
+screenshot-guard scan .
+
+# Scan with JSON output
+screenshot-guard scan ./src --format json --output report.json
+
+# Only critical and high severity
+screenshot-guard scan . --severity high
+
+# Disable OCR (faster, but misses images)
+screenshot-guard scan . --no-ocr
+
+# Use Ollama backend for OCR
+screenshot-guard scan . --backend ollama
+```
+
+### GitHub Action
+
+```yaml
+name: Security Scan
+
+on: [push, pull_request]
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for secrets
+        uses: Keyvanhardani/screenshot-guard@v1
+        with:
+          path: '.'
+          severity: 'medium'
+          ocr: 'true'
+          fail-on-findings: 'true'
+```
+
+### Pre-commit Hook
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Keyvanhardani/screenshot-guard
+    rev: v1.0.0
+    hooks:
+      - id: screenshot-guard
+        args: ['--severity', 'high', '--no-ocr']  # OCR in pre-commit is slow
+```
+
+## Supported Patterns
+
+| Provider | Patterns | Examples |
+|----------|----------|----------|
+| AWS | 5 | Access Keys, Secret Keys, Session Tokens |
+| Azure | 5 | Storage Keys, Connection Strings, SAS Tokens |
+| GCP | 5 | API Keys, Service Accounts, OAuth Secrets |
+| GitHub | 6 | PATs, OAuth Tokens, App Private Keys |
+| Generic | 15+ | Passwords, Private Keys, JWTs, Database URLs |
+| Slack | 2 | Bot Tokens, Webhooks |
+| Stripe | 2 | Secret Keys, Restricted Keys |
+| And more... | | |
+
+```bash
+# List all patterns
+screenshot-guard patterns
+```
+
+## Output Formats
+
+### Table (default)
+```
+┌──────────────────┬──────┬────────────────────┬──────────┬────────┐
+│ File             │ Line │ Type               │ Severity │ Source │
+├──────────────────┼──────┼────────────────────┼──────────┼────────┤
+│ screenshot.png   │ 3    │ AWS Access Key ID  │ CRITICAL │ OCR    │
+│ config.yaml      │ 12   │ Database URL       │ CRITICAL │ Text   │
+└──────────────────┴──────┴────────────────────┴──────────┴────────┘
+```
+
+### JSON
+```bash
+screenshot-guard scan . --format json --output report.json
+```
+
+### SARIF (GitHub Security)
+```bash
+screenshot-guard scan . --format sarif --output results.sarif
+```
+
+### Markdown
+```bash
+screenshot-guard scan . --format markdown --output report.md
+```
+
+## OCR Backends
+
+Screenshot Guard uses [german-ocr](https://github.com/Keyvanhardani/german-ocr) for image analysis:
+
+| Backend | Speed | Setup | GPU |
+|---------|-------|-------|-----|
+| `llamacpp` | Fast | `pip install screenshot-guard[ocr]` | Optional |
+| `ollama` | Fast | Requires Ollama | Optional |
+| `cloud` | Fastest | API key required | N/A |
+
+```bash
+# Use specific backend
+screenshot-guard scan . --backend llamacpp
+screenshot-guard scan . --backend ollama
+```
+
+## Ignoring Files
+
+Create `.screenshotguardignore` in your project root:
+
+```gitignore
+# Ignore test fixtures
+tests/fixtures/*
+
+# Ignore vendor
+vendor/
+
+# Ignore specific files
+docs/example-config.yaml
+```
+
+## API Usage
+
+```python
+from screenshot_guard import Scanner, SecretDetector, OCREngine
+
+# Initialize
+detector = SecretDetector(min_severity="high")
+ocr = OCREngine(backend="llamacpp")
+scanner = Scanner(detector=detector, ocr_engine=ocr)
+
+# Scan
+findings = scanner.scan("./your-project")
+
+for finding in findings:
+    print(f"{finding.file_path}:{finding.line_number} - {finding.pattern_name}")
+    print(f"  Severity: {finding.severity}")
+    print(f"  From OCR: {finding.from_ocr}")
+```
+
+## Why OCR?
+
+Real examples where OCR would have helped:
+
+1. **Terminal screenshot committed to docs**
+   - AWS Access Key visible in output
+   - Cost: $47,000 cloud bill
+
+2. **Dashboard screenshot in README**
+   - "Example" API key was actually real
+   - Exposed for 2 months
+
+3. **Slack screenshot in GitHub issue**
+   - GitHub token visible in chat
+   - Repository compromised
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Apache 2.0 - see [LICENSE](LICENSE)
+
+## Author
+
+**Keyvan Hardani**
+- Website: [keyvan.ai](https://keyvan.ai)
+- GitHub: [@Keyvanhardani](https://github.com/Keyvanhardani)
+- HuggingFace: [Keyven](https://huggingface.co/Keyven)
+
+---
+
+If this tool helped you, please star the repo!

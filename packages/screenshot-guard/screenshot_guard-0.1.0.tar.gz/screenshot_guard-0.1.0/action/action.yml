@@ -1,0 +1,109 @@
+name: 'Screenshot Guard'
+description: 'Scan for secrets in code AND screenshots using OCR'
+author: 'Keyvan Hardani'
+
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  path:
+    description: 'Path to scan'
+    required: false
+    default: '.'
+  severity:
+    description: 'Minimum severity to report (critical, high, medium, low, all)'
+    required: false
+    default: 'medium'
+  ocr:
+    description: 'Enable OCR for image/screenshot scanning'
+    required: false
+    default: 'true'
+  backend:
+    description: 'OCR backend (llamacpp, ollama, cloud)'
+    required: false
+    default: 'llamacpp'
+  fail-on-findings:
+    description: 'Fail the action if secrets are found'
+    required: false
+    default: 'true'
+  upload-sarif:
+    description: 'Upload SARIF report to GitHub Security tab'
+    required: false
+    default: 'true'
+
+outputs:
+  findings-count:
+    description: 'Number of secrets found'
+    value: ${{ steps.scan.outputs.findings-count }}
+  sarif-file:
+    description: 'Path to SARIF report'
+    value: ${{ steps.scan.outputs.sarif-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Screenshot Guard
+      shell: bash
+      run: |
+        pip install screenshot-guard
+        if [ "${{ inputs.ocr }}" = "true" ]; then
+          pip install screenshot-guard[ocr]
+        fi
+
+    - name: Run scan
+      id: scan
+      shell: bash
+      run: |
+        OCR_FLAG=""
+        if [ "${{ inputs.ocr }}" = "true" ]; then
+          OCR_FLAG="--ocr --backend ${{ inputs.backend }}"
+        else
+          OCR_FLAG="--no-ocr"
+        fi
+
+        FAIL_FLAG=""
+        if [ "${{ inputs.fail-on-findings }}" = "true" ]; then
+          FAIL_FLAG="--fail-on-findings"
+        fi
+
+        screenshot-guard scan "${{ inputs.path }}" \
+          --format sarif \
+          --output screenshot-guard.sarif \
+          --severity "${{ inputs.severity }}" \
+          $OCR_FLAG \
+          $FAIL_FLAG || true
+
+        echo "sarif-file=screenshot-guard.sarif" >> $GITHUB_OUTPUT
+
+        # Count findings
+        if [ -f screenshot-guard.sarif ]; then
+          COUNT=$(jq '.runs[0].results | length' screenshot-guard.sarif)
+          echo "findings-count=$COUNT" >> $GITHUB_OUTPUT
+        else
+          echo "findings-count=0" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload SARIF to GitHub Security
+      if: inputs.upload-sarif == 'true' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: screenshot-guard.sarif
+      continue-on-error: true
+
+    - name: Check for failures
+      if: inputs.fail-on-findings == 'true'
+      shell: bash
+      run: |
+        if [ -f screenshot-guard.sarif ]; then
+          COUNT=$(jq '.runs[0].results | length' screenshot-guard.sarif)
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::error::Found $COUNT potential secrets!"
+            exit 1
+          fi
+        fi
