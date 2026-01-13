@@ -1,0 +1,135 @@
+# apibean-jupyter
+
+**apibean-jupyter** is an infrastructure library for embedding and managing
+a Jupyter Server as a reusable Python component.
+
+Instead of treating Jupyter as a standalone application, apibean-jupyter
+allows you to launch, configure, and control a Jupyter Server programmatically,
+making it suitable for tools, GUIs, notebooks automation, and managed processes.
+
+---
+
+## Why apibean-jupyter?
+
+Jupyter is often started as a CLI tool (`jupyter lab`, `jupyter server`),
+which makes it difficult to:
+
+- Embed Jupyter inside another application
+- Manage its lifecycle from Python code
+- Integrate it with process managers or dashboards
+- Reuse the same configuration across tools
+
+apibean-jupyter solves this by exposing Jupyter Server as a **first-class
+Python object** with a clear lifecycle and extension points.
+
+---
+
+## Features
+
+- Embed Jupyter Server via a simple Python API
+- Optional CLI for quick launching
+- Clean separation between core logic and UI/tooling
+- Plugin hooks for customization (kernels, extensions, reporters)
+- Designed for `uv run` workflows and managed environments
+- No dependency on GUI frameworks
+
+---
+
+## Installation
+
+```bash
+pip install apibean-jupyter
+```
+
+Or run it directly with `uv`:
+
+```bash
+uv run --with apibean-jupyter apibean-jupyter --root notebooks
+```
+
+---
+
+## Quick Start (Python API)
+
+```python
+from apibean_jupyter import JupyterServer
+
+server = JupyterServer(
+    root_dir="notebooks",
+    ip="127.0.0.1",
+)
+
+print("Starting Jupyter at:", server.url)
+server.start()
+```
+
+---
+
+## Command Line Usage
+
+```bash
+apibean-jupyter --root notebooks
+```
+
+Show server information without starting:
+
+```bash
+apibean-jupyter --info
+```
+
+---
+
+## Using with `uv run`
+
+`apibean-jupyter` is designed to work well with `uv`:
+
+```bash
+uv run --with apibean-jupyter apibean-jupyter --root notebooks
+```
+
+It can also be embedded into other tools that depend on it.
+
+---
+
+## Extending via Plugins
+
+apibean-jupyter provides a lightweight plugin system to hook into the server
+lifecycle:
+
+* Pre/post initialization
+* Pre/post server start
+* Shutdown handling
+
+This allows you to implement features such as:
+
+* Kernel mapping
+* JupyterLab extension configuration
+* Metrics and reporting
+* Integration with process managers
+
+---
+
+## Relationship to the apibean ecosystem
+
+apibean-jupyter is part of the **apibean ecosystem**, a collection of libraries
+and tools focused on testability, automation, and developer tooling.
+
+It is designed to be used alongside:
+
+* **apibean-notebook** – notebook automation and analysis
+* **apibean-client** – API and service interaction
+
+---
+
+## Design Philosophy
+
+* Prefer composition over inheritance
+* Keep CLI logic thin and reusable
+* Avoid tight coupling with UI frameworks
+* Make production behavior explicit and reproducible
+
+---
+
+## License
+
+MIT License
