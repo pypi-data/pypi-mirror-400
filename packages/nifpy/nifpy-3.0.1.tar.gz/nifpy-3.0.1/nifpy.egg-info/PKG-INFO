@@ -1,0 +1,290 @@
+Metadata-Version: 2.4
+Name: nifpy
+Version: 3.0.1
+Summary: Easy to use python package that can be used to fetch live price, closing price, stock summary, 
+Home-page: https://github.com/shresth26/nifpy
+Author: Shresth Singh
+Author-email: singhshresth26@gmail.com
+License: MIT
+Keywords: stocks,nifty,financials,algo trading,nse,crypto,cryptocurrency,sensex
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: summary
+
+# nifpy
+
+nifpy is an easy to use python package that can be used to fetch **live price**, **closing price**, **stock summary**, **index list** and fundamentals such as **income statement**, **cash flow statement** and **balance sheet** of stocks that trade on the National Stock Exchange(NSE).
+
+## Getting Started
+
+### Installation
+
+You can install the package from Pypi
+```bash
+pip3 install nifpy
+```
+
+### Dependencies
+
+You can install the dependencies by executing the following code in your terminal
+
+```bash
+pip3 install -r requirements.txt
+```
+
+### How to get the scrip name
+
+You can get the scrip/symbol/ticker of the stock you want by opening the yahoo finance website and searching for the company as shown below. 
+
+![](docs/scrip.gif)
+
+## Methods
+
+- [get_live_price](#get_live_price)
+- [get_balance_sheet](#get_balance_sheet)
+- [get_cash_flow](#get_cash_flow)
+- [get_income_statement](#get_income_statement)
+
+
+## Chart Center
+
+- [moving_avg](#moving_avg) 
+- [bollinger_bands](#bollinger_bands) 
+- [get_chart](#get_chart) 
+
+### get_live_price
+
+This function returns the live/latest price for the symbol that has been passed as the parameter
+
+``` python 
+from nifpy import *
+price = get_live_price(ticker)
+print(price)
+
+""" 
+Parameters
+-------------------------------
+ticker : Contains the symbol/ticker for which the live price will be returned
+"""
+#Example
+price = get_live_price('ITC.NS')
+```
+
+### get_balance_sheet
+
+Used to obtain the balance sheet of the specified ticker
+
+``` python 
+from nifpy import get_balance_sheet
+
+balance_sheet = get_balance_sheet(symbol)
+print(balance_sheet)
+
+"""
+Parameters
+-------------------------------
+symbol : str
+    The stock symbol/ticker for which the balance sheet is to be fetched.
+
+Returns
+--------------------------------
+A DataFrame containing the annual balance sheet of the company.
+"""
+#Example
+balance_sheet = get_balance_sheet('RELIANCE.NS')
+```
+
+### get_cash_flow
+
+Used to obtain the cash flow statement of the specified ticker
+
+``` python 
+from nifpy import get_cash_flow
+
+cash_flow = get_cash_flow(symbol, quarterly=True)
+print(cash_flow)
+
+"""
+Parameters
+-------------------------------
+symbol : str
+    The stock symbol/ticker for which the cash flow statement is to be fetched.
+
+quarterly : bool, optional (default=True)
+    If True, returns the quarterly cash flow statement.
+    If False, returns the annual cash flow statement.
+
+Returns
+--------------------------------
+A DataFrame containing the cash flow statement of the company.
+"""
+# Example
+
+# Quarterly cash flow
+cash_flow = get_cash_flow("HCLTECH.NS", quarterly=True)
+
+# Annual cash flow
+cash_flow = get_cash_flow("HCLTECH.NS", quarterly=False)
+```
+
+### get_income_statement
+Used to obtain the income statement of the specified ticker
+
+``` python 
+from nifpy import get_income_statement
+
+income_statement = get_income_statement(symbol, quarterly=False)
+print(income_statement)
+
+"""
+Parameters
+-------------------------------
+symbol : str
+    The stock symbol/ticker for which the income statement is to be fetched.
+
+quarterly : bool, optional (default=False)
+    If True, returns the quarterly income statement.
+    If False, returns the annual income statement.
+
+Returns
+--------------------------------
+A DataFrame containing the income statement of the company.
+"""
+# Example
+
+# Annual income statement
+income_statement = get_income_statement("TITAN", quarterly=False)
+
+# Quarterly income statement
+income_statement = get_income_statement("TITAN", quarterly=True)
+```
+
+### Indices
+
+- get_nifty()
+- get_sensex()
+- get_nifty_next50()
+- get_nifty_bank()
+- get_nifty_auto()
+- get_nifty_financial()
+- get_nifty_fmcg()
+- get_nifty_it()
+- get_nifty_media()
+- get_nifty_metal()
+- get_nifty_pharma()
+- get_nifty_psubank()
+- get_nifty_privatebank()
+- get_nifty_realty()
+
+``` python
+from nifpy import get_nifty_it
+it_stocks = get_nifty_it()
+print(it_stocks)
+```
+
+![](docs/nifpy1.png)
+ 
+In a similar way stocks trading in other indices are returned as a list and can be used for further analysis.
+
+
+### moving_avg
+Used to plot the moving average of the specified ticker
+
+``` python 
+from nifpy import moving_avg
+moving_avg(scrip, num_days)
+
+""" 
+Parameters
+-------------------------------
+scrip : It is used to specify the symbol/ticker for which the moving average has to be plotted
+num_days : Number of days for which moving average has to be plotted. Commonly used values
+            are 14, 20, 50, 100, 200 
+
+Returns
+--------------------------------
+Plot consisting of moving average along with the closing price
+"""
+#Example
+
+#Moving average for 20 days
+moving_avg('ITC.NS', 20)
+
+#Moving average for 50 days
+moving_avg('ITC.NS', 50)
+
+```
+
+### bollinger_bands
+Used to plot Bollinger Bands of the specified ticker
+
+``` python 
+from nifpy import bollinger_bands
+bollinger_bands(scrip)
+
+""" 
+Parameters
+-------------------------------
+scrip : Used to specify the symbol/ticker for which Bollinger Bands has to be plotted 
+
+Returns
+--------------------------------
+Plot consisting of Bollinger Bands for the past 600 days
+"""
+#Example
+bollinger_bands('DIVISLAB.NS')
+
+```
+
+![](docs/Bollinger_image.png)
+
+### get_chart
+Used to get the historical chart of the specified ticker
+
+``` python 
+from nifpy import get_chart
+import datetime
+
+get_chart(scrip, kind = 'line',start = TODAY-PREV, end = TODAY)
+
+# TODAY = datetime.date.today()
+# PREV = datetime.timedelta(600)
+
+""" 
+Parameters
+-------------------------------
+scrip : Used to specify the symbol/ticker for which historical chart has to be plotted
+
+kind : The type of chart - 'line' or 'area'
+
+start :   Contains the starting date
+          Format: 'dd/mm/yyyy' as in '25/04/2020' 
+          Default: 600 days from today's date
+
+end :     Contains the end date
+          Format: 'dd/mm/yyyy' as in '27/05/2021' 
+          Default: Today's date
+
+Returns
+--------------------------------
+Historical chart based on time frame
+"""
+#Example
+
+#For area chart with default timeframe of 600 days
+get_chart('SBIN.NS','area')
+
+#For line chart with custom timeframe
+get_chart('SBIN.NS','line','25/04/2020','27/05/2021')
+
+```
+
+![](docs/Line_chart.png)
