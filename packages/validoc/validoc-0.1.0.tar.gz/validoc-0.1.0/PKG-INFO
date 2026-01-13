@@ -1,0 +1,188 @@
+Metadata-Version: 2.3
+Name: validoc
+Version: 0.1.0
+Summary: Executable tutorial testing - make documentation tutorials runnable as tests
+Author: Stefane Fermigier
+Author-email: Stefane Fermigier <sf@abilian.com>
+Requires-Dist: pyyaml>=6.0
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+
+# validoc
+
+**Executable Tutorial Testing Tool**
+
+validoc makes documentation tutorials executable. The tutorial *is* the test. Single source of truth.
+
+## Problem
+
+Documentation tutorials suffer from **documentation rot**: they become outdated as software evolves, but there's no automated way to detect this. Users follow broken tutorials and blame themselves.
+
+## Solution
+
+Annotate markdown code blocks to make them executable:
+
+~~~markdown
+```bash exec
+echo "Hello, World!"
+```
+
+```output contains
+Hello
+```
+~~~
+
+Run the tutorial as a test:
+
+```bash
+validoc run docs/tutorials/getting-started.md
+```
+
+## Installation
+
+```bash
+# Install with uv
+uv add validoc
+
+# Or install with pip
+pip install validoc
+```
+
+For development:
+
+```bash
+git clone https://github.com/abilian/validoc.git
+cd validoc
+uv sync --all-extras
+```
+
+## Quick Start
+
+```bash
+# Run a tutorial
+validoc run examples/01-hello-world.md
+
+# Run with verbose output
+validoc run examples/01-hello-world.md -v
+
+# Keep files for debugging
+validoc run tutorial.md --workdir /tmp/test --no-teardown
+
+# Validate without executing
+validoc check tutorial.md
+
+# List executable blocks
+validoc list tutorial.md
+```
+
+## Features
+
+- **Readable first** - Tutorials remain beautiful, human-readable markdown
+- **Standard markdown** - Works with GitHub, MkDocs, VS Code without modification
+- **Multiple block types** - Execute commands, create files, verify output, assert conditions
+- **Sandbox execution** - Runs in temporary directory, cleans up after
+- **Debug-friendly** - `--no-teardown` preserves files for inspection
+
+## Block Types
+
+| Type | Syntax | Purpose |
+|------|--------|---------|
+| Execute | `` ```bash exec `` | Run shell commands |
+| File | `` ```file path=config.yml `` | Create files |
+| Output | `` ```output contains `` | Verify command output |
+| Assert | `` ```assert file-exists path=app.py `` | Check conditions |
+
+### Execute Block Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `id=name` | Unique identifier |
+| `dir=path` | Working directory |
+| `timeout=60` | Timeout in seconds |
+| `expect=1` | Expected exit code |
+| `skip` | Skip this block |
+| `continue-on-error` | Don't stop on failure |
+
+### Output Matching Modes
+
+| Mode | Description |
+|------|-------------|
+| `output contains` | Text appears in output (default) |
+| `output exact` | Exact match |
+| `output regex` | Regular expression |
+
+## Tutorial Configuration
+
+Use YAML frontmatter for configuration:
+
+```yaml
+---
+tutorial:
+  name: my-tutorial
+  env:
+    DEBUG: "true"
+  setup:
+    - echo "Setting up..."
+  teardown:
+    - rm -rf myapp || true
+---
+```
+
+## Examples
+
+The `examples/` directory contains tutorials demonstrating all features:
+
+- `01-hello-world.md` - Minimal example
+- `02-file-creation.md` - Creating files
+- `03-output-matching.md` - Output verification modes
+- `04-assertions.md` - Assertion types
+- `05-frontmatter.md` - YAML configuration
+
+Run all examples:
+
+```bash
+uv run pytest tests/c_examples -v
+```
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/TUTORIAL.md](docs/TUTORIAL.md) | Comprehensive user guide |
+| [notes/SPECS.md](notes/SPECS.md) | Complete specification |
+| [notes/DESIGN.md](notes/DESIGN.md) | Architecture and design |
+
+## Development
+
+```bash
+# Install with dev dependencies
+uv sync --all-extras
+
+# Run all tests (98 tests)
+uv run pytest
+
+# Run specific test categories
+uv run pytest tests/a_unit           # Unit tests
+uv run pytest tests/b_integration    # Integration tests
+uv run pytest tests/c_examples       # Example tests
+
+# Linting
+uv run ruff check src tests
+```
+
+## Package Structure
+
+```
+src/validoc/
+├── cli.py         # Command-line interface
+├── parser.py      # Markdown parser
+├── executor.py    # Block execution
+├── runner.py      # Orchestration
+├── reporter.py    # Console output
+├── models.py      # Data structures
+└── constants.py   # Enums
+```
+
+## License
+
+Apache-2.0
