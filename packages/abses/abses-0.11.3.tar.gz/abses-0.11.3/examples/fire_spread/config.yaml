@@ -1,0 +1,77 @@
+defaults:
+  - default
+  - _self_
+
+exp:
+  name: fire_spread
+  outdir: out
+  repeats: 11
+
+# Tracker configuration for experiment tracking
+# Use Aim for advanced experiment tracking (requires: pip install abses[aim])
+tracker:
+  backend: aim
+  # Customize run name (supports template variables: {model_name}, {run_id}, {version})
+  run_name: "{model_name}_experiment_run_{run_id}"
+  # Customize tags (supports template variables in values)
+  tags:
+    experiment: "fire_spread"
+    model_type: "{model_name}"
+    version: "{version}"
+  # Backend-specific configuration
+  aim:
+    experiment: "fire_spread_experiment"
+    repo: null  # Use default Aim repo (~/.aim)
+  # Data collection configuration
+  model:
+    burned_rate: "burned_rate"
+  final:
+    burned_rate_final: "burned_rate"
+  # Log model parameters as hyperparameters (default: true)
+  log_params: true
+
+model:
+  density: 0.7
+  shape:
+    - 100
+    - 100
+
+time:
+  end: 100
+
+log:
+  # Logging mode for repeated runs: once | separate | merge
+  mode: separate
+
+  # Experiment-level logging (progress, summary, etc.)
+  exp:
+    stdout:
+      enabled: true
+      level: INFO
+      format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+      datefmt: '%H:%M:%S'
+    file:
+      enabled: true
+      level: INFO
+      format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+      datefmt: '%H:%M:%S'
+
+  # Model run-level logging (each model execution)
+  run:
+    stdout:
+      enabled: false
+      level: INFO
+      format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+      datefmt: '%H:%M:%S'
+    file:
+      enabled: true
+      level: DEBUG
+      format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+      datefmt: '%H:%M:%S'
+      name: model  # Log file name (without extension)
+      rotation: null  # e.g., "1 day", "100 MB"
+      retention: null  # e.g., "10 days"
+    # MESA-specific logging configuration
+    mesa:
+      level: null  # If null, uses run.file.level
+      format: null  # If null, uses run.file.format
