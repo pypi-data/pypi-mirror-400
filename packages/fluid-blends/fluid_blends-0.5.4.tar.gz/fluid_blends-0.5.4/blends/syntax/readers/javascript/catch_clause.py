@@ -1,0 +1,16 @@
+from blends.models import (
+    NId,
+)
+from blends.syntax.builders.catch_clause import (
+    build_catch_clause_node,
+)
+from blends.syntax.models import (
+    SyntaxGraphArgs,
+)
+
+
+def reader(args: SyntaxGraphArgs) -> NId:
+    catch_node = args.ast_graph.nodes[args.n_id]
+    block_node = catch_node["label_field_body"]
+    param_id = catch_node.get("label_field_parameter")
+    return build_catch_clause_node(args, block_node, param_id)
