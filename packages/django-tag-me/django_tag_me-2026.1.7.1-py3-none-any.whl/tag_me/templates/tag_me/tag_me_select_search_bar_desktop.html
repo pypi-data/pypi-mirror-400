@@ -1,0 +1,135 @@
+{# tag_me/templates/tag_me/tag_me_select_search_bar_desktop.html #}
+{% comment %}
+  DESKTOP INLINE ACTION BUTTONS
+  Icon-only buttons that appear conditionally based on state
+  Always visible when relevant (no menu)
+{% endcomment %}
+<!-- Quick Actions (Desktop Only - Always Visible When Relevant) -->
+<div class="tm:flex tm:items-center tm:gap-1">
+    <!-- Add Button (Desktop) -->
+    <button type="button"
+            x-show="canAddTag && !isCreatingTag"
+            x-transition.opacity.duration.150ms
+            @click.stop="createNewTag()"
+            class="tm:relative tm:p-2 tm:text-primary-lib tm:rounded tm:transition-colors tm:duration-150 hover:tm:bg-surface-container-highest-lib hover:tm:text-primary-lib hover:tm:opacity-90 tm:focus:outline-none tm:focus:ring-2 tm:focus:ring-primary-lib tm:focus:ring-offset-1 tm:focus:ring-offset-surface-container-high-lib"
+            title="Add new tag">
+        <svg xmlns="http://www.w3.org/2000/svg"
+             class="tm:h-5 tm:w-5"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor"
+             stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+    </button>
+    <!-- Loading Spinner (Desktop) -->
+    <div x-show="isCreatingTag" class="tm:inline-flex tm:items-center tm:px-2">
+        <svg class="tm:animate-spin tm:h-5 tm:w-5 tm:text-primary-lib"
+             xmlns="http://www.w3.org/2000/svg"
+             fill="none"
+             viewBox="0 0 24 24">
+            <circle class="tm:opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="tm:opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+            </path>
+        </svg>
+    </div>
+    <!-- Clear Search Button -->
+    <button type="button"
+            x-show="search.length > 0 && !isCreatingTag"
+            x-transition.opacity.duration.150ms
+            @click.stop="clearSearch()"
+            class="tm:relative tm:p-2 tm:text-on-surface-variant-lib tm:rounded tm:transition-colors tm:duration-150 hover:tm:text-on-surface-lib hover:tm:bg-surface-container-highest-lib tm:focus:outline-none tm:focus:ring-2 tm:focus:ring-primary-lib tm:focus:ring-offset-1 tm:focus:ring-offset-surface-container-high-lib"
+            title="Clear search">
+        <svg xmlns="http://www.w3.org/2000/svg"
+             class="tm:h-5 tm:w-5"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor"
+             stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12m3-6a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+    </button>
+    <!-- Remove All Tags Button -->
+    <button type="button"
+            x-show="selectedTags.size > 0 && !isCreatingTag"
+            x-transition.opacity.duration.150ms
+            @click.stop="deselectAll()"
+            class="tm:relative tm:p-2 tm:text-on-surface-variant-lib tm:rounded tm:transition-colors tm:duration-150 hover:tm:text-on-surface-lib hover:tm:bg-surface-container-highest-lib tm:focus:outline-none tm:focus:ring-2 tm:focus:ring-primary-lib tm:focus:ring-offset-1 tm:focus:ring-offset-surface-container-high-lib"
+            :title="'Remove ' + selectedTags.size + ' tags'">
+        <svg xmlns="http://www.w3.org/2000/svg"
+             class="tm:h-5 tm:w-5"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor"
+             stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 7h14m-9 3v8m4-8v8M10 3h4a1 1 0 0 1 1 1v3H9V4a1 1 0 0 1 1-1ZM6 7h12v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7Z" />
+        </svg>
+        <span class="tm:absolute tm:-top-1 tm:-right-1 tm:inline-flex tm:items-center tm:justify-center tm:px-1 tm:py-0.5 tm:text-[10px] tm:font-bold tm:text-on-primary-lib tm:bg-primary-lib tm:rounded-full tm:min-w-[0.875rem] tm:h-3.5"
+              x-text="selectedTags.size"></span>
+    </button>
+    <!-- Help Icon (Desktop) -->
+    <a x-show="helpUrl"
+       :href="helpUrl"
+       target="_blank"
+       class="tm:relative tm:p-2 tm:text-on-surface-variant-lib tm:rounded tm:transition-colors tm:duration-150 hover:tm:text-on-surface-lib hover:tm:bg-surface-container-highest-lib tm:focus:outline-none tm:focus:ring-2 tm:focus:ring-primary-lib tm:focus:ring-offset-1 tm:focus:ring-offset-surface-container-high-lib"
+       title="Help">
+        <svg xmlns="http://www.w3.org/2000/svg"
+             class="tm:h-5 tm:w-5"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor"
+             stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+        </svg>
+    </a>
+    <!-- Management Icon (Desktop) -->
+    <a x-show="mgmtUrl"
+       :href="mgmtUrl"
+       class="tm:relative tm:p-2 tm:text-on-surface-variant-lib tm:rounded tm:transition-colors tm:duration-150 hover:tm:text-on-surface-lib hover:tm:bg-surface-container-highest-lib tm:focus:outline-none tm:focus:ring-2 tm:focus:ring-primary-lib tm:focus:ring-offset-1 tm:focus:ring-offset-surface-container-high-lib"
+       target="_blank"
+       title="Tag Management">
+        <svg xmlns="http://www.w3.org/2000/svg"
+             class="tm:h-5 tm:w-5"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor"
+             stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+        </svg>
+    </a>
+</div>
+{% comment %}
+TEMPLATE CLASS MIGRATION - DESKTOP SEARCH BAR (MD3 REFACTOR v3.0)
+==================================================================
+Date: December 06, 2025
+Migration: MD3 Elevation Alignment with Datetime Component
+
+CHANGES APPLIED:
+✅ All buttons/links (5 instances):
+   1. hover:bg-surface-container-high-lib → hover:bg-surface-container-highest-lib [3→4]
+      - Dropdown is now at [3], hover needs to go to [4]
+   2. ring-offset-surface-container-lib → ring-offset-surface-container-high-lib [1→3]
+      - Parent dropdown is now at surface-container-high-lib [3]
+      - Ring offset must match parent surface
+
+AFFECTED ELEMENTS:
+1. Add button
+2. Clear search button  
+3. Remove all tags button
+4. Help link
+5. Management link
+
+ELEVATION CONTEXT:
+- These buttons sit inside the dropdown search section
+- Dropdown is now at surface-container-high-lib [3]
+- Hover state elevates to surface-container-highest-lib [4]
+- Ring offset matches dropdown background [3]
+
+NO OTHER CHANGES:
+- Alpine.js: unchanged
+- HTMX: unchanged
+- HTML structure: unchanged
+- Spacing/layout: unchanged
+- Non-MD3 classes: unchanged
+{% endcomment %}
