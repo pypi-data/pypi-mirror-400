@@ -1,0 +1,161 @@
+Metadata-Version: 2.4
+Name: ml-workbench
+Version: 0.2.3
+Summary: Local ML workbench configured for Databricks using uv
+Author: Pheno
+License: MIT
+Requires-Python: >=3.12.0
+Requires-Dist: boto3>=1.42.22
+Requires-Dist: matplotlib>=3.10.8
+Requires-Dist: mlflow>=3.8.1
+Requires-Dist: numpy>=1.26.4
+Requires-Dist: pandas>=2.3.3
+Requires-Dist: pyyaml
+Requires-Dist: scikit-learn>=1.8.0
+Requires-Dist: seaborn
+Description-Content-Type: text/markdown
+
+# ML Workbench
+
+## Installation
+
+Install ML Workbench using pip:
+
+```bash
+pip install ml_workbench
+```
+
+## Basic Usage
+
+### Command Line Interface (CLI)
+
+Run experiments directly from YAML configuration files:
+
+```bash
+# Run all experiments in a YAML file
+cli-experiment experiment.yaml
+
+# Run specific experiment(s)
+cli-experiment experiment.yaml --experiments my_experiment
+
+# Run with variable substitution
+cli-experiment experiment.yaml --var path=/data/datasets
+
+# Inspect configuration without running
+cli-experiment experiment.yaml --show-config
+```
+
+### Python API
+
+Use the Python API for programmatic control:
+
+```python
+from ml_workbench import YamlConfig, Experiment, Runner
+
+# Load configuration
+config = YamlConfig("experiment.yaml")
+
+# Create experiment
+experiment = Experiment(config, "my_experiment")
+
+# Run experiment
+runner = Runner(experiment, verbose=True)
+results = runner.run()
+
+# Access results
+print(f"Best model: {results['best_model']}")
+print(f"Best score: {results['best_model_score']}")
+```
+
+## Documentation
+
+### [CLI Experiment Guide](docs/CLI_EXPERIMENT.md)
+
+Complete guide to using the command-line interface for running experiments. Learn how to execute experiments from YAML files, use variable substitution, inspect configurations, and view dataset statistics without running experiments.
+
+### [Runner Class Documentation](docs/RUNNER.md)
+
+Comprehensive documentation for the `Runner` class, the core execution engine for ML experiments. Includes workflow orchestration, dataset management, preprocessing pipelines, model training, evaluation metrics, feature analysis, and MLFlow integration.
+
+### [YAML Configuration Specification](docs/SPECIFICATION.md)
+
+Detailed specification for YAML configuration files. Covers all sections including datasets, features, models, experiments, and MLflow settings. Includes validation rules and complete examples for defining ML experiments declaratively.
+
+### [Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md)
+
+Technical overview of the Runner implementation, including architecture decisions, testing strategy, and implementation details. Useful for understanding the internal workings of the ML Workbench.
+
+### [Packaging and CodeArtifact Guide](docs/PACKAGING_CODEARTIFACT.md)
+
+Step-by-step guide for packaging and publishing ML Workbench to AWS CodeArtifact. Covers prerequisites, authentication, version management, and CI/CD integration for distributing the package within your organization.
+
+## Setup
+
+### Environment Configuration for MLFlow Databricks Integration
+
+To direct MLFlow to your Databricks workspace (dev-internal), create a `.env` file in the project root with the following configuration:
+
+```bash
+# Set MLflow tracking URI to your Databricks workspace
+MLFLOW_TRACKING_URI="databricks"
+
+# Define Databricks datapoint that match your workspace (this one is for dev-internal)
+DATABRICKS_HOST="https://dbc-787720e9-26e6.cloud.databricks.com"
+
+# Getting Your Databricks Token
+# - Go to your Databricks workspace: https://dbc-787720e9-26e6.cloud.databricks.com
+# - Click on your profile icon (top-right)
+# - Select "Settings"
+# - In "User" section, select "Developer"
+# - Go to Access Tokens tab
+# - Click Generate New Token
+# - Give it a name (e.g., "MLFlow Local Development") and expiry
+# - Copy the token (you'll only see it once!)
+DATABRICKS_TOKEN="dapi123456781234567890"   # <- replace with your own
+```
+
+**Steps to set up:**
+
+1. Copy `.env.template` to `.env`:
+   ```bash
+   cp .env.template .env
+   ```
+
+2. Edit `.env` and replace `DATABRICKS_TOKEN` with your personal access token (see instructions in the comments above).
+
+3. The `.env` file is already in `.gitignore`, so your token won't be committed to version control.
+
+Once configured, MLFlow will automatically log experiments to your Databricks workspace when you run experiments using the ML Workbench.
+
+### Git Pre-commit Hook for Automatic Version Increment
+
+This project includes a pre-commit hook that automatically increments the patch version (last number) in `pyproject.toml` on each commit. For example, `0.0.2` → `0.0.3`.
+
+**To set up the pre-commit hook:**
+
+**Option 1: Use the setup script (recommended)**
+```bash
+./scripts/setup-pre-commit.sh
+```
+
+**Option 2: Manual installation**
+```bash
+cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+```
+
+**Verify the hook is set up correctly:**
+```bash
+ls -la .git/hooks/pre-commit
+```
+You should see the file is executable (`-rwxr-xr-x`).
+
+**How it works:**
+
+- On each commit, the hook automatically:
+  - Reads the current version from `pyproject.toml`
+  - Increments the patch version (e.g., `0.0.2` → `0.0.3`)
+  - Updates `pyproject.toml` with the new version
+  - Stages the updated file so it's included in your commit
+
+**Note:** The hook only increments the patch version (last number). To bump minor or major versions, manually edit `pyproject.toml` before committing.
+
