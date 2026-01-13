@@ -1,0 +1,1040 @@
+use crate::{
+    data::{PyDataset, PyEvent},
+    utils::vectors::{PyVec3, PyVec4},
+};
+use laddu_core::{
+    data::{Dataset, DatasetMetadata, EventData},
+    traits::Variable,
+    utils::variables::{
+        Angles, CosTheta, IntoP4Selection, Mandelstam, Mass, P4Selection, Phi, PolAngle,
+        PolMagnitude, Polarization, Topology, VariableExpression,
+    },
+    LadduResult,
+};
+use numpy::PyArray1;
+use pyo3::{exceptions::PyValueError, prelude::*};
+use serde::{Deserialize, Serialize};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
+
+#[derive(FromPyObject, Clone, Serialize, Deserialize)]
+pub enum PyVariable {
+    #[pyo3(transparent)]
+    Mass(PyMass),
+    #[pyo3(transparent)]
+    CosTheta(PyCosTheta),
+    #[pyo3(transparent)]
+    Phi(PyPhi),
+    #[pyo3(transparent)]
+    PolAngle(PyPolAngle),
+    #[pyo3(transparent)]
+    PolMagnitude(PyPolMagnitude),
+    #[pyo3(transparent)]
+    Mandelstam(PyMandelstam),
+}
+
+impl Debug for PyVariable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Mass(v) => write!(f, "{:?}", v.0),
+            Self::CosTheta(v) => write!(f, "{:?}", v.0),
+            Self::Phi(v) => write!(f, "{:?}", v.0),
+            Self::PolAngle(v) => write!(f, "{:?}", v.0),
+            Self::PolMagnitude(v) => write!(f, "{:?}", v.0),
+            Self::Mandelstam(v) => write!(f, "{:?}", v.0),
+        }
+    }
+}
+impl Display for PyVariable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Mass(v) => write!(f, "{}", v.0),
+            Self::CosTheta(v) => write!(f, "{}", v.0),
+            Self::Phi(v) => write!(f, "{}", v.0),
+            Self::PolAngle(v) => write!(f, "{}", v.0),
+            Self::PolMagnitude(v) => write!(f, "{}", v.0),
+            Self::Mandelstam(v) => write!(f, "{}", v.0),
+        }
+    }
+}
+
+impl PyVariable {
+    pub(crate) fn bind_in_place(&mut self, metadata: &DatasetMetadata) -> PyResult<()> {
+        match self {
+            Self::Mass(mass) => mass.0.bind(metadata).map_err(PyErr::from),
+            Self::CosTheta(cos_theta) => cos_theta.0.bind(metadata).map_err(PyErr::from),
+            Self::Phi(phi) => phi.0.bind(metadata).map_err(PyErr::from),
+            Self::PolAngle(pol_angle) => pol_angle.0.bind(metadata).map_err(PyErr::from),
+            Self::PolMagnitude(pol_magnitude) => {
+                pol_magnitude.0.bind(metadata).map_err(PyErr::from)
+            }
+            Self::Mandelstam(mandelstam) => mandelstam.0.bind(metadata).map_err(PyErr::from),
+        }
+    }
+
+    pub(crate) fn bound(&self, metadata: &DatasetMetadata) -> PyResult<Self> {
+        let mut cloned = self.clone();
+        cloned.bind_in_place(metadata)?;
+        Ok(cloned)
+    }
+
+    pub(crate) fn evaluate_event(&self, event: &Arc<EventData>) -> PyResult<f64> {
+        Ok(self.value(event.as_ref()))
+    }
+}
+
+#[pyclass(name = "VariableExpression", module = "laddu")]
+pub struct PyVariableExpression(pub VariableExpression);
+
+#[pymethods]
+impl PyVariableExpression {
+    fn __and__(&self, rhs: &PyVariableExpression) -> PyVariableExpression {
+        PyVariableExpression(self.0.clone() & rhs.0.clone())
+    }
+    fn __or__(&self, rhs: &PyVariableExpression) -> PyVariableExpression {
+        PyVariableExpression(self.0.clone() | rhs.0.clone())
+    }
+    fn __invert__(&self) -> PyVariableExpression {
+        PyVariableExpression(!self.0.clone())
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+#[derive(Clone, FromPyObject)]
+pub enum PyP4SelectionInput {
+    #[pyo3(transparent)]
+    Name(String),
+    #[pyo3(transparent)]
+    Names(Vec<String>),
+}
+
+impl PyP4SelectionInput {
+    fn into_selection(self) -> P4Selection {
+        match self {
+            PyP4SelectionInput::Name(name) => name.into_selection(),
+            PyP4SelectionInput::Names(names) => names.into_selection(),
+        }
+    }
+}
+
+/// A reusable 2-to-2 reaction description shared by multiple Variables.
+#[pyclass(name = "Topology", module = "laddu")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PyTopology(pub Topology);
+
+#[pymethods]
+impl PyTopology {
+    #[new]
+    fn new(
+        k1: PyP4SelectionInput,
+        k2: PyP4SelectionInput,
+        k3: PyP4SelectionInput,
+        k4: PyP4SelectionInput,
+    ) -> Self {
+        Self(Topology::new(
+            k1.into_selection(),
+            k2.into_selection(),
+            k3.into_selection(),
+            k4.into_selection(),
+        ))
+    }
+
+    #[staticmethod]
+    fn missing_k1(k2: PyP4SelectionInput, k3: PyP4SelectionInput, k4: PyP4SelectionInput) -> Self {
+        Self(Topology::missing_k1(
+            k2.into_selection(),
+            k3.into_selection(),
+            k4.into_selection(),
+        ))
+    }
+
+    #[staticmethod]
+    fn missing_k2(k1: PyP4SelectionInput, k3: PyP4SelectionInput, k4: PyP4SelectionInput) -> Self {
+        Self(Topology::missing_k2(
+            k1.into_selection(),
+            k3.into_selection(),
+            k4.into_selection(),
+        ))
+    }
+
+    #[staticmethod]
+    fn missing_k3(k1: PyP4SelectionInput, k2: PyP4SelectionInput, k4: PyP4SelectionInput) -> Self {
+        Self(Topology::missing_k3(
+            k1.into_selection(),
+            k2.into_selection(),
+            k4.into_selection(),
+        ))
+    }
+
+    #[staticmethod]
+    fn missing_k4(k1: PyP4SelectionInput, k2: PyP4SelectionInput, k3: PyP4SelectionInput) -> Self {
+        Self(Topology::missing_k4(
+            k1.into_selection(),
+            k2.into_selection(),
+            k3.into_selection(),
+        ))
+    }
+
+    fn k1_names(&self) -> Option<Vec<String>> {
+        self.0.k1_names().map(|names| names.to_vec())
+    }
+
+    fn k2_names(&self) -> Option<Vec<String>> {
+        self.0.k2_names().map(|names| names.to_vec())
+    }
+
+    fn k3_names(&self) -> Option<Vec<String>> {
+        self.0.k3_names().map(|names| names.to_vec())
+    }
+
+    fn k4_names(&self) -> Option<Vec<String>> {
+        self.0.k4_names().map(|names| names.to_vec())
+    }
+
+    fn com_boost_vector(&self, event: &PyEvent) -> PyResult<PyVec3> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec3(topology.com_boost_vector(event_data)))
+    }
+
+    fn k1(&self, event: &PyEvent) -> PyResult<PyVec4> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec4(topology.k1(event_data)))
+    }
+
+    fn k2(&self, event: &PyEvent) -> PyResult<PyVec4> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec4(topology.k2(event_data)))
+    }
+
+    fn k3(&self, event: &PyEvent) -> PyResult<PyVec4> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec4(topology.k3(event_data)))
+    }
+
+    fn k4(&self, event: &PyEvent) -> PyResult<PyVec4> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec4(topology.k4(event_data)))
+    }
+
+    fn k1_com(&self, event: &PyEvent) -> PyResult<PyVec4> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec4(topology.k1_com(event_data)))
+    }
+
+    fn k2_com(&self, event: &PyEvent) -> PyResult<PyVec4> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec4(topology.k2_com(event_data)))
+    }
+
+    fn k3_com(&self, event: &PyEvent) -> PyResult<PyVec4> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec4(topology.k3_com(event_data)))
+    }
+
+    fn k4_com(&self, event: &PyEvent) -> PyResult<PyVec4> {
+        let (topology, event_data) = self.topology_for_event(event)?;
+        Ok(PyVec4(topology.k4_com(event_data)))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+impl PyTopology {
+    fn topology_for_event<'event>(
+        &self,
+        event: &'event PyEvent,
+    ) -> PyResult<(Topology, &'event EventData)> {
+        let metadata = event.metadata_opt().ok_or_else(|| {
+            PyValueError::new_err(
+                "This event is not associated with metadata; supply `p4_names`/`aux_names` when constructing it or evaluate via a Dataset.",
+            )
+        })?;
+        let mut topology = self.0.clone();
+        topology.bind(metadata).map_err(PyErr::from)?;
+        Ok((topology, event.event.data()))
+    }
+}
+
+/// The invariant mass of an arbitrary combination of constituent particles in an Event
+///
+/// This variable is calculated by summing up the 4-momenta of each particle listed by index in
+/// `constituents` and taking the invariant magnitude of the resulting 4-vector.
+///
+/// Parameters
+/// ----------
+/// constituents : str or list of str
+///     Particle names to combine when constructing the final four-momentum
+///
+/// See Also
+/// --------
+/// laddu.utils.vectors.Vec4.m
+///
+#[pyclass(name = "Mass", module = "laddu")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PyMass(pub Mass);
+
+#[pymethods]
+impl PyMass {
+    #[new]
+    fn new(constituents: PyP4SelectionInput) -> Self {
+        Self(Mass::new(constituents.into_selection()))
+    }
+    /// The value of this Variable for the given Event
+    ///
+    /// Parameters
+    /// ----------
+    /// event : Event
+    ///     The Event upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// value : float
+    ///     The value of the Variable for the given `event`
+    ///
+    fn value(&self, event: &PyEvent) -> PyResult<f64> {
+        let metadata = event
+            .metadata_opt()
+            .ok_or_else(|| PyValueError::new_err(
+                "This event is not associated with metadata; supply `p4_names`/`aux_names` when constructing it or evaluate via a Dataset.",
+            ))?;
+        let mut variable = self.0.clone();
+        variable.bind(metadata).map_err(PyErr::from)?;
+        Ok(variable.value(event.event.data()))
+    }
+    /// All values of this Variable on the given Dataset
+    ///
+    /// Parameters
+    /// ----------
+    /// dataset : Dataset
+    ///     The Dataset upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// values : array_like
+    ///     The values of the Variable for each Event in the given `dataset`
+    ///
+    fn value_on<'py>(
+        &self,
+        py: Python<'py>,
+        dataset: &PyDataset,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let values = self.0.value_on(&dataset.0).map_err(PyErr::from)?;
+        Ok(PyArray1::from_vec(py, values))
+    }
+    fn __eq__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.eq(value))
+    }
+    fn __lt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.lt(value))
+    }
+    fn __gt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.gt(value))
+    }
+    fn __le__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.le(value))
+    }
+    fn __ge__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.ge(value))
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+/// The cosine of the polar decay angle in the rest frame of the given `resonance`
+///
+/// This Variable is calculated by forming the given frame (helicity or Gottfried-Jackson) and
+/// calculating the spherical angles according to one of the decaying `daughter` particles.
+///
+/// The helicity frame is defined in terms of the following Cartesian axes in the rest frame of
+/// the `resonance`:
+///
+/// .. math:: \hat{z} \propto -\vec{p}'_{\text{recoil}}
+/// .. math:: \hat{y} \propto \vec{p}_{\text{beam}} \times (-\vec{p}_{\text{recoil}})
+/// .. math:: \hat{x} = \hat{y} \times \hat{z}
+///
+/// where primed vectors are in the rest frame of the `resonance` and unprimed vectors are in
+/// the center-of-momentum frame.
+///
+/// The Gottfried-Jackson frame differs only in the definition of :math:`\hat{z}`:
+///
+/// .. math:: \hat{z} \propto \vec{p}'_{\text{beam}}
+///
+/// Parameters
+/// ----------
+/// topology : laddu.Topology
+///     Topology describing the 2-to-2 production kinematics in the center-of-momentum frame.
+/// daughter : list of str
+///     Names of particles which are combined to form one of the decay products of the
+///     resonance associated with ``k3`` of the topology.
+/// frame : {'Helicity', 'HX', 'HEL', 'GottfriedJackson', 'Gottfried Jackson', 'GJ', 'Gottfried-Jackson'}
+///     The frame to use in the  calculation
+///
+/// Raises
+/// ------
+/// ValueError
+///     If `frame` is not one of the valid options
+///
+/// See Also
+/// --------
+/// laddu.utils.vectors.Vec3.costheta
+///
+#[pyclass(name = "CosTheta", module = "laddu")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PyCosTheta(pub CosTheta);
+
+#[pymethods]
+impl PyCosTheta {
+    #[new]
+    #[pyo3(signature=(topology, daughter, frame="Helicity"))]
+    fn new(topology: PyTopology, daughter: PyP4SelectionInput, frame: &str) -> PyResult<Self> {
+        Ok(Self(CosTheta::new(
+            topology.0.clone(),
+            daughter.into_selection(),
+            frame.parse()?,
+        )))
+    }
+    /// The value of this Variable for the given Event
+    ///
+    /// Parameters
+    /// ----------
+    /// event : Event
+    ///     The Event upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// value : float
+    ///     The value of the Variable for the given `event`
+    ///
+    fn value(&self, event: &PyEvent) -> PyResult<f64> {
+        let metadata = event
+            .metadata_opt()
+            .ok_or_else(|| PyValueError::new_err(
+                "This event is not associated with metadata; supply `p4_names`/`aux_names` when constructing it or evaluate via a Dataset.",
+            ))?;
+        let mut variable = self.0.clone();
+        variable.bind(metadata).map_err(PyErr::from)?;
+        Ok(variable.value(event.event.data()))
+    }
+    /// All values of this Variable on the given Dataset
+    ///
+    /// Parameters
+    /// ----------
+    /// dataset : Dataset
+    ///     The Dataset upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// values : array_like
+    ///     The values of the Variable for each Event in the given `dataset`
+    ///
+    fn value_on<'py>(
+        &self,
+        py: Python<'py>,
+        dataset: &PyDataset,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let values = self.0.value_on(&dataset.0).map_err(PyErr::from)?;
+        Ok(PyArray1::from_vec(py, values))
+    }
+    fn __eq__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.eq(value))
+    }
+    fn __lt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.lt(value))
+    }
+    fn __gt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.gt(value))
+    }
+    fn __le__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.le(value))
+    }
+    fn __ge__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.ge(value))
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+/// The aziumuthal decay angle in the rest frame of the given `resonance`
+///
+/// This Variable is calculated by forming the given frame (helicity or Gottfried-Jackson) and
+/// calculating the spherical angles according to one of the decaying `daughter` particles.
+///
+/// The helicity frame is defined in terms of the following Cartesian axes in the rest frame of
+/// the `resonance`:
+///
+/// .. math:: \hat{z} \propto -\vec{p}'_{\text{recoil}}
+/// .. math:: \hat{y} \propto \vec{p}_{\text{beam}} \times (-\vec{p}_{\text{recoil}})
+/// .. math:: \hat{x} = \hat{y} \times \hat{z}
+///
+/// where primed vectors are in the rest frame of the `resonance` and unprimed vectors are in
+/// the center-of-momentum frame.
+///
+/// The Gottfried-Jackson frame differs only in the definition of :math:`\hat{z}`:
+///
+/// .. math:: \hat{z} \propto \vec{p}'_{\text{beam}}
+///
+/// Parameters
+/// ----------
+/// topology : laddu.Topology
+///     Topology describing the 2-to-2 production kinematics in the center-of-momentum frame.
+/// daughter : list of str
+///     Names of particles which are combined to form one of the decay products of the
+///     resonance associated with ``k3`` of the topology.
+/// frame : {'Helicity', 'HX', 'HEL', 'GottfriedJackson', 'Gottfried Jackson', 'GJ', 'Gottfried-Jackson'}
+///     The frame to use in the  calculation
+///
+/// Raises
+/// ------
+/// ValueError
+///     If `frame` is not one of the valid options
+///
+///
+/// See Also
+/// --------
+/// laddu.utils.vectors.Vec3.phi
+///
+#[pyclass(name = "Phi", module = "laddu")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PyPhi(pub Phi);
+
+#[pymethods]
+impl PyPhi {
+    #[new]
+    #[pyo3(signature=(topology, daughter, frame="Helicity"))]
+    fn new(topology: PyTopology, daughter: PyP4SelectionInput, frame: &str) -> PyResult<Self> {
+        Ok(Self(Phi::new(
+            topology.0.clone(),
+            daughter.into_selection(),
+            frame.parse()?,
+        )))
+    }
+    /// The value of this Variable for the given Event
+    ///
+    /// Parameters
+    /// ----------
+    /// event : Event
+    ///     The Event upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// value : float
+    ///     The value of the Variable for the given `event`
+    ///
+    fn value(&self, event: &PyEvent) -> PyResult<f64> {
+        let metadata = event
+            .metadata_opt()
+            .ok_or_else(|| PyValueError::new_err(
+                "This event is not associated with metadata; supply `p4_names`/`aux_names` when constructing it or evaluate via a Dataset.",
+            ))?;
+        let mut variable = self.0.clone();
+        variable.bind(metadata).map_err(PyErr::from)?;
+        Ok(variable.value(event.event.data()))
+    }
+    /// All values of this Variable on the given Dataset
+    ///
+    /// Parameters
+    /// ----------
+    /// dataset : Dataset
+    ///     The Dataset upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// values : array_like
+    ///     The values of the Variable for each Event in the given `dataset`
+    ///
+    fn value_on<'py>(
+        &self,
+        py: Python<'py>,
+        dataset: &PyDataset,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let values = self.0.value_on(&dataset.0).map_err(PyErr::from)?;
+        Ok(PyArray1::from_vec(py, values))
+    }
+    fn __eq__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.eq(value))
+    }
+    fn __lt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.lt(value))
+    }
+    fn __gt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.gt(value))
+    }
+    fn __le__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.le(value))
+    }
+    fn __ge__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.ge(value))
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+/// A Variable used to define both spherical decay angles in the given frame
+///
+/// This class combines ``laddu.CosTheta`` and ``laddu.Phi`` into a single
+/// object
+///
+/// Parameters
+/// ----------
+/// topology : laddu.Topology
+///     Topology describing the 2-to-2 production kinematics in the center-of-momentum frame.
+/// daughter : list of str
+///     Names of particles which are combined to form one of the decay products of the
+///     resonance associated with ``k3`` of the topology.
+/// frame : {'Helicity', 'HX', 'HEL', 'GottfriedJackson', 'Gottfried Jackson', 'GJ', 'Gottfried-Jackson'}
+///     The frame to use in the  calculation
+///
+/// Raises
+/// ------
+/// ValueError
+///     If `frame` is not one of the valid options
+///
+/// See Also
+/// --------
+/// laddu.CosTheta
+/// laddu.Phi
+///
+#[pyclass(name = "Angles", module = "laddu")]
+#[derive(Clone)]
+pub struct PyAngles(pub Angles);
+#[pymethods]
+impl PyAngles {
+    #[new]
+    #[pyo3(signature=(topology, daughter, frame="Helicity"))]
+    fn new(topology: PyTopology, daughter: PyP4SelectionInput, frame: &str) -> PyResult<Self> {
+        Ok(Self(Angles::new(
+            topology.0.clone(),
+            daughter.into_selection(),
+            frame.parse()?,
+        )))
+    }
+    /// The Variable representing the cosine of the polar spherical decay angle
+    ///
+    /// Returns
+    /// -------
+    /// CosTheta
+    ///
+    #[getter]
+    fn costheta(&self) -> PyCosTheta {
+        PyCosTheta(self.0.costheta.clone())
+    }
+    // The Variable representing the polar azimuthal decay angle
+    //
+    // Returns
+    // -------
+    // Phi
+    //
+    #[getter]
+    fn phi(&self) -> PyPhi {
+        PyPhi(self.0.phi.clone())
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+/// The polar angle of the given polarization vector with respect to the production plane
+///
+/// The `beam` and `recoil` particles define the plane of production, and this Variable
+/// describes the polar angle of the `beam` relative to this plane
+///
+/// Parameters
+/// ----------
+/// topology : laddu.Topology
+///     Topology describing the 2-to-2 production kinematics in the center-of-momentum frame.
+/// pol_angle : str
+///     Name of the auxiliary scalar column storing the polarization angle in radians
+///
+#[pyclass(name = "PolAngle", module = "laddu")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PyPolAngle(pub PolAngle);
+
+#[pymethods]
+impl PyPolAngle {
+    #[new]
+    fn new(topology: PyTopology, pol_angle: String) -> Self {
+        Self(PolAngle::new(topology.0.clone(), pol_angle))
+    }
+    /// The value of this Variable for the given Event
+    ///
+    /// Parameters
+    /// ----------
+    /// event : Event
+    ///     The Event upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// value : float
+    ///     The value of the Variable for the given `event`
+    ///
+    fn value(&self, event: &PyEvent) -> PyResult<f64> {
+        let metadata = event
+            .metadata_opt()
+            .ok_or_else(|| PyValueError::new_err(
+                "This event is not associated with metadata; supply `p4_names`/`aux_names` when constructing it or evaluate via a Dataset.",
+            ))?;
+        let mut variable = self.0.clone();
+        variable.bind(metadata).map_err(PyErr::from)?;
+        Ok(variable.value(event.event.data()))
+    }
+    /// All values of this Variable on the given Dataset
+    ///
+    /// Parameters
+    /// ----------
+    /// dataset : Dataset
+    ///     The Dataset upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// values : array_like
+    ///     The values of the Variable for each Event in the given `dataset`
+    ///
+    fn value_on<'py>(
+        &self,
+        py: Python<'py>,
+        dataset: &PyDataset,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let values = self.0.value_on(&dataset.0).map_err(PyErr::from)?;
+        Ok(PyArray1::from_vec(py, values))
+    }
+    fn __eq__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.eq(value))
+    }
+    fn __lt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.lt(value))
+    }
+    fn __gt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.gt(value))
+    }
+    fn __le__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.le(value))
+    }
+    fn __ge__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.ge(value))
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+/// The magnitude of the given particle's polarization vector
+///
+/// This Variable simply represents the magnitude of the polarization vector of the particle
+/// with the index `beam`
+///
+/// Parameters
+/// ----------
+/// pol_magnitude : str
+///     Name of the auxiliary scalar column storing the magnitude of the polarization vector
+///
+/// See Also
+/// --------
+/// laddu.utils.vectors.Vec3.mag
+///
+#[pyclass(name = "PolMagnitude", module = "laddu")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PyPolMagnitude(pub PolMagnitude);
+
+#[pymethods]
+impl PyPolMagnitude {
+    #[new]
+    fn new(pol_magnitude: String) -> Self {
+        Self(PolMagnitude::new(pol_magnitude))
+    }
+    /// The value of this Variable for the given Event
+    ///
+    /// Parameters
+    /// ----------
+    /// event : Event
+    ///     The Event upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// value : float
+    ///     The value of the Variable for the given `event`
+    ///
+    fn value(&self, event: &PyEvent) -> PyResult<f64> {
+        let metadata = event
+            .metadata_opt()
+            .ok_or_else(|| PyValueError::new_err(
+                "This event is not associated with metadata; supply `p4_names`/`aux_names` when constructing it or evaluate via a Dataset.",
+            ))?;
+        let mut variable = self.0.clone();
+        variable.bind(metadata).map_err(PyErr::from)?;
+        Ok(variable.value(event.event.data()))
+    }
+    /// All values of this Variable on the given Dataset
+    ///
+    /// Parameters
+    /// ----------
+    /// dataset : Dataset
+    ///     The Dataset upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// values : array_like
+    ///     The values of the Variable for each Event in the given `dataset`
+    ///
+    fn value_on<'py>(
+        &self,
+        py: Python<'py>,
+        dataset: &PyDataset,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let values = self.0.value_on(&dataset.0).map_err(PyErr::from)?;
+        Ok(PyArray1::from_vec(py, values))
+    }
+    fn __eq__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.eq(value))
+    }
+    fn __lt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.lt(value))
+    }
+    fn __gt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.gt(value))
+    }
+    fn __le__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.le(value))
+    }
+    fn __ge__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.ge(value))
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+/// A Variable used to define both the polarization angle and magnitude of the given particle``
+///
+/// This class combines ``laddu.PolAngle`` and ``laddu.PolMagnitude`` into a single
+/// object
+///
+/// Parameters
+/// ----------
+/// topology : laddu.Topology
+///     Topology describing the 2-to-2 production kinematics in the center-of-momentum frame.
+/// pol_magnitude : str
+///     Name of the auxiliary scalar storing the polarization magnitude
+/// pol_angle : str
+///     Name of the auxiliary scalar storing the polarization angle in radians
+///
+/// See Also
+/// --------
+/// laddu.PolAngle
+/// laddu.PolMagnitude
+///
+#[pyclass(name = "Polarization", module = "laddu")]
+#[derive(Clone)]
+pub struct PyPolarization(pub Polarization);
+#[pymethods]
+impl PyPolarization {
+    #[new]
+    #[pyo3(signature=(topology, *, pol_magnitude, pol_angle))]
+    fn new(topology: PyTopology, pol_magnitude: String, pol_angle: String) -> PyResult<Self> {
+        if pol_magnitude == pol_angle {
+            return Err(PyValueError::new_err(
+                "`pol_magnitude` and `pol_angle` must reference distinct auxiliary columns",
+            ));
+        }
+        let polarization = Polarization::new(topology.0.clone(), pol_magnitude, pol_angle);
+        Ok(PyPolarization(polarization))
+    }
+    /// The Variable representing the magnitude of the polarization vector
+    ///
+    /// Returns
+    /// -------
+    /// PolMagnitude
+    ///
+    #[getter]
+    fn pol_magnitude(&self) -> PyPolMagnitude {
+        PyPolMagnitude(self.0.pol_magnitude.clone())
+    }
+    /// The Variable representing the polar angle of the polarization vector
+    ///
+    /// Returns
+    /// -------
+    /// PolAngle
+    ///
+    #[getter]
+    fn pol_angle(&self) -> PyPolAngle {
+        PyPolAngle(self.0.pol_angle.clone())
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+/// Mandelstam variables s, t, and u
+///
+/// By convention, the metric is chosen to be :math:`(+---)` and the variables are defined as follows
+/// (ignoring factors of :math:`c`):
+///
+/// .. math:: s = (p_1 + p_2)^2 = (p_3 + p_4)^2
+///
+/// .. math:: t = (p_1 - p_3)^2 = (p_4 - p_2)^2
+///
+/// .. math:: u = (p_1 - p_4)^2 = (p_3 - p_2)^2
+///
+/// Parameters
+/// ----------
+/// topology : laddu.Topology
+///     Topology describing the 2-to-2 kinematics whose Mandelstam channels should be evaluated.
+/// channel: {'s', 't', 'u', 'S', 'T', 'U'}
+///     The Mandelstam channel to calculate
+///
+/// Raises
+/// ------
+/// Exception
+///     If more than one particle list is empty
+/// ValueError
+///     If `channel` is not one of the valid options
+///
+/// Notes
+/// -----
+/// At most one of the input particles may be omitted by using an empty list. This will cause
+/// the calculation to use whichever equality listed above does not contain that particle.
+///
+/// By default, the first equality is used if no particle lists are empty.
+///
+#[pyclass(name = "Mandelstam", module = "laddu")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PyMandelstam(pub Mandelstam);
+
+#[pymethods]
+impl PyMandelstam {
+    #[new]
+    fn new(topology: PyTopology, channel: &str) -> PyResult<Self> {
+        Ok(Self(Mandelstam::new(topology.0.clone(), channel.parse()?)))
+    }
+    /// The value of this Variable for the given Event
+    ///
+    /// Parameters
+    /// ----------
+    /// event : Event
+    ///     The Event upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// value : float
+    ///     The value of the Variable for the given `event`
+    ///
+    fn value(&self, event: &PyEvent) -> PyResult<f64> {
+        let metadata = event
+            .metadata_opt()
+            .ok_or_else(|| PyValueError::new_err(
+                "This event is not associated with metadata; supply `p4_names`/`aux_names` when constructing it or evaluate via a Dataset.",
+            ))?;
+        let mut variable = self.0.clone();
+        variable.bind(metadata).map_err(PyErr::from)?;
+        Ok(variable.value(event.event.data()))
+    }
+    /// All values of this Variable on the given Dataset
+    ///
+    /// Parameters
+    /// ----------
+    /// dataset : Dataset
+    ///     The Dataset upon which the Variable is calculated
+    ///
+    /// Returns
+    /// -------
+    /// values : array_like
+    ///     The values of the Variable for each Event in the given `dataset`
+    ///
+    fn value_on<'py>(
+        &self,
+        py: Python<'py>,
+        dataset: &PyDataset,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let values = self.0.value_on(&dataset.0).map_err(PyErr::from)?;
+        Ok(PyArray1::from_vec(py, values))
+    }
+    fn __eq__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.eq(value))
+    }
+    fn __lt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.lt(value))
+    }
+    fn __gt__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.gt(value))
+    }
+    fn __le__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.le(value))
+    }
+    fn __ge__(&self, value: f64) -> PyVariableExpression {
+        PyVariableExpression(self.0.ge(value))
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+    fn __str__(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+
+#[typetag::serde]
+impl Variable for PyVariable {
+    fn bind(&mut self, metadata: &DatasetMetadata) -> LadduResult<()> {
+        match self {
+            PyVariable::Mass(mass) => mass.0.bind(metadata),
+            PyVariable::CosTheta(cos_theta) => cos_theta.0.bind(metadata),
+            PyVariable::Phi(phi) => phi.0.bind(metadata),
+            PyVariable::PolAngle(pol_angle) => pol_angle.0.bind(metadata),
+            PyVariable::PolMagnitude(pol_magnitude) => pol_magnitude.0.bind(metadata),
+            PyVariable::Mandelstam(mandelstam) => mandelstam.0.bind(metadata),
+        }
+    }
+
+    fn value_on(&self, dataset: &Dataset) -> LadduResult<Vec<f64>> {
+        match self {
+            PyVariable::Mass(mass) => mass.0.value_on(dataset),
+            PyVariable::CosTheta(cos_theta) => cos_theta.0.value_on(dataset),
+            PyVariable::Phi(phi) => phi.0.value_on(dataset),
+            PyVariable::PolAngle(pol_angle) => pol_angle.0.value_on(dataset),
+            PyVariable::PolMagnitude(pol_magnitude) => pol_magnitude.0.value_on(dataset),
+            PyVariable::Mandelstam(mandelstam) => mandelstam.0.value_on(dataset),
+        }
+    }
+
+    fn value(&self, event: &EventData) -> f64 {
+        match self {
+            PyVariable::Mass(mass) => mass.0.value(event),
+            PyVariable::CosTheta(cos_theta) => cos_theta.0.value(event),
+            PyVariable::Phi(phi) => phi.0.value(event),
+            PyVariable::PolAngle(pol_angle) => pol_angle.0.value(event),
+            PyVariable::PolMagnitude(pol_magnitude) => pol_magnitude.0.value(event),
+            PyVariable::Mandelstam(mandelstam) => mandelstam.0.value(event),
+        }
+    }
+}
