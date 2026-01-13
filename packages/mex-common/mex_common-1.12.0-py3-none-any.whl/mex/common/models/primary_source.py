@@ -1,0 +1,351 @@
+from typing import Annotated, ClassVar, Literal
+
+from pydantic import AfterValidator, Field, computed_field
+
+from mex.common.models.base.extracted_data import ExtractedData
+from mex.common.models.base.filter import BaseFilter, FilterField
+from mex.common.models.base.mapping import BaseMapping, MappingField
+from mex.common.models.base.merged_item import MergedItem
+from mex.common.models.base.model import BaseModel
+from mex.common.models.base.preview_item import PreviewItem
+from mex.common.models.base.rules import (
+    AdditiveRule,
+    PreventiveRule,
+    RuleSet,
+    SubtractiveRule,
+)
+from mex.common.types import (
+    ExtractedPrimarySourceIdentifier,
+    Identifier,
+    Link,
+    MergedContactPointIdentifier,
+    MergedOrganizationalUnitIdentifier,
+    MergedPersonIdentifier,
+    MergedPrimarySourceIdentifier,
+    Text,
+)
+
+VersionStr = Annotated[
+    str,
+    Field(
+        examples=["v1", "2023-01-16", "Schema 9"],
+    ),
+]
+AnyContactIdentifier = Annotated[
+    MergedOrganizationalUnitIdentifier
+    | MergedPersonIdentifier
+    | MergedContactPointIdentifier,
+    AfterValidator(Identifier),
+]
+
+
+class _Stem(BaseModel):
+    stemType: ClassVar[Annotated[Literal["PrimarySource"], Field(frozen=True)]] = (
+        "PrimarySource"
+    )
+
+
+class _OptionalLists(_Stem):
+    alternativeTitle: Annotated[
+        list[Text],
+        Field(
+            description="An alternative name for the primary source",
+            json_schema_extra={"sameAs": ["http://purl.org/dc/terms/alternative"]},
+        ),
+    ] = []
+    contact: Annotated[
+        list[AnyContactIdentifier],
+        Field(
+            description="An agent that serves as a contact for the primary source.",
+            json_schema_extra={"sameAs": ["http://www.w3.org/ns/dcat#contactPoint"]},
+        ),
+    ] = []
+    description: Annotated[
+        list[Text],
+        Field(
+            description="A short description of the primary source.",
+            json_schema_extra={"sameAs": ["http://purl.org/dc/terms/description"]},
+        ),
+    ] = []
+    documentation: Annotated[
+        list[Link],
+        Field(
+            description="A link to a document documenting the primary source.",
+            json_schema_extra={
+                "subPropertyOf": ["http://purl.org/dc/terms/isReferencedBy"]
+            },
+        ),
+    ] = []
+    locatedAt: Annotated[
+        list[Link],
+        Field(
+            description=(
+                "A URL that leads to the primary source or a filepath, where the "
+                "primary source is stored."
+            )
+        ),
+    ] = []
+    title: Annotated[
+        list[Text],
+        Field(
+            description="The name of the primary source.",
+            json_schema_extra={"sameAs": ["http://purl.org/dc/terms/title"]},
+        ),
+    ] = []
+    unitInCharge: Annotated[
+        list[MergedOrganizationalUnitIdentifier],
+        Field(
+            description=(
+                "This property refers to agents who assume responsibility and "
+                "accountability for the primary source and its appropriate "
+                "maintenance."
+            ),
+            json_schema_extra={"sameAs": ["http://dcat-ap.de/def/dcatde/maintainer"]},
+        ),
+    ] = []
+
+
+class _OptionalValues(_Stem):
+    version: Annotated[
+        VersionStr | None,
+        Field(
+            description=(
+                "The version of the primary source, e.g. the date of the last "
+                "modification."
+            )
+        ),
+    ] = None
+
+
+class _VariadicValues(_Stem):
+    version: Annotated[
+        list[VersionStr],
+        Field(
+            description=(
+                "The version of the primary source, e.g. the date of the last "
+                "modification."
+            )
+        ),
+    ] = []
+
+
+class BasePrimarySource(
+    _OptionalLists,
+    _OptionalValues,
+    json_schema_extra={
+        "description": (
+            "A collection of information, that is managed and curated by an RKI unit "
+            "and lists activities and/or resources."
+        ),
+        "sameAs": [
+            "http://www.w3.org/ns/dcat#Catalog",
+            "http://www.w3.org/ns/prov#PrimarySource",
+        ],
+    },
+):
+    """All fields for a valid primary source except for provenance."""
+
+
+class ExtractedPrimarySource(BasePrimarySource, ExtractedData):
+    """An automatically extracted metadata set describing a primary source."""
+
+    entityType: Annotated[
+        Literal["ExtractedPrimarySource"], Field(alias="$type", frozen=True)
+    ] = "ExtractedPrimarySource"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def identifier(  # noqa: D102
+        self,
+    ) -> Annotated[
+        ExtractedPrimarySourceIdentifier,
+        Field(
+            description=(
+                "An unambiguous reference to the resource within a given context. "
+                "Persistent identifiers should be provided as HTTP URIs "
+                "([DCT, 2020-01-20](http://dublincore.org/specifications/dublin-core/dcmi-terms/2020-01-20/))."
+            ),
+            json_schema_extra={
+                "sameAs": ["http://purl.org/dc/elements/1.1/identifier"]
+            },
+        ),
+    ]:
+        return self._get_identifier(ExtractedPrimarySourceIdentifier)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def stableTargetId(  # noqa: D102, N802
+        self,
+    ) -> Annotated[
+        MergedPrimarySourceIdentifier,
+        Field(
+            description=(
+                "The identifier of the merged item that this extracted item belongs to."
+            )
+        ),
+    ]:
+        return self._get_stable_target_id(MergedPrimarySourceIdentifier)
+
+
+class MergedPrimarySource(BasePrimarySource, MergedItem):
+    """The result of merging all extracted items and rules for a primary source."""
+
+    entityType: Annotated[
+        Literal["MergedPrimarySource"], Field(alias="$type", frozen=True)
+    ] = "MergedPrimarySource"
+    identifier: Annotated[
+        MergedPrimarySourceIdentifier,
+        Field(
+            json_schema_extra={
+                "description": (
+                    "An unambiguous reference to the resource within a given context. "
+                    "Persistent identifiers should be provided as HTTP URIs "
+                    "([DCT, 2020-01-20](http://dublincore.org/specifications/dublin-core/dcmi-terms/2020-01-20/))."
+                ),
+                "readOnly": True,
+                "sameAs": ["http://purl.org/dc/elements/1.1/identifier"],
+            },
+            frozen=True,
+        ),
+    ]
+    supersededBy: Annotated[
+        MergedPrimarySourceIdentifier | None,
+        Field(
+            json_schema_extra={
+                "description": (
+                    "A merged item which is the preferred duplicate, because it "
+                    "replaces, consolidates or otherwise makes the current merged item "
+                    "obsolete."
+                ),
+            }
+        ),
+    ] = None
+
+
+class PreviewPrimarySource(_OptionalLists, _OptionalValues, PreviewItem):
+    """Preview for merging all extracted items and rules for a primary source."""
+
+    entityType: Annotated[
+        Literal["PreviewPrimarySource"], Field(alias="$type", frozen=True)
+    ] = "PreviewPrimarySource"
+    identifier: Annotated[
+        MergedPrimarySourceIdentifier,
+        Field(
+            json_schema_extra={
+                "description": (
+                    "An unambiguous reference to the resource within a given context. "
+                    "Persistent identifiers should be provided as HTTP URIs "
+                    "([DCT, 2020-01-20](http://dublincore.org/specifications/dublin-core/dcmi-terms/2020-01-20/))."
+                ),
+                "readOnly": True,
+                "sameAs": ["http://purl.org/dc/elements/1.1/identifier"],
+            },
+            frozen=True,
+        ),
+    ]
+    supersededBy: Annotated[
+        MergedPrimarySourceIdentifier | None,
+        Field(
+            json_schema_extra={
+                "description": (
+                    "A merged item which is the preferred duplicate, because it "
+                    "replaces, consolidates or otherwise makes the current merged item "
+                    "obsolete."
+                ),
+            }
+        ),
+    ] = None
+
+
+class AdditivePrimarySource(_OptionalLists, _OptionalValues, AdditiveRule):
+    """Rule to add values to merged primary source items."""
+
+    entityType: Annotated[
+        Literal["AdditivePrimarySource"], Field(alias="$type", frozen=True)
+    ] = "AdditivePrimarySource"
+    supersededBy: Annotated[
+        MergedPrimarySourceIdentifier | None,
+        Field(
+            json_schema_extra={
+                "description": (
+                    "A merged item which is the preferred duplicate, because it "
+                    "replaces, consolidates or otherwise makes the current merged item "
+                    "obsolete."
+                ),
+            }
+        ),
+    ] = None
+
+
+class SubtractivePrimarySource(_OptionalLists, _VariadicValues, SubtractiveRule):
+    """Rule to subtract values from merged primary source items."""
+
+    entityType: Annotated[
+        Literal["SubtractivePrimarySource"], Field(alias="$type", frozen=True)
+    ] = "SubtractivePrimarySource"
+
+
+class PreventivePrimarySource(_Stem, PreventiveRule):
+    """Rule to prevent primary sources for fields of merged primary source items."""
+
+    entityType: Annotated[
+        Literal["PreventivePrimarySource"], Field(alias="$type", frozen=True)
+    ] = "PreventivePrimarySource"
+    alternativeTitle: list[MergedPrimarySourceIdentifier] = []
+    contact: list[MergedPrimarySourceIdentifier] = []
+    description: list[MergedPrimarySourceIdentifier] = []
+    documentation: list[MergedPrimarySourceIdentifier] = []
+    locatedAt: list[MergedPrimarySourceIdentifier] = []
+    title: list[MergedPrimarySourceIdentifier] = []
+    unitInCharge: list[MergedPrimarySourceIdentifier] = []
+    version: list[MergedPrimarySourceIdentifier] = []
+
+
+class _BaseRuleSet(_Stem, RuleSet):
+    """Base class for sets of rules for a primary source item."""
+
+    additive: AdditivePrimarySource = AdditivePrimarySource()
+    subtractive: SubtractivePrimarySource = SubtractivePrimarySource()
+    preventive: PreventivePrimarySource = PreventivePrimarySource()
+
+
+class PrimarySourceRuleSetRequest(_BaseRuleSet):
+    """Set of rules to create or update a primary source item."""
+
+    entityType: Annotated[
+        Literal["PrimarySourceRuleSetRequest"], Field(alias="$type", frozen=True)
+    ] = "PrimarySourceRuleSetRequest"
+
+
+class PrimarySourceRuleSetResponse(_BaseRuleSet):
+    """Set of rules to retrieve a primary source item."""
+
+    entityType: Annotated[
+        Literal["PrimarySourceRuleSetResponse"], Field(alias="$type", frozen=True)
+    ] = "PrimarySourceRuleSetResponse"
+    stableTargetId: MergedPrimarySourceIdentifier
+
+
+class PrimarySourceMapping(_Stem, BaseMapping):
+    """Mapping for describing a primary source transformation."""
+
+    entityType: Annotated[
+        Literal["PrimarySourceMapping"], Field(alias="$type", frozen=True)
+    ] = "PrimarySourceMapping"
+    version: list[MappingField[VersionStr | None]] = []
+    alternativeTitle: list[MappingField[list[Text]]] = []
+    contact: list[MappingField[list[AnyContactIdentifier]]] = []
+    description: list[MappingField[list[Text]]] = []
+    documentation: list[MappingField[list[Link]]] = []
+    locatedAt: list[MappingField[list[Link]]] = []
+    title: list[MappingField[list[Text]]] = []
+    unitInCharge: list[MappingField[list[MergedOrganizationalUnitIdentifier]]] = []
+
+
+class PrimarySourceFilter(_Stem, BaseFilter):
+    """Class for defining filter rules for primary source items."""
+
+    entityType: Annotated[
+        Literal["PrimarySourceFilter"], Field(alias="$type", frozen=True)
+    ] = "PrimarySourceFilter"
+    fields: Annotated[list[FilterField], Field(title="fields")] = []
