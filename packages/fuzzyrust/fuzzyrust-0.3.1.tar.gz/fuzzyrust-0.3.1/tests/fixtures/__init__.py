@@ -1,0 +1,23 @@
+"""Test fixtures for FuzzyRust."""
+
+from .real_data import (
+    ADDRESS_PAIRS,
+    ADDRESSES,
+    COMPANY_NAME_PAIRS,
+    COMPANY_NAMES,
+    PERSON_NAME_PAIRS,
+    PERSON_NAMES,
+    PRODUCT_NAME_PAIRS,
+    PRODUCT_NAMES,
+)
+
+__all__ = [
+    "PERSON_NAMES",
+    "PERSON_NAME_PAIRS",
+    "ADDRESSES",
+    "ADDRESS_PAIRS",
+    "PRODUCT_NAMES",
+    "PRODUCT_NAME_PAIRS",
+    "COMPANY_NAMES",
+    "COMPANY_NAME_PAIRS",
+]
