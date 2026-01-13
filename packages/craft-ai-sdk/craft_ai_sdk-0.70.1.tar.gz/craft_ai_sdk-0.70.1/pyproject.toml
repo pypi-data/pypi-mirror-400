@@ -1,0 +1,73 @@
+[project]
+name = "craft-ai-sdk"
+description = "Craft AI MLOps platform SDK"
+authors = [{name = "Craft AI", email = "contact@craft.ai"}]
+readme = "README.md"
+homepage = "https://www.craft.ai/"
+license = "Apache-2.0"
+version = "0.70.1"
+requires-python = ">=3.10"
+dependencies = [
+    "requests >= 2.32.4",
+    "pyjwt >= 2.4.0",
+    "StrEnum >= 0.4.9",
+    "weaviate-client >= 4.15.3",
+]
+
+[project.scripts]
+lint = "scripts.scripts:lint"
+lintfix = "scripts.scripts:lintfix"
+format = "scripts.scripts:format"
+reformat = "scripts.scripts:reformat"
+test = "scripts.scripts:test"
+test-base = "scripts.scripts:test_base"
+test-platform = "scripts.scripts:test_platform"
+bump-version = "scripts.scripts:bump_version"
+set-version = "scripts.scripts:set_version"
+pdfdoc = "scripts.scripts:generate_docs_in_pdf"
+rstdoc = "scripts.scripts:generate_docs_in_rst"
+
+[dependency-groups]
+dev = [
+    "ipython < 8.31", # >= 8.31.0 dropped support for python 3.10
+    "ipykernel >= 7.1.0",
+    "pylint >= 4.0.3",
+    "python-dotenv >= 1.2.1",
+    "pytest >= 9.0.1",
+    "pytest-asyncio >= 1.3.0",
+    "requests-mock[fixture] >= 1.12.1",
+    "pytest-watch >= 4.2.0",
+    "pyarrow >= 22.0.0",
+    "pandas >= 2.3.3",
+    "ruff >= 0.14.6",
+]
+docs = [
+    "doc8 >= 2.0.0",
+    "Sphinx < 8.2.0", # >= 8.2.0 dropped support for python 3.10
+    "sphinxcontrib-restbuilder >= 0.3",
+]
+
+[tool.poetry]
+version = "0.70.1"
+packages = [{ include = "craft_ai_sdk" }]
+include = ["documentation.pdf"]
+requires-poetry = ">=2.2.1"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.pytest.ini_options]
+filterwarnings = ["ignore::UserWarning"]
+
+[tool.ruff.lint]
+extend-select = ["B", "C", "E", "F", "I", "T", "W"]
+extend-ignore = ["C401", "C901"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/docs/**/*.py" = ["T"]
+"**/tests/**/*.py" = ["C", "T"]
+"**/scripts/**/*.py" = ["T"]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
