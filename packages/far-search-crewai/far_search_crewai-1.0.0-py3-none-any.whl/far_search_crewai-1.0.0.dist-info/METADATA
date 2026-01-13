@@ -1,0 +1,220 @@
+Metadata-Version: 2.4
+Name: far-search-crewai
+Version: 1.0.0
+Summary: CrewAI tool for Federal Acquisition Regulations (FAR) search - multi-agent compliance
+Home-page: https://github.com/blueskylineassets/far-search-tool
+Author: Daniel Chang
+Author-email: yschang@blueskylineassets.com
+Project-URL: Homepage, https://github.com/blueskylineassets/far-search-tool
+Project-URL: Documentation, https://github.com/blueskylineassets/far-search-tool#readme
+Project-URL: RapidAPI, https://rapidapi.com/yschang/api/far-rag-federal-acquisition-regulation-search
+Keywords: crewai,far,federal-acquisition-regulations,government-contracting,multi-agent,ai-agent,compliance,crew
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.28.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: crewai
+Requires-Dist: crewai>=0.28.0; extra == "crewai"
+Requires-Dist: crewai-tools>=0.2.0; extra == "crewai"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# FAR Search CrewAI Integration
+
+[![PyPI version](https://badge.fury.io/py/far-search-crewai.svg)](https://pypi.org/project/far-search-crewai/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**CrewAI tool** for searching Federal Acquisition Regulations (FAR).
+
+Enable your CrewAI agents to search government contracting regulations with verified citations from acquisition.gov.
+
+## Installation
+
+```bash
+pip install far-search-crewai
+
+# With CrewAI dependencies
+pip install far-search-crewai[crewai]
+```
+
+## Quick Start
+
+```python
+from crewai import Agent, Task, Crew
+from far_search_crewai import FARSearchTool
+
+# Auto-registers on first use - no API key needed!
+far_tool = FARSearchTool(crew_id="my-proposal-crew")
+
+compliance_agent = Agent(
+    role="Compliance Specialist",
+    goal="Verify FAR compliance for government proposals",
+    tools=[far_tool],
+    verbose=True
+)
+
+research_task = Task(
+    description="Find the cybersecurity requirements for DoD contracts",
+    agent=compliance_agent,
+    expected_output="List of relevant FAR clauses with citations"
+)
+
+crew = Crew(
+    agents=[compliance_agent],
+    tasks=[research_task]
+)
+
+result = crew.kickoff()
+print(result)
+```
+
+## Setup Options
+
+### Option 1: Auto-Registration (Recommended)
+
+Just add the tool - auto-registers on first search:
+
+```python
+from far_search_crewai import FARSearchTool
+
+tool = FARSearchTool()
+# First search auto-registers and displays API key
+```
+
+### Option 2: With API Key
+
+```bash
+# Get an API key
+curl -X POST https://far-rag-api-production.up.railway.app/v1/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "my-crew"}'
+
+# Set environment variable
+export FAR_API_KEY=far_live_...
+```
+
+```python
+from far_search_crewai import FARSearchTool
+
+tool = FARSearchTool()  # Picks up FAR_API_KEY from env
+# or
+tool = FARSearchTool(api_key="far_live_...")
+```
+
+## Configuration
+
+```python
+from far_search_crewai import FARSearchTool
+
+tool = FARSearchTool(
+    api_key="far_live_...",      # Optional - auto-registers if not provided
+    crew_id="proposal-crew-v1",   # For tracking in dashboard
+    agent_role="compliance",      # Agent role identifier
+)
+```
+
+## Use Cases
+
+### Government Proposal Crew
+
+```python
+from crewai import Agent, Task, Crew
+from far_search_crewai import FARSearchTool
+
+far_tool = FARSearchTool(crew_id="proposal-crew")
+
+# Research agent finds regulations
+researcher = Agent(
+    role="Regulatory Researcher",
+    goal="Find all relevant FAR clauses",
+    tools=[far_tool],
+)
+
+# Compliance agent verifies requirements
+compliance = Agent(
+    role="Compliance Specialist",
+    goal="Verify proposal meets FAR requirements",
+    tools=[far_tool],
+)
+
+# Writer agent drafts compliance sections
+writer = Agent(
+    role="Proposal Writer",
+    goal="Draft compliance sections with accurate citations",
+    tools=[far_tool],
+)
+
+crew = Crew(
+    agents=[researcher, compliance, writer],
+    tasks=[...]
+)
+```
+
+### Compliance Verification
+
+```python
+from far_search_crewai import create_far_search_tool
+
+tool = create_far_search_tool(
+    crew_id="audit-crew",
+    agent_role="auditor"
+)
+
+# Directly use the tool
+result = tool.search("small business subcontracting requirements")
+print(result)
+```
+
+## Features
+
+- **Semantic Search**: Natural language queries over FAR clauses
+- **Verified Citations**: All clauses sourced from acquisition.gov
+- **Auto-Registration**: No signup needed for free tier
+- **Usage Tracking**: Per-crew and per-agent metrics
+- **Usage Warnings**: Alerts at 50%, 80%, 100% of monthly quota
+
+## Pricing
+
+| Plan | Price | Queries/Month |
+|------|-------|---------------|
+| **Free** | $0 | 500 |
+| **Pro** | $29/mo | 5,000 |
+| **Ultra** | $199/mo | 150,000 |
+
+Auto-registers on first use. Upgrade at [RapidAPI](https://rapidapi.com/yschang/api/far-rag-federal-acquisition-regulation-search).
+
+## Related Packages
+
+| Package | Use Case |
+|---------|----------|
+| **far-search** | Lightweight core SDK |
+| **far-search-tool** | LangChain tool |
+| **far-search-autogpt** | AutoGPT plugin |
+| **far-search-crewai** (this) | CrewAI multi-agent tool |
+| **far-oracle** | MCP Server for Claude Desktop |
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
