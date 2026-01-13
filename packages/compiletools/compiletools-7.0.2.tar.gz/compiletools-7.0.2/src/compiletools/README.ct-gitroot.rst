@@ -1,0 +1,49 @@
+================
+ct-gitroot
+================
+
+------------------------------------------------------------
+Display the git repository root directory
+------------------------------------------------------------
+
+:Author: drgeoffathome@gmail.com
+:Date:   2017-09-28
+:Copyright: Copyright (C) 2011-2016 Zomojo Pty Ltd
+:Version: 7.0.2
+:Manual section: 1
+:Manual group: developers
+
+SYNOPSIS
+========
+ct-gitroot
+
+DESCRIPTION
+===========
+ct-gitroot is a command line tool to inspect what the other ct-* tools will
+believe the root of the git repository to be.  The logic is simple:
+
+* Try to execute ``git rev-parse --show-toplevel``
+* If that fails traverse up the directory hierarchy looking for a ".git" 
+  directory.  This is useful for when you need to fake it up for any reason.
+* If that fails then use the current working directory as the "gitroot"
+
+The reason the "gitroot" is important is that it is automatically added
+to the include path for the compiler. This behaviour can be turned off by 
+using the ``--no-git-root`` option.
+
+EXAMPLES
+========
+
+Display the git root::
+
+    $ ct-gitroot
+    /home/user/myproject
+
+Use in scripts::
+
+    cd $(ct-gitroot)
+    ct-cake
+
+SEE ALSO
+========
+``compiletools`` (1), ``ct-cake`` (1)
