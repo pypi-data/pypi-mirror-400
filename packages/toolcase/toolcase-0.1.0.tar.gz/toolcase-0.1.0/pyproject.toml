@@ -1,0 +1,94 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "toolcase"
+version = "0.1.0"
+description = "Type-safe, extensible tool framework for AI agents with monadic error handling"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "GriffinCanCode", email = "griffincancode@gmail.com"}]
+requires-python = ">=3.11"
+keywords = ["ai", "tools", "agents", "langchain", "llm", "mcp", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.2",
+    "pydantic-extra-types>=2.6",
+    "beartype>=0.18",
+    "orjson>=3.9",
+    "msgpack>=1.0",
+    "msgspec>=0.18",
+    "structlog>=24.1",
+    "httpx>=0.27",
+    "stamina>=24.3",
+]
+
+[project.optional-dependencies]
+langchain = [
+    "langchain-core>=0.2",
+]
+mcp = [
+    "fastmcp>=2.0",
+]
+http = [
+    "starlette>=0.37",
+    "uvicorn>=0.29",
+]
+redis = [
+    "redis>=5.0",
+]
+memcached = [
+    "pymemcache>=4.0",
+]
+otel = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
+    "opentelemetry-exporter-otlp-proto-http>=1.20",
+    "opentelemetry-instrumentation-httpx>=0.42b0",
+]
+all = [
+    "toolcase[langchain,mcp,http,redis,memcached,otel]",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "hypothesis>=6.100",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+toolcase = "toolcase.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/toolcase"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "TCH"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
