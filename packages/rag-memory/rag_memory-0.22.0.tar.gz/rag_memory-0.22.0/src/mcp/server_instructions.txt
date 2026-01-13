@@ -1,0 +1,258 @@
+# RAG Memory - AI Agent Usage Guide
+
+## System Overview
+
+**IMPORTANT:** Ingestion operations have cost (they process your content). Query operations are free (they search existing knowledge).
+
+---
+
+## 1. COLLECTION DISCIPLINE (CRITICAL)
+
+**MUST review collections before ingesting ANY content:**
+
+1. `list_collections()` - See available collections
+2. `get_collection_info(name)` - Review purpose, domain, metadata schema
+3. Choose collection matching content's domain/topic
+4. If no good match: `create_collection()` with clear domain/purpose
+
+**Why:** Collections partition BOTH vector search AND knowledge graph. Poor collection choices degrade knowledge quality and search relevance.
+
+**Never:**
+- Dump unrelated content into same collection
+- Ignore collection descriptions when choosing where to ingest
+- Create collections without clear, focused domain/purpose
+- Ingest before reviewing what collections already exist
+
+**Pattern:**
+```
+list_collections()
+  → review purposes/domains
+  → choose best fit OR create new
+  → ingest_*(collection_name=chosen)
+```
+
+---
+
+## 1.5. FILESYSTEM CONSTRAINTS
+
+**Local file operations (ingest_file, ingest_directory, list_directory) require direct filesystem access.**
+
+**When filesystem access WORKS:**
+✅ Local MCP clients (Claude Code, Claude Desktop) with configured filesystem mounts
+✅ MCP server and client share the same filesystem (local deployment)
+✅ File paths exist on the MCP SERVER's filesystem
+
+**When filesystem access FAILS:**
+❌ Cloud-hosted MCP clients (ChatGPT, web-based agents) - server cannot access client's local files
+❌ Client's virtual/sandboxed filesystem (like /mnt/data in ChatGPT) - not visible to remote server
+❌ File paths that don't exist on the server's filesystem
+
+**CRITICAL:** File paths MUST exist on the MCP SERVER's filesystem, not your client's environment.
+
+**For cloud-hosted MCP clients, use instead:**
+- `ingest_url()` - If content is web-accessible
+- `ingest_text()` - Pass file content directly as text (mind payload limits, see Section 5)
+
+---
+
+## 2. SEARCH: USE FULL QUESTIONS (NOT KEYWORDS)
+
+Semantic search matches MEANING, not exact words. Use natural language questions for search_documents, query_relationships, and query_temporal.
+
+---
+
+## 3. INGESTION WORKFLOWS
+
+### Duplicate Detection & Reingest
+
+All ingest tools auto-detect duplicates (mode='ingest' default). If error occurs:
+1. Content unchanged? Skip (no action needed)
+2. Content updated significantly? mode='reingest' (deletes old, ingests new)
+3. Minor edit only? update_document() (no re-chunking)
+
+**Reingest vs Update:**
+- **mode='reingest'**: Complete replacement, new document ID, fresh embeddings/graph
+- **update_document()**: In-place update, same ID, only specified fields changed (content updates still re-chunk)
+
+### Analyze Before Multi-Page Ingests (REQUIRED)
+```
+# STEP 1: Analyze website structure
+analysis = analyze_website(url, include_url_lists=True)
+  → Returns: total_urls, pattern_stats, elapsed_seconds
+  → Note: May take up to 50 seconds for large sites
+
+# STEP 2: Review scope and plan strategy
+  → If total_urls <= 20: Single targeted ingest
+  → If total_urls > 20: Multiple targeted ingests (max_pages=20 per ingest)
+  → Review pattern_stats to identify sections (/api, /guides, /reference)
+
+# STEP 3: Execute ingest(s)
+ingest_url(
+    url=target_url,
+    follow_links=True,
+    max_pages=20  # default=10, max=20
+)
+```
+
+**Why:**
+- Helps plan targeted ingests vs full-site ingestion
+- max_pages=20 hard limit requires multiple ingests for large sites
+- Pattern stats show actual site structure for informed decisions
+
+**Website Analysis:**
+analyze_website() discovers publicly accessible URL patterns:
+- Works with sites that have sitemaps
+- Also discovers URLs from sites without sitemaps
+- Returns up to 150 URLs grouped by path pattern
+- 50-second timeout (very large sites may time out - try analyzing subsections instead)
+Example: "https://docs.example.com/api" → discovers /api section structure
+
+### Dry Run for Topic-Focused Ingestion (RECOMMENDED)
+
+Use dry_run=True to preview relevance scores before committing.
+
+**Workflow:**
+```
+# 1. Dry run with topic
+preview = ingest_url(url, collection_name, follow_links=True, dry_run=True, topic="...")
+
+# 2. Review: pages_recommended (score ≥0.5), pages_to_skip (score <0.5)
+
+# 3. Ingest selectively or proceed with full crawl
+for page in preview["pages"]:
+    if page["recommendation"] == "ingest":
+        ingest_url(url=page["url"], collection_name=name)
+```
+
+**When to use:** Multi-page crawls (follow_links=True) with specific topic focus
+**When to skip:** Single pages, want ALL content, well-understood structure
+**Why:** Websites link to unrelated pages (navigation, footers); prevents off-topic pollution
+
+### Explore Local Directories Before Ingesting (RECOMMENDED)
+
+**Workflow:**
+```
+# 1. Explore: list_directory(path, include_preview=True) - Assess contents
+# 2. Review file types, sizes, preview text with user
+# 3. Get approval for specific files
+# 4. Ingest: ingest_file(file_path=file["path"], collection_name=name) for each
+```
+
+**When to use:** Before calling ingest_file() or ingest_directory()
+**When to skip:** Exact file path known or user wants ALL files
+**Why:** Prevents blind ingestion; FREE operation; content assessment without commitment
+
+### Use Reingest for Website Updates
+```
+Instead of: delete_document() + ingest_url()
+Use: ingest_url(url, mode="reingest", ...)
+```
+
+**Why:** Safer, maintains metadata tracking, cleaner knowledge base.
+
+---
+
+## 4. QUERY STRATEGIES
+
+**Use `search_documents` for:**
+- Finding content by meaning/topic
+- "What does knowledge base say about X?"
+- Returns relevant documents and sections
+
+**Use `query_relationships` for:**
+- Discovering how concepts connect
+- "What is related to X?" or "How are A and B connected?"
+- Returns connections and relationships
+
+**Use `query_temporal` for:**
+- Tracking how information changes over time
+- "How has X changed since 2023?"
+- Returns evolution and timeline of knowledge
+
+**Pro tip:** Combine multiple query types for comprehensive research.
+
+---
+
+## 5. EFFICIENCY & COST AWARENESS
+
+**Ingestion has cost** (processes content). **Queries are FREE** (search existing knowledge).
+
+**Timing:** Non-deterministic (30s to several minutes). Assess scope: content size, file count, crawl parameters. If client times out, operation continues on server - verify with list_documents().
+
+**Duplicate Request Protection:**
+Same request while processing → error. WAIT for completion, verify with list_documents(), then retry if needed. Prevents double-ingestion after timeouts.
+
+**FREE operations:** search_documents, query_relationships, query_temporal, list_directory, all list/view tools
+
+---
+
+## 6. COMMON PATTERNS
+
+**Documentation Ingestion (Single Section):**
+```
+1. analyze_website(url) - understand scope and structure
+2. Review total_urls and pattern_stats
+3. create_collection(name, domain, description) - organize by source
+4. ingest_url(url, follow_links=True, max_pages=20)
+5. get_collection_info(name) - verify completion
+```
+
+**Documentation Ingestion (Multiple Sections):**
+```
+1. analyze_website("https://docs.example.com") - understand site structure
+   → Shows: /api (45 pages), /guides (30 pages), /reference (25 pages)
+2. create_collection(name, domain, description)
+
+# Execute multiple targeted ingests based on pattern analysis
+3. ingest_url("https://docs.example.com/api", follow_links=True, max_pages=20)
+4. ingest_url("https://docs.example.com/guides", follow_links=True, max_pages=20)
+5. ingest_url("https://docs.example.com/reference", follow_links=True, max_pages=20)
+
+# Each ingest is independent - plan based on pattern_stats from analyze_website()
+```
+
+**Local File Ingestion:**
+```
+1. list_directory(path, file_extensions=[".md", ".txt"], include_preview=True)
+   → Review files, sizes, and content previews
+   → extensions_found shows: {".md": 12, ".txt": 3}
+2. Present findings to user, get approval for specific files
+3. create_collection(name, domain, description) - if needed
+4. For each approved file:
+   ingest_file(file_path=file["path"], collection_name=name)
+```
+
+**Research Query:**
+```
+1. search_documents(query, collection) - find relevant content
+2. query_relationships(query, collection) - find connections
+3. Synthesize findings from both sources
+```
+
+**Maintenance:**
+```
+1. list_documents(collection) - identify stale docs
+2. Refresh changed content:
+   - For websites: ingest_url(url, mode="reingest")
+   - For files: ingest_file(path, mode="reingest")
+   - For text: ingest_text(content, mode="reingest")
+   - For minor edits: update_document(id, content/metadata)
+```
+
+---
+
+## 7. KEY IMPERATIVES
+
+- **MUST** review collections before ingesting (see #1)
+- **MUST** use full questions for search, not keywords (see #2)
+- **MUST** use mode='reingest' to update existing content (automatic duplicate detection will guide you) (see #3)
+- **MUST** run analyze_website() before multi-page ingests (see #3)
+- **MUST** limit max_pages to 20 per ingest for large sites
+- **SHOULD** use dry_run=True with topic when user wants focused URL ingestion (see #3)
+- **SHOULD** use list_directory() before ingesting local files to assess content (see #3)
+- **SHOULD** present scope to user for large operations and get confirmation
+- **SHOULD** use mode='reingest' for content updates instead of delete+ingest (see #3)
+- **SHOULD** combine semantic + relationship queries for comprehensive research (see #4)
+- **SHOULD** use pattern_stats from analyze_website() to plan targeted ingests
+
+**For tool-specific details:** See individual tool docstrings.
