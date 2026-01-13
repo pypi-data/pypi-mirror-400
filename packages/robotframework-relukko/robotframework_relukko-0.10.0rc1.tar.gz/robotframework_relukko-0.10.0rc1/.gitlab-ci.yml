@@ -1,0 +1,146 @@
+variables:
+  FF_TIMESTAMPS: true
+  RUN_DOCS_PUBLISH:
+    description: >-
+      Used in rules, if "true" and web triggered it generates the docs and
+      publishes them!
+    value: "false"
+    options:
+    - "false"
+    - "true"
+  RUN_PYTEST:
+    description: Used in rules, if "true" and web triggered run the pytests.
+    value: "false"
+    options:
+    - "false"
+    - "true"
+  RELUKKO_HOSTNAME: relukko
+  RELUKKO_BIND_PORT: 3000
+  RELUKKO_API_KEY: "somerandomkey"
+  POSTGRES_USER: relukko
+  POSTGRES_PASSWORD: okkuler
+  POSTGRES_DB: relukko
+  POSTGRES_HOSTNAME: postgres
+
+
+run-pytest:
+  stage: test
+  services:
+    - name: postgres:17
+      alias: postgres
+    - name: registry.gitlab.com/relukko/relukko:latest
+      alias: relukko
+      variables:
+        DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+        RELUKKO_USER: "relukko"
+        RELUKKO_PASSWORD: "relukko"
+        RELUKKO_BIND_ADDR: "0.0.0.0"
+        HEALTHCHECK_TCP_PORT: "${RELUKKO_BIND_PORT}"
+  variables:
+    FF_NETWORK_PER_BUILD: 1
+    CI_HAS_RELUKKO: true
+    CI_RELUKKO_BASE_URL: "http://${RELUKKO_HOSTNAME}:${RELUKKO_BIND_PORT}"
+    CI_RELUKKO_API_KEY: "${RELUKKO_API_KEY}"
+  parallel:
+    matrix:
+      - PIPELINE_PY_VERSION: ['3.12', '3.13', '3.14']
+  image: "registry.gitlab.com/relukko/py-tox-images/py-$PIPELINE_PY_VERSION-tox"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      changes:
+        - src/**/*.py
+        - tests/test_*.py
+        - tests/conftest.py
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - src/**/*.py
+        - tests/test_*.py
+        - tests/conftest.py
+    - if: $CI_PIPELINE_SOURCE == "web" && $RUN_PYTEST == "true"
+      when: always
+  before_script:
+    - echo "Running PyTest."
+  script:
+    - ./cicd/run_pytest.sh
+  artifacts:
+    when: always
+    expire_in: 2 week
+    paths:
+      - pytest-junit*.xml
+      - log*.html
+      - output*.xml
+      - xunit*.xml
+    reports:
+      junit:
+        - pytest-junit*.xml
+        - xunit*.xml
+
+
+run-pylint:
+  stage: test
+  image: "registry.gitlab.com/relukko/py-tox-images/py-3.14-tox"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      changes:
+        - src/**/*.py
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - src/**/*.py
+  before_script:
+    - echo "Running PyLint."
+  script:
+    - ./cicd/run_pylint.sh
+  artifacts:
+    when: always
+    expire_in: 2 week
+    paths:
+      - pylint.out.*
+
+
+run-shellcheck:
+  stage: test
+  image: "registry.gitlab.com/relukko/py-tox-images/py-3.14-tox"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      changes:
+        - cicd/*.sh
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - cicd/*.sh
+  before_script:
+    - echo "Running ShellCheck."
+  script:
+    - ./cicd/run_shellcheck.sh
+
+
+publish:
+  stage: deploy
+  image: "registry.gitlab.com/relukko/py-tox-images/py-3.14-tox"
+  environment: publish
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ && $CI_PIPELINE_SOURCE == "push"
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+  before_script:
+    - echo "Publishing to PyPi..."
+  script:
+    - ./cicd/run_publish.sh
+
+
+pages:
+  stage: deploy
+  image: "registry.gitlab.com/relukko/py-tox-images/py-3.14-tox"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - src/**/*.py
+    - if: $CI_PIPELINE_SOURCE == "web" && $RUN_DOCS_PUBLISH == "true"
+      when: always
+  before_script:
+    - echo "Running Docs generation and publishing..."
+  script:
+    - ./cicd/run_docs_pages.sh
+  artifacts:
+    paths:
+      - public

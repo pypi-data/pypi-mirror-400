@@ -1,0 +1,206 @@
+[project]
+name = "robotframework-relukko"
+authors = [
+    {name = "Reto Zingg", email = "g.d0b3rm4n@gmail.com"},
+]
+readme = "README.md"
+
+# https://pypi.org/pypi?%3Aaction=list_classifiers
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Framework :: Robot Framework :: Library",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+requires-python = ">=3.12"
+dynamic = ["version", "description"]
+dependencies = [
+    "requests >=2.32.5",
+    "pyrelukko >= 0.11.0rc2",
+    "robotframework >=7.0",
+]
+
+[dependency-groups]
+test = [
+   "httpx",
+   "pyenv-inspect",
+   "pytest >= 8",
+   "testcontainers",
+   "tox",
+   "virtualenv-pyenv",
+]
+# Pin pylint < 4.0.0
+# https://github.com/pylint-dev/pylint/issues/10669
+lint = [
+    "pylint < 4.0.0",
+    "pylint-json2html"
+]
+coverage = [
+    "pytest-cov"
+]
+publish = [
+    "flit >=3.2,<4",
+    "id"
+]
+
+[tool.flit.module]
+name = "Relukko"
+
+[tool.flit.sdist]
+exclude = [".gitignore", "utils"]
+
+[project.urls]
+Homepage = "https://gitlab.com/relukko/robotframework-relukko"
+Issues = "https://gitlab.com/relukko/robotframework-relukko/-/issues"
+
+[build-system]
+requires = ["flit_core >=3.2,<4", "semantic-version >= 2.10"]
+build-backend = "flit_core.buildapi"
+
+[tool.pylint.main]
+# Files or directories to be skipped. They should be base names, not paths.
+ignore = ["LICENSE", "notes.md", "pyproject.toml", "version.py",
+          "README.md", "relukko.html", "get_version.py", "conftest.py", ".tox", ".git"]
+
+[tool.pylint.basic]
+# Naming style matching correct module names.
+# module-naming-style = "snake_case"
+module-naming-style = "PascalCase"
+
+[tool.pylint.format]
+# Regexp for a line that is allowed to be longer than the limit.
+# ignore-long-lines = "^\\s*(# )?<?https?://\\S+>?$"
+ignore-long-lines = "^.*\\[https?://.*?\\|.*?\\]\\.?$"
+
+# Files or directories matching the regular expression patterns are skipped. The
+# regex matches against base names, not paths. The default value ignores Emacs
+# file locks
+ignore-patterns = ["^\\.#", "^test_"]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    "src",
+]
+
+[tool.tox]
+requires = ["tox>=4.23"]
+env_list = [
+    "py3.12-rfv701",
+    "py3.12-rfv711",
+    "py3.12-rfv722",
+    "py3.12-rfv732",
+    "py3.12-rfv740",
+    "py3.13-rfv701",
+    "py3.13-rfv711",
+    "py3.13-rfv722",
+    "py3.13-rfv732",
+    "py3.13-rfv740",
+    "py3.14-rfv701",
+    "py3.14-rfv711",
+    "py3.14-rfv722",
+    "py3.14-rfv732",
+    "py3.14-rfv740",
+    "pylint",
+    "shellcheck",
+    "docs",
+    "publish"
+]
+
+[tool.tox.env_run_base]
+description = "Run test under {base_python}"
+commands = [["pytest", "--junit-xml", "pytest-junit-{env_name}.xml", "--junit-prefix", "{env_name}"]]
+pass_env = [
+    "CI",
+    "CI_HAS_RELUKKO",
+    "CI_RELUKKO_*",
+    "DOCKER_HOST",
+    "GITLAB_CI",
+    "PYPI_ID_TOKEN",
+    "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"
+]
+dependency_groups = [ "test" ]
+
+[tool.tox.env.py3.12-rfv701]
+deps = ["robotframework == 7.0.1"]
+
+[tool.tox.env.py3.12-rfv711]
+deps = ["robotframework == 7.1.1"]
+
+[tool.tox.env.py3.12-rfv722]
+deps = ["robotframework == 7.2.2"]
+
+[tool.tox.env.py3.12-rfv732]
+deps = ["robotframework == 7.3.2"]
+
+[tool.tox.env.py3.12-rfv740]
+deps = ["robotframework == 7.4.0"]
+
+[tool.tox.env.py3.13-rfv701]
+deps = ["robotframework == 7.0.1"]
+
+[tool.tox.env.py3.13-rfv711]
+deps = ["robotframework == 7.1.1"]
+
+[tool.tox.env.py3.13-rfv722]
+deps = ["robotframework == 7.2.2"]
+
+[tool.tox.env.py3.13-rfv732]
+deps = ["robotframework == 7.3.2"]
+
+[tool.tox.env.py3.13-rfv740]
+deps = ["robotframework == 7.4.0"]
+
+[tool.tox.env.py3.14-rfv701]
+deps = ["robotframework == 7.0.1"]
+
+[tool.tox.env.py3.14-rfv711]
+deps = ["robotframework == 7.1.1"]
+
+[tool.tox.env.py3.14-rfv722]
+deps = ["robotframework == 7.2.2"]
+
+[tool.tox.env.py3.14-rfv732]
+deps = ["robotframework == 7.3.2"]
+
+[tool.tox.env.py3.14-rfv740]
+deps = ["robotframework == 7.4.0"]
+
+[tool.tox.env.publish]
+description = "Publish Robotframework Relukko to PyPi"
+dependency_groups = [ "publish" ]
+allowlist_externals = ["curl", "jq", "{tox_root}/cicd/tox_publish.sh"]
+commands = [[ "{tox_root}/cicd/tox_publish.sh" ]]
+
+[tool.tox.env.pylint]
+description = "Run PyLint with {base_python}"
+dependency_groups = [ "lint" ]
+commands = [[
+        "pylint",
+        "--verbose",
+        "--rcfile",
+        "./pyproject.toml",
+        "--output-format=json:{tox_root}/pylint.out.json,parseable:{tox_root}/pylint.out.txt,text",
+        ".",
+    ]
+]
+commands_post = [
+    [
+        "pylint-json2html",
+        "-o",
+        "{tox_root}/pylint.out.html",
+        "{tox_root}/pylint.out.json",
+    ]
+]
+
+[tool.tox.env.shellcheck]
+allowlist_externals = ["shellcheck", "{tox_root}/cicd/tox_shellcheck.sh"]
+commands = [[ "{tox_root}/cicd/tox_shellcheck.sh" ]]
+
+[tool.tox.env.docs]
+allowlist_externals = ["{tox_root}/cicd/tox_docs_pages.sh"]
+commands = [[ "{tox_root}/cicd/tox_docs_pages.sh" ]]
