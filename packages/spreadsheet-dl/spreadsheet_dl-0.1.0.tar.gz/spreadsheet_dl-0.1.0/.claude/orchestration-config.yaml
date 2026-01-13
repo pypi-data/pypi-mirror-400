@@ -1,0 +1,113 @@
+# Orchestration Configuration
+# Agent swarm coordination and context management
+# Version: 4.0.0
+
+# Agent Registry Configuration
+agent_registry:
+  enabled: true
+  path: .claude/agent-registry.json
+  auto_persist: true
+  retention_days: 30
+  output_directory: .claude/agent-outputs
+
+# Checkpoint Configuration
+checkpoints:
+  enabled: true
+  path: .claude/checkpoints
+  auto_checkpoint: true
+  checkpoint_interval_phases: 1
+  context_threshold_percent: 70
+  retention_days: 7
+
+# Output Summarization
+summaries:
+  enabled: true
+  path: .claude/summaries
+  auto_summarize: true
+  auto_summarize_threshold_tokens: 5000
+  format: markdown
+  max_summary_length_tokens: 2000
+  retention_days: 30
+
+# Swarm Orchestration
+swarm:
+  max_batch_size: 2
+  recommended_batch_size: 1
+  immediate_retrieval: true
+  immediate_summarization: true
+  poll_interval_seconds: 10
+  max_parallel_agents: 2
+  batch_strategy:
+    mode: sequential
+    wait_for_batch_completion: true
+    checkpoint_between_batches: true
+    summarize_between_batches: true
+    max_output_tokens_in_context: 5000
+
+# Context Management
+context_management:
+  enable_monitoring: true
+  warning_threshold_percent: 60
+  critical_threshold_percent: 75
+  checkpoint_threshold_percent: 65
+  auto_checkpoint_on_threshold: true
+  max_tool_output_size: 10000
+  truncate_large_outputs: true
+
+# Workflow Execution
+workflow:
+  max_phases_without_checkpoint: 3
+  track_progress: true
+  progress_file: .claude/workflow-progress.json
+  validate_phase_completion: true
+  require_completion_reports: true
+
+# Best Practices
+best_practices:
+  - "Launch agents in batches of 2, not 6+"
+  - "Retrieve outputs immediately upon completion"
+  - "Summarize each agent output to file before continuing"
+  - "Checkpoint after each batch completes"
+  - "Monitor context usage throughout workflow"
+
+# Failure Mode Mitigation
+failure_modes:
+  agent_limit_exceeded:
+    detection: "Task tool call when >=2 agents running"
+    mitigation: "PreToolUse hook blocks new Task launches"
+    enforcement_hook: ".claude/hooks/enforce_agent_limit.py"
+
+  single_agent_output_explosion:
+    detection: "Individual agent output exceeds 50K tokens"
+    mitigation: "Auto-summarize on SubagentStop"
+    enforcement_hook: ".claude/hooks/check_subagent_stop.py"
+
+# Monitoring
+monitoring:
+  metrics:
+    - total_agents_launched
+    - agents_completed
+    - agents_failed
+    - context_usage_peak_percent
+
+  logs:
+    context_metrics: .claude/hooks/context_metrics.log
+    errors: .claude/hooks/errors.log
+
+# Hook Integration
+hooks:
+  pre_tool_use:
+    task_matcher:
+      hook: ".claude/hooks/enforce_agent_limit.py"
+      action: "Block Task if >=2 agents running"
+
+  subagent_stop:
+    hook: ".claude/hooks/check_subagent_stop.py"
+    action: "Auto-summarize large outputs, update registry"
+
+# References
+references:
+  - ".claude/hooks/enforce_agent_limit.py"
+  - ".claude/hooks/check_subagent_stop.py"
+  - ".claude/agents/orchestrator.md"
+  - ".claude/commands/swarm.md"

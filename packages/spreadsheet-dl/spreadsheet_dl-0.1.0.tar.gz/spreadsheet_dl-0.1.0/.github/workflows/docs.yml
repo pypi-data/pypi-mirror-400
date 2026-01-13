@@ -1,0 +1,126 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "src/**"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "src/**"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "latest"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --extra docs
+
+      - name: Check docstring coverage
+        run: |
+          echo "Checking docstring coverage..."
+          uv run interrogate -v src/spreadsheet_dl/ || true
+
+      - name: Build documentation
+        run: uv run mkdocs build --strict
+
+      - name: Upload documentation artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  doctest:
+    name: Run Doctests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run doctests
+        run: |
+          uv run pytest --doctest-modules src/spreadsheet_dl/ -v --tb=short || true
+        continue-on-error: true
+
+  docstring-lint:
+    name: Docstring Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Check docstring style
+        run: uv run ruff check --select=D src/
+        continue-on-error: true
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

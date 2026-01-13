@@ -1,0 +1,126 @@
+# Pre-commit configuration for SpreadsheetDL
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+# https://pre-commit.com
+
+repos:
+  # ==========================================================================
+  # General file checks
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        args: [--unsafe] # Allow custom YAML tags
+      - id: check-json
+        # Exclude JSONC files (VS Code uses JSON with comments)
+        # Our jsonc.sh handles these with proper comment stripping
+        exclude: ^(\.vscode/|tsconfig\.json|jsconfig\.json)
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md] # Preserve markdown line breaks
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: detect-private-key
+
+  # ==========================================================================
+  # Python: Ruff (linting + formatting)
+  # ==========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # ==========================================================================
+  # Python: Type checking with mypy
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.0
+    hooks:
+      - id: mypy
+        args: [--config-file=pyproject.toml]
+        additional_dependencies:
+          - pandas-stubs>=2.1.0
+          - types-requests>=2.31.0
+          - types-PyYAML>=6.0.0
+          - types-beautifulsoup4>=4.12.0
+          - rich>=13.0.0
+          - pandas>=2.1.0
+          - requests>=2.31.0
+        pass_filenames: false
+        # Run on src/ only - tests have relaxed type requirements
+        entry: mypy src/
+
+  # ==========================================================================
+  # Python: Docstring coverage with interrogate
+  # ==========================================================================
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.7.0
+    hooks:
+      - id: interrogate
+        # Configuration in pyproject.toml [tool.interrogate]
+        args: [-c, pyproject.toml]
+        pass_filenames: false
+
+  # ==========================================================================
+  # Shell scripts: ShellCheck
+  # ==========================================================================
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: [--severity=warning]
+
+  # ==========================================================================
+  # YAML: yamllint
+  # ==========================================================================
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        args: [-c, .yamllint.yaml]
+        exclude: ^(\.pre-commit-config\.yaml|uv\.lock)$
+
+  # ==========================================================================
+  # Markdown: markdownlint
+  # ==========================================================================
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint
+        args: [--config, .markdownlint.yaml, --fix]
+        exclude: ^(\.vscode/|\.claude/)
+
+  # ==========================================================================
+  # Local hooks: JSONC validation
+  # ==========================================================================
+  - repo: local
+    hooks:
+      - id: validate-jsonc
+        name: Validate JSON/JSONC files
+        entry: ./scripts/tools/jsonc.sh --check
+        language: script
+        types: [json]
+        # Include all JSON files - jsonc.sh handles JSONC files automatically
+
+# ==========================================================================
+# CI configuration
+# ==========================================================================
+ci:
+  autofix_commit_msg: "style: auto-fix from pre-commit hooks"
+  autofix_prs: true
+  autoupdate_branch: ""
+  autoupdate_commit_msg: "chore: update pre-commit hooks"
+  autoupdate_schedule: monthly
+  skip: [mypy] # Skip mypy in pre-commit.ci (needs additional deps)
+  submodules: false

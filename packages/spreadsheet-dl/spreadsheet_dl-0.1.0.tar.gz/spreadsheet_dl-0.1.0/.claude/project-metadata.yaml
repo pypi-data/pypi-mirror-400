@@ -1,0 +1,57 @@
+# Project Metadata - Single Source of Truth
+# Version: 4.0.0
+
+project:
+  name: "spreadsheet-dl"
+  version_source: pyproject.toml
+  description: "Universal spreadsheet definition language with LLM-optimized MCP server"
+  license: "MIT"
+
+  python:
+    minimum: "3.12"
+    tested: ["3.12", "3.13"]
+
+  # Version locations for consistency validation
+  version_locations:
+    primary: pyproject.toml
+    secondary:
+      - README.md
+      - "src/spreadsheet_dl/__init__.py"
+
+  version_pattern: '^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+(\.[0-9]+)?)?$'
+
+# Maintenance Configuration
+maintenance:
+  archive_retention_days: 30
+  checkpoint_cleanup_threshold_hours: 24
+
+  cleanup:
+    stale_agents: "session_start"
+    old_checkpoints: "weekly"
+    completed_workflows: "session_end"
+    archive_retention_days: 180
+
+# Validation Configuration
+validation:
+  pre_commit_checks:
+    - version_consistency
+    - no_unimplemented_errors
+    - ssot_compliance
+
+  ci_checks:
+    - readme_examples
+    - internal_links
+
+# Configuration File Locations
+configuration_files:
+  ssot:
+    project_metadata: ".claude/project-metadata.yaml"
+    coding_standards: ".claude/coding-standards.yaml"
+    orchestration_config: ".claude/orchestration-config.yaml"
+
+# Emergency Procedures
+emergency:
+  bypass_env: "CLAUDE_BYPASS_HOOKS"
+  recovery:
+    checkpoint_dir: ".claude/checkpoints"
+    restore_script: ".claude/hooks/restore_checkpoint.sh"

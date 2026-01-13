@@ -1,0 +1,89 @@
+# Requirements Schema (L2)
+# Structured requirements extracted from narrative specification
+
+$schema: "http://json-schema.org/draft-07/schema#"
+title: Requirements Schema
+description: Schema for L2 structured requirements
+
+type: object
+required:
+  - version
+  - project
+  - requirements
+
+properties:
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+
+  project:
+    type: string
+    description: Project identifier
+
+  requirements:
+    type: array
+    items:
+      $ref: "#/definitions/requirement"
+
+definitions:
+  requirement:
+    type: object
+    required:
+      - id
+      - title
+      - description
+      - type
+      - acceptance_criteria
+    properties:
+      id:
+        type: string
+        pattern: "^[A-Z]+-\\d{3}$"
+        description: "Unique ID (e.g., CORE-001, FEAT-101)"
+
+      title:
+        type: string
+        maxLength: 100
+        description: "Brief title (5-10 words)"
+
+      description:
+        type: string
+        description: "Full description of requirement"
+
+      type:
+        type: string
+        enum: [functional, quality, constraint, interface]
+
+      tier:
+        type: integer
+        enum: [1, 2, 3]
+        description: "1=essential, 2=core, 3=extended"
+
+      priority:
+        type: string
+        enum: [essential, high, medium, low]
+
+      acceptance_criteria:
+        type: array
+        items:
+          type: string
+        minItems: 1
+        description: "Testable conditions (binary pass/fail)"
+
+      dependencies:
+        type: array
+        items:
+          type: string
+          pattern: "^[A-Z]+-\\d{3}$"
+
+      implementation:
+        type: object
+        properties:
+          module:
+            type: string
+          function:
+            type: string
+
+      tags:
+        type: array
+        items:
+          type: string

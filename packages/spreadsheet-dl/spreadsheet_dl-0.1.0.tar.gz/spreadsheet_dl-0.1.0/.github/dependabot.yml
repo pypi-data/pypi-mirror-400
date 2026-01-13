@@ -1,0 +1,54 @@
+# Dependabot configuration for automated dependency updates
+# Addresses security vulnerability monitoring and patching
+
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "lair-click-bats"
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Security updates get priority
+    versioning-strategy: increase
+    groups:
+      # Group security-critical dependencies
+      security-critical:
+        patterns:
+          - "cryptography"
+          - "defusedxml"
+          - "requests"
+          - "lxml"
+          - "beautifulsoup4"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group dev dependencies
+      development:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"

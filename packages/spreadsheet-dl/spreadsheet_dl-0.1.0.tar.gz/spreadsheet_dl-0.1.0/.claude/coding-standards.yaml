@@ -1,0 +1,97 @@
+# Coding Standards Configuration
+# Enforced via pre-commit hooks and CI
+# Version: 4.0.0
+
+# TODO Policy
+todo_policy:
+  markers:
+    - type: "TODO(dev)"
+      purpose: "Developer task - resolve before merge"
+      allowed_in: ["src/**/*.py", "tests/**/*.py"]
+      action_required: true
+
+    - type: "FUTURE:"
+      purpose: "Planned enhancement, not blocking"
+      allowed_in: ["**/*.py"]
+      action_required: false
+      must_have_issue: true
+
+    - type: "NOTE:"
+      purpose: "Implementation note or design decision"
+      allowed_in: ["**/*.py"]
+      action_required: false
+
+  linting:
+    forbid: ["TODO:", "FIXME:", "XXX:", "HACK:"]
+    suggest: "Use TODO(dev), FUTURE:, or NOTE: instead"
+    severity: "warning"
+
+# Version Management
+version_management:
+  single_source: "pyproject.toml"
+  sync_locations:
+    - file: "src/spreadsheet_dl/__init__.py"
+      pattern: '__version__ = "{version}"'
+    - file: "README.md"
+      pattern: "v{version}"
+
+# Documentation Requirements
+documentation:
+  required_sections:
+    README.md:
+      - "## Quick Start"
+      - "## Installation"
+    CLAUDE.md:
+      - "## Philosophy"
+      - "## Development Tools"
+
+  code_examples:
+    must_be_tested: true
+
+# Report Generation Policy
+report_generation:
+  policy: "minimal"
+
+  allowed_reports:
+    - type: "completion_report"
+      location: ".claude/agent-outputs/{agent-id}.json"
+      purpose: "Agent handoff data"
+      retention: "7 days"
+
+    - type: "agent_summary"
+      location: ".claude/summaries/{agent-id}.md"
+      purpose: "Context preservation"
+      retention: "7 days"
+
+  best_practices:
+    - "Communicate results directly in conversation"
+    - "Use completion reports for agent handoffs only"
+    - "Update existing reports rather than creating new ones"
+
+# File Organization
+file_organization:
+  ssot_directories:
+    agent_definitions: ".claude/agents"
+    command_definitions: ".claude/commands"
+
+  no_duplicates:
+    enabled: true
+    exclusions: ["archive/**", "test_data/**"]
+
+# Cleanup Configuration
+cleanup:
+  automated:
+    stale_agents: "session_start"
+    old_checkpoints: "weekly"
+    completed_workflows: "session_end"
+
+  retention:
+    checkpoint_archives: 30
+    agent_summaries: 7
+    workflow_progress: 0
+
+# Hook Governance
+hook_governance:
+  max_pre_commit_hooks: 10
+  max_execution_time_seconds: 10
+  emergency_bypass_env: "CLAUDE_BYPASS_HOOKS"

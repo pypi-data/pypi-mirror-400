@@ -1,0 +1,163 @@
+{
+  "model": "sonnet",
+  "cleanupPeriodDays": 30,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "60000"
+  },
+  "permissions": {
+    "allow": [
+      "*",
+      "Bash(uv:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(mypy:*)",
+      "Bash(uv run python:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(uv add:*)",
+      "Bash(uv run ruff check:*)",
+      "Bash(uv run ruff format:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Read(./.claude/agent-outputs/archive/**)",
+      "Read(./.claude/archive/**)",
+      "Read(./.coordination/archive/**)",
+      "Read(./.git/**)",
+      "Read(./__pycache__/**)",
+      "Read(./.venv/**)",
+      "Read(./.ruff_cache/**)",
+      "Read(./.mypy_cache/**)",
+      "Read(./.pytest_cache/**)",
+      "Read(./dist/**)",
+      "Write(./.claude/settings.json)",
+      "Write(**/.env*)",
+      "Write(**/*.key)",
+      "Write(**/*.pem)",
+      "Write(**/*credentials*)",
+      "Read(.env*)",
+      "Read(**/credentials*)",
+      "Bash(pip:*)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/pre_compact_cleanup.sh\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\" || true",
+            "timeout": 30
+          }
+        ],
+        "matcher": "auto"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/rotate_logs.sh\" || true",
+            "timeout": 5,
+            "statusMessage": "Rotating error logs..."
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/post_compact_recovery.sh\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\" || true",
+            "timeout": 10
+          }
+        ],
+        "matcher": "compact"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/rotate_logs.sh\" || true",
+            "timeout": 5,
+            "statusMessage": "Rotating error logs..."
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/cleanup_stale_agents.py\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\" || echo '{\"ok\": true}'",
+            "timeout": 10
+          }
+        ],
+        "matcher": "auto"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/session_cleanup.sh\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\" || true",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check_stop.py\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\" || echo '{\"ok\": true}'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check_subagent_stop.py\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\" || echo '{\"ok\": true}'",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce_agent_limit.py\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\" || echo '{\"ok\": true}'",
+            "timeout": 5
+          }
+        ],
+        "matcher": "Task"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/validate_path.py\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\" || echo '{\"ok\": true}'",
+            "timeout": 5
+          }
+        ],
+        "matcher": "Write|Edit|NotebookEdit"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/quality_enforce_strict.py\" 2>>\"$CLAUDE_PROJECT_DIR/.claude/hooks/errors.log\"",
+            "timeout": 60
+          }
+        ],
+        "matcher": "Write|Edit|NotebookEdit"
+      }
+    ]
+  }
+}

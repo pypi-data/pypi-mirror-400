@@ -1,0 +1,88 @@
+# Validation Manifest Schema (L4)
+# Acceptance criteria and test specifications
+
+$schema: "http://json-schema.org/draft-07/schema#"
+title: Validation Manifest Schema
+description: Schema for L4 validation manifest
+
+type: object
+required:
+  - version
+  - project
+  - validations
+
+properties:
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+
+  project:
+    type: string
+
+  validations:
+    type: array
+    items:
+      $ref: "#/definitions/validation"
+
+definitions:
+  validation:
+    type: object
+    required:
+      - id
+      - title
+      - requirements
+      - type
+    properties:
+      id:
+        type: string
+        pattern: "^VAL-\\d{3}$"
+
+      title:
+        type: string
+
+      requirements:
+        type: array
+        items:
+          type: string
+          pattern: "^[A-Z]+-\\d{3}$"
+        description: "Requirements being validated"
+
+      type:
+        type: string
+        enum: [unit, integration, compliance, performance]
+
+      test_cases:
+        type: array
+        items:
+          $ref: "#/definitions/test_case"
+
+  test_case:
+    type: object
+    required:
+      - name
+    properties:
+      name:
+        type: string
+        description: "Test function name"
+
+      description:
+        type: string
+
+      input:
+        type: object
+        description: "Test input parameters"
+
+      expected:
+        type: object
+        properties:
+          value:
+            description: "Expected return value"
+          tolerance:
+            type: number
+            description: "Acceptable tolerance for numeric comparisons"
+          assertion:
+            type: string
+            description: "Assert expression"
+          raises:
+            type: string
+            description: "Expected exception type"

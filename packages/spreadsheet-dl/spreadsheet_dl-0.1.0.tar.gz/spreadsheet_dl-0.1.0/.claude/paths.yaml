@@ -1,0 +1,89 @@
+# Centralized Path Constants
+# Single source of truth for all coordination and output paths
+# Referenced by agents, hooks, and scripts
+
+# Claude configuration paths
+claude:
+  root: .claude
+  agents: .claude/agents
+  commands: .claude/commands
+  hooks: .claude/hooks
+  settings: .claude/settings.json
+  lock: .claude/template.lock
+
+  # Agent output paths
+outputs:
+  root: .claude/agent-outputs
+  archive:
+    .claude/agent-outputs/archive
+    # Pattern: .claude/agent-outputs/YYYY-MM-DD-HHMMSS-description-complete.json
+
+  # Coordination paths
+coordination:
+  root: .coordination
+  archive: .coordination/archive
+  checkpoints: .coordination/checkpoints
+  handoffs: .coordination/handoffs
+  locks: .coordination/locks
+  projects:
+    .coordination/projects
+    # Pattern for intermediate files: .coordination/YYYY-MM-DD-description.md
+
+# Benchmark paths
+benchmarks:
+  root: .benchmarks
+  results: .benchmarks/results
+  history: .benchmarks/history
+  analysis: .benchmarks/analysis
+  # Pattern: .benchmarks/results/YYYYMMDD-HHMMSS.json
+
+  # Module-specific coordination (created conditionally)
+modules:
+  implementation:
+    spec:
+      .coordination/spec
+      # Pattern: .coordination/spec/{project}/requirements.yaml
+  translation:
+    root:
+      .coordination/translation
+      # Pattern: .coordination/translation-{task-id}/chunk-*.md
+
+  # Retention policies (in days)
+retention:
+  coordination_files: 30 # Archive after 30 days
+  agent_outputs: 7 # Archive after 7 days
+  checkpoints: 7 # Delete after 7 days
+  handoffs: 7 # Delete after 7 days
+  locks_stale_minutes: 60 # Delete locks older than 1 hour
+  archives_max_days: 180 # Delete archives older than 6 months
+  benchmark_results: 30 # Keep recent results for 30 days
+  benchmark_history: 0 # Keep major version baselines indefinitely
+
+  # Patterns for cleanup
+cleanup_patterns:
+  temporary:
+    - "*.tmp"
+    - "*.temp"
+    - "*.bak"
+    - "*.backup"
+    - "*.partial"
+    - "*.swp"
+    - "*~"
+  orphan_translation:
+    pattern: "chunk-*.md"
+    missing_counterpart: "-translated.md"
+    age_hours: 24
+
+  # Denied paths (context pollution prevention)
+denied_reads:
+  - .claude/agent-outputs/archive/**
+  - .coordination/archive/**
+  - .git/**
+  - .coordination/checkpoints/**/state.json # Sensitive agent state
+
+denied_writes:
+  - .claude/settings.json # Protected config
+  - .claude/template.lock # Protected lock
+  - "**/.env*" # Credentials
+  - "**/*.key" # Private keys
+  - "**/*.pem" # Certificates
