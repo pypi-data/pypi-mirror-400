@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkray_dashboard_client=self.webpackChunkray_dashboard_client||[]).push([[53],{83053:(a,d,e)=>{e.r(d),e.d(d,{default:()=>n});var r=e(96446),s=(e(65043),e(29290)),c=e(70579);const n=()=>(0,c.jsx)(r.A,{sx:a=>({padding:2,width:"100%",backgroundColor:a.palette.background.paper}),children:(0,c.jsx)(s.A,{})})}}]);
+//# sourceMappingURL=53.bb09533f.chunk.js.map
