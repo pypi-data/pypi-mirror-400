@@ -1,0 +1,9 @@
+import assign_overload
+from .intermodule import SharedGlobal
+
+    
+def __getattr__(name):
+    if name == "patch_and_reload_module":
+        return assign_overload.patch_and_reload_module
+    else:
+        raise AttributeError(f"module {__name__} has no attribute {name}")
