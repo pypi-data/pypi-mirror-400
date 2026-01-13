@@ -1,0 +1,101 @@
+Metadata-Version: 2.4
+Name: biometeo
+Version: 0.4.0
+Summary: This package is applied to calculate thermal indicators for human biometeorology. The available thermal indicators are Physiological Equivalent Temperature (PET), modified Physiological Equivalent Temperature (mPET), Predicted Mean Vote (PMV), Standard Effective Temperature* (SET*) and Universal Thermal Climate Index (UTCI) in this package. An additional function named GlobalRadiation_Tmrt is appended in the package for applying G, N, and Omega to calculate Tmrt from part of original RayMan model code.
+Requires-Python: >=3.8
+Requires-Dist: hatch>=1.14.2
+Requires-Dist: numpy>=1.19.2
+Description-Content-Type: text/markdown
+
+**Biometeo**
+====
+
+This package is applied to calculate thermal indicators for human biometeorology.
+The available thermal indicators are:
+ - Physiological Equivalent Temperature (PET)
+ - modified Physiological Equivalent Temperature (mPET)
+ - Predicted Mean Vote (PMV)
+ - Standard Effective Temperature* (SET*)
+ - Universal Thermal Climate Index (UTCI)
+An additional function named Tmrt_calc is appended in the package to calculate Tmrt from part of original RayMan model code. The simplest approach is only the given solar constant which is related to the local target time and coordinate information including longitude, latitude, and elevation above sea level. The more accurate approach  adds global radiation or cloud cover ratio as a variable, while the third approach also includes respectively or assembly additional variables, such as sky view factor, diffuse radiation, and fish eye photo.
+
+Installation
+----
+    $ pip install biometeo
+Usage
+----
+
+    >>> import biometeo
+    >>> biometeo.mPET(Ta=25, VP=1000, Tmrt=10, v=0)
+    {'mPET': 20.058999999999866, 'Tcore': 36.56291404743782, 'Tsk_mm': 27.783887684830514, 'Tcl': 26.14411160697839, 'vpts': 29.47963395940036, 'wetsk': 1.0, 'icl': 0.4566093750000002, 'sk_wetted_mm': 0.4394076400546515, 'metabolic_rate': 148.0444953458826, 'wet_sum': 1.6077299882974372, 'convective_flux': 1.683534767054222, 'radiative_flux': -118.78405426047928, 'respiratory_flux': -8.226275136496405, 'energy_balance': 24.325430704258586}
+
+    >>> biometeo.Tmrt_calc(Ta=25, RH=10, v=0, longitude=25, latitude=100, sea_level_height=2)
+    {'Tmrt': 14.796488889048646, 'VP': 3.1620239690859724, 'Imax': 28.629196494701546, 'Gmax': 53.80503898831193, 'Dmax': 25.175842493610382, 'Itat': 28.629196494701546, 'Gtat': 53.80503898831193, 'A': 311.10490647667797, 'Eu': 419.4826669406604, 'Es': 441.198660290955, 'Tob': 21.122122697010358}
+
+    >>> biometeo.PMV(Ta=25, VP=1000, v=0, Tmrt=10)
+    {'PMV': 17.792051916371374, 'Teq': 605.45449764547, 'hclo': 122.70790874039338}
+
+    >>> biometeo.VP_RH_exchange(Ta=25, VP=1000)
+    {'RH': 3162.5313716045744}
+
+    >>> biometeo.UTCI(Ta=20.0, VP=12.5, v=0.341, Tmrt=20.0)
+    20.00801686910818
+
+
+Input and Outputs
+-------------
+|                | Fundamental inputs                                                           | Optional inputs                                                                                            | Defaults                                                                                 | Outputs                                                                                                                                                  |
+|----------------|------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Tmrt_calc      | Ta, RH, v1.1m, longitude, latitude, sea_level_height                         | day_of_year, hour_of_day, timezone_offset, N, G, DGratio, Tob, ltf, alb, albhum, RedGChk, foglimit, bowen" | now time, N=0,  OmegaF=1.0, alb=0.3, albhum=0.3, RedGChk=False, foglimit=90, bowen=1.0   | {Tmrt, VP, Imax, Gmax, Dmax, Itat, Gtat, A, Eu, Es, Tob}                                                                                                 |
+| VP_RH_exchange | Ta, VP or RH                                                                 |                                                                                                            |                                                                                          | {VP} or {RH}                                                                                                                                             |
+| v1m_cal        | WS, height                                                                   |                                                                                                            |                                                                                          | v1.1m                                                                                                                                                    |
+| PMV            | Ta, VP,  v1.1m, Tmrt                                                         | icl, work, ht, mbody, age, sex                                                                             | icl=0.6, work=80, ht=1.75, mbody=75, age=35, sex=1 (male)                                | {PMV, Teq, hclo}                                                                                                                                         |
+| SET*           | Ta, RH,  v1.1m, Tmrt                                                         | icl, work, ht, mbody                                                                                       | icl=0.9, work=80, ht=1.75, mbody=75                                                      | SET*                                                                                                                                                     |
+| PET            | Ta, VP,  v1.1m, Tmrt                                                         | icl, work, ht, mbody, age, sex, pos                                                                        | icl=0.9, work=80, ht=1.75, mbody=75, age=35, sex=1(male), pos=1 (stand)                  | {PET, Tcore, Tsk, Tcl, wetsk, metabolic_rate, respiratory_flux, convective_flux, radiative_flux, diffuse_flux, sweating_flux}                            |
+| mPET           | Ta, VP,  v1.1m, Tmrt                                                         | icl, work, ht, mbody, age, sex, pos, auto_clo                                                              | icl=0.9, work=80, ht=1.75, mbody=75, age=35, sex=1(male), pos=1 (stand), auto_clo=True   | {mPET, Tcore, Tsk_mm, 'Tcl, ‘vpts, wetsk, icl, sk_wetted_mm, metabolic_rate, wet_sum, convective_flux, radiative_flux, respiratory_flux, energy_balance} |
+| UTCI           | Ta, VP,  v1.1m, Tmrt                                                         |                                                                                                            |                                                                                          | UTCI                                                                                                                                                     |
+
+Citation
+--------
+The citation about Python package biometeo is still under reviewing. For use of the
+function or thermal indices in biometeo. The following citations are suggested.
+For applying Universal Thermal Climate Index (UTCI), the following scientific
+reports are suggested to be cited.
+
+- Bröde, P. et al. Deriving the operational procedure for the universal thermal climate index (utci). International Journal of Biometeorology 56, 481–494 (2012). http://link.springer.com/10.1007/s00484-011-0454-1 .
+
+- Jendritzky, G., de Dear, R. &amp; Havenith, G. UTCI-why another thermal index? International Journal of Biometeorology 56, 421–428 (2012). http://link.springer.com/10.1007/s00484-011-0513-7 .
+
+For calculation of Predicted Mean Vote (PMV), the following paper should be
+informed.
+
+- Fanger, P. O. Thermal comfort: Analysis and applications in environmental engineering, vol. 3 (Danish Tech- nical Press, 1972). http://www.cabdirect.org/abstracts/19722700268.htmlpapers2://publication/uuid/5CE163C3-F9AC-4937-A143-1238F1D806C5 https://linkinghub.elsevier.com/retrieve/pii/S0003687072800747.
+
+For using Outdoor Standard Effective Temperature (SET*), the following
+manuscript is suggested to be cited.
+
+- Gagge, A. P., Fobelets, A. P. &amp; Berglund, L. G. Standard predictive index of human response to the thermal environ- ment. ASHRAE Transactions 92, 709–731 (1986). https://www.aivc.org/sites/default/files/airbase_2522.pdf%0Ahttp://oceanrep.geomar.de/42985/ .
+
+For application of Physiologically Equivalent Temperature (PET), the
+following paper is highly recommended to be cited.
+
+- Höppe, P. The physiological equivalent temperature - a universal index for the biometeorological assessment of the thermal environment. International Journal of Biometeorology 43, 71–75 (1999).  http://link.springer.com/10.1007/s004840050118 .
+
+For application of modified Physiologically Equivalent Temperature
+(mPET), the following papers are highly suggested to be cited.
+- Chen, YC. Thermal indices for human biometeorology based on Python. Sci Rep 13, 20825 (2023). https://doi.org/10.1038/s41598-023-47388-y
+- Chen, Y.-C. &amp; Matzarakis, A. Modification of physiologically equivalent temperature. Journal of Heat Island Institute International 9, 26–32 (2014).  http://www.heat-island.jp/web_journal/Special_Issue_7JGM/15_chen.pdf .
+- Chen, Y.-C. &amp; Matzarakis, A. Modified physiologically equivalent temperature—basics and applications for western european climate. Theoretical and Applied Climatology 132, 1275–1289 (2018). http://link.springer.com/10.1007/s00704-017-2158-x .
+- Chen, Y.-C., Chen, W.-N., Chou, C. &amp; Matzarakis, A. Concepts and new implements for modified physiologically equivalent temperature. Atmosphere 11, 694 (2020). https://www.mdpi.com/2073-4433/11/7/694 .
+
+For simulation of mean radiant temperature (Tmrt), the following two papers
+explain the mechanisms of Tmrt simulation in RayMan and also in Python
+package biometeo.
+
+- Matzarakis, A., Rutz, F. &amp; Mayer, H. Modelling radiation fluxes in simple and complex environments—application of the rayman model. International Journal of Biometeorology 51, 323–334 (2007).  https://doi.org/10.1007/s00484-006-0061-8 .
+- Matzarakis, A., Rutz, F. &amp; Mayer, H. Modelling radiation fluxes in simple and complex environments: basics of the rayman model. International Journal of Biometeorology 54, 131–139 (2010). https://doi.org/10.1007/s00484-009-0261-0 .
+
+For using exponent equation as reducing mechanism of wind speed from
+some height to 1.1 m, the following is the original literature.
+
+- Matzarakis, A., Rocco, M. D. &amp; Najjar, G. Thermal bioclimate instrasbourg - the 2003 heat wave. Theoretical and AppliedClimatology 98, 209–220 (2009).http://link.springer.com/10.1007/s00704-009-0102-4 .
