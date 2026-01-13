@@ -1,0 +1,33 @@
+# UNet Autoregressive Model Configuration
+# For frame-to-frame motion prediction with stable long-horizon rollout
+#
+# Usage:
+#   uv run python -m optiq.training.pipeline --config configs/model_unet_autoreg.yaml
+#
+# Or with CLI:
+#   uv run optiq train --config configs/model_unet_autoreg.yaml
+
+arch: unet_autoreg
+
+# Model architecture
+input_dim: 455  # 65 bones * 7 features (3 pos + 4 quat)
+hidden_dims: [256, 128]  # Encoder/decoder dimensions
+bottleneck_dim: 64  # Bottleneck (smallest representation)
+num_res_blocks: 3  # Residual blocks in bottleneck
+dropout: 0.1
+residual_output: true  # Predict delta from input (more stable)
+
+# Training
+epochs: 100
+batch_size: 32
+lr: 0.001
+optimizer: adam
+scheduler: cosine
+grad_clip: 1.0
+
+# Data
+# data_path: examples/humanoid_imitation/data/ground_truth.parquet
+
+loss_type: chamfer_quat
+num_bones: 65
+features_per_bone: 7

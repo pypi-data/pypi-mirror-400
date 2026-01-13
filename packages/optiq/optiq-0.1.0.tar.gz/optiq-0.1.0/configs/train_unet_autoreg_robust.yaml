@@ -1,0 +1,103 @@
+# Robust UNet Autoregressive Training Configuration
+# ==================================================
+#
+# This config trains a motion prediction model that remains stable during
+# long autoregressive rollouts (inference).
+#
+# KEY INSIGHT: The model must be trained on its OWN predictions WITH GRADIENTS
+# flowing through the rollout. Without this, it memorizes training sequences
+# but completely falls apart at inference.
+#
+# What makes this different from naive training:
+# 1. gradient_steps > 1: Backprop flows through multiple prediction steps
+# 2. initial_teacher_ratio < 1.0: Model sees its own errors from the start
+# 3. Chamfer loss: More robust to small misalignments than MSE
+# 4. Velocity loss: Encourages smooth, physically plausible motion
+#
+# Usage:
+#   optiq train model --config configs/train_unet_autoreg_robust.yaml \
+#       --out models/motion_robust.pt \
+#       --override data_path=examples/humanoid_imitation/data/ground_truth.parquet
+#
+# Expected behavior during training:
+# - Loss will SPIKE when free-running kicks in (this is good!)
+# - Loss should gradually decrease as model learns error recovery
+# - If loss stays very low but inference fails, increase gradient_steps
+
+arch: unet_autoreg
+
+# =============================================================================
+# MODEL ARCHITECTURE
+# =============================================================================
+input_dim: 455          # 65 bones * 7 features (3 pos + 4 quat)
+hidden_dims: [512, 256, 128]
+bottleneck_dim: 64
+num_res_blocks: 4
+dropout: 0.2            # Higher dropout prevents memorization
+residual_output: true   # Predict delta from input (more stable)
+
+# =============================================================================
+# TRAINING HYPERPARAMETERS
+# =============================================================================
+epochs: 500
+batch_size: 8           # Small batch for longer gradient rollouts (memory)
+lr: 0.0001              # Lower LR for stability with long rollouts
+grad_clip: 0.5          # Tight clipping prevents exploding gradients
+
+# =============================================================================
+# LOSS FUNCTION
+# =============================================================================
+# Options: "mse", "chamfer", "chamfer_quat"
+# - mse: Fast, but sensitive to small misalignments
+# - chamfer: Position-only, robust to correspondence errors  
+# - chamfer_quat: Best for motion - positions + quaternion rotation loss
+loss_type: chamfer_quat
+num_bones: 65
+features_per_bone: 7
+
+# Velocity consistency (dpos/dt should match ground truth velocity)
+velocity_weight: 0.2
+
+# =============================================================================
+# DATASET CONFIGURATION
+# =============================================================================
+dataset_type: rollout
+rollout_len: 128         # Frames per training sequence (longer = harder)
+dataset_size: 500       # Samples per epoch (randomly sampled starting times)
+
+# =============================================================================
+# SCHEDULED SAMPLING (THE KEY TO STABLE INFERENCE)
+# =============================================================================
+lightning_module: scheduled_sampling
+
+# Teacher forcing ratio: probability of using ground truth as next input
+# - 1.0 = always use ground truth (fast learning, bad inference)
+# - 0.0 = always use predictions (slow learning, good inference)
+initial_teacher_ratio: 1.0    # Start with 20% free-running
+final_teacher_ratio: 0.0      # End with 100% free-running
+teacher_decay_steps: 3000     # Steps to transition
+
+# =============================================================================
+# GRADIENT FLOW THROUGH ROLLOUT (CRITICAL!)
+# =============================================================================
+# Number of consecutive steps to backpropagate through.
+# - Higher: Model learns to recover from compounding errors (better inference)
+# - Lower: Faster training, less memory, but may not learn error recovery
+# 
+# Memory usage scales with gradient_steps. If you run out of memory:
+# 1. Reduce gradient_steps
+# 2. Reduce batch_size
+# 3. Reduce rollout_len
+gradient_steps: 16
+
+# =============================================================================
+# NOISE INJECTION
+# =============================================================================
+# Small noise on inputs helps model generalize
+noise_std: 0.01
+
+# =============================================================================
+# DATA
+# =============================================================================
+# Uncomment and set your data path:
+# data_path: examples/humanoid_imitation/data/ground_truth.parquet
