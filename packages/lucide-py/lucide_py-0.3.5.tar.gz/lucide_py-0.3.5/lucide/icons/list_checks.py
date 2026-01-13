@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def ListChecks(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-list-checks'], 'items': [{'path': {'d': 'M13 5h8'}}, {'path': {'d': 'M13 12h8'}}, {'path': {'d': 'M13 19h8'}}, {'path': {'d': 'm3 17 2 2 4-4'}}, {'path': {'d': 'm3 7 2 2 4-4'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield

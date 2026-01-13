@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def ContactRound(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-contact-round'], 'items': [{'path': {'d': 'M16 2v2'}}, {'path': {'d': 'M17.915 22a6 6 0 0 0-12 0'}}, {'path': {'d': 'M8 2v2'}}, {'circle': {'cx': '12', 'cy': '12', 'r': '4'}}, {'rect': {'x': '3', 'y': '4', 'width': '18', 'height': '18', 'rx': '2'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield

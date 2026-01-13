@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def Diamond(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-diamond'], 'items': [{'path': {'d': 'M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield

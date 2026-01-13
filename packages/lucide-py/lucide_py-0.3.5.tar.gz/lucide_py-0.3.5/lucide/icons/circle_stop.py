@@ -1,0 +1,13 @@
+
+import contextlib
+from collections.abc import Generator
+
+from .base import IconBase
+
+                        
+@contextlib.contextmanager
+def CircleStop(**kwargs) -> Generator[None]:
+    data = {'classes': ['lucide lucide-circle-stop'], 'items': [{'circle': {'cx': '12', 'cy': '12', 'r': '10'}}, {'rect': {'x': '9', 'y': '9', 'width': '6', 'height': '6', 'rx': '1'}}]}
+    with IconBase(data, **kwargs):
+        pass
+    yield
