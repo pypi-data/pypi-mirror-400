@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Insyt Secure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-gray-50" x-data="settingsApp()">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-gray-800">Insyt Secure</h1>
+                    <span class="ml-3 text-sm text-gray-500">Settings</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</a>
+                    <span class="text-gray-600">{{ username }}</span>
+                    <a href="/logout" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Tab Navigation -->
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="border-b">
+                <nav class="flex -mb-px" aria-label="Settings tabs">
+                    <button @click="activeTab = 'retention'" 
+                        :class="activeTab === 'retention' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors">
+                        📊 Retention Policy
+                    </button>
+                    <button @click="activeTab = 'web'" 
+                        :class="activeTab === 'web' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors">
+                        🌐 Web Server
+                    </button>
+                    <button @click="activeTab = 'environment'" 
+                        :class="activeTab === 'environment' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors">
+                        🔧 Environment Presets
+                    </button>
+                    <button @click="activeTab = 'password'" 
+                        :class="activeTab === 'password' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors">
+                        🔒 Password
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Tab Content: Retention Policy -->
+        <div x-show="activeTab === 'retention'" class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b">
+                <h2 class="text-xl font-semibold text-gray-800">Retention Policy</h2>
+                <p class="text-sm text-gray-500 mt-1">Configure automatic log retention and purging settings</p>
+            </div>
+            <div class="p-6">
+                <form @submit.prevent="updateRetentionPolicy()" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Maximum Database Size (GB)</label>
+                        <input type="number" step="0.1" min="0.1" x-model="retention.max_size_gb"
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <p class="text-xs text-gray-500 mt-1">Logs will be automatically purged when database exceeds this size</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Maximum Retention (Days)</label>
+                        <input type="number" min="1" x-model="retention.max_retention_days"
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <p class="text-xs text-gray-500 mt-1">Logs older than this will be automatically deleted</p>
+                    </div>
+                    
+                    <div x-show="retention.message" :class="retention.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                        class="p-4 rounded-lg" x-text="retention.message"></div>
+                    
+                    <button type="submit" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
+                        Save Retention Policy
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tab Content: Web Server Configuration -->
+        <div x-show="activeTab === 'web'" class="bg-white rounded-lg shadow" style="display: none;">
+            <div class="p-6 border-b">
+                <h2 class="text-xl font-semibold text-gray-800">Web Server Configuration</h2>
+                <p class="text-sm text-gray-500 mt-1">Configure web interface settings (requires restart to apply)</p>
+            </div>
+            <div class="p-6">
+                <form @submit.prevent="updateWebConfig()" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Web Interface Port</label>
+                        <input type="number" min="1024" max="65535" x-model="webConfig.port"
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <p class="text-xs text-gray-500 mt-1">Default: 8080. Requires restart to apply.</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Binding Interface</label>
+                        <select x-model="webConfig.host" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <option value="127.0.0.1">Localhost only (127.0.0.1) - Secure</option>
+                            <option value="0.0.0.0">All interfaces (0.0.0.0) - Public access</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <strong>127.0.0.1:</strong> Only accessible from this machine (secure)<br>
+                            <strong>0.0.0.0:</strong> Accessible from any IP address (use with reverse proxy)
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" x-model="webConfig.enabled" 
+                                class="w-4 h-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded">
+                            <span class="text-sm font-medium text-gray-700">Enable Web Interface</span>
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1 ml-6">
+                            When disabled, the web interface will stop on next restart. Core service continues running.
+                        </p>
+                    </div>
+                    
+                    <div x-show="webConfig.message" :class="webConfig.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                        class="p-4 rounded-lg" x-text="webConfig.message"></div>
+                    
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                        <p class="text-sm text-yellow-700">
+                            <strong>Note:</strong> Changes will be saved but require restarting the web server to take effect.
+                        </p>
+                    </div>
+                    
+                    <button type="submit" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
+                        Save Web Configuration
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tab Content: Environment Presets -->
+        <div x-show="activeTab === 'environment'" class="bg-white rounded-lg shadow" x-data="envPresetsApp()" style="display: none;">
+            <div class="p-6 border-b flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-800">Environment Presets</h2>
+                    <p class="text-sm text-gray-500 mt-1">Manage secure environment variable sets for code execution</p>
+                </div>
+                <button @click="showCreateModal()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                    + New Preset
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <!-- Loading State -->
+                <div x-show="loading" class="text-center py-8 text-gray-500">
+                    Loading presets...
+                </div>
+                
+                <!-- Empty State -->
+                <div x-show="!loading && presets.length === 0" class="text-center py-12">
+                    <div class="text-gray-400 mb-4">
+                        <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900">No environment presets yet</h3>
+                    <p class="text-sm text-gray-500 mt-2">Create your first preset to securely store environment variables</p>
+                    <button @click="showCreateModal()" class="mt-4 bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
+                        Create First Preset
+                    </button>
+                </div>
+                
+                <!-- Presets List -->
+                <div x-show="!loading && presets.length > 0" class="space-y-4">
+                    <template x-for="preset in groupedPresets()" :key="preset.id || preset.project_id">
+                        <div>
+                            <!-- Project Group Header (if applicable) -->
+                            <div x-show="preset.isGroupHeader" class="flex items-center mb-2 mt-6 first:mt-0">
+                                <span class="text-sm font-semibold text-gray-600">
+                                    <span x-text="preset.project_id ? `📁 ${getProjectDisplayName(preset.project_id)}` : '📦 Uncategorized'"></span>
+                                </span>
+                                <div class="flex-1 border-b border-gray-200 ml-3"></div>
+                            </div>
+                            
+                            <!-- Preset Card -->
+                            <div x-show="!preset.isGroupHeader" class="border rounded-lg hover:shadow-md transition-shadow">
+                                <div class="p-4">
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex-1">
+                                            <h3 class="text-lg font-semibold text-gray-800" x-text="preset.preset_name"></h3>
+                                            <p x-show="preset.description" class="text-sm text-gray-500 mt-1" x-text="preset.description"></p>
+                                            <p class="text-xs text-gray-400 mt-2">
+                                                <span x-text="preset.variable_count"></span> variable<span x-show="preset.variable_count !== 1">s</span>
+                                                · Created by <span x-text="preset.created_by"></span>
+                                            </p>
+                                        </div>
+                                        <div class="flex space-x-2">
+                                            <button @click="viewPreset(preset.id)" class="text-purple-600 hover:text-purple-800 px-3 py-1 rounded border border-purple-200 hover:bg-purple-50 text-sm">
+                                                👁 View
+                                            </button>
+                                            <button @click="editPreset(preset.id)" class="text-blue-600 hover:text-blue-800 px-3 py-1 rounded border border-blue-200 hover:bg-blue-50 text-sm">
+                                                ✏️ Edit
+                                            </button>
+                                            <button @click="deletePreset(preset.id, preset.preset_name)" class="text-red-600 hover:text-red-800 px-3 py-1 rounded border border-red-200 hover:bg-red-50 text-sm">
+                                                🗑️ Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <!-- Auto-Apply Configuration -->
+                    <div x-show="presets.length > 0" class="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+                        <h3 class="text-md font-semibold text-gray-800 mb-3">⚙️ Auto-Apply on Startup</h3>
+                        <p class="text-sm text-gray-600 mb-4">
+                            Automatically apply <strong>all environment presets</strong> when the server starts. Variables will be available to all executed code.
+                        </p>
+                        
+                        <div class="flex items-center space-x-4">
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="autoApplyEnabled" @change="saveAutoApplyConfig()" class="rounded text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm font-medium text-gray-700">Enable auto-apply</span>
+                            </label>
+                            <span x-show="autoApplySaved" class="text-green-600 text-sm">✓ Saved</span>
+                        </div>
+                        
+                        <p class="text-xs text-gray-500 mt-3">
+                            💡 All presets will be loaded on next server restart. Presets are also applied immediately when saved/edited.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- View Preset Modal -->
+            <div x-show="viewModal.show" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" style="display: none;">
+                <div class="bg-white rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                    <div class="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-800" x-text="viewModal.data?.preset_name"></h2>
+                        <button @click="viewModal.show = false" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+                    </div>
+                    
+                    <div class="p-6">
+                        <p x-show="viewModal.data?.description" class="text-gray-600 mb-4" x-text="viewModal.data?.description"></p>
+                        
+                        <!-- Auth prompt if not authenticated -->
+                        <div x-show="!viewSession.token" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                            <p class="text-sm text-yellow-700 mb-3">
+                                🔒 Values are masked for security. Authenticate to view actual values for 10 minutes.
+                            </p>
+                            <div class="flex space-x-2">
+                                <input type="password" x-model="viewSession.password" @keyup.enter="authenticateView()" 
+                                    placeholder="Enter your password"
+                                    class="flex-1 px-3 py-2 border rounded focus:ring-2 focus:ring-purple-500">
+                                <button @click="authenticateView()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+                                    Unlock
+                                </button>
+                            </div>
+                            <p x-show="viewSession.error" class="text-red-600 text-sm mt-2" x-text="viewSession.error"></p>
+                        </div>
+                        
+                        <!-- Session active indicator -->
+                        <div x-show="viewSession.token" class="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
+                            <p class="text-sm text-green-700">
+                                ✓ Viewing session active (expires in <span x-text="viewSession.expiresIn"></span> minutes)
+                            </p>
+                        </div>
+                        
+                        <!-- Variables Table -->
+                        <div class="border rounded-lg overflow-hidden">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 border-b">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Key</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                    <template x-for="variable in viewModal.data?.variables || []" :key="variable.id">
+                                        <tr>
+                                            <td class="px-4 py-3 font-mono text-sm text-gray-800" x-text="variable.key"></td>
+                                            <td class="px-4 py-3 font-mono text-sm" :class="variable.value.includes('●') ? 'text-gray-400' : 'text-gray-800'" x-text="variable.value"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Create/Edit Preset Modal -->
+            <div x-show="editModal.show" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" style="display: none;">
+                <div class="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                    <div class="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-800" x-text="editModal.isNew ? 'Create Environment Preset' : 'Edit Environment Preset'"></h2>
+                        <button @click="editModal.show = false" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+                    </div>
+                    
+                    <div class="p-6">
+                        <form @submit.prevent="savePreset()" class="space-y-6">
+                            <!-- Preset Info -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Preset Name *</label>
+                                    <input type="text" x-model="editModal.data.preset_name" required
+                                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                                        placeholder="e.g., Production DB Credentials">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Project (optional)</label>
+                                    <select x-model="editModal.data.project_id"
+                                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 bg-white">
+                                        <option value="">No Project (Global)</option>
+                                        <template x-for="projectId in availableProjects" :key="projectId">
+                                            <option :value="projectId" x-text="getProjectDisplayName(projectId)"></option>
+                                        </template>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1">Associate this preset with a specific project</p>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                                <textarea x-model="editModal.data.description" rows="2"
+                                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                                    placeholder="Brief description of what these variables are for"></textarea>
+                            </div>
+                            
+                            <!-- Unlock Section (only shown when editing existing preset) -->
+                            <div x-show="!editModal.isNew">
+                                <!-- Auth prompt if not authenticated -->
+                                <div x-show="!editSession.isUnlocked" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                                    <p class="text-sm text-yellow-700 mb-3">
+                                        🔒 <strong>Values are masked for security.</strong> Unlock with your password to view and edit actual values.
+                                    </p>
+                                    <div class="flex space-x-2">
+                                        <input type="password" x-model="editSession.password" @keyup.enter="unlockEditValues()" 
+                                            placeholder="Enter your password"
+                                            class="flex-1 px-3 py-2 border rounded focus:ring-2 focus:ring-purple-500">
+                                        <button type="button" @click="unlockEditValues()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+                                            🔓 Unlock
+                                        </button>
+                                    </div>
+                                    <p x-show="editSession.error" class="text-red-600 text-sm mt-2" x-text="editSession.error"></p>
+                                </div>
+                                
+                                <!-- Session active indicator -->
+                                <div x-show="editSession.isUnlocked" class="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
+                                    <p class="text-sm text-green-700">
+                                        ✓ Values unlocked (session expires in <span x-text="Math.ceil(editSession.expiresIn)"></span> minutes)
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Variables Section -->
+                            <div>
+                                <div class="flex justify-between items-center mb-3">
+                                    <label class="block text-sm font-medium text-gray-700">Environment Variables</label>
+                                    <button type="button" @click="addVariable()" class="text-sm text-purple-600 hover:text-purple-800">
+                                        + Add Variable
+                                    </button>
+                                </div>
+                                
+                                <div class="space-y-3">
+                                    <template x-for="(variable, index) in editModal.data.variables" :key="index">
+                                        <div class="grid grid-cols-2 gap-3 p-3 border rounded-lg bg-gray-50">
+                                            <div>
+                                                <input type="text" x-model="variable.key" @blur="validateKey(variable)"
+                                                    class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-purple-500"
+                                                    :class="variable.error ? 'border-red-300' : ''"
+                                                    :placeholder="getKeyPlaceholder(index)">
+                                                <p x-show="variable.error" class="text-xs text-red-600 mt-1" x-text="variable.error"></p>
+                                            </div>
+                                            <div class="flex space-x-2">
+                                                <input type="text" x-model="variable.value"
+                                                    class="flex-1 px-3 py-2 border rounded focus:ring-2 focus:ring-purple-500"
+                                                    :placeholder="getValuePlaceholder(index)">
+                                                <button type="button" @click="removeVariable(index)" 
+                                                    class="text-red-600 hover:text-red-800 px-2">
+                                                    ✖
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                                
+                                <p class="text-xs text-gray-500 mt-2">
+                                    💡 Tip: Keys must start with a letter or underscore, contain only alphanumeric characters and underscores
+                                </p>
+                            </div>
+                            
+                            <div x-show="editModal.message" :class="editModal.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                                class="p-4 rounded-lg" x-text="editModal.message"></div>
+                            
+                            <div class="flex justify-end space-x-3">
+                                <button type="button" @click="editModal.show = false" 
+                                    class="px-6 py-2 border rounded-lg hover:bg-gray-50">
+                                    Cancel
+                                </button>
+                                <button type="submit" 
+                                    x-show="editModal.isNew || editSession.isUnlocked"
+                                    class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700"
+                                    :class="(!editModal.isNew && !editSession.isUnlocked) ? 'opacity-50 cursor-not-allowed' : ''">
+                                    <span x-text="editModal.isNew ? '💾 Save & Apply' : '💾 Update & Apply'"></span>
+                                </button>
+                                <div x-show="!editModal.isNew && !editSession.isUnlocked" class="flex items-center text-sm text-gray-500">
+                                    🔒 Unlock values first to enable editing
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content: Password Management -->
+        <div x-show="activeTab === 'password'" class="bg-white rounded-lg shadow" style="display: none;">
+            <div class="p-6 border-b">
+                <h2 class="text-xl font-semibold text-gray-800">Password Management</h2>
+                <p class="text-sm text-gray-500 mt-1">Change your password</p>
+            </div>
+            <div class="p-6">
+                <form @submit.prevent="changePassword()" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                        <input type="password" x-model="password.old_password" required
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                        <input type="password" x-model="password.new_password" required
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
+                        <input type="password" x-model="password.confirm_password" required
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    
+                    <div x-show="password.message" :class="password.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                        class="p-4 rounded-lg" x-text="password.message"></div>
+                    
+                    <button type="submit" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
+                        Change Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function settingsApp() {
+            return {
+                activeTab: 'retention', // Default tab
+                retention: {
+                    max_size_gb: {{ config.max_size_gb }},
+                    max_retention_days: {{ config.max_retention_days }},
+                    message: '',
+                    success: false
+                },
+                webConfig: {
+                    port: {{ config.web_port }},
+                    host: '{{ config.web_host }}',
+                    enabled: {{ 'true' if config.web_enabled else 'false' }},
+                    message: '',
+                    success: false
+                },
+                password: {
+                    old_password: '',
+                    new_password: '',
+                    confirm_password: '',
+                    message: '',
+                    success: false
+                },
+                
+                async updateRetentionPolicy() {
+                    this.retention.message = '';
+                    
+                    try {
+                        const response = await fetch('/api/settings/retention', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                max_size_gb: parseFloat(this.retention.max_size_gb),
+                                max_retention_days: parseInt(this.retention.max_retention_days)
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.retention.success = true;
+                            this.retention.message = 'Retention policy updated successfully!';
+                        } else {
+                            this.retention.success = false;
+                            this.retention.message = data.error || 'Failed to update retention policy';
+                        }
+                    } catch (error) {
+                        this.retention.success = false;
+                        this.retention.message = 'Connection error. Please try again.';
+                    }
+                },
+                
+                async updateWebConfig() {
+                    this.webConfig.message = '';
+                    
+                    try {
+                        const response = await fetch('/api/settings/web-config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                port: parseInt(this.webConfig.port),
+                                host: this.webConfig.host,
+                                enabled: this.webConfig.enabled
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.webConfig.success = true;
+                            this.webConfig.message = 'Web configuration saved! Restart the web server for changes to take effect.';
+                        } else {
+                            this.webConfig.success = false;
+                            this.webConfig.message = data.error || 'Failed to update web configuration';
+                        }
+                    } catch (error) {
+                        this.webConfig.success = false;
+                        this.webConfig.message = 'Connection error. Please try again.';
+                    }
+                },
+                
+                async changePassword() {
+                    this.password.message = '';
+                    
+                    if (this.password.new_password !== this.password.confirm_password) {
+                        this.password.success = false;
+                        this.password.message = 'New passwords do not match';
+                        return;
+                    }
+                    
+                    if (this.password.new_password.length < 4) {
+                        this.password.success = false;
+                        this.password.message = 'Password must be at least 4 characters';
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/change-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                old_password: this.password.old_password,
+                                new_password: this.password.new_password
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.password.success = true;
+                            this.password.message = 'Password changed successfully! Redirecting to login...';
+                            setTimeout(() => {
+                                window.location.href = '/login';
+                            }, 2000);
+                        } else {
+                            this.password.success = false;
+                            this.password.message = data.error || 'Failed to change password';
+                        }
+                    } catch (error) {
+                        this.password.success = false;
+                        this.password.message = 'Connection error. Please try again.';
+                    }
+                }
+            }
+        }
+        
+        function envPresetsApp() {
+            return {
+                presets: [],
+                loading: true,
+                availableProjects: [],  // List of project IDs
+                projectAliases: {},     // Map of project_id -> alias
+                viewModal: {
+                    show: false,
+                    data: null
+                },
+                editModal: {
+                    show: false,
+                    isNew: true,
+                    data: {
+                        preset_name: '',
+                        project_id: '',
+                        description: '',
+                        variables: []
+                    },
+                    message: '',
+                    success: false
+                },
+                editSession: {
+                    token: null,
+                    password: '',
+                    error: '',
+                    expiresIn: 10,
+                    isUnlocked: false
+                },
+                viewSession: {
+                    token: null,
+                    password: '',
+                    error: '',
+                    expiresIn: 10
+                },
+                
+                async init() {
+                    await this.loadAvailableProjects();
+                    await this.loadPresets();
+                    await this.loadAutoApplyConfig();
+                },
+                
+                async loadAvailableProjects() {
+                    try {
+                        const response = await fetch('/api/filters');
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const filters = await response.json();
+                        this.availableProjects = filters.project_ids || [];
+                        
+                        // Load project aliases if we have projects
+                        if (this.availableProjects.length > 0) {
+                            await this.loadProjectAliases();
+                        }
+                    } catch (error) {
+                        console.error('Failed to load available projects:', error);
+                    }
+                },
+                
+                async loadProjectAliases() {
+                    try {
+                        const response = await fetch('/api/project-aliases', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ project_ids: this.availableProjects })
+                        });
+                        
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const data = await response.json();
+                        this.projectAliases = data.aliases || {};
+                    } catch (error) {
+                        console.error('Failed to load project aliases:', error);
+                    }
+                },
+                
+                getProjectDisplayName(projectId) {
+                    if (!projectId) return 'No Project';
+                    return this.projectAliases[projectId] || projectId;
+                },
+                
+                async loadPresets() {
+                    this.loading = true;
+                    try {
+                        const response = await fetch('/api/env/presets');
+                        const data = await response.json();
+                        this.presets = data.presets || [];
+                    } catch (error) {
+                        console.error('Failed to load presets:', error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                groupedPresets() {
+                    // Group presets by project_id with headers
+                    const grouped = [];
+                    const byProject = {};
+                    
+                    this.presets.forEach(preset => {
+                        const key = preset.project_id || '__uncategorized__';
+                        if (!byProject[key]) {
+                            byProject[key] = [];
+                        }
+                        byProject[key].push(preset);
+                    });
+                    
+                    // Sort: uncategorized first, then by project_id
+                    const keys = Object.keys(byProject).sort((a, b) => {
+                        if (a === '__uncategorized__') return -1;
+                        if (b === '__uncategorized__') return 1;
+                        return a.localeCompare(b);
+                    });
+                    
+                    keys.forEach(key => {
+                        // Add group header
+                        grouped.push({
+                            isGroupHeader: true,
+                            project_id: key === '__uncategorized__' ? null : key
+                        });
+                        // Add presets
+                        grouped.push(...byProject[key]);
+                    });
+                    
+                    return grouped;
+                },
+                
+                showCreateModal() {
+                    this.editModal.isNew = true;
+                    this.editModal.data = {
+                        preset_name: '',
+                        project_id: '',
+                        description: '',
+                        variables: [
+                            { key: '', value: '', error: '' },
+                            { key: '', value: '', error: '' },
+                            { key: '', value: '', error: '' },
+                            { key: '', value: '', error: '' }
+                        ]
+                    };
+                    this.editModal.message = '';
+                    this.editModal.show = true;
+                },
+                
+                async viewPreset(presetId) {
+                    try {
+                        const response = await fetch(`/api/env/presets/${presetId}`);
+                        const data = await response.json();
+                        this.viewModal.data = data;
+                        this.viewModal.show = true;
+                        
+                        // If we have a valid view session, load unmasked values
+                        if (this.viewSession.token) {
+                            await this.loadUnmaskedValues(presetId);
+                        }
+                    } catch (error) {
+                        console.error('Failed to load preset:', error);
+                        alert('Failed to load preset');
+                    }
+                },
+                
+                async editPreset(presetId) {
+                    try {
+                        // Load preset with MASKED values first
+                        const response = await fetch(`/api/env/presets/${presetId}`);
+                        const data = await response.json();
+                        
+                        if (!response.ok) {
+                            alert(data.error || 'Failed to load preset');
+                            return;
+                        }
+                        
+                        // Reset edit session
+                        this.editSession = {
+                            token: null,
+                            password: '',
+                            error: '',
+                            expiresIn: 10,
+                            isUnlocked: false
+                        };
+                        
+                        this.editModal.isNew = false;
+                        this.editModal.data = {
+                            id: data.id,
+                            preset_name: data.preset_name,
+                            project_id: data.project_id || '',
+                            description: data.description || '',
+                            variables: data.variables.map(v => ({
+                                id: v.id,
+                                key: v.key,
+                                value: v.value,  // Masked values initially
+                                error: ''
+                            }))
+                        };
+                        this.editModal.message = '';
+                        this.editModal.success = false;
+                        this.editModal.show = true;
+                    } catch (error) {
+                        console.error('Failed to load preset for editing:', error);
+                        alert('Failed to load preset');
+                    }
+                },
+                
+                async unlockEditValues() {
+                    this.editSession.error = '';
+                    
+                    if (!this.editSession.password) {
+                        this.editSession.error = 'Please enter your password';
+                        return;
+                    }
+                    
+                    try {
+                        // Create view session (using correct endpoint)
+                        const authResponse = await fetch('/api/env/authenticate-view', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ password: this.editSession.password })
+                        });
+                        
+                        const authData = await authResponse.json();
+                        
+                        if (!authResponse.ok) {
+                            this.editSession.error = authData.error || 'Invalid password';
+                            return;
+                        }
+                        
+                        this.editSession.token = authData.session_token;
+                        this.editSession.expiresIn = authData.expires_in_minutes;
+                        
+                        // Now fetch unmasked values (using header like view modal)
+                        const response = await fetch(
+                            `/api/env/presets/${this.editModal.data.id}/reveal`,
+                            {
+                                headers: {
+                                    'X-View-Session-Token': this.editSession.token
+                                }
+                            }
+                        );
+                        const data = await response.json();
+                        
+                        if (!response.ok) {
+                            this.editSession.error = data.error || 'Failed to load unmasked values';
+                            this.editSession.token = null;
+                            return;
+                        }
+                        
+                        // Update variables with unmasked values
+                        this.editModal.data.variables = data.variables.map(v => ({
+                            id: v.id,
+                            key: v.key,
+                            value: v.value,  // Real values!
+                            error: ''
+                        }));
+                        
+                        this.editSession.isUnlocked = true;
+                        this.editSession.password = '';  // Clear password
+                        
+                        // Start countdown timer
+                        this.startEditSessionTimer();
+                        
+                    } catch (error) {
+                        console.error('Failed to unlock edit values:', error);
+                        this.editSession.error = 'Connection error. Please try again.';
+                    }
+                },
+                
+                startEditSessionTimer() {
+                    const interval = setInterval(() => {
+                        this.editSession.expiresIn -= 0.1;
+                        
+                        if (this.editSession.expiresIn <= 0) {
+                            this.editSession.token = null;
+                            this.editSession.isUnlocked = false;
+                            clearInterval(interval);
+                        }
+                    }, 6000); // Update every 6 seconds (0.1 minute)
+                },
+                
+                async deletePreset(presetId, presetName) {
+                    if (!confirm(`Delete preset "${presetName}"?\n\nThis will permanently delete all environment variables in this preset. This action cannot be undone.`)) {
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(`/api/env/presets/${presetId}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            await this.loadPresets();
+                        } else {
+                            alert('Failed to delete preset');
+                        }
+                    } catch (error) {
+                        console.error('Failed to delete preset:', error);
+                        alert('Failed to delete preset');
+                    }
+                },
+                
+                addVariable() {
+                    this.editModal.data.variables.push({ key: '', value: '', error: '' });
+                },
+                
+                removeVariable(index) {
+                    this.editModal.data.variables.splice(index, 1);
+                },
+                
+                async validateKey(variable) {
+                    if (!variable.key) {
+                        variable.error = '';
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/env/validate-key', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: variable.key })
+                        });
+                        
+                        const data = await response.json();
+                        variable.error = data.valid ? '' : data.error;
+                    } catch (error) {
+                        console.error('Failed to validate key:', error);
+                    }
+                },
+                
+                getKeyPlaceholder(index) {
+                    const placeholders = [
+                        'DB_HOST',
+                        'DB_NAME',
+                        'DB_USER',
+                        'DB_PASSWORD'
+                    ];
+                    return placeholders[index] || 'CUSTOM_KEY';
+                },
+                
+                getValuePlaceholder(index) {
+                    const placeholders = [
+                        'e.g., localhost or 10.0.1.5',
+                        'e.g., production_db',
+                        'e.g., admin',
+                        'Enter secure password'
+                    ];
+                    return placeholders[index] || 'Enter value';
+                },
+                
+                async savePreset() {
+                    this.editModal.message = '';
+                    
+                    // Filter out empty variables
+                    const variables = this.editModal.data.variables.filter(v => v.key.trim());
+                    
+                    // Check for validation errors
+                    const hasErrors = variables.some(v => v.error);
+                    if (hasErrors) {
+                        this.editModal.success = false;
+                        this.editModal.message = 'Please fix validation errors before saving';
+                        return;
+                    }
+                    
+                    try {
+                        const url = this.editModal.isNew ? 
+                            '/api/env/presets' : 
+                            `/api/env/presets/${this.editModal.data.id}`;
+                        
+                        const method = this.editModal.isNew ? 'POST' : 'PUT';
+                        
+                        const payload = {
+                            preset_name: this.editModal.data.preset_name,
+                            project_id: this.editModal.data.project_id || null,
+                            description: this.editModal.data.description,
+                            variables: variables.map(v => ({
+                                key: v.key,
+                                value: v.value
+                            }))
+                        };
+                        
+                        const response = await fetch(url, {
+                            method: method,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            this.editModal.success = true;
+                            
+                            // Build detailed success message with apply info
+                            let message = this.editModal.isNew ? 
+                                'Preset created and applied!' : 
+                                'Preset updated and applied!';
+                            
+                            if (data.applied_count !== undefined) {
+                                message += ` (${data.applied_count} variable${data.applied_count !== 1 ? 's' : ''} active)`;
+                            }
+                            
+                            if (data.removed_count > 0) {
+                                message += ` Removed ${data.removed_count} variable${data.removed_count !== 1 ? 's' : ''} from environment.`;
+                            }
+                            
+                            this.editModal.message = message;
+                            
+                            await this.loadPresets();
+                            
+                            setTimeout(() => {
+                                this.editModal.show = false;
+                            }, 1500);
+                        } else {
+                            this.editModal.success = false;
+                            this.editModal.message = data.error || 'Failed to save preset';
+                        }
+                    } catch (error) {
+                        console.error('Failed to save preset:', error);
+                        this.editModal.success = false;
+                        this.editModal.message = 'Connection error. Please try again.';
+                    }
+                },
+                
+                async authenticateView() {
+                    this.viewSession.error = '';
+                    
+                    try {
+                        const response = await fetch('/api/env/authenticate-view', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ password: this.viewSession.password })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            this.viewSession.token = data.session_token;
+                            this.viewSession.expiresIn = data.expires_in_minutes;
+                            this.viewSession.password = '';
+                            
+                            // Reload current preset with unmasked values
+                            if (this.viewModal.data) {
+                                await this.loadUnmaskedValues(this.viewModal.data.id);
+                            }
+                            
+                            // Start countdown timer
+                            this.startSessionTimer();
+                        } else {
+                            this.viewSession.error = data.error || 'Authentication failed';
+                        }
+                    } catch (error) {
+                        console.error('Failed to authenticate:', error);
+                        this.viewSession.error = 'Connection error. Please try again.';
+                    }
+                },
+                
+                async loadUnmaskedValues(presetId) {
+                    if (!this.viewSession.token) return;
+                    
+                    try {
+                        const response = await fetch(`/api/env/presets/${presetId}/reveal`, {
+                            headers: {
+                                'X-View-Session-Token': this.viewSession.token
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.viewModal.data = data;
+                        } else if (response.status === 401) {
+                            // Session expired
+                            this.viewSession.token = null;
+                            this.viewSession.error = 'Session expired. Please authenticate again.';
+                        }
+                    } catch (error) {
+                        console.error('Failed to load unmasked values:', error);
+                    }
+                },
+                
+                startSessionTimer() {
+                    const interval = setInterval(() => {
+                        this.viewSession.expiresIn -= 0.1;
+                        
+                        if (this.viewSession.expiresIn <= 0) {
+                            this.viewSession.token = null;
+                            clearInterval(interval);
+                        }
+                    }, 6000); // Update every 6 seconds (0.1 minute)
+                },
+                
+                // Auto-apply configuration
+                autoApplyEnabled: false,
+                autoApplySaved: false,
+                
+                async loadAutoApplyConfig() {
+                    try {
+                        const response = await fetch('/api/env/auto-apply');
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            this.autoApplyEnabled = data.auto_apply_enabled;
+                        }
+                    } catch (error) {
+                        console.error('Failed to load auto-apply config:', error);
+                    }
+                },
+                
+                async saveAutoApplyConfig() {
+                    try {
+                        const response = await fetch('/api/env/auto-apply', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                auto_apply_enabled: this.autoApplyEnabled
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            this.autoApplySaved = true;
+                            setTimeout(() => { this.autoApplySaved = false; }, 2000);
+                        } else {
+                            alert('Failed to save auto-apply configuration');
+                        }
+                    } catch (error) {
+                        console.error('Failed to save auto-apply config:', error);
+                        alert('Connection error. Please try again.');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
