@@ -1,0 +1,210 @@
+Metadata-Version: 2.4
+Name: savekit
+Version: 2.0.2
+Summary: A lightweight, persistent key-value storage toolkit for Python projects, using SQLite via SQLAlchemy. Supports storing primitive types, complex objects, and Pydantic models with full context manager support and project-root storage.
+Author: Jose Luis Coyotzi
+Author-email: Jose Luis Coyotzi <jlci811122@gmail.com>
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: SQLAlchemy>=2.0.0
+Requires-Dist: pydantic>=1.10.0
+Dynamic: author
+Dynamic: license-file
+Dynamic: requires-python
+
+# SaveKit
+
+SaveKit is a lightweight persistent key–value storage system built on top of SQLite using SQLAlchemy. It is designed for Python projects that need to store configuration, state, or small amounts of data reliably without additional infrastructure.
+
+## Key Features
+
+- Local persistence using SQLite
+- Simple key–value interface
+- Support for primitive types and JSON-serializable structures
+- Native support for Pydantic models
+- Safe SQLAlchemy session handling
+- Optional context manager usage
+- Export and import data as JSON
+- Automatic storage inside a project-level store directory
+
+## Architecture
+
+SaveKit is composed of two main components:
+
+- StoreItem: A SQLAlchemy model representing a persisted key–value entry.
+- SaveKit: A service class responsible for all persistence operations.
+
+All database and serialization logic is fully encapsulated inside SaveKit, keeping consumer code clean and free of persistence concerns.
+
+## Requirements
+
+- Python 3.10+
+- SQLAlchemy
+- Pydantic
+
+## Initialization Behavior
+
+When a SaveKit instance is created:
+
+- The project root is resolved using os.getcwd()
+- A directory named store is created if it does not exist
+- A SQLite database file is created inside that directory
+- Required tables are created automatically
+
+The database name can be customized during initialization.
+
+### Example
+
+```python
+from savekit import SaveKit
+
+store = SaveKit()
+```
+
+```python
+store = SaveKit(db_name="my_app_data")
+```
+
+## Usage Overview
+
+SaveKit supports two usage patterns:
+
+- Direct usage, where sessions are created and closed automatically
+- Context manager usage for grouped operations within a single session
+
+### Direct Usage Example
+
+```python
+store = SaveKit()
+
+store.set_item("theme", "dark")
+value = store.get_item("theme")
+```
+
+### Context Manager Usage Example
+
+```python
+with SaveKit() as store:
+    store.set_item("counter", 10)
+    store.set_item("enabled", True)
+```
+
+## Supported Operations
+
+### Store a Value
+
+Supports storing:
+- Primitive values
+- Dictionaries and lists
+- Pydantic BaseModel instances
+
+```python
+store.set_item("count", 5)
+store.set_item("settings", {"retry": 3, "timeout": 30})
+```
+
+#### Storing a Pydantic Model
+
+```python
+from pydantic import BaseModel
+
+class User(BaseModel):
+    id: int
+    name: str
+
+user = User(id=1, name="Alice")
+store.set_item("user", user)
+```
+
+### Retrieve a Value
+
+- Fetch values by key
+- Provide a default value if the key does not exist
+- Optionally parse the stored value into a Pydantic model
+
+```python
+theme = store.get_item("theme", default="light")
+```
+
+#### Retrieve as Pydantic Model
+
+```python
+user = store.get_item("user", model=User)
+```
+
+### Delete a Value
+
+Removes a specific key from the store.
+
+```python
+store.delete_item("theme")
+```
+
+### Retrieve All Values
+
+Returns the entire store content as a dictionary.
+
+```python
+data = store.get_all_items()
+```
+
+### Clear Store
+
+Deletes all entries from the store.
+
+```python
+store.clear_store()
+```
+
+### Export Data
+
+Exports all stored data to a JSON file.
+
+```python
+store.export_store("backup.json")
+```
+
+### Import Data
+
+Imports data from a JSON file, replacing the current store content.
+
+```python
+store.import_store("backup.json")
+```
+
+### Reload Store
+
+Reloads and returns all items from the database.
+
+```python
+data = store.reload_store()
+```
+
+## Error Handling
+
+- Invalid serialization raises ValueError
+- Database-related failures raise RuntimeError
+- Sessions are always closed safely, even on errors
+
+## Recommended Use Cases
+
+- Persistent application configuration
+- Simple local cache
+- Process state storage
+- Internal tools and prototypes
+- CLI applications and productive scripts
+
+## Limitations
+
+- Not designed for high concurrency workloads
+- Not a replacement for a full relational database
+- Intended for lightweight, local persistence only
+
+## License
+
+Free to use for personal and professional projects.
