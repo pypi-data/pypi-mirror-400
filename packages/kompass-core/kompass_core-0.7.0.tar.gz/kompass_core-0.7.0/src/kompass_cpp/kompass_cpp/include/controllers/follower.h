@@ -1,0 +1,257 @@
+#pragma once
+
+#include "controller.h"
+#include "datatypes/control.h"
+#include "datatypes/parameter.h"
+#include "datatypes/path.h"
+#include <cmath>
+#include <memory>
+
+namespace Kompass {
+namespace Control {
+
+class Follower : public Controller {
+public:
+  // Nested class for follower parameters
+  class FollowerParameters : public Controller::ControllerParameters {
+  public:
+    FollowerParameters() : Controller::ControllerParameters() {
+      addParameter(
+          "max_point_interpolation_distance",
+          Parameter(0.01, 0.0001,
+                    1000.0)); // [m] distance used for path interpolation
+      addParameter(
+          "lookahead_distance",
+          Parameter(1.0, 0.0,
+                    1000.0)); // [m] Lookahead distance used to find the next
+                              // point to reach (normally be same as wheelbase)
+      // Speed control parameters
+      addParameter("speed_regulation_curvature",
+                   Parameter(0.5, 0.0,
+                             1.0)); // Curvature-based linear velocity speed
+                                    // regulation parameter
+      addParameter("speed_regulation_angular",
+                   Parameter(0.5, 0.0,
+                             1.0)); // Angular velocity-based speed
+                                    // regulation parameter
+      addParameter(
+          "min_speed_regulation_factor",
+          Parameter(0.5, 1e-3,
+                    1.0)); // Minimum value of the final speed regulation factor
+      addParameter(
+          "goal_dist_tolerance",
+          Parameter(0.1, 0.001, 1000.0)); // [m] Tolerance to consider the robot
+                                          // reached the goal point
+      addParameter(
+          "path_segment_length",
+          Parameter(1.0, 0.001,
+                    1000.0)); // [m] Length of one segment of the path to follow
+      addParameter(
+          "goal_orientation_tolerance",
+          Parameter(0.1, 0.001, 2 * M_PI)); // [rad] Tolerance to consider the
+                                            // robot reached the goal point
+      addParameter(
+          "loosing_goal_distance",
+          Parameter(0.5, 0.001, 1000.0)); // [m] If driving past the goal
+                                          // we stop after this distance
+    }
+  };
+
+  /**
+   * @brief Struct for tracked point "Target" information
+   *
+   */
+  struct Target {
+    size_t segment_index{0};
+    double position_in_segment{0.0};
+    Path::State movement = Path::State();
+    bool reverse{false};
+    double lookahead{0.0};
+    double crosstrack_error{0.0};
+    double heading_error{0.0};
+  };
+
+  // Constructor
+  Follower();
+
+  Follower(const FollowerParameters &config);
+
+  void setParams(const FollowerParameters &config);
+
+  // Destructor
+  virtual ~Follower() = default;
+
+  /**
+   * @brief Sets the global path to be followed
+   * Sets the given path as a reference path and interpolates more points using
+   * spline interpolation and segments the interpolated path
+   *
+   * @param path Global path to be followed
+   */
+  void setCurrentPath(const Path::Path &path, const bool interpolate = true);
+
+  void clearCurrentPath();
+
+  /**
+   * @brief Checks if the currenState reached end of the path and returns a
+   * boolean value
+   *
+   * @return true if goal is reached or missed
+   * @return false is goal is still not reached
+   */
+  bool isGoalReached();
+
+  /**
+   * @brief Set the Interpolation type used for interpolating the follower's
+   * path
+   *
+   * @param type
+   */
+  void setInterpolationType(Path::InterpolationType type);
+
+  bool isForwardSegment(const Path::Path &segment1,
+                        const Path::Path &segment2) const;
+
+  size_t getCurrentSegmentIndex();
+
+  /**
+   * @brief Gets information on the current path point getting tracked by the
+   * follower
+   *
+   * @return Follower::Target
+   */
+  Target getTrackedTarget() const;
+
+  // Get the control commands
+  inline double getLinearVelocityCmdX() const {
+    return std::max(std::min(latest_velocity_command_.vx(),
+                             ctrlimitsParams.velXParams.maxVel),
+                    -ctrlimitsParams.velXParams.maxVel);
+  }
+  inline double getLinearVelocityCmdY() const {
+    return std::max(std::min(latest_velocity_command_.vy(),
+                             ctrlimitsParams.velYParams.maxVel),
+                    -ctrlimitsParams.velYParams.maxVel);
+  }
+  inline double getAngularVelocityCmd() const {
+    return std::max(std::min(latest_velocity_command_.omega(),
+                             ctrlimitsParams.omegaParams.maxOmega),
+                    -ctrlimitsParams.omegaParams.maxOmega);
+  }
+  inline double getSteeringAngleCmd() const {
+    return latest_velocity_command_.steer_ang();
+  }
+  inline const double getPathLength() const {
+    return currentPath->totalPathLength();
+  }
+  inline const bool hasPath() const {
+    if (!currentPath or !path_processing_) {
+      return false;
+    }
+    return currentPath->totalPathLength() > 0.0;
+  }
+
+  const Path::Path getCurrentPath() const;
+
+  /**
+   * @brief Calculates an exponential speed factor [0, 1] based on path
+   * properties.
+   *
+   * @param current_angular_vel
+   * @return double
+   */
+  double calculateExponentialSpeedFactor(double current_angular_vel) const;
+
+protected:
+  // Speed Control Parameters
+  double speed_reg_curvature{0.0}; // Curvature factor
+  double speed_reg_rotation{0.0};  // Rotation factor
+  std::unique_ptr<Path::Path> currentPath = nullptr;
+  std::unique_ptr<Path::PathPosition> closestPosition =
+      std::make_unique<Path::PathPosition>();
+  double goal_dist_tolerance{0.0};
+  double goal_orientation_tolerance{0.0};
+  double loosing_goal_distance{0.0};
+  bool rotate_in_place{false};
+  double lookahead_distance{0.0};
+  bool enable_reverse_driving{false};
+  double path_segment_length_{0.0};
+  double min_speed_regulation_factor{0.0};
+  double max_point_interpolation_distance_{0.0};
+  size_t max_segment_size_;
+  Path::InterpolationType interpolationType = Path::InterpolationType::LINEAR;
+
+  FollowerParameters config = FollowerParameters();
+
+  /**
+   * @brief Finds closestPosition on the currentPath to the currentState
+   * Performs a recursive search to first find the closest segment, then the
+   * closest point of the segment
+   *
+   * @return Path::PathPosition
+   */
+  Path::PathPosition findClosestPathPoint();
+
+  // bool isForwardMovement(const Path::State &tracked_position);
+
+  /**
+   * @brief Computes the path tracking target
+   *
+   */
+  void determineTarget();
+
+  bool path_processing_{false};
+  std::unique_ptr<Target> currentTrackedTarget_ = std::make_unique<Target>();
+
+  size_t current_segment_index_{0};
+  double current_position_in_segment_{0.0};
+  size_t max_segment_index_{0};
+
+  double goal_distance_{std::numeric_limits<double>::max()};
+  double goal_orientation_{std::numeric_limits<double>::max()};
+
+  Control::Velocity2D latest_velocity_command_{0.0, 0.0, 0.0};
+
+  bool reached_goal_{false};
+  bool reached_yaw_{false};
+
+private:
+  /**
+   * @brief Finds the index of the closest segment on the path to the
+   * currentState between two given segment indices
+   *
+   * @param left Index of the left segment
+   * @param right Index of the right segment
+   * @return size_t   Closest segment index
+   */
+  size_t findClosestSegmentIndex(size_t left, size_t right);
+
+  /**
+   * @brief Finds the closest point to currentState on a given path segment
+   *
+   * @param segment_index     Path segment index
+   * @return Path::PathPosition
+   */
+  Path::PathPosition findClosestPointOnSegment(size_t segment_index);
+
+  /**
+   * @brief Helper method to find the projection of a point onto a line segment
+   * between two points
+   *
+   * @param a     Point start of the segment
+   * @param b     Point send of the segment
+   * @param segment_length        Segment length to be updated
+   * @return Path::State          Projection state
+   */
+  Path::State projectPointOnSegment(const Path::Point &a, const Path::Point &b,
+                                    double &segment_length);
+
+  /**
+   * @brief Get max segment size
+   * @return size_t Number of points in the biggest segment possible
+   */
+  size_t getMaxSegmentSize() const;
+};
+
+} // namespace Control
+} // namespace Kompass
