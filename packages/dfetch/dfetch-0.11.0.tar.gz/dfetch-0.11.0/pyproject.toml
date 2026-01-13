@@ -1,0 +1,225 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm==9.2.2", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dfetch"
+authors = [{ name = "Ben Spoor", email = "dfetch@spoor.cc" }]
+description = "A vendoring tool for fetching and managing external dependencies."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.9"
+keywords = [
+    "dfetch",
+    "dependency management",
+    "embedded development",
+    "fetch tool",
+    "vendoring",
+    "multi-repo",
+    "dependencies",
+    "git",
+    "svn",
+    "package manager",
+    "multi-project",
+    "monorepo",
+]
+license = "MIT"
+classifiers = [
+    # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python",
+]
+dependencies = [
+    "PyYAML==6.0.3",
+    "coloredlogs==15.0.1",
+    "pykwalify==1.8.0",
+    "halo==0.0.31",
+    "colorama==0.4.6",
+    "typing-extensions==4.15.0",
+    "tldextract==5.3.0",
+    "sarif-om==1.0.4",
+    "semver==3.0.4",
+    "patch-ng==1.19.0",
+    "cyclonedx-python-lib==11.6.0",
+    "infer-license==0.1.0; python_version <= '3.10.0'",
+    "infer-license==0.2.0; python_version > '3.10.0'",
+    'setuptools; python_version >= "3.12"',                  # contains 'pkg_resources' for infer-license
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://dfetch-org.github.io/"
+Documentation = "https://dfetch.readthedocs.io/"
+Repository = "https://github.com/dfetch-org/dfetch"
+Issues = "https://github.com/dfetch-org/dfetch/issues"
+Changelog = "https://github.com/dfetch-org/dfetch/blob/main/CHANGELOG.rst"
+
+
+[project.optional-dependencies]
+development = [
+    # Quality dependencies
+    'black==25.11.0',
+    'doc8==1.1.2',
+    'pydocstyle==6.3.0',
+    'radon==6.0.1',
+    'xenon==0.9.3',
+    'types-PyYAML==6.0.12.20250915',
+    'codespell==2.4.1',
+    'mypy==1.19.1',
+    #'flake8==5.0.4', # version 6.x.x requires python >= 3.8.1 (but 3.7 support window is until 2023-06-27)
+    'bandit==1.8.6',
+    'vulture==2.14',
+    'pyroma==5.0.1',
+    'isort==6.1.0',
+    'pylint==3.3.9',
+    'pyright==1.1.407',
+    'pyupgrade==3.21.0',
+    "tomli; python_version < '3.11'", # Tomllib is default in 3.11, required for letting codespell read the pyproject.toml
+    'pre-commit==4.3.0',
+    'ruff==0.14.10',
+]
+docs = [
+    'sphinx==8.2.3',
+    'sphinx-argparse==0.5.2',
+    'plantweb==1.3.0',
+    # 'sphinxcontrib.asciinema==0.4.2',
+    'sphinx_design==0.6.1',
+    'sphinxcontrib-details-directive==0.1.0',
+    'sphinx-sitemap==2.9.0',
+    'sphinx-jsonschema==1.19.2',
+    'sphinxcontrib-programoutput==0.18',
+    'sphinx-tabs==3.4.7',
+    'sphinx-autoissues==0.0.1',
+]
+test = ['pytest==8.4.2', 'pytest-cov==7.0.0', 'behave==1.3.3']
+casts = ['asciinema==2.4.0']
+build = [
+    'nuitka==2.8.9',
+    "tomli; python_version < '3.11'", # Tomllib is default in 3.11, required for letting codespell read the pyproject.toml]
+    "setuptools-scm==9.2.2", # For determining version
+]
+sbom = ["cyclonedx-bom==7.2.1"]
+
+[project.scripts]
+dfetch = "dfetch.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["dfetch", "dfetch.*"]
+
+[tool.setuptools.package-data]
+dfetch = ["resources/*.yaml"]
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+version_scheme = "guess-next-dev"
+
+[tool.black]
+extend-exclude = "sphinxcontrib_asciinema"
+
+[tool.isort]
+profile = "black"
+skip = [
+    "doc/_ext/sphinxcontrib_asciinema",
+]
+
+# See https://github.com/PyCQA/flake8/issues/234 😢
+[tool.flake8]
+max-line-length = 120
+max-complexity = 10
+select = "B,C,E,F,W,T4"
+ignore = "W503"
+
+[tool.mypy]
+files = "dfetch"
+ignore_missing_imports = true
+strict = true
+warn_unused_ignores = false
+
+[tool.doc8]
+ignore-path = "doc/_build,doc/static/uml/styles/plantuml-c4"
+max-line-length = 120
+verbose = 0
+ignore = "D002,D004"
+
+[tool.pylint.format]
+max-line-length = 120
+disable = "logging-fstring-interpolation"
+min-similarity-lines = 10
+
+[tool.pylint.MASTER]
+ignore-paths = [
+    "doc/_build/",
+    "doc/_ext/sphinxcontrib_asciinema",
+    "doc/conf.py",
+    "doc/landing-page/_build/",
+    "doc/landing-page/conf.py",
+    "doc/static/uml/",
+    "tests",
+]
+
+[tool.pydocstyle]
+convention = "google"
+
+[tool.pytest]
+filterwarnings = """
+    ignore:.*Using or importing the ABCs.*is deprecated:DeprecationWarning
+    ignore:.*the imp module.*is deprecated:DeprecationWarning
+"""
+
+[tool.coverage.run]
+branch = true
+source = ["dfetch"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.codespell]
+skip = "*.cast,./venv,**/plantuml-c4/**,./example,.mypy_cache,./doc/_build/**,./doc/landing-page/_build/**,./doc/_ext/sphinxcontrib_asciinema/**,./build,*.patch,.git,**/generate-casts/demo-magic/**"
+
+[tool.ruff.lint.per-file-ignores]
+"features/steps/*" = ["F811"]
+
+[tool.pyright]
+exclude = ["doc/static/uml/generate_diagram.py", "./doc/_ext/sphinxcontrib_asciinema/", "./doc/_build"]
+standard = ["dfetch", "features"]
+reportMissingImports = false
+reportMissingModuleSource = false
+pythonVersion = "3.9"
+
+[tool.nuitka]
+mode = "standalone"
+# jobs = "4" # Can be used to reduce memory usage, in case of compilation issues
+# Enable below for debugging
+# show-progress = true
+assume-yes-for-downloads = true
+
+lto = "auto" # Use link time optimizations if available and usable
+
+include-data-dir="dfetch/resources=resources"
+include-package-data="infer_license"
+include-module="infer_license.licenses" # Explicitly add module to let nuitka discover the data
+
+# python-flag = ["-OO"] # Cannot optimize (yet) commands rely on __doc__ being present
+
+output-dir = "build"
+output-filename-win = "dfetch.exe"
+output-filename-linux = "dfetch"
+output-filename-macos = "dfetch"
+
+windows-icon-from-ico = "doc/images/favicon.ico"
+linux-icon = "doc/images/dfetch_logo_only.png"
+
+company-name = "dfetch-org"
+product-version = "{VERSION}"
+file-version = "{VERSION}"
+product-name = "dfetch"
+file-description = "A vendoring tool for fetching and managing external dependencies."

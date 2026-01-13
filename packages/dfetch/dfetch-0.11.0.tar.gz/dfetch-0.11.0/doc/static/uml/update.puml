@@ -1,0 +1,64 @@
+@startuml
+start
+
+skinparam monochrome true
+skinparam defaultFontName Frutiger
+
+partition "Update required" {
+
+    if (Project +\nMetadata on disk?) then (no)
+    elseif (Force flag given?) then (yes)
+    elseif (Version in metadata,\nsame as in manifest?) then (yes)
+        stop
+    elseif (Hash on disk same\nas in metadata?) then (yes)
+    else (no)
+       stop
+    endif
+
+    ' if (Hash on disk same\nas in metadata?) then (yes)
+    ' elseif (Force flag given?) then (yes)
+    ' else
+    '     stop
+    ' endif
+}
+
+partition "Prepare for update" {
+    :Clear target folder;
+}
+
+partition "Perform Update" {
+
+    if (Tag given?) then (yes)
+        :Use tag;
+    elseif (Revision only given\nand enough?) then (yes)
+        :Use exact revision;
+    elseif (Branch given?) then (yes)
+        :Use branch
+        and optionally
+         revision;
+    else
+        :Use default branch
+        and optionally
+         revision;
+    endif
+
+    :Fetch target:
+    revision/tag/branch;
+
+    if (Patch given?) then (yes)
+        :Apply patch;
+    endif
+}
+
+    if (Successful?) then (no)
+        stop
+    else (yes)
+    endif
+
+partition "Update administration" {
+    :Hash directory;
+    :Update Metadata;
+}
+
+stop
+@enduml

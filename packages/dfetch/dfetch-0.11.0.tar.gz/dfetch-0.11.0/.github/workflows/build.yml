@@ -1,0 +1,224 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      release_id:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+      security-events: write
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # Fetches all history and tags
+
+      - name: Setup Python
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Zig (Windows)
+        if: runner.os == 'Windows'
+        run: choco install zig --version=0.15.2 -y
+
+      - name: Set up Ruby
+        if: ${{ matrix.platform != 'windows-latest' }}
+        uses: ruby/setup-ruby@4c24fa5ec04b2e79eb40571b1cee2a0d2b705771  #v1.278.0
+        with:
+          ruby-version: 3.3 # See also devcontainer
+
+      - name: Install fpm
+        if: ${{ matrix.platform != 'windows-latest' }}
+        run: |
+          gem install --no-document fpm --version 1.17.0
+          fpm --version
+
+      - name: Add msbuild to PATH
+        if: ${{ matrix.platform == 'windows-latest' }}
+        uses: microsoft/setup-msbuild@767f00a3f09872d96a0cb9fcd5e6a4ff33311330 # v2
+      - name: Install WiX
+        if: ${{ matrix.platform == 'windows-latest' }}
+        run: |
+          dotnet tool install --global wix --version 6.0.2
+          echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          wix --version
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@5ebbd400eff9e74630f759d94ddd7b6c26299639 # v1.2
+        if: ${{ matrix.platform != 'windows-latest' }}
+        with:
+          key: ${{ github.job }}-${{ matrix.platform }}
+          verbose: 1
+          create-symlink: true
+
+      - name: Setup cache for clcache
+        if: ${{ matrix.platform == 'windows-latest' }}
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        with:
+          path: ${{ github.workspace }}\.clcache
+          key: ${{ github.job }}-${{ matrix.platform }}
+
+      - name: Create sbom, binary & package
+        env:
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_NOHASHDIR: true
+          NUITKA_CACHE_DIR_CCACHE: ${{ github.workspace }}/.ccache
+          NUITKA_CACHE_DIR_CLCACHE: ${{ github.workspace }}\.clcache
+          NUITKA_CCACHE_BINARY: /usr/bin/ccache
+        run: |
+          pip install .[build]
+          python script/create_sbom.py
+          python script/build.py
+          python script/package.py
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: binary-distribution-${{ matrix.platform }}
+          path: |
+              build/dfetch-package/*.deb
+              build/dfetch-package/*.rpm
+              build/dfetch-package/*.pkg
+              build/dfetch-package/*.msi
+              build/dfetch-package/*.cdx.json
+
+      - name: Upload installer to release
+        if: ${{ inputs.release_id }}
+        uses: softprops/action-gh-release@5122b4edc95f85501a71628a57dc180a03ec7588 # v2.5.0
+        with:
+          tag_name: ${{ inputs.release_id }}
+          files: |
+              build/dfetch-package/*.deb
+              build/dfetch-package/*.rpm
+              build/dfetch-package/*.pkg
+              build/dfetch-package/*.msi
+              build/dfetch-package/*.cdx.json
+          draft: true
+          preserve_order: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-binary:
+    name: Test dfetch from installer
+    needs:
+    - build
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+    - name: Download the binary artifact
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v5
+      with:
+        name: binary-distribution-${{ matrix.platform }}
+        path: .
+
+    - name: Install binary
+      if: matrix.platform == 'ubuntu-latest'
+      run: |
+        sudo dpkg -i dfetch*.deb
+        sudo dpkg -L dfetch
+        echo "/opt/dfetch" >> $GITHUB_PATH
+      shell: bash
+
+    - name: Install binary
+      if: matrix.platform == 'macos-latest'
+      run: |
+        sudo installer -pkg dfetch*.pkg -target / -verboseR
+        echo "/opt/dfetch/opt/dfetch" >> $GITHUB_PATH
+      shell: bash
+
+    - name: Install binary
+      if: matrix.platform == 'windows-latest'
+      run: |
+        $file = Get-ChildItem dfetch*.msi | Select-Object -First 1
+        if (-not $file) { throw "MSI not found" }
+        $log = "install.log"
+        $procMain = Start-Process "msiexec" "/i `"$file`" /qn /l*! `"$log`"" -NoNewWindow -PassThru
+        $procLog = Start-Process "powershell" "Get-Content -Path `"$log`" -Wait" -NoNewWindow -PassThru
+        $procMain.WaitForExit()
+        $procLog.Kill()
+        echo "C:\Program Files (x86)\dfetch" >> $env:GITHUB_PATH
+      shell: pwsh
+
+    - run: dfetch init
+    - run: dfetch environment
+    - run: dfetch validate
+    - run: dfetch check
+    - run: dfetch update
+    - run: dfetch update
+    - run: dfetch report -t sbom
+
+
+  build-whl:
+    name: Build wheel 📦
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        persist-credentials: false
+        fetch-depth: 0  # Fetches all history and tags
+    - name: Set up Python
+      uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+      with:
+        python-version: '3.13'
+    - name: Install dependencies
+      run: python -m pip install --upgrade pip build --user
+    - name: Build a binary wheel and a source tarball
+      run: python3 -m build
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  release:
+    name: Upload wheel to release 📦
+    runs-on: ubuntu-latest
+    if: ${{ inputs.release_id }}
+    needs: build-whl
+    permissions:
+      contents: write
+      security-events: write
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v5
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Upload artifacts to release
+      uses: softprops/action-gh-release@5122b4edc95f85501a71628a57dc180a03ec7588 # v2.5.0
+      with:
+        tag_name: ${{ inputs.release_id }}
+        files: dist/*
+        draft: true
+        preserve_order: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

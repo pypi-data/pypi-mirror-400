@@ -1,0 +1,133 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+    -   id: trailing-whitespace
+        exclude: ^doc/static/uml/styles/plantuml-c4/
+    -   id: end-of-file-fixer
+        exclude: ^doc/static/uml/styles/plantuml-c4/
+    -   id: check-yaml
+    -   id: check-added-large-files
+-   repo: local
+    hooks:
+    -   id: isort
+        name: Sort import
+        entry: isort
+        language: system
+        types: [file, python]
+        exclude: ^doc/_ext/sphinxcontrib_asciinema
+
+    -   id: black
+        name: Black (auto-format)
+        entry: black
+        language: system
+        types: [file, python]
+        exclude: ^doc/_ext/sphinxcontrib_asciinema
+
+    -   id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [file, python]
+
+    # -   id: flake8
+    #     name: flake8
+    #     entry: flake8
+    #     language: system
+    #     files: ^dfetch/
+    #     types: [file, python]
+    -   id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        files: ^dfetch/
+        types: [file, python]
+    -   id: doc8
+        name: doc8
+        entry: doc8
+        language: system
+        files: ^doc/
+        types: [file]
+    -   id: pydocstyle
+        name: pydocstyle
+        entry: pydocstyle
+        language: system
+        files: ^dfetch/
+        types: [file, python]
+    -   id: bandit (security)
+        name: bandit
+        entry: bandit
+        language: system
+        files: ^dfetch/
+        types: [file, python]
+    -   id: vulture (dead code)
+        name: vulture
+        language: python
+        entry: vulture
+        args: ["--min-confidence=80"]
+        types: [python]
+        files: ^dfetch/
+        require_serial: true
+    -   id: pyroma (package friendliness)
+        name: Pyroma
+        entry: pyroma
+        language: python
+        args: ["-d", "--min=10", "."]
+        pass_filenames: false
+        always_run: true
+    -   id: radon (maintenance index)
+        name: radon (maintenance index)
+        entry: radon
+        language: system
+        files: ^dfetch/
+        args: [mi, -nb]
+        types: [file, python]
+    -   id: radon (cyclomatic complexity)
+        name: radon (cyclomatic complexity)
+        entry: radon
+        language: system
+        files: ^dfetch/
+        args: [cc, -nb]
+        types: [file, python]
+    -   id: xenon
+        name: xenon
+        entry: xenon
+        language: system
+        files: ^dfetch/
+        args: [-b, B, -m, A, -a, A]
+        types: [file, python]
+    -   id: codespell
+        name: codespell
+        description: Checks for common misspellings in text files.
+        entry: codespell
+        language: python
+        exclude: ^doc/_ext/sphinxcontrib_asciinema/_static/asciinema-player_3.12.1.js
+        types: [text]
+    -   id: ruff
+        name: ruff
+        description: Lint using ruff
+        entry: ruff
+        language: python
+        args: [check]
+        types: [file, python]
+    -   id: pyright
+        name: pyright
+        description: Lint using pyright
+        entry: pyright
+        language: python
+        types: [file, python]
+    -   id: pyupgrade
+        name: pyupgrade
+        description: Modernize python
+        entry: pyupgrade
+        language: python
+        files: ^dfetch/
+        args: [--py39-plus]
+        types: [file, python]
+
+-   repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+    -   id: gitleaks

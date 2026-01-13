@@ -1,0 +1,61 @@
+name: Test
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Subversion (SVN)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y subversion
+          svn --version  # Verify installation
+          svnadmin --version  # Verify installation
+
+      - name: Install dependencies
+        run: |
+          pip install .[development,test]
+
+      - run: codespell                                                 # Check for typo's
+      - run: isort --diff dfetch                                       # Checks import order
+      - run: black --check dfetch                                      # Checks code style
+      # - run: flake8 dfetch                                           # Checks pep8 conformance
+      - run: pylint dfetch                                             # Checks pep8 conformance
+      - run: ruff check dfetch                                         # Check using ruff
+      - run: mypy dfetch                                               # Check types
+      - run: pyright .                                                 # Check types
+      - run: doc8 doc                                                  # Checks documentation
+      - run: pydocstyle dfetch                                         # Checks doc strings
+      - run: bandit -r dfetch                                          # Checks security issues
+      - run: xenon -b B -m A -a A dfetch                               # Check code quality
+      - run: pytest --cov=dfetch  tests                                # Run tests
+      - run: coverage run --source=dfetch --append -m behave features  # Run features tests
+      - run: coverage xml -o coverage.xml                              # Create XML report
+      - run: pyroma --directory --min=10 .                             # Check pyproject
+      - run: find dfetch -name "*.py" | xargs pyupgrade --py39-plus    # Check syntax
+
+      - name: Run codacy-coverage-reporter
+        uses: codacy/codacy-coverage-reporter-action@a38818475bb21847788496e9f0fddaa4e84955ba # master
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          coverage-reports: coverage.xml
+        env:
+          CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
+        if: "${{ (!!env.CODACY_PROJECT_TOKEN) }}"
