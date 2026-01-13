@@ -1,0 +1,100 @@
+# AIndex-DIY
+
+**AI Agent Index** - Route queries to the right AI agent.
+
+A lightweight, DIY framework for building your own multi-agent routing system.
+
+## Installation
+
+```bash
+pip install aindex-diy
+```
+
+## Quick Start
+
+```python
+from aindex_diy import AIndex
+
+# Create an index from a JSON file
+aindex = AIndex("my_agents.json")
+
+# Or create programmatically
+aindex = AIndex()
+aindex.add_agent({
+    "agent_id": "vision_bot",
+    "name": "Vision Bot",
+    "capabilities": ["vision", "image-analysis"],
+    "keywords": ["image", "photo", "diagram"],
+    "status": "approved",
+    "state": {"health": "ok"}
+})
+
+# Route a query to the best agent
+best = aindex.route("analyze this screenshot")
+# Returns: "vision_bot"
+
+# Find agents by capability
+vision_agents = aindex.find_by_capability("vision")
+# Returns: ["vision_bot"]
+
+# Get agent details
+agent = aindex.get_agent("vision_bot")
+```
+
+## Index Format
+
+```json
+{
+    "agents": [
+        {
+            "agent_id": "my_agent",
+            "name": "My Agent",
+            "capabilities": ["code", "analysis"],
+            "keywords": ["python", "debug"],
+            "aliases": ["coder"],
+            "status": "approved",
+            "state": {"health": "ok"}
+        }
+    ],
+    "indices": {
+        "by_capability": {"code": ["my_agent"]},
+        "by_keyword": {"python": ["my_agent"]},
+        "by_alias": {"coder": "my_agent"}
+    }
+}
+```
+
+## Features
+
+- **Simple routing** - Match queries to agents by keywords
+- **Capability-based lookup** - Find agents by what they can do
+- **Flexible indexing** - Auto-rebuilds indices when agents change
+- **Health tracking** - Know which agents are online
+- **Zero dependencies** - Pure Python, no external packages
+
+## Custom Routing Rules
+
+```python
+aindex = AIndex()
+
+# Override default routing keywords
+aindex.routing_rules = {
+    "vision": ["image", "photo", "screenshot"],
+    "code": ["python", "javascript", "debug"],
+    "research": ["analyze", "compare", "study"],
+}
+
+# Route with custom capability mapping
+best = aindex.route(
+    "debug this python code",
+    capability_map={"code": "my_python_expert"}
+)
+```
+
+## License
+
+MIT - Build your own agent index!
+
+---
+
+Made with care by [HumoticaOS](https://humotica.com)
