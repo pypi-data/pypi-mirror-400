@@ -1,0 +1,178 @@
+# perf-sdk
+
+Official Python SDK for [Perf](https://withperf.pro) - the AI Runtime Orchestrator.
+
+Perf automatically picks the best AI model for your prompt based on:
+- Task type and complexity
+- Cost constraints
+- Output reliability
+- Fallback logic
+
+## Installation
+
+```bash
+pip install perf-sdk
+```
+
+## Quick Start
+
+```python
+from perf import PerfClient
+
+client = PerfClient(api_key="pk_live_your_api_key")
+
+# Simple chat completion
+response = client.chat(
+    messages=[
+        {"role": "user", "content": "What is the capital of France?"}
+    ]
+)
+
+print(response.choices[0].message.content)
+# Output: "The capital of France is Paris."
+
+# Access Perf metadata
+print(response.perf)
+# PerfMetadata(model_used='gpt-4o-mini', cost_usd=0.0001, latency_ms=234, ...)
+```
+
+## Streaming
+
+```python
+# Stream responses
+for chunk in client.chat_stream(
+    messages=[{"role": "user", "content": "Write a haiku about coding"}]
+):
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="", flush=True)
+
+# Or collect into a string
+content = client.chat_stream_to_string(
+    messages=[{"role": "user", "content": "Explain quantum computing"}]
+)
+```
+
+## Async Support
+
+```python
+import asyncio
+from perf import AsyncPerfClient
+
+async def main():
+    async with AsyncPerfClient(api_key="pk_live_your_api_key") as client:
+        # Async chat completion
+        response = await client.chat(
+            messages=[{"role": "user", "content": "Hello!"}]
+        )
+        print(response.choices[0].message.content)
+
+        # Async streaming
+        async for chunk in client.chat_stream(
+            messages=[{"role": "user", "content": "Tell me a story"}]
+        ):
+            if chunk.choices[0].delta.content:
+                print(chunk.choices[0].delta.content, end="", flush=True)
+
+asyncio.run(main())
+```
+
+## Error Handling
+
+```python
+from perf import (
+    PerfClient,
+    PerfError,
+    RateLimitError,
+    AuthenticationError,
+)
+import time
+
+client = PerfClient(api_key="pk_live_your_api_key")
+
+try:
+    response = client.chat(
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+except RateLimitError as e:
+    # Wait and retry
+    retry_after = e.retry_after or 60
+    print(f"Rate limited. Retry after {retry_after} seconds")
+    time.sleep(retry_after)
+except AuthenticationError:
+    print("Invalid API key")
+except PerfError as e:
+    print(f"API Error: {e.code} - {e.message}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+## Configuration Options
+
+```python
+client = PerfClient(
+    api_key="pk_live_your_api_key",      # Required
+    base_url="https://api.withperf.pro",  # Optional, default shown
+    timeout=120.0,                         # Request timeout in seconds (default: 120)
+    max_retries=3,                         # Retry attempts (default: 3)
+    retry_delay=1.0,                       # Base retry delay in seconds (default: 1)
+)
+```
+
+## Request Options
+
+```python
+response = client.chat(
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Hello!"},
+    ],
+    model="gpt-4o",           # Optional: override model selection
+    max_tokens=1000,          # Optional: limit response length
+    temperature=0.7,          # Optional: sampling temperature
+    max_cost_per_call=0.01,   # Optional: cost budget in USD
+    metadata={                # Optional: custom metadata
+        "user_id": "123",
+        "session_id": "abc",
+    },
+)
+```
+
+## Context Manager
+
+Both sync and async clients support context managers for proper resource cleanup:
+
+```python
+# Sync
+with PerfClient(api_key="pk_live_xxx") as client:
+    response = client.chat(messages=[...])
+
+# Async
+async with AsyncPerfClient(api_key="pk_live_xxx") as client:
+    response = await client.chat(messages=[...])
+```
+
+## Features
+
+- **Full type hints** with Pydantic models
+- **Sync and async clients** for different use cases
+- **Streaming support** with iterators/async iterators
+- **Automatic retries** with exponential backoff
+- **Typed exceptions** for different error types
+- **Timeout handling** with configurable limits
+
+## Requirements
+
+- Python 3.9 or higher
+- httpx
+- pydantic
+
+## Links
+
+- [Documentation](https://docs.withperf.pro)
+- [Dashboard](https://dashboard.withperf.pro)
+- [Status](https://status.withperf.pro)
+- [GitHub Issues](https://github.com/Perf-Technology/perf-autopilot/issues)
+
+## License
+
+MIT
