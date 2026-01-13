@@ -1,0 +1,577 @@
+#
+# Metadata elements used in InvenioRDM.
+#
+#
+# WIP: do not use yet!
+#
+
+RDMPublicationDate:
+  type: edtf
+  label:
+    en: Publication date
+    cs: Datum publikace
+  hint:
+    en: The date when the resource was or will be made publicly available.
+    cs: Datum, kdy byl/bude zdroj zveřejněn.
+  help:
+    en: Provide the publication date in ISO 8601 format (YYYY-MM-DD). If the exact date is unknown, use the earliest known date.
+    cs: Uveďte datum publikace ve formátu ISO 8601 (RRRR-MM-DD). Pokud není přesné datum známo, použijte nejdříve známé datum.
+
+RDMPublisher:
+  type: fulltext+keyword
+  label:
+    en: Publisher
+    cs: Vydavatel
+  hint:
+    en: The entity responsible for making the resource available.
+    cs: Subjekt odpovědný za zpřístupnění zdroje.
+  help:
+    en: Provide the name of the publisher or organization that published the resource. This could be an institution, company, or individual.
+    cs: Uveďte název vydavatele nebo organizace, která zdroj vydala. Může to být instituce, společnost nebo jednotlivec.
+
+RDMIdentifier:
+  label:
+    cs: Identifikátor
+    en: Identifier
+  # we can't use IdentifierSchema class here as it needs to get an argument with
+  # a list of allowed schemes
+  # marshmallow_schema_class: marshmallow_utils.schemas.identifier.IdentifierSchema
+  properties:
+    identifier:
+      type: keyword
+      required: true
+      label:
+        cs: identifikátor
+        en: Identifier
+    scheme:
+      type: keyword
+      required: true
+      label:
+        cs: Typ identifikátoru
+        en: Identifier Type
+
+RDMCreatibutor:
+  # no marshmallow here as RDM has separate marshmallow classes for creator and contributor
+  # marshmallow_schema_class: invenio_rdm_records.services.schemas.metadata.CreatorSchema
+  properties:
+    role:
+      type: vocabulary
+      vocabulary-type: contributorsroles
+      label:
+        cs: Role
+        en: Role
+      hint:
+        cs: Vyberte roli tvůrce/přispěvatele z nabídky (editor, ilustrátor…).
+        en: Choose the role of the creator/contributor (editor, illustrator…).
+    affiliations:
+      type: array
+      label:
+        cs: Afiliace
+        en: Affiliation
+      items:
+        type: vocabulary
+        vocabulary-type: affiliations
+        keys:
+          - name:
+              type: keyword
+          - identifiers:
+              type: array
+              items:
+                type: RDMIdentifier
+
+    person_or_org:
+      type: RDMPersonOrOrg
+      marshmallow_schema_class: invenio_rdm_records.services.schemas.metadata.PersonOrOrganizationSchema
+
+      label:
+        cs: Osoba nebo organizace
+        en: Person or Organization
+
+RDMFunding:
+  label:
+    cs: "Granty a financování"
+    en: "Funding Reference"
+  ui_marshmallow_schema_class: invenio_rdm_records.resources.serializers.ui.schema.FundingSchema
+  marshmallow_schema_class: invenio_rdm_records.services.schemas.metadata.FundingSchema
+  properties:
+    funder:
+      type: vocabulary
+      class: oarepo_runtime.records.relations.UnstrictPIDRelation
+      keys:
+        - name:
+            type: fulltext
+        - identifiers:
+            type: array
+            items:
+              type: RDMIdentifier
+
+      vocabulary-type: funders
+      label:
+        cs: Poskytovatel financí
+        en: Funder
+      hint:
+        cs: Začněte zapisovat název poskytovatele, následně vyberte z nabídky našeptavače.
+        en: Start typing the name of the funder, then select the funder from the menu.
+
+    award:
+      keys:
+        - title:
+            type: i18ndict
+        - number:
+            type: keyword
+        - identifiers:
+            type: array
+            items:
+              type: RDMIdentifier
+        - acronym:
+            type: keyword
+        - program:
+            type: keyword
+        - subjects:
+            type: array
+            items:
+              properties:
+                id:
+                  type: keyword
+                subject:
+                  type: keyword
+        - organizations:
+            type: array
+            items:
+              type: object
+              properties:
+                scheme:
+                  type: keyword
+                id:
+                  type: keyword
+                organization:
+                  type: keyword
+      type: vocabulary
+      vocabulary-type: awards
+      label:
+        cs: Číslo projektu
+        en: Award number
+
+    # subjects seem not to be on funding in RDM
+    # subjects:
+    #   type: array
+    #   items:
+    #     type: vocabulary
+    #     vocabulary-type: subjects
+    #     keys:
+    #       - subject:
+    #           type: keyword
+    #       - scheme:
+    #           type: keyword
+    #       - props:
+    #           type: dynamic-object
+    #   label:
+    #     cs: Předměty
+    #     en: Subjects
+
+RDMSubject:
+  label:
+    cs: Předmět
+    en: Subject
+  marshmallow_schema_class: invenio_vocabularies.contrib.subjects.schema.SubjectRelationSchema
+  properties:
+    id:
+      type: keyword
+      label.cs: Identifikátor předmětu
+      label.en: Subject Identifier
+
+    subject:
+      # TODO: in RDM, subjects are not yet multilingual in their serialization to record
+      # (they are internally), this probably will change in the future
+      # type: multilingual
+      type: keyword
+      label.cs: Předmět
+      label.en: Subject
+
+RDMPersonOrOrg:
+  marshmallow_schema_class: invenio_rdm_records.services.schemas.metadata.PersonOrOrganizationSchema
+  properties:
+    name:
+      type: keyword
+      label.cs: Plné jméno
+      label.en: Full Name
+    type:
+      type: keyword
+      enum: [personal, organizational]
+      label.cs: Typ
+      label.en: Type
+    given_name:
+      type: keyword
+      label.cs: Jméno
+      label.en: Name
+    family_name:
+      type: keyword
+      label.cs: Příjmení
+      label.en: Family Name
+    identifiers:
+      type: array
+      label:
+        en: Identifiers
+        cs: Identifikátory
+      items:
+        type: RDMIdentifier
+        marshmallow:
+          generate: false
+          read: false
+          write: false
+
+RDMRecordVersion:
+  type: keyword
+  label:
+    en: Record Version
+    cs: Verze záznamu
+
+RDMTitle:
+  type: fulltext+keyword
+  label:
+    en: Title
+    cs: Název
+
+RDMAdditionalTitles:
+  type: array
+  label:
+    en: Additional titles
+    cs: Další názvy záznamu
+  items:
+    type: object
+    marshmallow_schema_class: invenio_rdm_records.services.schemas.metadata.TitleSchema
+    ui_marshmallow_schema_class: invenio_rdm_records.resources.serializers.ui.schema.AdditionalTitlesSchema
+    properties:
+      title:
+        type: fulltext
+      type:
+        type: vocabulary
+        vocabulary-type: titletypes
+      lang:
+        type: vocabulary
+        vocabulary-type: languages
+
+RDMAdditionalDescriptions:
+  type: array
+  label:
+    en: Additional descriptions
+    cs: Další popisy záznamu
+  items:
+    type: object
+    marshmallow_schema_class: invenio_rdm_records.services.schemas.metadata.DescriptionSchema
+    ui_marshmallow_schema_class: invenio_rdm_records.resources.serializers.ui.schema.AdditionalDescriptionsSchema
+    properties:
+      description:
+        type: fulltext
+      type:
+        type: vocabulary
+        vocabulary-type: descriptiontypes
+      lang:
+        type: vocabulary
+        vocabulary-type: languages
+
+RDMRecordIdentifiers:
+  label:
+    en: Identifiers
+    cs: Identifikátory
+  hint:
+    en: Alternate identifiers for the record.
+    cs: Alternativní identifikátory záznamu.
+  help:
+    en: Include any identifiers that reference this record, such as DOIs, Handles, or other scheme-based IDs.
+    cs: Uveďte jakékoliv identifikátory, které odkazují na tento záznam, jako jsou DOI, Handle nebo jiné identifikátory založené na schématu.
+  type: array
+  items:
+    type: RDMIdentifier
+  marshmallow_field_class: oarepo_rdm.services.schemas.RDMRecordIdentifiers
+
+RDMCreator:
+  type: RDMCreatibutor
+  marshmallow_schema_class: invenio_rdm_records.services.schemas.metadata.CreatorSchema
+
+RDMContributor:
+  type: RDMCreatibutor
+  marshmallow_schema_class: invenio_rdm_records.services.schemas.metadata.ContributorSchema
+
+RDMCreators:
+  label:
+    en: Creators
+    cs: Autoři
+  type: array
+  items:
+    type: RDMCreator
+  ui_marshmallow_field_class: oarepo_rdm.services.schemas.RDMCreatorListUIField
+
+RDMContributors:
+  label:
+    en: Contributors
+    cs: Přispěvatelé
+  type: array
+  items:
+    type: RDMContributor
+  ui_marshmallow_field_class: oarepo_rdm.services.schemas.RDMContributorListUIField
+
+RDMSubjects:
+  label:
+    en: Subjects
+    cs: Předměty
+  type: array
+  items:
+    type: RDMSubject
+
+RDMFundings:
+  type: array
+  label:
+    en: Funding references
+    cs: Financování
+  items:
+    type: RDMFunding
+  hint:
+    en: Information about grants or other funding sources supporting this research.
+    cs: Informace o grantech nebo jiných zdrojích financování podporujících tento výzkum.
+  help:
+    en: Include details of funding bodies, grant numbers, and related information.
+    cs: Uveďte podrobnosti o financujících institucích, číslech grantů a související informace.
+
+RDMResourceType:
+  type: vocabulary
+  vocabulary-type: resourcetypes
+  label:
+    en: Resource type
+    cs: Typ záznamu
+
+RDMLanguages:
+  type: array
+  items:
+    type: vocabulary
+    vocabulary-type: languages
+
+RDMSizes:
+  type: array
+  items:
+    type: keyword
+
+RDMFormats:
+  type: array
+  items:
+    type: keyword
+
+RDMDate:
+  label:
+    en: Date
+    cs: Datum
+  properties:
+    date:
+      type: edtf
+      label:
+        en: Date
+        cs: Datum
+      hint:
+        en: Date, datetime or date interval in EDTF level 0 format
+        cs: Datum, datum a čas nebo časový interval ve formátu EDTF úrovně 0
+    type:
+      type: vocabulary
+      vocabulary-type: datetypes
+      label:
+        en: Date type
+        cs: Typ data
+    description:
+      type: fulltext
+      label:
+        en: Description
+        cs: Popis
+      hint:
+        en: Description of the date, datetime or date interval e.g. 'Accepted' or 'Available'
+        cs: Popis data, data a času nebo časového intervalu, např. 'Přijato' nebo 'Dostupné'
+
+RDMDates:
+  type: array
+  label:
+    en: Dates
+    cs: Data
+  items:
+    type: RDMDate
+  hint:
+    en: Important dates related to this resource
+    cs: Důležitá data související s tímto zdrojem
+
+RDMRelatedIdentifier:
+  label:
+    en: Related identifier
+    cs: Související identifikátor
+  properties:
+    identifier:
+      type: keyword
+      required: true
+      label:
+        en: Identifier
+        cs: Identifikátor
+    scheme:
+      type: keyword
+      required: true
+      label:
+        en: Scheme
+        cs: Schéma
+    relation_type:
+      type: vocabulary
+      vocabulary-type: relationtypes
+      label:
+        en: Relation type
+        cs: Typ vztahu
+    resource_type:
+      type: vocabulary
+      vocabulary-type: resourcetypes
+      label:
+        en: Resource type
+        cs: Typ zdroje
+
+RDMRelatedIdentifiers:
+  type: array
+  label:
+    en: Related identifiers
+    cs: Související identifikátory
+  items:
+    type: RDMRelatedIdentifier
+  hint:
+    en: Identifiers of related resources
+    cs: Identifikátory souvisejících zdrojů
+
+RDMRight:
+  label:
+    en: License or rights statement
+    cs: Licence nebo prohlášení o právech
+  type: vocabulary
+  vocabulary-type: licenses
+  keys:
+    - id:
+        type: keyword
+    - title:
+        type: i18ndict
+    - description:
+        type: i18ndict
+    - icon:
+        type: keyword
+    - props.url:
+        type: keyword
+    - props.scheme:
+        type: keyword
+    - link:
+        type: keyword
+
+RDMRights:
+  type: array
+  label:
+    en: Rights
+    cs: Práva
+  items:
+    type: RDMRight
+  hint:
+    en: Any license or copyright information for this resource
+    cs: Jakékoliv informace o licenci nebo autorských právech k tomuto zdroji
+
+RDMCopyright:
+  type: fulltext
+  label:
+    en: Copyright
+    cs: Autorská práva
+  hint:
+    en: Copyright information for record (may contain HTML)
+    cs: Informace o autorských právech k záznamu (může obsahovat HTML)
+
+RDMDescription:
+  type: fulltext
+  label:
+    en: Description
+    cs: Popis
+  hint:
+    en: Description for record (may contain HTML)
+    cs: Popis záznamu (může obsahovat HTML)
+
+RDMLocationFeature:
+  label:
+    en: Location feature
+    cs: Geografická vlastnost
+  properties:
+    geometry:
+      type: dynamic-object
+      label:
+        en: Geometry
+        cs: Geometrie
+      hint:
+        en: GeoJSON geometry object
+        cs: GeoJSON objekt geometrie
+    identifiers:
+      type: array
+      label:
+        en: Identifiers
+        cs: Identifikátory
+      items:
+        type: RDMIdentifier
+    place:
+      type: fulltext
+      label:
+        en: Place
+        cs: Místo
+      hint:
+        en: Place name of the location
+        cs: Název místa
+    description:
+      type: fulltext
+      label:
+        en: Description
+        cs: Popis
+      hint:
+        en: Description of the location
+        cs: Popis lokace
+
+RDMLocations:
+  type: object
+  label:
+    en: Locations
+    cs: Lokace
+  hint:
+    en: Geographical locations relevant to this record
+    cs: Geografické lokace relevantní k tomuto záznamu
+  properties:
+    features:
+      type: array
+      label:
+        en: Features
+        cs: Vlastnosti
+      items:
+        type: RDMLocationFeature
+
+RDMReference:
+  label:
+    en: Reference
+    cs: Reference
+  properties:
+    reference:
+      type: fulltext
+      label:
+        en: Reference string
+        cs: Textová reference
+      hint:
+        en: A reference string
+        cs: Textová reference
+    identifier:
+      type: keyword
+      label:
+        en: Identifier
+        cs: Identifikátor
+    scheme:
+      type: keyword
+      label:
+        en: Scheme
+        cs: Schéma
+
+RDMReferences:
+  type: array
+  label:
+    en: References
+    cs: Reference
+  items:
+    type: RDMReference
+  hint:
+    en: Related publications or references
+    cs: Související publikace nebo reference
