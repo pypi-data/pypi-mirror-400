@@ -1,0 +1,423 @@
+{% extends "admin/base.html" %}
+{% load i18n admin_urls static admin_list %}
+{% load dash_tags %}
+
+{% block extrastyle %}
+    {#  <link rel="stylesheet" href="{% static "admin/css/changelists.css" %}">#}
+    {#  <link rel="stylesheet" href="{% static "admin/css/base.css" %}">#}
+
+    {{ block.super }}
+    {% if cl.formset or action_form %}
+        <script src="{% url 'admin:jsi18n' %}"></script>
+    {% endif %}
+    {{ media.css }}
+    {% if not actions_on_top and not actions_on_bottom %}
+        <style>
+            #changelist table thead th:first-child {
+                width: inherit
+            }
+        </style>
+    {% endif %}
+    <style>
+        .list-hero {
+            position: relative;
+            overflow: hidden;
+            border-radius: 1.5rem;
+            border: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+            background: linear-gradient(135deg, var(--color-base-100) 0%, var(--color-base-200) 55%, var(--color-base-300) 100%);
+        }
+
+        .list-hero::before {
+            content: "";
+            position: absolute;
+            inset: -40% auto auto -10%;
+            width: 320px;
+            height: 320px;
+            background: radial-gradient(circle, color-mix(in oklab, var(--color-primary) 25%, transparent), transparent 65%);
+            filter: blur(12px);
+        }
+
+        .list-hero::after {
+            content: "";
+            position: absolute;
+            inset: auto -15% -55% auto;
+            width: 420px;
+            height: 420px;
+            background: radial-gradient(circle, color-mix(in oklab, var(--color-accent) 25%, transparent), transparent 70%);
+            filter: blur(18px);
+        }
+
+        .list-hero-grid {
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(color-mix(in oklab, var(--color-base-content) 6%, transparent) 1px, transparent 1px),
+            linear-gradient(90deg, color-mix(in oklab, var(--color-base-content) 6%, transparent) 1px, transparent 1px);
+            background-size: 36px 36px;
+            mask-image: radial-gradient(circle at top, rgba(0, 0, 0, 0.5), transparent 70%);
+            pointer-events: none;
+        }
+
+        .list-stat {
+            border-radius: 1rem;
+            border: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+            background: color-mix(in oklab, var(--color-base-100) 80%, transparent);
+        }
+
+        .ts-dropdown {
+            z-index: 60;
+        }
+
+        .list-surface {
+            background: linear-gradient(160deg, color-mix(in oklab, var(--color-base-100) 95%, transparent), color-mix(in oklab, var(--color-base-200) 80%, transparent));
+            border: 1px solid color-mix(in oklab, var(--color-base-content) 8%, transparent);
+        }
+
+        .filter-shell {
+            border-radius: 0.75rem;
+            border: 1px solid color-mix(in oklab, var(--color-base-content) 12%, transparent);
+            background: color-mix(in oklab, var(--color-base-100) 85%, transparent);
+            box-shadow: 0 18px 30px -28px color-mix(in oklab, var(--color-base-content) 25%, transparent);
+            backdrop-filter: blur(12px);
+        }
+
+        .filter-header {
+            border-radius: 0.6rem;
+            background: color-mix(in oklab, var(--color-base-100) 78%, transparent);
+            border: 1px solid color-mix(in oklab, var(--color-base-content) 12%, transparent);
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-card {
+            position: relative;
+            border-radius: 0.6rem;
+            border: 1px solid color-mix(in oklab, var(--color-base-content) 12%, transparent);
+            background: color-mix(in oklab, var(--color-base-100) 80%, transparent);
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-search-input {
+            background: color-mix(in oklab, var(--color-base-100) 82%, transparent);
+            border: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+            backdrop-filter: blur(8px);
+        }
+
+        .filter-shell .ts-control {
+            background: color-mix(in oklab, var(--color-base-100) 85%, transparent) !important;
+            border-color: color-mix(in oklab, var(--color-base-content) 12%, transparent) !important;
+            color: var(--color-base-content);
+        }
+
+        .filter-shell .ts-dropdown,
+        .filter-shell .ts-dropdown-content {
+            background: color-mix(in oklab, var(--color-base-100) 92%, transparent);
+            color: var(--color-base-content);
+            border-color: color-mix(in oklab, var(--color-base-content) 12%, transparent);
+        }
+
+        .filter-shell .ts-dropdown .option {
+            color: var(--color-base-content);
+        }
+
+        .filter-shell .ts-dropdown .active,
+        .filter-shell .ts-dropdown .option:hover {
+            background: color-mix(in oklab, var(--color-base-200) 80%, transparent);
+        }
+    </style>
+{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    {{ media.js }}
+    <script src="{% static 'admin/js/query_filter.js' %}?v=3" defer></script>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-{{ opts.app_label }} model-{{ opts.model_name }} change-list{% endblock %}
+
+{% if not is_popup %}
+    {% block breadcrumbs %}
+        <div class="text-sm breadcrumbs">
+            <ul>
+                <li><a href="{% url 'admin:index' %}" class="link link-hover">{% trans 'Dashboard' %}</a></li>
+                <li><a href="{% url 'admin:app_list' app_label=cl.opts.app_label %}"
+                       class="link link-hover">{{ cl.opts.app_config.verbose_name }}</a></li>
+                <li><a class="disabled" href="#">{{ cl.opts.verbose_name_plural|capfirst }}</a></li>
+            </ul>
+        </div>
+    {% endblock %}
+{% endif %}
+{% block content %}
+    {% get_active_filters_count cl as active_filters_count %}
+    <section class="list-hero p-6 md:p-8 mb-5">
+        <div class="list-hero-grid"></div>
+        <div class="relative z-10 flex flex-col gap-5">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div class="space-y-2">
+                    <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">
+                        {% trans "Manage" %}
+                    </p>
+                    <h1 class="text-3xl font-semibold md:text-4xl">
+                        {{ cl.opts.verbose_name_plural|capfirst }}
+                    </h1>
+                    <p class="text-sm text-base-content/70">
+                        {{ cl.opts.app_config.verbose_name }}
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    {% if cl.query %}
+                        <span class="badge badge-lg bg-base-100/80 text-base-content">
+                            {% trans "Search" %}: {{ cl.query }}
+                        </span>
+                    {% endif %}
+                    <span class="badge badge-lg bg-base-100/80 text-base-content">
+                        {% trans "Active filters" %}: {{ active_filters_count }}
+                    </span>
+                </div>
+            </div>
+            <div class="grid gap-3 md:grid-cols-3">
+                <div class="list-stat p-4">
+                    <p class="text-xs uppercase tracking-widest text-base-content/60">
+                        {% trans "Total records" %}
+                    </p>
+                    <p class="mt-2 text-3xl font-semibold">
+                        {{ cl.full_result_count|default:cl.result_count }}
+                    </p>
+                </div>
+                {% if cl.full_result_count != cl.result_count %}
+                    <div class="list-stat p-4">
+                        <p class="text-xs uppercase tracking-widest text-base-content/60">
+                            {% trans "Filtered" %}
+                        </p>
+                        <p class="mt-2 text-3xl font-semibold">{{ cl.result_count }}</p>
+                    </div>
+                {% endif %}
+                <div class="list-stat p-4">
+                    <p class="text-xs uppercase tracking-widest text-base-content/60">
+                        {% trans "Quick actions" %}
+                    </p>
+                    <p class="mt-2 text-sm text-base-content/70">
+                        {% trans "Search, filter, or add new records." %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {% if cl.formset and cl.formset.errors %}
+        <div class="alert alert-error mb-5 rounded" role="alert">
+            {% if cl.formset and cl.formset.errors %}
+                <div>
+                    <p class="errornote">
+                        <i class="fa fa-exclamation"></i>
+                        {% blocktranslate count counter=cl.formset.total_error_count %}Please correct the error
+                            below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+                    </p>
+                    <ul class="menu">
+                        {% for error in cl.formset.non_form_errors %}
+                            <li class="text-sm">{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- Start of drawer component -->
+    <div class="drawer drawer-end {% if SHOW_CHANGELIST_FILTER %} lg:drawer-open {% endif %}">
+        <input id="filter-drawer" type="checkbox" class="drawer-toggle"/>
+
+        <!-- Main content section -->
+        <div class="drawer-content flex flex-col w-full h-full">
+            <div id="content-main" class="card overflow-hidden sm:mt-3 mt-1 w-full h-full flex shadow-lg list-surface">
+                <div class="bg-base-100 w-full card-bordered flex-col flex-1">
+                    <div class="hidden" id="hidden-search-form">
+                        <form method="get">
+                            {% search_form cl %}
+                        </form>
+                    </div>
+
+                    <form id="changelist-form" method="post"{% if cl.formset and cl.formset.is_multipart %}
+                          enctype="multipart/form-data"{% endif %} novalidate>
+                        {% csrf_token %}
+                        <div class="sticky top-0 z-20 bg-base-100/90 backdrop-blur border-b border-base-200">
+                            <div class="flex gap-2 flex-wrap items-center justify-between sm:px-4 px-2 py-3">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    {% block search %}{% search_form cl %}{% endblock %}
+                                    {% if action_form and actions_on_top and cl.show_admin_actions %}
+                                        {% admin_actions %}
+                                    {% endif %}
+                                </div>
+                                <div class="object-tools inline-flex ms-auto flex-wrap max-md:justify-center gap-2 justify-between">
+                                    {% block object-tools %}
+                                        {% if cl.list_editable %}
+                                            <button class="btn btn-sm btn-primary" type="submit"
+                                                    name="_save">{% trans "Save" %}
+                                            </button>
+                                        {% endif %}
+                                        {% block object-tools-items %}
+                                            {% change_list_object_tools %}
+                                            <div class="indicator {% if SHOW_CHANGELIST_FILTER %} xl:hidden {% endif %}">
+                                                {% if active_filters_count %}
+                                                    <span class="indicator-item badge badge-info">{{ active_filters_count }}</span>
+                                                {% endif %}
+                                                {% if cl.list_filter %}
+                                                    <button type="button" id="open-filter-drawer"
+                                                            class="btn btn-sm btn-primary drawer-button">
+                                                        <i class="fa fa-filter"></i>
+                                                    </button>
+                                                {% endif %}
+                                            </div>
+                                        {% endblock %}
+                                    {% endblock %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body sm:px-4 px-2 py-3 w-full">
+                            {% if cl.formset %}
+                                <div>{{ cl.formset.management_form }}</div>
+                            {% endif %}
+
+                            {% block result_list %}
+                                <div class="overflow-auto max-h-[65vh]">
+                                    {% daisy_result_list cl %}
+                                </div>
+                            {% endblock %}
+                            <div class="mt-4">
+                                {% block pagination %}{% pagination cl %}{% endblock %}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+        {% if cl.has_filters %}
+            <!-- Filter section -->
+            <div id="changelist-filter"
+                 class="drawer-side {% if SHOW_CHANGELIST_FILTER %} mt-3 lg:ms-2 card-bordered {% endif %} !overflow-visible z-50 h-full">
+                <label for="filter-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+
+                <div class="card-body p-4 bg-base-100 w-80 h-full overflow-visible filter-shell">
+                    <div class="card-header flex items-center justify-between gap-2 p-3 filter-header">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.3em] text-base-content/50">
+                                {% translate 'Filter' %}
+                            </p>
+                            <h2 class="font-semibold text-lg">{% trans "Refine results" %}</h2>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            {% if active_filters_count %}
+                                <span class="badge badge-sm bg-base-100/80 text-base-content">
+                                    {{ active_filters_count }}
+                                </span>
+                            {% endif %}
+                            <button id="apply-filter" type="button"
+                                    class="btn btn-sm btn-primary">{% trans "Apply" %}</button>
+                        </div>
+                    </div>
+                    <div class="mt-3 rounded-2xl border border-base-200 bg-base-200/40 px-3 py-2">
+                        <label class="input input-bordered input-sm flex items-center gap-2 filter-search-input">
+                            <i class="fa fa-search text-base-content/50"></i>
+                            <input id="filter-search" type="text" class="grow" placeholder="{% trans 'Search filters' %}">
+                        </label>
+                    </div>
+                    {% if cl.is_facets_optional or active_filters_count %}
+                        <div id="changelist-filter-extra-actions" class="mb-3 mt-3 flex flex-wrap items-center justify-between gap-2">
+                            {% if cl.is_facets_optional %}
+                                <div class="form-control">
+                                    {% if cl.add_facets %}
+                                        <label class="label cursor-pointer text-sm">
+                                            <span class="label-text text-sm pe-2">{% translate "Show counts" %}</span>
+                                            <input checked value="{{ cl.remove_facet_link }}" type="checkbox"
+                                                   class="toggle toggle-sm filter_show_count"/>
+                                        </label>
+                                    {% else %}
+                                        <label class="label cursor-pointer">
+                                            <span class="label-text pe-2">{% translate "Show counts" %}</span>
+                                            <input value="{{ cl.add_facet_link }}" type="checkbox"
+                                                   class="toggle toggle-sm filter_show_count"/>
+                                        </label>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            {% if active_filters_count %}
+                                <h3 class="pt-1">
+                                    <a href="?" class="btn btn-xs btn-ghost text-error">
+                                        <i class="fa fa-times"></i>
+                                        {% translate "Clear all filters" %}
+                                    </a>
+                                </h3>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    <div class="grid gap-3">
+                        {% for spec in cl.filter_specs %}
+                            {% admin_list_filter cl spec request %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    <!-- End of drawer component -->
+
+{% endblock %}
+
+{% block scripts %}
+    {{ block.super }}
+    <script>
+        $(document).ready(function () {
+            $('.filter-select').each(function (i, elem) {
+                let maxItems = 1
+                if ($(elem).is('[multiple]')) {
+                    maxItems = null
+                }
+                new TomSelect(elem, {
+                    plugins: ['remove_button'],
+                    create: false,
+                    maxItems: maxItems,
+                    maxOptions: null,
+                    dropdownParent: 'body',
+                });
+            })
+
+            $('.filter_show_count').change(function () {
+                window.location.href = $(this).val()
+            })
+
+            $("#open-filter-drawer").on("click", function () {
+                const checkbox = $("#filter-drawer")[0];
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked; // Toggles the 'checked' state
+                }
+            });
+
+            function submit_search_form() {
+                let search_val = $('#changelist-form #searchbar').val()
+                $('#hidden-search-form #searchbar').val(search_val)
+                $('#hidden-search-form form').submit()
+            }
+
+            $('#changelist-form #searchbar').keydown(function (event) {
+                if (event.key === "Enter") {
+                    event.preventDefault()
+                    submit_search_form()
+                }
+            })
+
+            $('#changelist-form .search-submit').click(submit_search_form)
+
+            const filterSearch = document.getElementById('filter-search');
+            if (filterSearch) {
+                filterSearch.addEventListener('input', (event) => {
+                    const query = event.target.value.trim().toLowerCase();
+                    const filterCards = document.querySelectorAll('[data-filter-card]');
+                    filterCards.forEach((card) => {
+                        const text = (card.dataset.filterText || '').toLowerCase();
+                        const shouldShow = !query || text.includes(query);
+                        card.classList.toggle('hidden', !shouldShow);
+                    });
+                });
+            }
+        })
+    </script>
+{% endblock %}
