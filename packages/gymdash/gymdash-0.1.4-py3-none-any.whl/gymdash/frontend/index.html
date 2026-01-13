@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GymDash</title>
+    <link rel="stylesheet" href="styles/dashboard.css">
+    <link rel="stylesheet" href="styles/general.css">
+    <link rel="stylesheet" href="styles/header.css">
+    <link rel="stylesheet" href="styles/tabs.css">
+    <link rel="stylesheet" href="styles/widgets.css">
+    <link rel="stylesheet" href="styles/sidebar.css">
+    <link rel="stylesheet" href="styles/config.css">
+    <link rel="stylesheet" href="styles/panel-control.css">
+    <link rel="stylesheet" href="styles/panel-analyze.css">
+
+    
+    <!-- ALL OF THE SCRIPTS NEED type="module", APPARENTLY... -->
+    <script type="module" src="./scripts/utils/api_link.js" defer></script>
+    <script type="module" src="./scripts/utils/usage.js" defer></script>
+    <script type="module" src="./scripts/utils/data.js" defer></script>
+    <script type="module" src="./scripts/utils/viz.js" defer></script>
+    <script type="module" src="./scripts/libs/htl/index.js" defer></script>
+    <script type="module" src="./scripts/libs/d3/d3.js" defer></script>
+    <script type="module" src="./scripts/libs/jszip/jszip.js" defer></script>
+    <script type="module" src="./scripts/utils/media_utils.js" defer></script>
+    <script type="module" src="./scripts/gymdash.js" defer></script>
+
+    <script src="./scripts/utils/debug.js"></script>
+    <script src="./scripts/utils/sort.js"></script>
+    <script src="./scripts/utils/tabs.js"></script>
+    <!-- <script src="scripts/gymdash.js" defer></script> -->
+    
+</head>
+<body>
+
+    <!-- Begin cloneable/dynamic nodes -->
+    <!-- SIMULATION SIDEBAR -->
+    <!-- Simulation selection box -->
+    <div class="prefab sim-selection-box contrast-box hoverable" draggable="true">
+        <label for="sim-selection-box-test">sim name 1</label>
+        <div class="interactives">
+            <div class="radial-meter incomplete">
+                <div class="outline">
+                    <div class="outer" style="--prog: 0%; --prog-num: 0; --prog-den: 1;">
+                        <div class="inner">
+                            
+                        </div>
+                        <button class="cancel-sim-button">X</button>
+                    </div>
+                    <span class="radial-progress-completion success">&check;</span>
+                    <span class="radial-progress-completion fail">X</span>
+                </div>
+            </div>
+            <input type="checkbox" id="sim-selection-box-test" class="sim-selection-checkbox checkbox">
+        </div>
+    </div>
+    <!-- KWARGS AND KWARG PANELS -->
+    <!-- Removable/Nestable Kwarg Panel -->
+    <div class="prefab kwarg-panel content-panel">
+        <h4>kwargs</h4>
+        <button class="add-kwarg contrast-box-opp hoverable">+</button>
+        <div class="kwarg-area">
+            
+        </div>
+        <button class="add-kwarg contrast-box-opp hoverable">+</button>
+    </div>
+    <!-- Kwarg -->
+    <div class="prefab kwarg">
+        <div class="kwarg-kvp">
+            <button class="contrast-box-opp hoverable remove-kwarg-btn">-</button>
+            <input class="contrast-box hoverable key entry" type="text">
+            <input class="contrast-box hoverable value entry" type="text">
+            <button class="contrast-box-opp hoverable add-subkwarg-btn">+</button>
+        </div>
+        <div class="kwarg-subkwargs">
+
+        </div>
+    </div>
+    <!-- SCALAR PLOTS -->
+     <!-- Single Key Area -->
+    <div class="prefab plot-key-panel content-panel">
+        <div class="plot-key-area-label">Key</div>
+        <div class="plot-key-content-area">
+            <div class="plot-key-area"></div>
+            <div class="value-key-area"></div>
+        </div>
+    </div>
+    <!-- Single Scalar Plot Area -->
+    <div class="prefab single-plot-area">
+        <div class="single-plot-title-area"></div>
+        <div class="single-plot-svg-area"></div>
+    </div>
+    <!-- Single Scalar Value Area -->
+    <div class="prefab single-value-area content-panel">
+        <div class="single-value-header-area">
+            <div class="single-value-title-area"></div>
+            <div class="single-value-button-area">
+                <button class="single-value-sort-value contrast-box-opp hoverable">&#x25B2</button>
+                <button class="single-value-sort-lex contrast-box-opp hoverable">A</button>
+            </div>
+        </div>
+        <div class="single-value-svg-area"></div>
+    </div>
+    <div class="prefab single-scalar-box">
+        <div></div>
+        <div></div>
+    </div>
+    <!-- MEDIA DISPLAY -->
+    <!-- Image media instance -->
+    <div class="prefab multimedia-instance-panel image-instance-panel">
+        <!-- Actual media (image, gif, audio player) goes here -->
+        <div class="media-area">
+            <img class="media" src="resources/imgs/placeholder.png" alt="">
+        </div>
+        <!-- Basically where captions go (key, step #, sim ID or name) -->
+        <p class="media-info">
+            This is a picture.
+        </p>
+    </div>
+    <!-- Audio media instance -->
+    <div class="prefab multimedia-instance-panel audio-instance-panel">
+        <!-- Actual media (image, gif, audio player) goes here -->
+        <div class="media-area">
+            <audio class="media" controls src="resources/audio/placeholder.wav"></audio>
+        </div>
+        <!-- Basically where captions go (key, step #, sim ID or name) -->
+        <p class="media-info">
+            This is some audio.
+        </p>
+    </div>
+    <!-- Video media instance -->
+    <div class="prefab multimedia-instance-panel video-instance-panel">
+        <!-- Actual media (image, gif, audio player) goes here -->
+        <div class="media-area">
+            <video class="media" controls>
+                <source src="" type="">
+            </video>
+        </div>
+        <!-- Basically where captions go (key, step #, sim ID or name) -->
+        <p class="media-info">
+            This is some video.
+        </p>
+    </div>
+    <!-- FILTER -->
+    <!-- "Discrete" Filter Settings (when you want to filter on a discrete set of options) -->
+    <div class="prefab discrete-filter-setting filter-setting contrast-box" data-filter-value="filterValue">
+        <input type="checkbox" id="" name="" value="" class="discrete-filter-checkbox checkbox" checked>
+        <label for="">Filter Option</label>
+    </div>
+    <!-- "Between" Filter Setting (when you want to filter for values between two given values) -->
+    <div class="prefab between-filter-setting filter-setting contrast-box" data-filter-value="filterValue">
+        <label>Between</label>
+        <input type="number" value="0" min="0" id="" name="" class="between-filter-begin contrast-box hoverable entry">
+        <input type="number" value="0" min="0" id="" name="" class="between-filter-end contrast-box hoverable entry">
+    </div>
+    <!-- OTHER -->
+    <!-- Resize Bar -->
+    <div class="prefab resizer-bar"></div>
+    <!-- CONTROL -->
+    <div class="prefab control-request contrast-box hoverable">
+        <div class="control-request-preview">Control Request</div>
+        <div class="control-request-buttons">
+            <button class="control-request-delete contrast-box-opp hoverable">X</button>
+        </div>
+    </div>
+
+
+    <header>
+        <div id="header-bar">
+            <div class="left">
+                <h1>GymDash</h1>
+            </div>
+
+            <div class="right">
+                <div class="tab">
+                    <button class="tablinks contrast-box hoverable" data-tab="tab-control" onclick="openTab(event, 'tab-control')">CONTROL</button>
+                    <button class="tablinks contrast-box hoverable" data-tab="tab-analyze" onclick="openTab(event, 'tab-analyze')">ANALYZE</button>
+                    <button class="tablinks contrast-box hoverable" data-tab="tab-configs" onclick="openTab(event, 'tab-configs')">CONFIGS</button>
+                </div>
+            </div>
+
+            <div class="bar-right">
+                <button id="main-settings-button" class="contrast-box hoverable">
+                    <!-- gear svg from: https://fontawesome.com/icons/gear?s=solid -->
+                    <svg id="setting-gear-icon" width="50px" height="50px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M259.1 73.5C262.1 58.7 275.2 48 290.4 48L350.2 48C365.4 48 378.5 58.7 381.5 73.5L396 143.5C410.1 149.5 423.3 157.2 435.3 166.3L503.1 143.8C517.5 139 533.3 145 540.9 158.2L570.8 210C578.4 223.2 575.7 239.8 564.3 249.9L511 297.3C511.9 304.7 512.3 312.3 512.3 320C512.3 327.7 511.8 335.3 511 342.7L564.4 390.2C575.8 400.3 578.4 417 570.9 430.1L541 481.9C533.4 495 517.6 501.1 503.2 496.3L435.4 473.8C423.3 482.9 410.1 490.5 396.1 496.6L381.7 566.5C378.6 581.4 365.5 592 350.4 592L290.6 592C275.4 592 262.3 581.3 259.3 566.5L244.9 496.6C230.8 490.6 217.7 482.9 205.6 473.8L137.5 496.3C123.1 501.1 107.3 495.1 99.7 481.9L69.8 430.1C62.2 416.9 64.9 400.3 76.3 390.2L129.7 342.7C128.8 335.3 128.4 327.7 128.4 320C128.4 312.3 128.9 304.7 129.7 297.3L76.3 249.8C64.9 239.7 62.3 223 69.8 209.9L99.7 158.1C107.3 144.9 123.1 138.9 137.5 143.7L205.3 166.2C217.4 157.1 230.6 149.5 244.6 143.4L259.1 73.5zM320.3 400C364.5 399.8 400.2 363.9 400 319.7C399.8 275.5 363.9 239.8 319.7 240C275.5 240.2 239.8 276.1 240 320.3C240.2 364.5 276.1 400.2 320.3 400z"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div id="main-settings-content" class="contrast-box-opp">
+        <div>MAIN SETTINGS</div>
+        <div class="settings settings-main">
+            <div class="setting">
+                <label for="theme-select-dropdown">Theme</label>
+                <select id="theme-select-dropdown" class="dropdown">
+                    <option value="classic">Classic</option>
+                    <option value="bw">Black&White</option>
+                    <option value="neon01">Neon_01</option>
+                    <option value="neon02">Neon_02</option>
+                    <option value="soft01">Soft_01</option>
+                    <option value="soft02">Soft_02</option>
+                    <option value="plain01">Plain_01</option>
+                </select>
+            </div>
+            <!-- <div class="setting">
+                <label for="plot-smooth-factor-slider">Smooth Factor</label>
+                <input type="range" min="1" max="5" value="1" step="1" id="plot-smooth-factor-slider" class="slider">
+            </div> -->
+        </div>
+    </div>
+
+    <div class="setting-bar contrast-box-opp">
+        <div id="setting-bar-title">Viz Settings &#9881</div>
+        <div id="setting-bar-content">
+            <div class="settings settings-general"></div>
+            <div class="settings settings-control"></div>
+            <div class="settings settings-analyze">
+                <div class="setting">
+                    <label for="plot-smooth-spread-slider">Smooth Spread</label>
+                    <input type="range" min="0" max="1" value="0" step="0.005" id="plot-smooth-spread-slider" class="slider">
+                </div>
+                <div class="setting">
+                    <label for="plot-smooth-factor-slider">Smooth Factor</label>
+                    <input type="range" min="1" max="5" value="1" step="1" id="plot-smooth-factor-slider" class="slider">
+                </div>
+                <div class="setting">
+                    <label for="rescale-details-axis">Rescale Details Y-Axis</label>
+                    <input type="checkbox" name="rescale-details-axis" id="rescale-details-axis" value="RescaleY" class="checkbox" checked>
+                </div>
+                <div class="setting">
+                    <label for="hide-unselected-scalar-values">Hide Unselected Scalars</label>
+                    <input type="checkbox" name="hide-unselected-scalar-values" id="hide-unselected-scalar-values" value="HideUnselectedScalars" class="checkbox" checked>
+                </div>
+            </div>
+            <div class="settings settings-configs"></div>
+        </div>
+    </div>
+
+    <div class="tooltip contrast-box">
+        My tooltip
+    </div>
+
+    <button class="contrast-box-opp hoverable" id="fill-sim-history-test-btn">Fill History</button>
+    <button class="contrast-box-opp hoverable" id="delete-all-sims-test-btn">DELETE ALL SIMS</button>
+    <button class="contrast-box-opp hoverable" id="delete-selected-sims-test-btn">DELETE SELECTED</button>
+    <button id="image-test-btn">Test Image/Video Retrieval</button>
+
+
+    <div class="content">
+        <div class="sim-selection-sidebar content-panel">
+            <div class="sim-selection-sidebar-top">
+                <h2 id="sim-sidebar-header">Simulations</h2>
+                <div class="contrast-box" id="sim-sidebar-buttons">
+                    <button class="contrast-box-opp hoverable" id="deselect-all-btn">DESELECT ALL</button>
+                    <button class="contrast-box-opp hoverable" id="select-all-btn">SELECT ALL</button>
+                </div>
+            </div>
+            <div id="sim-selection-sidebar-selections">
+
+            </div>
+        </div>
+    
+        <div class="main-content content-panel">
+            <!-- TAB: CONTROL -->
+            <div class="tabcontent" id="tab-control">
+                <!-- Start Simulation Panel -->
+                <div class="control-panel content-panel" id="start-panel">
+                    <h2 style="text-align: center;">Start</h2>
+                    <div class="config-details-panel">
+                        <button class="send contrast-box-opp hoverable" id="start-sim-btn">START</button>
+                        <button class="send contrast-box-opp hoverable" id="queue-sim-btn">QUEUE</button>
+                        <button class="send contrast-box-opp hoverable" id="rerun-sim-btn">RERUN</button>
+
+                        <div class="config-kwarg">
+                            <label for="config-name1" class="key">name: </label>
+                            <input id="config-name1" class="contrast-box hoverable value entry" type="text">
+                        </div>
+                        <div class="config-kwarg">
+                            <label for="config-key1" class="key">key: </label>
+                            <input id="config-key1" class="contrast-box hoverable value entry" type="text">
+                        </div>
+                        <div class="config-kwarg">
+                            <label for="config-family1" class="key">family: </label>
+                            <input id="config-family1" class="contrast-box hoverable value entry" type="text">
+                        </div>
+                        <div class="config-kwarg">
+                            <label for="config-type1" class="key">type: </label>
+                            <input id="config-type1" class="contrast-box hoverable value entry" type="text">
+                        </div>
+
+                        <div class="kwarg-panel content-panel">
+                            <h4>kwargs</h4>
+                            <button class="add-kwarg contrast-box-opp hoverable">+</button>
+                            <div class="kwarg-area">
+
+                            </div>
+                            <button class="add-kwarg contrast-box-opp hoverable">+</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Control Simulation Panel -->
+                <div class="control-column">
+                    <h2 style="text-align: center;">Control</h2>
+                    <!-- Send Control queries. Do not need to wait for response. -->
+                    <div class="control-panel content-panel" id="control-panel">
+                        <button class="send contrast-box-opp hoverable" id="send-control-btn">SEND</button>
+                        <div class="kwarg-panel content-panel">
+                            <h4>kwargs</h4>
+                            <button class="add-kwarg contrast-box-opp hoverable">+</button>
+                            <div class="kwarg-area">
+                                
+                            </div>
+                            <button class="add-kwarg contrast-box-opp hoverable">+</button>
+                        </div>
+                    </div>
+                    <!-- Recieve control requests and control responses. -->
+                    <div class="control-panel response-panel content-panel" id="control-response-panel">
+                        
+                    </div>
+                    <!-- Show details of control requests. -->
+                    <div class="control-panel content-panel" id="control-request-details-panel">
+
+                    </div>
+                </div>
+                <!-- Query Simulation Panel -->
+                <div class="query-column">
+                    <h2 style="text-align: center;">Query</h2>
+                    <!-- Send information queries. We want to wait for a response or timeout. -->
+                    <div class="control-panel content-panel" id="query-panel">
+                        <button class="send contrast-box-opp hoverable" id="send-query-btn">SEND</button>
+                        <button class="send contrast-box-opp hoverable" id="query-simulation-keys-btn">GET AVAILABLE SIMULATION KEYS</button>
+                        <button class="send contrast-box-opp hoverable" id="query-simulation-help-btn">GET SIMULATION HELP</button>
+                        <div class="kwarg-panel content-panel">
+                            <h4>kwargs</h4>
+                            <button class="add-kwarg contrast-box-opp hoverable">+</button>
+                            <div class="kwarg-area">
+                                
+                            </div>
+                            <button class="add-kwarg contrast-box-opp hoverable">+</button>
+                        </div>
+                    </div>
+                    <!-- Recieve information responses. -->
+                    <div class="control-panel response-panel content-panel" id="query-response-panel">
+                        
+                    </div>
+                </div>
+            </div>
+        
+            <!-- TAB: ANALYZE -->
+            <div class="tabcontent" id="tab-analyze">
+                <div class="plots-panel analyze-panel content-panel" id="plots-area">
+                    <div id="main-plots-panel">
+                        <div id="main-plots-header">
+                            <div>Main Plots</div>
+                            <div class="setting">
+                                <label for="main-plot-key-select">Key: </label>
+                                <select id="main-plot-key-select" class="dropdown">
+                                    <option value="none">NONE</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="main-plots-title-panel"></div>
+                        <div id="main-plots-area">
+                            <div id="overview-plot-panel"></div>
+                            <div id="details-plot-panel"></div>
+                        </div>
+                    </div>
+                    <div id="scalar-plots-panel">
+                        <div class="plot-key-panel content-panel" id="default-plot-key-panel" data-key="Default">
+                            <div class="plot-key-area-label">Default</div>
+                            <div class="plot-key-area">
+                                <div class="single-plot-area"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="media-panel analyze-panel content-panel">
+                    <h3>Multimedia</h3>
+
+                    <div class="submedia-panel filter-panel sort-panel" id="media-filter-sort-panel">
+                        <h4 class="filter-sort-label">Filter & Sort</h4>
+                        <div class="filter-sort-options-area">
+                            <div class="filter-options-panel">
+                                <!-- Key -->
+                                <div class="filter-setting">
+                                    <input type="checkbox" id="mm-filter-key" name="mm-filter-key" value="Key" class="filter-checkbox checkbox">
+                                    <label for="mm-filter-key">Keys</label>
+                                </div>
+                                <div class="discrete-filter-area" id="mm-filter-key-area">
+                                    
+                                </div>
+                                <!-- Simulation -->
+                                <div class="filter-setting">
+                                    <input type="checkbox" id="mm-filter-sim" name="mm-filter-sim" value="Sim" class="filter-checkbox checkbox">
+                                    <label for="mm-filter-sim">Sims</label>
+                                </div>
+                                <div class="discrete-filter-area" id="mm-filter-sim-area">
+                                    
+                                </div>
+                                <!-- Step -->
+                                <div class="filter-setting">
+                                    <input type="checkbox" id="mm-filter-step" name="mm-filter-step" value="Step" class="filter-checkbox checkbox">
+                                    <label for="mm-filter-step">Step</label>
+                                </div>
+                                <div class="between-filter-area" id="mm-filter-step-area">
+                                    
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="submedia-panel" id="video-panel">
+                        <h4 class="media-type-label">Videos</h4>
+                        <div class="media-instance-area" id="video-media-area">
+
+                        </div>
+                    </div>
+
+                    <div class="submedia-panel" id="image-panel">
+                        <h4 class="media-type-label">Images</h4>
+                        <div class="media-instance-area" id="image-media-area">
+                            <div class="multimedia-instance-panel image-instance-panel">
+                                <!-- Actual media (image, gif, audio player) goes here -->
+                                <div class="media-area">
+                                    <img src="resources/imgs/placeholder.png" alt="">
+                                </div>
+                                <!-- Basically where captions go (key, step #, sim ID or name) -->
+                                <p class="media-info">
+                                    This is a picture.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="submedia-panel" id="audio-panel">
+                        <h4 class="media-type-label">Audio</h4>
+                        <div class="media-instance-area" id="audio-media-area">
+                            <div class="prefab multimedia-instance-panel">
+                                <div class="media-area">
+                                    <audio controls src="resources/audio/placeholder.wav"></audio>
+                                </div>
+                                <p class="media-info">
+                                    This is some audio.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+            <!-- TAB: CONFIGS -->
+            <div class="tabcontent" id="tab-configs">
+                <h3>CONFIGS</h3>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+
+    </footer>
+</body>
+</html>
