@@ -1,0 +1,119 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+include = [
+  "src/labda/surveys/indicators/who_bmi_z_score.parquet"
+]
+
+[project]
+name = "labda"
+version = "0.1.0"
+description = "A Python package built for health researchers, transforms raw movement data into compelling stories about human behaviour."
+readme = "README.md"
+authors = [
+    { name = "Josef Heidler", email = "jheidler@health.sdu.dk" }
+]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+keywords = ["wearables", "accelerometers", "gps", "gnss", "movement-behavior", "physical-activity", "sedentary-behaviour", "transportation"]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    'Operating System :: OS Independent',
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "agcounts>=0.2.6",
+    "altair>=5.5.0",
+    "colorcet>=3.1.0",
+    "geopandas>=1.1.1",
+    "httpx>=0.28.1",
+    "numba>=0.61.2",
+    "osmnx>=2.0.5",
+    "pandas>=2.3.1",
+    "pingouin>=0.5.5",
+    "pyarrow>=20.0.0",
+    "pydeck>=0.9.1",
+    "pygt3x>=0.7.1",
+    "resampy>=0.4.3",
+    "rich>=14.2.0",
+    "scikit-digital-health>=0.17.9",
+    "timezonefinder>=7.0.2",
+    "vegafusion[embed]>=2.0.2",
+    "vl-convert-python>=1.8.0",
+]
+
+[project.urls]
+Homepage = 'https://labda.josefheidler.cz'
+Documentation = 'https://labda.josefheidler.cz'
+Source = 'https://github.com/josefheidler/labda'
+Changelog = 'https://github.com/josefheidler/labda/blob/main/CHANGELOG.md'
+
+[dependency-groups]
+dev = [
+    "acti-motus",
+    "black>=25.12.0",
+    "fiona>=1.10.1",
+    "keplergl>=0.3.7",
+    "pre-commit>=4.2.0",
+    "pytest>=8.4.1",
+]
+jupyter = [
+    "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.7",
+    "openpyxl>=3.1.5",
+]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.1",
+    "mkdocs-glightbox>=0.5.2",
+    "mkdocstrings[python]>=1.0.0",
+]
+
+[tool.hatch.build.targets.sdist]
+# Limit which files are included in the sdist (.tar.gz) asset,
+include = [
+    '/README.md',
+    '/src',
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/labda"]
+
+[tool.ruff.lint]
+pydocstyle = { convention = 'google' }
+
+[tool.ruff]
+line-length = 120
+target-version = 'py311'
+
+[tool.ruff.format]
+quote-style = 'double'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-warnings",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.uv]
+default-groups = ["jupyter"]
+
+[tool.uv.sources]
+acti-motus = { path = "../acti-motus", editable = true}
