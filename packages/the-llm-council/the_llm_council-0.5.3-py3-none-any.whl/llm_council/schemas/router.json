@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RouterOutput",
+  "description": "Output schema for the Router subagent that classifies tasks and routes to appropriate handlers",
+  "type": "object",
+  "required": ["task_type", "risk_level", "subagent_to_run", "reasoning"],
+  "properties": {
+    "task_type": {
+      "type": "string",
+      "enum": ["planning", "research", "architecture", "implementation", "review", "test", "shipping", "red-team"],
+      "description": "The category of the task"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Risk level determines model quality tier and validation strictness"
+    },
+    "complexity": {
+      "type": "string",
+      "enum": ["simple", "normal", "complex"],
+      "default": "normal",
+      "description": "Determines code specialist model: simple=gpt-5.1-codex, complex=gpt-5.1-codex-max"
+    },
+    "subagent_to_run": {
+      "type": "string",
+      "enum": ["drafter", "critic", "synthesizer", "researcher", "planner", "router"],
+      "description": "The core subagent that should handle this task (v0.5.0+)"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["impl", "arch", "test", "review", "security", "plan", "assess"],
+      "description": "Mode for the subagent (drafter: impl/arch/test, critic: review/security, planner: plan/assess)"
+    },
+    "artifact_type": {
+      "type": "string",
+      "description": "Expected output artifact (Plan.json, Decision.json, ArchitectureSpec.md, code diff, etc.)"
+    },
+    "model_pack": {
+      "type": "string",
+      "enum": ["deep_reasoner", "fast_generator", "grounded", "code_specialist_normal", "code_specialist_complex", "harsh_critic"],
+      "description": "Recommended model pack for this task"
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 20,
+      "description": "Explanation for the routing decision"
+    },
+    "suggested_tools": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Tools that may be needed (context7, firecrawl, playwright, web_search)"
+    },
+    "failure_tests": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "What would prove this routing decision wrong?"
+    }
+  },
+  "additionalProperties": false
+}
