@@ -1,0 +1,92 @@
+[build-system]
+requires = ["uv_build>=0.9.11,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "gpx"
+version = "2026.1.0"
+description = "gpx is a zero-dependency, pure Python package for reading, manipulating, writing and converting GPX files."
+authors = [{name = "Steven van de Graaf", email = "steven@vandegraaf.xyz"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["gpx", "gps", "xml", "geojson"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+requires-python = ">=3.11, <4"
+dependencies = []
+
+[dependency-groups]
+docs = [
+    "cogapp",
+    "furo",
+    "myst-parser",
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-copybutton",
+    "sphinxext-opengraph",
+]
+tests = [
+    "pytest"
+]
+dev = [
+    { include-group = "docs" },
+    { include-group = "tests" },
+]
+
+[project.scripts]
+gpx = "gpx.cli:cli"
+
+[project.urls]
+Documentation = "https://gpx.readthedocs.io/en/stable/"
+Changelog = "https://gpx.readthedocs.io/en/stable/changelog.html"
+"Source Code" = "https://github.com/sgraaf/gpx"
+"Issue Tracker" = "https://github.com/sgraaf/gpx/issues"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",  # missing-trailing-comma (flake8-commas), handled by the formatter
+    "D102",  # undocumented-public-method (pydocstyle)
+    "D105",  # undocumented-magic-method (pydocstyle)
+    "D107",  # undocumented-public-init (pydocstyle)
+    "E501",  # line-too-long (pycodestyle), handled by the formatter
+    "PLC2401",  # non-ascii-name (Pylint)
+    "S101",   # assert (flake8-bandit)
+    "S314",  # suspicious-xml-element-tree-usage (flake8-bandit)
+    "SLF001",  # private-member-access (flake8-self)
+]
+pydocstyle.convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+    "F401",  # unused-import (Pyflakes)
+]
+"docs/conf.py" = [
+    "INP001",  # implicit-namespace-package (flake8-no-pep420)
+]
+"src/gpx/cli.py" = [
+    "T201",  # print (flake8-print) - CLI uses print for output
+]
+"tests/**/test_*.py" = [
+    "D",  # pydocstyle
+    "PLR2004",   # magic-value-comparison (Pylint)
+    "S101",   # assert (flake8-bandit)
+]
+"tests/conftest.py" = [
+    "D401",  # non-imperative-mood (pydocstyle)
+]
+"tests/smoke_test.py" = [
+    "PLR2004",   # magic-value-comparison (Pylint)
+]
+
+[tool.mypy]
+python_version = "3.11"
