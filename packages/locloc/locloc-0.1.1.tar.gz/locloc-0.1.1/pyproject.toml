@@ -1,0 +1,102 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = [ "hatchling", "uv-dynamic-versioning" ]
+
+[project]
+name = "locloc"
+description = "Online LOC counter"
+readme = "README.md"
+keywords = [
+  "loc",
+  "web",
+]
+license = { text = "MIT" }
+authors = [ { name = "eggplants", email = "w10776e8w@yahoo.co.jp" } ]
+requires-python = ">=3.13,<4"
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Typing :: Typed",
+]
+dynamic = [ "version" ]
+dependencies = [
+  "fastapi>=0.115.6,<0.129",
+  "gitpython>=3.1.44,<4",
+  "jinja2>=3.1.5,<4",
+  "pydantic>=2.10.5,<3",
+  "pygal>=3.0.5,<4",
+  "pytokei>=0.2,<0.3",
+  "timeout-decorator>=0.5,<0.6",
+  "uvicorn>=0.34,<0.41",
+]
+
+urls.Repository = "https://github.com/eggplants/locloc"
+scripts.locloc-server = "locloc.main:main"
+
+[dependency-groups]
+dev = [
+  "pymarkdownlnt>=0.9.33",
+  "pyproject-fmt>=2.11.1",
+  "pytest>=9.0.2",
+  "pytest-asyncio>=1.3",
+  "pytest-cov>=7",
+]
+docs = [
+  "pdoc>=16",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "locloc",
+  "locloc/static_files",
+  "locloc/templates",
+]
+
+[tool.hatch.build.targets.wheel]
+include = [
+  "locloc",
+  "locloc/static_files",
+  "locloc/templates",
+]
+
+[tool.uv]
+preview = true
+default-groups = [
+  "dev",
+  "docs",
+]
+exclude-newer = "P7D"
+
+[tool.ruff]
+line-length = 120
+format.indent-style = "space"
+format.quote-style = "double"
+lint.select = [ "ALL" ]
+lint.ignore = [ "COM812" ]
+lint.per-file-ignores."main.py" = [
+  "T201", # `print` found
+]
+lint.per-file-ignores."tests/*.py" = [
+  "D",
+  "S101", # Use of assert detected
+]
+lint.pydocstyle.convention = "google"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "semver"
+fallback-version = "0.0.0"
+
+[tool.taskipy.tasks]
+start = "uvicorn locloc.main:app"
+dev = "uvicorn locloc.main:app --reload"
