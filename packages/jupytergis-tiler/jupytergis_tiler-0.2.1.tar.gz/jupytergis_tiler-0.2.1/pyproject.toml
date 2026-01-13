@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jupytergis-tiler"
+version = "0.2.1"
+description = "Tiler layer for JupyterGIS"
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.10,<3.14"  # rasterio doesn't have wheels for python 3.14 yet
+authors = [
+    { name = "David Brochart", email = "david.brochart@gmail.com" },
+]
+keywords = [
+    "jupyter",
+    "gis",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "jupytergis >=0.11,<0.12",
+    "jupyter_server",
+    "httpx",
+    "tornado",
+    "anyio",
+    "anycorn",
+    "fastapi",
+    "titiler",
+    "rio-tiler >=7.7.1",
+    "xarray",
+]
+
+[tool.hatch.version]
+path = "src/jupytergis/tiler/__init__.py"
+
+[tool.hatch.build.targets.wheel.shared-data]
+"etc/jupyter/jupyter_server_config.d" = "etc/jupyter/jupyter_server_config.d"
+
+[tool.hatch.build.targets.wheel]
+ignore-vcs = true
+packages = ["src/jupytergis"]
+
+[tool.ruff]
+line-length = 99
+lint.select = [
+    "ASYNC",        # flake8-async
+    "E", "F", "W",  # default Flake8
+    "G",            # flake8-logging-format
+    "I",            # isort
+    "ISC",          # flake8-implicit-str-concat
+    "PGH",          # pygrep-hooks
+    "RUF100",       # unused noqa (yesqa)
+    "UP",           # pyupgrade
+]
