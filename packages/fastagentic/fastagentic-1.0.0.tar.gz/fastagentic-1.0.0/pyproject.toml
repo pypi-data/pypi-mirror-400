@@ -1,0 +1,226 @@
+[project]
+name = "fastagentic"
+version = "1.0.0"
+description = "The deployment layer for agentic applications. Build agents with anything. Ship them with FastAgentic."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "FastAgentic Team" }
+]
+keywords = ["agents", "ai", "mcp", "a2a", "llm", "deployment", "fastapi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "fastapi>=0.115.0,<2.0.0",
+    "uvicorn[standard]>=0.32.0,<1.0.0",
+    "pydantic>=2.10.0,<3.0.0",
+    "pydantic-settings>=2.6.0,<3.0.0",
+    "httpx>=0.28.0,<1.0.0",
+    "sse-starlette>=2.2.0,<3.0.0",
+    "structlog>=24.4.0,<25.0.0",
+    "typer>=0.15.0,<1.0.0",
+    "rich>=13.9.0,<14.0.0",
+    "anyio>=4.7.0,<5.0.0",
+    "aiofiles>=23.2.0,<24.0.0",
+]
+
+[project.optional-dependencies]
+# Adapters
+pydanticai = ["pydantic-ai>=0.0.30"]
+langgraph = ["langgraph>=0.2.0", "langchain-core>=0.3.0"]
+crewai = ["crewai>=0.86.0"]
+langchain = ["langchain>=0.3.0", "langchain-core>=0.3.0"]
+
+# Durability
+redis = ["redis>=5.2.0"]
+postgres = ["asyncpg>=0.30.0", "sqlalchemy>=2.0.0"]
+
+# Observability
+otel = [
+    "opentelemetry-api>=1.29.0",
+    "opentelemetry-sdk>=1.29.0",
+    "opentelemetry-exporter-otlp>=1.29.0",
+    "opentelemetry-instrumentation-fastapi>=0.50b0",
+]
+
+# Integrations
+langfuse = ["langfuse>=2.57.0"]
+lakera = ["httpx>=0.28.0"]
+mem0 = ["mem0ai>=0.1.0"]
+portkey = ["portkey-ai>=1.9.0"]
+braintrust = ["braintrust>=0.0.170"]
+
+# Development
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "httpx>=0.28.0",
+]
+
+# Fuzzy and mutation testing
+testing = [
+    "pytest-asyncio>=0.24.0",
+    "hypothesis>=6.100.0",
+    "hypothesis-jsonschema>=0.23.0",
+    "mutmut>=2.4.0",
+    "pytest-benchmark>=4.0.0",
+    "faker>=24.0.0",
+    "pytest-timeout>=2.3.0",
+]
+
+# Documentation
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocs-minify-plugin>=0.8.0",
+    "mike>=2.1.0",
+]
+
+# All adapters
+adapters = [
+    "fastagentic[pydanticai]",
+    "fastagentic[langgraph]",
+    "fastagentic[crewai]",
+    "fastagentic[langchain]",
+]
+
+# All integrations
+integrations = [
+    "fastagentic[langfuse]",
+    "fastagentic[portkey]",
+    "fastagentic[lakera]",
+    "fastagentic[mem0]",
+]
+
+# All features
+all = [
+    "fastagentic[adapters]",
+    "fastagentic[integrations]",
+    "fastagentic[redis]",
+    "fastagentic[otel]",
+]
+
+[project.scripts]
+fastagentic = "fastagentic.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/fastagentic/fastagentic"
+Documentation = "https://fastagentic.dev"
+Repository = "https://github.com/fastagentic/fastagentic"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fastagentic"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "B006",   # mutable default arguments
+    "B904",   # raise from style suggestions
+    "B024",   # abstract class suggestions
+    "B027",   # empty abstract method suggestions
+    "SIM105", # contextlib.suppress suggestions
+    "SIM108", # ternary operator suggestions
+    "SIM110", # all() generator suggestions
+    "ARG001", # unused function args (common in test fixtures)
+    "ARG002", # unused method args (common in test mocks)
+    "ARG005", # unused lambda args (common in test lambdas)
+    "F841",   # local vars assigned but unused (common in tests)
+    "B007",   # unused loop vars (common in test loops)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fastagentic"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "langchain.*",
+    "langgraph.*",
+    "crewai.*",
+    "pydantic_ai.*",
+    "redis.*",
+    "langfuse.*",
+    "mem0.*",
+    "portkey_ai.*",
+    "braintrust.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra -q"
+
+[tool.coverage.run]
+source = ["src/fastagentic"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.mutmut]
+paths_to_mutate = "src/fastagentic/"
+tests_dir = "tests/"
+runner = "python -m pytest -x --tb=no -q"
+dict_synonyms = "Struct, NamedStruct"
+
+[tool.hypothesis]
+deadline = 1000
+max_examples = 100
+suppress_health_check = ["too_slow"]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.148.7",
+    "types-aiofiles>=25.1.0.20251011",
+    "types-pyyaml>=6.0.12.20250915",
+]
