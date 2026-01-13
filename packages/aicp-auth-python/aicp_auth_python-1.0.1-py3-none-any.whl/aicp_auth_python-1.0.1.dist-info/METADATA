@@ -1,0 +1,121 @@
+Metadata-Version: 2.4
+Name: aicp-auth-python
+Version: 1.0.1
+Summary: Biblioteca de autenticação e autorização para Keycloak com suporte a permissões contextuais - Python
+Author-email: AI Cockpit Team <team@ai-cockpit.com>
+License: MIT
+Project-URL: Homepage, https://github.com/ai-cockpit/auth-lib
+Project-URL: Documentation, https://github.com/ai-cockpit/auth-lib#readme
+Project-URL: Repository, https://github.com/ai-cockpit/auth-lib.git
+Project-URL: Issues, https://github.com/ai-cockpit/auth-lib/issues
+Keywords: keycloak,authentication,authorization,rbac,permissions,jwt,oauth2,openid-connect,aicp
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Systems Administration :: Authentication/Directory
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Requires-Dist: PyJWT>=2.0.0
+Requires-Dist: cryptography>=3.0.0
+Requires-Dist: python-keycloak>=3.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=2.0.0; extra == "dev"
+Requires-Dist: black>=21.0.0; extra == "dev"
+Requires-Dist: flake8>=3.8.0; extra == "dev"
+Requires-Dist: mypy>=0.800; extra == "dev"
+Requires-Dist: pre-commit>=2.15.0; extra == "dev"
+Provides-Extra: flask
+Requires-Dist: flask>=2.0.0; extra == "flask"
+Provides-Extra: fastapi
+Requires-Dist: fastapi>=0.68.0; extra == "fastapi"
+Requires-Dist: uvicorn>=0.15.0; extra == "fastapi"
+Dynamic: license-file
+Dynamic: requires-python
+
+# aicp-auth-python
+
+Biblioteca de autenticação e autorização para Keycloak - Python
+
+## Instalação
+
+### Instalação Básica
+
+```bash
+pip install aicp-auth-python
+```
+
+Isso instala apenas as dependências básicas. Para usar com Flask ou FastAPI, instale as dependências extras:
+
+### Com Flask
+
+```bash
+pip install aicp-auth-python[flask]
+```
+
+### Com FastAPI
+
+```bash
+pip install aicp-auth-python[fastapi]
+```
+
+## Uso
+
+### Importação Básica
+
+```python
+# Funciona sempre, mesmo sem Flask/FastAPI
+from aicp_auth import KeycloakClient, AuthConfig, User
+```
+
+### Flask
+
+```python
+# Certifique-se de ter instalado: pip install aicp-auth-python[flask]
+from aicp_auth import flask_auth_middleware, AuthConfig
+
+config = AuthConfig(
+    url="https://keycloak.example.com",
+    realm="my-realm",
+    client_id="my-client"
+)
+
+@app.route('/api/protected')
+@flask_auth_middleware(config)
+def protected_route():
+    return {'user': g.user.__dict__}
+```
+
+### FastAPI
+
+```python
+# Certifique-se de ter instalado: pip install aicp-auth-python[fastapi]
+from aicp_auth import fastapi_auth_middleware, AuthConfig, User
+
+config = AuthConfig(
+    url="https://keycloak.example.com",
+    realm="my-realm",
+    client_id="my-client"
+)
+
+get_current_user = fastapi_auth_middleware(config)
+
+@app.get('/api/protected')
+def protected_route(user: User = Depends(get_current_user)):
+    return {'user': user.__dict__}
+```
+
+## Documentação Completa
+
+Veja a [documentação principal](../../README.md) para mais detalhes.
+
