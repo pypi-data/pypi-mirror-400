@@ -1,0 +1,93 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fwl-mors"
+version = "26.01.02"
+description = "Stellar rotation and activity evolution model"
+readme = "README.md"
+authors = [
+    {name = "Colin P. Johnstone", email = "colinjohnstone@gmail.com" },
+    {name = "Harrison Nicholls",  email = "harrison.nicholls@physics.ox.ac.uk"},
+    {name = "Laurent Soucasse",   email = "l.soucasse@esciencecenter.nl"}
+]
+license = {text = "MIT License"}
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+keywords = ["exoplanet", "stellar evolution"]
+requires-python = '>=3.11'
+dependencies = [
+  'click',
+  'matplotlib',
+  'numpy>=2.0.0',
+  'osfclient',
+  'platformdirs',
+  'scipy',
+  'zenodo_get',
+]
+
+[project.urls]
+homepage = "https://github.com/FormingWorlds/MORS"
+
+[project.optional-dependencies]
+develop = [
+  "bump-my-version",
+  "coverage[toml]",
+  "pip-tools",
+  "pytest"
+]
+docs = [
+  "markdown-include",
+  "mkdocs",
+  "mkdocs-material",
+  "mkdocstrings[python]",
+]
+publishing = [
+  "twine",
+  "wheel",
+  "build"
+]
+
+[project.scripts]
+mors = "mors.cli:cli"
+
+[tool.setuptools]
+package-dir = {"mors" = "src/mors"}
+include-package-data = true
+
+[tool.coverage.run]
+branch = true
+source = ["mors"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.bumpversion]
+# https://callowayproject.github.io/bump-my-version/howtos/calver/
+current_version = "26.01.02"
+parse = """(?x)                     # Verbose mode
+    (?P<release>                    # The release part
+        (?:[1-9][0-9])\\.           # YY.
+        (?:1[0-2]|[1-9])\\.         # MM.
+        (?:3[0-1]|[1-2][0-9]|[1-9]) # DD
+    )
+    (?:\\.(?P<patch>\\d+))?         # .patch, optional
+"""
+serialize = ["{release}.{patch}", "{release}"]
+
+[tool.bumpversion.parts.release]
+calver_format = "{YY}.{MM}.{DD}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
