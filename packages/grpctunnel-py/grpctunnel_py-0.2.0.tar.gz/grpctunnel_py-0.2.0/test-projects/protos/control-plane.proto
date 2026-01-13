@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package controlplane.v1;
+
+option go_package = "github.com/dvaldivia/grpctunnel-py/test-projects/go-tunnel/pb";
+
+// ControlPlaneService defines the control plane API that edge workers can call
+// to report their status and lifecycle events.
+service ControlPlaneService {
+  // ReportEdgeAlive is called by edge workers to report that they are alive
+  // and operational. This can be used for heartbeating and health tracking.
+  rpc ReportEdgeAlive(EdgeAliveRequest) returns (EdgeAliveResponse);
+
+  // ReportEdgeGoingAway is called by edge workers when they are shutting down
+  // gracefully, allowing the control plane to handle the disconnection properly.
+  rpc ReportEdgeGoingAway(EdgeGoingAwayRequest) returns (EdgeGoingAwayResponse);
+}
+
+// EdgeAliveRequest is sent by an edge worker to report that it's alive.
+message EdgeAliveRequest {
+  // edge_id is the unique identifier for this edge worker
+  string edge_id = 1;
+
+  // timestamp is when this alive message was generated
+  int64 timestamp = 2;
+
+  // metadata contains optional key-value pairs with additional information
+  map<string, string> metadata = 3;
+}
+
+// EdgeAliveResponse is the control plane's acknowledgment.
+message EdgeAliveResponse {
+  // acknowledged indicates whether the control plane received the message
+  bool acknowledged = 1;
+
+  // message contains optional information from the control plane
+  string message = 2;
+}
+
+// EdgeGoingAwayRequest is sent by an edge worker when shutting down.
+message EdgeGoingAwayRequest {
+  // edge_id is the unique identifier for this edge worker
+  string edge_id = 1;
+
+  // reason describes why the edge is going away
+  string reason = 2;
+}
+
+// EdgeGoingAwayResponse is the control plane's acknowledgment.
+message EdgeGoingAwayResponse {
+  // acknowledged indicates whether the control plane received the message
+  bool acknowledged = 1;
+
+  // message contains optional information from the control plane
+  string message = 2;
+}
