@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aiopulsegrow"
+version = "25.12.6"
+description = "Async Python client for Pulsegrow API"
+readme = "README.md"
+authors = [
+    {name = "Pascal Vizeli", email = "pvizeli@syshack.ch"}
+]
+license = "Apache-2.0"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["pulsegrow", "api", "async", "aiohttp", "homeassistant"]
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-aiohttp>=1.0.5",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "aioresponses>=0.7.6",
+    "mypy>=1.5.0",
+    "ruff>=0.8.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/pvizeli/aiopulsegrow"
+Repository = "https://github.com/pvizeli/aiopulsegrow"
+Issues = "https://github.com/pvizeli/aiopulsegrow/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aiopulsegrow*"]
+
+[tool.setuptools.package-data]
+aiopulsegrow = ["py.typed"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=aiopulsegrow --cov-report=term-missing --cov-report=xml"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I", "N", "UP", "YTT", "S", "B", "A", "C4", "T10", "ISC", "ICN", "T20", "PYI", "PT", "Q"]
+ignore = ["S101", "PYI034"]  # Allow use of assert in tests, allow PulsegrowClient in __aenter__
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # Allow asserts in tests
+"scripts/*" = ["T201", "C901"]  # Allow print statements and complexity in scripts
+"tests/fixtures/mock_data.py" = ["ALL"]  # Generated file, may need regeneration
+
+[tool.ruff.lint.isort]
+known-first-party = ["aiopulsegrow"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+exclude = ["tests/fixtures/mock_data.py"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = true
+
