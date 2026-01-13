@@ -1,0 +1,309 @@
+syntax = "proto3";
+
+package app4.registry;
+
+option go_package = "gitlab.com/app4ai/app4-plugin-sdk/go/proto";
+
+import "plugin.proto";
+
+// PluginRegistryService - Central service for plugin version management
+service PluginRegistryService {
+    // Plugin registration (called by plugin instances on startup)
+    rpc Register(RegisterRequest) returns (RegisterResponse);
+    rpc Unregister(UnregisterRequest) returns (app4.plugin.Empty);
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+    // Version resolution (called by go-run instances)
+    rpc ResolveVersion(ResolveRequest) returns (ResolveResponse);
+    rpc ListVersions(ListVersionsRequest) returns (ListVersionsResponse);
+
+    // Real-time updates
+    rpc Subscribe(SubscribeRequest) returns (stream RegistryEvent);
+
+    // Admin/health operations
+    rpc Health(app4.plugin.Empty) returns (RegistryHealthResponse);
+    rpc ListAllPlugins(app4.plugin.Empty) returns (PluginList);
+
+    // Version management
+    rpc DeprecateVersion(DeprecateVersionRequest) returns (DeprecateVersionResponse);
+    rpc RemoveVersion(RemoveVersionRequest) returns (RemoveVersionResponse);
+
+    // Provider config storage (shared state for multi-instance deployments)
+    // go-run stores configs here on startup, plugins fetch on cache miss
+    rpc StoreProviderConfig(StoreProviderConfigRequest) returns (StoreProviderConfigResponse);
+    rpc GetProviderConfig(GetProviderConfigRequest) returns (GetProviderConfigResponse);
+    rpc DeleteProviderConfig(DeleteProviderConfigRequest) returns (app4.plugin.Empty);
+    rpc ListProviderConfigs(ListProviderConfigsRequest) returns (ListProviderConfigsResponse);
+    rpc SubscribeProviderConfigs(SubscribeProviderConfigsRequest) returns (stream ProviderConfigEvent);
+
+    // App connection tracking (called by plugins when apps connect/disconnect)
+    rpc NotifyConnect(ConnectionEvent) returns (app4.plugin.Empty);
+    rpc NotifyDisconnect(ConnectionEvent) returns (app4.plugin.Empty);
+    rpc ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse);
+}
+
+// Plugin instance registration
+message RegisterRequest {
+    string plugin_name = 1;      // e.g., "mongo", "redis"
+    string version = 2;          // Semver: "1.0.0", "2.1.0"
+    string address = 3;          // gRPC address: "localhost:50051"
+    string instance_id = 4;      // Unique instance ID
+    map<string, string> labels = 5;  // Additional metadata: {"env": "prod", "region": "us-east-1"}
+}
+
+message RegisterResponse {
+    bool success = 1;
+    string error = 2;
+    string assigned_id = 3;      // Registry-assigned unique ID
+}
+
+message UnregisterRequest {
+    string plugin_name = 1;
+    string version = 2;
+    string instance_id = 3;
+}
+
+message HeartbeatRequest {
+    string plugin_name = 1;
+    string version = 2;
+    string instance_id = 3;
+    bool healthy = 4;
+    map<string, string> metrics = 5;  // Optional: load, connections, etc.
+}
+
+message HeartbeatResponse {
+    bool acknowledged = 1;
+    bool should_shutdown = 2;    // Registry can request graceful shutdown
+    bool deprecated = 3;         // This version is deprecated
+    string deprecation_message = 4;  // Reason for deprecation
+    string recommended_version = 5;  // Suggested upgrade version
+}
+
+// Version resolution
+message ResolveRequest {
+    string plugin_name = 1;
+    string version_constraint = 2;  // Semver constraint: "^1.0.0", "~2.1.0", ">=1.5.0"
+    map<string, string> prefer_labels = 3;  // Prefer instances with matching labels
+}
+
+message ResolveResponse {
+    bool found = 1;
+    string resolved_version = 2;     // Actual version: "1.2.3"
+    string address = 3;              // gRPC address to connect to
+    string instance_id = 4;          // Which instance was selected
+    string error = 5;
+}
+
+message ListVersionsRequest {
+    string plugin_name = 1;
+    bool include_unhealthy = 2;
+}
+
+message ListVersionsResponse {
+    repeated PluginVersion versions = 1;
+}
+
+message PluginVersion {
+    string version = 1;
+    repeated PluginInstance instances = 2;
+    bool deprecated = 3;
+    string deprecation_message = 4;
+    string recommended_version = 5;
+    int64 deprecated_at = 6;       // Unix timestamp when deprecated
+}
+
+message PluginInstance {
+    string instance_id = 1;
+    string address = 2;
+    bool healthy = 3;
+    int64 last_heartbeat = 4;        // Unix timestamp
+    map<string, string> labels = 5;
+    map<string, string> metrics = 6;
+}
+
+// Subscription for real-time updates
+message SubscribeRequest {
+    repeated string plugin_names = 1;  // Empty = subscribe to all
+}
+
+message RegistryEvent {
+    enum EventType {
+        PLUGIN_REGISTERED = 0;
+        PLUGIN_UNREGISTERED = 1;
+        PLUGIN_HEALTHY = 2;
+        PLUGIN_UNHEALTHY = 3;
+        VERSION_DEPRECATED = 4;
+    }
+    EventType type = 1;
+    string plugin_name = 2;
+    string version = 3;
+    string instance_id = 4;
+    string address = 5;
+    int64 timestamp = 6;
+}
+
+message RegistryHealthResponse {
+    bool healthy = 1;
+    int32 total_plugins = 2;
+    int32 healthy_plugins = 3;
+    int32 total_instances = 4;
+    int32 healthy_instances = 5;
+}
+
+message PluginList {
+    repeated PluginInfo plugins = 1;
+}
+
+message PluginInfo {
+    string name = 1;
+    repeated string available_versions = 2;
+    int32 total_instances = 3;
+    int32 healthy_instances = 4;
+}
+
+// Version management
+message DeprecateVersionRequest {
+    string plugin_name = 1;
+    string version = 2;
+    string message = 3;              // Deprecation reason
+    string recommended_version = 4;  // Suggested upgrade version
+}
+
+message DeprecateVersionResponse {
+    bool success = 1;
+    string error = 2;
+    int32 affected_instances = 3;    // Number of instances notified
+}
+
+message RemoveVersionRequest {
+    string plugin_name = 1;
+    string version = 2;
+    bool force = 3;                  // Remove even if instances are running
+}
+
+message RemoveVersionResponse {
+    bool success = 1;
+    string error = 2;
+    int32 removed_instances = 3;     // Number of instances removed
+}
+
+// =====================================
+// Provider Config Storage Messages
+// =====================================
+
+// RegistryProviderConfig stores provider configuration for a specific app
+// Named differently from plugin.proto's ProviderConfig to avoid conflicts
+message RegistryProviderConfig {
+    string app_id = 1;            // Application identifier (for multi-tenancy)
+    string plugin_name = 2;       // Plugin type: mongo, redis, qdrant, kafka, etc.
+    string provider_name = 3;     // Provider instance name: default, analytics, cache, etc.
+    bytes config_json = 4;        // JSON-encoded provider configuration
+    int64 version = 5;            // Version for cache invalidation (incremented on update)
+    string created_by = 6;        // Which go-run instance created this config
+    int64 created_at = 7;         // Unix timestamp
+    int64 updated_at = 8;         // Unix timestamp
+}
+
+// Store a provider config (called by go-run on startup)
+message StoreProviderConfigRequest {
+    string app_id = 1;
+    string plugin_name = 2;
+    string provider_name = 3;
+    bytes config_json = 4;
+    string created_by = 5;        // go-run instance identifier
+}
+
+message StoreProviderConfigResponse {
+    bool success = 1;
+    string error = 2;
+    int64 version = 3;            // Assigned version number
+}
+
+// Get a specific provider config (called by plugins on cache miss)
+message GetProviderConfigRequest {
+    string app_id = 1;
+    string plugin_name = 2;
+    string provider_name = 3;
+}
+
+message GetProviderConfigResponse {
+    bool found = 1;
+    RegistryProviderConfig config = 2;
+    string error = 3;
+}
+
+// Delete a provider config
+message DeleteProviderConfigRequest {
+    string app_id = 1;
+    string plugin_name = 2;
+    string provider_name = 3;     // Empty = delete all for this app+plugin
+}
+
+// List provider configs
+message ListProviderConfigsRequest {
+    string app_id = 1;            // Empty = list all apps
+    string plugin_name = 2;       // Empty = list all plugins
+}
+
+message ListProviderConfigsResponse {
+    repeated RegistryProviderConfig configs = 1;
+}
+
+// Subscribe to provider config changes
+message SubscribeProviderConfigsRequest {
+    string app_id = 1;            // Empty = subscribe to all apps
+    string plugin_name = 2;       // Empty = subscribe to all plugins
+}
+
+message ProviderConfigEvent {
+    enum EventType {
+        CONFIG_CREATED = 0;
+        CONFIG_UPDATED = 1;
+        CONFIG_DELETED = 2;
+    }
+    EventType type = 1;
+    string app_id = 2;
+    string plugin_name = 3;
+    string provider_name = 4;
+    int64 version = 5;            // New version (0 for delete)
+    int64 timestamp = 6;
+}
+
+// =====================================
+// App Connection Tracking Messages
+// =====================================
+
+// ConnectionEvent is sent by plugins when apps connect/disconnect
+message ConnectionEvent {
+    string plugin_instance_id = 1;  // Plugin instance ID
+    string plugin_name = 2;         // Plugin type: mongo, redis, etc.
+    string plugin_version = 3;      // Plugin version
+    string app_id = 4;              // Application ID
+    string app_name = 5;            // Application name (optional)
+    int64 timestamp = 6;            // Unix timestamp
+}
+
+// ListConnectionsRequest filters active connections
+message ListConnectionsRequest {
+    string plugin_name = 1;         // Filter by plugin (empty = all)
+    string app_id = 2;              // Filter by app (empty = all)
+    bool include_history = 3;       // Include inactive connections
+}
+
+// ListConnectionsResponse contains matching connections
+message ListConnectionsResponse {
+    repeated AppConnection connections = 1;
+}
+
+// AppConnection represents an app's connection to a plugin
+message AppConnection {
+    string app_id = 1;
+    string app_name = 2;
+    string plugin_name = 3;
+    string plugin_version = 4;
+    string plugin_instance_id = 5;
+    string plugin_address = 6;
+    int64 connected_at = 7;         // Unix timestamp
+    int64 last_activity = 8;        // Unix timestamp
+    bool active = 9;
+}
