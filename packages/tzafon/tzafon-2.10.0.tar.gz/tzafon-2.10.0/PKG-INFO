@@ -1,0 +1,326 @@
+Metadata-Version: 2.3
+Name: tzafon
+Version: 2.10.0
+Summary: The official Python library for the computer API
+Project-URL: Homepage, https://github.com/tzafon/computer-python
+Project-URL: Repository, https://github.com/tzafon/computer-python
+Author-email: Computer <simon@tzafon.ai>
+License: MIT
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: OS Independent
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: anyio<5,>=3.5.0
+Requires-Dist: distro<2,>=1.7.0
+Requires-Dist: httpx<1,>=0.23.0
+Requires-Dist: pydantic<3,>=1.9.0
+Requires-Dist: sniffio
+Requires-Dist: typing-extensions<5,>=4.10
+Provides-Extra: aiohttp
+Requires-Dist: aiohttp; extra == 'aiohttp'
+Requires-Dist: httpx-aiohttp>=0.1.9; extra == 'aiohttp'
+Description-Content-Type: text/markdown
+
+# Tzafon Python SDK
+
+[![PyPI version](https://img.shields.io/pypi/v/tzafon.svg)](https://pypi.org/project/tzafon/)
+
+Remote browser and desktop automation. Control browsers and desktops programmatically through a simple Python API.
+
+## Installation
+
+```bash
+pip install tzafon
+```
+
+## Quick Start
+
+```python
+from tzafon import Computer
+
+client = Computer(
+    api_key=os.environ.get("TZAFON_API_KEY"),  # This is the default and can be omitted
+)
+
+computer = client.computers.create(
+    kind="browser",
+)
+print(computer.id)
+```
+
+While you can provide an `api_key` keyword argument,
+we recommend using [python-dotenv](https://pypi.org/project/python-dotenv/)
+to add `TZAFON_API_KEY="My API Key"` to your `.env` file
+so that your API Key is not stored in source control.
+
+## Async usage
+
+Simply import `AsyncComputer` instead of `Computer` and use `await` with each API call:
+
+```python
+import os
+import asyncio
+from tzafon import AsyncComputer
+
+client = AsyncComputer(
+    api_key=os.environ.get("TZAFON_API_KEY"),  # This is the default and can be omitted
+)
+
+# Create and control a browser instance
+with client.create(kind="browser") as computer:
+    computer.navigate("https://wikipedia.com")
+
+    result = computer.screenshot()
+    url = computer.get_screenshot_url(result)
+    print(f"Screenshot: {url}")
+
+    computer.click(100, 200)
+    computer.type("Hello, world!")
+
+    # Automatically terminates when exiting context
+```
+
+Set your API key:
+```bash
+export TZAFON_API_KEY="your-api-key"
+```
+
+Or use a `.env` file with [python-dotenv](https://pypi.org/project/python-dotenv/).
+
+## Features
+
+**Session Management**
+- Context manager support for automatic cleanup
+- Manual session control when needed
+- Browser and desktop environments
+
+**Browser Actions**
+- Navigation: `navigate(url)`
+- Mouse: `click()`, `double_click()`, `right_click()`, `drag()`
+- Keyboard: `type()`, `hotkey()`
+- Viewport: `scroll()`, `set_viewport()`
+- Capture: `screenshot()`, `html()`
+- Debug: Execute shell commands with `debug()`
+
+**Advanced Features**
+- Multi-tab management
+- Batch action execution
+- Low-level input control (key_down/key_up, mouse_down/mouse_up)
+- Proxy configuration
+- Real-time streaming (events, screencast)
+
+**Type Safety**
+- Full type annotations for IDE autocomplete
+- Pydantic models for responses
+- TypedDict for request parameters
+- Helper methods for result extraction
+
+## Examples
+
+### Browser Automation
+
+```python
+with client.create(kind="browser") as computer:
+    # Navigate and interact
+    computer.navigate("https://github.com/login")
+    computer.click(300, 400)
+    computer.type("username")
+    computer.hotkey("Control", "a")  # Select all
+
+    # Wait for page loads
+    computer.wait(2)
+
+    # Capture state
+    html_result = computer.html()
+    html = computer.get_html_content(html_result)
+
+    # Execute commands
+    debug_result = computer.debug("ls -la")
+    output = computer.get_debug_response(debug_result)
+```
+
+### Manual Session Management
+
+```python
+computer = client.create(kind="browser")
+try:
+    computer.navigate("https://example.com")
+    screenshot = computer.screenshot()
+finally:
+    computer.terminate()
+```
+
+### Batch Actions
+
+```python
+# Execute multiple actions in one request
+result = client.computers.execute_batch(computer.id, actions=[
+    {"type": "go_to_url", "url": "https://example.com"},
+    {"type": "wait", "ms": 2000},
+    {"type": "click", "x": 100, "y": 200},
+    {"type": "type", "text": "search query"},
+    {"type": "screenshot"}
+])
+```
+
+### Low-Level Input Control
+
+```python
+# Shift-click selection
+computer.execute_action({"type": "key_down", "key": "Shift"})
+computer.click(100, 200)
+computer.click(100, 400)
+computer.execute_action({"type": "key_up", "key": "Shift"})
+```
+
+### Proxy Configuration
+
+```python
+# Set proxy for the browser session
+computer.execute_action({
+    "type": "change_proxy",
+    "proxy_url": "http://user:pass@proxy:port"
+})
+```
+
+### Multi-Tab Management
+
+```python
+# Create new tab
+result = computer.execute_action({
+    "type": "new_tab",
+    "url": "https://example.com"
+})
+tab_id = result.executed_tab_id
+
+# List all tabs
+tabs = computer.execute_action({"type": "list_tabs"})
+
+# Switch to tab
+computer.execute_action({"type": "switch_tab", "tab_id": tab_id})
+
+# Close tab
+computer.execute_action({"type": "close_tab", "tab_id": tab_id})
+```
+
+### Async Support
+
+```python
+from tzafon import AsyncComputer
+
+async with AsyncComputer() as client:
+    computer = await client.computers.create(kind="browser")
+    await client.computers.navigate(computer.id, url="https://example.com")
+    await client.computers.terminate(computer.id)
+```
+
+## Advanced Usage
+
+### Raw SDK Access
+
+The simplified wrapper uses the generated SDK under the hood. You can access it directly:
+
+```python
+# Low-level API
+response = client.computers.create(kind="browser")
+client.computers.navigate(response.id, url="https://example.com")
+result = client.computers.capture_screenshot(response.id)
+client.computers.terminate(response.id)
+```
+
+### Error Handling
+
+```python
+import tzafon
+
+try:
+    with client.create(kind="browser") as computer:
+        computer.navigate("https://example.com")
+except tzafon.RateLimitError:
+    print("Rate limit exceeded, back off")
+except tzafon.AuthenticationError:
+    print("Invalid API key")
+except tzafon.APIError as e:
+    print(f"API error: {e}")
+```
+
+### Configuration
+
+```python
+from tzafon import Computer
+
+client = Computer(
+    api_key="your-api-key",       # Or use TZAFON_API_KEY env var
+    base_url="https://...",        # Optional: custom endpoint
+    timeout=120.0,                 # Request timeout in seconds
+    max_retries=2,                 # Retry failed requests
+)
+```
+
+## API Reference
+
+**Session Methods**
+- `navigate(url)` - Navigate to URL
+- `click(x, y)` - Click at coordinates
+- `double_click(x, y)` - Double-click
+- `right_click(x, y)` - Right-click
+- `drag(x1, y1, x2, y2)` - Click and drag
+- `type(text)` - Type text
+- `hotkey(*keys)` - Press key combination
+- `scroll(dx, dy, x, y)` - Scroll viewport with starting coordinates
+- `screenshot(base64=False)` - Capture screenshot
+- `html(auto_detect_encoding=False)` - Get page HTML
+- `debug(command, timeout_seconds=120, max_output_length=65536)` - Run shell command
+- `set_viewport(width, height, scale_factor=1.0)` - Set viewport size
+- `wait(seconds)` - Wait for duration
+- `execute_action(action)` - Execute any action
+- `terminate()` - End session
+
+**Helper Methods**
+- `get_screenshot_url(result)` - Extract screenshot URL from result
+- `get_html_content(result)` - Extract HTML from result
+- `get_debug_response(result)` - Extract command output from result
+
+**Low-Level Actions** (via `execute_action`)
+- `key_down`, `key_up` - Hold/release keyboard keys
+- `mouse_down`, `mouse_up` - Hold/release mouse button
+- `change_proxy` - Set browser proxy
+- `new_tab`, `switch_tab`, `close_tab`, `list_tabs` - Tab management
+
+## Error Codes
+
+| Status | Error Type |
+|--------|------------|
+| 400 | `BadRequestError` |
+| 401 | `AuthenticationError` |
+| 403 | `PermissionDeniedError` |
+| 404 | `NotFoundError` |
+| 422 | `UnprocessableEntityError` |
+| 429 | `RateLimitError` |
+| >=500 | `InternalServerError` |
+
+## Documentation
+
+- REST API: [docs.tzafon.ai](https://docs.tzafon.ai)
+- Full API Reference: [api.md](https://github.com/tzafon/computer-python/tree/main/api.md)
+- Contributing: [CONTRIBUTING.md](https://github.com/tzafon/computer-python/tree/main/CONTRIBUTING.md)
+
+## Requirements
+
+Python 3.9+
+
+## License
+
+See [LICENSE](https://github.com/tzafon/computer-python/tree/main/LICENSE)
