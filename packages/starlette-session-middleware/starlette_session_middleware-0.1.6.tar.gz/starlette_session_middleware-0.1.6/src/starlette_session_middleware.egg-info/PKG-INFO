@@ -1,0 +1,92 @@
+Metadata-Version: 2.4
+Name: starlette-session-middleware
+Version: 0.1.6
+Summary: Enhanced and flexible ASGI session middleware for Starlette applications
+Author-email: Anthony Lannutti <lannuttia@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/lannuttia/starlette-session-middleware
+Project-URL: Repository, https://github.com/lannuttia/starlette-session-middleware
+Project-URL: Issues, https://github.com/lannuttia/starlette-session-middleware/issues
+Keywords: starlette,asgi,session,middleware,fastapi,jwt,cookie
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: AsyncIO
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP :: Session
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: starlette~=0.35
+Requires-Dist: typing_extensions>=3.10.0; python_version < "3.10"
+Provides-Extra: itsdangerous
+Requires-Dist: itsdangerous~=2.1; extra == "itsdangerous"
+Provides-Extra: jwt
+Requires-Dist: PyJWT~=2.8; extra == "jwt"
+Dynamic: license-file
+
+# Starlette Session Middleware &middot; [![codecov](https://codecov.io/github/lannuttia/starlette-session-middleware/graph/badge.svg?token=2FO77C58EP)](https://codecov.io/github/lannuttia/starlette-session-middleware) [![Known Vulnerabilities](https://snyk.io/test/github/lannuttia/starlette-session-middleware/badge.svg)](https://snyk.io/test/github/lannuttia/starlette-session-middleware)
+
+## Purpose
+The purpose of this project is to provide an enhanced, more flexible ASGI session middleware
+
+## Getting started
+
+In the project root, you will want to create and activate a Python virtual environment in a folder called `.venv`.
+On Fedora 38 this can be done by running `python3.9 -m venv .venv && source .venv/bin/activate`. You will then want to
+pip install all of the dependencies for local development. This can be done by running `pip install -r requirements.txt`
+in your Python 3.9 virtual environment. After that, you will want to run `pre-commit install` to install all of the
+pre-commit hooks. This ensures that we reduce unneeded pipeline failures.
+
+## Running the Tests
+
+You can run the tests by running `python -m pytest -n auto --cov`. This will use pytest-xdist to parallelize the tests and provide a code
+coverage report by using pytest-cov.
+
+## Usage
+
+### FastAPI
+In order to use a JWT persisted with a cookie and passed through a cookie, you would create the middleware as follows.
+```python
+from fastapi import FastAPI
+from starlette_session.middleware import SessionMiddleware
+from starlette_session.middleware.codecbackends.jwt import JwtCodecBackend
+from starlette_session.middleware.storagebackends.cookie import CookieStorageBackend
+from starlette_session.middleware.authorizationbackends.cookie import CookieAuthorizationBackend
+
+
+app = FastAPI()
+
+app.add_middleware(
+    SessionMiddleware,
+    codec_backend=JwtCodecBackend(key="somesuperdupersecurekey")
+    storage_backend=CookieStorageBackend()
+    authorization_backend=CookieAuthorizationBackend()
+)
+```
+
+In order to use a JWT persisted with a cookie and passed through the Authorization header, you would create the middleware as follows.
+```python
+from fastapi import FastAPI
+from starlette_session.middleware import SessionMiddleware
+from starlette_session.middleware.codecbackends.jwt import JwtCodecBackend
+from starlette_session.middleware.storagebackends.cookie import CookieStorageBackend
+from starlette_session.middleware.authorizationbackends.authorizationheader import AuthorizationHeaderAuthorizationBackend
+
+
+app = FastAPI()
+
+app.add_middleware(
+    SessionMiddleware,
+    codec_backend=JwtCodecBackend(key="somesuperdupersecurekey")
+    storage_backend=CookieStorageBackend()
+    authorization_backend=AuthorizationHeaderAuthorizationBackend()
+)
+```
