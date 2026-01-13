@@ -1,0 +1,113 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=42", "setuptools-scm[toml]>=6.2"]
+
+[project]
+authors = [
+  {name = "Matt Kramer", email = "matthew.robert.kramer@gmail.com"}
+]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering"
+]
+dependencies = [
+  "click<=8.3.1",
+  "click-log<=0.4.0",
+  "matplotlib<=3.10.8",
+  "numpy<=2.4.0",
+  "scipy<=1.16.3"
+]
+description = "Fluid-Structure Interaction for large deformation planing surfaces"
+dynamic = ["version"]
+license = {text = "MIT"}
+name = "planingfsi"
+readme = "README.md"
+requires-python = ">=3.8,<3.12"
+
+[project.optional-dependencies]
+dev = [
+  "codecov",
+  "mypy",
+  "pytest",
+  "pytest-cov",
+  "tox"
+]
+
+[project.scripts]
+planingfsi = "planingfsi.cli:cli"
+
+[project.urls]
+documentation = "https://planingfsi.readthedocs.io"
+repository = "https://github.com/mattkram/planingfsi"
+
+[tool.black]
+exclude = '''
+/(
+    \.git
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+include = '\.pyi?$'
+line-length = 100
+target-version = ["py36"]
+
+[tool.isort]
+force_single_line = true
+profile = "black"
+
+[tool.mypy]
+disallow_untyped_defs = true
+files = [
+  "src/**/*.py",
+  "tests/**/*.py"
+]
+ignore_missing_imports = true
+python_version = "3.10"
+
+[tool.setuptools_scm]
+version_file = "src/planingfsi/_version.py"
+
+[tool.tox]
+legacy_tox_ini = """
+  [tox]
+  envlist = clean,py38,py39,py310,py311,mypy
+  isolated_build = True
+
+  [gh-actions]
+  python =
+    3.8: py38
+    3.9: py39
+    3.10: py310
+    3.11: py311
+
+  [testenv]
+  deps =
+      pytest
+      pytest-cov
+  commands = pytest \
+      --junitxml=./test-reports/junit.xml \
+      --cov-append \
+      --cov-report xml:./test-reports/coverage.xml \
+      --cov planingfsi \
+      --slow
+
+  [testenv:mypy]
+  deps =
+      mypy
+  commands = mypy .
+
+  [testenv:clean]
+  deps = coverage
+  skip_install = true
+  commands = coverage erase
+
+"""
