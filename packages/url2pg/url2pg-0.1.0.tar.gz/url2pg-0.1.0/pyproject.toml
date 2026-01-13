@@ -1,0 +1,44 @@
+[project]
+name = "url2pg"
+version = "0.1.0"
+description = "This repository ingests data from a CSV/Parquet url into a Postgres table overwriting the previous table if it exists."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "Cesar Cardoso", email = "hello@cesarcardoso.cc" }
+]
+
+dependencies = [
+    "pandas>=2.3.3",
+    "psycopg2-binary>=2.9.11",
+    "pyarrow>=22.0.0",
+    "sqlalchemy>=2.0.45",
+]
+
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+    "pgcli>=4.3.0",
+]
+
+[project.scripts]
+url2pg = "url2pg:main"
+
+[tool.bumpversion]
+tag = true
+tag_name = "v{new_version}"
+pre_commit_hooks = ["uvx black ./src", "git add src","uv sync --upgrade", "git add uv.lock"]
+commit = true
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "README.md"
+
+[[tool.bumpversion.files]]
+filename = "src/url2pg/__init__.py"
