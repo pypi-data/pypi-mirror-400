@@ -1,0 +1,35 @@
+[tools]
+python = "3.13.3"
+uv = "0.7.18"
+
+[tasks.mcp]
+description = "Run the MCP server"
+run = "uv run python -m app.main"
+
+[tasks.setup]
+description = "Install dependencies"
+run = """
+mise install
+uv sync
+"""
+
+[tasks.deploy]
+description = "Deploy with MCP inspector"
+run = "npx @modelcontextprotocol/inspector@latest uv run python -m app.main"
+
+[tasks.release-test]
+description = "Release to Test PyPI"
+run = """
+rm -rf dist/
+uv build
+uv publish --publish-url https://test.pypi.org/legacy/
+"""
+
+[tasks.release-prod]
+description = "Release to Production PyPI"
+run = """
+rm -rf dist/
+uv build
+uv publish
+"""
+
