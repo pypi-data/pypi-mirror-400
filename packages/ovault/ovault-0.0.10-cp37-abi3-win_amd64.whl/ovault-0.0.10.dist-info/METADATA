@@ -1,0 +1,169 @@
+Metadata-Version: 2.4
+Name: ovault
+Version: 0.0.10
+Requires-Dist: maturin ; extra == 'dev'
+Requires-Dist: pytest ; extra == 'dev'
+Requires-Dist: pdoc3 ; extra == 'dev'
+Requires-Dist: requests ; extra == 'util-deps'
+Requires-Dist: pyvis ; extra == 'util-deps'
+Provides-Extra: dev
+Provides-Extra: util_deps
+Summary: Library for Managing your Obsidian Vault 
+Keywords: Obsidian,Vault,Notes
+Author-email: Balder Holst <balderwh@gmail.com>
+License-Expression: MIT
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Documentation, https://balderholst.github.io/ovault/
+Project-URL: Repository, https://github.com/BalderHolst/ovault
+
+# OVault
+A python library for accessing and editing your [Obsidian](https://obsidian.md) vault.
+
+> [!WARNING]
+> This library can easily make large changes to your vault which may be difficult to reverse.
+> Make sure to have a backup of your vault before using OVault to modify it.
+
+Check out the [examples](https://github.com/BalderHolst/ovault/tree/main/examples)!
+
+## Code Example
+```python
+import ovault
+
+# Open a vault at a given path
+vault = ovault.Vault("test-vaults/simple_vault")
+
+print("Vault Path  :", vault.path)
+print("Notes       :", len(vault.notes()))
+print("Attachments :", len(vault.attachments()))
+print("Tags        :", sorted(vault.tags()))
+print()
+
+# Get the note named 'first_note'
+note = vault.note("first_note")
+
+print("Note Name   :", note.name)
+print("Note Path   :", note.path)
+print("Note Tokens :", note.tokens())
+
+```
+
+*Output:*
+```
+Vault Path  : /home/balder/projects/ovault/test-vaults/simple_vault
+Notes       : 11
+Attachments : 3
+Tags        : ['callout4youtag', 'frontmatter-tag1', 'frontmatter-tag2', 'linksaregood']
+
+Note Name   : first_note
+Note Path   : first_note.md
+Note Tokens : [Header(# FIRST NOTE!), Text(Wuhuuuuuuuuuuu!Thi...), InternalLink(second note), Text(.Takes a look at t...), InternalLink(sub/todo), Text()]
+```
+
+## Included Utilities
+OVault includes runnable modules for common tasks. Get an overview by running the `ovault` module:
+```bash
+python -m ovault
+```
+
+*Output:*
+```
+OVault provies a few utilties out of the box.
+
+You can run them like so: `python3 -m ovault.<module>`
+
+Available modules:
+    ovault.visualize_graph        : Visualize your Obsidian vault graph using pyvis.
+    ovault.check_links            : Check all external links to websites in an Obsidian vault and report any broken links.
+    ovault.to_html                : Convert an obsidian vault to a simple static HTML site.
+    ovault.mv                     : Rename a file within an Obsidian vault, updating all links accordingly.
+    ovault.info                   : Show information about an Obsidian vault.
+    ovault.name_pasted_images     : Rename pasted images in the vault based on the note they are pasted into.
+    ovault.help                   : Show a list of all utility modules included in `ovault`.
+    ovault.filename_compatibility : Check filenames for compatibility across different operating systems.
+```
+
+## Install
+```bash
+pip install ovault
+```
+
+or locally
+
+```bash
+git pull https://github.com/BalderHolst/ovault
+cd ovault
+pip install .
+```
+
+## Features
+
+#### Vault Management
+
+##### Indexing
+- **Indexing:** Automatically indexes all notes and attachments within the vault upon initialization.
+- **Ignored Files:** Respects and parses `.vault-ignore` files to exclude specified paths during indexing.
+- **Dangling Links:** Identify and list links within your notes that point to non-existent files.
+
+#### Note Handling
+
+##### Access & Properties
+- **Access Notes & Attachments:** Retrieve all notes or attachments in the vault as Python objects.
+- **Frontmatter Extraction:** Manipulate YAML frontmatter from notes.
+
+##### Modification
+- **Dynamic Note Modification:** Programmatically insert or replace parts of a note
+
+#### Tag Management
+
+##### Querying Tags
+- **List All Tags:** Get a complete list of tags present in your vault.
+- **Filter by Tag:** Retrieve all notes associated with a specific tag.
+
+#### Markdown Parsing & Tokenization
+
+##### Token Representation
+- **Rich Token Representation:** Notes are parsed into a detailed stream of `Token` objects, representing various markdown elements.
+
+See `Token` in [`lexer/tokens.rs`](./src/lexer/tokens.rs) for all token definitions.
+
+## Contributing
+I would be more than happy if anyone finds this useful enough to add to, or modify this code.
+
+## Development
+Install `ovault` and development dependencies with
+```bash
+pip install -e ".[dev]"
+```
+
+or use the nix flake
+```bash
+nix develop
+```
+
+### Build for Testing
+```bash
+maturin develop --release --features python
+```
+
+### Test
+```bash
+./scripts/test.sh
+```
+
+Generate coverage report with
+```bash
+cargo tarpaulin --engine llvm --release --out Html
+```
+
+### Build Documentation
+```bash
+./scripts/build-docs.py
+```
+
+### Release
+1. Bump version in `Cargo.toml`
+2. Commit change and push
+3. Merge `dev` into `main` and push
+4. Create a git tag with the same version: `git tag <version>`
+5. Push new tag: `git push --tags`
+
