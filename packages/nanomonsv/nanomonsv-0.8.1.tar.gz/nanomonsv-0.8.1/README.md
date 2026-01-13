@@ -1,0 +1,303 @@
+# nanomonsv
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+![CI](https://github.com/friend1ws/nanomonsv/actions/workflows/python-test.yml/badge.svg)
+
+## Introduction
+
+nanomonsv is a software for detecting somatic structural variations from paired (tumor and matched control) cancer genome sequence data. nanomonsv is presented in the following paper. **When you use nanomonsv or any resource of this repository, please kindly cite this paper**.
+
+Precise characterization of somatic complex structural variations from tumor/control paired long-read sequencing data with nanomonsv, Shiraishi et al., Nucleic Acids Research, 2023, [[link]](https://academic.oup.com/nar/advance-article/doi/10.1093/nar/gkad526/7201946).
+
+The current version of nanomonsv includes two detection modules, Canonical SV module, and [Single breakend SV module](https://github.com/friend1ws/nanomonsv/wiki/Single-breakend-SV). Canonical SV module can identify somatic SVs that can be captured by short-read technologies with higher precision and recall than existing methods. Furthermore, Single breakend SV module enables the detection of complex SVs that can only be identified by long-reads, such as SVs involving highly-repetitive centromeric sequences, and LINE1- and virus-mediated rearrangements. 
+
+Please see the [wiki page](https://github.com/friend1ws/nanomonsv/wiki/Single-breakend-SV) for Single breakend SV module.
+
+## Dependency
+
+### For basic use (`parse`, `get` command)
+
+### Binary programs
+
+[htslib](http://www.htslib.org/), [mafft](https://mafft.cbrc.jp/alignment/software/), [racon](https://github.com/isovic/racon)(optional from ver. 0.3.0. However, we recommend to use this option. Add --use_racon option when you perfrom get command.)
+
+### Python
+Python (tested with >=3.9), pysam, numpy, parasail
+
+
+
+### For advanced use (`insert_classify` command)
+[bwa](https://github.com/lh3/bwa), [minimap2](https://github.com/lh3/minimap2), [bedtools](https://bedtools.readthedocs.io/en/latest/), [RepeatMasker](http://www.repeatmasker.org/)
+
+## Preparation
+
+### For basic use (`parse`, `get` command)
+
+#### Install software and add them to the PATH
+
+nanomonsv uses, `tabix`, `bgzip` (which are part of HTSlib projects) and `mafft` inside the program,
+assuming those are installed, and the paths are already added to the running environment.
+
+
+###### For use of racon
+Since version 0.3.0, we support racon for the step where generating consensus sequence and get single-base resolution breakpoints. racon may become the default instead of mafft in the future.
+
+
+### For advanced use (`insert_classify` command)
+`bwa`, `minimap2`, `bedtools` and `RepeatMasker` are required to be installed and these paths are added to the running environment.
+
+
+### Input file
+
+nanomonsv accept the BAM file aligned by `minimap2`. 
+
+
+### Control panel
+Starting with version 0.5.0, the use of the control panel is supported. 
+In this software, supporting reads for SVs are collected for multiple samples other than the target sample, 
+and such reads are removed as common noise (or those derived from common SVs) in the `get` stage. 
+This strategy is expected to exclude many false positives as well as improve computational cost.
+
+We have prepared the command to create control panels from the user's own sequencing data.
+In addition, for users who do not have sufficient sequencing data that can serve as a control panel (or just do not have time for processing), 
+we prepared a control panel that has been created using the 30 Nanopore sequencing data from the [Human Pangenome Reference Consortium](https://humanpangenome.org/), which is available at [zenodo](https://zenodo.org/records/11470934).
+
+This control panel is made by aligning 30~40 Nanopore (basecalled by Guppy ver. 4 and 6) and PacBio HiFi sequencing data to the GRCh38/CHM13 reference genome (obtained from [here](https://console.cloud.google.com/storage/browser/genomics-public-data/resources/broad/hg38/v0;tab=objects)) with minimap2 version 2.24. 
+For the choice of the control panel, we recommend that you use one that is as close as possible in platform and basecall quality. 
+However, based on our experience, a noisier control panel tends to be more versatile. Therefore, when unsure, we advise to use the Nanopore control panel from Guppy version 4.
+**When you use these control panels and publish, do not forget to credit to [HPRC](https://github.com/human-pangenomics/HG002_Data_Freeze_v1.0#citations)!**
+
+
+## Quickstart
+
+1. Install all the prerequisite software and install nanomonsv.
+```
+pip install nanomonsv (--user)
+```
+
+You can also install nanomonsv via conda (bioconda channel).
+```
+conda create -n nanomonsv -c conda-forge -c bioconda nanomonsv
+```
+Occasionally the conda releases lag behind the source code and PyPI releases.
+
+2. Prepare the reference genome for the test data (here, we show the path to Genomic Data Commons reference genome).
+```
+wget https://api.gdc.cancer.gov/data/254f697d-310d-4d7d-a27b-27fbf767a834 -O GRCh38.d1.vd1.fa.tar.gz
+tar xvf GRCh38.d1.vd1.fa.tar.gz
+```
+
+3. Parse the putative structural variation supporting reads of the test data.
+```
+nanomonsv parse tests/resource/bam/test_tumor.bam output/test_tumor
+nanomonsv parse tests/resource/bam/test_ctrl.bam output/test_ctrl
+```
+
+4. Get the final result.
+```
+nanomonsv get output/test_tumor tests/resource/bam/test_tumor.bam GRCh38.d1.vd1.fa --control_prefix output/test_ctrl --control_bam tests/resource/bam/test_ctrl.bam
+```
+
+You will see the result file named `test_tumor.nanomonsv.result.txt`.
+
+## Realistic example sequencing data
+
+The Oxford Nanopore Sequencing data used in the bioRxiv paper is available through the public sequence repository service (BioProject ID: PRJDB10898):
+- COLO829: [tumor](https://www.ncbi.nlm.nih.gov/sra/DRX248304[accn]), [control](https://www.ncbi.nlm.nih.gov/sra/DRX248305[accn])
+- H2009: [tumor](https://www.ncbi.nlm.nih.gov/sra/DRX248308[accn]), [control](https://www.ncbi.nlm.nih.gov/sra/DRX248309[accn])
+- HCC1954: [tumor](https://www.ncbi.nlm.nih.gov/sra/DRX248306[accn]), [control](https://www.ncbi.nlm.nih.gov/sra/DRX248307[accn])
+
+The results of nanomonsv for the above data are available [here](https://github.com/friend1ws/nanomonsv/tree/master/misc/example).
+When you perform nanomonsv to the above data and have experienced errors, please report to us.
+Also, please kindly cite the [NAR paper](https://academic.oup.com/nar/advance-article/doi/10.1093/nar/gkad526/7201946) when you use these data.
+
+See tutorial [wiki page](https://github.com/friend1ws/nanomonsv/wiki/Tutorial) for an example workflow on analyzing COLO829 sample.
+
+## Commands
+
+### parse
+
+This step parses all the supporting reads of putative somatic SVs.
+
+```
+nanomonsv parse [-h] [--reference_fasta reference.fa] [--debug]
+                [--split_alignment_check_margin SPLIT_ALIGNMENT_CHECK_MARGIN]
+                [--minimum_breakpoint_ambiguity MINIMUM_BREAKPOINT_AMBIGUITY]
+                alignment_file output_prefix
+```
+- **alignment_file**: Path to input indexed BAM or CRAM file
+- **output_prefix**: Output file prefix
+
+See the help (`nanomonsv parse -h`) for other options.
+From v0.7.0, nanomonsv can accept CRAM format files. For CRAM files, we recommend to add the PATH to the reference genome file by `--reference_fasta`.
+
+After successful completion, you will find supporting reads stratified by deletions, insertions, and rearrangements: 
+({output_prefix}.deletion.sorted.bed.gz, {output_prefix}.insertion.sorted.bed.gz, {output_prefix}.rearrangement.sorted.bedpe.gz, and {output_prefix}.bp_info.sorted.bed.gz and their indexes (.tbi files). 
+
+
+### get
+
+This step gets the SV result from the parsed supporting reads data obtained above.
+
+```
+nanomonsv get [-h] [--control_prefix CONTROL_PREFIX]
+              [--control_bam CONTROL_BAM]
+              [--control_panel_prefix CONTROL_PANEL_PREFIX]
+              [--simple_repeat_bed SIMPLE_REPEAT_BED]
+              [--min_tumor_variant_read_num MIN_TUMOR_VARIANT_READ_NUM]
+              [--min_tumor_VAF MIN_TUMOR_VAF]
+              [--max_control_variant_read_num MAX_CONTROL_VARIANT_READ_NUM]
+              [--max_control_VAF MAX_CONTROL_VAF]
+              [--cluster_margin_size CLUSTER_MARGIN_SIZE]
+              [--median_mapQ_thres MEDIAN_MAPQ_THRES]
+              [--max_overhang_size_thres MAX_OVERHANG_SIZE_THRES]
+              [--var_read_min_mapq VAR_READ_MIN_MAPQ]
+              [--qv10] [--qv15] [--qv20] [--qv25] [--use_racon]
+              [--single_bnd] [--processes PROCESSES] 
+              [--sort_option SORT_OPTION] [--max_memory_minimap2] [--debug]
+              tumor_prefix tumor_bam reference.fa
+ ```
+ - **tumor_prefix**: Prefix to the tumor data set in the parse step
+ - **tumor_bam**: Path to input indexed BAM file
+ - **reference.fa**: Path to reference genome used for the alignment
+
+
+You can also use **--process** to use multi-processing mode.
+
+#### Several important tips!
+
+##### <ins>Use of matched control</ins>
+
+This software can generate a list of SVs without specifying matched control samples. 
+However, we have not evaluated the performance of this approach when using only tumor samples, 
+and **we strongly recommend** using matched control data whenever possible.
+
+If only tumor samples are available, we still recommend using a dummy control sample (obtained from another individual's tissue).
+
+- **control_prefix**: Prefix of the matched control dataset generated in the parsing step
+- **control_bam**: File path to the matched control BAM file.
+
+##### <ins>Use of control panel</ins>
+
+When using a control panel (**recommended**), specify the following argument:
+
+- **control_panel_prefix**: Prefix of the non-matched control panel dataset generated in the merge_control step.
+
+
+##### <ins>Filtering indels within simple repeat regions</ins>
+
+We **strongly recommend** filtering indels located within simple repeat regions.
+From v0.8.0 onwards, we introduced the **--simple_repeat_bed** option, which allows specifying the path to a BED file containing simple repeat regions.
+We provide preprocessed simple repeat BED files in the [resource directory](https://github.com/friend1ws/nanomonsv/tree/master/resource/simple_repeats) repository.
+
+For the older version, please see the [wiki page](https://github.com/friend1ws/nanomonsv/wiki/An-example-on-removing-indels-within-simple-repeat).
+
+
+##### <ins>Use of Racon</ins>
+
+We basically recommend using `--use_racon` option. This will slightly improve the identification of single-base resolution breakpoint,
+and polishing of inserted sequences. 
+For detection of single breakend SVs, please use `--single_bnd` option as well as `--use_racon`. 
+Please see [wiki page](https://github.com/friend1ws/nanomonsv/wiki/Single-breakend-SV).
+
+
+##### <ins>Preset</ins>
+
+From v0.7.0, we prepared preset parameter options:
+- **--qv10**: Parameter preset for sequencing data with a base quality of around 10. Recommended for ONT data called by Guppy before version 5
+- **--qv15**: Parameter preset for sequencing data with a base quality of around 15. Recommended for ONT data called by Guppy version 5, 6.
+- **--qv20**: Parameter preset for sequencing data with a base quality of around 20. Recommended for ONT data with Q20+ chemistry.
+- **--qv25**: Parameter preset for sequencing data with a base quality above 25. Recommended for PacBio Hifi data.
+  
+This will slightly improve the breakpoint resolution. 
+
+
+##### <ins>Other trivial things</ins>
+
+- When you want to change the engine of Smith-Waterman algorithm to SSW Library, specify `--use_ssw_lib` option, though we do not generally recommend this.
+
+- For the older versions (before v0.4.0), we have prepared the script (misc/post_filter.py) for filtering the result. Please see the [wiki page](https://github.com/friend1ws/nanomonsv/wiki/How-to-filter-nanomonsv-result).
+
+
+#### Result
+
+After successful execution, you will be able to find the result file names as {tumor_prefix}.nanomonsv.result.txt.
+
+* **Chr_1**: Chromosome for the 1st breakpoint
+* **Pos_1**: Coordinate for the 1st breakpoint
+* **Dir_1**: Direction of the 1st breakpoint
+* **Chr_2**: Chromosome for the 2nd breakpoint
+* **Pos_2**: Coordinate for the 2nd breakpoint
+* **Dir_2**: Direction of the 2nd breakpoint
+* **Inserted_Seq**: Inserted nucleotides within the breakpoints
+* **SV_ID**: Identifier of SVs (originally comming from cluster of SV supporting reads)
+* **Checked_Read_Num_Tumor**: Total number of reads in the tumor used for the validation alignment step
+* **Supporting_Read_Num_Tumor**: Total number of variant reads in the tumor determined in the validation alignment step
+* **Checked_Read_Num_Control**: Total number of reads in the normal used for the validation alignment step
+* **Supporting_Read_Num_Control**: Total number of variant reads in the matched control determined in the validation alignment step
+* **Is_Filter**: Filter status. PASS if this SV has passed all the filters
+
+From the version 0.4.0, we will also provide the VCF format result files.
+For output files of the version 0.4.0 and later, some filtering has already been performed (see the [wiki page](https://github.com/friend1ws/nanomonsv/wiki/How-to-understand-nanomonsv-result-filtering)). 
+
+### merge_control
+
+This command merges non-matched control panel supporting reads obtained by performing `parse` command.
+
+```
+nanomonsv merge_control [-h] prefix_list_file output_prefix
+```
+
+- **prefix_list_file**: The list of output_prefix generated at the above `parse` stage. 
+- **output_prefix**: Prefix to the merged control supporting reads. 
+
+
+### insert_classify
+
+This command classifies the long insertions into several mobile element insertions (still in alpha version).
+This does not yet support VCF format, but we will do so in the near future.
+
+```
+nanomonsv insert_classify [-h] [--debug] sv_list_file output_file reference.fa gencode.gtf.gz LINE1_db
+```
+- **sv_list_file**: SV list file obtained in the get step
+- **output_file**: Path to the output file for this command
+- **reference.fa**: Path to the reference genome
+- **gencode.gtf.gz**: Path to GTF file (downloaded from Gencode or others).
+- **LINE1_db**: Path to LINE1 database for identification of transduction source. Basically use the preprovided files in the [resource directory](https://github.com/friend1ws/nanomonsv/tree/master/resource/LINE1_db).
+
+#### result
+
+* **Insert_Type**: Type of insertion (Solo_L1, Partnered_L1, Orphan_L1, Alu, SVA, PSD)
+* **Is_Inversion**: Type of inverted form for Solo LINE1 insertion (Simple, Inverted, Other)
+* **L1_Ratio**: The match rate with LINE1 sequences for the inserted sequences
+* **Alu_Ratio**: The match rate with Alu sequences for the inserted sequences
+* **SVA_Ratio**: The match rate with SVA sequences for the inserted sequences
+* **RMSK_Info**: Summary information of RepeatMasker
+* **Alignment_Info**: Alignment information to the human genome
+* **Inserted_Pos**: Inserted position (appears only when the inserted sequence is aligned near the other insertion and implicated to be the tandem duplication or nested LINE1 transduction).
+* **Is_PolyA_T**: Extracted poly-A or poly-T sequences
+* **Target_Site_Duplication**: Nucleotides of target site duplications
+* **L1_Source_Info**: Inferred source site of LINE1 transduction
+* **PSD_Gene**: Processed pseudogene name
+* **PSD_Overlap_Ratio**: The match rate with the pseudogene
+* **PSD_Exon_Num**: The number of pseudogene exons matched with the inserted sequence
+
+
+### validate
+
+This command, which is part of the procedures of `get` command, 
+performs validation of the candidate SVs by alignment of tumor and matched control BAM files.
+This may be helpful for the evaluation of SV tools of the short-read platform
+when pairs of short-read and long-read sequencing data are available.
+This is still in alpha version.
+
+```
+nanomonsv validate [-h] [--control_bam CONTROL_BAM]
+                   [--var_read_min_mapq VAR_READ_MIN_MAPQ] [--debug]
+                   sv_list_file tumor_bam output reference.fa
+```
+- **sv_list_file**: SV candidate list file (similar format with the result file by `get` command. 
+But only from **Chr_1** to **Inserted_Seq** columns are necessary.
+- **output_file**: Path to the output file
+- **reference.fa**: Path to the reference genome                          
