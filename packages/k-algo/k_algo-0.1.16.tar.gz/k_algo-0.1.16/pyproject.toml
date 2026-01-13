@@ -1,0 +1,65 @@
+[build-system]
+requires = [
+    "setuptools==80.9.0", 
+    "wheel==0.45.1", 
+    "Cython==3.1.3", 
+    "build==1.3.0",
+    "cibuildwheel==3.1.4",
+    "setuptools-scm>=9.2.0"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "k-algo"
+# version = "0.1.5"
+dynamic = ["version"]
+description = "Example algo package with Cython-compiled submodules"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Your Name" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Cython",
+  "Programming Language :: C",
+]
+dependencies = [
+    "pandas>=2.2.3",
+    "numpy>=2.0.1"
+]
+
+[project.scripts]
+algo-demo = "algo.__main__:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.exclude-package-data]
+"algo.func02" = ["*.pyx","*.pxd"]   # 或只排某子套件："algo.func02" = ["*.pyx","*.pxd"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[[tool.setuptools.ext-modules]]
+name = "algo.cext.fastsum"
+sources = ["algo/cext/fastsum.c"]
+extra-compile-args = ["-O3", "-fno-wrapv"]
+
+[[tool.setuptools.ext-modules]]
+name = "algo.func02.func02"
+sources = ["algo/func02/func02.pyx"]
+
+
+
+# setuptools-scm 設定
+[tool.setuptools_scm]
+# 讓它在建置時寫出一個版本檔案，供程式在執行期 import
+# 把 "your_pkg" 改成你的 package 目錄名稱（例如 algo/ 或 tzuping_algo/）
+write_to = "algo/_version.py"
+
+# 讓 tag 可用 "v1.2.3" 或 "1.2.3"
+tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:[a-zA-Z0-9\\.\\-]+)?)$"
+
+# 較常見的本地版本字尾策略：含短 hash
+local_scheme = "node-and-date"
+
+
