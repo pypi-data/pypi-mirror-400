@@ -1,0 +1,2930 @@
+\chapter{The \texttt{cli.hr} module and
+         the \texttt{hr} subcommands}%
+\label{cli.signupsheets}
+%\chnote{%
+%  Part of this chapter was developed in collaboration with GitHub Copilot.
+%  It provided autocompletion of text and code that I intended to write (mostly
+%  even verbatim) anyway.
+%  However, the code is mostly a rewrite (generalisation) of proof-of-concept 
+%  code written by myself last year (2022).
+%}
+
+In this chapter we introduce the subommands found under [[nytid signupsheets]],
+it's the [[cli.signupsheets]] module.
+<<hr.py>>=
+import arrow
+import csv
+import datetime
+from enum import Enum
+import ics.icalendar
+import json
+import logging
+import pathlib
+import os
+import sys
+import typer
+import typerconf as config
+from typing_extensions import Annotated
+
+from nytid.signup import hr
+from nytid.signup import sheets
+import operator
+
+from nytid.cli import courses as coursescli
+from nytid.cli.signupsheets import SIGNUPSHEET_URL_PATH
+from nytid import courses as courseutils
+from nytid import schedules as schedutils
+from nytid.signup import hr
+from nytid.signup import sheets
+
+<<imports>>
+<<constants>>
+
+cli = typer.Typer(name="hr",
+                  help="Manage sign-up sheets for teaching")
+
+<<helper functions>>
+<<argument and option definitions>>
+<<subcommands>>
+@
+
+
+\section{Default arguments for matching courses and users}
+
+The first argument we need is to identify a set of courses.
+For this we might also have to identify a set of registers.
+We'll use the argument and option defined in the [[cli.courses]] module.
+We'll default to all courses ([[.*]]) in the register of the [[mine]] command.
+<<argument for matching courses>>=
+course_regex: Annotated[str, coursescli.course_arg_regex]
+<<option for matching registers, default to mine>>=
+register: Annotated[str, coursescli.register_opt_regex] = coursescli.MINE
+@
+
+Then we can create a list of course--configuration pairs like this.
+<<set list [[courses]] to ((course, register), config)-pairs>>=
+registers = coursescli.registers_regex(register)
+courses = {}
+for course_reg in coursescli.courses_regex(course_regex, registers):
+  try:
+    courses[course_reg] = courseutils.get_course_config(*course_reg)
+  <<handle errors for accessing course data>>
+<<handle errors for accessing course data>>=
+except KeyError as err:
+  logging.warning(err)
+except PermissionError as err:
+  course, register = course_reg
+  logging.warning(f"You don't have access to {course} in {register}: {err}")
+@
+
+Now, if that list is empty, we have no courses, then we exit with a non-zero 
+return code.
+<<set list [[courses]] to ((course, register), config)-pairs>>=
+if not courses:
+  sys.exit(1)
+@
+
+
+\section{Looking up TA personal data}
+
+We want to get TA personal data from LADOK.
+Sometimes it's sufficient with data from Canvas, but the Canvas data is a
+prerequisite for the LADOK data.
+We'll do this by using the [[ladok3]] and [[canvaslms]] modules.
+We'll also use their [[CLI]] configs to get the credentials.
+So if the user has set up the [[ladok]] and [[canvaslms]] commands, 
+we can use the configs there.
+<<imports>>=
+import appdirs
+<<import and set up Canvas>>
+<<import and set up ladok3>>
+@
+
+\subsection{Setting up LADOK}
+
+We'll create a function to lazily set up a [[ladok_session]] object that we can use to query LADOK.
+This way, we only try to load credentials when they're actually needed.
+<<import and set up ladok3>>=
+# Global variable to cache the ladok session
+_ladok_session = None
+
+def get_ladok_session():
+  """Lazily initialize and return the LADOK session."""
+  global _ladok_session
+  if _ladok_session is not None:
+    return _ladok_session
+  
+  try:
+    import ladok3
+    import ladok3.cli
+
+    dirs_ladok = ladok3.cli.dirs                                   
+
+    LADOK_INST, LADOK_VARS = ladok3.cli.load_credentials(
+                                f"{dirs_ladok.user_config_dir}/config.json")
+
+    if LADOK_INST and LADOK_VARS:
+      _ladok_session = ladok3.LadokSession(LADOK_INST,
+                                          LADOK_VARS)
+    else:
+      _ladok_session = None
+      logging.warning("Can't load LADOK credentials, run `ladok login`")
+  <<handle ladok setup errors>>
+  
+  return _ladok_session
+@
+
+There are two errors that can occur here.
+The first is that we can't import the [[ladok3]] module.
+The second is that we can't load the credentials.
+In either case, we can't create the [[ladok_session]] object.
+<<handle ladok setup errors>>=
+except ImportError as err:
+  logging.warning(f"Can't import ladok3, not using LADOK data: {err}")
+  _ladok_session = None
+except Exception as err:
+  logging.warning(f"Can't load LADOK credentials: {err}")
+  _ladok_session = None
+@
+
+\subsection{Setting up Canvas}
+
+We also need to query user information from Canvas to find the LADOK ID.
+So we should also set up Canvas.
+We'll create a function to lazily set up a [[canvas_session]] object.
+This way, we only try to load credentials when they're actually needed.
+<<import and set up Canvas>>=
+# Global variable to cache the canvas session
+_canvas_session = None
+
+def get_canvas_session():
+  """Lazily initialize and return the Canvas session."""
+  global _canvas_session
+  if _canvas_session is not None:
+    return _canvas_session
+  
+  try:
+    import canvasapi
+    import canvaslms.cli
+
+    dirs_canvas = canvaslms.cli.dirs                                   
+
+    canvaslms_config = canvaslms.cli.read_configuration(
+                          f"{dirs_canvas.user_config_dir}/config.json")
+
+    CANVAS_SERVER, CANVAS_TOKEN = canvaslms.cli.login.load_credentials(
+                                      canvaslms_config)
+
+    if CANVAS_SERVER and CANVAS_TOKEN:
+      _canvas_session = canvasapi.Canvas(os.environ["CANVAS_SERVER"], 
+                                        os.environ["CANVAS_TOKEN"])
+    else:
+      _canvas_session = None
+      logging.warning("Can't load Canvas credentials, run `canvaslms login`")
+  <<handle canvas setup errors>>
+  
+  return _canvas_session
+@
+
+The first error that can occur here is that we can't import any of the modules
+[[canvasapi]] or [[canvaslms]].
+Any other exception concerns the credentials.
+<<handle canvas setup errors>>=
+except ImportError as err:
+  logging.warning(f"Can't import Canvas: {err}")
+  _canvas_session = None
+except Exception as err:
+  logging.warning(f"Can't load Canvas credentials: {err}")
+  _canvas_session = None
+@
+
+\subsection{Looking up usernames in Canvas and LADOK}
+
+Now that we have a (hopefully) working [[canvas_session]] and 
+[[ladok_session]], we can look up a username in Canvas and then from that user
+object we can look up the LADOK data.
+To do this, we'll introduce two helper functions:
+One to look up the username in Canvas, to get a Canvas user object.
+Another to look up the LADOK ID from the Canvas user object.
+
+Canvas is super slow, so we'll cache the results.
+Then we can cache big searches.
+We'll create several helper functions that we cache.
+We'll start with listing courses.
+<<helper functions>>=
+@cachetools.cached(cache={})
+def get_canvas_courses(course_regex):
+  """
+  Returns a list of Canvas course objects matching the given course_regex.
+  """
+  <<filter out [[courses]] in Canvas from [[course_regex]]>>
+  return courses
+<<imports>>=
+import cachetools
+@
+
+Now we introduce the helper function to look up a usernames in Canvas.
+We'll cache this one as well.
+Then we can add a function to search for specific users that can get all
+users using this function and cache the result.
+<<helper functions>>=
+@cachetools.cached(cache={})
+def get_canvas_users(username_regex, course_regex):
+  """
+  Returns a list of Canvas user objects matching the given username_regex.
+  Searches for username_regex in the courses matching course_regex.
+  """
+  courses = get_canvas_courses(course_regex)
+  <<filter [[users]] by looking for [[username_regex]] in [[courses]]>>
+  return users
+@
+
+All the filtering we want to do has already been implemented in [[canvaslms]].
+So we can simply call the right library functions.
+<<filter out [[courses]] in Canvas from [[course_regex]]>>=
+canvas_session = get_canvas_session()
+if canvas_session is None:
+  raise RuntimeError("Canvas session not available, run `canvaslms login`")
+try:
+  import canvaslms.cli.courses
+  courses = list(canvaslms.cli.courses.filter_courses(canvas_session,
+                                                      course_regex))
+except ImportError as err:
+  logging.warning(f"Can't import Canvas: {err}")
+  courses = []
+<<filter [[users]] by looking for [[username_regex]] in [[courses]]>>=
+try:
+  import canvaslms.cli.users
+  users = list(canvaslms.cli.users.filter_users(courses,
+                                                username_regex))
+except ImportError as err:
+  logging.warning(f"Can't import Canvas: {err}")
+  users = []
+@
+
+Now, to fully use these caches, we'll introduce another helper function.
+This one will take a username and return the Canvas user object.
+However, it will use the above function to cache all the users in the courses.
+This way, we don't have to maintain the cache anywhere else in the code.
+<<helper functions>>=
+def get_canvas_user(username, course_regex):
+  """
+  Takes a username and returns a Canvas user object.
+  Searches for username in the courses matching course_regex.
+  """
+  users = get_canvas_users(".*", course_regex)
+  <<filter out [[user]] among [[users]] by looking for [[username]], return it>>
+  <<raise an error if the user wasn't found>>
+@
+
+Now that we have a list of all users, we simply have to iterate to find the
+username.
+Sometimes the TAs accidentally add a space here and there, so we strip the
+username just to be sure.
+
+In case a user doesn't have a login ID, we simply skip that user.
+However, if we can't find the user, we want to include those users without any 
+login ID in the error message.
+Because the desired user might be one of them.
+<<filter out [[user]] among [[users]] by looking for [[username]], return it>>=
+username = username.strip()
+users_without_login_id = []
+
+for user in users:
+  try:
+    if user.login_id.split("@")[0] == username or user.login_id == username:
+      return user
+  except AttributeError:
+    users_without_login_id.append(user)
+@
+
+Now we can include the users without a login ID in the error message if we 
+don't find any user.
+We want the users to be printed in a nice format, one line each and indented by 
+two spaces.
+<<raise an error if the user wasn't found>>=
+users_without_login_id_str = "\n  ".join(map(str, users_without_login_id))
+raise ValueError(f"Can't find {username} in Canvas, but the following users "
+                 f"don't have a login ID: {users_without_login_id_str}")
+@
+
+It's very straightforward to get a LADOK student object once we have the Canvas
+user object.
+We don't need to cache this function since LADOK already caches the results and
+is very fast.
+<<helper functions>>=
+def get_ladok_user(canvas_user):
+  """
+  Takes a Canvas user object and returns a LADOK student object.
+  """
+  try:
+    ladok_session = get_ladok_session()
+    if ladok_session is None:
+      raise RuntimeError("LADOK session not available, run `ladok login`")
+    return ladok_session.get_student(canvas_user.integration_id)
+  except KeyError as err:
+    raise KeyError(f"can't look up {canvas_user} in LADOK: {err}")
+  except RuntimeError:
+    raise
+@
+
+
+\section{Staff booked on course}
+
+We want a list of the usernames of who is booked on the course.
+We'll simply read the sign-up sheet and extract all usernames.
+However, we'll add an option for detailed information that looks the username up
+in Canvas and LADOK to print more detailed information.
+<<subcommands>>=
+@cli.command()
+def users(<<argument for matching courses>>,
+          <<option for matching registers, default to mine>>,
+          <<option to output detailed user data>> = False):
+  """
+  Prints the list of all usernames booked on the course.
+  """
+  <<set list [[courses]] to ((course, register), config)-pairs>>
+  <<let [[booked]] be all bookings from [[courses]]>>
+
+  for user in hr.hours_per_TA(booked):
+    <<print detailed or non-detailed data about [[user]]>>
+<<let [[booked]] be all bookings from [[courses]]>>=
+booked = []
+for (course, register), config in courses.items():
+  <<add to [[booked]] from [[course]] in [[register]] using [[config]]>>
+@
+
+We'll return to
+[[<<set list [[courses]] to ((course, register), config)-pairs>>]] and
+[[<<add to [[booked]] from [[course]] in [[register]] using [[config]]>>]]
+later, in \cref{TeachingTime}.
+
+\subsection{Detailed user data}
+
+We want to have an option, that if specified it toggles that we output the
+user's name and other data in addition to only their username.
+<<option to output detailed user data>>=
+detailed: Annotated[bool, detailed_opt]
+<<argument and option definitions>>=
+detailed_opt = typer.Option(help="Output detailed user data.")
+<<print detailed or non-detailed data about [[user]]>>=
+if detailed:
+  <<set [[user_obj]] to most detailed version possible of [[user]]>>
+else:
+  user_obj = user
+<<set [[user_obj]] to most detailed version possible of [[user]]>>=
+user_obj = user
+try:
+  user_obj = get_canvas_user(user, course_regex)
+except Exception as err:
+  logging.warning(f"Can't look up {user} in Canvas: {err}")
+else:
+  try:
+    email = user_obj.email
+    user_obj = get_ladok_user(user_obj)
+    user_obj.email = email
+  except Exception as err:
+    logging.warning(f"Can't look up {user} ({user_obj}) in LADOK: {err}")
+    pass
+@
+
+We note that some versions of the [[user_obj]] might already have an email 
+included (the Canvas version).
+In that case, we don't want to include the email address again.
+<<print detailed or non-detailed data about [[user]]>>=
+try:
+  if detailed and "@" not in str(user_obj):
+    print(f"{user_obj} <{user_obj.email}>")
+  else:
+    print(user_obj)
+except AttributeError:
+  print(user_obj)
+@
+
+
+\section{Teaching time totals for a course}\label{TeachingTime}
+
+We provide a command [[time]] that summarizes the time spent on the course.
+<<subcommands>>=
+@cli.command()
+def time(<<argument for matching courses>>,
+         <<option for matching registers, default to mine>>,
+         <<option to output detailed user data>> = False,
+         <<options controlling what to print>>):
+  """
+  Summarizes the time spent on teaching the course(s).
+  """
+  <<set list [[courses]] to ((course, register), config)-pairs>>
+  <<let [[booked]] be all bookings from [[courses]]>>
+  <<print summary of [[booked]]>>
+@
+
+To add the bookings of a course to [[booked]], we simply get the URL of the 
+sign-up sheet and read the bookings.
+<<add to [[booked]] from [[course]] in [[register]] using [[config]]>>=
+try:
+  url = config.get(SIGNUPSHEET_URL_PATH)
+except KeyError as err:
+  logging.warning(f"Can't find sign-up sheet URL for {course} in {register}: "
+                  f"{err}")
+  continue
+<<convert [[url]] to Google Sheet CSV-export URL if necessary>>
+booked += sheets.read_signup_sheet_from_url(url)
+<<imports>>=
+from nytid.signup import sheets
+@
+
+If it's a Google Sheets sharing URL, we want to convert it to the export-CSV 
+URL.
+<<convert [[url]] to Google Sheet CSV-export URL if necessary>>=
+if "docs.google.com" in url:
+  url = sheets.google_sheet_to_csv_url(url)
+@
+
+\subsection{Printing the summaries}
+
+Once we have [[booked]] we can start to compute summaries and print them.
+We want to print them to screen using CSV format so that we can easily turn it 
+into a spreadsheet and use [[cut]] to get the data we want.
+<<print summary of [[booked]]>>=
+csvout = csv.writer(sys.stdout, delimiter="\t")
+<<print course summary, if desired>>
+<<print amanuensis summary, if desired>>
+<<print hourly summary, if desired>>
+@
+
+\subsubsection{Summary of the course}
+
+We want to print a summary of the course.
+This is so that we can get an overview of the total time spent and how much 
+time can be spent (if the sign-up sheet is booked to maximum).
+<<options controlling what to print>>=
+course_summary: Annotated[bool, course_summary_opt] = True,
+<<argument and option definitions>>=
+course_summary_opt = typer.Option(help="Print a summary of the course.")
+<<print course summary, if desired>>=
+if course_summary:
+  h_per_student = hr.hours_per_student(booked)
+
+  for event, hours in h_per_student.items():
+    csvout.writerow([event, to_hours(hours), "h/student"])
+
+  csvout.writerow(["Booked (h)",
+                   to_hours(hr.total_hours(booked)),
+                   to_hours(hr.max_hours(booked))])
+<<helper functions>>=
+def to_hours(td):
+  return td.total_seconds()/60/60
+<<imports>>=
+from nytid.signup import hr
+@
+
+\subsubsection{Summary of the amanuensis}
+
+We also want to print a summary of the amanuensis.
+Currently this one computes the hours for the amanuensis and the default dates.
+However, a future version should make use the existing contracts and compute 
+updates.
+<<options controlling what to print>>=
+amanuensis_summary: Annotated[bool, amanuensis_summary_opt] = True,
+<<argument and option definitions>>=
+amanuensis_summary_opt = typer.Option(help="Print a summary of the "
+                                           "amanuensis.")
+<<print amanuensis summary, if desired>>=
+if amanuensis_summary:
+  if course_summary:
+    csvout.writerow([])
+  if hourly_summary:
+    csvout.writerow(["# Amanuensis"])
+
+  amanuensis = hr.compute_amanuensis_data(booked)
+
+  for user, data in amanuensis.items():
+    if not user:
+      continue
+    if detailed:
+      <<set [[user_obj]] to most detailed version possible of [[user]]>>
+    else:
+      user_obj = user
+    csvout.writerow([user_obj,
+                     f"{data[2]:.2f} h",
+                     f"{100*hr.compute_percentage(*data):.1f}%",
+                     f"{data[0].format('YYYY-MM-DD')}",
+                     f"{data[1].format('YYYY-MM-DD')}"])
+@
+
+\subsubsection{Summary of the hourly TAs}
+
+We also want to print a summary of the hourly TAs.
+<<options controlling what to print>>=
+hourly_summary: Annotated[bool, hourly_summary_opt] = True,
+<<argument and option definitions>>=
+hourly_summary_opt = typer.Option(help="Print a summary of the hourly TAs.")
+<<print hourly summary, if desired>>=
+if hourly_summary:
+  if amanuensis_summary:
+    csvout.writerow([])
+    csvout.writerow(["# Hourly"])
+  elif course_summary:
+    csvout.writerow([])
+
+  for user, hours in hr.hours_per_TA(booked).items():
+    if not user or user in amanuensis:
+      continue
+    if detailed:
+      <<set [[user_obj]] to most detailed version possible of [[user]]>>
+    else:
+      user_obj = user
+
+    try:
+      user_text = f"{user_obj} <{user_obj.email}>" \
+                    if "@" not in str(user_obj) else str(user_obj)
+    except AttributeError:
+      user_text = str(user_obj)
+
+    csvout.writerow([user_text,
+                     to_hours(hours), "h"])
+@
+
+
+\section{Using periods for dates}
+
+Since 2025, HR requires amanuensis contracts to be aligned with periods.
+It's thus useful to let Nytid track periods and have an easy way to use them.
+
+Currently, when we create a contract (\cref{CreatingAmanuensisContracts}), we 
+can specify the start and end dates.
+However, we need to specify them manually twice:
+\begin{minted}{bash}
+nytid hr amanuensis create "(datintro|prg[im])25" \
+  --start 2025-08-25 --set-start 2025-08-25 \
+  --end 2025-10-26 --set-end 2025-10-26
+\end{minted}
+To override computing the dates from the bookings, we must use [[--set-start]].
+But to only use bookings between these dates, we must use [[--start]].
+
+We want to use those dates from the period instead.
+Then we can override the start and end dates if necessary.
+\begin{minted}{bash}
+nytid hr amanuensis create "(datintro|prg[im])25" \
+  --period 25/26-1 --set-start 2025-08-30
+\end{minted}
+
+We'll track arbitrary periods, so we can name them anything and add arbitrarily 
+many.
+We want to have a command that sets the dates for the periods.
+\begin{minted}{bash}
+nytid hr periods set 25/26-1 --start 2025-08-25 --end 2025-10-26
+nytid hr periods list
+\end{minted}
+<<subcommands>>=
+periods = typer.Typer(name="periods",
+                      help="Manage periods for amanuensis contracts")
+cli.add_typer(periods)
+@
+
+First some helper functions.
+We want to be able to set a period and get a period.
+We also want to be able to get all periods.
+<<helper functions>>=
+def get_all_periods():
+  """
+  Returns a dictionary of all periods.
+  """
+  <<read [[periods]] from config>>
+  return periods
+@
+
+We try to read the periods from the config.
+If it doesn't exist, we simply set it to an empty dictionary.
+<<read [[periods]] from config>>=
+try:
+  periods = config.get(PERIODS_CONFIG)
+except KeyError:
+  periods = {}
+<<constants>>=
+PERIODS_CONFIG = "hr.amanuensis.periods"
+@
+
+Now we can reuse that function when implementing [[get_period]].
+<<helper functions>>=
+def get_period(period):
+  """
+  Returns the (start, end) dates for the given period.
+  """
+  periods = get_all_periods()
+  try:
+    start = datetime.datetime.fromisoformat(periods[period]["start"])
+    end = datetime.datetime.fromisoformat(periods[period]["end"])
+  except KeyError as err:
+    raise KeyError(f"can't find period {period}: {err}")
+
+  <<make [[start]] and [[end]] timezone aware>>
+
+  return start, end
+@
+
+Finally, we want to implement [[set_period]].
+We want to store the periods in the config.
+We first read in the current config.
+Then we update the dictionary.
+We do this in case we use [[set]] to update an existing period.
+Finally, we write the config back.
+This way, we don't loose any existing periods.
+<<helper functions>>=
+def set_period(period, start, end):
+  """
+  Sets the start and end dates for the given period.
+  """
+  periods = get_all_periods()
+  periods[period] = {"start": start.date().isoformat(),
+                     "end": end.date().isoformat()}
+  config.set(PERIODS_CONFIG, periods)
+@
+
+
+\subsection{Setting the dates for a period}
+
+We want to set the start and end dates for a period.
+<<subcommands>>=
+@periods.command(name="set")
+def cli_periods_set(period: Annotated[str, period_arg],
+                    start: Annotated[datetime.datetime, start_date_opt],
+                    end: Annotated[datetime.datetime, end_date_opt]):
+  """
+  Sets the start and end dates for a period.
+  """
+  <<make [[start]] and [[end]] timezone aware>>
+  set_period(period, start, end)
+<<argument and option definitions>>=
+period_arg = typer.Argument(help="The name of the period to set.")
+@
+
+\subsection{Listing the periods}
+
+Listing the periods is straightforward.
+We simply read the config and print the periods in CSV format.
+<<subcommands>>=
+@periods.command(name="list")
+def cli_periods_list():
+  """
+  Lists the periods and their start and end dates.
+  """
+  periods = get_all_periods()
+  csvout = csv.writer(sys.stdout, delimiter="\t")
+
+  csvout.writerow(["Period", "Start", "End"])
+  for period, dates in periods.items():
+    csvout.writerow([period, dates["start"], dates["end"]])
+@
+
+
+\section{Creating amanuensis contracts}\label{CreatingAmanuensisContracts}
+
+We want the have a set of amanuensis commands that can generate, show and 
+update employment info for an amanuensis.
+<<subcommands>>=
+amanuensis = typer.Typer(name="amanuensis",
+                         help="Manage amanuensis employment")
+cli.add_typer(amanuensis)
+@
+
+We also want to automatically store the sessions that are included in that 
+employment.
+This way we can easily calculate what has changed later to track 
+\enquote{\foreignlanguage{swedish}{mertid}}.
+
+We let the [[create]] command generate a contract for an amanuensis.
+<<subcommands>>=
+@amanuensis.command(name="create")
+def cli_amanuens_create(<<option for TAs to filter for>>,
+                        <<default options for period>>,
+                        <<default options for start, end dates>>,
+                        <<default option for pushing dates forward>>,
+                        <<default options for overriding dates>>,
+                        <<argument for matching courses>> = ".*",
+                        <<option for matching registers, default to mine>>,
+                        <<option to output detailed user data>> = True,
+                        <<option to include event summary>> = False,
+                        <<option [[draft]] to not store contract>>,
+                        <<option for CSV delimiter>>):
+  """
+  Computes amanuensis data for a TA.
+  """
+  <<make all dates timezone aware>>
+  <<set list [[courses]] to ((course, register), config)-pairs>>
+  <<let [[booked]] be all bookings from [[courses]]>>
+  <<set up dates based on period>>
+  <<filter events from [[booked]] based on start, end dates>>
+
+  amanuensis = hr.compute_amanuensis_data(booked,
+                                          begin_date=start,
+                                          end_date=end)
+
+  <<amanuensis iteration variables>>
+  for user in amanuensis:
+    <<skip if [[user_regex]] doesn't match [[user]]>>
+    <<print [[amanuensis]] data for [[user]]>>
+    if not draft:
+      <<store [[user_events]] in CSV format>>
+<<option [[draft]] to not store contract>>=
+draft: Annotated[bool, draft_opt] = False
+<<argument and option definitions>>=
+draft_opt = typer.Option(help="Create a draft, "
+                              "don't store the generated contract.")
+@
+
+\subsection{Default arguments for user regex}
+
+We just set up an option defaulting to match anything.
+<<option for TAs to filter for>>=
+user_regex: Annotated[str, user_regex_opt] = ".*"
+<<argument and option definitions>>=
+user_regex_opt = typer.Option("--user",
+                              help="Regex to match TAs' usernames that "
+                                   "should be included.")
+@
+
+This allows us to do the check using regexes.
+We compile the regex since we're going to make several matches.
+<<amanuensis iteration variables>>=
+user_pattern = re.compile(user_regex)
+<<imports>>=
+import re
+<<skip if [[user_regex]] doesn't match [[user]]>>=
+if not user_pattern.match(user):
+  continue
+@
+
+\subsection{Start and end dates}
+
+We need start and ends dates for the events to include in the TA's contract.
+These are set by the period, or by the start and end dates.
+We let [[start]] and [[end]] take precedence over [[period]].
+This means that if the user sets the period, we only use the corresponding date 
+of the period if either [[start]] or [[end]] (or both) are not set.
+We do the same for the [[set_start]] and [[set_end]] dates, which controls the 
+dates of the contract.
+<<default options for period>>=
+period: Annotated[PeriodEnum, period_opt] = None
+<<default options for start, end dates>>=
+start: Annotated[datetime.datetime, start_date_opt] = None,
+end: Annotated[datetime.datetime, end_date_opt] = None
+<<argument and option definitions>>=
+PeriodEnum = Enum("PeriodEnum", {period: period
+                                 for period in get_all_periods()})
+period_opt = typer.Option(help="The period to use for the start and end "
+                               "dates. If not set, uses the full range of "
+                               "the sign-up sheet. "
+                               "Sets the start and end dates and "
+                               "set-start and set-end dates. unless those "
+                               "are set. "
+                               "The periods are configured using the "
+                               "`nytid hr periods` commands.")
+start_date_opt = typer.Option(help="The start date (inclusive, >=), "
+                                   "when unset includes "
+                                   "everything in the sign-up sheet. "
+                                   "Set this to decide what to include from "
+                                   "the sign-up sheet. "
+                                   "Overrides the dates of period if set.",
+                              formats=["%Y-%m-%d"])
+end_date_opt = typer.Option(help="The end date (inclusive, <=), "
+                                 "when unset includes "
+                                 "everything in the sign-up sheet. "
+                                 "Set this to decide what to include from "
+                                 "the sign-up sheet. "
+                                 "Overrides the dates of period if set.",
+                            formats=["%Y-%m-%d"])
+<<set up dates based on period>>=
+<<set up [[start]] and [[end]] based on [[period]]>>
+<<set up [[set_start]] and [[set_end]] based on [[period]]>>
+<<set up [[start]] and [[end]] based on [[period]]>>=
+if period:
+  period_start, period_end = get_period(period.value)
+  if not start:
+    start = period_start
+  if not end:
+    end = period_end
+<<set up [[set_start]] and [[set_end]] based on [[period]]>>=
+if period:
+  period_start, period_end = get_period(period.value)
+  if not set_start:
+    set_start = period_start
+  if not set_end:
+    set_end = period_end
+@
+
+Now that the dates are properly set up,
+we can use them to filter the events for the TA.
+<<filter events from [[booked]] based on start, end dates>>=
+booked = sheets.filter_events_by_date(booked, start, end)
+@
+
+\subsection{Print the amanuensis data for a TA}
+
+We may want to print for several users.
+In that case, we want to separate the output with a newline.
+<<amanuensis iteration variables>>=
+first_print = True
+csvout = csv.writer(sys.stdout, delimiter=delimiter)
+<<option for CSV delimiter>>=
+delimiter: Annotated[str, delimiter_opt] = "\t"
+<<argument and option definitions>>=
+delimiter_opt = typer.Option(help="Delimiter to use in CSV output.")
+<<print [[amanuensis]] data for [[user]]>>=
+if first_print:
+  first_print = False
+else:
+  print("\n")
+
+data = amanuensis[user]
+
+<<print a summary of the hours for [[user]] in [[data]]>>
+
+<<filter out [[user_events]] for [[user]]>>
+if event_summary:
+  <<print summary for each event type in [[user_events]]>>
+@
+
+Now, we want to have an option to control [[event_summary]].
+We want this option, since HR might not want it, whereas we might.
+<<option to include event summary>>=
+event_summary: Annotated[bool, event_summary_opt]
+<<argument and option definitions>>=
+event_summary_opt = typer.Option(help="Print a summary of the hours per event "
+                                      "type.")
+@
+
+\subsubsection{Print a summary of the hours for a TA}
+
+[[data]] contains the start and end date as the first two elements.
+Then comes the hours.
+So we get them out to make the code more readable and to modify them.
+
+Next, this summary is what we want to send to HR.
+So we should not use the username, rather as detailed as possible (name and 
+personnummer).
+
+Finally, if we use [[event_summary]], we also want to include the total number 
+of hours including prep time.
+In that case, we add that column last.
+<<print a summary of the hours for [[user]] in [[data]]>>=
+start = data[0]
+end = data[1]
+hours = data[2]
+<<modify [[start]], [[end]] or dates in [[data]] if necessary>>
+
+if detailed:
+  <<set [[user_obj]] to most detailed version possible of [[user]]>>
+else:
+  user_obj = user
+
+try:
+  user_text = f"{user_obj} <{user_obj.email}>" \
+                if "@" not in str(user_obj) else str(user_obj)
+except AttributeError:
+  user_text = str(user_obj)
+
+row = [user_text,
+       start.date(),
+       end.date(),
+       f"{round(100*hr.compute_percentage(*data))}%"]
+
+if event_summary:
+  row.append(f"{hours:.2f} h")
+
+csvout.writerow(row)
+@
+
+\subsubsection{Modifying the contract dates}
+
+Sometimes the start date is too early, so we want to push it forward together 
+with the end date.
+This happens when the TA doesn't apply for the amanuensis position on time, or
+that we are too late in processing it.
+<<default option for pushing dates forward>>=
+push_start: Annotated[datetime.datetime, push_start_opt] = None
+<<argument and option definitions>>=
+push_start_opt = typer.Option(help="Push the dates of the contract so that it "
+                                   "starts at this date. "
+                                   "This keeps the same percentage.",
+                              formats=["%Y-%m-%d"])
+<<modify [[start]], [[end]] or dates in [[data]] if necessary>>=
+if push_start:
+  push_start = arrow.Arrow(push_start.year, push_start.month, push_start.day)
+  start, end = push_forward(start, end, push_start)
+<<helper functions>>=
+def push_forward(start, end, push_start):
+  """
+  Takes a start and end date and pushes them forward so that start becomes
+  push_start.
+  """
+  if push_start > start:
+    end += push_start - start
+    start = push_start
+
+  return start, end
+@
+
+And sometimes we want to set the start and end dates to specific dates.
+This will affect the percentage computation, so we must modify the dates in 
+[[data[0]]] and [[data[1]]].
+<<default options for overriding dates>>=
+set_start: Annotated[datetime.datetime, set_start_opt] = None,
+set_end: Annotated[datetime.datetime, set_end_opt] = None
+<<argument and option definitions>>=
+set_start_opt = typer.Option(help="Force the start date of the contract to "
+                                  "this date. Might modify percentage.",
+                             formats=["%Y-%m-%d"])
+set_end_opt = typer.Option(help="Force the end date of the contract to "
+                                "this date. Might modify percentage.",
+                           formats=["%Y-%m-%d"])
+@
+
+We note that if we must modify [[data[0]]] or [[data[1]]], we must also modify 
+[[start]] and [[end]] that have already been set.
+<<modify [[start]], [[end]] or dates in [[data]] if necessary>>=
+data = list(data)
+
+if set_start:
+  start = data[0] = set_start
+if set_end:
+  end = data[1] = set_end
+@
+
+\subsubsection{Make all dates timezone aware}
+
+We must make all these dates timezone aware as they're not created as such.
+According to the documentation, we can use the [[astimezone]] method to do 
+this\footnote{%
+  Thanks to this answer on StackOverflow:
+  \url{https://stackoverflow.com/a/52606421/1305099}.
+}.
+<<make all dates timezone aware>>=
+<<make [[start]] and [[end]] timezone aware>>
+if push_start:
+  push_start = push_start.astimezone()
+if set_start:
+  set_start = set_start.astimezone()
+if set_end:
+  set_end = set_end.astimezone()
+@
+
+\subsection{Keeping a record of bookings}
+
+We also want the events that the TA booked to keep a record of how the hours
+were computed, so that we can keep track of changes and how that should affect
+the contract.
+<<filter out [[user_events]] for [[user]]>>=
+user_events = sheets.filter_events_by_TA(user, booked)
+user_events = filter(lambda x: user in sheets.get_booked_TAs_from_csv(x)[0],
+                     booked)
+user_events = list(map(lambda x: x[0:len(sheets.SIGNUP_SHEET_HEADER)] + [user],
+                       user_events))
+@
+
+Now we want to summarize the hours per event type.
+This helps us to get an overview of the changes.
+This also helps us to be compatible with the amanuensis spreadsheet used at the 
+department.
+<<print summary for each event type in [[user_events]]>>=
+for event, hours in hr.hours_per_event(user_events).items():
+  csvout.writerow([event, to_hours(hours), "h"])
+@
+
+Finally, we also store them in CSV format so that we can easily extract them to 
+make computations later, if needed.
+We also need any [[start]], [[set_start]] or [[end]], [[set_end]] parameters.
+This is so that we can recompute the contract when we use the [[show]] command.
+For instance, we need to give both [[end]] and [[set_end]] to not include 
+anything beyond this date.
+Just [[end]] tells us to not include any events later than this, but we can 
+still have a contract that goes beyond this date.
+Setting both ends both contract and events to the same date.
+So to include the same intention in the updated contract, we need the intention 
+from the original contract.
+
+We'll store the data in a file named after the TA and the current time.
+<<amanuensis iteration variables>>=
+path = pathlib.Path("./")
+<<set [[path]] to configured path for storing contracts>>
+<<store [[user_events]] in CSV format>>=
+filename = f"{user}.{datetime.datetime.now().isoformat()}.json"
+
+path.mkdir(parents=True, exist_ok=True)
+
+with open(path / filename, "w") as outfile:
+  json.dump({"user": user,
+             "start": start.isoformat() if start else None,
+             "set_start": set_start.isoformat() if set_start else None,
+             "push_start": push_start.isoformat() if push_start else None,
+             "end": end.isoformat() if end else None,
+             "set_end": set_end.isoformat() if set_end else None,
+             "course_regex": course_regex,
+             "events": user_events},
+            outfile,
+            indent=2)
+@
+
+\subsection{Configuring the path for storing contracts}
+
+We want to store the contracts that we generate somewhere.
+We'll let the user configure this location in the config.
+<<imports>>=
+import typerconf
+<<constants>>=
+AMANUENSIS_CONTRACT_PATH = "hr.amanuensis.contract_dir"
+<<set [[path]] to configured path for storing contracts>>=
+try:
+  path = pathlib.Path(typerconf.get(AMANUENSIS_CONTRACT_PATH))
+except KeyError as err:
+  logging.warning(f"Can't find {AMANUENSIS_CONTRACT_PATH} in config, "
+                  f"storing contract data in `{path}`. Set by running "
+                  f"`nytid config {AMANUENSIS_CONTRACT_PATH} -s <path>`.")
+@
+
+
+\section{Showing amanuensis contracts}
+
+Once we've generated the contracts, we want to be able to show them.
+Particularly, we might have generated several versions, we want to show the 
+currently valid one for each TA.
+<<subcommands>>=
+@amanuensis.command(name="show")
+def cli_amanuens_show(<<argument [[user_regex]] to match TAs>> = ".*",
+                      <<option to output detailed user data>> = False,
+                      <<option to include event summary>> = True,
+                      <<option for CSV delimiter>>,
+                      <<option [[updates]] to show updates>>,
+                      <<option [[events]] to include events>>,
+                      <<options for which contracts to show>>):
+  """
+  Shows stored amanuesis contracts for TAs.
+  """
+  <<let [[contracts_path]] be the configured path for storing contracts>>
+  <<let [[contracts]] be the valid contracts matching [[user_regex]]>>
+
+  <<amanuensis iteration variables>>
+  for contract in contracts:
+    <<print [[contract]]>>
+    if events:
+      print()
+      <<print events in [[contract]]>>
+    if updates:
+      print()
+      <<show draft contract based on [[contract]] with all current hours>>
+<<argument [[user_regex]] to match TAs>>=
+user_regex: Annotated[str, user_regex_arg]
+<<argument and option definitions>>=
+user_regex_arg = typer.Argument(help="Regex to match TAs' usernames that "
+                                     "should be included.")
+@
+
+This is similar as above, we just give a different warning message.
+<<let [[contracts_path]] be the configured path for storing contracts>>=
+try:
+  contracts_path = pathlib.Path(typerconf.get(AMANUENSIS_CONTRACT_PATH))
+except KeyError as err:
+  logging.warning(f"Can't find {AMANUENSIS_CONTRACT_PATH} in config, "
+                  f"looking for contract data in `./`. Set by running "
+                  f"`nytid config {AMANUENSIS_CONTRACT_PATH} -s <path>`.")
+  contracts_path = pathlib.Path("./")
+@
+
+\subsection{Finding the valid contracts}\label{contract-filtering}
+
+To support flexible contract querying, we define different filter modes that users
+can select via command-line options.
+These modes determine which time-based subset of valid contracts to return.
+
+<<constants>>=
+class ContractFilterMode(Enum):
+  """Filter mode for selecting which contracts to display."""
+  ALL = "all"          # All non-overlapping contracts
+  CURRENT = "current"  # Contracts overlapping with today
+  NEXT = "next"        # Upcoming contracts (start > today)
+  PREV = "prev"        # Past contracts (end < today)
+@
+
+The [[show]] command needs to display contracts for TAs matching the given
+regular expression.
+However, depending on the user's needs, they might want to see different sets
+of contracts:
+the currently active ones, upcoming contracts, past contracts, or all
+non-overlapping contracts.
+
+We start by determining which filter mode to use based on the command-line 
+options.
+The filter mode is determined by examining the command-line options in 
+priority order.
+The [[--all]], [[--next]], and [[--prev]] options are mutually exclusive in 
+practice (though we don't enforce this technically).
+When none are specified, we default to showing only current contracts---those 
+that overlap with today's date.
+This is the most common use case, as administrators typically want to see who 
+is currently employed.
+<<determine contract filter mode>>=
+if all:
+  filter_mode = ContractFilterMode.ALL
+elif next:
+  filter_mode = ContractFilterMode.NEXT
+elif prev:
+  filter_mode = ContractFilterMode.PREV
+else:
+  filter_mode = ContractFilterMode.CURRENT
+@
+
+Now we can retrieve the contracts using the determined filter mode.
+<<let [[contracts]] be the valid contracts matching [[user_regex]]>>=
+<<determine contract filter mode>>
+contracts = get_valid_contracts(user_regex, filter_mode=filter_mode)
+@
+
+\subsubsection{The [[get_valid_contracts]] function}
+
+The [[get_valid_contracts]] function retrieves contracts for TAs whose 
+usernames match the given regular expression.
+It returns a list of contracts, with the exact set determined by the 
+[[filter_mode]] parameter.
+
+Understanding what constitutes a \emph{valid} contract requires some background.
+When we generate contracts for TAs, we create timestamped files named 
+[[user.timestamp.json]].
+Over time, a single TA might have multiple contract files:
+\begin{itemize}
+\item Multiple versions of the same contract (generated at different times as 
+      bookings change)
+\item Truly separate contracts (for instance, one for autumn and one for 
+      spring)
+\end{itemize}
+
+We consider two contracts to overlap if they share any teaching events.
+A valid contract is the most recent version in a series of overlapping 
+contracts.
+However, if a TA has non-overlapping contracts (such as separate autumn and 
+spring contracts), all of them are valid.
+
+The [[filter_mode]] parameter further refines which valid contracts to return:
+\begin{description}
+\item[[CURRENT]] (default) returns only contracts whose date ranges overlap 
+      with today.
+\item[[NEXT]] returns the soonest upcoming contract for each user.
+\item[[PREV]] returns the most recently ended contract for each user.
+\item[[ALL]] returns all valid (non-overlapping) contracts regardless of date.
+\end{description}
+
+The default of [[CURRENT]] represents a change from earlier behavior.
+Previously, the function returned all valid contracts by default.
+Now users must explicitly request all contracts using the [[--all]] option, 
+as the typical use case is checking who is currently employed.
+<<helper functions>>=
+def get_valid_contracts(user_regex, filter_mode=ContractFilterMode.CURRENT):
+  """
+  Returns a list of valid contracts matching `user_regex`.
+
+  A valid contract is the latest contract in a series of overlapping contracts.
+  If there are non-overlapping contracts, both are considered valid (e.g.,
+  one for autumn semester and one for spring semester).
+  
+  filter_mode determines which contracts to return:
+  - ContractFilterMode.CURRENT: returns contracts overlapping with today (default)
+  - ContractFilterMode.NEXT: returns the next upcoming contract for each user
+  - ContractFilterMode.PREV: returns the previous (most recent past) contract for each user
+  - ContractFilterMode.ALL: returns all non-overlapping contracts
+  """
+  contracts = []
+
+  <<let [[contracts_path]] be the configured path for storing contracts>>
+  <<let [[users]] be the set of users with contracts matching [[user_regex]]>>
+  for user in users:
+    <<add the valid contracts for [[user]] to [[contracts]]>>
+
+  # Apply filtering based on mode
+  if filter_mode != ContractFilterMode.ALL:
+    <<filter contracts based on [[filter_mode]]>>
+
+  return contracts
+@
+
+\subsubsection{Filtering contracts by time period}
+
+After retrieving all valid contracts (those that are the latest versions and
+non-overlapping), we need to filter them based on the selected mode.
+
+\paragraph{Filtering algorithm overview}
+The filtering process consists of three stages:
+
+\begin{enumerate}
+\item \textbf{Date extraction}: Parse start and end dates from each contract's
+      ISO 8601 formatted fields, handling missing or malformed dates gracefully.
+
+\item \textbf{Mode matching}: For each contract, determine whether it matches
+      the filter criterion:
+      \begin{description}
+      \item[CURRENT:] Contract date range overlaps with today
+            (\texttt{start <= today <= end})
+      \item[NEXT:] Contract starts in the future (\texttt{start > today})
+      \item[PREV:] Contract ended in the past (\texttt{end < today})
+      \end{description}
+
+\item \textbf{Deduplication}: When multiple contracts for the same user match,
+      keep only the most appropriate one (criteria depends on filter mode).
+\end{enumerate}
+
+This three-stage approach ensures each user appears at most once in the result,
+showing their most relevant contract for the selected time period.
+
+\paragraph{Implementation}
+We begin by determining today's date in the local timezone, which serves as
+the reference point for all comparisons.
+
+<<filter contracts based on [[filter_mode]]>>=
+today = datetime.datetime.now().date()
+<<filter [[contracts]] to keep only those matching [[filter_mode]]>>
+@
+
+The main filtering loop iterates through all contracts and builds a dictionary
+mapping usernames to their best matching contract.
+This dictionary structure naturally handles deduplication: when we encounter
+a second contract for the same user, we compare it to the current best and
+decide whether to replace it.
+
+To determine whether a contract matches the filter mode, we first extract its
+start and end dates.
+Contract JSON files store dates in ISO 8601 format as optional string fields.
+We parse these strings into [[date]] objects for comparison.
+
+\paragraph{Handling missing or invalid dates}
+
+Several real-world scenarios can result in missing or invalid date fields:
+\begin{itemize}
+\item Preliminary contracts generated before course scheduling is finalized
+      may lack confirmed start/end dates.
+\item Manual edits to contract JSON files might introduce formatting errors.
+\item Legacy contracts from earlier system versions might use different schemas.
+\end{itemize}
+
+Our error handling strategy is conservative: when dates are missing or cannot
+be parsed, we set [[matches_filter = False]].
+This means incomplete contracts are excluded from all filtered views.
+
+The business rationale for this choice is safety: it's better to omit a contract
+from a filtered list than to incorrectly include one based on partial information.
+Users can always fall back to [[--all]] mode to see contracts with missing data,
+then investigate and fix the underlying data quality issue.
+
+The actual date comparison is straightforward once we have parsed the dates.
+For [[CURRENT]] contracts, we check if today falls within the date range 
+(inclusive on both ends).
+For [[NEXT]] contracts, we check if the contract starts in the future.
+For [[PREV]] contracts, we check if the contract has already ended.
+<<check if [[start]] and [[end]] match [[filter_mode]]>>=
+if filter_mode == ContractFilterMode.CURRENT:
+  matches_filter = start <= today <= end
+elif filter_mode == ContractFilterMode.NEXT:
+  matches_filter = start > today
+elif filter_mode == ContractFilterMode.PREV:
+  matches_filter = end < today
+@
+
+Now we can define the full matching logic:
+<<determine if [[contract]] matches [[filter_mode]]>>=
+matches_filter = False
+try:
+  start = datetime.datetime.fromisoformat(contract["start"]).date() \
+            if "start" in contract and contract["start"] else None
+  end = datetime.datetime.fromisoformat(contract["end"]).date() \
+          if "end" in contract and contract["end"] else None
+  
+  if start and end:
+    <<check if [[start]] and [[end]] match [[filter_mode]]>>
+except (KeyError, ValueError):
+  pass
+@
+
+Note on chunk decomposition: We use two levels of granularity in this section.
+The main filtering loop is a medium-sized chunk that orchestrates the process,
+while specific decision points (date matching, contract comparison) are
+small chunks that encapsulate variability. This makes the algorithm structure
+visible at a glance while keeping the details accessible when needed.
+
+When we have multiple contracts for the same user that match the filter
+criterion, we need to decide which one to keep.
+The decision logic depends on the filter mode, so we delegate to a helper 
+function.
+<<update [[user_filtered_contracts]] if [[contract]] is better>>=
+current_best = user_filtered_contracts[user]
+if should_replace_contract(contract, current_best, filter_mode):
+  user_filtered_contracts[user] = contract
+@
+
+With these helper blocks defined, we can now write the main filtering loop:
+<<filter [[contracts]] to keep only those matching [[filter_mode]]>>=
+user_filtered_contracts = {}
+for contract in contracts:
+  user = contract["user"]
+  
+  <<determine if [[contract]] matches [[filter_mode]]>>
+  
+  if matches_filter:
+    if user not in user_filtered_contracts:
+      user_filtered_contracts[user] = contract
+    else:
+      <<update [[user_filtered_contracts]] if [[contract]] is better>>
+
+contracts = list(user_filtered_contracts.values())
+@
+
+\subsubsection{Choosing the best contract for a user}
+
+When multiple contracts for the same user match the filter criterion, we must
+decide which one to keep.
+The [[should_replace_contract]] function implements this decision by comparing
+two contracts and returning [[True]] if the new contract should replace the
+current best match.
+
+The selection criteria differ based on what the user is looking for:
+
+\begin{description}
+\item[Current contracts:] When showing current employment, we prefer the most
+recently generated contract file (identified by filename timestamp).
+This ensures we show the latest version with the most up-to-date booking
+information, even if multiple versions of the same contract exist.
+
+\item[Next contracts:] When looking ahead to future contracts, we prefer the
+one starting soonest (earliest start date).
+This shows the user's immediate next employment period, which is typically
+what administrators need for planning purposes.
+
+\item[Previous contracts:] When reviewing past employment, we prefer the
+contract that ended most recently (latest end date).
+This shows the user's most recent historical employment, which is typically
+the most relevant for reference purposes.
+\end{description}
+
+The function delegates to [[is_more_recent_contract]] for the CURRENT case
+(defined in the next section), and implements the date comparison logic
+inline for NEXT and PREV cases.
+The inline implementation is appropriate here because:
+\begin{itemize}
+\item The date parsing logic includes specific error handling for each case
+\item The three cases are tightly coupled in a single conditional structure
+\item Extracting them to separate chunks would obscure the parallel structure
+\end{itemize}
+
+Now we can implement the complete function:
+<<helper functions>>=
+def should_replace_contract(new_contract, current_contract, filter_mode):
+  """
+  Determines if new_contract should replace current_contract based on 
+  filter_mode.
+  
+  For CURRENT mode: prefer the most recent contract by filename timestamp
+  For NEXT mode: prefer the contract with the earliest start date
+  For PREV mode: prefer the contract with the latest end date
+  """
+  if filter_mode == ContractFilterMode.CURRENT:
+    # For current contracts, prefer the most recently generated one
+    return is_more_recent_contract(new_contract, current_contract)
+  elif filter_mode == ContractFilterMode.NEXT:
+    # For next contracts, prefer the one starting soonest
+    try:
+      new_start = datetime.datetime.fromisoformat(new_contract["start"])
+      current_start = datetime.datetime.fromisoformat(current_contract["start"])
+      return new_start < current_start
+    except (KeyError, ValueError):
+      return False
+  elif filter_mode == ContractFilterMode.PREV:
+    # For previous contracts, prefer the one ending most recently
+    try:
+      new_end = datetime.datetime.fromisoformat(new_contract["end"])
+      current_end = datetime.datetime.fromisoformat(current_contract["end"])
+      return new_end > current_end
+    except (KeyError, ValueError):
+      return False
+  return False
+@
+
+\subsubsection{Comparing contract timestamps}
+
+When comparing current contracts, we need to determine which version is more
+recent.
+Recall that contract files are named [[user.timestamp.json]], where the
+timestamp uses ISO 8601 format to encode the contract generation time.
+
+\paragraph{Design rationale: filename-based comparison}
+
+When we load contracts from disk, we augment each contract dictionary with
+a [[filename]] field containing the original filename.
+This is done in the contract loading logic (see \cref{loading-contracts})
+for exactly this purpose: enabling recency comparison without reparsing.
+
+We considered two approaches for determining recency:
+\begin{description}
+\item[Approach 1: Parse timestamps] Extract and parse the timestamp portion
+      from the filename, convert to datetime objects, and compare numerically.
+
+\item[Approach 2: Lexicographic comparison] Compare the full filenames as
+      strings, relying on ISO 8601's lexicographic ordering property.
+\end{description}
+
+We chose Approach 2 because:
+\begin{itemize}
+\item ISO 8601 timestamps sort correctly lexicographically:
+      [[2024-01-15T10:30:00]] comes before [[2024-01-15T10:30:01]]
+      when compared as strings.
+\item No parsing overhead or potential parsing errors.
+\item Simpler implementation with fewer failure modes.
+\item The approach naturally handles the full filename comparison, which
+      ensures we're comparing timestamps for the same user.
+\end{itemize}
+
+The tradeoff is that this approach assumes filenames follow the naming
+convention strictly.
+If contract files are renamed or generated by an external tool that doesn't
+follow the convention, the comparison may be incorrect.
+We accept this risk because:
+\begin{itemize}
+\item Contract generation is controlled by this tool
+\item Manual filename changes are rare and would indicate a deeper problem
+\item The failure mode (wrong version selected) is observable and debuggable
+\end{itemize}
+
+<<helper functions>>=
+def is_more_recent_contract(contract1, contract2):
+  """
+  Returns True if contract1 is more recent than contract2.
+
+  Compares based on the timestamp in the filename, as contracts are
+  named user.timestamp.json where timestamp determines generation time.
+
+  This relies on ISO 8601 lexicographic ordering: later timestamps sort
+  after earlier ones when compared as strings.
+  """
+  filename1 = contract1.get("filename", "")
+  filename2 = contract2.get("filename", "")
+
+  # Simple string comparison works due to ISO 8601 format
+  return filename1 > filename2
+@
+
+\paragraph{Where filenames are stored}
+
+The [[filename]] field is added to each contract dictionary during the
+loading process in [[get_valid_contracts]].
+When we read each [[*.json]] file from the contracts directory, we parse
+the JSON content into a dictionary and add a [[filename]] key containing
+the source filename.
+
+This design pattern (augmenting loaded data with metadata) is common in
+data processing pipelines.
+It allows downstream functions like [[is_more_recent_contract]] to access
+the filename without passing it as a separate parameter or maintaining
+parallel data structures.
+
+The tradeoff is that the [[filename]] key is not part of the contract's
+JSON schema---it's runtime metadata.
+If we ever serialize these augmented dictionaries back to JSON, we should
+filter out the [[filename]] field to maintain schema purity.
+
+We also need a function to get all valid contracts for a specific user.
+This is useful when we need to check contracts for filtering purposes.
+<<helper functions>>=
+def get_user_contracts(user):
+  """
+  Returns a list of all valid contracts for a given user.
+
+  Calls `get_valid_contracts` internally, but matching exactly the given user.
+  """
+  return get_valid_contracts(f"^{re.escape(user)}$")
+@
+
+\subsubsection{Tests for [[get_user_contracts]]}
+
+To ensure [[get_user_contracts]] correctly handles various scenarios, we
+provide unit tests using the pytest framework.
+These tests rely on a [[temp_contracts_dir]] fixture (defined elsewhere in
+the test suite) that creates a temporary directory with sample contract files.
+
+The fixture provides contracts for multiple test users:
+\begin{itemize}
+\item [[alice]]: one contract (simple case)
+\item [[charlie]]: two non-overlapping contracts (autumn and spring)
+\item [[bob]]: multiple overlapping contracts (tests that only latest is returned)
+\end{itemize}
+
+<<test functions>>=
+def test_get_user_contracts_single(temp_contracts_dir):
+  """Test getting contracts for a user with one contract."""
+  contracts = get_user_contracts("alice")
+  assert len(contracts) == 1
+  assert contracts[0]["user"] == "alice"
+
+def test_get_user_contracts_multiple(temp_contracts_dir):
+  """Test getting contracts for a user with multiple non-overlapping contracts."""
+  contracts = get_user_contracts("charlie")
+  assert len(contracts) == 2
+  assert all(c["user"] == "charlie" for c in contracts)
+
+def test_get_user_contracts_nonexistent(temp_contracts_dir):
+  """Test getting contracts for a user that doesn't exist."""
+  contracts = get_user_contracts("dave")
+  assert len(contracts) == 0
+@
+
+The contracts are named after the TA and the time they were generated, 
+[[user.time.json]].
+This way, we can filter out all users with contracts only by looking at the 
+filenames.
+<<let [[users]] be the set of users with contracts matching [[user_regex]]>>=
+users = set()
+user_pattern = re.compile(user_regex)
+for contract in contracts_path.glob("*.json"):
+  username = contract.name.split(".")[0]
+  if user_pattern.match(username):
+    users.add(username)
+@
+
+The valid contract is the latest contract in a series of overlapping contracts.
+This means that we can simply sort the contracts by name (as the sorted ISO 
+time is the same as alphabetical order) and go through them.
+As soon as we find a contract that doesn't overlap with the previous one, we 
+know that the previous one is the latest valid contract.
+
+Remember that a TA can have several valid contracts:
+they might have had a contract for the autumn semester and then got a new one
+for the spring semester.
+Both of those contracts are considered valid since they don't overlap in
+teaching events.
+
+\subsubsection{Loading contracts from disk}\label{loading-contracts}
+
+When reading a contract from a file, we load the JSON data and augment it with
+the filename.
+The filename is crucial for timestamp-based comparisons, as explained earlier.
+Without storing it, we wouldn't be able to determine which version of a 
+contract is most recent when filtering for current contracts.
+<<read [[contract]] from [[contract_file]]>>=
+with open(contract_file) as infile:
+  contract = json.load(infile)
+contract["filename"] = contract_file.name
+@
+
+Now we can implement the logic to add valid contracts for a user:
+<<add the valid contracts for [[user]] to [[contracts]]>>=
+user_contracts = []
+
+contract_files = sorted(contracts_path.glob(f"{user}.*.json"),
+                        key=lambda x: x.name)
+prev_contract = None
+for contract_file in contract_files:
+  try:
+    <<read [[contract]] from [[contract_file]]>>
+  except Exception as err:
+    logging.warning(f"Can't read {contract_file}, skipping: {err}")
+    continue
+
+  if prev_contract and not contract_overlap(prev_contract, contract):
+    user_contracts.append(prev_contract)
+
+  prev_contract = contract
+
+user_contracts.append(contract)
+
+contracts += user_contracts
+@
+
+To check if two contracts overlap, we need to check if they have any events in 
+common.
+If they do, we consider them to overlap.
+<<helper functions>>=
+def contract_overlap(contract1, contract2):
+  """
+  Returns True if the contracts overlap, False otherwise.
+
+  We define overlap as having at least one event in common.
+  """
+  for event1 in contract1["events"]:
+    for event2 in contract2["events"]:
+      if event_overlap(event1, event2):
+        return True
+  return False
+@
+
+To compare the events, we need to compare the times of the events only.
+If they overlap in time, we consider them to be the same event.
+<<helper functions>>=
+def event_overlap(event1, event2):
+  """
+  Returns True if the events overlap, False otherwise.
+
+  We define overlap as overlapping in time.
+  """
+  start1 = datetime.datetime.fromisoformat(event1[1])
+  end1 = datetime.datetime.fromisoformat(event1[2])
+  start2 = datetime.datetime.fromisoformat(event2[1])
+  end2 = datetime.datetime.fromisoformat(event2[2])
+
+  return start1 < end2 and start2 < end1
+@
+
+Finally, we need a function to filter contracts to only those active in a given 
+time interval.
+<<helper functions>>=
+def filter_contracts_by_time(contracts, start=None, end=None):
+  """
+  Returns only the contracts that are active in the given time interval.
+  
+  A contract is considered active in the interval if its date range overlaps
+  with the specified period. The date ranges overlap if the contract ends
+  after the period starts and the contract starts before the period ends.
+  
+  Parameters:
+  - contracts: list of contract dictionaries
+  - start: optional start date (datetime) of the period (inclusive)
+  - end: optional end date (datetime) of the period (inclusive)
+  
+  Returns: list of contracts that overlap with the period
+  """
+  if not start and not end:
+    return contracts
+  
+  active_contracts = []
+  
+  for contract in contracts:
+    contract_start = datetime.datetime.fromisoformat(contract["start"]) \
+                       if "start" in contract and contract["start"] else None
+    contract_end = datetime.datetime.fromisoformat(contract["end"]) \
+                     if "end" in contract and contract["end"] else None
+    
+    if contract_start and contract_end:
+      # Check if contract dates overlap with period dates
+      dates_overlap = True
+      if start and contract_end:
+        dates_overlap = dates_overlap and (contract_end >= start)
+      if end and contract_start:
+        dates_overlap = dates_overlap and (contract_start <= end)
+      
+      if dates_overlap:
+        active_contracts.append(contract)
+  
+  return active_contracts
+@
+
+\subsubsection{Tests for [[filter_contracts_by_time]]}
+
+We test the function with various filtering scenarios.
+<<test functions>>=
+def test_filter_contracts_by_time_all_included(temp_contracts_dir):
+  """Test filtering when all contracts should be included."""
+  all_contracts = []
+  for user in ["alice", "bob", "charlie"]:
+    all_contracts.extend(get_user_contracts(user))
+  
+  # No date filter should return all contracts
+  filtered = filter_contracts_by_time(all_contracts, None, None)
+  assert len(filtered) == len(all_contracts)
+
+def test_filter_contracts_by_time_start_only(temp_contracts_dir):
+  """Test filtering with only a start date."""
+  all_contracts = []
+  for user in ["alice", "bob", "charlie"]:
+    all_contracts.extend(get_user_contracts(user))
+  
+  # Filter to contracts active after Nov 1, 2025
+  start = datetime.datetime(2025, 11, 1, tzinfo=datetime.timezone.utc)
+  filtered = filter_contracts_by_time(all_contracts, start, None)
+  
+  # Should include bob and charlie's second contract
+  assert len(filtered) == 2
+  users = {c["user"] for c in filtered}
+  assert users == {"bob", "charlie"}
+
+def test_filter_contracts_by_time_end_only(temp_contracts_dir):
+  """Test filtering with only an end date."""
+  all_contracts = []
+  for user in ["alice", "bob", "charlie"]:
+    all_contracts.extend(get_user_contracts(user))
+  
+  # Filter to contracts active before Oct 26, 2025 (end of period 1)
+  end = datetime.datetime(2025, 10, 26, tzinfo=datetime.timezone.utc)
+  filtered = filter_contracts_by_time(all_contracts, None, end)
+  
+  # Should include alice and charlie's first contract
+  assert len(filtered) == 2
+  contract_ids = [(c["user"], c["start"]) for c in filtered]
+  assert any(user == "alice" for user, _ in contract_ids)
+  assert any(user == "charlie" and "2025-08" in start for user, start in contract_ids)
+
+def test_filter_contracts_by_time_both_dates(temp_contracts_dir):
+  """Test filtering with both start and end dates."""
+  all_contracts = []
+  for user in ["alice", "bob", "charlie"]:
+    all_contracts.extend(get_user_contracts(user))
+  
+  # Filter to period 1: Aug 25 - Oct 26, 2025
+  start = datetime.datetime(2025, 8, 25, tzinfo=datetime.timezone.utc)
+  end = datetime.datetime(2025, 10, 26, tzinfo=datetime.timezone.utc)
+  filtered = filter_contracts_by_time(all_contracts, start, end)
+  
+  # Should include alice and charlie's first contract
+  assert len(filtered) == 2
+  users = {c["user"] for c in filtered}
+  assert users == {"alice", "charlie"}
+@
+
+\subsection{Printing the contract}
+
+To print the data, we can do the same as when we generated the contract.
+We just need to set up the same variables and then do
+[[<<print [[amanuesis]] data for [[user]]>>]].
+<<print [[contract]]>>=
+user = contract["user"]
+booked = contract["events"]
+
+start = datetime.datetime.fromisoformat(contract["start"]) \
+          if "start" in contract and contract["start"] else None
+push_start = datetime.datetime.fromisoformat(contract["push_start"]) \
+          if "push_start" in contract and contract["push_start"] else None
+set_start = datetime.datetime.fromisoformat(contract["set_start"]) \
+          if "set_start" in contract and contract["set_start"] else None
+end = datetime.datetime.fromisoformat(contract["end"]) \
+          if "end" in contract and contract["end"] else None
+set_end = datetime.datetime.fromisoformat(contract["set_end"]) \
+          if "set_end" in contract and contract["set_end"] else None
+
+<<let [[amanuesis]] be the recomputed data from [[booked]] between [[start]] and [[end]]>>
+
+try:
+  course_regex = contract["course_regex"]
+except KeyError:
+  <<find [[course_regex]] from [[contract]]>>
+
+<<print [[amanuensis]] data for [[user]]>>
+@
+
+
+When we recompute the amanuensis data, we want to set the low percentage and 
+minimum days to zero so that those settings don't interfere.
+Maybe those settings have changed, but then we still have a contract.
+<<let [[amanuesis]] be the recomputed data from [[booked]] between [[start]] and [[end]]>>=
+amanuensis = hr.compute_amanuensis_data(booked,
+                                        begin_date=start,
+                                        end_date=end,
+                                        low_percentage=0,
+                                        min_days=0)
+
+@
+
+We need [[course_regex]] to be able to look up the TA's details in Canvas and 
+LADOK.
+We can simply go through the events and find the first one that seems to 
+contain a course code.
+<<find [[course_regex]] from [[contract]]>>=
+code_pattern = re.compile(r"[A-Z]{2,4}\d{3,4}[A-Z]?")
+for event in booked:
+  match = code_pattern.search(event[0])
+  if match:
+    course_regex = match.group(0)
+    break
+else:
+  course_regex = ".*"
+@
+
+\subsection{Printing the events}
+
+In some cases we also want to print the events that were used to compute the 
+contract.
+We simply get the list of events from [[contract]] and print them as tab 
+separated CSV to stdout.
+<<print events in [[contract]]>>=
+csvout = csv.writer(sys.stdout, delimiter="\t")
+for event in contract["events"]:
+  csvout.writerow(event)
+<<option [[events]] to include events>>=
+events: Annotated[bool, events_opt] = False
+<<argument and option definitions>>=
+events_opt = typer.Option(help="Print the events used to compute the "
+                               "contract.")
+@
+
+\subsection{Showing updated draft contract}
+
+When we show the current contract, we also want to show what the contract would 
+have looked like using the current bookings.
+This way, we can see what has changed and how that affects the contract, for 
+\enquote{mertid} etc.
+
+We have the [[update]] option to control this.
+<<option [[updates]] to show updates>>=
+updates: Annotated[bool, updates_opt] = False
+<<argument and option definitions>>=
+updates_opt = typer.Option(help="Also show a draft contract based on the "
+                                "current bookings.")
+@
+
+\subsection{Options for filtering contracts by time}
+
+The [[show]] command provides three mutually exclusive options for filtering
+which contracts to display.
+These options give users fine-grained control over the time period they're
+interested in.
+
+By default (when none of these options are specified), the command shows only
+\emph{current} contracts.
+This is the most common use case: an administrator checking who is currently
+employed and what their current contract terms are.
+
+\paragraph{Option definition pattern}
+Each of the three filtering options follows the same structural pattern:
+\begin{enumerate}
+\item A boolean parameter with [[Annotated]] type and default [[False]]
+\item A [[typer.Option]] definition with descriptive help text
+\end{enumerate}
+
+We define these options separately rather than through a helper function because:
+\begin{itemize}
+\item Each option has domain-specific help text that explains its use case
+\item The typer library requires options to be defined as function parameters
+\item The repetition is minimal (only 3 instances) and improves clarity
+\end{itemize}
+
+The three filtering options are:
+
+\paragraph{The [[--all]] option}
+This disables time filtering entirely, showing all valid (non-overlapping)
+contracts for each matching user.
+A user might have multiple contracts shown if they worked in autumn, took a
+break, and then worked again in spring.
+This option is useful for getting a complete employment history.
+<<options for which contracts to show>>=
+all: Annotated[bool, show_all_opt] = False,
+<<argument and option definitions>>=
+show_all_opt = typer.Option(help="Show all non-overlapping contracts. "
+                                 "By default, only shows current contracts.")
+@
+
+\paragraph{The [[--next]] option}
+This shows only upcoming contracts---those that haven't started yet.
+For each user, it returns the contract with the earliest future start date.
+This is useful when planning for the next semester or checking upcoming
+commitments.
+<<options for which contracts to show>>=
+next: Annotated[bool, show_next_opt] = False,
+<<argument and option definitions>>=
+show_next_opt = typer.Option(help="Show the next (upcoming) contract for "
+                                   "each user.")
+@
+
+\paragraph{The [[--prev]] option}
+This shows only past contracts---those that have already ended.
+For each user, it returns the contract with the most recent end date.
+This is useful for reviewing recent employment history or verifying past work.
+<<options for which contracts to show>>=
+prev: Annotated[bool, show_prev_opt] = False
+<<argument and option definitions>>=
+show_prev_opt = typer.Option(help="Show the previous (most recent past) "
+                                   "contract for each user.")
+@
+
+We can reuse the [[create]] command ([[cli_amanuens_create]]) to generate the 
+draft contract.
+We use the dates from the contract as arguments to the [[create]] command.
+Finally, we must ensure to set [[draft]] to [[True]] to not store the contract.
+<<show draft contract based on [[contract]] with all current hours>>=
+try:
+  start = datetime.datetime.fromisoformat(contract["start"]) \
+            if contract["start"] else None
+except KeyError:
+  start = None
+
+try:
+  end = datetime.datetime.fromisoformat(contract["end"]) \
+          if contract["end"] else None
+except KeyError:
+  end = None
+
+try:
+  push_start = datetime.datetime.fromisoformat(contract["push_start"]) \
+            if contract["push_start"] else None
+except KeyError:
+  push_start = None
+
+try:
+  set_start = datetime.datetime.fromisoformat(contract["set_start"]) \
+            if contract["set_start"] else None
+except KeyError:
+  set_start = None
+
+try:
+  set_end = datetime.datetime.fromisoformat(contract["set_end"]) \
+            if contract["set_end"] else None
+except KeyError:
+  set_end = None
+
+cli_amanuens_create(
+  user_regex=contract["user"],
+  course_regex=".*",
+  start=start,
+  end=end,
+  push_start=push_start,
+  set_start=set_start,
+  set_end=set_end,
+  detailed=detailed,
+  event_summary=event_summary,
+  draft=True,
+  delimiter=delimiter
+)
+@
+
+\section{Listing amanuenses}
+
+We want a command to list the usernames of all amanuenses.
+We can filter by period or by specific start and end dates.
+<<subcommands>>=
+@amanuensis.command(name="list")
+def cli_amanuens_list(<<argument [[user_regex]] to match TAs>> = ".*",
+                      <<default options for period>>,
+                      <<default options for start, end dates>>):
+  """
+  Lists usernames of TAs with amanuensis contracts.
+  """
+  <<make [[start]] and [[end]] timezone aware>>
+  <<set up [[start]] and [[end]] based on [[period]]>>
+  <<let [[contracts_path]] be the configured path for storing contracts>>
+  <<let [[users]] be the set of users with contracts matching [[user_regex]]>>
+
+  <<filter [[users]] to only those with contracts in the period>>
+
+  for user in sorted(users):
+    print(user)
+@
+
+The [[start]] and [[end]] dates are parsed as naive datetimes (no tzinfo), 
+while event data (from Sheets/ICS/Arrow) is tz-aware.
+Naive times can be interpreted differently (local vs UTC), causing wrong 
+inclusions/exclusions at boundaries, especially around DST.
+But we assume local time (system timezone) for naive dates.
+<<make [[start]] and [[end]] timezone aware>>=
+if start:
+  start = start.astimezone()
+if end:
+  end = end.astimezone()
+@
+
+If start and end dates are specified (either via period or explicitly), we need to
+filter out users whose contracts don't overlap with the given period.
+<<filter [[users]] to only those with contracts in the period>>=
+if start or end:
+  users = filter_users_by_time(users, start, end)
+@
+
+\subsection{Tests for the [[list]] command}
+
+We test the CLI command to ensure it correctly filters users by period and dates.
+<<test functions>>=
+def test_cli_amanuens_list_no_filter(temp_contracts_dir, capsys):
+  """Test listing all amanuenses without filters."""
+  from typer.testing import CliRunner
+  from nytid.cli import hr
+  
+  runner = CliRunner()
+  result = runner.invoke(hr.cli, ["amanuensis", "list"])
+  
+  assert result.exit_code == 0
+  output = result.stdout
+  assert "alice" in output
+  assert "bob" in output
+  assert "charlie" in output
+
+def test_cli_amanuens_list_with_dates(temp_contracts_dir):
+  """Test listing amanuenses filtered by explicit dates."""
+  from typer.testing import CliRunner
+  from nytid.cli import hr
+  
+  runner = CliRunner()
+  
+  # Test with start and end dates for period 1
+  result = runner.invoke(hr.cli, ["amanuensis", "list", 
+                                   "--start", "2025-08-25", 
+                                   "--end", "2025-10-26"])
+  assert result.exit_code == 0
+  output = result.stdout
+  assert "alice" in output
+  assert "charlie" in output
+  assert "bob" not in output
+  
+  # Test with start and end dates for period 2
+  result = runner.invoke(hr.cli, ["amanuensis", "list", 
+                                   "--start", "2025-10-27", 
+                                   "--end", "2026-01-18"])
+  assert result.exit_code == 0
+  output = result.stdout
+  assert "bob" in output
+  assert "charlie" in output
+  assert "alice" not in output
+
+def test_cli_amanuens_list_with_start_only(temp_contracts_dir):
+  """Test listing amanuenses filtered by start date only."""
+  from typer.testing import CliRunner
+  from nytid.cli import hr
+  
+  runner = CliRunner()
+  
+  # Test with start date only - should include contracts starting after Nov 1
+  result = runner.invoke(hr.cli, ["amanuensis", "list", "--start", "2025-11-01"])
+  assert result.exit_code == 0
+  output = result.stdout
+  assert "bob" in output
+  assert "charlie" in output
+@
+
+We create a helper function to filter users by checking if they have any contracts
+active in the given period.
+<<helper functions>>=
+def filter_users_by_time(users, start=None, end=None):
+  """
+  Filters a set of users to only those with contracts active in the given period.
+  
+  Parameters:
+  - users: set of usernames
+  - start: optional start date (datetime) of the period (inclusive)
+  - end: optional end date (datetime) of the period (inclusive)
+  
+  Returns: set of usernames with active contracts in the period
+  """
+  filtered_users = set()
+  
+  for user in users:
+    user_contracts = get_user_contracts(user)
+    active_contracts = filter_contracts_by_time(user_contracts, start, end)
+    
+    if active_contracts:
+      filtered_users.add(user)
+  
+  return filtered_users
+@
+
+\subsubsection{Tests for [[filter_users_by_time]]}
+
+We test the function with various filtering scenarios including edge cases.
+<<test functions>>=
+def test_filter_users_by_time_no_filter(temp_contracts_dir):
+  """Test filtering users with no date filter."""
+  users = {"alice", "bob", "charlie", "dave"}
+  filtered = filter_users_by_time(users, None, None)
+  
+  # Should return all users with contracts
+  assert filtered == {"alice", "bob", "charlie"}
+
+def test_filter_users_by_time_period1(temp_contracts_dir):
+  """Test filtering users for period 1 (Aug-Oct 2025)."""
+  users = {"alice", "bob", "charlie"}
+  start = datetime.datetime(2025, 8, 25, tzinfo=datetime.timezone.utc)
+  end = datetime.datetime(2025, 10, 26, tzinfo=datetime.timezone.utc)
+  filtered = filter_users_by_time(users, start, end)
+  
+  # Should return alice and charlie (both have contracts in period 1)
+  assert filtered == {"alice", "charlie"}
+
+def test_filter_users_by_time_period2(temp_contracts_dir):
+  """Test filtering users for period 2 (Oct 2025-Jan 2026)."""
+  users = {"alice", "bob", "charlie"}
+  start = datetime.datetime(2025, 10, 27, tzinfo=datetime.timezone.utc)
+  end = datetime.datetime(2026, 1, 18, tzinfo=datetime.timezone.utc)
+  filtered = filter_users_by_time(users, start, end)
+  
+  # Should return bob and charlie (both have contracts in period 2)
+  assert filtered == {"bob", "charlie"}
+
+def test_filter_users_by_time_narrow_window(temp_contracts_dir):
+  """Test filtering with a narrow time window."""
+  users = {"alice", "bob", "charlie"}
+  # A narrow window in September should only match alice and charlie's first contracts
+  start = datetime.datetime(2025, 9, 10, tzinfo=datetime.timezone.utc)
+  end = datetime.datetime(2025, 9, 20, tzinfo=datetime.timezone.utc)
+  filtered = filter_users_by_time(users, start, end)
+  
+  # Should return alice and charlie
+  assert filtered == {"alice", "charlie"}
+
+def test_filter_users_by_time_no_matches(temp_contracts_dir):
+  """Test filtering with dates that don't match any contracts."""
+  users = {"alice", "bob", "charlie"}
+  # A window before all contracts
+  start = datetime.datetime(2025, 1, 1, tzinfo=datetime.timezone.utc)
+  end = datetime.datetime(2025, 1, 31, tzinfo=datetime.timezone.utc)
+  filtered = filter_users_by_time(users, start, end)
+  
+  # Should return no users
+  assert filtered == set()
+@
+
+\section{Working with time sheets}\label{WorkingWithTimesheets}
+
+We'll create a set of subcommands under [[timesheet]] to manage time sheets.
+<<subcommands>>=
+timesheets = typer.Typer(name="timesheets",
+                         help="Manage timesheets for TAs")
+cli.add_typer(timesheets)
+@
+
+\subsection{Generate time sheets for TAs}
+
+We want to generate time sheets for the TAs.
+We have a command [[generate]] that does this.
+We take similar options as the [[amenuensis create]] command, although we don't 
+need all of those options.
+Apart from the courses and users, we need the start and end dates to filter 
+what to include in the time sheet.
+<<subcommands>>=
+@timesheets.command(name="generate")
+def cli_generate_timesheets(<<option for TAs to filter for>>,
+      <<default options for start, end dates>>,
+      <<options for time sheet data>>,
+      <<argument for matching courses>> = ".*",
+      <<option for matching registers, default to mine>>,
+      <<option [[store]] to store the time sheet data>>,
+      <<option [[amanuensis]] to include amanuensis mertid>>,
+      <<option [[sign]] to include a signature>>,
+      <<option [[diff]] to generate only when there's a difference in salary>>,
+      <<option [[draft]] to print draft to stdout>>):
+  """
+  Generates time sheets for TAs in courses.
+  """
+  <<set list [[courses]] to ((course, register), config)-pairs>>
+  <<try to get [[manager]], [[organization]] and [[project]] from [[courses]]>>
+  <<let [[booked]] be all bookings from [[courses]]>>
+  <<filter events from [[booked]] based on start, end dates>>
+
+  user_pattern = re.compile(user_regex)
+  users = hr.hours_per_TA(booked)
+  <<timesheet generation user iteration variables>>
+  for user in users:
+    <<skip if [[user_regex]] doesn't match [[user]]>>
+    <<skip depending on [[amanuensis]] option>>
+    <<do timesheet processing for [[user]]>>
+@
+
+Let's start with all the processing for a user.
+We first want to compute [[added_events]] and [[removed_events]].
+<<do timesheet processing for [[user]]>>=
+ta_events = summarize_user(user, booked)
+all_prev_events = []
+
+<<add [[user]]'s amanuensis contracts to [[all_prev_events]]>>
+<<add [[user]]'s previously reported events to [[all_prev_events]]>>
+
+added_events = remove_events(ta_events, all_prev_events)
+removed_events = remove_events(all_prev_events, ta_events)
+@
+
+When we remove the events, we simply filter them.
+<<helper functions>>=
+def remove_events(events, events_to_remove):
+  """
+  Removes the events in `events_to_remove` from `events`.
+  """
+  return list(filter(lambda x: x not in events_to_remove, events))
+@
+
+We also need to filter summarized events (dictionaries with a [[datum]] key) by
+date range.
+This is used to filter previously reported events from timesheets, which are
+stored in the format produced by [[summarize_user]].
+<<helper functions>>=
+def filter_summarized_events_by_date(events, start_date=None, end_date=None):
+  """
+  Filter summarized events (dictionaries with 'datum' key) by date range.
+
+  Input: start_date and end_date are datetime.datetime objects; events is a
+  list of dictionaries with a 'datum' key containing a date string in
+  YYYY-MM-DD format.
+
+  Output: a list of events containing only those with a datum between
+  start_date (inclusive) and end_date (inclusive).
+  """
+  filtered = events
+
+  if start_date:
+    filtered = filter(
+      lambda x: start_date.date() <= datetime.datetime.strptime(
+        x["datum"], "%Y-%m-%d").date(),
+      filtered)
+  if end_date:
+    filtered = filter(
+      lambda x: end_date.date() >= datetime.datetime.strptime(
+        x["datum"], "%Y-%m-%d").date(),
+      filtered)
+
+  return list(filtered)
+@
+
+We want to add different options to affect the rest of the processing.
+<<option [[diff]] to generate only when there's a difference in salary>>=
+diff: Annotated[bool, diff_opt] = True
+<<argument and option definitions>>=
+diff_opt = typer.Option(help="diff: Only generate time sheets when there's a "
+                             "difference in salary. "
+                             "no-diff: Always generate time sheets when there "
+                             "are changes, even if there is no change in "
+                             "salary to be paid. "
+                             "(E.g. it's a change of dates.) "
+                             "No time sheets will be generated if there "
+                             "are no new events.")
+<<option [[draft]] to print draft to stdout>>=
+draft: Annotated[bool, draft_opt] = True
+<<argument and option definitions>>=
+draft_opt = typer.Option(help="Print a draft of the time sheet to stdout. "
+                              "Can be combined with --store to both preview and store.")
+<<option [[store]] to store the time sheet data>>=
+store: Annotated[bool, store_opt] = False
+<<argument and option definitions>>=
+store_opt = typer.Option(help="Store the time sheet data as reported. "
+                              "Defaults to preview-only; use --store to save.")
+@
+
+This leaves the rest of the processing like this.
+<<do timesheet processing for [[user]]>>=
+salary_diff = salary_difference(added_events, removed_events)
+
+if (diff and salary_diff != 0) or not diff:
+  if draft:
+    <<output [[added_events]] and [[removed_events]] to stdout>>
+  if not draft:
+    <<generate [[user]]'s timesheet from [[added_events]], [[removed_events]]>>
+
+if store:
+  <<store [[added_events]], [[removed_events]] for [[user]] as reported>>
+@
+
+To compute the difference in salary, we can simply sum up the salary in the 
+events.
+The function [[summarize_user]] lets [[belopp]] key of the event be the salary.
+<<helper functions>>=
+def salary_difference(added_events, removed_events):
+  """
+  Returns the difference in salary between the added and removed events.
+  """
+  return sum(map(lambda x: x["belopp"], added_events)) \
+           - sum(map(lambda x: x["belopp"], removed_events))
+@
+
+\subsection{Work with amanuensis or hourly TAs option}
+
+We want to be able to separate time sheets for amanuensis and hourly TAs.
+We want to check if the TA has a valid amanuensis contract that overlaps with 
+the period.
+If they have that, they should report extra hours as 
+\enquote{\foreignlanguage{swedish}{mertid}} instead.
+<<option [[amanuensis]] to include amanuensis mertid>>=
+amanuensis: Annotated[bool, amanuensis_opt] = False
+<<argument and option definitions>>=
+amanuensis_opt = typer.Option(help="Include only amanuenses, i.e. generate "
+                                   "mertid time sheets. no-amanuensis "
+                                   "include only hourly TAs.")
+<<skip depending on [[amanuensis]] option>>=
+contracts = get_valid_contracts(user)
+if amanuensis and not contracts:
+  continue
+elif not amanuensis and contracts:
+  continue
+@
+
+\subsection{Output draft to stdout}
+
+We want to be able to output a draft of the time sheet to stdout.
+This should be similar to what we want to do below in \cref{ShowTimesheet}.
+We should print the username and the added and removed events to stdout in 
+tab-separated CSV format.
+Note that we want to negate the hours for the removed events, this makes it 
+easier to read it correctly.
+<<timesheet generation user iteration variables>>=
+csvout = csv.writer(sys.stdout, delimiter="\t")
+first_print = True
+<<output [[added_events]] and [[removed_events]] to stdout>>=
+if not (added_events or removed_events):
+  continue
+
+if first_print:
+  first_print = False
+else:
+  csvout.writerow([])
+  csvout.writerow([])
+
+if added_events or removed_events:
+  csvout.writerow([user])
+
+if added_events and removed_events:
+  csvout.writerow(["Added events"])
+
+for event in added_events:
+  csvout.writerow(event.values())
+
+if removed_events:
+  csvout.writerow([])
+  csvout.writerow(["Removed events"])
+
+for event in removed_events:
+  event["timmar"] = -event["timmar"]
+  event["omr_tid"] = -event["omr_tid"]
+  event["belopp"] = -event["belopp"]
+  csvout.writerow(event.values())
+@
+
+\subsection{Generate a time sheet for a TA}
+
+To generate the time sheet for a TA we need to do the following:
+\begin{enumerate}
+  \item summarize the events for the TA;
+  \item look up the TA in Canvas and LADOK to get the personnummer;
+  \item put the data in the Excel format.
+\end{enumerate}
+<<generate [[user]]'s timesheet from [[added_events]], [[removed_events]]>>=
+if not added_events and not removed_events:
+  logging.warning(f"No events for {user}, skipping.")
+  continue
+
+<<set [[user_obj]] to most detailed version possible of [[user]]>>
+try:
+  personnummer = user_obj.personnummer
+  name = f"{user_obj.first_name} {user_obj.last_name}"
+except AttributeError as err:
+  logging.warning(f"can't access {user}'s LADOK data: {err}")
+  personnummer = "-"
+  name = str(user_obj)
+
+<<let [[output_filename]] be the filename for the time sheet>>
+
+timesheet.make_xlsx(personnummer,
+                    name,
+                    f"{user}@kth.se" if not "@" in user else user,
+                    added_events,
+                    removed_events=removed_events,
+                    course_leader=(course_responsible,
+                                   course_responsible_email),
+                    HoD=manager,
+                    org=organization, project=project,
+                    course_leader_signature=course_responsible_signature \
+                      if sign else None,
+                    output=output_filename)
+<<imports>>=
+from nytid.signup.hr import timesheet
+<<options for time sheet data>>=
+course_responsible: Annotated[str, course_responsible_opt]
+  = default_course_responsible,
+course_responsible_email: Annotated[str, course_responsible_email_opt]
+  = default_email,
+course_responsible_signature: Annotated[pathlib.Path,
+                                        course_responsible_signature_opt]
+  = default_signature_file,
+manager: Annotated[str, manager_opt] = default_manager,
+organization: Annotated[str, org_opt] = default_organization,
+project: Annotated[str, project_opt] = default_project
+<<option [[sign]] to include a signature>>=
+sign: Annotated[bool, sign_opt] = True
+<<argument and option definitions>>=
+sign_opt = typer.Option(help="Include the course responsible's signature.")
+@
+
+We construct the filename from the TA's username.
+We don't need to include any date, since we store each generated time sheet.
+(And this makes it easier to reuse
+[[<<generate timesheet for [[user]] based on [[booked]]>>]]
+later.)
+Thus we don't need to store the generated time sheet that we send.
+<<let [[output_filename]] be the filename for the time sheet>>=
+output_filename = f"timesheet-{user}.xlsx"
+@
+
+\subsection{Default values for the time sheet}
+
+The default values for all those parameters can be set in the configuration.
+We don't want to emit any warnings with hints to set the configuration, because 
+those would be all over the place (when autocompleting, when running the help, 
+etc.).
+So we'll add the hint for configuration to the help texts.
+<<argument and option definitions>>=
+course_responsible_opt = typer.Option(help="The course responsible's name; "
+                                           <<config default name>>)
+<<set [[default_course_responsible]]>>
+course_responsible_email_opt = typer.Option(help="The course responsible's "
+                                                 "email; "
+                                                 <<config default email>>)
+<<set [[default_email]]>>
+course_responsible_signature_opt = typer.Option(help="Path to a picture of "
+                                                     "the course "
+                                                     "responsible's "
+                                                     "signature; "
+                                                     <<config signature>>)
+<<set [[default_signature_file]]>>
+manager_opt = typer.Option(help="The manager's name; "
+                                <<config manager>>)
+<<set [[default_manager]]>>
+org_opt = typer.Option(help="The organization code for accounting; "
+                            <<config organization>>)
+<<set [[default_organization]]>>
+project_opt = typer.Option(help="The project number for accounting; "
+                                <<config project>>)
+<<set [[default_project]]>>
+@
+
+\subsubsection{The course responsible}
+
+It's the role of the course responsible to sign these time sheets.
+So the course responsible will be the current user and that's where we'll want 
+to get this information from: the personal config.
+<<how to set the value>>=
+If no default is set, we try to extract the value from the courses' config. "
+"You can set the default by running `nytid config ...` or "
+"`nytid courses config <course>
+<<config default name>>=
+"<<how to set the value>> me.name -s <name>`."
+<<config default email>>=
+"<<how to set the value>> me.email -s <email>`."
+<<config signature>>=
+"<<how to set the value>> me.signature -s <path>`."
+@
+
+This means that we can set the values by reading those values out of the 
+config, if they exist, otherwise we'll use [[None]].
+<<set [[default_course_responsible]]>>=
+try:
+  default_course_responsible = typerconf.get("me.name")
+except KeyError:
+  default_course_responsible = ""
+<<set [[default_email]]>>=
+try:
+  default_email = typerconf.get("me.email")
+except KeyError:
+  default_email = ""
+<<set [[default_signature_file]]>>=
+try:
+  default_signature_file = pathlib.Path(typerconf.get("me.signature"))
+except KeyError:
+  default_signature_file = None
+@
+
+\subsubsection{The manager and accounting}
+
+The manager and accounting depends on where the course is given.
+However, it's usually strongly related to where the course responsible works.
+So we can have a default value for the manager and accounting for the user in 
+their personal config.
+<<config manager>>=
+"<<how to set the value>> hr.manager -s <name>`."
+<<set [[default_manager]]>>=
+try:
+  default_manager = typerconf.get("hr.manager")
+except KeyError:
+  default_manager = ""
+<<config organization>>=
+"<<how to set the value>> hr.organization -s <code>`."
+<<set [[default_organization]]>>=
+try:
+  default_organization = typerconf.get("hr.organization")
+except KeyError:
+  default_organization = ""
+<<config project>>=
+"<<how to set the value>> hr.project -s <code>`."
+<<set [[default_project]]>>=
+try:
+  default_project = typerconf.get("hr.project")
+except KeyError:
+  default_project = ""
+@
+
+It doesn't make sense to extract these from the course, since the pattern might 
+match several courses and we can't specify several managers.
+The same for the accounting.
+However, we could extract that and if it turns out to be unique values, we can 
+use them.
+<<try to get [[manager]], [[organization]] and [[project]] from [[courses]]>>=
+managers = []
+orgs = []
+projects = []
+for _, course_config in courses.items():
+  try:
+    managers.append(course_config.get("hr.manager"))
+  except KeyError:
+    pass
+  try:
+    orgs.append(course_config.get("hr.organization"))
+  except KeyError:
+    pass
+  try:
+    projects.append(course_config.get("hr.project"))
+  except KeyError:
+    pass
+
+if len(set(managers)) == 1:
+  manager = managers[0]
+if len(set(orgs)) == 1:
+  organization = orgs[0]
+if len(set(projects)) == 1:
+  project = projects[0]
+@
+
+\subsection{Summarize the events for a TA}
+
+The [[summarize_user]] function will take a user and the course events and 
+return a list that can be put into the time sheet.
+This is essentially the bulk of the time sheet contents.
+<<helper functions>>=
+def summarize_user(user, course_events,
+                   salary=165):
+  """
+  Returns events where TA worked.
+  - `user` is the TA's username.
+  - `course_events` is a list of events.
+  - Optional `salary` is the hourly salary.
+  """
+  <<[[summarize_user]] variables>>
+  <<let [[hours]] be the hours of [[user]]>>
+  <<let [[events]] be a list of events for [[user]], sorted by date>>
+
+  xl_events = []
+
+  for event in events:
+    <<compute [[end]], [[start]], [[event_type]]>>
+    <<compute [[time]] and [[time_with_prep]] from [[start]] and [[end]]>>
+    <<compute [[course]] from [[event_type]]>>
+
+    xl_events.append({
+            "datum": str(start.date()),
+            "tid": str(start.time()),
+            "kurskod": course,
+            "typ": event_type,
+            "timmar": to_hours(time),
+            "koeff": hr.prep_factor(event_type, date=start.date(),
+                                    amanuensis=False),
+            "omr_tid": time_with_prep,
+            "belopp": time_with_prep * salary
+        })
+
+  return xl_events
+@
+
+We can simply compute [[hours]] using the [[hours_per_TA]] function.
+That function returns a dictionary with the TA as key and the total time as 
+value.
+So we just get the hours for the TA in question.
+However, if the TA doesn't have any hours, we'll get a [[KeyError]] since we 
+can't find any entry for the TA.
+In this case we simply set the hours to 0.
+<<let [[hours]] be the hours of [[user]]>>=
+try:
+  hours = to_hours(hr.hours_per_TA(course_events)[user])
+except KeyError:
+  hours = 0
+<<[[summarize_user]] variables>>=
+start_idx = sheets.SIGNUP_SHEET_HEADER.index("Start")
+@
+
+We want to filter the events for the TA, so we can use [[filter_events_by_TA]].
+We also want to sort them by date, so we sort them according to the start date.
+<<let [[events]] be a list of events for [[user]], sorted by date>>=
+events = sheets.filter_events_by_TA(user,
+                                    sorted(course_events,
+                                            key=operator.itemgetter(start_idx)))
+@
+
+Now, we also only want to include the events for which the TA was booked, not 
+the ones where they were reserve.
+<<let [[events]] be a list of events for [[user]], sorted by date>>=
+events = filter(lambda x: user in sheets.get_booked_TAs_from_csv(x)[0], 
+                events)
+@
+
+Finally, we want to remove the other TAs and just include this one TA in the 
+list of TAs.
+This allows us to reuse the list of events with all the usual library 
+functions.
+<<let [[events]] be a list of events for [[user]], sorted by date>>=
+events = list(map(lambda x:
+                    x[0:len(sheets.SIGNUP_SHEET_HEADER)] + [user],
+                  events))
+@
+
+We also need to extract the end date, start date and event type from the event.
+<<compute [[end]], [[start]], [[event_type]]>>=
+end = arrow.get(event[end_idx])
+start = arrow.get(event[start_idx])
+event_type = event[type_idx]
+<<[[summarize_user]] variables>>=
+end_idx = sheets.SIGNUP_SHEET_HEADER.index("End")
+type_idx = sheets.SIGNUP_SHEET_HEADER.index("Event")
+@
+
+Then we can compute the time spent on the event and the time spent on the event 
+including prep time.
+<<compute [[time]] and [[time_with_prep]] from [[start]] and [[end]]>>=
+time = end-start
+time_with_prep = to_hours(hr.round_time(
+                            hr.add_prep_time(time, event_type,
+                                              date=start.date())))
+@
+
+The course code is part of the [[event_type]].
+Usually events are named something along the lines of \enquote{Datorlaboration, 
+DD1310}.
+If there are several courses, they are separated by commas.
+We could simply find the start of the course code and extract all of them as 
+[[course]].
+However, that doesn't work in all cases, so we'll look for something that looks 
+like a course code using a regex instead.
+<<compute [[course]] from [[event_type]]>>=
+course = ""
+codes = re.findall(r"[A-Z]{2,4}\d{3,4}[A-Z]?", event_type)
+if codes:
+  course = ", ".join(codes)
+@
+
+
+\subsection{Find events from amanuensis contracts}
+
+Now we want to fetch the valid amanuensis contracts for the TA and filter out
+all events included there from [[ta_events]].
+We need to get ALL contracts (not just current ones) to ensure events from
+previous contracts don't appear in new timesheets.
+However, we must filter contract events by the same date range as the current
+events to avoid falsely marking future events as \enquote{removed}.
+<<add [[user]]'s amanuensis contracts to [[all_prev_events]]>>=
+user_contracts = get_valid_contracts(user, ContractFilterMode.ALL)
+for contract in user_contracts:
+  filtered_contract_events = sheets.filter_events_by_date(
+    contract["events"], start, end)
+  contract_events = summarize_user(user, filtered_contract_events)
+  all_prev_events += contract_events
+@
+
+\subsection{Store and retrieve the time sheet data for a TA}%
+\label{StoreRetrieveTimesheetData}
+
+When we generate the time sheet, we want to store the events that we used to 
+generate it.
+We will store the diffs ([[added_events]] and [[removed_events]]), that way 
+we'll build up the set of all events by adding them.
+
+For each time sheet we'll store [[added_events]] and [[removed_events]] in a 
+JSON file.
+This is similar to how we store the amanuensis contracts.
+<<store [[added_events]], [[removed_events]] for [[user]] as reported>>=
+timesheets_dir = pathlib.Path(typerconf.get(TIMESHEETS_DIR_PATH))
+filename = f"{user}.{datetime.datetime.now().isoformat()}.json"
+with open(timesheets_dir / filename, "w") as outfile:
+  json.dump({"user": user,
+             "added_events": added_events,
+             "removed_events": removed_events},
+            outfile,
+            indent=2)
+<<constants>>=
+TIMESHEETS_DIR_PATH = "hr.timesheets.timesheets_dir"
+@
+
+This means that we can read the data back as follows.
+We simply read each time sheet file and add [[added_events]] to
+[[all_prev_events]] and then remove [[removed_events]] from
+[[all_prev_events]].
+This way [[all_prev_events]] represents the correctly reported history.
+We must filter these events by the same date range as the current events to
+avoid falsely marking future events as \enquote{removed}.
+<<add [[user]]'s previously reported events to [[all_prev_events]]>>=
+timesheets_dir = pathlib.Path(typerconf.get(TIMESHEETS_DIR_PATH))
+for timesheet_file in timesheets_dir.glob(f"{user}.*.json"):
+  try:
+    with open(timesheet_file) as infile:
+      timesheet_data = json.load(infile)
+  except Exception as err:
+    logging.warning(f"Can't read {timesheet_file}, skipping: {err}")
+    continue
+
+  added = filter_summarized_events_by_date(
+    timesheet_data["added_events"], start, end)
+  removed = filter_summarized_events_by_date(
+    timesheet_data["removed_events"], start, end)
+  all_prev_events += added
+  all_prev_events = remove_events(all_prev_events, removed)
+@
+
+
+\section{Show the latest time sheet}\label{ShowTimesheet}
+
+Now that we have \cref{StoreRetrieveTimesheetData}, we can easily show the 
+generated time sheets for a TA.
+We let this command just print a summary of each time sheet.
+<<subcommands>>=
+@timesheets.command(name="show")
+def cli_show_timesheets(<<argument [[user_regex]] to match TAs>> = ".*",
+                        <<option [[reverse]] to adjust sort order>>,
+                        <<option [[all]] to show all timesheets>>,
+                        <<option for CSV delimiter>>,
+                        <<option for [[date_regex]] to filter by date>>,):
+  """
+  Shows stored time sheets for TAs.
+  """
+  timesheets_dir = pathlib.Path(typerconf.get(TIMESHEETS_DIR_PATH))
+
+  <<timesheets iteration variables>>
+  <<set [[timesheets]] depending on [[all]]>>
+  for timesheet in timesheets:
+    <<skip if [[user_regex]] doesn't match [[timesheet]]>>
+    <<skip if [[date_regex]] doesn't match [[timesheet]]>>
+    <<skip if we've already printed a timesheet for [[user]]>>
+    <<print [[timesheet]]>>
+<<option [[reverse]] to adjust sort order>>=
+reverse: Annotated[bool, reverse_opt] = False
+<<argument and option definitions>>=
+reverse_opt = typer.Option(help="Reverse the sort order.")
+<<option [[all]] to show all timesheets>>=
+all: Annotated[bool, all_opt] = False
+<<argument and option definitions>>=
+all_opt = typer.Option("--all/--newest",
+                       help="Show all time sheets or just the newest.")
+@
+
+If we want all time sheets, then we let the user decide on the sort order.
+If we only want the newest one, then we sort in reverse order and simply use 
+the first one.
+<<set [[timesheets]] depending on [[all]]>>=
+if not all:
+  reverse = True
+
+timesheets = sorted(timesheets_dir.glob(f"*.json"),
+                    key=lambda x: x.name,
+                    reverse=reverse)
+@
+
+We can check if the time sheet file matches the user's username.
+For example, the file name might be
+[[dbosk.2024-09-26T14:28:39.434834.json]].
+<<skip if [[user_regex]] doesn't match [[timesheet]]>>=
+username = timesheet.name.split(".")[0]
+if not user_pattern.match(username):
+  continue
+<<timesheets iteration variables>>=
+user_pattern = re.compile(user_regex)
+@
+
+In the same fashion, we want to filter on dates.
+<<skip if [[date_regex]] doesn't match [[timesheet]]>>=
+if date_regex and not date_pattern.match(timesheet.name.split(".")[1]):
+  continue
+<<timesheets iteration variables>>=
+if date_regex:
+  date_pattern = re.compile(date_regex)
+<<option for [[date_regex]] to filter by date>>=
+date_regex: Annotated[str, date_regex_opt] = None
+<<argument and option definitions>>=
+date_regex_opt = typer.Option(help="Filter time sheets by date. This is a "
+                                   "regex matching the date of the time "
+                                   "sheet.")
+@
+
+
+In the same fashion, we can check if we've already printed a time sheet for the 
+user.
+If we haven't printed one, we add the user to the set of printed users and 
+proceed to the printing step.
+We need to do like this since we might want to print the newest time sheet of 
+several matching users.
+Consequently, we don't want to skip when we want to print all time sheets for 
+the TAs.
+<<skip if we've already printed a timesheet for [[user]]>>=
+if username in printed_users and not all:
+  continue
+else:
+  printed_users.add(username)
+<<timesheets iteration variables>>=
+printed_users = set()
+@
+
+Now, to print the time sheet, we simply print the name of the file and the 
+added and removed events.
+We'll print it in CSV format.
+<<timesheets iteration variables>>=
+csvout = csv.writer(sys.stdout, delimiter=delimiter)
+first_print = True
+<<print [[timesheet]]>>=
+if first_print:
+  first_print = False
+else:
+  csvout.writerow([])
+  csvout.writerow([])
+
+csvout.writerow([timesheet.name])
+
+with open(timesheet) as infile:
+  timesheet_data = json.load(infile)
+
+added_events = timesheet_data["added_events"]
+removed_events = timesheet_data["removed_events"]
+
+if added_events and removed_events:
+  csvout.writerow(["Added events"])
+
+for event in added_events:
+  csvout.writerow(event.values())
+
+if removed_events:
+  csvout.writerow([])
+  csvout.writerow(["Removed events"])
+
+for event in removed_events:
+  csvout.writerow(event.values())
+@
+
+
+\section{Test setup and imports}
+
+We provide common test setup for all the tests in this module.
+<<test hr.py>>=
+from nytid.cli.hr import *
+
+<<test imports>>
+
+<<test setup>>
+
+<<test functions>>
+@
+
+\subsection{Test imports}
+
+We need to import the necessary modules for testing.
+<<test imports>>=
+import datetime
+import json
+import pathlib
+import tempfile
+import pytest
+@
+
+\subsection{Test setup}
+
+We create temporary contract files for testing and configure the contract directory.
+<<test setup>>=
+@pytest.fixture
+def temp_contracts_dir(monkeypatch):
+  """Creates a temporary directory with test contracts."""
+  with tempfile.TemporaryDirectory() as tmpdir:
+    contracts_path = pathlib.Path(tmpdir)
+    
+    # Mock the config to return our temp directory
+    def mock_config_get(key):
+      if key == "hr.amanuensis.contract_dir":
+        return str(contracts_path)
+      raise KeyError(f"Config key {key} not found")
+    
+    import typerconf
+    monkeypatch.setattr(typerconf, "get", mock_config_get)
+    
+    # Create test contracts
+    # Alice: contract in period 1 (Aug-Oct 2025)
+    alice_contract = {
+      "user": "alice",
+      "start": "2025-08-25T00:00:00+02:00",
+      "end": "2025-10-26T23:59:59+02:00",
+      "events": [
+        ["Lab", "2025-09-01 10:00", "2025-09-01 12:00", "DD1321", "2", "alice"]
+      ]
+    }
+    with open(contracts_path / "alice.2025-08-01T10:00:00.json", "w") as f:
+      json.dump(alice_contract, f)
+    
+    # Bob: contract in period 2 (Oct 2025-Jan 2026)
+    bob_contract = {
+      "user": "bob",
+      "start": "2025-10-27T00:00:00+02:00",
+      "end": "2026-01-18T23:59:59+01:00",
+      "events": [
+        ["Lab", "2025-11-01 10:00", "2025-11-01 12:00", "DD1310", "2", "bob"]
+      ]
+    }
+    with open(contracts_path / "bob.2025-10-01T10:00:00.json", "w") as f:
+      json.dump(bob_contract, f)
+    
+    # Charlie: two contracts in both periods
+    charlie_contract1 = {
+      "user": "charlie",
+      "start": "2025-08-25T00:00:00+02:00",
+      "end": "2025-10-26T23:59:59+02:00",
+      "events": [
+        ["Lab", "2025-09-15 10:00", "2025-09-15 12:00", "DD1321", "2", "charlie"]
+      ]
+    }
+    with open(contracts_path / "charlie.2025-08-01T10:00:00.json", "w") as f:
+      json.dump(charlie_contract1, f)
+    
+    charlie_contract2 = {
+      "user": "charlie",
+      "start": "2025-10-27T00:00:00+02:00",
+      "end": "2026-01-18T23:59:59+01:00",
+      "events": [
+        ["Lab", "2025-11-15 10:00", "2025-11-15 12:00", "DD1310", "2", "charlie"]
+      ]
+    }
+    with open(contracts_path / "charlie.2025-11-01T10:00:00.json", "w") as f:
+      json.dump(charlie_contract2, f)
+    
+    yield contracts_path
+@
