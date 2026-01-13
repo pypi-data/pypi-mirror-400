@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project_name }} - 数据预览</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <h1 style="margin: 0;">🎨 {{ project_name }} - 数据预览</h1>
+                <a href="/" class="btn" style="text-decoration: none; padding: 6px 12px; font-size: 12px; background: var(--primary-color); color: white !important; border: 1px solid var(--primary-color); white-space: nowrap;">重选项目</a>
+            </div>
+            <div>
+                <a href="/project/{{ project_name }}/preview" class="btn" style="text-decoration: none; margin-right: 10px;">🖼️ 进入标注页面</a>
+                <a href="/project/{{ project_name }}" class="btn" style="text-decoration: none; margin-right: 10px;">返回主页面</a>
+            </div>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <!-- 筛选和分页控制 -->
+        <div class="section-card">
+            <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+                    <label>类别筛选</label>
+                    <select id="categoryFilter">
+                        <option value="">全部</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0; width: 150px;">
+                    <label>每页数量</label>
+                    <input type="number" id="perPage" value="20" min="1" max="100">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>图片大小</label>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-size" onclick="decreaseImageSize()" title="缩小图片">🔍 变小</button>
+                        <button class="btn btn-size" onclick="increaseImageSize()" title="放大图片">🔍 变大</button>
+                        <span style="line-height: 38px; color: var(--text-secondary); font-size: 13px; margin-left: 8px;" id="imageSizeDisplay">中等</span>
+                    </div>
+                </div>
+                <div style="margin-top: 25px;">
+                    <button class="btn" onclick="loadImages()">刷新</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批量标注 -->
+        <div class="section-card">
+            <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+                    <label>选择类别</label>
+                    <select id="labelCategory">
+                        <option value="">未分类</option>
+                    </select>
+                </div>
+                <div style="margin-top: 25px;">
+                    <button class="btn btn-success" onclick="labelSelected()">批量标注选中图片</button>
+                    <button class="btn btn-secondary" onclick="selectAll()">全选当前页</button>
+                    <button class="btn btn-secondary" onclick="deselectAll()">取消全选</button>
+                    <span style="margin-left: 10px; color: #555;">已选中: <span id="selectedCount">0</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图片网格 -->
+        <div class="section-card">
+            <div id="imagesGrid" class="images-grid">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <button class="btn" onclick="previousPage()" id="prevBtn">上一页</button>
+            <span>第 <input type="number" id="currentPage" value="1" min="1" style="width: 60px;"> 页，共 <span id="totalPages">1</span> 页</span>
+            <button class="btn" onclick="nextPage()" id="nextBtn">下一页</button>
+        </div>
+    </div>
+
+
+    <script>
+        const projectName = '{{ project_name }}';
+    </script>
+    <script src="{{ url_for('static', filename='js/label.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/back_to_top.js') }}"></script>
+</body>
+</html>
+

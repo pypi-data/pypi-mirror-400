@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project_name }} - 标注页面</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .preview-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+        
+        body {
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .preview-header {
+            padding: 15px 20px;
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            position: relative;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .preview-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .preview-image-container {
+            width: 100%;
+            max-width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            overflow: hidden;
+        }
+        
+        .preview-image-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            touch-action: none;
+            overflow: hidden;
+        }
+        
+        .preview-image {
+            max-width: 100%;
+            max-height: 80vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border: 3px solid var(--border-color);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            background: var(--bg-secondary);
+            display: block;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            pointer-events: none;
+            touch-action: none;
+            -webkit-user-drag: none;
+            -khtml-user-drag: none;
+            -moz-user-drag: none;
+            -o-user-drag: none;
+            user-drag: none;
+        }
+        
+        .preview-info {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .preview-controls {
+            padding: 15px 20px;
+            background: var(--bg-secondary);
+            border-top: 2px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .key-bindings {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .key-binding-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-color);
+        }
+        
+        .key-binding-item.active {
+            border-color: var(--primary-color);
+            background: rgba(var(--primary-rgb), 0.1);
+        }
+        
+        .key-name {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--primary-color);
+            min-width: 30px;
+            text-align: center;
+        }
+        
+        .key-category {
+            font-size: 12px;
+        }
+        
+        .key-category select {
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 12px;
+            min-width: 100px;
+        }
+        
+        .key-hint {
+            display: none;
+        }
+        
+        .preview-stats {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px 15px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .preview-stats span {
+            color: var(--text-primary);
+            font-weight: bold;
+        }
+        
+        .preview-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .current-category {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--primary-color);
+            padding: 8px 15px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            border: 2px solid var(--primary-color);
+        }
+        
+        .no-images {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 18px;
+            padding: 40px;
+        }
+        
+        .key-hint {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-container">
+        <div class="preview-header">
+            <div class="header-left">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <h1 style="margin: 0;">🖼️ {{ project_name }} - 标注</h1>
+                    <a href="/" class="btn" style="text-decoration: none; padding: 6px 12px; font-size: 12px; background: var(--primary-color); color: white !important; border: 1px solid var(--primary-color); white-space: nowrap;">重选项目</a>
+                </div>
+                <div class="form-group" style="margin-bottom: 0; margin-right: 15px;">
+                    <label style="font-size: 12px; margin-bottom: 5px; display: block;">类别筛选</label>
+                    <select id="categoryFilter" style="padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 13px;">
+                        <option value="">未分类</option>
+                    </select>
+                </div>
+                <div class="key-bindings" id="keyBindings">
+                    <div class="key-binding-item" data-key="ArrowUp">
+                        <div class="key-name">↑</div>
+                        <div class="key-category">
+                            <select class="key-category-select" data-key="ArrowUp">
+                                <option value="">未分类</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="key-binding-item" data-key="ArrowDown">
+                        <div class="key-name">↓</div>
+                        <div class="key-category">
+                            <select class="key-category-select" data-key="ArrowDown">
+                                <option value="">未分类</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="key-binding-item" data-key="ArrowLeft">
+                        <div class="key-name">←</div>
+                        <div class="key-category">
+                            <select class="key-category-select" data-key="ArrowLeft">
+                                <option value="">未分类</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="key-binding-item" data-key="ArrowRight">
+                        <div class="key-name">→</div>
+                        <div class="key-category">
+                            <select class="key-category-select" data-key="ArrowRight">
+                                <option value="">未分类</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="header-right">
+                <a href="/project/{{ project_name }}/label" class="btn" style="text-decoration: none;">返回数据预览</a>
+                <a href="/project/{{ project_name }}" class="btn" style="text-decoration: none;">返回主页面</a>
+            </div>
+        </div>
+        
+        <div class="preview-content" id="previewContent">
+            <div class="no-images">加载中...</div>
+        </div>
+        
+        <div class="preview-controls">
+            <div class="preview-stats">
+                <div>当前图片: <span id="currentIndex">0</span> / <span id="totalImages">0</span></div>
+                <div>当前类别: <span id="currentCategory" class="current-category">未分类</span></div>
+                <div>已标注: <span id="labeledCount">0</span> / <span id="totalImages2">0</span></div>
+            </div>
+            
+            <div class="preview-actions">
+                <button class="btn" onclick="previousImage()">上一张</button>
+                <button class="btn btn-secondary" onclick="skipImage()">跳过</button>
+                <button class="btn" onclick="nextImage()">下一张</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="message" class="message"></div>
+    
+    <script>
+        const projectName = '{{ project_name }}';
+    </script>
+    <script src="{{ url_for('static', filename='js/preview.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/back_to_top.js') }}"></script>
+</body>
+</html>
+
