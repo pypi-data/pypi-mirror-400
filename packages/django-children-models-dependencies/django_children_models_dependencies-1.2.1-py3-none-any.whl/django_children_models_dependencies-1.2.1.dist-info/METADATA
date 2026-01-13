@@ -1,0 +1,91 @@
+Metadata-Version: 2.4
+Name: django-children-models-dependencies
+Version: 1.2.1
+Summary: django-children-models-dependencies provides tools to get the dependencies in a tree of django models
+Project-URL: Source, https://github.com/didouye/sparkup-back/tree/main/packages/django-children-models-dependencies
+Project-URL: Changelog, https://github.com/didouye/sparkup-back/blob/main/packages/django-children-models-dependencies/CHANGELOG.md
+Author-email: "Stephane \"Twidi\" Angel" <s.angel@twidi.com>
+License-Expression: BSD-3-Clause
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 4.2
+Classifier: Framework :: Django :: 5.0
+Classifier: Framework :: Django :: 5.1
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Requires-Dist: django>=4.2
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest-django>=4.5; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Requires-Dist: twine>=4.0; extra == 'dev'
+Description-Content-Type: text/x-rst
+
+===================================
+Django Children Models Dependencies
+===================================
+
+Purpose
+=======
+
+This is a small app that allow to get the children of a base model, in an dependency order from
+the model with the less dependencies, to the model with the more dependencies, each model coming
+after its own dependencies
+
+For example, for theses models:
+
+.. code-block:: python
+
+    class BaseModel(models.Model):
+        class Meta:
+            abstract = True
+
+    class ChildModel1(BaseModel):
+        pass
+
+    class ChildModel2(BaseModel):
+        link = models.ForeignKey('myapp.ChildModel3', on_delete=models.CASCADE)
+
+
+    class ChildModel3(BaseModel):
+        pass
+
+
+The order will be:
+
+.. code-block:: python
+
+        from django_children_models_dependencies.manager import ChildrenDependenciesManager
+
+        self.assertListEqual(ChildrenDependenciesManager.get_children_dependencies(BaseModel), [
+            ChildModel1,  # first model without dependencies
+            ChildModel3,  # dependency of ChildModel2, so it comes before
+            ChildModel2,  # last one, which must come after its own dependencies
+        ])
+
+
+Installation
+============
+
+Install from PyPI:
+
+.. code-block:: sh
+
+    pip install django-children-models-dependencies
+
+
+Requirements
+============
+
+- Python 3.9, 3.10, 3.11, 3.12
+- Django 4.2, 5.0, 5.1
