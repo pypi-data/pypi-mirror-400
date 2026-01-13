@@ -1,0 +1,63 @@
+Metadata-Version: 2.4
+Name: moat-lib-broadcast
+Version: 0.1.2
+Summary: Broadcasting support for MoaT applications
+Maintainer-email: Matthias Urlichs <matthias@urlichs.de>
+Project-URL: homepage, https://m-o-a-t.org
+Project-URL: repository, https://github.com/M-o-a-T/moat
+Keywords: MoaT
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: AnyIO
+Classifier: Framework :: Trio
+Classifier: Framework :: AsyncIO
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Developers
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: moat-util~=0.62.2
+Requires-Dist: moat-lib-micro~=0.2.1
+Requires-Dist: attrs~=23.0
+Dynamic: license-file
+
+# Broadcasting
+
+% start synopsis
+
+This module provides async broadcasting, with a finite, non-blocking
+message queue and data loss detection.
+
+% end synopsis
+
+## Installation
+
+```bash
+pip install moat-lib-broadcast
+```
+
+## Usage
+
+```python
+from moat.lib.broadcast import Broadcaster
+import anyio
+from contextlib import aclosing
+
+async def reader(bc):
+    async with aclosing(bc) as mq:
+        async for msg in mq:
+            print(f"Received: {msg}")
+
+async with anyio.create_task_group() as tg, Broadcaster() as bc:
+    # Start readers
+    tg.start_soon(reader, aiter(bc))
+    tg.start_soon(reader, bc.reader(10))  # explicit queue length
+
+    # Send messages
+    bc("Hello")
+    await anyio.sleep(0.01)
+    bc("World")
+```
+
+## License
+
+This project is part of the MoaT ecosystem and is licensed under the same terms.
