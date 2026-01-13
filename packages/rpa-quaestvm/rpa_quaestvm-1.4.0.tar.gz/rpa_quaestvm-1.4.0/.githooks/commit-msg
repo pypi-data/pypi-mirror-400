@@ -1,0 +1,22 @@
+#!/bin/sh
+# Valida o cabeçalho do commit para seguir prefixes semânticos
+# Exemplo válido: feat(api): adicionar endpoint de login
+
+commit_msg_file="$1"
+if [ -z "$commit_msg_file" ]; then
+  echo "Uso: commit-msg <arquivo>" >&2
+  exit 1
+fi
+
+regex='^(feat|fix|test|chore|docs|refactor|perf|ci|build|revert)(\([^)]+\))?: .+'
+first_line=$(sed -n '1p' "$commit_msg_file")
+
+echo "$first_line" | grep -E "$regex" > /dev/null
+if [ $? -ne 0 ]; then
+  echo "\nMensagem de commit inválida." >&2
+  echo "Formato esperado: <tipo>(escopo-opcional): descrição curta em pt-BR" >&2
+  echo "Tipos permitidos: feat, fix, test, chore, docs, refactor, perf, ci, build, revert" >&2
+  exit 1
+fi
+
+exit 0
