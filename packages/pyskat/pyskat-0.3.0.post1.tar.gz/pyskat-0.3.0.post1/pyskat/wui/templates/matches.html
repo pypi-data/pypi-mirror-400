@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal_editor, modal_editor_open, format_session, session_filter_button, player_filter_button  %}
+{% block title %}PySkat - Matches{% endblock %}
+{% block head %}{% endblock %}
+
+{% macro player_display(player) %}
+    <td>{{ player.id }}</td>
+    <td>{{ player.name }}</td>
+{% endmacro %}
+
+{% macro player_select(input_id, label, checked=[]) %}
+    <div class="mb-3">
+        <label class="form-label h5 mt-3">{{ label }}</label>
+        {% for p in players %}
+            <div class="form-check">
+                <input id="{{ input_id }}-{{ p.id }}" name="{{ input_id }}" type="checkbox"
+                        class="form-check-input" value="{{ p.id }}"{% if p.id in checked %} checked{% endif %}/>
+                <label for="{{ input_id }}-{{ p.id }}" class="form-check-label">{{ p.name }}
+                    ({{ p.id }})</label>
+            </div>
+        {% endfor %}
+    </div>
+{% endmacro %}
+
+{% macro session_select(input_id, label, selected=none) %}
+    <div class="mb-3">
+        <label for="{{ input_id }}" class="form-label">{{ label }}</label>
+        <select id="{{ input_id }}" name="{{ input_id }}" class="form-control">
+            <option value="none">None</option>
+            {% for s in sessions %}
+                <option value="{{ s.id }}"{% if s.id == selected %} selected{% endif %}>{{ format_session(s) }}</option>
+            {% endfor %}
+        </select>
+    </div>
+{% endmacro %}
+
+{% block content %}
+    <h1>Matches</h1>
+    {% if session %}for Session {{ session.id }}{% endif %}
+    {% if player %}for Player {{ player.id }}{% endif %}
+
+    <div class="input-group">
+        {{ modal_editor_open("add-match", "Add New Match", "success") }}
+        {{ modal_editor_open("shuffle-matches", "Shuffle Players to Matches", "primary") }}
+        {{ session_filter_button(request, sessions, session_filter) }}
+        {{ player_filter_button(request, players, player_filter) }}
+    </div>
+
+    <div class="mt-5">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Session</th>
+                <th>Player ID</th>
+                <th>Player Name</th>
+                <th>Remarks</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for m in matches %}
+                <tr>
+                    <td rowspan="{{ m.size }}">{{ m.id }}</td>
+                    <td rowspan="{{ m.size }}">{{ m.session_id or "" }}</td>
+                    {% if m.size > 0 %} {{ player_display(m.players[0]) }} {% else %} <td></td><td></td> {% endif %}
+                    <td rowspan="{{ m.size }}">{{ m.remarks }}</td>
+                    <td rowspan="{{ m.size }}">
+                        <div class="btn-group">
+                            {{ modal_editor_open("edit-match-{}".format(m.id), "Edit", "warning") }}
+                            {{ modal_editor_open("delete-match-{}".format(m.id), "Delete", "danger") }}
+                        </div>
+                    </td>
+                </tr>
+                {% for p in m.players[1:] %}
+                <tr>{{ player_display(p) }}</tr>
+                {% endfor %}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% call modal_editor("add-match", "Add New Match", submit_label="Add", submit_color="success") %}
+        {{ session_select("session", "Session") }}
+        {{ player_select("players", "Players") }}
+        <div class="mb-3">
+            <label for="remarks" class="form-label">Remarks</label>
+            <input id="remarks" name="remarks" type="text" value=""
+                   class="form-control"/>
+        </div>
+    {% endcall %}
+
+    <script>
+        document.getElementById("submit-add-match").addEventListener("click", async () => {
+            const form = document.getElementById("form-add-match");
+
+            let players_in_match = Array.from(form.elements["players"]).filter(e => e.checked).map(e => parseInt(e.value));
+
+            let match = {
+                session_id: form.elements.session.value === "none" ? null : parseInt(form.elements.session.value),
+                player_ids: players_in_match,
+                remarks: form.elements.remarks.value,
+            };
+
+            let response = await fetch('{{ url_for('api_match_create') }}', {
+                method:'POST',
+                headers: headers,
+                body: JSON.stringify(match)
+            });
+            if(response.ok)
+            {
+                let body = await response.json();
+                await flash_message(`New match created with ID ${body.id}.`, "success")
+            }
+            location.reload();
+        });
+    </script>
+
+    {% call modal_editor("shuffle-matches", "Shuffle Players to Matches", submit_label="Shuffle", submit_color="warning") %}
+        {{ session_select("session", "Session") }}
+        <div class="mt-3 form-check">
+            <input id="active_only" name="active_only" type="checkbox" checked
+                    class="form-check-input"/>
+            <label for="active_only" class="form-check-label">Include only active players</label>
+        </div>
+        {{ player_select("include", "Include Players Specifically") }}
+        {{ player_select("exclude", "Exclude Players Specifically") }}
+        {{ player_select("include_only", "Include Only These Players") }}
+        <div class="mb-3">
+            <label for="prefer_match_size" class="form-label">Prefer Match Size</label>
+            <input id="prefer_match_size" name="prefer_match_size" type="number" min="3" value="4" class="form-control"/>
+        </div>
+    {% endcall %}
+
+    <script>
+        document.getElementById("submit-shuffle-matches").addEventListener("click", async () => {
+            const form = document.getElementById("form-shuffle-matches");
+
+            let include = Array.from(form.elements["include"]).filter(e => e.checked).map(e => parseInt(e.value));
+
+            let exclude = Array.from(form.elements["exclude"]).filter(e => e.checked).map(e => parseInt(e.value));
+
+            let include_only = Array.from(form.elements["include_only"]).filter(e => e.checked).map(e => parseInt(e.value));
+
+            let match = {
+                session_id: form.elements.session.value === "none" ? null : form.elements.session.value,
+                active_only: form.elements.active_only.checked,
+                include: include,
+                exclude: exclude,
+                include_only: include_only,
+                prefer_match_size: parseInt(form.elements.prefer_match_size.value),
+            };
+
+            if (match.include.length == 0)
+                delete match.include
+
+            if (match.exclude.length == 0)
+                delete match.exclude
+
+            if (match.include_only.length == 0)
+                delete match.include_only
+
+            let response = await fetch('{{ url_for('api_match_create_shuffled') }}', {
+                method:'POST',
+                headers: headers,
+                body: JSON.stringify(match)
+            });
+            if(response.ok)
+            {
+                await flash_message(`Shuffled matches created.`, "success")
+            }
+            location.reload();
+        });
+    </script>
+
+    {% for m in matches %}
+
+    {% call modal_editor("edit-match-{}".format(m.id), "Edit Match", "Edit", "warning") %}
+        {{ session_select("session", "Session", m.session_id) }}
+        {{ player_select("players", "Players", m.player_ids) }}
+        <div class="mb-3">
+            <label for="remarks" class="form-label">Remarks</label>
+            <input id="remarks" name="remarks" type="text" value="{{ m.remarks }}"
+                class="form-control"/>
+        </div>
+    {% endcall %}
+
+    {% call modal_editor("delete-match-{}".format(m.id), "Delete Match", "Delete", "danger") %}
+        Really delete the match <strong class="text-danger">{{- m.name -}}</strong> with the ID
+        <strong class="text-danger">{{- m.id -}}</strong>?
+    {% endcall %}
+
+    <script>
+        document.getElementById("submit-edit-match-{{ m.id }}").addEventListener("click", async () => {
+            const form = document.getElementById("form-edit-match-{{ m.id }}");
+            let players_in_match = Array.from(form.elements["players"]).filter(e => e.checked).map(e => parseInt(e.value));
+
+            let match = {
+                session_id: form.elements.session.value === "none" ? null : parseInt(form.elements.session.value),
+                player_ids: players_in_match,
+                remarks: form.elements.remarks.value,
+            };
+
+            if (match.session_id === {{ m.session_id or "null" }})
+                delete match.name
+
+            if (match.remarks === '{{ m.remarks }}')
+                delete match.remarks
+
+            let response = await fetch('{{ url_for('api_match_update', match_id=m.id) }}', {
+                method:'PATCH',
+                headers: headers,
+                body: JSON.stringify(match)
+            });
+            if(response.ok)
+            {
+                let body = await response.json();
+                await flash_message(`New match created with ID ${body.id}.`, "success")
+            }
+            location.reload();
+        });
+
+        document.getElementById("submit-delete-match-{{ m.id }}").addEventListener("click", async () => {
+            let response = await fetch('{{ url_for('api_match_delete', match_id=m.id) }}', {
+                method:'DELETE',
+                headers: headers,
+            });
+            if(response.ok)
+                await flash_message('Match {{ m.id }} deleted.', "success")
+            location.reload();
+        });
+    </script>
+
+    {% endfor %}
+{% endblock %}

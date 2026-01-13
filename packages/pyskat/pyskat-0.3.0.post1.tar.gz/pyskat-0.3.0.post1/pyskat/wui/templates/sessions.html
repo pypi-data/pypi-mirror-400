@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal_editor, modal_editor_open %}
+{% block title %}PySkat - Sessions{% endblock %}
+{% block head %}
+{% endblock %}
+{% block content %}
+    <h1>Session</h1>
+
+    {{ modal_editor_open("add-session", "Add New Session", "success") }}
+
+    <div class="mt-5">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Date</th>
+                <th>Remarks</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for s in sessions %}
+                <tr>
+                    <td>{{ s.id }}</td>
+                    <td>{{ s.name }}</td>
+                    <td>{{ s.date.isoformat(sep=" ", timespec="minutes") }}</td>
+                    <td>{{ s.remarks }}</td>
+                    <td>
+                        <div class="btn-group">
+                            {% if current_session.id == s.id %}
+                                <button id="button-unset-current" class="btn btn-success">Unset Current</button>
+                                <script>
+                                    document.getElementById("button-unset-current").addEventListener("click", async () => {
+                                        let response = await fetch('{{ url_for('wui_sessions_delete_current') }}', {
+                                            method:'DELETE',
+                                            headers: headers,
+                                        });
+                                        if(response.ok)
+                                            await flash_message('Current session unset.', "success")
+                                        location.reload();
+                                    });
+                                </script>
+                            {% else %}
+                                <button id="button-set-current-{{- s.id -}}" class="btn btn-primary">Set Current</button>
+                                <script>
+                                    document.getElementById("button-set-current-{{ s.id }}").addEventListener("click", async () => {
+                                        let response = await fetch('{{ url_for('wui_sessions_set_current', session_id=s.id) }}', {
+                                            method:'PATCH',
+                                            headers: headers,
+                                        });
+                                        if(response.ok)
+                                            await flash_message('Session {{ s.id }} set as current.', "success")
+                                        location.reload();
+                                    });
+                                </script>
+                            {% endif %}
+                            {{ modal_editor_open("edit-session-{}".format(s.id), "Edit", "warning") }}
+                            {{ modal_editor_open("delete-session-{}".format(s.id), "Delete", "danger") }}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% call modal_editor("add-session", "Add New Session", submit_label="Add", submit_color="success") %}
+        <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <input id="name" name="name" type="text" value="" class="form-control"/>
+        </div>
+        <div class="mb-3">
+            <label for="date" class="form-label">Date</label>
+            <input id="date" name="date" type="text" value="{{- now -}}" class="form-control"/>
+        </div>
+        <div class="mb-3">
+            <label for="remarks" class="form-label">Remarks</label>
+            <input id="remarks" name="remarks" type="text" value="" class="form-control"/>
+        </div>
+    {% endcall %}
+
+    <script>
+        document.getElementById("submit-add-session").addEventListener("click", async () => {
+            const form = document.getElementById("form-add-session");
+            let session = {
+                name: form.elements.name.value,
+                date: form.elements.date.value,
+                remarks: form.elements.remarks.value,
+            };
+
+            let response = await fetch('{{ url_for('api_session_create') }}', {
+                method:'POST',
+                headers: headers,
+                body: JSON.stringify(session)
+            });
+            if(response.ok)
+            {
+                let body = await response.json();
+                await flash_message(`New session ${body.name} created with ID ${body.id}.`, "success")
+            }
+            location.reload();
+        });
+    </script>
+
+    {% for s in sessions %}
+        {% call modal_editor("edit-session-{}".format(s.id), "Edit Session", "Edit", "warning") %}
+            <div>
+                <label for="name" class="form-label">Name</label>
+                <input id="name" name="name" type="text" value="{{- s.name -}}"
+                    class="form-control"/>
+            </div>
+            <div class="mt-3">
+                <label for="date" class="form-label">Date</label>
+                <input id="date" name="date" type="text" value="{{- s.date -}}"
+                    class="form-control"/>
+            </div>
+            <div class="mt-3">
+                <label for="remarks" class="form-label">Remarks</label>
+                <input id="remarks" name="remarks" type="text" value="{{- s.remarks -}}"
+                    class="form-control"/>
+            </div>
+        {% endcall %}
+
+        {% call modal_editor("delete-session-{}".format(s.id), "Delete Session", "Delete", "danger") %}
+            Really delete the session <strong class="text-danger">{{- s.name -}}</strong> with the ID
+            <strong class="text-danger">{{- s.id -}}</strong>?
+        {% endcall %}
+
+        <script>
+            document.getElementById("submit-edit-session-{{ s.id }}").addEventListener("click", async () => {
+                const form = document.getElementById("form-edit-session-{{ s.id }}");
+                let session = {
+                    name: form.elements.name.value,
+                    date: form.elements.date.value,
+                    remarks: form.elements.remarks.value,
+                };
+
+                if (session.name === '{{ s.name }}')
+                    delete session.name
+
+                if (session.date === '{{ s.date }}')
+                    delete session.date
+
+                if (session.remarks === '{{ s.remarks }}')
+                    delete session.remarks
+
+                let response = await fetch('{{ url_for('api_session_update', session_id=s.id) }}', {
+                    method:'PATCH',
+                    headers: headers,
+                    body: JSON.stringify(session)
+                });
+                if(response.ok)
+                    await flash_message('Session {{ s.id }} updated.', "success")
+                location.reload();
+            });
+
+            document.getElementById("submit-delete-session-{{ s.id }}").addEventListener("click", async () => {
+                let response = await fetch('{{ url_for('api_session_delete', session_id=s.id) }}', {
+                    method:'DELETE',
+                    headers: headers,
+                });
+                if(response.ok)
+                    await flash_message('Session {{ s.id }} deleted.', "success")
+                location.reload();
+            });
+
+        </script>
+    {% endfor %}
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal_editor, modal_editor_open %}
+{% block title %}PySkat - Players{% endblock %}
+{% block head %}{% endblock %}
+{% block content %}
+    <h1>Players</h1>
+
+    {{ modal_editor_open("add-player", "Add New Player", "success") }}
+
+    <div class="mt-5">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Is Active</th>
+                <th>Remarks</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for p in players %}
+                <tr>
+                    <td>{{ p.id }}</td>
+                    <td>{{ p.name }}</td>
+                    <td>{% if p.active %}<i class="bi-check-circle text-success"></i>{% else %}<i class="bi-x-circle text-danger"></i>{% endif %}</td>
+                    <td>{{ p.remarks }}</td>
+                    <td>
+                        <div class="btn-group">
+                            {{ modal_editor_open("edit-player-{}".format(p.id), "Edit", "warning") }}
+                            {{ modal_editor_open("delete-player-{}".format(p.id), "Delete", "danger") }}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% call modal_editor("add-player", "Add New Player", submit_label="Add", submit_color="success") %}
+        <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <input id="name" name="name" type="text" value="" class="form-control"/>
+        </div>
+        <div class="mt-3 form-check">
+            <input id="active" name="active" type="checkbox" class="form-check-input" checked value=true/>
+            <label for="active" class="form-check-label">Is Active</label>
+        </div>
+        <div class="mb-3">
+            <label for="remarks" class="form-label">Remarks</label>
+            <input id="remarks" name="remarks" type="text" value=""
+                   class="form-control"/>
+        </div>
+    {% endcall %}
+
+    <script>
+        document.getElementById("submit-add-player").addEventListener("click", async () => {
+            const form = document.getElementById("form-add-player");
+            let player = {
+                name: form.elements.name.value,
+                active: form.elements.active.checked,
+                remarks: form.elements.remarks.value,
+            };
+
+            let response = await fetch('{{ url_for('api_player_create') }}', {
+                method:'POST',
+                headers: headers,
+                body: JSON.stringify(player)
+            });
+            if(response.ok)
+            {
+                let body = await response.json();
+                await flash_message(`New player ${body.name} created with ID ${body.id}.`, "success")
+            }
+            location.reload();
+        });
+    </script>
+
+    {% for p in players %}
+
+    {% call modal_editor("edit-player-{}".format(p.id), "Edit Player", "Edit", "warning") %}
+        <div>
+            <label for="name" class="form-label">Name</label>
+            <input id="name" name="name" type="text" value="{{- p.name -}}"
+                   class="form-control"/>
+        </div>
+        <div class="mt-3 form-check">
+            <input id="active" name="active" type="checkbox" {% if p.active %}checked{% endif %}
+                   class="form-check-input"/>
+            <label for="active" class="form-check-label">Is Active</label>
+        </div>
+        <div class="mt-3">
+            <label for="remarks" class="form-label">Remarks</label>
+            <input id="remarks" name="remarks" type="text" value="{{- p.remarks -}}"
+                   class="form-control"/>
+        </div>
+    {% endcall %}
+
+    {% call modal_editor("delete-player-{}".format(p.id), "Delete Player", "Delete", "danger") %}
+        Really delete the player <strong class="text-danger">{{- p.name -}}</strong> with the ID
+        <strong class="text-danger">{{- p.id -}}</strong>?
+    {% endcall %}
+
+    <script>
+        document.getElementById("submit-edit-player-{{ p.id }}").addEventListener("click", async () => {
+            const form = document.getElementById("form-edit-player-{{ p.id }}");
+            let player = {
+                name: form.elements.name.value,
+                active: form.elements.active.checked,
+                remarks: form.elements.remarks.value,
+            };
+
+            if (player.name === '{{ p.name }}')
+                delete player.name
+
+            if (player.active === {{ p.active | string | lower }})
+                delete player.active
+
+            if (player.remarks === '{{ p.remarks }}')
+                delete player.remarks
+
+            let response = await fetch('{{ url_for('api_player_update', player_id=p.id) }}', {
+                method:'PATCH',
+                headers: headers,
+                body: JSON.stringify(player)
+            });
+            if(response.ok)
+                await flash_message('Player {{ p.id }} updated.', "success")
+            location.reload();
+        });
+
+        document.getElementById("submit-delete-player-{{ p.id }}").addEventListener("click", async () => {
+            let response = await fetch('{{ url_for('api_player_delete', player_id=p.id) }}', {
+                method:'DELETE',
+                headers: headers,
+            });
+            if(response.ok)
+                await flash_message('Player {{ p.id }} deleted.', "success")
+            location.reload();
+        });
+    </script>
+
+    {% endfor %}
+{% endblock %}

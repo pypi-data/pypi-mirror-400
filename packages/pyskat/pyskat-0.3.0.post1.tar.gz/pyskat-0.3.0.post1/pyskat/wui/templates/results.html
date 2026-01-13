@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal_editor, modal_editor_open, format_player, session_filter_button, player_filter_button %}
+{% block title %}PySkat - Results{% endblock %}
+{% block head %}{% endblock %}
+
+{% macro player_display(match, player) %}
+    <td>{{ player.id }}</td>
+    <td>{{ player.name }}</td>
+    {% if (match.id, player.id) in results %}
+        {% set r = results[match.id, player.id] %}
+        <td>{{ r.score }}</td>
+        <td>{{ r.won }}</td>
+        <td>{{ r.lost }}</td>
+        <td>{{ r.remarks }}</td>
+        <td>
+            <div class="btn-group">
+                {{ modal_editor_open("edit-result-{}-{}".format(match.id, player.id), "Edit", "warning") }}
+                {{ modal_editor_open("delete-result-{}-{}".format(match.id, player.id), "Delete", "danger") }}
+            </div>
+            {% call modal_editor("edit-result-{}-{}".format(match.id, player.id), "Edit Result", submit_label="Edit", submit_color="warning") %}
+                <div>
+                    <label for="score" class="form-label">Sum of Game score</label>
+                    <input id="score" name="score" type="number" value="{{ r.score }}"
+                           class="form-control"/>
+                </div>
+                <div>
+                    <label for="won" class="form-label">Count of Won Games</label>
+                    <input id="won" name="won" type="number" min="0" value="{{ r.won }}"
+                           class="form-control"/>
+                </div>
+                <div>
+                    <label for="lost" class="form-label">Count of Lost Games</label>
+                    <input id="lost" name="lost" type="number" min="0" value="{{ r.lost }}"
+                           class="form-control"/>
+                </div>
+                <div>
+                    <label for="remarks" class="form-label">Remarks</label>
+                    <input id="remarks" name="remarks" type="text" value="{{ r.remarks }}"
+                           class="form-control"/>
+                </div>
+            {% endcall %}
+
+            {% call modal_editor("delete-result-{}-{}".format(match.id, player.id), "Delete Result", submit_label="Delete", submit_color="danger") %}
+                Really remove the result for player <strong class="text-danger">{{ format_player(player) }}</strong>?
+            {% endcall %}
+
+            <script>
+                document.getElementById("submit-edit-result-{{ match.id }}-{{ player.id }}").addEventListener("click", async () => {
+                    const form = document.getElementById("form-edit-result-{{ match.id }}-{{ player.id }}");
+                    let result = {
+                        score: form.elements.score.value,
+                        won: form.elements.won.value,
+                        lost: form.elements.lost.value,
+                        remarks: form.elements.remarks.value,
+                    };
+
+                    if (result.score === {{ r.score }})
+                        delete result.score
+
+                    if (result.won === {{ r.won }})
+                        delete result.won
+
+                    if (result.lost === {{ r.lost }})
+                        delete result.lost
+
+                    if (result.remarks === '{{ r.remarks }}')
+                        delete result.remarks
+
+                    let response = await fetch('{{ url_for('api_result_update', player_id=player.id, match_id=match.id) }}', {
+                        method:'PATCH',
+                        headers: headers,
+                        body: JSON.stringify(result)
+                    });
+                    if(response.ok)
+                        await flash_message('Result for player {{ player.id }} in match {{ match.id }} updated.', "success")
+                    location.reload();
+                });
+
+                document.getElementById("submit-delete-result-{{ match.id }}-{{ player.id }}").addEventListener("click", async () => {
+                    let response = await fetch('{{ url_for('api_result_delete', player_id=player.id, match_id=match.id) }}', {
+                        method:'DELETE',
+                        headers: headers,
+                    });
+                    if(response.ok)
+                        await flash_message('Result for player {{ player.id }} in match {{ match.id }} deleted.', "success")
+                    location.reload();
+                });
+            </script>
+        </td>
+    {% else %}
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td>
+            {{ modal_editor_open("add-result-{}-{}".format(match.id, player.id), "Add Result", "success") }}
+
+            {% call modal_editor("add-result-{}-{}".format(match.id, player.id), "Add Result", submit_label="Add", submit_color="success") %}
+                <div>
+                    <label for="score" class="form-label">Sum of Game score</label>
+                    <input id="score" name="score" type="number" value="0"
+                           class="form-control"/>
+                </div>
+                <div>
+                    <label for="won" class="form-label">Count of Won Games</label>
+                    <input id="won" name="won" type="number" min="0" value="0"
+                           class="form-control"/>
+                </div>
+                <div>
+                    <label for="lost" class="form-label">Count of Lost Games</label>
+                    <input id="lost" name="lost" type="number" min="0" value="0"
+                           class="form-control"/>
+                </div>
+                <div>
+                    <label for="remarks" class="form-label">Remarks</label>
+                    <input id="remarks" name="remarks" type="text" value=""
+                           class="form-control"/>
+                </div>
+            {% endcall %}
+
+            <script>
+                document.getElementById("submit-add-result-{{ match.id }}-{{ player.id }}").addEventListener("click", async () => {
+                    const form = document.getElementById("form-add-result-{{ match.id }}-{{ player.id }}");
+                    let result = {
+                        score: form.elements.score.value,
+                        won: form.elements.won.value,
+                        lost: form.elements.lost.value,
+                        remarks: form.elements.remarks.value,
+                    };
+
+                    let response = await fetch('{{ url_for('api_result_create', match_id=match.id, player_id=player.id) }}', {
+                        method:'POST',
+                        headers: headers,
+                        body: JSON.stringify(result)
+                    });
+                    if(response.ok)
+                    {
+                        let body = await response.json();
+                        await flash_message(`Result for player ${body.player_id} in match ${body.match_id} created.`, "success")
+                    }
+                    location.reload();
+                });
+            </script>
+        </td>
+    {% endif %}
+{% endmacro %}
+
+{% block content %}
+    <h1>Results</h1>
+
+    <div class="input-group">
+        {{ session_filter_button(request, sessions, session_filter) }}
+        {{ player_filter_button(request, players, player_filter) }}
+    </div>
+
+    <div class="mt-3">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Match ID</th>
+                <th>Player ID</th>
+                <th>Player Name</th>
+                <th>Score</th>
+                <th>Won</th>
+                <th>Lost</th>
+                <th>Remarks</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for m in matches %}
+                <tr>
+                    <td rowspan="{{ m.size }}">{{ m.id }}</td>
+                    {% if m.size > 0 %}
+                    {{ player_display(m, m.players[0]) }}
+                    {% endif %}
+                </tr>
+                {% for p in m.players[1:] %}
+                <tr>{{ player_display(m, p) }}</tr>
+                {% endfor %}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

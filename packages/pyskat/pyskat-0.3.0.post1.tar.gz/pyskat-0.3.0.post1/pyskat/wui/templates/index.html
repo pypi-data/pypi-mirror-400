@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}PySkat{% endblock %}
+{% block head %}{% endblock %}
+{% block content %}
+
+<div class="mt-5 container">
+    <img width="100%" src="/static/pyskat_logo.svg"/>
+</div>
+
+<div class="mt-5 container">
+    <div class="row">
+      <div class="col">
+            <div class="card h-100">
+                <h6 class="card-header display-6">Players</h6>
+                <div class="card-body">
+                        Register players that will take part in the tournament.
+                </div>
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                      Registered
+                      <span class="badge text-bg-primary rounded-pill">{{ players | length }}</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Active
+                    <span class="badge text-bg-primary rounded-pill">{{ players | selectattr("active") | list | length }}</span>
+                  </li>
+                </ul>
+                <a href="{{ url_for( "wui_players" ) }}" class="card-img-bottom btn btn-primary btn-lg rounded-top-0">Manage Players</a>
+          </div>
+      </div>
+      <div class="col">
+          <div class="card h-100">
+            <h6 class="card-header display-6">Sessions</h6>
+            <div class="card-body">
+                  Use sessions to group matches and to automatically assign players to matches.
+            </div>
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Registered
+                  <span class="badge text-bg-primary rounded-pill">{{ sessions | length }}</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                Current
+                {% if current_session %}<span class="badge text-bg-primary rounded-pill">{{ current_session.name }} ({{ current_session.id }})</span>{% else %}<span class="badge text-bg-warning rounded-pill">Not Set</span>{% endif %}</span>
+              </li>
+            </ul>
+            <a href="{{ url_for( "wui_sessions" ) }}" class="card-img-bottom btn btn-primary btn-lg rounded-top-0">Manage Sessions</a>
+          </div>
+      </div>
+    </div>
+    <div class="row mt-3">
+      <div class="col">
+          <div class="card h-100">
+            <h6 class="card-header display-6">Matches</h6>
+            <div class="card-body">
+                  Organize players in matches to know who is playing with whom.
+            </div>
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Registered
+                  <span class="badge text-bg-primary rounded-pill">{{ matches | length }}</span>
+              </li>
+            </ul>
+            <a href="{{ url_for( "wui_matches" ) }}" class="card-img-bottom btn btn-primary btn-lg rounded-top-0">Manage Matches</a>
+          </div>
+      </div>
+      <div class="col">
+          <div class="card h-100">
+            <h6 class="card-header display-6">Results</h6>
+            <div class="card-body">
+                  Add the results to the matches to allow evaluation of total scores.
+            </div>
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Registered
+                  <span class="badge text-bg-primary rounded-pill">{{ results | length }}</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                Missing
+                {% set results_missing = (matches | sum(attribute='size') ) - (results | length) %}
+                {% if results_missing == 0 %}
+                <span class="badge text-bg-success rounded-pill">0</span>
+                {% else %}
+                <span class="badge text-bg-danger rounded-pill">{{ results_missing }}</span>
+                {% endif %}
+              </li>
+            </ul>
+            <a href="{{ url_for( "wui_results" ) }}" class="card-img-bottom btn btn-primary btn-lg rounded-top-0">Manage Results</a>
+          </div>
+      </div>
+    </div>
+    <div class="row mt-3">
+      <div class="col">
+          <div class="card h-100">
+            <h6 class="card-header display-6">Evaluation</h6>
+            <div class="card-body">
+                  Evaluate the total scores and enjoy the statistics.
+            </div>
+            <a href="{{ url_for( "wui_evaluation" ) }}" class="card-img-bottom btn btn-primary btn-lg rounded-top-0">Evaluate</a>
+          </div>
+      </div>
+    </div>
+</div>
+
+{% endblock %}
