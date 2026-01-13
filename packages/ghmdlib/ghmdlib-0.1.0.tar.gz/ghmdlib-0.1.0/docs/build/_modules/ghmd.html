@@ -1,0 +1,383 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ghmd &mdash; ghmdlib - v0.1.0 Documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/s5defs-rules.css?v=0345028d" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=2caa9db7"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            ghmdlib
+              <img src="../_static/s3dev_tri_white_sm.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../library.html">Library API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Change Log</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contact.html">Contact Us</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">ghmdlib</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">ghmd</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for ghmd</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">:App:       ghmd(lib)</span>
+<span class="sd">:Purpose:   This library and command line tool are designed to convert</span>
+<span class="sd">            Markdown files into GitHub-style HTML format.</span>
+
+<span class="sd">            This module provides *both* the project&#39;s command line</span>
+<span class="sd">            interface and back-end library.</span>
+
+<span class="sd">:Platform:  Linux/Windows | Python 3.10+</span>
+<span class="sd">:Developer: J Berendt</span>
+<span class="sd">:Email:     development@s3dev.uk</span>
+
+<span class="sd">:Comments:  This project is a fork of the `ghmd`_ project and has been</span>
+<span class="sd">            updated to include an installable library to interface with</span>
+<span class="sd">            your other Python applications. Additionally, the command</span>
+<span class="sd">            line interface has been updated to include additional</span>
+<span class="sd">            features.</span>
+
+
+<span class="sd">.. _ghmd: https://github.com/roman910dev/ghmd</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="c1"># pylint: disable=wrong-import-order</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">webbrowser</span>
+<span class="c1"># locals</span>
+<span class="k">try</span><span class="p">:</span>  <span class="c1"># nocover</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">libs.argparser</span><span class="w"> </span><span class="kn">import</span> <span class="n">argparser</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">libs._download</span><span class="w"> </span><span class="kn">import</span> <span class="n">Download</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">libs._offline</span><span class="w"> </span><span class="kn">import</span> <span class="n">Offline</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">libs._online</span><span class="w"> </span><span class="kn">import</span> <span class="n">Online</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">ghmdlib.libs.argparser</span><span class="w"> </span><span class="kn">import</span> <span class="n">argparser</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">ghmdlib.libs._download</span><span class="w"> </span><span class="kn">import</span> <span class="n">Download</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">ghmdlib.libs._offline</span><span class="w"> </span><span class="kn">import</span> <span class="n">Offline</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">ghmdlib.libs._online</span><span class="w"> </span><span class="kn">import</span> <span class="n">Online</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Converter">
+<a class="viewcode-back" href="../ghmd.html#ghmd.Converter">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Converter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Primary Markdown to HTML document conversion class.</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">        Convert a Markdown file to GitHub-style HTML::</span>
+
+<span class="sd">            &gt;&gt;&gt; from ghmdlib import converter</span>
+
+<span class="sd">            &gt;&gt;&gt; converter.convert(path=&#39;/path/to/file.md&#39;, preview=True)</span>
+
+
+<span class="sd">        Convert a Markdown file to GitHub-style HTML, in **offline**</span>
+<span class="sd">        mode::</span>
+
+<span class="sd">            &gt;&gt;&gt; from ghmdlib import converter</span>
+
+<span class="sd">            &gt;&gt;&gt; converter.convert(path=&#39;/path/to/file.md&#39;, offline=True)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_TEMPLATE</span> <span class="o">=</span> <span class="s1">&#39;./resources/md-template.html&#39;</span>
+    <span class="n">_RE_TITLE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^# (.*)$&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;GitHub-Markdown converter class initialiser.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_argp</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_css</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_headers</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_offline</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="Converter.convert">
+<a class="viewcode-back" href="../ghmd.html#ghmd.Converter.convert">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">convert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+                <span class="o">*</span><span class="p">,</span>
+                <span class="n">theme</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;dark&#39;</span><span class="p">,</span>
+                <span class="n">embed_css</span><span class="p">:</span> <span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">no_gfm</span><span class="p">:</span> <span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">offline</span><span class="p">:</span> <span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">preview</span><span class="p">:</span> <span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert the given path(s) from Markdown to GitHub-style HTML.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            Once converted, the HTML file is created in the same</span>
+<span class="sd">            directory as the source file, with the same filename and an</span>
+<span class="sd">            &#39;.html&#39; file extension.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            path (str | list[str]): Full path to the Markdown file</span>
+<span class="sd">                (or list of files) to be converted.</span>
+<span class="sd">            theme (str, optional): Theme to be used for the HTML.</span>
+<span class="sd">                Options: &#39;dark&#39;, &#39;light&#39;. Defaults to &#39;dark&#39;.</span>
+<span class="sd">            embed_css (bool, optional): Embed the CSS in the HTML file</span>
+<span class="sd">                rather than linking. Defaults to False.</span>
+<span class="sd">            no_gfm (bool, optional): Disable GitHub Flavoured Markdown</span>
+<span class="sd">                (GFM) and use the standard format. Defaults to False.</span>
+<span class="sd">            offline (bool, optional): Keep offline. Use cached CSS and</span>
+<span class="sd">                local conversion libraries rather than the GitHub API.</span>
+<span class="sd">            preview (bool, optional): Open each converted HTML file in</span>
+<span class="sd">                a web browser to view the results. Defaults to False.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if the conversion is successful, otherwise False.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># pylint: disable=multiple-statements</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_offline</span> <span class="o">=</span> <span class="n">offline</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="p">]</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_css</span><span class="p">(</span><span class="n">theme</span><span class="o">=</span><span class="n">theme</span><span class="p">,</span> <span class="n">embed_css</span><span class="o">=</span><span class="n">embed_css</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_headers</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;markdown&#39;</span> <span class="k">if</span> <span class="n">no_gfm</span> <span class="k">else</span> <span class="s1">&#39;gfm&#39;</span><span class="p">,</span> <span class="n">preview</span><span class="o">=</span><span class="n">preview</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">s</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_convert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">preview</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert Markdown file(s) to HTML.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            path (str | list[str]): Full path to the Markdown file</span>
+<span class="sd">                (or list of files) to be converted.</span>
+<span class="sd">            mode (str): Mode for Markdown conversion (&#39;markdown&#39; | &#39;gfm&#39;).</span>
+<span class="sd">            preview (bool): Open each converted HTML file in a web</span>
+<span class="sd">                browser to view the results.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if all files were created, otherwise False.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">created</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Converting: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">content</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_RE_TITLE</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="p">)</span>
+                <span class="n">title</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">s</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+                <span class="n">tmp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_template</span><span class="p">()</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offline</span><span class="p">:</span>
+                    <span class="n">html</span> <span class="o">=</span> <span class="n">Offline</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">content</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">html</span> <span class="o">=</span> <span class="n">Online</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">content</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_headers</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span>
+                <span class="n">fn</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">file</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">.html&#39;</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="s1">&#39;w+&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">tmp</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;{{ .CSS }}&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_css</span><span class="p">)</span>
+                            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;{{ .Title }}&quot;</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+                            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;{{ .Content }}&quot;</span><span class="p">,</span> <span class="n">html</span><span class="p">))</span>
+                    <span class="n">created</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Created: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">fn</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">preview</span><span class="p">:</span>  <span class="c1"># nocover</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_preview</span><span class="p">(</span><span class="n">paths</span><span class="o">=</span><span class="n">created</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">,</span> <span class="n">created</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">created</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_main</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># nocover  # Core functionality is covered by unittests.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Main CLI program entry-point and process controller.</span>
+
+<span class="sd">        Exits with exit code 0 if all files were created, or the CSS</span>
+<span class="sd">        files were downloaded successfully. Otherwise, the exit code is</span>
+<span class="sd">        set to 2.</span>
+
+<span class="sd">        .. caution::</span>
+
+<span class="sd">            This method is the **command line entry-point** *only* and</span>
+<span class="sd">            should *not* be used internally.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_parse_args</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">Download</span><span class="o">.</span><span class="n">download</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">PATH</span><span class="p">,</span>
+                             <span class="n">theme</span><span class="o">=</span><span class="s1">&#39;dark&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">dark</span> <span class="k">else</span> <span class="s1">&#39;light&#39;</span><span class="p">,</span>
+                             <span class="n">embed_css</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">embed_css</span><span class="p">,</span>
+                             <span class="n">no_gfm</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">no_gfm</span><span class="p">,</span>
+                             <span class="n">offline</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">offline</span><span class="p">,</span>
+                             <span class="n">preview</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">preview</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">s</span> <span class="k">else</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_parse_args</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># nocover</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Parse CLI arguments into class attributes.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_argp</span> <span class="o">=</span> <span class="n">argparser</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_argp</span><span class="o">.</span><span class="n">parse</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_argp</span><span class="o">.</span><span class="n">args</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_preview</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># nocover</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Preview all created HTML files in a web browser.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            paths (list[str]): A list of file paths to be previewed.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Opening preview for: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+            <span class="n">webbrowser</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_read_template</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read the Markdown HTML template file.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: A string containing the Markdown template.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tmp</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_TEMPLATE</span><span class="p">),</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">tmp</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">tmp</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_css</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">theme</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">embed_css</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get and set the CSS for the HTML output.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            theme (str): Theme to be used (dark | light).</span>
+<span class="sd">            embed_css (bool): Embed the CSS rather than linking.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the CSS could not be retrieved.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if the CSS was set successfully, otherwise False.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offline</span><span class="p">:</span>
+            <span class="n">css</span> <span class="o">=</span> <span class="n">Offline</span><span class="o">.</span><span class="n">set_css</span><span class="p">(</span><span class="n">theme</span><span class="o">=</span><span class="n">theme</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">css</span> <span class="o">=</span> <span class="n">Online</span><span class="o">.</span><span class="n">set_css</span><span class="p">(</span><span class="n">theme</span><span class="o">=</span><span class="n">theme</span><span class="p">,</span> <span class="n">embed_css</span><span class="o">=</span><span class="n">embed_css</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_css</span> <span class="o">=</span> <span class="n">css</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;CSS retrieved successfully: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="nb">bool</span><span class="p">(</span><span class="n">css</span><span class="p">))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;CSS (truncated): </span><span class="si">%s</span><span class="s1"> ... </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">css</span><span class="p">[:</span><span class="mi">25</span><span class="p">],</span> <span class="n">css</span><span class="p">[</span><span class="o">-</span><span class="mi">25</span><span class="p">:])</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">css</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_headers</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the HTTP headers.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if the header is set, otherwise False.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Accept&quot;</span><span class="p">:</span> <span class="s2">&quot;application/vnd.github+json&quot;</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">github_token</span> <span class="o">:=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GITHUB_TOKEN&quot;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_headers</span><span class="p">[</span><span class="s2">&quot;Authorization&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Bearer </span><span class="si">{</span><span class="n">github_token</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Headers set successfully: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_headers</span><span class="p">))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Header: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headers</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_headers</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># Alias for_library imports.</span>
+<span class="n">converter</span> <span class="o">=</span> <span class="n">Converter</span><span class="p">()</span>
+
+<span class="c1"># %% Prevent from running on module import.</span>
+
+<span class="c1"># pylint: disable=protected-access  # Converter._main</span>
+<span class="c1"># Enable running as either a script (dev/debugging) or as an executable.</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>  <span class="c1"># pragma: nocover</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">Converter</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">_main</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: nocover</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Entry-point exposed for the executable.</span>
+
+<span class="sd">        The ``&quot;ghmdlib.ghmd:main&quot;`` value is set in ``pyproject.toml``&#39;s</span>
+<span class="sd">        ``[project.scripts]`` table as the entry-point for the installed</span>
+<span class="sd">        executable.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># pylint: disable=redefined-outer-name</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">Converter</span><span class="p">()</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">_main</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026 | s3dev | version 0.1.0.</p>
+  </div>
+
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

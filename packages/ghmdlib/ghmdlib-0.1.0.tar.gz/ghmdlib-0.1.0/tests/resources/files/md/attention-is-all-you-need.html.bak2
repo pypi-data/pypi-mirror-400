@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title></title>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.8.1/github-markdown-dark.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+		<style>
+			body {
+				margin: 0;
+			}
+
+			.markdown-body-content {
+				box-sizing: border-box;
+				min-width: 200px;
+				max-width: 980px;
+				margin: 0 auto;
+				padding: 45px;
+			}
+
+			@media (max-width: 767px) {
+				.markdown-body-content {
+					padding: 15px;
+				}
+			}
+
+			.markdown-body {
+				--base-size-8: 8px;
+				--base-size-16: 16px;
+			}
+		</style>
+	</head>
+	<body class="markdown-body">
+		<article class="markdown-body-content"><p>Table 1: Maximum path lengths, per-layer complexity and minimum number of sequential operations for different layer types. n is the sequence length, d is the representation dimension, k is the kernel size of convolutions and r the size of the neighborhood in restricted self-attention.</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Layer Type</th>
+<th>Complexity per Layer</th>
+<th>Sequential Operations</th>
+<th>Maximum Path Length</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Self-Attention</td>
+<td>O ( n 2 · d )</td>
+<td>O (1)</td>
+<td>O (1)</td>
+</tr>
+<tr>
+<td>Recurrent</td>
+<td>O ( n · d 2 )</td>
+<td>O ( n )</td>
+<td>O ( n )</td>
+</tr>
+<tr>
+<td>Convolutional</td>
+<td>O ( k · n · d 2 )</td>
+<td>O (1)</td>
+<td>O ( log k ( n ))</td>
+</tr>
+<tr>
+<td>Self-Attention (restricted)</td>
+<td>O ( r · n · d )</td>
+<td>O (1)</td>
+<td>O ( n/r )</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<h2>3.5 Positional Encoding</h2>
+<p>Since our model contains no recurrence and no convolution, in order for the model to make use of the order of the sequence, we must inject some information about the relative or absolute position of the tokens in the sequence. To this end, we add "positional encodings" to the input embeddings at the bottoms of the encoder and decoder stacks. The positional encodings have the same dimension d model as the embeddings, so that the two can be summed. There are many choices of positional encodings, learned and fixed [9].</p>
+<p>In this work, we use sine and cosine functions of different frequencies:</p>
+<p><math-renderer class="js-display-math" style="display: block" data-run-id="">$$P E _ { ( p o s , 2 i ) } &amp; = s i n ( p o s / 1 0 0 0 0 ^ { 2 i / d _ { m o d e l } } ) \ P E _ { ( p o s , 2 i + 1 ) } &amp; = \cos ( p o s / 1 0 0 0 0 ^ { 2 i / d _ { m o d e l } } )$$</math-renderer></p>
+<p>where pos is the position and i is the dimension. That is, each dimension of the positional encoding corresponds to a sinusoid. The wavelengths form a geometric progression from 2 π to 10000 · 2 π . We chose this function because we hypothesized it would allow the model to easily learn to attend by relative positions, since for any fixed offset k , PE pos + k can be represented as a linear function of PE pos .</p>
+<p>We also experimented with using learned positional embeddings [9] instead, and found that the two versions produced nearly identical results (see Table 3 row (E)). We chose the sinusoidal version because it may allow the model to extrapolate to sequence lengths longer than the ones encountered during training.</p>
+<h2>4 Why Self-Attention</h2>
+<p>In this section we compare various aspects of self-attention layers to the recurrent and convolutional layers commonly used for mapping one variable-length sequence of symbol representations ( x 1 , ..., x n ) to another sequence of equal length ( z 1 , ..., z n ) , with x i , z i ∈ R d , such as a hidden layer in a typical sequence transduction encoder or decoder. Motivating our use of self-attention we consider three desiderata.</p>
+<p>One is the total computational complexity per layer. Another is the amount of computation that can be parallelized, as measured by the minimum number of sequential operations required.</p>
+<p>The third is the path length between long-range dependencies in the network. Learning long-range dependencies is a key challenge in many sequence transduction tasks. One key factor affecting the ability to learn such dependencies is the length of the paths forward and backward signals have to traverse in the network. The shorter these paths between any combination of positions in the input and output sequences, the easier it is to learn long-range dependencies [12]. Hence we also compare the maximum path length between any two input and output positions in networks composed of the different layer types.</p>
+<p>As noted in Table 1, a self-attention layer connects all positions with a constant number of sequentially executed operations, whereas a recurrent layer requires O ( n ) sequential operations. In terms of computational complexity, self-attention layers are faster than recurrent layers when the sequence</p></article>
+	</body>
+</html>
