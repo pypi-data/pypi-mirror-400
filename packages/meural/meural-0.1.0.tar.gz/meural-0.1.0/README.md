@@ -1,0 +1,130 @@
+# Meural
+
+Python client library and MCP server for Meural Canvas digital art frames.
+
+## Installation
+
+```bash
+pip install meural
+```
+
+For MCP server support:
+```bash
+pip install meural[mcp]
+```
+
+For CLI support:
+```bash
+pip install meural[cli]
+```
+
+For all features:
+```bash
+pip install meural[all]
+```
+
+## Quick Start
+
+### As a Library
+
+```python
+from meural import MeuralAPI
+
+# Initialize with credentials
+api = MeuralAPI(username="your@email.com", password="your_password")
+
+# Or from environment variables (MEURAL_USERNAME, MEURAL_PASSWORD)
+api = MeuralAPI.from_env()
+
+# Get user info
+user = api.get_user()
+
+# List devices
+devices = api.get_user_devices()
+
+# Get galleries
+galleries = api.get_user_galleries()
+
+# Search for art
+results = api.search("monet")
+
+# Preview an image on device
+api.post_device_preview(device_id="12345", item_id="67890")
+```
+
+### CLI Usage
+
+```bash
+# Set credentials
+export MEURAL_USERNAME="your@email.com"
+export MEURAL_PASSWORD="your_password"
+
+# List devices
+meural-cli device list
+
+# Show device details
+meural-cli device show
+
+# List galleries
+meural-cli gallery list
+
+# Search for art
+meural-cli browse search "van gogh"
+
+# Set brightness
+meural-cli device brightness 50
+```
+
+### MCP Server
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "meural": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/meural_api", "run", "python", "-m", "scripts.meural_mcp"],
+      "env": {
+        "MEURAL_USERNAME": "your@email.com",
+        "MEURAL_PASSWORD": "your_password"
+      }
+    }
+  }
+}
+```
+
+Available MCP tools:
+- `meural_get_device` - Get device info and status
+- `meural_list_galleries` - List user's galleries/playlists
+- `meural_get_gallery` - Get gallery details with items
+- `meural_search` - Search Meural catalog
+- `meural_preview_item` - Preview an image on device (60 seconds)
+- `meural_push_gallery` - Push a gallery to device
+- `meural_device_galleries` - List galleries on device
+- `meural_set_brightness` - Set device brightness
+- `meural_set_image` - Display an image on device
+
+## Authentication
+
+The library uses AWS Cognito for authentication. Tokens are automatically cached and refreshed.
+
+Credentials can be provided via:
+1. Constructor arguments
+2. Environment variables (`MEURAL_USERNAME`, `MEURAL_PASSWORD`)
+3. Credentials file (`~/.meural`)
+
+## API Coverage
+
+The library covers the Meural API v4 including:
+- User management
+- Device control (brightness, sleep/wake, settings)
+- Gallery/playlist management
+- Item uploads and management
+- Favorites
+- Content discovery (channels, artists, categories)
+- Search
+
+## License
+
+MIT
