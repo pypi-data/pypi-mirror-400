@@ -1,0 +1,229 @@
+Metadata-Version: 2.4
+Name: ccda-cli
+Version: 0.1.5
+Summary: CLI tool for collecting software supply chain security metrics
+Project-URL: Homepage, https://github.com/semcl/ccda-cli
+Project-URL: Documentation, https://ccda.semcl.one
+Project-URL: Repository, https://github.com/semcl/ccda-cli
+Author-email: SEMCL <info@semcl.one>
+License-Expression: AGPL-3.0-or-later
+License-File: AUTHORS.md
+License-File: LICENSE
+Keywords: metrics,purl,sbom,security,supply-chain
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.10
+Requires-Dist: anyio>=4.0
+Requires-Dist: click>=8.1.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: osslili>=0.1.0
+Requires-Dist: packageurl-python>=0.15.0
+Requires-Dist: purl2src>=0.1.0
+Requires-Dist: pydantic>=2.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.8; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=8.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Requires-Dist: types-pyyaml; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# CCDA-CLI - Supply Chain Security Metrics
+
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://img.shields.io/pypi/v/ccda-cli.svg)](https://pypi.org/project/ccda-cli/)
+
+A command-line tool for analyzing software packages across ecosystems (npm, PyPI, Cargo, Maven, Go). Provides health scores, maintainer burnout risk, and comprehensive supply chain security metrics to help developers make informed decisions about their dependencies.
+
+## Features
+
+- **Multi-Ecosystem Support**: Analyze packages from npm, PyPI, Cargo, Maven, and Go
+- **Health Scoring**: Comprehensive package health assessment (0-100 score)
+- **Burnout Detection**: Identify maintainer sustainability risks
+- **CHAOSS Metrics**: Bus factor, pony factor, elephant factor analysis
+- **Supply Chain Security**: License compliance, binary detection, suspicious file scanning
+- **GitHub Integration**: Stars, forks, issues, PRs, and release metrics
+- **Flexible Output**: JSON reports for integration with other tools
+
+### How It Works
+
+ccda-cli runs a comprehensive 7-step analysis pipeline:
+
+1. **Discovery** - Fetch package metadata from deps.dev, ecosyste.ms, and package registries
+2. **Clone** - Download the source repository for deep analysis
+3. **Git Metrics** - Calculate CHAOSS metrics (bus factor, contributors, companies)
+4. **GitHub API** - Gather community health indicators (stars, forks, issues, PRs)
+5. **Tarball Scan** - Analyze package contents for licenses, binaries, and suspicious files
+6. **Health Score** - Compute overall package health across multiple dimensions
+7. **Burnout Score** - Assess maintainer sustainability and stress indicators
+
+## Installation
+
+```bash
+pip install ccda-cli
+```
+
+For development:
+```bash
+git clone https://github.com/SemClone/ccda-cli.git
+cd ccda-cli
+pip install -e .
+```
+
+## Quick Start
+
+```bash
+# Analyze a package
+ccda-cli analyze pkg:npm/express
+
+# Save results to file
+ccda-cli analyze pkg:pypi/requests --output report.json
+
+# Analyze different ecosystems
+ccda-cli analyze pkg:cargo/serde
+ccda-cli analyze pkg:maven/org.opensearch/opensearch
+ccda-cli analyze pkg:go/github.com/hashicorp/terraform
+
+# Discovery only (no deep analysis)
+ccda-cli discover pkg:npm/lodash
+```
+
+## Usage
+
+### CLI Commands
+
+```bash
+# Full package analysis
+ccda-cli analyze pkg:npm/express --output analysis.json
+
+# Metadata discovery only
+ccda-cli discover pkg:pypi/requests
+
+# View cache information
+ccda-cli cache info
+
+# Clear cache
+ccda-cli cache clear --all
+
+# Check version
+ccda-cli --version
+```
+
+### Supported Package URL (PURL) Formats
+
+```bash
+# npm packages
+pkg:npm/express
+pkg:npm/@babel/core@7.24.0
+
+# PyPI packages
+pkg:pypi/requests
+pkg:pypi/requests@2.31.0
+
+# Cargo (Rust) packages
+pkg:cargo/serde
+pkg:cargo/tokio@1.32.0
+
+# Maven packages
+pkg:maven/org.opensearch/opensearch
+pkg:maven/org.apache.commons/commons-lang3@3.12.0
+
+# Go modules
+pkg:go/github.com/hashicorp/terraform
+
+# GitHub repositories
+pkg:github/expressjs/express
+```
+
+### Output Format
+
+The tool outputs JSON reports with the following metrics:
+
+**Health Score (0-100)**
+- Commit activity and release frequency
+- Contributor diversity (bus factor, pony factor)
+- Issue/PR responsiveness
+- License compliance
+- Branch protection and security
+
+**Burnout Score (0-100)**
+- Issue backlog pressure
+- Response time gaps
+- Triage overhead
+- Workload concentration
+- Activity decline trends
+
+**Additional Metrics**
+- CHAOSS metrics (bus/pony/elephant factors)
+- GitHub community health (stars, forks, issues, PRs)
+- License information
+- Binary and suspicious file detection
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md) - Installation and first steps
+- [Command Reference](docs/commands.md) - All available commands
+- [API Integrations](docs/api-integrations.md) - Discovery sources and rate limits
+- [GitHub Token Setup](docs/github-token-setup.md) - Increase rate limits (5000/hr)
+- [SerpAPI Setup](docs/serpapi-setup.md) - Optional fallback for discovery
+
+## Configuration
+
+### GitHub Token (Recommended)
+
+Set up a GitHub token for higher rate limits:
+
+```bash
+export GITHUB_TOKEN=ghp_your_token_here
+```
+
+See [GitHub Token Setup](docs/github-token-setup.md) for detailed instructions.
+
+### Cache Configuration
+
+```bash
+# Via environment variable
+export CCDA_CACHE_DIR=/custom/path
+
+# Or in ~/.ccda/config.yaml
+cache:
+  directory: /custom/path
+```
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
+- Code of conduct
+- Development setup
+- Submitting pull requests
+- Reporting issues
+
+## Support
+
+For support and questions:
+- [GitHub Issues](https://github.com/SemClone/ccda-cli/issues) - Bug reports and feature requests
+- [Documentation](https://github.com/SemClone/ccda-cli) - Complete project documentation
+
+## License
+
+GNU Affero General Public License v3.0 - see [LICENSE](LICENSE) file for details.
+
+## Authors
+
+See [AUTHORS.md](AUTHORS.md) for a list of contributors.
+
+---
+
+*Part of the [SEMCL.ONE](https://semcl.one) ecosystem for comprehensive OSS compliance and code analysis.*
