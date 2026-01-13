@@ -1,0 +1,495 @@
+Metadata-Version: 2.4
+Name: graphon-client
+Version: 0.8.2
+Summary: A Python client library for the Graphon API - Build knowledge graphs from your files
+Author-email: Arbaaz Khan <arbaaz@graphon.ai>
+Project-URL: Homepage, https://github.com/arbaazkhan2/graphon-client
+Project-URL: Bug Reports, https://github.com/arbaazkhan2/graphon-client/issues
+Project-URL: Source, https://github.com/arbaazkhan2/graphon-client
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.28.1
+
+# Graphon Client
+
+A Python client library for the Graphon API - Build unified knowledge graphs from your files.
+
+## Features
+
+- 🚀 **Simple API**: Upload files, create knowledge bases, and query them in just a few lines
+- 📁 **Multi-format Support**: Process videos (MP4, MOV), documents (PDF, DOCX), and images (JPG, PNG)
+- 🔄 **Async/Await**: Built on httpx for high-performance async operations
+- 🎯 **Auto Type Detection**: Automatically detects file types from extensions
+- 📊 **Status Polling**: Built-in polling for long-running operations
+- 🔒 **Secure**: API key authentication with role-based access control
+
+## Installation
+
+```bash
+pip install graphon-client
+```
+
+## Quick Start
+
+```python
+import asyncio
+from graphon_client import GraphonClient
+
+async def main():
+    # Initialize client with your API key
+    client = GraphonClient(api_key="your_api_key_here")
+    
+    # Upload and process files (auto-detects file types)
+    file_objects = await client.upload_and_process_files(
+        ["/path/to/video.mp4", "/path/to/document.pdf"],
+        poll_until_complete=True  # Wait for processing to complete
+    )
+    
+    # Create a knowledge graph from processed files
+    file_ids = [f.file_id for f in file_objects]
+    group_id = await client.create_group(
+        file_ids,
+        group_name="My Knowledge Base",
+        wait_for_ready=True  # Wait for graph building to complete
+    )
+    
+    # Query your knowledge graph
+    response = await client.query_group(
+        group_id,
+        "What are the main topics discussed?"
+    )
+    print(response.answer)
+    
+    # Access sources by citation key
+    for key, source in response.sources.items():
+        print(f"{key}: {source['source']['node_type']}")
+
+asyncio.run(main())
+```
+
+## One-Shot Convenience Method
+
+For the simplest workflow, use the all-in-one method:
+
+```python
+async def quick_start():
+    client = GraphonClient(api_key="your_api_key_here")
+    
+    # Upload, process, and create group in one call
+    group_id = await client.upload_process_and_create_group(
+        file_paths=["/path/to/file1.pdf", "/path/to/file2.mp4"],
+        group_name="My Knowledge Base"
+    )
+    
+    # Query immediately
+    response = await client.query_group(group_id, "Summarize the content")
+    print(response.answer)
+```
+
+## Get Your API Key
+
+1. Sign up at [https://graphon.ai](https://graphon.ai)
+2. Navigate to Settings → API Keys
+3. Create a new API key
+4. Save it securely (it's only shown once!)
+
+## Core Concepts
+
+### Files
+Individual files that are uploaded and processed. Each file gets a unique `file_id` and goes through processing to extract content and build a knowledge graph.
+
+**Processing Statuses:**
+- `UNPROCESSED`: File uploaded but not yet processed
+- `PROCESSING`: File is being processed
+- `SUCCESS`: Processing completed successfully
+- `FAILURE`: Processing failed
+
+### Groups
+Collections of files with a unified knowledge graph. Query multiple files together as a single knowledge base.
+
+**Key Concept: Create Once, Query Many Times**
+
+Once you create a group, you can query the same `group_id` as many times as you want. There's no need to re-create the group for the same set of files. Groups are persistent knowledge bases - creating the group builds the graph (a one-time operation), and querying is lightweight and can be done repeatedly.
+
+```python
+# Create the group once
+group_id = await client.create_group(file_ids, "My Knowledge Base", wait_for_ready=True)
+
+# Query as many times as you want with the same group_id
+response1 = await client.query_group(group_id, "What are the main topics?")
+response2 = await client.query_group(group_id, "Summarize the key findings")
+response3 = await client.query_group(group_id, "What conclusions were drawn?")
+```
+
+**Graph Statuses:**
+- `pending`: Group created but no files added yet
+- `building`: Unified graph is being built
+- `ready`: Graph is ready for querying
+- `failed`: Graph building failed
+
+## API Reference
+
+### Client Initialization
+
+```python
+client = GraphonClient(
+    api_key="your_api_key_here",
+    base_url="https://api-frontend-485250924682.us-central1.run.app"  # Optional
+)
+```
+
+### File Operations
+
+#### Upload and Process Files
+
+```python
+file_objects = await client.upload_and_process_files(
+    file_paths=["/path/to/file1.pdf", "/path/to/file2.mp4"],
+    poll_until_complete=True,  # Wait for processing (default: True)
+    timeout=1800,  # Max wait time in seconds (default: 30 min)
+    poll_interval=3,  # Check status every N seconds (default: 3)
+    on_progress=lambda step, current, total: print(f"{step}: {current}/{total}")
+)
+
+# Returns list of FileObject with file_id, file_name, processing_status
+```
+
+#### Get File Status
+
+```python
+file_detail = await client.get_file_status(file_id)
+print(f"Status: {file_detail.processing_status}")
+```
+
+#### List Files
+
+```python
+files = await client.list_files(
+    status_filter="SUCCESS",  # Optional: filter by status
+    file_type="video"  # Optional: filter by type
+)
+```
+
+#### Poll File Until Complete (Manual)
+
+```python
+file_detail = await client.poll_file_until_complete(
+    file_id,
+    timeout=1800,
+    poll_interval=3,
+    on_progress=lambda status: print(f"Status: {status}")
+)
+```
+
+### Group Operations
+
+#### Create Group
+
+```python
+group_id = await client.create_group(
+    file_ids=["file-id-1", "file-id-2"],
+    group_name="My Knowledge Base",
+    wait_for_ready=True,  # Wait for graph building (default: False)
+    timeout=3600,  # Max wait time in seconds (default: 1 hour)
+    poll_interval=5,  # Check status every N seconds (default: 5)
+    on_progress=lambda status: print(f"Graph status: {status}")
+)
+```
+
+#### Query Group
+
+Query a group's unified knowledge graph with sources mapped by citation keys:
+
+```python
+response = await client.query_group(
+    group_id="group-id-here",
+    query="What are the key insights?",
+    return_source_data=False,  # Set to true to get content/URLs (default: False)
+    web_search=False  # Set to true to augment with web search (default: False)
+)
+
+print(response.answer)
+# Answer contains inline citations like [1], [2], etc.
+
+# Sources are keyed by citation markers - separate cited from non-cited
+cited = {k: v for k, v in response.sources.items() if v.get("is_cited")}
+other = {k: v for k, v in response.sources.items() if not v.get("is_cited")}
+
+print("Cited Sources:")
+for key, node in cited.items():
+    source = node['source']
+    print(f"  {key}: {source['node_type']} (score: {node['score']:.3f})")
+
+print("Other Relevant Sources:")
+for key, node in other.items():
+    source = node['source']
+    print(f"  {key}: {source['node_type']} (score: {node['score']:.3f})")
+```
+
+**Response Structure:**
+- `answer`: Generated answer with inline citation markers like [1], [2]
+- `sources`: Dictionary mapping citation keys to source metadata:
+  - `source`: Source metadata (node_type, file_id, and type-specific fields)
+  - `score`: Relevance score (0.0 to 1.0)
+  - `is_cited`: Whether this source was explicitly cited in the answer
+
+#### Get Group Status
+
+```python
+group_detail = await client.get_group_status(group_id)
+print(f"Graph status: {group_detail.graph_status}")
+print(f"Files in group: {len(group_detail.file_ids)}")
+```
+
+#### List Groups
+
+```python
+groups = await client.list_groups()
+for group in groups:
+    print(f"{group.group_name} - {group.graph_status} - {group.file_count} files")
+```
+
+Note: `list_groups()` returns `GroupListItem` objects (summary view with file_count), not full `GroupDetail` objects. Use `get_group_status(group_id)` for complete details.
+
+#### Poll Group Until Ready (Manual)
+
+```python
+group_detail = await client.poll_group_until_ready(
+    group_id,
+    timeout=3600,
+    poll_interval=5,
+    on_progress=lambda status: print(f"Status: {status}")
+)
+```
+
+## Supported File Types
+
+### Videos
+- `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`
+- Automatic transcription and scene analysis
+- Maximum size: Check API limits
+
+### Documents
+- `.pdf`, `.doc`, `.docx`, `.txt`
+- Text extraction and semantic analysis
+- Maximum size: Check API limits
+
+### Images
+- `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`
+- OCR and visual analysis
+- Maximum size: Check API limits
+
+## Error Handling
+
+```python
+try:
+    file_objects = await client.upload_and_process_files(file_paths)
+except Exception as e:
+    print(f"Upload failed: {e}")
+
+try:
+    response = await client.query_group(group_id, query)
+    print(response.answer)
+except Exception as e:
+    if "not ready" in str(e):
+        print("Graph is still building, please wait")
+    else:
+        print(f"Query failed: {e}")
+```
+
+## Advanced Usage
+
+### Progress Tracking
+
+```python
+def track_progress(step: str, current: int, total: int):
+    percent = (current / total) * 100
+    print(f"[{step}] {percent:.1f}% ({current}/{total})")
+
+file_objects = await client.upload_and_process_files(
+    file_paths,
+    on_progress=track_progress
+)
+```
+
+### Without Waiting (Non-blocking)
+
+```python
+# Start uploads and processing without waiting
+file_objects = await client.upload_and_process_files(
+    file_paths,
+    poll_until_complete=False  # Returns immediately
+)
+
+# Poll manually later
+for file_obj in file_objects:
+    file_detail = await client.poll_file_until_complete(file_obj.file_id)
+    print(f"{file_detail.file_name}: {file_detail.processing_status}")
+```
+
+### Custom Timeouts
+
+```python
+# For large files that take longer to process
+file_objects = await client.upload_and_process_files(
+    file_paths,
+    poll_until_complete=True,
+    timeout=3600,  # 1 hour timeout
+    poll_interval=10  # Check every 10 seconds
+)
+
+# For large groups that take longer to build
+group_id = await client.create_group(
+    file_ids,
+    group_name="Large Knowledge Base",
+    wait_for_ready=True,
+    timeout=7200,  # 2 hour timeout
+    poll_interval=15  # Check every 15 seconds
+)
+```
+
+## Changelog
+
+### v1.0.0 (2024-12-18)
+
+**Breaking Changes:**
+- `query_group()` now returns the v2 response format (`QueryResponse` with sources as a dictionary)
+- `query_group_v2()` has been removed - use `query_group()` instead
+- `QueryResponse` now contains the v2 format (was `QueryResponseV2`)
+- `QueryResponseLegacy` contains the old v1 format (was `QueryResponse`)
+
+**Added:**
+- `web_search` parameter in `query_group()` to augment answers with web search results
+
+**Migration from v0.6.x:**
+```python
+# Old (v0.6.x)
+response = await client.query_group_v2(group_id, query)
+for key, node in response.sources.items():
+    print(f"{key}: {node['source']}")
+
+# New (v1.0.0) - query_group() now uses the v2 format
+response = await client.query_group(group_id, query)
+for key, node in response.sources.items():
+    print(f"{key}: {node['source']}")
+```
+
+### v0.6.0 (2024-12-18)
+
+**Added:**
+- `query_group_v2()` method - New recommended way to query graphs with cleaner response structure
+- `QueryResponseV2` response model with sources as a dictionary keyed by citation markers
+- `web_search` parameter in `query_group_v2()` to augment answers with web search results
+
+**Deprecated:**
+- `query_group()` method - Will be removed in a future version. Use `query_group_v2()` instead.
+- `QueryResponse` model - Use `QueryResponseV2` for new integrations.
+
+### v0.5.0 (2024-11-27)
+
+**Added:**
+- `return_source_data` parameter to `query_group()` method
+- When `return_source_data=True`:
+  - Documents include `text` field with summary content
+  - Images include `time_limited_url` with a signed URL (60 min expiry)
+  - Videos include `time_limited_url` with a signed URL to the segment (60 min expiry)
+
+**Example:**
+```python
+response = await client.query_group(group_id, query, return_source_data=True)
+for source in response.sources:
+    if source['node_type'] == 'document':
+        print(f"Text: {source['text']}")
+    else:
+        print(f"URL: {source['time_limited_url']}")
+```
+
+### v0.4.0 (2024-11-25)
+
+**Added:**
+- `attention_nodes` field in `QueryResponse` - Access all context nodes fed to the LLM with their similarity scores
+- Cleaner nested structure: each attention node has `source` (metadata) and `score` (similarity)
+- Each attention node includes:
+  - `source`: Complete source metadata (video/document/image details)
+  - `score`: Similarity score for the query (0.0 to 1.0, higher = more relevant)
+
+**Example:**
+```python
+response = await client.query_group(group_id, query)
+print(f"Cited: {len(response.sources)}, Total context: {len(response.attention_nodes)}")
+
+# Access scores and sources
+for node in response.attention_nodes:
+    print(f"Score: {node['score']:.3f}, Type: {node['source']['node_type']}")
+```
+
+## Migration from v0.1.x
+
+Version 0.2.0 introduces breaking changes aligned with the new API architecture.
+
+### Changed
+- **Authentication**: Now uses API keys instead of bearer tokens
+  ```python
+  # Old (v0.1.x)
+  client = GraphonClient(token="xDhMfTDCpfwewocP93d5")
+  
+  # New (v0.2.0)
+  client = GraphonClient(api_key="sk_live_...")
+  ```
+
+- **Upload workflow**: Simplified to a single method
+  ```python
+  # Old (v0.1.x)
+  upload_infos = await client.generate_upload_urls(filenames)
+  # ... manual upload logic ...
+  await client.upload_files(file_paths)
+  
+  # New (v0.2.0)
+  file_objects = await client.upload_and_process_files(file_paths)
+  ```
+
+- **Group creation**: Now uses file_ids instead of uuid_directories
+  ```python
+  # Old (v0.1.x)
+  group_uuid = await client.create_index(uuid_directories)
+  
+  # New (v0.2.0)
+  file_ids = [f.file_id for f in file_objects]
+  group_id = await client.create_group(file_ids, group_name)
+  ```
+
+- **Querying**: Updated method signature
+  ```python
+  # Old (v0.1.x)
+  answer = await client.query(group_uuid, query_text)  # Returns string
+  
+  # New (v0.2.0)
+  response = await client.query_group(group_id, query)  # Returns QueryResponse
+  print(response.answer)
+  print(response.sources)
+  ```
+
+### Removed
+- `generate_upload_urls()` - Replaced by `upload_and_process_files()`
+- `upload_file_to_signed_url()` - Handled internally
+- `upload_files()` - Replaced by `upload_and_process_files()`
+- `create_index()` - Replaced by `create_group()`
+
+## Support
+
+- Documentation: [https://docs.graphon.ai](https://docs.graphon.ai)
+- Email: support@graphon.ai
+- Issues: [GitHub Issues](https://github.com/arbaazkhan2/graphon-client/issues)
+
+## License
+
+MIT License - see LICENSE file for details
