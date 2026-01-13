@@ -1,0 +1,89 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "smoltok"
+version = "0.1.1"
+description = "Byte-Pair Encoding tokenizer implemented in Rust"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+    { name = "Dmytro Nikolaiev", email = "dmytro.nikolaiev.ai@gmail.com" }
+]
+readme = "README.md"
+keywords = ["bpe", "tokenizer", "nlp", "rust", "encoding", "text-processing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing",
+    "Topic :: Text Processing :: Linguistic",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/Winston-503/smoltok"
+Repository = "https://github.com/Winston-503/smoltok"
+Documentation = "https://github.com/Winston-503/smoltok#readme"
+Issues = "https://github.com/Winston-503/smoltok/issues"
+
+[dependency-groups]
+dev = [
+    "regex>=2025.11.3",
+    "pytest>=9.0.1",
+    "maturin>=1.0,<2.0",
+    # lint
+    "ruff>=0.14.5",
+    "ty>=0.0.8",
+    # benchmark dependencies
+    "click>=8.0.0",
+    "matplotlib>=3.7.0",
+    "numpy>=1.24.0",
+    "datasets>=4.4.2"
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.maturin]
+bindings = "pyo3"
+manifest-path = "smoltok-py/Cargo.toml"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "PL",  # Pylint
+    "SIM", # flake8-simplify
+    "RUF", # Ruff-specific rules
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["PLR2004"]  # magic value comparison
+
+[tool.ruff.lint.isort]
+known-first-party = ["utils"]
+
+[tool.ty.environment]
+extra-paths = [".", "py_impl/bench"]
+
+[tool.ty.src]
+include = ["**/*.py", "**/*.pyi"]
