@@ -1,0 +1,565 @@
+Metadata-Version: 2.1
+Name: busy-agent
+Version: 0.1.3
+Summary: 模拟 ReAct Agent 工作过程 - Simulate ReAct Agent working process
+Home-page: https://github.com/demouo/busy-agent
+Author: Busy Agent Contributors
+Author-email: 
+Project-URL: Bug Reports, https://github.com/demouo/busy-agent/issues
+Project-URL: Source, https://github.com/demouo/busy-agent
+Keywords: agent react llm simulation
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pandas
+Requires-Dist: pyarrow
+
+# Busy Agent 🤖
+
+English | [中文](README.md)
+
+Pretend to be busy in the LLM Agent era!
+
+This is a fun project that reads trajectories from the react-llama dataset and prints the Agent's thinking and execution process in ReAct Agent style, making you look like you're running a real AI Agent.
+
+## Features
+
+- 🎨 **Colorful Output**: Uses ANSI color codes for beautiful terminal output
+- ⌨️ **Typewriter Effect**: Character-by-character printing to simulate real thinking process
+- ⏳ **Loading Animations**: Displays "Thinking...", "Executing..." and other animation effects
+- 🔄 **ReAct Style**: Complete display of Thought → Action → Observation reasoning loop
+- 🎲 **Random Selection**: Randomly selects from 3538 trajectories for display
+- 🚀 **Multiple Modes**: Supports fast mode, loop mode, and more
+- 🎯 **Smart Answer Generation**: Intelligently generates correct or incorrect answers based on configured success rate and incident events
+- 🤖 **LLM as Judge**: Simulates LLM scoring system to evaluate answer quality
+- 📊 **Observable Metrics**: Real-time display of success rate, time spent, step count, incidents, and other key metrics
+- 🌍 **Multi-language Support**: Supports Chinese and English interface switching
+
+## Installation
+
+### Method 1: Install from PyPI (Recommended)
+
+```bash
+pip install busy-agent
+```
+
+After installation, you can directly use the `busy-agent` command.
+
+### Method 2: Install from Source
+
+```bash
+git clone https://github.com/demouo/busy-agent.git
+cd busy-agent
+pip install -e .
+```
+
+### Method 3: Development Mode
+
+If you want to modify the code or contribute:
+
+```bash
+git clone https://github.com/demouo/busy-agent.git
+cd busy-agent
+pip install -r requirements.txt
+python busy_agent.py  # Run script directly
+```
+
+## Usage
+
+### Basic Usage
+
+Run the program to continuously display random trajectories (loop mode by default):
+
+```bash
+busy-agent
+```
+
+### Fast Mode
+
+Skip animation effects for quick display (suitable for testing):
+
+```bash
+busy-agent --fast
+```
+
+### Single Run Mode
+
+Display a single trajectory and exit:
+
+```bash
+busy-agent --once
+```
+
+### Specify Index
+
+Display a specific trajectory by index (automatically enters single run mode):
+
+```bash
+busy-agent --index 0
+```
+
+### Loop Mode Settings
+
+Customize the delay between loops (seconds):
+
+```bash
+busy-agent --delay 5.0
+```
+
+### Model Selection
+
+Choose different AI models (similar to Claude's three-tier model system):
+
+**qwen-flash** (Fast model):
+```bash
+busy-agent --model qwen-flash
+```
+
+**qwen-plus** (Balanced model, default):
+```bash
+busy-agent --model qwen-plus
+```
+
+**qwen-max** (Most powerful model):
+```bash
+busy-agent --model qwen-max
+```
+
+The program displays the current model at startup, with different models distinguished by different colors.
+
+### Language Selection
+
+Switch between Chinese and English interface:
+
+```bash
+busy-agent --language en  # English
+busy-agent --language zh  # Chinese
+```
+
+## Configuration File
+
+The program uses the `config.json` configuration file to manage delay times and display parameters. You can adjust these parameters to control the Agent's "busyness" level.
+
+### Configuration Options
+
+**Language Configuration** (`language`):
+- `default`: Default language, options: `zh` (Chinese) or `en` (English)
+
+**Model Configuration** (`model`):
+- `default`: Default model, options: `qwen-flash`, `qwen-plus`, `qwen-max`
+- `available_models`: List of available models and their configurations
+
+**Delay Time Configuration** (`delays`):
+- `thinking.min` / `thinking.max`: Thinking delay time range (seconds), default 4.0-10.0 seconds
+- `executing.min` / `executing.max`: Action execution delay time range (seconds), default 6.0-12.0 seconds
+
+**Typewriter Effect Configuration** (`typewriter`):
+- `thought_speed`: Typing speed for thought content (delay per character), default 0.02 seconds
+- `action_speed`: Typing speed for action content, default 0.015 seconds
+- `observation_speed`: Typing speed for observation content, default 0.005 seconds
+
+**Display Configuration** (`display`):
+- `observation_max_length`: Maximum display length for observation content, default 500 characters
+
+**Print Mode Configuration** (`print_modes`):
+- `switch_interval`: Switch print mode every N steps, default 10 steps
+- `modes`: Available print modes (smooth, chunky, slow, instant)
+
+**Incident Configuration** (`incidents`):
+- `model_disconnect`: Model disconnection configuration
+  - `enabled`: Whether to enable, default true
+  - `probability`: Trigger probability, default 0.03 (3%)
+  - `max_retries`: Maximum retry count, default 8
+- `action_timeout`: Action timeout configuration
+  - `enabled`: Whether to enable, default true
+  - `probability`: Trigger probability, default 0.02 (2%)
+  - `max_retries`: Maximum retry count, default 8
+
+**Success Rate Configuration** (`success_rate`):
+- `target_rate`: Target success rate, default 0.60 (60%)
+- `incident_penalty`: Incident penalty coefficient, default 0.3 (increases failure probability by 30% when incidents occur)
+- `wrong_answer_strategies`: Wrong answer generation strategies
+  - `unable_to_determine`: Unable to determine type answers (weight 0.4)
+  - `reasoning_failed`: Reasoning failed type answers (weight 0.3)
+  - `wrong_guess`: Random wrong answers (weight 0.3)
+
+**LLM Scoring Configuration** (`llm_judge`):
+- `enabled`: Whether to enable LLM as Judge scoring, default true
+- `correct_answer_score`: Correct answer score range, default 8.5-10.0
+- `wrong_answer_score`: Wrong answer score range, default 2.0-6.0
+
+**Metrics Tracking Configuration** (`metrics`):
+- `track_success_rate`: Whether to track success rate, default true
+- `track_time`: Whether to track time spent, default true
+- `track_steps`: Whether to track step count, default true
+- `track_retries`: Whether to track retry count, default true
+- `track_incidents`: Whether to track incident events, default true
+
+## Output Example
+
+The program outputs the Agent's reasoning process in ReAct style:
+
+```
+🤖 ReAct Agent Working...
+================================================================================
+
+❓ Question:
+Since 2017 Nick Ayers has been Chief of Staff to a man that served as governor of what state?
+
+🔄 Starting reasoning process...
+
+💭 Thought 1: I need to search Nick Ayers, find who he is chief of staff to...
+⚡ Action 1: Search[Nick Ayers]
+📊 Observation 1: James Nicholas Ayers (born August 16, 1982) is an American...
+
+💭 Thought 2: Nick Ayers is chief of staff to Mike Pence...
+⚡ Action 2: Search[Mike Pence]
+📊 Observation 2: Michael Richard Pence (born June 7, 1959) is an American...
+
+💭 Thought 3: Mike Pence was governor of Indiana...
+⚡ Action 3: Finish[Indiana]
+
+✅ Final Answer: Indiana
+================================================================================
+
+📊 Observable Metrics:
+
+🤖 LLM as Judge Score: 9.27/10.0
+✅ Overall Success Rate: 100.0% (1/1)
+⏱️  Time Spent: 45.32s
+📝 Total Steps: 8
+```
+
+## Project Structure
+
+```
+busy-agent/
+├── busy_agent/           # Package directory
+│   ├── __init__.py      # Package initialization
+│   ├── agent.py         # Core BusyAgent class
+│   ├── cli.py           # CLI entry point
+│   └── data/            # Data files
+│       ├── config.json
+│       └── datasets/
+│           └── react-llama.parquet
+├── setup.py             # Packaging configuration
+├── MANIFEST.in          # Data file manifest
+├── README.md            # Chinese documentation
+├── README_EN.md         # English documentation
+├── requirements.txt     # Python dependencies
+└── LICENSE              # License file
+```
+
+## Dataset
+
+The project uses the react-llama dataset, containing 3538 ReAct-style trajectories. Each data entry includes:
+- **question**: Question
+- **correct_answer**: Correct answer
+- **trajectory**: Complete reasoning process (Thought → Action → Observation)
+
+## Technical Implementation
+
+- **Parsing**: Uses regular expressions to parse trajectory text
+- **Typewriter Effect**: Character-by-character printing to simulate real input
+- **Loading Animation**: Uses Unicode characters to create rotating animations
+- **Color Output**: ANSI escape sequences for colorful terminal output
+- **Smart Answer Generation**: Probabilistic determination based on success rate and incidents
+- **LLM as Judge**: Simulated scoring system with realistic score ranges
+- **Observable Metrics**: Real-time tracking and display of key performance indicators
+
+## License
+
+MIT License
+
+---
+
+**Note**: This project is for entertainment and demonstration purposes. It simulates an AI Agent's working process to make your terminal look busy and professional.
+
+For more information, visit: https://github.com/demouo/busy-agent
+
+
+---
+
+
+# Busy Agent 🤖
+
+[English](README_EN.md) | 中文
+
+在 LLM Agent 时代假装很忙！
+
+这是一个有趣的项目，通过读取 react-llama 数据集的 trajectory，以 ReAct Agent 的风格逐步打印 Agent 的思考和执行过程，让你看起来像是在运行一个真实的 AI Agent。
+
+## 特性
+
+- 🎨 **彩色输出**: 使用 ANSI 颜色代码，让输出更加美观
+- ⌨️ **打字机效果**: 逐字符打印，模拟真实的思考过程
+- ⏳ **加载动画**: 显示"思考中..."、"执行中..."等动画效果
+- 🔄 **ReAct 风格**: 完整展示 Thought → Action → Observation 的推理循环
+- 🎲 **随机选择**: 从 3538 条 trajectory 中随机选择展示
+- 🚀 **多种模式**: 支持快速模式、循环模式等
+- 🎯 **智能答案生成**: 基于配置的成功率和意外事件，智能生成正确或错误答案
+- 🤖 **LLM as Judge**: 模拟 LLM 评分系统，对答案质量进行评分
+- 📊 **可观测指标**: 实时显示成功率、耗时、步骤数、意外事件等关键指标
+- 🌍 **多语言支持**: 支持中文和英文界面切换
+
+## 安装
+
+### 方式一：从 PyPI 安装（推荐）
+
+```bash
+pip install busy-agent
+```
+
+安装后可直接使用 `busy-agent` 命令。
+
+### 方式二：从源码安装
+
+```bash
+git clone https://github.com/demouo/busy-agent.git
+cd busy-agent
+pip install -e .
+```
+
+### 方式三：开发模式
+
+如果你想修改代码或贡献代码：
+
+```bash
+git clone https://github.com/demouo/busy-agent.git
+cd busy-agent
+pip install -r requirements.txt
+python busy_agent.py  # 直接运行脚本
+```
+
+## 使用方法
+
+### 基本使用
+
+运行程序，持续显示随机 trajectory（默认循环模式）：
+
+```bash
+busy-agent
+```
+
+### 单次运行模式
+
+显示一次 trajectory 后退出：
+
+```bash
+busy-agent --once
+```
+
+### 快速模式
+
+跳过动画效果，快速显示（适合测试）：
+
+```bash
+busy-agent --fast
+```
+
+### 指定索引
+
+显示特定索引的 trajectory（自动进入单次模式）：
+
+```bash
+busy-agent --index 0
+```
+
+### 循环模式设置
+
+自定义循环间隔时间（秒）：
+
+```bash
+busy-agent --delay 5.0
+```
+
+### 模型选择
+
+选择不同的 AI 模型（类似 Claude 的三档模型系统）：
+
+**qwen-flash**（快速模型）：
+```bash
+busy-agent --model qwen-flash
+```
+
+**qwen-plus**（平衡模型，默认）：
+```bash
+busy-agent --model qwen-plus
+```
+
+**qwen-max**（最强模型）：
+```bash
+busy-agent --model qwen-max
+```
+
+程序会在启动时显示当前使用的模型，不同模型使用不同颜色区分。
+
+## 配置文件
+
+程序使用 `config.json` 配置文件来管理延迟时间和显示参数。你可以根据需要调整这些参数来控制 Agent 的"忙碌"程度。
+
+### 配置项说明
+
+**语言配置** (`language`):
+- `default`: 默认语言，可选 `zh` (中文) 或 `en` (English)，默认 `en`
+
+**模型配置** (`model`):
+- `default`: 默认使用的模型，可选 `qwen-flash`、`qwen-plus`、`qwen-max`
+- `available_models`: 可用的模型列表及其配置
+
+**延迟时间配置** (`delays`):
+- `thinking.min` / `thinking.max`: 思考延迟时间范围（秒），默认 4.0-10.0 秒
+- `executing.min` / `executing.max`: 执行动作延迟时间范围（秒），默认 6.0-12.0 秒
+
+**打字机效果配置** (`typewriter`):
+- `thought_speed`: 思考内容的打字速度（每字符延迟），默认 0.02 秒
+- `action_speed`: 动作内容的打字速度，默认 0.015 秒
+- `observation_speed`: 观察内容的打字速度，默认 0.005 秒
+
+**显示配置** (`display`):
+- `observation_max_length`: 观察内容的最大显示长度，默认 500 字符
+
+**打印模式配置** (`print_modes`):
+- `switch_interval`: 每N步切换一次打印模式，默认 10 步
+- `modes`: 可用的打印模式（smooth、chunky、slow、instant）
+
+**意外事件配置** (`incidents`):
+- `model_disconnect`: 模型断连配置
+  - `enabled`: 是否启用，默认 true
+  - `probability`: 触发概率，默认 0.03 (3%)
+  - `max_retries`: 最大重试次数，默认 8
+- `action_timeout`: 动作超时配置
+  - `enabled`: 是否启用，默认 true
+  - `probability`: 触发概率，默认 0.02 (2%)
+  - `max_retries`: 最大重试次数，默认 8
+
+**成功率配置** (`success_rate`):
+- `target_rate`: 目标成功率，默认 0.60 (60%)
+- `incident_penalty`: 意外惩罚系数，默认 0.3 (发生意外时增加30%失败概率)
+- `wrong_answer_strategies`: 错误答案生成策略
+  - `unable_to_determine`: 无法确定类答案（权重 0.4）
+  - `reasoning_failed`: 推理失败类答案（权重 0.3）
+  - `wrong_guess`: 随机错误答案（权重 0.3）
+
+**LLM评分配置** (`llm_judge`):
+- `enabled`: 是否启用 LLM as Judge 评分，默认 true
+- `correct_answer_score`: 正确答案评分范围，默认 8.5-10.0
+- `wrong_answer_score`: 错误答案评分范围，默认 2.0-6.0
+
+**指标跟踪配置** (`metrics`):
+- `track_success_rate`: 是否跟踪成功率，默认 true
+- `track_time`: 是否跟踪耗时，默认 true
+- `track_steps`: 是否跟踪步骤数，默认 true
+- `track_retries`: 是否跟踪重试次数，默认 true
+- `track_incidents`: 是否跟踪意外事件，默认 true
+
+### 配置示例
+
+```json
+{
+  "model": {
+    "default": "qwen-plus",
+    "available_models": {
+      "qwen-flash": {
+        "display_name": "Qwen-Flash",
+        "tier": "flash"
+      },
+      "qwen-plus": {
+        "display_name": "Qwen-Plus",
+        "tier": "plus"
+      },
+      "qwen-max": {
+        "display_name": "Qwen-Max",
+        "tier": "max"
+      }
+    }
+  },
+  "delays": {
+    "thinking": {
+      "min": 2.0,
+      "max": 5.0
+    },
+    "executing": {
+      "min": 3.0,
+      "max": 6.0
+    }
+  },
+  "typewriter": {
+    "thought_speed": 0.02,
+    "action_speed": 0.015,
+    "observation_speed": 0.005
+  },
+  "display": {
+    "observation_max_length": 500
+  }
+}
+```
+
+## 输出示例
+
+程序会以 ReAct 风格输出 Agent 的推理过程：
+
+```
+🤖 ReAct Agent 工作中...
+================================================================================
+
+❓ 问题:
+Since 2017 Nick Ayers has been Chief of Staff to a man that served as governor of what state?
+
+🔄 开始推理过程...
+
+💭 Thought 1: I need to search Nick Ayers, find who he is chief of staff to...
+⚡ Action 1: Search[Nick Ayers]
+📊 Observation 1: James Nicholas Ayers (born August 16, 1982) is an American...
+
+💭 Thought 2: Nick Ayers is chief of staff to Mike Pence...
+⚡ Action 2: Search[Mike Pence]
+📊 Observation 2: Michael Richard Pence (born June 7, 1959) is an American...
+
+💭 Thought 3: Mike Pence was governor of Indiana...
+⚡ Action 3: Finish[Indiana]
+
+✅ 最终答案: Indiana
+```
+
+## 项目结构
+
+```
+busy-agent/
+├── busy_agent.py          # 主程序
+├── config.json            # 配置文件（延迟时间、打字速度等）
+├── datasets/
+│   └── react-llama.parquet  # ReAct trajectory 数据集
+├── explore_dataset.py     # 数据集探索脚本
+├── view_trajectory.py     # 查看 trajectory 示例
+├── requirements.txt       # Python 依赖
+└── README.md             # 项目说明
+```
+
+## 数据集
+
+项目使用 react-llama 数据集，包含 3538 条 ReAct 风格的 trajectory。每条数据包括：
+- **question**: 问题
+- **correct_answer**: 正确答案
+- **trajectory**: 完整的推理过程（Thought → Action → Observation）
+
+## 技术实现
+
+- **解析**: 使用正则表达式解析 trajectory 文本
+- **打字机效果**: 逐字符打印，模拟真实输入
+- **加载动画**: 使用 Unicode 字符创建旋转动画
+- **颜色输出**: ANSI 转义序列实现彩色终端输出
+
+## 许可证
+
+MIT License
