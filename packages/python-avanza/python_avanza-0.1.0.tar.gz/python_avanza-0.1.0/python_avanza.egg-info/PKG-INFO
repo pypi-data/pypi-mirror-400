@@ -1,0 +1,185 @@
+Metadata-Version: 2.4
+Name: python-avanza
+Version: 0.1.0
+Summary: Unofficial Python client for Avanza's API with a yfinance-style interface for stocks, ETFs, and funds
+Author: ningdp2012
+License: MIT
+Project-URL: Repository, https://github.com/ningdp2012/python-avanza
+Keywords: avanza,stock,api,finance,price,etf,fund,swedish,nordic
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: requests>=2.31.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Dynamic: license-file
+
+# Unofficial Avanza API Client
+
+A simple Python client for Avanza's unofficial API with a yfinance-style interface.
+
+## Features
+
+- 📊 yfinance-style API - Familiar interface for stock/fund data
+- 🔍 Search stocks, ETFs, and funds by name
+- 📈 Historical price data with flexible time periods
+- 💰 Recent stock price and NAV for funds
+- 🔄 Automatic cache with configurable TTL
+
+## Installation
+
+```bash
+pip install python-avanza
+```
+
+## Quick Start
+
+```python
+import avanza
+
+# Get stock data
+stock = avanza.Stock("5361")  # Avanza Bank Holding
+stock.info['name']
+stock.price
+
+# Get historical data
+history = stock.history("one_month")
+
+# Get dividends
+dividends = stock.dividend
+```
+
+**Finding orderbook_id:**
+- Search: `avanza.search("company name")`
+- Avanza URL: `https://www.avanza.se/aktier/om-aktien.html/5361/...` → ID is `5361`
+
+### Search for Instruments
+
+```python
+# Search for stocks
+results = avanza.search("volvo", instrument_type="stock", limit=5)
+for hit in results['hits']:
+    hit['instrument']['name'], hit['instrument']['id']
+
+# Search for ETFs
+results = avanza.search("ishares", instrument_type="etf")
+
+# Search for funds
+results = avanza.search("avanza", instrument_type="fund")
+```
+
+### Fund Data
+
+```python
+# Create a fund ticker
+fund = avanza.Fund("41567")
+
+# Get fund info
+fund.info['name']
+fund.price['nav']
+
+# Historical data
+history = fund.history("one_year")
+```
+
+### Cache Management
+
+```python
+# Default: 60 second cache
+stock = avanza.Stock("5361")
+
+# No caching (always fresh)
+stock = avanza.Stock("5361", cache_ttl=0)
+
+# Custom cache duration (5 minutes)
+stock = avanza.Stock("5361", cache_ttl=300)
+
+# Manual refresh
+stock.refresh()  # Clear cached data
+```
+
+### Time Periods
+
+```python
+# Use strings
+stock.history("one_week")
+stock.history("one_month")
+stock.history("one_year")
+
+# Or use enum
+stock.history(avanza.TimePeriod.ONE_WEEK)
+```
+
+Available periods: `today`, `one_week`, `one_month`, `three_months`, `this_year`, `one_year`, `three_years`, `five_years`, `infinity`
+
+## Examples
+
+See [example.py](example.py) for complete working examples.
+
+## Contributing
+
+**Setup:**
+```bash
+# Clone and install
+git clone https://github.com/de-ping/avanza.git
+cd avanza
+pip install -e ".[dev]"
+```
+
+**Development:**
+```bash
+# Run tests
+pytest
+
+# Format code
+black avanza/ tests/
+
+# Lint
+flake8 avanza/ tests/ --max-line-length=120
+```
+
+**Pull Requests:**
+- Ensure tests pass
+- Format code with Black
+- Add tests for new features
+
+## ⚠️ Disclaimer
+
+This project is an **unofficial Python client for Avanza**.
+
+- It uses **undocumented and unofficial APIs**
+- It is **not affiliated with, endorsed by, or supported by Avanza**
+- API behavior may change or stop working at any time
+- Use of this library **may violate Avanza’s terms of service**
+
+This project is intended primarily for **educational and experimental purposes**, such as learning about HTTP APIs and Python library design.
+
+### Usage risks
+Because this client relies on unofficial endpoints:
+- Requests may be **rate limited**
+- Accounts or IP addresses may be **temporarily or permanently blocked**
+- Functionality may break without notice
+
+Use at your own discretion and risk.
+
+If you need reliable or supported access to Avanza services, please use Avanza’s official website or applications, or contact Avanza directly regarding official API access.
+
+### Legal
+This software is provided **“as is”**, without warranty of any kind.
+The author assumes **no liability** for any damages or losses resulting from its use.
+Users are responsible for ensuring their usage complies with all applicable laws and terms of service.
+
+
+## License
+
+MIT License - See LICENSE file for details
