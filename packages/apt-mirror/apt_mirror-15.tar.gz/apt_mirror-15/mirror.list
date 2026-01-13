@@ -1,0 +1,229 @@
+### Global settings
+## These settings should be located before all other settings/options.
+## Global settings are using format `set SETTING VALUE`
+
+## Paths to working directories
+set base_path         /var/spool/apt-mirror
+## All mirrors will be saved to mirror_path
+set mirror_path       $base_path/mirror
+## Initial metadata synchronization path
+set skel_path         $base_path/skel
+## Path to variable data
+set var_path          $base_path/var
+
+## Path to apt_auth.conf. See `man apt_auth.conf`
+# set etc_netrc         /etc/apt/auth.conf
+
+## Path to default keyring.
+## This path is deprecated in the apt and will be removed.
+# set etc_trusted       /etc/apt/trusted.gpg
+
+## File fragments for the trusted keys, additional keyrings can be stored here
+## (by other packages or the administrator)
+# set etc_trusted_parts /etc/apt/trusted.gpg.d
+
+## Set to `on` to append to logs instead of truncating them
+# set append_logs       off
+
+## Used when architecture is not explicitly specified for a repository.
+## Defaults to the host architecture on Debian systems and to amd64 on non-Debian systems.
+# set defaultarch       amd64
+
+## Maximum number of simultaneously processed mirrors and simultaneously downloaded files.
+## E.g., with nthreads=4, no more than 4 mirrors will be processed and 4 downloads
+## across all mirrors will occur simultaneously.
+## Since apt-mirror2 does not use threads/processes but is a fully asynchronous program,
+## there is usually no need to set this number higher than 8. Moreover, setting it too high may
+## break HTTP/2 downloads due to HTTP/2 concurrent stream limits, which are auto-negotiated
+## between client and server and (as of now) cannot be limited by the h2 client.
+set nthreads          8
+
+## Whether to check release files GPG signature.
+## Defaults to `off` to match apt-mirror behavior.
+## You could enforce GPG signature verification per server using `gpg_verify url [enable|disable|force]`.
+set gpg_verify        off
+
+## Rate limit in bytes per second. Suffixes `k` and `m` are allowed. Not enabled by default.
+## You should never set this lower than `slow_rate`.
+# set limit_rate        1k
+
+## Enable slow download rate protection. Default: `on`.
+# set slow_rate_protection on
+## The period (in seconds) during which slow download rate protection will not be applied
+## to each individual downloaded file.
+# set slow_rate_startup  15
+## Slow download protection threshold.
+# set slow_rate          100k
+
+## Enable weak size-only package check (without mtime verification)
+## When enabled, the package size is compared against the size recorded in metadata files.
+## If the recorded size matches the locally stored file size, no connection to the remote
+## server is made and the file modification time is not checked.
+## This is useful for Debian/Ubuntu mirrors to speed up the mirroring process, but it must
+## be disabled for development or any less strict mirrors.
+# set weak_size_check    0
+
+set _tilde            0
+
+## Use uvloop if available
+# set uvloop            1
+
+## Proxy configuration.
+## Only supported for HTTP repositories.
+# set use_proxy             off
+## If the proxy scheme is omitted, `http://` is assumed.
+# set http_proxy            127.0.0.1:3128
+# set https_proxy           127.0.0.1:3128
+# set proxy_user            user
+# set proxy_password        password
+
+## User-Agent for HTTP repositories. Default: `apt-mirror2/VERSION`
+# set http_user_agent       apt-mirror2
+
+## Certificates configuration
+## Whether to verify HTTPS certificates
+# set no_check_certificate  off
+## Path to custom CA certificates bundle
+# set ca_certificate        /etc/ssl/certs/ca-certificates.crt
+## Paths to client certificate and private key for HTTP client authentication
+# set certificate           /etc/ssl/certs/certificate.crt
+# set private_key           /etc/ssl/certs/key.pem
+
+## Whether to write file lists (ALL, NEW, MD5, SHA256, SHA512 files) as apt-mirror does.
+## Default: off, as apt-mirror2 does not utilize them.
+# set write_file_lists        off
+
+## Enable Prometheus client
+# set prometheus_enable   off
+# set prometheus_host     localhost
+# set prometheus_port     8000
+
+## Retries
+## How many times to retry downloading broken release files
+# set release_files_retries 15
+
+## Run a script after the mirror process completes
+# set run_postmirror    0
+## Path to post-mirror script
+## All configuration variables are available in the script, uppercased
+## with the prefix `APT_MIRROR_`, e.g., `${APT_MIRROR_BASE_PATH}`
+# set postmirror_script $var_path/postmirror.sh
+
+## By default, redundant files are not removed after a mirror update.
+## A shell script is created at the path specified by the `cleanscript` option,
+## which can be used to clean the mirror.
+# set cleanscript     $var_path/clean.sh
+
+## If the `_autoclean` option is specified and enabled, the clean script will
+## not be created, and the mirror will be cleaned automatically.
+# set _autoclean 0
+## To protect repositories from accidental wiping, do not perform cleanup
+## if more than `repository_size * wipe_size_ratio` of total size is to be removed, or
+## more than `repository_files_count * wipe_count_ratio` of total files.
+## Use 0 to disable wipe protection.
+# set wipe_size_ratio 0.4
+# set wipe_count_ratio 0.4
+
+## Use a "move" strategy for the `dists` directory instead of copying it in place.
+## When enabled (default), the `dists` directory is first prepared in a temporary
+## location under `mirror_path`, then the current `dists` is removed and the new
+## directory is atomically renamed to `dists` to minimize client outage.
+# set use_dists_move 1
+
+### Mirror source settings
+
+## Mirrors are configured using standard sources.list syntax
+## Binary mirrors
+# deb [ arch=amd64,arm64 ] http://archive.ubuntu.com/ubuntu mantic main restricted universe multiverse
+
+## Or via `deb-arch`
+# deb-amd64 http://archive.ubuntu.com/ubuntu mantic main restricted universe multiverse
+# deb-arm64 http://archive.ubuntu.com/ubuntu mantic main restricted universe multiverse
+
+## Although not supported by sources.list, it’s possible to specify codenames or directories
+## separated by commas without spaces here.
+# deb-amd64 http://archive.ubuntu.com/ubuntu mantic,jammy main restricted universe multiverse
+# deb https://packages.ntop.org/apt-stable/20.04/ x64/,all/
+
+## The `by-hash` option can be used to control mirroring using hashsums paths.
+## A `yes` or `no` value activates/disables the use of this feature if this source indicates support for it,
+## while `force` will enable the feature regardless of what the source indicates.
+## Default: `yes`.
+# deb [ arch=amd64,arm64 by-hash=no ] http://archive.ubuntu.com/ubuntu mantic main restricted universe multiverse
+
+## Source mirrors
+# deb-src http://archive.ubuntu.com/ubuntu mantic main restricted universe multiverse
+# deb-src http://archive.ubuntu.com/ubuntu mantic-security main restricted universe multiverse
+# deb-src http://archive.ubuntu.com/ubuntu mantic-updates main restricted universe multiverse
+# deb-src http://archive.ubuntu.com/ubuntu mantic-backports main restricted universe multiverse
+
+## Use the special `src` value in the `arch` option to specify a source repository
+# deb [ arch=src ] http://archive.ubuntu.com/ubuntu mantic main restricted universe multiverse
+
+## The `signed-by` is an option to require a repository to pass apt-secure(8) verification with a
+## certain set of keys rather than all trusted keys apt has configured.
+## See `sources.list(5)` man page for more details.
+# deb [ arch=amd64,arm64 signed-by=/some/path/to/keyring.gpg ] http://archive.ubuntu.com/ubuntu mantic main restricted universe multiverse
+
+### Per-mirror options
+## Per-mirror options using format `option URL values...`
+
+## By default, the name of the mirrored folder is derived from the mirror URL.
+## Use `mirror_path` to override the mirror folder name.
+# mirror_path http://archive.ubuntu.com/ubuntu ubuntu
+
+## The `gpg_verify` option can be used to control release files signature verification.
+## Allowed values are `on`, `off`, `force`.
+## Defaults to the value of the `gpg_verify` global setting and can be set to `force`, which will make
+## apt-mirror2 fail if a GPG signature cannot be found or verified.
+# gpg_verify http://archive.ubuntu.com/ubuntu off
+
+## Ignore errors for a specified repository path.
+## Can be an exact file or folder.
+# ignore_errors https://packages.gitlab.com/runner/gitlab-runner/debian pool/bullseye/main/g/gitlab-runner/gitlab-runner_14.8.1_amd64.deb
+
+## Mirror source packages with the specified names and binary packages built from them.
+## If not specified, all packages are mirrored.
+# include_source_name http://archive.ubuntu.com/ubuntu source_name1 source_name2 source_name3
+
+## Do not mirror source packages with specified names and binary packages built from them.
+## If not specified, no packages are excluded.
+# exclude_source_name http://archive.ubuntu.com/ubuntu source_name1 source_name2 source_name3
+
+## Mirror binary packages with the specified names.
+## If not specified, all packages are mirrored.
+# include_binary_packages http://archive.ubuntu.com/ubuntu binary_package1 binary_package2
+
+## Exclude binary packages with the specified names.
+## If not specified, no packages are excluded.
+# exclude_binary_packages http://archive.ubuntu.com/ubuntu binary_package1 binary_package2
+
+## Mirror only packages that belong to specified sections.
+## If not specified, all packages are mirrored.
+# include_sections http://archive.ubuntu.com/ubuntu section1 section2
+
+## Exclude packages that belong to specified sections.
+## If not specified, no sections are excluded.
+# exclude_sections http://archive.ubuntu.com/ubuntu section1 section2
+
+## Mirror packages with specified Debtags.
+## If not specified, all packages are mirrored.
+## Either a facet or full tag can be specified.
+# include_tags http://archive.ubuntu.com/ubuntu facet1::tag1 facet2
+
+## Exclude packages with specified Debtags.
+## If not specified, no packages are excluded.
+# exclude_tags http://archive.ubuntu.com/ubuntu facet1::tag1 facet2
+
+## Mirror `dist-upgrader-all` files used by Ubuntu’s `do-release-upgrade` tool.
+## If not specified, these files are not mirrored.
+# mirror_dist_upgrader http://archive.ubuntu.com/ubuntu
+
+## If specified, redundant files in the repository will be cleaned (see `_autoclean` option).
+# clean http://archive.ubuntu.com/ubuntu
+## If specified and repository cleaning is enabled, skip the specified paths during cleaning.
+# skip-clean http://archive.ubuntu.com/ubuntu/pool/c/curl
+# skip-clean http://archive.ubuntu.com/ubuntu/dists/xenial
+
+## Do not use the HTTP/2 protocol with this repository.
+# http2-disable https://mirrors.ocf.berkeley.edu/debian

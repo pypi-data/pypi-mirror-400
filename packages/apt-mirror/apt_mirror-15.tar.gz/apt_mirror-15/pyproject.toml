@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "apt-mirror"
+version = "15"
+authors = [
+    {name = "Yuri Konotopov", email = "ykonotopov@gnome.org"},
+]
+description = "apt-mirror Python reimplementation"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["apt", "debian"]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Framework :: AsyncIO",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    "aiofile==3.9.0",
+    "aiolimiter==1.1.0",
+    "aioftp==0.23.1",
+    "httpx[http2]==0.27.2",
+    "python-debian==0.1.49",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pip-tools==7.4.1",
+    "pyinstaller==6.11.0",
+    "pylint==3.3.1",
+    "pytest==9.0.2",
+    "ruff==0.7.4",
+]
+aiofiles = [
+    "aiofiles==24.1.0"
+]
+prometheus = [
+    "prometheus-client==0.20.0"
+]
+uvloop = [
+    "uvloop==0.21.0",
+]
+
+[project.scripts]
+apt-mirror = "apt_mirror.apt_mirror:main"
+
+[project.urls]
+Homepage = "https://gitlab.com/apt-mirror2/apt-mirror2/"
+Repository = "https://gitlab.com/apt-mirror2/apt-mirror2.git"
+Github = "https://github.com/nE0sIghT/apt-mirror2.git"
+Issues = "https://gitlab.com/apt-mirror2/apt-mirror2/-/issues"
+Changelog = "https://gitlab.com/apt-mirror2/apt-mirror2/-/commits/master/"
+
+[tool.setuptools.packages.find]
+include = ["apt_mirror*"]
+
+[tool.pylint.main]
+ignore-patterns = "^\\.#"
+jobs = 0
+disable = [
+    "C0111",
+    "W1203",
+]
+
+[tool.pyright]
+exclude = [
+    "build/",
+    "contrib/",
+    "dist/",
+    "**/*.egg-info",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+pythonpath = [
+    "."
+]
+testpaths = [
+    "tests",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apt_mirror"]
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
+ignore = [
+    # We don't want to replace huge `if` statements with return
+    "SIM103",
+    # Explicit is better than implicit
+    "UP015",
+]

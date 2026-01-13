@@ -1,0 +1,415 @@
+---
+variables:
+  FF_NETWORK_PER_BUILD: 'true'
+  FF_SCRIPT_SECTIONS: 'true'
+
+  DOCKER_VERSION: '28'
+  PYTHON_VERSION: '3.12'
+  PYTHON_IMAGE: python
+
+  DOCKER_HUB_IMAGE_NAME: docker.io/aptmirror/apt-mirror2
+  QUAY_IO_IMAGE_NAME: quay.io/apt-mirror2/apt-mirror2
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+stages:
+  - validate
+  - test
+  - security
+  - build
+  - deploy
+
+.pip cache:
+  cache:
+    paths:
+      - $PIP_CACHE_DIR
+    when: always
+  variables:
+    PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+
+.security defaults:
+  stage: security
+  allow_failure: true
+  needs: []
+
+.test defaults:
+  extends:
+    - .pip cache
+  image: docker.io/$PYTHON_IMAGE:$PYTHON_VERSION
+  before_script:
+    - python --version
+
+    # No uvloop support for pypy
+    # https://github.com/MagicStack/uvloop/issues/380
+    # https://github.com/MagicStack/uvloop/issues/657
+    - if [ "${PYTHON_IMAGE}" == "pypy" ]; then
+    -   sed -i -e '/uvloop/d' requirements.txt
+    - fi
+
+    - pip install -r requirements.txt -r requirements/dev.txt
+
+    - apt-get update
+    - apt-get install -y gpgv
+  needs: []
+
+.validate defaults:
+  extends:
+    - .test defaults
+  stage: validate
+  script:
+    - >-
+      "${VALIDATE_TOOL}" ${VALIDATE_TOOL_ARGS}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    VALIDATE_TOOL: ruff
+
+lint:
+  extends:
+    - .validate defaults
+  variables:
+    VALIDATE_TOOL_ARGS: check
+
+
+format:
+  extends:
+    - .validate defaults
+  variables:
+    VALIDATE_TOOL_ARGS: format --check --diff
+
+
+# https://gitlab.freedesktop.org/freedesktop/ci-templates/-/blob/801093be0b88f23c8dbabe9cfce7134548f7ccdc/templates/ci-fairy.yml
+# https://gitlab.gnome.org/GNOME/gnome-shell/-/blob/876ca5d2de92efbea3f2379839073747c9e0dd55/.gitlab-ci.yml#L82
+check commits:
+  stage: validate
+  image: quay.io/freedesktop.org/ci-templates:ci-fairy-sha256-eb20531b68e57da06f4e631402fd494869b1529e2c4ad05cfe24ef3fb8038815
+  script:
+    - ci-fairy check-commits --junit-xml=commit-message-junit-report.xml
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - commit-message-junit-report.xml
+    reports:
+      junit: commit-message-junit-report.xml
+  variables:
+    GIT_DEPTH: "100"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+test amd64:
+  extends:
+    - .test defaults
+  stage: test
+  script:
+    - pytest --junitxml=pytest-result.xml
+  artifacts:
+    reports:
+      junit: pytest-result.xml
+  parallel:
+    matrix:
+      - PYTHON_VERSION:
+          - '3.10'
+          - '3.11'
+        PYTHON_IMAGE:
+          - python
+          - pypy
+      - PYTHON_VERSION:
+          - '3.12'
+          - '3.13'
+  tags:
+    - saas-linux-large-amd64
+
+test arm64:
+  extends:
+    - test amd64
+  tags:
+    - saas-linux-large-arm64
+
+security (trivy):
+  extends:
+    - .security defaults
+  image:
+    name: aquasec/trivy
+    entrypoint: [""]
+  before_script:
+    - trivy --version
+  script:
+    - trivy fs .
+  cache:
+    paths:
+      - .trivy
+    when: always
+  variables:
+    TRIVY_CACHE_DIR: .trivy
+    TRIVY_EXIT_CODE: 1
+    TRIVY_SCANNERS: vuln,config
+
+security (pip-audit):
+  extends:
+    - .pip cache
+    - .security defaults
+  image:
+    name: python:$PYTHON_VERSION
+  before_script:
+    - pip install pip-audit
+  script:
+    - pip-audit -r requirements.txt
+
+.set container annotations:
+  - ANNOTATION_VERSION="latest"
+  - if [ -n "${CI_COMMIT_TAG}" ]; then
+  -   ANNOTATION_VERSION="${CI_COMMIT_TAG#v}"
+  - fi
+
+  - set --
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.created=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.authors=Yuri Konotopov <https://gitlab.com/nE0sIghT>"
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.url=${CI_PROJECT_URL}"
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.source=${CI_PROJECT_URL}"
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.version=${ANNOTATION_VERSION}"
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.revision=${CI_COMMIT_SHA}"
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.licenses=GPL-3.0-or-later"
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.title=apt-mirror2"
+      --annotation "${ANNOTATION_PREFIX}org.opencontainers.image.description=An apt sources mirroring tool"
+
+.build image:
+  image: docker:$DOCKER_VERSION
+  services:
+    - docker:$DOCKER_VERSION-dind
+  before_script:
+    - mkdir -p "images/${BASE_IMAGE}"
+
+    - if [[ ${BASE_IMAGE} == *alpine* ]]; then
+    -   PYTHON_VERSION="${PYTHON_VERSION}-alpine"
+    - fi
+
+    - if [ ${PLATFORM} == "arm64" ]; then
+    -   export PLATFORM="${PLATFORM}/v8"
+    - fi
+
+    - DOCKER_BUILD_ARGS=""
+
+    - docker version
+    - docker buildx create --use
+  script:
+    - !reference [.set container annotations]
+    - docker buildx build
+        "${@}"
+        --platform="linux/${PLATFORM}"
+        --build-arg PYTHON_VERSION="${PYTHON_VERSION}"
+        --build-arg BASE_IMAGE="${BASE_IMAGE}"
+        --metadata-file "images/${BASE_IMAGE}/${PLATFORM//\//\~}.json"
+        -t "${DOCKER_HUB_IMAGE_NAME}"
+        -t "${QUAY_IO_IMAGE_NAME}"
+        -f Dockerfile
+        $DOCKER_BUILD_ARGS
+        .
+  artifacts:
+    paths:
+      - images/
+
+  parallel:
+    matrix:
+      - BASE_IMAGE:
+        - debian:stable
+        - debian:stable-slim
+        - alpine:3
+        PLATFORM:
+        - amd64
+        - arm64
+  tags:
+    - saas-linux-large-$PLATFORM
+
+build image:
+  extends:
+    - .build image
+  stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  needs: []
+
+.deploy:
+  stage: deploy
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /^stable-/
+      when: never
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+
+.docker deploy:
+  extends:
+    - .deploy
+  rules:
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_TAG =~ /^v[0-9]+-[a-z]+[0-9]+$/
+      when: never
+    - !reference [.deploy, rules]
+
+publish image:
+  extends:
+    - .build image
+    - .docker deploy
+  before_script:
+    - !reference [.build image, before_script]
+
+    - DOCKER_BUILD_ARGS="--output type=image,push=true,push-by-digest=true,name-canonical=true"
+
+    - docker login -u "${DOCKER_HUB_USERNAME}" docker.io --password-stdin < "${DOCKER_HUB_PASSWORD}"
+    - docker login -u "${QUAY_IO_USERNAME}" --password-stdin quay.io < "${QUAY_IO_PASSWORD}"
+
+publish manifest:
+  extends:
+    - .build image
+    - .docker deploy
+  before_script:
+    - !reference [.build image, before_script]
+
+    - docker login -u "${DOCKER_HUB_USERNAME}" docker.io --password-stdin < "${DOCKER_HUB_PASSWORD}"
+    - docker login -u "${QUAY_IO_USERNAME}" --password-stdin quay.io < "${QUAY_IO_PASSWORD}"
+
+    - apk add --no-cache jq
+  script:
+    - for folder in images/*; do
+    -   if ! test -d "${folder}"; then
+    -     continue
+    -   fi
+
+    -   BASE_IMAGE="$(basename "${folder}")"
+    -   LATEST_TAG="latest"
+    -   VERSION_SUFFIX=""
+
+    -   if [ "${BASE_IMAGE}" = "debian:stable-slim" ]; then
+    -     LATEST_TAG="slim"
+    -     VERSION_SUFFIX="-slim"
+    -   fi
+
+    -   if [[ ${BASE_IMAGE} == *alpine* ]]; then
+    -     LATEST_TAG="alpine"
+    -     VERSION_SUFFIX="-alpine"
+    -   fi
+
+    -   DOCKER_TAGS="--tag ${DOCKER_HUB_IMAGE_NAME}:${LATEST_TAG}"
+    -   QUAYIO_TAGS="--tag ${QUAY_IO_IMAGE_NAME}:${LATEST_TAG}"
+
+    -   if [ -n "${CI_COMMIT_TAG}" ]; then
+    -     IMAGE_TAG="${CI_COMMIT_TAG#v}${VERSION_SUFFIX}"
+
+    -     DOCKER_TAGS="${DOCKER_TAGS} --tag ${DOCKER_HUB_IMAGE_NAME}:${IMAGE_TAG}"
+    -     QUAYIO_TAGS="${QUAYIO_TAGS} --tag ${QUAY_IO_IMAGE_NAME}:${IMAGE_TAG}"
+    -   fi
+
+    -   ANNOTATION_PREFIX="manifest-descriptor:"
+    -   !reference [.set container annotations]
+
+    -   docker buildx imagetools create
+          ${DOCKER_TAGS}
+          "${@}"
+          $(jq -r '.["containerimage.digest"]' "${folder}"/*.json | sed "s#^#${DOCKER_HUB_IMAGE_NAME}@#")
+    -   docker buildx imagetools inspect "${DOCKER_HUB_IMAGE_NAME}:${LATEST_TAG}"
+
+    -   docker buildx imagetools create
+          ${QUAYIO_TAGS}
+          "${DOCKER_HUB_IMAGE_NAME}:${LATEST_TAG}"
+    -   docker buildx imagetools inspect "${QUAY_IO_IMAGE_NAME}:${LATEST_TAG}"
+
+    - done
+  parallel: null
+  needs:
+    - publish image
+  tags:
+    - saas-linux-large-amd64
+
+update docker hub readme:
+  image: debian:stable
+  extends:
+    - .docker deploy
+  before_script:
+    - apt-get update
+    - >-
+      apt-get install -y \
+        curl \
+        jq
+  script:
+    - >-
+      token="$( \
+        jq -n \
+           --arg username "${DOCKER_HUB_USERNAME}" \
+           --rawfile password "${DOCKER_HUB_PASSWORD}" \
+           '{ "username": $username, "password": $password }' | \
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             --fail \
+             --data-binary @- \
+             'https://hub.docker.com/v2/users/login' | \
+        jq -r '.token' \
+      )"
+    - >-
+      jq -n \
+         --arg readme "$(cat README.md)" \
+         '{ "full_description": $readme }' | \
+      curl -X PATCH \
+           --header "Content-Type: application/json" \
+           --header "Authorization: Bearer $token" \
+           --fail-with-body \
+           --data-binary @- \
+           "https://hub.docker.com/v2/repositories/${DOCKER_HUB_IMAGE_NAME##docker.io/}/"
+
+update quay.io readme:
+  image: debian:stable
+  extends:
+    - .docker deploy
+  before_script:
+    - apt-get update
+    - >-
+      apt-get install -y \
+        curl \
+        jq
+    - COOKIE="$(mktemp)"
+  script:
+    - curl --cookie-jar "${COOKIE}" --silent "https://quay.io/" > /dev/null
+    - >-
+      jq -n \
+         --arg readme "$(cat README.md)" \
+         '{ "description": $readme }' | \
+      curl -X PUT \
+           --cookie "${COOKIE}" \
+           --silent \
+           --show-error \
+           --header "Content-Type: application/json" \
+           --header "Authorization: Bearer ${QUAY_IO_TOKEN}" \
+           --fail-with-body \
+           --data-binary @- \
+           "https://quay.io/api/v1/repository/${QUAY_IO_IMAGE_NAME##quay.io/}"
+
+publish to pypi:
+  stage: deploy
+  image: python:$PYTHON_VERSION
+  before_script:
+    - apt-get update
+    - >-
+      apt-get install -y \
+        curl \
+        jq
+    - pip install --upgrade pip
+    - >-
+      pip install --upgrade \
+        build \
+        twine
+  script:
+    - python -m build
+
+    - export TWINE_PASSWORD="$(curl -X POST "https://pypi.org/_/oidc/mint-token" -d "{\"token\":\"${PYPI_ID_TOKEN}\"}" | jq --raw-output '.token')"
+    - twine upload dist/*
+    - unset TWINE_PASSWORD
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+  variables:
+    TWINE_USERNAME: __token__
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_TAG
