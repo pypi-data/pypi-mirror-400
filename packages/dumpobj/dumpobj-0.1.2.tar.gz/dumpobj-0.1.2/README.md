@@ -1,0 +1,195 @@
+# dumpobj
+
+A tiny utility to introspect and pretty-print Python objects as a structured tree.
+
+It walks an object, builds a neutral Node tree (key/props/attrs/value/children), and lets you render it with pluggable formatters (plain, color, json).
+
+- Zero dependencies, Python 3.10+
+- Handles built-in containers, primitives, classes, instances, exceptions, and ellipsis
+- Controls for depth, item count limits, and recursion handling
+- Hook to register custom type handlers
+
+## Installation
+
+```
+pip install dumpobj
+```
+
+Requires Python 3.10 or above.
+
+## Quick start
+
+```python
+from dumpobj import Dump
+from dumpobj.formatter.plain_formatter import PlainFormatter
+
+obj = {
+    "a": [1, 2, 3, 4, 5],
+    "b": "ABCDEFG",
+    "c": {"x": 1, "y": 2},
+}
+
+# Configure
+d = Dump()
+d.set_inline(True)      # detailed tree with children; False -> compact summaries
+d.set_head_count(3)     # print only the first 3 items in containers/strings
+d.set_depth(5)          # traverse at most 5 levels
+d.set_str_if_recur("<recur>")  # or Ellipsis for default
+
+# Choose a formatter (optional; default is PlainFormatter)
+d.set_formatter(PlainFormatter())
+
+# Print directly — dump() returns a generator of lines/items
+for line in d.dump(obj):
+    print(line)
+
+# If you need the raw Node tree for advanced processing:
+node = d.dump_raw(obj)
+```
+
+### Use JSON output
+
+```python
+from dumpobj import Dump
+from dumpobj.formatter.json_formatter import JSONFormatter
+
+obj = {"a": 1, "b": [1, 2, 3]}
+
+d = Dump()
+d.set_formatter(JSONFormatter())
+
+for chunk in d.dump(obj):
+    print(chunk)  # prints a JSON string of the object structure
+```
+
+Notes:
+- The plain formatter prints a lightweight tree. You can implement your own formatter by subclassing `Formatter`.
+- "More N items..." indicates truncated content when `head_count` is reached.
+- `dump_raw(obj)` returns the intermediate `Node` tree without rendering.
+
+## Concepts and data model
+
+The dumper constructs an intermediate tree of `Node` objects before rendering.
+
+Node fields:
+- key: Hashable — the field/index name (raw key from containers, e.g., a dict key of type, tuple, etc.; list indices remain strings like "[0]"). Formatters are responsible for stringifying keys safely.
+- props: dict — core descriptors
+  - title: e.g., the class name of an object
+  - type: e.g., "dict", "list", "str", "int", or a fully-qualified class name
+- attrs: dict[str, Any] — extra attributes collected per type, e.g.:
+  - "@": object id in hex
+  - "__len__": container length
+  - "__sizeof__": Python sizeof
+  - exceptions include a "msg" field
+- value: Any — leaf value as a string (e.g., numbers, truncated strings, compact container preview when not in detail mode)
+- children: list[Node] — nested nodes
+
+## API
+
+### Dump
+
+Location: `dumpobj._dumpobj.Dump`
+
+Purpose: Traverse an object and produce a `Node` tree that represents its structure.
+
+Handled types (by default):
+- dict, list, tuple, set
+- str, bool, int, float, complex, None, Ellipsis
+- BaseException, type, object (generic fallback)
+
+Key methods and properties:
+- set_inline(in_detail: bool):
+  - True: build a full tree with children for containers/objects
+  - False: store a compact summary string in `value` for many types
+- set_head_count(n: int): limit items/characters per container/string; default 100
+- get_head_count() -> int | None
+- set_depth(n: int | None): maximum recursion depth; default 5; None means unlimited
+- get_depth() -> int | None
+- set_str_if_recur(mark: str | Ellipsis | None): customize how recursion is marked
+  - Ellipsis: sets the key to "..."
+  - str: sets the key to that string
+  - None: adds a Ref@ attr pointing to the already-seen object id
+- get_str_if_recur() -> str | Ellipsis | None
+- register_handle(t: type, handle: Callable[[Node, object, int], Node]): add/override type handlers
+- dump_raw(obj: object) -> Node: start a new dump pass and return the root node
+- dump(obj: object) -> Generator[Any, Any, None]: render via the configured formatter, yielding printable lines/items
+
+Attributes collected per type are controlled by an internal `attr_config`. For example, containers and strings include `@`, `__len__`, and `__sizeof__`.
+
+Recursion: The dumper tracks seen object ids. For value types (numbers/strings/bytes/bool), it does not track ids; for others it detects cycles and marks them according to `str_if_recur`.
+
+Depth and truncation:
+- Depth limit applies to child traversal when `in_detail` is True.
+- Item limit applies to containers; strings are shortened to the first `head_count` characters.
+
+Caveat: `head_count` must be a positive integer in the current version.
+
+### Node
+
+Location: `dumpobj.node.Node`
+
+Accessor methods:
+- set_key/get_key
+- set_prop/get_prop; `PropKeys` are `"title" | "type"`
+- set_attr/set_attrs/get_attr/get_attrs
+- set_value/get_value
+- append_node(iter_children): tree building helpers
+- set_parent/get_parent
+
+### Formatter, PlainFormatter, JSONFormatter
+
+- Base class: `dumpobj.formatter.base_formatter.Formatter`
+  - Override `_format_key/_format_props/_format_attrs/_format_value/_format_header`
+  - Lifecycle hooks: `_pre_render/_post_render/_pre_node/_post_node`
+  - `render(node)` yields lines (or items) lazily
+- Plain implementation: `dumpobj.formatter.plain_formatter.PlainFormatter`
+  - Config: `attr_key_rename` dict can rename attribute keys in output
+  - Indentation: 4 spaces per level, with `+--` tree markers
+  - Keys are safely stringified; types show as `class <qualname>`
+- JSON implementation: `dumpobj.formatter.json_formatter.JSONFormatter`
+  - Config: `compact`, `indent`, `ensure_ascii`
+  - Produces a JSON string representing the object structure; keys are stringified
+
+Example: Rename the "@" attribute key to "@":
+
+```python
+from dumpobj import Dump
+from dumpobj.formatter.plain_formatter import PlainFormatter
+
+obj = {"a": 1}
+
+pf = PlainFormatter()
+pf.config["attr_key_rename"] = {"@": "@"}
+for line in pf.render(Dump().dump_raw(obj)):
+    print(line)
+```
+
+## Custom handlers and error handling
+
+You can override how a type is dumped by registering a handler. Handlers receive the current `Node`, the object, and the current depth, and should mutate/return the node.
+
+If a user-defined handler raises an exception, it’s captured and represented as an `ErrorNode` in the output.
+
+```python
+from datetime import datetime
+from dumpobj import Dump
+from dumpobj.node import Node
+
+d = Dump()
+
+def dump_datetime(node: Node, obj: datetime, depth: int) -> Node:
+    node.set_prop("type", "datetime")
+    node.set_value(obj.isoformat())
+    return node
+
+d.register_handle(datetime, dump_datetime)
+```
+
+## License
+
+MIT License. See LICENSE for details.
+
+## Links
+
+- Repository: https://github.com/Ruilx/dumpobj
+- Author: Ruilx
