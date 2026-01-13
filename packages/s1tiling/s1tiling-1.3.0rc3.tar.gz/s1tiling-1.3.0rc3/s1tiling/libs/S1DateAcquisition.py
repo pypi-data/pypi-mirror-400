@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# =========================================================================
+#   Program:   S1Processor
+#
+#   Copyright 2017-2025 (c) CNES. All rights reserved.
+#
+#   This file is part of S1Tiling project
+#       https://gitlab.orfeo-toolbox.org/s1-tiling/s1tiling
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       https://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+# =========================================================================
+#
+# Authors: Thierry KOLECK (CNES)
+#
+# =========================================================================
+
+""" This module contains the S1DateAcquisition class"""
+
+from pathlib import Path
+from typing import List
+
+from .s1.product import FileProductInformation
+
+
+class S1DateAcquisition:
+    """This class handles the list of images for one S1 product"""
+    def __init__(
+        self,
+        manifest: Path,
+        image_filenames_list: List[str],
+        product_info: FileProductInformation,
+    ) -> None:
+        self.manifest             = manifest
+        self.image_filenames_list = image_filenames_list
+        self.product_info         = product_info
+
+    def __repr__(self) -> str:
+        return f"S1DateAcquisition('{self.manifest}', {self.image_filenames_list})"
+
+    def get_manifest(self) -> Path:
+        """ Get the manifest file """
+        return self.manifest
+
+    def add_image(self, image: str) -> None:
+        """ Add an image to the image list """
+        self.image_filenames_list.append(image)
+
+    def get_images_list(self) -> List[str]:
+        """ Get the image list"""
+        return self.image_filenames_list

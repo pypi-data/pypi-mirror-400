@@ -1,0 +1,93 @@
+# =========================================================================
+#   Program:   S1Processor
+#
+#   Copyright 2017-2025 (c) CNES. All rights reserved.
+#
+#   This file is part of S1Tiling project
+#       https://gitlab.orfeo-toolbox.org/s1-tiling/s1tiling
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+# =========================================================================
+#
+# Authors: Thierry KOLECK (CNES)
+#          Luc HERMITTE (CS Group)
+#
+# =========================================================================
+
+# Default logging configuration for S1Tiling
+
+version: 1
+disable_existing_loggers: true
+formatters:
+    brief:
+        format: '%(message)s'
+    simple:
+        format: '%(levelname)s - %(message)s'
+    full:
+        format: '%(asctime)s - %(name)-15s - %(levelname)-8s - %(message)s'
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: INFO
+        formatter: simple
+        stream: ext://sys.stdout
+    file:
+        class: logging.FileHandler
+        level: INFO
+        formatter: full
+        # {kind} will be replaced with "main" or "worker-%d"
+        # {mode} will be replaced with ".debug" or nothing
+        filename: S1Processor-{kind}{mode}.log
+        mode: w # 'w' disable 'a'ppend
+    important:
+        class: logging.FileHandler
+        level: WARNING
+        formatter: full
+        # {kind} will be replaced with "main" or "worker-%d"
+        filename: S1Processor-{kind}.warning.log
+        mode: w # 'w' disable 'a'ppend
+    # email:
+    #     class: logging.handlers.SMTPHandler
+    #     mailhost: localhost
+    #     fromaddr: my_app@domain.tld
+    #     toaddrs:
+    #         - support_team@domain.tld
+    #         - dev_team@domain.tld
+    #     subject: Houston, we have a problem.
+
+loggers:
+    s1tiling:
+        level: DEBUG
+        propagate: yes
+    s1tiling.OTB:
+        # Logger that inherits s1tiling logger.
+        # Permits to have s1tiling in debug mode while OTB isn't and the other
+        # way around.
+        # OTB DEBUG logs are displayed iff level is DEBUG and configFile mode
+        # is debug as well.
+        level: INFO
+        propagate: yes
+    distributed.worker:
+        level: INFO
+        handlers: [console, file, important]
+        propagate: yes
+    urlib3:
+        level: INFO
+    graphviz:
+        level: INFO
+root:
+    level: INFO
+    handlers: [console, file, important]
+
