@@ -1,0 +1,238 @@
+# IMC Prosperity Checker Configuration
+# =====================================
+# This file controls the behavior of the prosperity checker.
+# Place this file as `.prosperity.yaml` in your project root or home directory.
+# You can also specify a custom path with --config flag.
+
+# =============================================================================
+# METADATA
+# =============================================================================
+prosperity_version: 3  # Which version of Prosperity (affects defaults)
+config_version: 1      # Config schema version
+
+# =============================================================================
+# ALLOWED IMPORTS
+# =============================================================================
+# Official allowed libraries from IMC documentation (Appendix C).
+# Set to true/false to enable/disable, or use "warn" to allow with warning.
+
+imports:
+  # === REQUIRED ===
+  datamodel: true       # Always required
+  
+  # === OFFICIAL ALLOWED (from IMC docs) ===
+  pandas: true
+  numpy: true
+  statistics: true
+  math: true
+  typing: true
+  jsonpickle: true      # Recommended for state serialization
+  
+  # === STANDARD LIBRARY (usually safe) ===
+  # These aren't explicitly listed but are generally available
+  json: true            # Used by datamodel itself
+  collections: true
+  copy: true
+  functools: true
+  itertools: true
+  string: true          # Used in IMC example code
+  abc: warn             # Abstract base classes - probably fine
+  enum: warn
+  dataclasses: warn
+  re: warn              # Regex - probably fine but not listed
+  operator: warn
+  heapq: warn           # Useful for order book operations
+  bisect: warn
+  
+  # === COMMONLY ATTEMPTED BUT NOT LISTED ===
+  # These are NOT in the official list - default to error
+  scipy: false          # Often tried, NOT allowed
+  sklearn: false
+  random: false         # Not deterministic - usually blocked
+  time: false           # Can cause timeouts
+  datetime: false
+  
+  # === DEFINITELY FORBIDDEN ===
+  # Security/system access - always block these
+  os: false
+  sys: false
+  subprocess: false
+  socket: false
+  requests: false
+  urllib: false
+  http: false
+  threading: false
+  multiprocessing: false
+  asyncio: false
+  pickle: false         # Use jsonpickle instead
+
+  # === CUSTOM IMPORTS ===
+  # Add any imports specific to your setup
+  # my_custom_module: warn
+
+# =============================================================================
+# SEVERITY OVERRIDES
+# =============================================================================
+# Override the default severity for any check.
+# Options: "error", "warning", "info", "off"
+
+severity:
+  # --- Import checks ---
+  E001: error           # Forbidden import
+  E002: error           # Missing datamodel import
+  
+  # --- Structure checks ---
+  E003: error           # Missing Trader class
+  E004: error           # Missing run method
+  E010: error           # Invalid run() signature
+  E011: error           # First param not 'self'
+  
+  # --- Loop/timeout checks ---
+  E020: error           # Infinite loop (while True, no break)
+  E021: error           # time.sleep() detected
+  W020: warning         # Risky while True (has break but risky)
+  W021: warning         # Loop variable not modified
+  W022: warning         # Deep loop nesting (>2 levels)
+  
+  # --- Return checks ---
+  E030: error           # Missing return statement
+  E031: error           # Returns None
+  E032: error           # Wrong return tuple size
+  E033: error           # Returns dict instead of tuple
+  W030: warning         # Can't statically verify return
+  
+  # --- State persistence ---
+  W040: warning         # Instance variables won't persist
+  
+  # --- Info/suggestions ---
+  I010: info            # Missing type hints
+  I030: info            # Print statements found
+  I031: info            # Return format looks correct
+  I040: info            # No position tracking detected
+
+# =============================================================================
+# RUNTIME LIMITS
+# =============================================================================
+# Based on IMC technical requirements
+
+limits:
+  timeout_ms: 900           # run() must complete in <900ms
+  max_loop_depth: 2         # Warn above this nesting level
+  max_log_length: 3750      # Approximate log character limit
+  
+# =============================================================================
+# STRUCTURE REQUIREMENTS  
+# =============================================================================
+# What the Trader class must look like
+
+structure:
+  class_name: "Trader"
+  method_name: "run"
+  
+  # Expected return format (Prosperity 2+)
+  return_format:
+    type: tuple
+    length: 3
+    elements:
+      - name: result
+        type: "dict[str, list[Order]]"
+      - name: conversions
+        type: "int"
+      - name: traderData
+        type: "str"
+  
+  # Required parameter
+  state_parameter:
+    name: state
+    type: TradingState
+
+# =============================================================================
+# POSITION LIMITS (optional)
+# =============================================================================
+# Known position limits for validation hints.
+# This is OPTIONAL - only used if enabled below.
+
+position_limits:
+  # Toggle position limit checking on/off
+  enabled: false
+  
+  # What to do when hardcoded limit doesn't match known limit
+  # Options: "error", "warning", "info", "off"
+  mismatch_severity: warning
+  
+  # Known limits by product (update based on current round)
+  # Only checked if enabled: true
+  products:
+    # Prosperity 3 products (2025)
+    RAINFOREST_RESIN: 50
+    KELP: 50
+    SQUID_INK: 50
+    CROISSANTS: 250
+    JAMS: 350
+    DJEMBES: 60
+    PICNIC_BASKET1: 60
+    PICNIC_BASKET2: 100
+    VOLCANIC_ROCK: 400
+    VOUCHER_A: 200
+    VOUCHER_B: 200
+    MACARONS: 75
+    
+    # Add your own products here
+    # MY_PRODUCT: 100
+
+# =============================================================================
+# OUTPUT SETTINGS
+# =============================================================================
+
+output:
+  # Color output in terminal
+  colors: true
+  
+  # Show the official requirements reminder
+  show_requirements: true
+  
+  # Default output format: "pretty" or "json"
+  format: pretty
+  
+  # Show info-level messages by default
+  show_info: true
+
+# =============================================================================
+# BEHAVIOR FLAGS
+# =============================================================================
+
+behavior:
+  # Treat warnings as errors (--strict mode default)
+  strict: false
+  
+  # Fail fast on first error
+  fail_fast: false
+
+# =============================================================================
+# SUBMITTER INTEGRATION
+# =============================================================================
+# Settings for integrating with prosperity*submit
+
+submitter:
+  # API endpoint (same for Prosperity 2 and 3)
+  api_base_url: "https://bz97lt8b1e.execute-api.eu-west-1.amazonaws.com/prod"
+  
+  # Run checker before submit
+  pre_check: true
+  
+  # Default output directory for logs
+  logs_dir: "submissions"
+
+# =============================================================================
+# IGNORE PATTERNS
+# =============================================================================
+# Files/patterns to ignore when checking directories
+
+ignore:
+  - "**/__pycache__/**"
+  - "**/test_*.py"
+  - "**/*_test.py"
+  - "**/tests/**"
+  - "datamodel.py"        # The stub file
+  - ".venv/**"
+  - "venv/**"
