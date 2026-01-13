@@ -1,0 +1,29 @@
+from blends.models import (
+    NId,
+)
+from blends.query import (
+    adj_ast,
+)
+from blends.syntax.builders.object import (
+    build_object_node,
+)
+from blends.syntax.models import (
+    SyntaxGraphArgs,
+)
+
+
+def reader(args: SyntaxGraphArgs) -> NId:
+    valid_parameters = {
+        "method_definition",
+        "pair",
+        "property_signature",
+        "shorthand_property_identifier",
+        "shorthand_property_identifier_pattern",
+        "spread_element",
+    }
+    graph = args.ast_graph
+    c_ids = adj_ast(graph, args.n_id)
+    return build_object_node(
+        args,
+        c_ids=(_id for _id in c_ids if graph.nodes[_id]["label_type"] in valid_parameters),
+    )
