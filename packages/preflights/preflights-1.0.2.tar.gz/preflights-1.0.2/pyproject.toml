@@ -1,0 +1,78 @@
+[project]
+name = "preflights"
+version = "1.0.2"
+description = "Clarify decisions before AI-assisted coding"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Preflights Team" }
+]
+
+# CLI and MCP dependencies
+dependencies = [
+    "click>=8.1",
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.7",
+    "ruff>=0.1",
+    "hypothesis>=6.0",
+]
+
+[project.scripts]
+preflights = "preflights.cli.main:main"
+pf = "preflights.cli.main:main"
+preflights-mcp = "preflights.mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "e2e: End-to-end tests (CLI Golden Path)",
+    "arch: Architecture enforcement tests",
+]
+
+[tool.coverage.run]
+source = ["preflights"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
