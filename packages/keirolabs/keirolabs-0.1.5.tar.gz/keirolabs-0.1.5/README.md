@@ -1,0 +1,218 @@
+# KeiroLabs Python SDK
+
+<p align="center">
+  <strong>Official Python SDK for KeiroLabs API</strong><br>
+  AI-powered search, research, and web crawling capabilities
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/keirolabs/"><img src="https://badge.fury.io/py/keirolabs.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/keirolabs/"><img src="https://img.shields.io/pypi/pyversions/keirolabs.svg" alt="Python Support"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+</p>
+
+<p align="center">
+  <a href="https://www.keirolabs.cloud/">Get API Key</a> |
+  <a href="https://pypi.org/project/keirolabs/">PyPI</a> |
+  <a href="https://www.keirolabs.cloud/">Documentation</a>
+</p>
+
+---
+
+## Installation
+
+```bash
+pip install keirolabs
+```
+
+---
+
+## Quick Start
+
+```python
+from keirolabs import Keiro
+
+# Initialize with your API key
+client = Keiro(api_key="your-api-key")
+
+# Search
+result = client.search("machine learning trends 2024")
+print(result['data'])
+
+# Get AI answers
+answer = client.answer("How does neural network training work?")
+print(answer['data'])
+
+# Research topics
+research = client.research("quantum computing applications")
+print(research['data'])
+```
+
+> **Get your API key:** [https://www.keirolabs.cloud/](https://www.keirolabs.cloud/)
+
+---
+
+## API Methods
+
+| Method | Description | Credits |
+|--------|-------------|---------|
+| `search(query)` | Neural search | 1 |
+| `search_pro(query)` | Advanced search | Variable |
+| `search_engine(query)` | Search engine | Variable |
+| `answer(query)` | AI-powered answers | 5 |
+| `research(query)` | Topic research | Variable |
+| `research_pro(query)` | Advanced research | Variable |
+| `web_crawler(url)` | Extract web data | Variable |
+| `health_check()` | Server status | Free |
+| `validate_api_key()` | Key validation | Free |
+
+---
+
+## Usage Examples
+
+### Basic Search
+
+```python
+result = client.search("Python best practices")
+print(f"Found {len(result['data'])} results")
+print(f"Credits remaining: {result['creditsRemaining']}")
+```
+
+### Generate Answers
+
+```python
+answer = client.answer("What is reinforcement learning?")
+print(answer['data'])
+```
+
+### Research Topics
+
+```python
+research = client.research("climate change solutions")
+print(research['data'])
+```
+
+### Web Crawler
+
+```python
+data = client.web_crawler("https://example.com")
+print(data['data'])
+```
+
+---
+
+## Error Handling
+
+```python
+from keirolabs import Keiro
+from keirolabs.exceptions import (
+    KeiroAuthError,
+    KeiroRateLimitError,
+    KeiroValidationError,
+    KeiroConnectionError
+)
+
+client = Keiro(api_key="your-api-key")
+
+try:
+    result = client.search("query")
+except KeiroAuthError:
+    print("Invalid API key")
+except KeiroRateLimitError:
+    print("Out of credits")
+except KeiroValidationError as e:
+    print(f"Invalid parameter: {e}")
+except KeiroConnectionError as e:
+    print(f"Connection error: {e}")
+```
+
+### Exception Types
+
+| Exception | Description |
+|-----------|-------------|
+| `KeiroError` | Base exception class |
+| `KeiroAuthError` | Invalid API key (401/403) |
+| `KeiroRateLimitError` | Out of credits (402) |
+| `KeiroValidationError` | Invalid parameters (400) |
+| `KeiroConnectionError` | Network issues |
+| `KeiroAPIError` | General API errors (5xx) |
+
+---
+
+## Configuration
+
+### Custom Timeout
+
+```python
+client = Keiro(
+    api_key="your-api-key",
+    timeout=60  # seconds
+)
+```
+
+### Local Development
+
+```python
+client = Keiro(
+    api_key="your-api-key",
+    base_url="http://localhost:8000/api"
+)
+```
+
+### Environment Variables (Recommended)
+
+```python
+from dotenv import load_dotenv
+import os
+from keirolabs import Keiro
+
+load_dotenv()
+client = Keiro(api_key=os.getenv("KEIRO_API_KEY"))
+```
+
+Create `.env` file:
+```
+KEIRO_API_KEY=your-api-key-here
+```
+
+---
+
+## Context Manager
+
+```python
+with Keiro(api_key="your-api-key") as client:
+    result = client.search("query")
+    print(result)
+# Session automatically closed
+```
+
+---
+
+## Requirements
+
+- Python >= 3.7
+- requests >= 2.28.0
+
+---
+
+## Links
+
+| Resource | URL |
+|----------|-----|
+| Homepage | https://www.keirolabs.cloud/ |
+| PyPI | https://pypi.org/project/keirolabs |
+| JavaScript SDK | https://www.npmjs.com/package/keirolabs |
+| Support | support@keiro.com |
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">
+  <strong>Version 0.1.5</strong><br>
+  Made by KeiroLabs Team
+</p>
