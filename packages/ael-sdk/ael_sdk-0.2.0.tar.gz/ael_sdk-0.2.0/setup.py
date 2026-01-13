@@ -1,0 +1,53 @@
+from setuptools import setup, find_packages
+
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
+setup(
+    name="ael-sdk",
+    version="0.2.0",
+    author="Vinay Badhan",
+    author_email="vinay.badhan21.work@gmail.com",
+    description="Python SDK for Agent Execution Ledger - Audit trail for AI agents",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/vinayb21-work/Agent-Execution-Ledger",
+    project_urls={
+        "Bug Tracker": "https://github.com/vinayb21-work/Agent-Execution-Ledger/issues",
+        "Documentation": "https://github.com/vinayb21-work/Agent-Execution-Ledger#readme",
+    },
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: System :: Logging",
+    ],
+    packages=find_packages(),
+    python_requires=">=3.9",
+    install_requires=[
+        "httpx>=0.26.0",
+        "pydantic>=2.5.0",
+    ],
+    extras_require={
+        "google-adk": ["google-adk>=1.0.0"],
+        "langchain": ["langchain-core>=0.1.0"],
+        "crewai": ["crewai>=0.1.0"],
+        "openai": ["openai>=1.0.0"],
+        "autogen": ["pyautogen>=0.2.0"],
+        "all": [
+            "google-adk>=1.0.0",
+            "langchain-core>=0.1.0",
+            "crewai>=0.1.0",
+            "openai>=1.0.0",
+            "pyautogen>=0.2.0",
+        ],
+    },
+    keywords="ai agents audit logging llm observability",
+)
