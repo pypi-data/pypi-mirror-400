@@ -1,0 +1,49 @@
+<div i18n:domain="pyams_file_views"
+	 data-ams-modules="modal">
+	<div class="form-widget custom-file">
+		<input type="file"
+			   id="${view.id}" name="${view.name}"
+			   class="custom-file-input"
+			   required="${'required' if view.required else None}"
+			   data-ams-data="${tales:object_data(view)}" />
+		<label for="${view.id}"
+			   class="custom-file-label"
+			   i18n:translate="">Browse...</label>
+	</div>
+	<div class="d-flex flex-row"
+		 tal:define="value view.current_value"
+		 tal:condition="value">
+		<div class="col-sm-auto my-2">
+			<a tal:define="target view.get_thumbnail_target()"
+			   tal:omit-tag="not:target"
+			   href="${target}" data-toggle="modal">
+				<img id="thumbnail_${tales:cache_key(value)}"
+					 class="border-0"
+					 src="${view.get_thumbnail()}"
+					 alt="${value.title or value.filename}" />
+			</a>
+		</div>
+		<div class="col">
+			<div class="row">
+				<div class="col my-2">
+					<i tal:omit-tag="" i18n:translate="">Current value:</i>
+					<i tal:omit-tag="">${value.content_type}</i> -
+					<i tal:omit-tag="">${view.get_human_size()}</i>
+				</div>
+				<div tal:condition="view.deletable"
+					 class="col-auto custom-control custom-switch border-0 text-right">
+					<input type="checkbox"
+						   class="custom-control-input"
+						   id="${view.id}__deleted"
+						   name="${view.name}__deleted"
+						   value="true"/>
+					<label for="${view.id}__deleted"
+						   class="custom-control-label">
+						<i tal:omit-tag="" i18n:translate="">Delete</i>
+					</label>
+				</div>
+			</div>
+			${structure:provider:pyams.context_actions(context=value)}
+		</div>
+	</div>
+</div>
