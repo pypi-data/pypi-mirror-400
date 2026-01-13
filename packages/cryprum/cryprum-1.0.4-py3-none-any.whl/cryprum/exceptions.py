@@ -1,0 +1,2 @@
+class CryprumError(Exception):
+    pass
