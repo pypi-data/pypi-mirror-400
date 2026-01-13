@@ -1,0 +1,80 @@
+Metadata-Version: 2.4
+Name: fanos
+Version: 0.3.10
+Summary: FANoS Optimizer for PyTorch
+License: MIT License
+        
+        Copyright (c) 2026 <Nalin Dhiman>
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Requires-Python: >=3.8
+Requires-Dist: torch>=2.0.0
+Description-Content-Type: text/markdown
+
+# FANoS Optimizer (PyTorch)
+
+**FANoS** = *Friction-Adaptive Nosé–Hoover Symplectic momentum*.
+
+This package provides a PyTorch `torch.optim.Optimizer` implementation of FANoS:
+- semi-implicit (symplectic-Euler) momentum update
+- a Nosé–Hoover-inspired thermostat variable that adapts friction using kinetic-energy feedback
+- optional diagonal RMS “mass” (preconditioner) and optional global gradient clipping
+
+The accompanying paper is included in the release repo; this library is just the clean optimizer code.
+
+## Install
+
+```bash
+pip install fanos
+```
+
+## Quickstart
+
+```python
+import torch
+from fanos import FANoS
+
+model = torch.nn.Linear(10, 1)
+opt = FANoS(model.parameters(), lr=1e-3, grad_clip=1.0)
+
+x = torch.randn(64, 10)
+y = torch.randn(64, 1)
+
+loss = torch.nn.functional.mse_loss(model(x), y)
+loss.backward()
+opt.step()
+opt.zero_grad()
+```
+
+## Notes (read this before hype happens)
+
+FANoS is a research optimizer. In the paper's reported protocols it:
+- helps vs *unclipped* AdamW/RMSProp on Rosenbrock-100D,
+- but is not a general replacement for strong baselines like AdamW + clipping,
+- and can be unstable or high-variance on some problems without tuning.
+
+So: treat it as a tool for experiments, not a default choice for production.
+
+## Citation
+
+Add the paper citation from `CITATION.cff` in the repo.
+
+
+[![PyPI version](https://badge.fury.io/py/fanos.svg)](https://pypi.org/project/fanos/)
