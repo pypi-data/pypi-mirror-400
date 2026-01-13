@@ -1,0 +1,54 @@
+
+models:
+  lasso:
+    description: "Linear regression with L1 regularization"
+    type: "sklearn.linear_model.Lasso"
+    params:
+      alpha: 1.0
+      random_state: 42
+      max_iter: 100000
+      tol: 0.0001
+      selection: "cyclic"
+    # Hyperparameter tuning
+    tuning:
+      method: "random_search"  # Consider "random_search" if grid is too computationally expensive
+      inner_cv: 3
+      outer_cv: 3 # Consider reducing to 3-fold CV given small sample size
+      scoring: "neg_mean_squared_error"  # for the inner loop for hyperparameter tuning
+      param_grid:
+        alpha: [0.1, 1.0, 5.0, 10.0, 50.0, 75.0, 100.0]  #current will be overwritten
+        logspace:
+          start: -2
+          stop: 2
+          num: 50
+      n_iter: 30 # parameter for random search choosing the number of models to train
+
+  # ElasticNet model configuration
+  elasticnet:
+    description: "Linear regression with combined L1 and L2 regularization"
+    type: "sklearn.linear_model.ElasticNet"
+
+    # Default parameters
+    params:
+      alpha: 1.0  # Overall regularization strength
+      l1_ratio: 0.5  # Balance between L1 and L2 (0.5 = equal weight)
+      random_state: 42  # For reproducibility
+      max_iter: 1000000  # Increased to ensure convergence
+      tol: 0.0001  # Convergence tolerance
+      selection: "cyclic"  # Default coordinate descent strategy
+
+    # Hyperparameter tuning
+    tuning:
+      method: "grid_search"  # Exhaustive search over parameter grid
+      inner_cv: 3
+      outer_cv: 3  # 3-fold CV given small sample size
+      scoring: "neg_mean_squared_error"
+      param_grid:
+        alpha: [0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 75.0, 100.0]  # Range of regularization strengths
+        l1_ratio: [0.1, 0.3, 0.5, 0.7, 0.9, 1.0]  # From mostly Ridge to mostly Lasso
+
+
+
+
+
+    
