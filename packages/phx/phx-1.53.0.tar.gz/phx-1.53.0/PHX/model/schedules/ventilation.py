@@ -1,0 +1,86 @@
+# -*- Python Version: 3.10 -*-
+
+"""PHX Fresh-Air Ventilation Utilization Schedule."""
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass, field
+from typing import ClassVar
+
+
+@dataclass
+class Vent_OperatingPeriod:
+    period_operating_hours: float = 0.0  # hours/period
+    period_operation_speed: float = 0.0  # % of peak design airflow
+
+    def __eq__(self, other: Vent_OperatingPeriod) -> bool:
+        if abs(self.period_operating_hours - other.period_operating_hours) > 0.01:
+            return False
+        return not abs(self.period_operation_speed - other.period_operation_speed) > 0.01
+
+    def __add__(self, other: Vent_OperatingPeriod) -> Vent_OperatingPeriod:
+        new_period = Vent_OperatingPeriod()
+        new_period.period_operating_hours = (self.period_operating_hours + other.period_operating_hours) / 2
+        new_period.period_operation_speed = (self.period_operation_speed + other.period_operation_speed) / 2
+        return new_period
+
+
+@dataclass
+class Vent_UtilPeriods:
+    high: Vent_OperatingPeriod = field(default_factory=Vent_OperatingPeriod)
+    standard: Vent_OperatingPeriod = field(default_factory=Vent_OperatingPeriod)
+    basic: Vent_OperatingPeriod = field(default_factory=Vent_OperatingPeriod)
+    minimum: Vent_OperatingPeriod = field(default_factory=Vent_OperatingPeriod)
+
+    def __eq__(self, other: Vent_UtilPeriods) -> bool:
+        if self.high != other.high:
+            return False
+        if self.standard != other.standard:
+            return False
+        if self.basic != other.basic:
+            return False
+        return self.minimum == other.minimum
+
+    def __add__(self, other: Vent_UtilPeriods) -> Vent_UtilPeriods:
+        new_periods = Vent_UtilPeriods()
+        new_periods.high = self.high + other.high
+        new_periods.standard = self.standard + other.standard
+        new_periods.basic = self.basic + other.basic
+        new_periods.minimum = self.minimum + other.minimum
+        return new_periods
+
+
+@dataclass
+class PhxScheduleVentilation:
+    """A PHX Schedule for the Ventilation."""
+
+    _count: ClassVar[int] = 0
+
+    id_num: int = field(init=False, default=0)
+    name: str = "__unnamed_vent_schedule__"
+    identifier: uuid.UUID | str = field(default_factory=uuid.uuid4)
+    operating_hours: float = 24.0
+    operating_days: float = 7.0
+    operating_weeks: float = 52.0
+    operating_periods: Vent_UtilPeriods = field(default_factory=Vent_UtilPeriods)
+    holiday_days: float = 0.0
+
+    def __post_init__(self) -> None:
+        self.__class__._count += 1
+        self.id_num = self.__class__._count
+
+    def force_max_utilization_hours(self, _max_hours: float = 24.0, _tol: int = 2) -> None:
+        """Ensure that the total utilization hours never exceed target (default=24).
+        Will adjust the minimum daily_op_sched as needed.
+        """
+
+        b = round(self.operating_periods.standard.period_operating_hours, _tol)
+        c = round(self.operating_periods.basic.period_operating_hours, _tol)
+        a = round(self.operating_periods.minimum.period_operating_hours, _tol)
+        total = a + b + c
+        remainder = round(_max_hours - total, _tol)
+        self.operating_periods.high.period_operating_hours = remainder
+
+    def __hash__(self):
+        return hash(self.identifier)
