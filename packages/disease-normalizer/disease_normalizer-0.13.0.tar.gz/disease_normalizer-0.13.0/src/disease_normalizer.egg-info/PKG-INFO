@@ -1,0 +1,139 @@
+Metadata-Version: 2.4
+Name: disease-normalizer
+Version: 0.13.0
+Summary: VICC normalization routines for diseases
+Author: Alex Wagner, Kori Kuzma, James Stevenson
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/cancervariants/disease-normalization
+Project-URL: Documentation, https://disease-normalizer.readthedocs.io
+Project-URL: Changelog, https://github.com/cancervariants/disease-normalization/releases
+Project-URL: Source, https://github.com/cancervariants/disease-normalization
+Project-URL: Bug Tracker, https://github.com/cancervariants/disease-normalization/issues
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: FastAPI
+Classifier: Framework :: Pydantic
+Classifier: Framework :: Pydantic :: 2
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pydantic==2.*
+Requires-Dist: pydantic-settings
+Requires-Dist: fastapi
+Requires-Dist: uvicorn
+Requires-Dist: click
+Requires-Dist: boto3
+Requires-Dist: ga4gh.vrs<3.0,>=2.1.3
+Provides-Extra: pg
+Requires-Dist: psycopg[binary]; extra == "pg"
+Requires-Dist: requests; extra == "pg"
+Provides-Extra: etl
+Requires-Dist: owlready2; extra == "etl"
+Requires-Dist: rdflib; extra == "etl"
+Requires-Dist: wags-tails~=0.4.0; extra == "etl"
+Requires-Dist: fastobo; extra == "etl"
+Requires-Dist: tqdm; extra == "etl"
+Provides-Extra: tests
+Requires-Dist: pytest>=6.0; extra == "tests"
+Requires-Dist: pytest-cov; extra == "tests"
+Requires-Dist: httpx>=0.27.0; extra == "tests"
+Requires-Dist: jsonschema~=4.24; extra == "tests"
+Requires-Dist: pyyaml; extra == "tests"
+Requires-Dist: asgi_lifespan; extra == "tests"
+Requires-Dist: pytest_asyncio; extra == "tests"
+Requires-Dist: deepdiff; extra == "tests"
+Provides-Extra: dev
+Requires-Dist: fastapi[standard]; extra == "dev"
+Requires-Dist: prek>=0.2.23; extra == "dev"
+Requires-Dist: ruff==0.14.10; extra == "dev"
+Requires-Dist: lxml; extra == "dev"
+Requires-Dist: xmlformatter; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx==6.1.3; extra == "docs"
+Requires-Dist: sphinx-autodoc-typehints==1.22.0; extra == "docs"
+Requires-Dist: sphinx-autobuild==2021.3.14; extra == "docs"
+Requires-Dist: sphinx-copybutton==0.5.2; extra == "docs"
+Requires-Dist: sphinxext-opengraph==0.8.2; extra == "docs"
+Requires-Dist: furo==2023.3.27; extra == "docs"
+Requires-Dist: gravis==0.1.0; extra == "docs"
+Requires-Dist: sphinx-github-changelog==1.2.1; extra == "docs"
+Requires-Dist: sphinx-click==5.0.1; extra == "docs"
+Requires-Dist: standard-imghdr==3.13.0; extra == "docs"
+Dynamic: license-file
+
+# Disease Normalizer
+
+[![image](https://img.shields.io/pypi/v/disease-normalizer.svg)](https://pypi.python.org/pypi/disease-normalizer)
+[![image](https://img.shields.io/pypi/l/disease-normalizer.svg)](https://pypi.python.org/pypi/disease-normalizer)
+[![image](https://img.shields.io/pypi/pyversions/disease-normalizer.svg)](https://pypi.python.org/pypi/disease-normalizer)
+[![Actions status](https://github.com/cancervariants/disease-normalization/actions/workflows/checks.yaml/badge.svg)](https://github.com/cancervariants/disease-normalization/actions/workflows/checks.yaml)
+
+<!-- description -->
+The Disease Normalizer resolves ambiguous references and descriptions of human diseases to consistently-structured, normalized terms. For concepts extracted from [NCIt](https://ncithesaurus.nci.nih.gov/ncitbrowser/), [Mondo Disease Ontology](https://mondo.monarchinitiative.org/), [The Human Disease Ontology](https://disease-ontology.org/), [OMIM](https://www.omim.org/), and [OncoTree](https://oncotree.info/#/home), it designates a [CURIE](https://en.wikipedia.org/wiki/CURIE), and provides additional metadata like aliases and cross-references.
+<!-- /description -->
+
+---
+
+**[Documentation](https://disease-normalizer.readthedocs.io/latest/)** · [Installation](https://disease-normalizer.readthedocs.io/latest/install.html) · [API reference](https://disease-normalizer.readthedocs.io/latest/reference/index.html)
+
+---
+
+## Installation
+
+The Disease Normalizer is available via PyPI:
+
+```commandline
+
+python3 -m pip install disease-normalizer
+```
+
+See [installation instructions](https://disease-normalizer.readthedocs.io/latest/install.html) in the documentation for a description of installation options and data setup requirements.
+
+---
+
+## Examples
+
+Use the [live service](https://normalize.cancervariants.org/disease/) to programmatically normalize disease terms, as in the following truncated example:
+
+```shell
+$ curl -s 'https://normalize.cancervariants.org/disease/normalize?q=liver%20cancer' | python -m json.tool
+{
+    "query": "liver cancer",
+    "warnings": null,
+    "match_type": 80,
+    "disease": {
+        "conceptType": "Disease",
+        "primaryCoding": {
+            "id": "ncit:C34803",
+            "code": "C34803",
+            "system": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&code=",
+        },
+        "id": "normalize.disease:liver%20cancer",
+        "name": "Primary Malignant Liver Neoplasm",
+        # ...
+    }
+}
+```
+
+Or utilize the [Python API](https://disease-normalizer.readthedocs.io/latest/reference/api/disease.query.html) for fast local access:
+
+```pycon
+>>> from disease.query import QueryHandler
+>>> from disease.database import create_db
+>>> q = QueryHandler(create_db())
+>>> result = q.normalize("NSCLC")
+>>> result.disease.primaryCoding.id
+'ncit:C2926'
+```
+
+---
+
+## Feedback and contributing
+
+We welcome bug reports, feature requests, and code contributions from users and interested collaborators. The [documentation](https://disease-normalizer.readthedocs.io/latest/contributing.html) contains guidance for submitting feedback and contributing new code.

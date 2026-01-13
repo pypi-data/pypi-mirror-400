@@ -1,0 +1,109 @@
+name: checks
+on: [push, pull_request]
+jobs:
+  test:
+    name: ${{ matrix.db_url == 'http://localhost:8002' && 'test' || 'test postgres' }} py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.DUMMY_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.DUMMY_AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-east-2
+      AWS_DEFAULT_OUTPUT: text
+      DISEASE_NORM_DB_URL: ${{ matrix.db_url }}
+      DISEASE_NORM_TEST: true
+    strategy:
+      matrix:
+        db_url: ["http://localhost:8002", "postgres://postgres:postgres@localhost:5432/disease_normalizer_test"]
+        python-version: ["3.11", "3.12", "3.13"]
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: 'postgres'
+          POSTGRES_DB: 'disease_normalizer_test'
+          POSTGRES_PASSWORD: 'postgres'
+        ports:
+          - 5432:5432
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+
+    - name: Build local DynamoDB
+      if: ${{ env.DISEASE_NORM_DB_URL == 'http://localhost:8002' }}
+      run: |
+        chmod +x ./tests/scripts/dynamodb_run.sh
+        ./tests/scripts/dynamodb_run.sh
+
+    - name: Install DynamoDB dependencies
+      if: ${{ env.DISEASE_NORM_DB_URL == 'http://localhost:8002' }}
+      run: uv sync --extra etl --extra tests
+
+    - name: Install PG dependencies
+      if: ${{ env.DISEASE_NORM_DB_URL != 'http://localhost:8002' }}
+      run: uv sync --extra etl --extra tests --extra pg
+
+    - name: Run tests
+      run: uv run pytest tests/
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: 3.13
+
+    - name: Install dependencies
+      run: uv sync --extra dev
+
+    - name: Check style
+      run: uv run ruff check . && uv run ruff format --check .
+
+  precommit_hooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: j178/prek-action@v1
+        with:
+          extra_args: '--all-files --skip "ruff-format" --skip "ruff-check"'
+
+  docs:
+    runs-on: ubuntu-latest
+    env:
+      SPHINX_GITHUB_CHANGELOG_TOKEN: ${{ secrets.SPHINX_GITHUB_CHANGELOG_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.12
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra docs --extra etl --extra pg
+
+      - name: Attempt docs build
+        working-directory: ./docs
+        run: source ../.venv/bin/activate && make html
