@@ -1,0 +1,638 @@
+Metadata-Version: 2.4
+Name: pullcite
+Version: 0.2.1
+Summary: Evidence-backed structured extraction from documents
+Project-URL: Homepage, https://pullcite.com
+Project-URL: Repository, https://github.com/usercando/pullcite
+Project-URL: Documentation, https://github.com/usercando/pullcite#readme
+Author-email: UserCanDo <dev@usercando.com>
+Maintainer-email: Dike Kalu <dike@usercando.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: evidence,extraction,llm,pdf,pydantic,structured-output
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Text Processing :: General
+Requires-Python: >=3.11
+Requires-Dist: black>=25.12.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: pydantic>=2.0
+Provides-Extra: all
+Requires-Dist: anthropic>=0.30.0; extra == 'all'
+Requires-Dist: chromadb>=0.4.0; extra == 'all'
+Requires-Dist: docling>=2.0.0; extra == 'all'
+Requires-Dist: openai>=1.0.0; extra == 'all'
+Requires-Dist: pgvector>=0.2.0; extra == 'all'
+Requires-Dist: psycopg2-binary>=2.9.0; extra == 'all'
+Requires-Dist: sentence-transformers>=2.2.0; extra == 'all'
+Requires-Dist: tantivy>=0.22.0; extra == 'all'
+Requires-Dist: voyageai>=0.2.0; extra == 'all'
+Provides-Extra: anthropic
+Requires-Dist: anthropic>=0.30.0; extra == 'anthropic'
+Provides-Extra: chroma
+Requires-Dist: chromadb>=0.4.0; extra == 'chroma'
+Provides-Extra: dev
+Requires-Dist: faker>=40.0.0; extra == 'dev'
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: docling
+Requires-Dist: docling>=2.0.0; extra == 'docling'
+Provides-Extra: local
+Requires-Dist: sentence-transformers>=2.2.0; extra == 'local'
+Provides-Extra: openai
+Requires-Dist: openai>=1.0.0; extra == 'openai'
+Provides-Extra: pgvector
+Requires-Dist: pgvector>=0.2.0; extra == 'pgvector'
+Requires-Dist: psycopg2-binary>=2.9.0; extra == 'pgvector'
+Provides-Extra: tantivy
+Requires-Dist: tantivy>=0.22.0; extra == 'tantivy'
+Provides-Extra: voyage
+Requires-Dist: voyageai>=0.2.0; extra == 'voyage'
+Description-Content-Type: text/markdown
+
+# Pullcite
+
+**Evidence-backed structured extraction from documents.**
+
+Pullcite extracts structured data from documents using LLMs while providing **proof of where each value came from** in the source (quote + page + bounding box).
+
+Define Django-style schemas where each field specifies its own search query. Pullcite searches the document per-field, providing relevant context to the LLM, then verifies extracted values against the source.
+
+---
+
+## Installation
+
+```bash
+# Core package
+pip install pullcite
+
+# With providers
+pip install pullcite[anthropic]      # Anthropic Claude
+pip install pullcite[openai]         # OpenAI GPT
+pip install pullcite[tantivy]        # High-performance BM25 search
+pip install pullcite[voyage]         # Voyage AI embeddings (for semantic search)
+pip install pullcite[docling]        # PDF/DOCX parsing with coordinates
+
+# Everything
+pip install pullcite[all]
+```
+
+---
+
+## Quick Start
+
+```python
+from pullcite import (
+    Document,
+    ExtractionSchema,
+    Extractor,
+    DecimalField,
+    StringField,
+    SearchType,
+    BM25Searcher,
+)
+from pullcite.llms.anthropic import AnthropicLLM
+
+# 1. Define your schema with field-level search queries
+class Invoice(ExtractionSchema):
+    vendor = StringField(
+        query="vendor company name supplier",
+        search_type=SearchType.BM25,
+        description="Company that issued the invoice",
+    )
+    total = DecimalField(
+        query="total amount due grand total",
+        search_type=SearchType.BM25,
+        description="Total amount due",
+    )
+
+# 2. Create extractor with key parameters
+extractor = Extractor(
+    schema=Invoice,
+    llm=AnthropicLLM(),
+    searcher=BM25Searcher(),
+    top_k=5,  # Chunks per field (critical for quality)
+)
+
+# 3. Extract with evidence
+doc = Document.from_file("invoice.pdf")
+result = extractor.extract(doc)
+
+# Or async for multiple documents:
+# results = await asyncio.gather(*[extractor.extract_async(d) for d in docs])
+
+# 4. Access data and evidence
+print(result.data.total)         # Decimal("1500.00")
+print(result.data.vendor)        # "Acme Corp"
+print(result.status)             # ExtractionStatus.VERIFIED
+
+evidence = result.evidence_map["total"]
+print(evidence.quote)            # "Grand Total: $1,500.00"
+print(evidence.page)             # 1
+print(evidence.bbox)             # (72.0, 540.2, 200.5, 555.8)
+```
+
+---
+
+## Key Parameters
+
+### top_k - Chunks Per Field
+
+Controls how many document chunks are retrieved per field. **Critical for extraction quality.**
+
+```python
+extractor = Extractor(
+    schema=Invoice,
+    llm=AnthropicLLM(),
+    searcher=BM25Searcher(),
+    top_k=5,  # Default. Tune up for complex docs, down for simple ones.
+)
+```
+
+- Higher = more context, better accuracy, more tokens
+- Lower = faster, cheaper, may miss context
+- Start with 5, tune based on your documents
+
+---
+
+## Chunking
+
+Chunking directly affects extraction quality. Configure explicitly:
+
+```python
+from pullcite import Document, SlidingWindowChunker, SentenceChunker
+
+# Option 1: Sliding window (predictable, good default)
+doc = Document.from_file(
+    "report.pdf",
+    chunker=SlidingWindowChunker(size=500, stride=250),  # 50% overlap
+)
+
+# Option 2: Sentence-aware (better for prose)
+doc = Document.from_file(
+    "contract.pdf",
+    chunker=SentenceChunker(target_size=1000, overlap=200),
+)
+
+# Option 3: Defaults (SentenceChunker, 1200 chars, 200 overlap)
+doc = Document.from_file("invoice.pdf")
+```
+
+Available chunkers:
+- `SlidingWindowChunker(size, stride)` - Fixed window with step size
+- `SentenceChunker(target_size, overlap)` - Breaks at sentence boundaries
+- `ParagraphChunker(target_size, overlap_paragraphs)` - Breaks at paragraphs
+
+---
+
+## Async Support
+
+For processing multiple documents concurrently:
+
+```python
+import asyncio
+from pullcite import Document, Extractor
+
+async def extract_batch(paths: list[str]) -> list:
+    extractor = Extractor(schema=Invoice, llm=llm, searcher=searcher)
+
+    docs = [Document.from_file(p) for p in paths]
+    results = await asyncio.gather(*[
+        extractor.extract_async(doc) for doc in docs
+    ])
+    return results
+
+# Run
+results = asyncio.run(extract_batch(["inv1.pdf", "inv2.pdf", "inv3.pdf"]))
+```
+
+---
+
+## Health Insurance Example
+
+```python
+from decimal import Decimal
+from pullcite import (
+    Document,
+    ExtractionSchema,
+    Extractor,
+    StringField,
+    DecimalField,
+    PercentField,
+    BooleanField,
+    SearchType,
+    BM25Searcher,
+)
+from pullcite.llms.anthropic import AnthropicLLM
+
+
+class HealthPlan(ExtractionSchema):
+    """Health insurance plan extraction schema."""
+
+    plan_name = StringField(
+        query="plan name health plan title",
+        search_type=SearchType.BM25,
+    )
+    plan_type = StringField(
+        query="plan type HMO PPO EPO",
+        search_type=SearchType.BM25,
+    )
+
+    # Deductibles
+    individual_deductible = DecimalField(
+        query="individual deductible annual",
+        search_type=SearchType.BM25,
+    )
+    family_deductible = DecimalField(
+        query="family deductible annual",
+        search_type=SearchType.BM25,
+    )
+
+    # Out-of-pocket
+    individual_oop_max = DecimalField(
+        query="individual out-of-pocket maximum",
+        search_type=SearchType.BM25,
+    )
+    family_oop_max = DecimalField(
+        query="family out-of-pocket maximum",
+        search_type=SearchType.BM25,
+    )
+
+    # Copays
+    pcp_copay = DecimalField(
+        query="primary care physician copay PCP",
+        search_type=SearchType.BM25,
+    )
+    specialist_copay = DecimalField(
+        query="specialist copay",
+        search_type=SearchType.BM25,
+    )
+    er_copay = DecimalField(
+        query="emergency room ER copay",
+        search_type=SearchType.BM25,
+    )
+
+    # Coinsurance
+    coinsurance = PercentField(
+        query="coinsurance percentage member pays",
+        search_type=SearchType.BM25,
+    )
+
+    # Prescriptions
+    generic_rx = DecimalField(
+        query="generic prescription drug copay tier 1",
+        search_type=SearchType.BM25,
+        required=False,
+    )
+
+    # Coverage
+    preventive_covered = BooleanField(
+        query="preventive care covered no cost",
+        search_type=SearchType.BM25,
+        required=False,
+    )
+
+
+# Create extractor with custom instructions
+extractor = Extractor(
+    schema=HealthPlan,
+    llm=AnthropicLLM(model="claude-sonnet-4-20250514"),
+    searcher=BM25Searcher(),
+    extra_instructions="""
+    - Extract IN-NETWORK values when both in/out-of-network are shown
+    - Coinsurance is what the MEMBER pays, not the plan
+    - "No charge" or "Covered in full" means $0
+    """,
+)
+
+# Extract
+doc = Document.from_file("summary_of_benefits.pdf")
+result = extractor.extract(doc)
+
+# Print results
+print(f"Plan: {result.data.plan_name} ({result.data.plan_type})")
+print(f"Individual Deductible: ${result.data.individual_deductible}")
+print(f"PCP Copay: ${result.data.pcp_copay}")
+print(f"Coinsurance: {result.data.coinsurance}%")
+print(f"Status: {result.status}")
+```
+
+---
+
+## Field Types
+
+| Field Type | Python Type | Parses | Example |
+|------------|-------------|--------|---------|
+| `StringField` | `str` | Text | `"Acme Corp"` |
+| `IntegerField` | `int` | Integers | `100`, `"100 days"` |
+| `FloatField` | `float` | Decimals | `3.14` |
+| `DecimalField` | `Decimal` | Currency | `"$1,500.00"` → `Decimal("1500.00")` |
+| `CurrencyField` | `Decimal` | Currency | Same as Decimal, with symbol handling |
+| `PercentField` | `float` | Percentages | `"30%"`, `0.30` → `30.0` |
+| `BooleanField` | `bool` | Yes/No | `"yes"`, `"true"`, `1` → `True` |
+| `DateField` | `str` | Dates | `"2024-01-15"` |
+| `ListField` | `list` | Arrays | `["a", "b", "c"]` |
+| `EnumField` | `str` | Choices | Must be one of defined choices |
+
+### Field Descriptions
+
+**Always provide descriptions** - they tell the LLM what each field means:
+
+```python
+class Invoice(ExtractionSchema):
+    # Good: Clear description helps the LLM
+    total = DecimalField(
+        query="total amount due",
+        description="The final total amount due, including tax",
+    )
+
+    # Without description, LLM only sees "total" and the query
+    # This works but is less accurate
+```
+
+---
+
+## Search Types
+
+Each field specifies how to search for evidence:
+
+```python
+class Document(ExtractionSchema):
+    # BM25: Keyword search (fast, no embeddings needed)
+    invoice_number = StringField(
+        query="invoice number invoice #",
+        search_type=SearchType.BM25,
+    )
+
+    # Semantic: Vector similarity (requires embeddings)
+    description = StringField(
+        query="product service description",
+        search_type=SearchType.SEMANTIC,
+    )
+
+    # Hybrid: Combined BM25 + semantic with rank fusion
+    vendor = StringField(
+        query="vendor company supplier",
+        search_type=SearchType.HYBRID,
+    )
+```
+
+For semantic/hybrid search, provide a retriever:
+
+```python
+from pullcite.embeddings.openai import OpenAIEmbedder
+from pullcite.retrieval.memory import MemoryRetriever
+
+extractor = Extractor(
+    schema=MySchema,
+    llm=my_llm,
+    searcher=BM25Searcher(),
+    retriever=MemoryRetriever(OpenAIEmbedder()),  # For semantic fields
+)
+```
+
+---
+
+## Custom Prompts
+
+### Extra Instructions (append to default prompt)
+
+```python
+extractor = Extractor(
+    schema=Invoice,
+    llm=my_llm,
+    searcher=BM25Searcher(),
+    extra_instructions="""
+    - All amounts are in USD
+    - Dates should be YYYY-MM-DD format
+    - Use the value from "Grand Total", not subtotals
+    """,
+)
+```
+
+### Full System Prompt (replace default)
+
+```python
+extractor = Extractor(
+    schema=Invoice,
+    llm=my_llm,
+    searcher=BM25Searcher(),
+    system_prompt="""You are an expert invoice parser.
+    Extract all fields precisely. Be careful with:
+    - Currency formatting
+    - Tax calculations
+    - Line item totals vs grand total
+    """,
+)
+```
+
+### Custom Prompt Builder (full control)
+
+```python
+def my_prompt_builder(schema, field_contexts):
+    """Build custom prompt with access to schema and retrieved contexts."""
+    lines = ["Extract these fields:"]
+    for name, field in schema.get_fields().items():
+        contexts = field_contexts.get(name, [])
+        lines.append(f"\n## {name}")
+        if contexts:
+            lines.append(f"Found in: {contexts[0].text[:200]}")
+    return "\n".join(lines)
+
+extractor = Extractor(
+    schema=Invoice,
+    llm=my_llm,
+    searcher=BM25Searcher(),
+    prompt_builder=my_prompt_builder,
+)
+```
+
+---
+
+## Handling Large Documents
+
+For documents that exceed context limits, use batching:
+
+```python
+extractor = Extractor(
+    schema=LargeSchema,  # 50+ fields
+    llm=my_llm,
+    searcher=BM25Searcher(),
+
+    # Batching options
+    max_fields_per_batch=10,       # Max fields per LLM call
+    max_context_chars=50000,       # Max context chars per batch
+
+    # Skip full document text (use only retrieved excerpts)
+    include_document_text=False,
+    top_k=10,                      # More chunks per field
+)
+```
+
+This splits extraction into multiple LLM calls, each handling a subset of fields with their relevant context.
+
+---
+
+## Evidence
+
+Every extracted value can be traced to the source:
+
+```python
+result = extractor.extract(document)
+
+for field_name, evidence in result.evidence_map.items():
+    print(f"{field_name}:")
+    print(f"  Value: {evidence.value}")
+    print(f"  Quote: {evidence.quote}")
+    print(f"  Page: {evidence.page}")
+    print(f"  Bounding Box: {evidence.bbox}")  # (x0, y0, x1, y1) in PDF points
+    print(f"  Confidence: {evidence.confidence:.0%}")
+    print(f"  Verified: {evidence.verified}")
+```
+
+---
+
+## Verification
+
+Pullcite verifies extracted values against the source document. Here's how it works:
+
+### How Verification Works
+
+1. **Search**: For each field, retrieve relevant chunks using the field's query
+2. **Parse**: Use `field.parse_from_text()` to find values in chunk text
+3. **Compare**: Use `field.compare()` to check if extracted matches found
+
+**Field-specific comparison:**
+- `StringField`: Case-insensitive, whitespace-normalized
+- `DecimalField`: Tolerance-based (±0.01 by default)
+- `PercentField`: Tolerance-based
+- `BooleanField`: Exact match after normalizing "yes"/"no"/etc.
+
+### Verification Status
+
+```python
+from pullcite import ExtractionStatus
+
+result = extractor.extract(document)
+
+if result.status == ExtractionStatus.VERIFIED:
+    print("All fields verified against source")
+elif result.status == ExtractionStatus.PARTIAL:
+    print("Some fields could not be verified")
+elif result.status == ExtractionStatus.FAILED:
+    print("Extraction failed")
+
+# Check individual field results
+for vr in result.verification_results:
+    print(f"{vr.path}: {vr.status.value}")
+    # MATCH: Value found and matches
+    # MISMATCH: Found different value in source
+    # NOT_FOUND: Required field not in document
+    # SKIPPED: No context to verify against
+```
+
+### Disable Verification
+
+```python
+extractor = Extractor(
+    schema=Invoice,
+    llm=llm,
+    searcher=searcher,
+    verify=False,  # Skip verification step
+)
+```
+
+---
+
+## LLM Providers
+
+### Anthropic Claude
+
+```python
+from pullcite.llms.anthropic import AnthropicLLM
+
+llm = AnthropicLLM(
+    api_key="...",  # Or ANTHROPIC_API_KEY env var
+    model="claude-sonnet-4-20250514",
+)
+```
+
+### OpenAI GPT
+
+```python
+from pullcite.llms.openai import OpenAILLM
+
+llm = OpenAILLM(
+    api_key="...",  # Or OPENAI_API_KEY env var
+    model="gpt-4o",
+)
+```
+
+---
+
+## Project Structure
+
+```
+pullcite/
+├── __init__.py          # Main exports
+├── core/
+│   ├── document.py      # Document loading + chunking
+│   ├── chunk.py         # Chunk dataclass
+│   ├── evidence.py      # Evidence, VerificationResult
+│   └── result.py        # ExtractionResult, stats
+├── schema/
+│   ├── base.py          # ExtractionSchema, Field, SearchType
+│   ├── fields.py        # StringField, DecimalField, etc.
+│   └── extractor.py     # SchemaExtractor (Extractor)
+├── search/
+│   ├── base.py          # Searcher ABC, SearchResult
+│   ├── bm25.py          # BM25Searcher (tantivy)
+│   └── hybrid.py        # HybridSearcher
+├── embeddings/
+│   ├── openai.py        # OpenAI embeddings
+│   ├── voyage.py        # Voyage AI embeddings
+│   └── local.py         # Sentence Transformers
+├── retrieval/
+│   ├── memory.py        # In-memory vector store
+│   ├── chroma.py        # ChromaDB
+│   └── pgvector.py      # PostgreSQL pgvector
+└── llms/
+    ├── anthropic.py     # Anthropic Claude
+    └── openai.py        # OpenAI GPT
+```
+
+---
+
+## Environment Variables
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+export OPENAI_API_KEY="sk-..."
+export VOYAGE_API_KEY="..."
+```
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/usercando/pullcite
+cd pullcite
+pip install -e ".[dev]"
+
+pytest tests/ -v
+```
+
+---
+
+## License
+
+MIT
