@@ -1,0 +1,230 @@
+# Register taint functions in builtins BEFORE any other imports
+# This ensures any rewritten .pyc files can call these functions
+import builtins
+import sys
+import os
+import time as _time
+
+_import_start = _time.time()
+
+# Add current directory to path to import modules directly
+current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Import directly from file path to avoid triggering ao.__init__.py
+import importlib.util
+
+ast_helpers_path = os.path.join(current_dir, "server", "ast_helpers.py")
+spec = importlib.util.spec_from_file_location("ast_helpers", ast_helpers_path)
+ast_helpers = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ast_helpers)
+
+builtins.taint_fstring_join = ast_helpers.taint_fstring_join
+builtins.taint_format_string = ast_helpers.taint_format_string
+builtins.taint_percent_format = ast_helpers.taint_percent_format
+builtins.exec_func = ast_helpers.exec_func
+
+# Now safe to import other modules
+import socket
+import time
+import subprocess
+from argparse import ArgumentParser
+
+from ao.common.logger import logger, create_file_logger
+
+from ao.common.constants import (
+    MAIN_SERVER_LOG,
+    FILE_WATCHER_LOG,
+    GIT_VERSIONER_LOG,
+    HOST,
+    PORT,
+    SOCKET_TIMEOUT,
+    SHUTDOWN_WAIT,
+)
+
+from ao.server.main_server import MainServer, send_json
+
+# Create file logger for server startup timing (only used in _serve command)
+_server_logger = create_file_logger(MAIN_SERVER_LOG)
+
+
+def launch_daemon_server() -> None:
+    """
+    Launch the main server as a detached daemon process with proper stdio handling.
+    """
+    # Ensure log directory exists
+    os.makedirs(os.path.dirname(MAIN_SERVER_LOG), exist_ok=True)
+
+    # Open log file for the daemon (all logs go to main_server.log)
+    with open(MAIN_SERVER_LOG, "a+") as log_f:
+        subprocess.Popen(
+            [sys.executable, "-m", "ao.cli.ao_server", "_serve"],
+            close_fds=True,
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=log_f,
+            stderr=subprocess.STDOUT,  # Combine stderr with stdout
+        )
+
+
+def server_command_parser():
+    parser = ArgumentParser(
+        usage="ao-server {start, stop, restart, clear, logs, rewrite-logs, git-logs, clear-logs}",
+        description="Server utilities.",
+        allow_abbrev=False,
+    )
+
+    parser.add_argument(
+        "command",
+        choices=[
+            "start",
+            "stop",
+            "restart",
+            "clear",
+            "logs",
+            "rewrite-logs",
+            "git-logs",
+            "clear-logs",
+            "_serve",
+        ],
+        help="The command to execute for the server.",
+    )
+    return parser
+
+
+def execute_server_command(args):
+    if args.command == "start":
+        # If server is already running, do not start another
+        try:
+            socket.create_connection((HOST, PORT), timeout=SOCKET_TIMEOUT).close()
+            logger.info("Main server is already running.")
+            return
+        except Exception:
+            pass
+        # Launch the server as a detached background process (POSIX)
+        launch_daemon_server()
+        logger.info("Main server started.")
+
+    elif args.command == "stop":
+        # Connect to the server and send a shutdown command
+        try:
+            sock = socket.create_connection((HOST, PORT), timeout=SOCKET_TIMEOUT)
+            handshake = {"type": "hello", "role": "admin", "script": "stopper"}
+            send_json(sock, handshake)
+            send_json(sock, {"type": "shutdown"})
+            sock.close()
+            logger.info("Main server stop signal sent.")
+        except Exception:
+            logger.warning("No running server found.")
+            sys.exit(1)
+
+    elif args.command == "restart":
+        # Stop the server if running
+        # TODO: Delete previour server log.
+        try:
+            sock = socket.create_connection((HOST, PORT), timeout=SOCKET_TIMEOUT)
+            handshake = {"type": "hello", "role": "admin", "script": "restarter"}
+            send_json(sock, handshake)
+            send_json(sock, {"type": "shutdown"})
+            sock.close()
+            logger.info("Main server stop signal sent (for restart). Waiting for shutdown...")
+            time.sleep(SHUTDOWN_WAIT)
+        except Exception:
+            logger.info("No running server found. Proceeding to start.")
+        # Start the server
+        launch_daemon_server()
+        logger.info("Main server restarted.")
+
+    elif args.command == "clear":
+        # Connect to the server and send a clear command
+        # TODO: Delete previour server log.
+        try:
+            sock = socket.create_connection((HOST, PORT), timeout=SOCKET_TIMEOUT)
+            handshake = {"type": "hello", "role": "admin", "script": "clearer"}
+            send_json(sock, handshake)
+            send_json(sock, {"type": "clear"})
+            sock.close()
+            logger.info("Main server clear signal sent.")
+        except Exception:
+            logger.warning("No running server found.")
+            sys.exit(1)
+        return
+
+    elif args.command == "logs":
+        # Print the contents of the develop server log file
+        try:
+            with open(MAIN_SERVER_LOG, "r") as log_file:
+                print(log_file.read(), end="")
+        except FileNotFoundError:
+            logger.error(f"Log file not found at {MAIN_SERVER_LOG}")
+        except Exception as e:
+            logger.error(f"Error reading log file: {e}")
+        return
+
+    elif args.command == "rewrite-logs":
+        # Print the contents of the file watcher log file
+        try:
+            with open(FILE_WATCHER_LOG, "r") as log_file:
+                print(log_file.read(), end="")
+        except FileNotFoundError:
+            logger.error(f"Log file not found at {FILE_WATCHER_LOG}")
+        except Exception as e:
+            logger.error(f"Error reading log file: {e}")
+        return
+
+    elif args.command == "git-logs":
+        # Print the contents of the git versioner log file
+        try:
+            with open(GIT_VERSIONER_LOG, "r") as log_file:
+                print(log_file.read(), end="")
+        except FileNotFoundError:
+            logger.error(f"Log file not found at {GIT_VERSIONER_LOG}")
+        except Exception as e:
+            logger.error(f"Error reading log file: {e}")
+        return
+
+    elif args.command == "clear-logs":
+        # Clear all server log files
+        log_files = [MAIN_SERVER_LOG, FILE_WATCHER_LOG, GIT_VERSIONER_LOG]
+        for log_path in log_files:
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                with open(log_path, "w"):
+                    pass  # Opening in 'w' mode truncates the file
+            except Exception as e:
+                logger.error(f"Error clearing log file {log_path}: {e}")
+        logger.info("Server log files cleared.")
+        return
+
+    elif args.command == "_serve":
+        # Internal: run the server loop (not meant to be called by users directly)
+        _server_logger.info(f"Imports completed in {_time.time() - _import_start:.2f}s")
+
+        # Save Python executable path to config for VS Code extension to use
+        from ao.common.constants import AO_CONFIG
+        from ao.common.config import Config
+
+        try:
+            config = Config.from_yaml_file(AO_CONFIG)
+            if config.python_executable != sys.executable:
+                config.python_executable = sys.executable
+                config.to_yaml_file(AO_CONFIG)
+                _server_logger.info(f"Saved python_executable: {sys.executable}")
+        except Exception as e:
+            _server_logger.warning(f"Could not save python_executable: {e}")
+
+        _start = _time.time()
+        server = MainServer()
+        _server_logger.info(f"MainServer created in {_time.time() - _start:.2f}s")
+        server.run_server()
+
+
+def main():
+    parser = server_command_parser()
+    args = parser.parse_args()
+    execute_server_command(args)
+
+
+if __name__ == "__main__":
+    main()
