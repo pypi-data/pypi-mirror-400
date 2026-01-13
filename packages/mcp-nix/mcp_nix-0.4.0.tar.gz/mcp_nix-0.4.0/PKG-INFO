@@ -1,0 +1,129 @@
+Metadata-Version: 2.4
+Name: mcp-nix
+Version: 0.4.0
+Summary: MCP server for Nixpkgs, NixOS and Home Manager
+Project-URL: Homepage, https://github.com/felixdorn/mcp-nix
+Project-URL: Repository, https://github.com/felixdorn/mcp-nix
+Project-URL: Issues, https://github.com/felixdorn/mcp-nix/issues
+Author-email: Félix Dorn <dorn@xfe.li>
+License-Expression: GPL-3.0-or-later
+License-File: LICENSE
+Keywords: ai,claude,home-manager,llm,mcp,model-context-protocol,nix,nixos
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.13
+Requires-Dist: beautifulsoup4>=4.12.0
+Requires-Dist: diskcache>=5.6.0
+Requires-Dist: fastmcp>=0.1.0
+Requires-Dist: lunr>=0.7.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pyixx
+Requires-Dist: pyyaml>=6.0.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: wasmtime>=23.0.0
+Description-Content-Type: text/markdown
+
+# A complete MCP server for Nix*
+[![Tests](https://github.com/felixdorn/mcp-nix/actions/workflows/test.yml/badge.svg)](https://github.com/felixdorn/mcp-nix/actions/workflows/test.yml)
+
+## Features
+* **Search Nixpkgs and read package derivations**
+* **Broad options coverage**
+  * NixOS
+  * Home Manager
+  * Nix Darwin
+  * Other: Nixvim Impermanence, MicroVM.nix, nix-nomad, simple-nixos-mailserver, sops-nix, nixos-hardware, disko.
+* **Search the nix standard library and read function definitions**
+* **Find versions of nixpkgs in which a package exists**
+
+## Installation
+
+Use the following configuration to add the MCP server to your client:
+
+**Using uvx:**
+
+```json
+{
+  "mcpServers": {
+    "nix": {
+      "command": "uvx",
+      "args": ["mcp-nix"]
+    }
+  }
+}
+```
+
+**Using nix run:**
+
+```json
+{
+  "mcpServers": {
+    "nix": {
+      "command": "nix",
+      "args": ["run", "github:felixdorn/mcp-nix"]
+    }
+  }
+}
+```
+
+**Declaratively:**
+
+Add the flake input:
+
+```nix
+{
+  inputs.mcp-nix.url = "github:felixdorn/mcp-nix";
+}
+```
+
+Then reference the package:
+
+```nix
+{
+  command = "${inputs.mcp-nix.packages.${system}.default}/bin/mcp-nix";
+}
+```
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `search_nixpkgs` | Search Nixpkgs packages |
+| `read_derivation` | Read package source code |
+| `search_options` | Search options for many projects |
+| `list_versions` | List available versions for a project |
+| `show_option_details` | Get option details or list children |
+| `read_option_declaration` | Read option source code |
+| `find_nixpkgs_commit_with_package_version` | Get nixpkgs commit for a version, shows available versions if not found (NixHub) |
+| `search_nix_stdlib` | Search Nix stdlib functions (Noogle) |
+| `help_for_stdlib_function` | Get help for a stdlib function (Noogle) |
+
+### Excluding Tools
+
+Use `--exclude` to disable specific tools:
+
+```json
+{
+  "mcpServers": {
+    "nix": {
+      "command": "uvx",
+      "args": ["mcp-nix", "--exclude=read_derivation,read_option_declaration"]
+    }
+  }
+}
+```
+
+### Contributing
+Read [CONTRIBUTING.md](CONTRIBUTING.md)
+
+### Acknowledgments
+Thanks to the [NixOS Search Team](https://search.nixos.org), [ExtraNix](https://extranix.com), [NüschtOS](https://github.com/NuschtOS/search), [nix-nomad](https://github.com/tristanpemble/nix-nomad), [NixHub](https://nixhub.io), [Noogle](https://noogle.dev) for maintaining the backends and pipeline this server uses and for the Nix community for making any of this possible.
+
+### License
+GPLv3: [License](LICENSE)
+
+    <!-- mcp-name: io.github.felixdorn/mcp-nix -->
