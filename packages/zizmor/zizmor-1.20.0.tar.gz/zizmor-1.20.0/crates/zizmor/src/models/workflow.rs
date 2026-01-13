@@ -1,0 +1,721 @@
+//! GitHub Actions workflow models.
+//!
+//! These models enrich the models under [`github_actions_models::workflow`],
+//! providing higher-level APIs for zizmor to use.
+
+use github_actions_expressions::context::{self};
+use github_actions_models::{
+    common::{self, expr::LoE},
+    workflow::{
+        self, Trigger,
+        event::{BareEvent, OptionalBody},
+        job::{self, RunsOn, StepBody},
+    },
+};
+use terminal_link::Link;
+
+pub(crate) mod matrix;
+
+use crate::{
+    InputKey,
+    finding::location::{Locatable, SymbolicFeature, SymbolicLocation},
+    models::{
+        AsDocument, StepBodyCommon, StepCommon,
+        inputs::{Capability, HasInputs},
+        workflow::matrix::Matrix,
+    },
+    registry::input::CollectionError,
+    utils::{self, WORKFLOW_VALIDATOR, from_str_with_validation},
+};
+
+/// Represents an entire GitHub Actions workflow.
+///
+/// This type implements [`std::ops::Deref`] for [`workflow::Workflow`],
+/// providing access to the underlying data model.
+pub(crate) struct Workflow {
+    /// This workflow's unique key into zizmor's runtime registry.
+    pub(crate) key: InputKey,
+    /// A clickable (OSC 8) link to this workflow, if remote.
+    pub(crate) link: Option<String>,
+    document: yamlpath::Document,
+    inner: workflow::Workflow,
+}
+
+impl<'a> AsDocument<'a, 'a> for Workflow {
+    fn as_document(&'a self) -> &'a yamlpath::Document {
+        &self.document
+    }
+}
+
+impl std::fmt::Debug for Workflow {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{key}", key = self.key)
+    }
+}
+
+impl std::ops::Deref for Workflow {
+    type Target = workflow::Workflow;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl HasInputs for workflow::event::WorkflowCall {
+    fn get_input(&self, name: &str) -> Option<Capability> {
+        let input = self.inputs.get(name)?;
+
+        Some(match input.r#type {
+            workflow::event::WorkflowCallInputType::Boolean => Capability::Fixed,
+            workflow::event::WorkflowCallInputType::Number => Capability::Fixed,
+            workflow::event::WorkflowCallInputType::String => Capability::Arbitrary,
+        })
+    }
+}
+
+impl HasInputs for workflow::event::WorkflowDispatch {
+    fn get_input(&self, name: &str) -> Option<Capability> {
+        let input = self.inputs.get(name)?;
+
+        Some(match input.r#type {
+            workflow::event::WorkflowDispatchInputType::Boolean => Capability::Fixed,
+            workflow::event::WorkflowDispatchInputType::Choice => Capability::Fixed,
+            workflow::event::WorkflowDispatchInputType::Environment => Capability::Fixed,
+            workflow::event::WorkflowDispatchInputType::Number => Capability::Fixed,
+            workflow::event::WorkflowDispatchInputType::String => Capability::Arbitrary,
+        })
+    }
+}
+
+impl HasInputs for Workflow {
+    fn get_input(&self, name: &str) -> Option<Capability> {
+        let workflow::Trigger::Events(events) = &self.on else {
+            return None;
+        };
+
+        let wc_cap = {
+            if let workflow::event::OptionalBody::Body(wc) = &events.workflow_call {
+                wc.get_input(name)
+            } else {
+                None
+            }
+        };
+
+        let wd_cap = {
+            if let workflow::event::OptionalBody::Body(wd) = &events.workflow_dispatch {
+                wd.get_input(name)
+            } else {
+                None
+            }
+        };
+
+        match (wc_cap, wd_cap) {
+            (Some(cap1), Some(cap2)) => Some(cap1.unify(cap2)),
+            (Some(single), None) | (None, Some(single)) => Some(single),
+            (None, None) => None,
+        }
+    }
+}
+
+impl Workflow {
+    /// Load a workflow from a buffer, with an assigned name.
+    pub(crate) fn from_string(contents: String, key: InputKey) -> Result<Self, CollectionError> {
+        let inner = from_str_with_validation(&contents, &WORKFLOW_VALIDATOR)?;
+
+        let document = yamlpath::Document::new(&contents)?;
+
+        let link = match key {
+            InputKey::Local(_) => None,
+            InputKey::Remote(_) => {
+                // NOTE: InputKey's Display produces a URL, hence `key.to_string()`.
+                Some(Link::new(key.presentation_path(), &key.to_string()).to_string())
+            }
+        };
+
+        Ok(Self {
+            link,
+            key,
+            document,
+            inner,
+        })
+    }
+
+    /// A [`Jobs`] iterator over this workflow's constituent [`Job`]s.
+    pub(crate) fn jobs(&self) -> Jobs<'_> {
+        Jobs::new(self)
+    }
+
+    /// Whether this workflow is triggered by pull_request_target.
+    pub(crate) fn has_pull_request_target(&self) -> bool {
+        match &self.on {
+            Trigger::BareEvent(event) => *event == BareEvent::PullRequestTarget,
+            Trigger::BareEvents(events) => events.contains(&BareEvent::PullRequestTarget),
+            Trigger::Events(events) => !matches!(events.pull_request_target, OptionalBody::Missing),
+        }
+    }
+
+    /// Whether this workflow is triggered by workflow_run.
+    pub(crate) fn has_workflow_run(&self) -> bool {
+        match &self.on {
+            Trigger::BareEvent(event) => *event == BareEvent::WorkflowRun,
+            Trigger::BareEvents(events) => events.contains(&BareEvent::WorkflowRun),
+            Trigger::Events(events) => !matches!(events.workflow_run, OptionalBody::Missing),
+        }
+    }
+
+    /// Whether this workflow is triggered by workflow_call.
+    pub(crate) fn has_workflow_call(&self) -> bool {
+        match &self.on {
+            Trigger::BareEvent(event) => *event == BareEvent::WorkflowCall,
+            Trigger::BareEvents(events) => events.contains(&BareEvent::WorkflowCall),
+            Trigger::Events(events) => !matches!(events.workflow_call, OptionalBody::Missing),
+        }
+    }
+
+    /// Whether this workflow is triggered by exactly one event.
+    pub(crate) fn has_single_trigger(&self) -> bool {
+        match &self.on {
+            Trigger::BareEvent(_) => true,
+            Trigger::BareEvents(events) => events.len() == 1,
+            Trigger::Events(events) => events.count() == 1,
+        }
+    }
+
+    /// Returns this workflow's [`SymbolicLocation`].
+    ///
+    /// NOTE: This is intentionally implemented directly on the `Workflow` type
+    /// rather than through the [`Locatable`] trait, since introducing
+    /// this through [`Locatable`] would require a split lifetime between
+    /// `'self` and `'doc` for just this and [`Action`], i.e. the owning
+    /// container types rather than the borrowing subtypes.
+    pub fn location(&self) -> SymbolicLocation<'_> {
+        SymbolicLocation {
+            key: &self.key,
+            annotation: "this workflow".into(),
+            link: None,
+            route: Default::default(),
+            feature_kind: SymbolicFeature::Normal,
+            kind: Default::default(),
+        }
+    }
+}
+
+/// Represents a single "normal" GitHub Actions job.
+#[derive(Clone)]
+pub(crate) struct NormalJob<'doc> {
+    /// The job's unique ID (i.e., its key in the workflow's `jobs:` block).
+    id: &'doc str,
+    /// The underlying job.
+    inner: &'doc job::NormalJob,
+    /// The job's parent [`Workflow`].
+    parent: &'doc Workflow,
+}
+
+impl<'doc> NormalJob<'doc> {
+    pub(crate) fn new(id: &'doc str, inner: &'doc job::NormalJob, parent: &'doc Workflow) -> Self {
+        Self { id, inner, parent }
+    }
+
+    /// This job's matrix, if it has one.
+    pub(crate) fn matrix(&self) -> Option<Matrix<'doc>> {
+        Matrix::new(self)
+    }
+
+    /// An iterator of this job's constituent [`Step`]s.
+    pub(crate) fn steps(&self) -> Steps<'doc> {
+        Steps::new(self)
+    }
+
+    /// Returns whether this job has the `id-token: write` permission.
+    pub(crate) fn has_id_token(&self) -> bool {
+        // Figure out which permissions we need to be looking at.
+        // We look at the job's own permissions unless they indicate
+        // that they're the default, in which case we know the effective
+        // permissions are the parent workflow's.
+        let effective_permissions = match self.permissions {
+            common::Permissions::Base(common::BasePermission::Default) => &self.parent.permissions,
+            _ => &self.permissions,
+        };
+
+        match effective_permissions {
+            common::Permissions::Base(common::BasePermission::WriteAll) => true,
+            common::Permissions::Explicit(explicit) => explicit
+                .get("id-token")
+                .is_some_and(|perm| matches!(perm, common::Permission::Write)),
+            _ => false,
+        }
+    }
+
+    /// Perform feats of heroism to figure of what this job's runner's
+    /// default shell is.
+    ///
+    /// Returns `None` if the job is not a normal job, or if the runner
+    /// environment is indeterminate (e.g. controlled by an expression).
+    pub(crate) fn runner_default_shell(&self) -> Option<&'static str> {
+        match &self.runs_on {
+            // The entire runs-on is an expression, so there's nothing we can do.
+            LoE::Expr(_) => None,
+            LoE::Literal(RunsOn::Group { group: _, labels })
+            | LoE::Literal(RunsOn::Target(labels)) => {
+                for label in labels {
+                    match label.as_str() {
+                        // Default self-hosted routing labels.
+                        "linux" | "macOS" => return Some("bash"),
+                        "windows" => return Some("pwsh"),
+                        // Standard GitHub-hosted runners, e.g. `ubuntu-latest`.
+                        // We check only the prefix here so that we don't have to keep track
+                        // of every possible variation of these runners.
+                        l if l.contains("ubuntu-") || l.contains("macos") => return Some("bash"),
+                        l if l.contains("windows-") => return Some("pwsh"),
+                        _ => continue,
+                    }
+                }
+
+                None
+            }
+        }
+    }
+
+    /// Returns an iterator over this job's conditions, including all
+    /// step-level conditions.
+    ///
+    /// Each [`common::If`] is paired with a [`SymbolicLocation`]
+    /// for its *parent*, i.e. a job or step.
+    pub(crate) fn conditions(
+        &self,
+    ) -> impl Iterator<Item = (&'doc common::If, SymbolicLocation<'doc>)> {
+        self.r#if.iter().map(|cond| (cond, self.location())).chain(
+            self.steps()
+                .filter_map(|step| step.r#if.as_ref().map(|cond| (cond, step.location()))),
+        )
+    }
+}
+
+impl<'a, 'doc> AsDocument<'a, 'doc> for NormalJob<'doc> {
+    fn as_document(&'a self) -> &'doc yamlpath::Document {
+        self.parent.as_document()
+    }
+}
+
+impl<'doc> JobCommon<'doc> for NormalJob<'doc> {
+    fn id(&self) -> &'doc str {
+        self.id
+    }
+
+    fn name(&self) -> Option<&'doc str> {
+        self.inner.name.as_deref()
+    }
+
+    fn parent(&self) -> &'doc Workflow {
+        self.parent
+    }
+}
+
+impl<'doc> std::ops::Deref for NormalJob<'doc> {
+    type Target = &'doc job::NormalJob;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+/// Represents a reusable workflow call job.
+#[derive(Clone)]
+pub(crate) struct ReusableWorkflowCallJob<'doc> {
+    /// The job's unique ID (i.e., its key in the workflow's `jobs:` block).
+    id: &'doc str,
+    /// The underlying job.
+    inner: &'doc job::ReusableWorkflowCallJob,
+    /// The job's parent [`Workflow`].
+    parent: &'doc Workflow,
+}
+
+impl<'doc> ReusableWorkflowCallJob<'doc> {
+    pub(crate) fn new(
+        id: &'doc str,
+        inner: &'doc job::ReusableWorkflowCallJob,
+        parent: &'doc Workflow,
+    ) -> Self {
+        Self { id, inner, parent }
+    }
+}
+
+impl<'a, 'doc> AsDocument<'a, 'doc> for ReusableWorkflowCallJob<'doc> {
+    fn as_document(&'a self) -> &'doc yamlpath::Document {
+        self.parent.as_document()
+    }
+}
+
+impl<'doc> JobCommon<'doc> for ReusableWorkflowCallJob<'doc> {
+    fn id(&self) -> &'doc str {
+        self.id
+    }
+
+    fn name(&self) -> Option<&'doc str> {
+        self.inner.name.as_deref()
+    }
+
+    fn parent(&self) -> &'doc Workflow {
+        self.parent
+    }
+}
+
+impl<'doc> std::ops::Deref for ReusableWorkflowCallJob<'doc> {
+    type Target = &'doc job::ReusableWorkflowCallJob;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+/// Common behavior across both normal and reusable jobs.
+pub(crate) trait JobCommon<'doc>: Locatable<'doc> {
+    /// The job's unique ID (i.e., its key in the workflow's `jobs:` block).
+    fn id(&self) -> &'doc str;
+
+    // The job's name, if it has one.
+    fn name(&self) -> Option<&'doc str>;
+
+    /// The job's parent [`Workflow`].
+    fn parent(&self) -> &'doc Workflow;
+}
+
+impl<'doc, T: JobCommon<'doc>> Locatable<'doc> for T {
+    /// Returns this job's [`SymbolicLocation`].
+    fn location(&self) -> SymbolicLocation<'doc> {
+        self.parent()
+            .location()
+            .annotated("this job")
+            .with_keys(["jobs".into(), self.id().into()])
+    }
+
+    fn location_with_grip(&self) -> SymbolicLocation<'doc> {
+        if self.name().is_some() {
+            self.location().with_keys(["name".into()])
+        } else {
+            self.parent()
+                .location()
+                .annotated("this job")
+                .with_keys(["jobs".into(), self.id().into()])
+                .key_only()
+        }
+    }
+}
+
+/// Represents a single GitHub Actions job.
+#[derive(Clone)]
+pub(crate) enum Job<'doc> {
+    NormalJob(NormalJob<'doc>),
+    ReusableWorkflowCallJob(ReusableWorkflowCallJob<'doc>),
+}
+
+impl<'doc> Job<'doc> {
+    fn new(id: &'doc str, inner: &'doc workflow::Job, parent: &'doc Workflow) -> Self {
+        match inner {
+            workflow::Job::NormalJob(normal) => Job::NormalJob(NormalJob::new(id, normal, parent)),
+            workflow::Job::ReusableWorkflowCallJob(reusable) => {
+                Job::ReusableWorkflowCallJob(ReusableWorkflowCallJob::new(id, reusable, parent))
+            }
+        }
+    }
+}
+
+/// An iterable container for jobs within a [`Workflow`].
+pub(crate) struct Jobs<'doc> {
+    parent: &'doc Workflow,
+    inner: indexmap::map::Iter<'doc, String, workflow::Job>,
+}
+
+impl<'doc> Jobs<'doc> {
+    fn new(workflow: &'doc Workflow) -> Self {
+        Self {
+            parent: workflow,
+            inner: workflow.jobs.iter(),
+        }
+    }
+}
+
+impl<'doc> Iterator for Jobs<'doc> {
+    type Item = Job<'doc>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.inner.next();
+
+        match item {
+            Some((id, job)) => Some(Job::new(id, job, self.parent)),
+            None => None,
+        }
+    }
+}
+
+/// Represents a single step in a normal workflow job.
+///
+/// This type implements [`std::ops::Deref`] for [`workflow::job::Step`], which
+/// provides access to the step's actual fields.
+#[derive(Clone)]
+pub(crate) struct Step<'doc> {
+    /// The step's index within its parent job.
+    pub(crate) index: usize,
+    /// The inner step model.
+    inner: &'doc workflow::job::Step,
+    /// The parent [`Job`].
+    pub(crate) parent: NormalJob<'doc>,
+}
+
+impl<'doc> std::ops::Deref for Step<'doc> {
+    type Target = &'doc workflow::job::Step;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<'doc> Locatable<'doc> for Step<'doc> {
+    /// This step's [`SymbolicLocation`].
+    fn location(&self) -> SymbolicLocation<'doc> {
+        self.parent
+            .location()
+            .with_keys(["steps".into(), self.index.into()])
+            .annotated("this step")
+    }
+
+    fn location_with_grip(&self) -> SymbolicLocation<'doc> {
+        if self.inner.name.is_some() {
+            self.location().with_keys(["name".into()])
+        } else if self.inner.id.is_some() {
+            self.location().with_keys(["id".into()])
+        } else {
+            self.location()
+        }
+    }
+}
+
+impl HasInputs for Step<'_> {
+    fn get_input(&self, name: &str) -> Option<Capability> {
+        self.workflow().get_input(name)
+    }
+}
+
+impl<'doc> StepCommon<'doc> for Step<'doc> {
+    fn index(&self) -> usize {
+        self.index
+    }
+
+    fn env_is_static(&self, ctx: &context::Context) -> bool {
+        utils::env_is_static(ctx, &[&self.env, &self.job().env, &self.workflow().env])
+    }
+
+    fn uses(&self) -> Option<&'doc common::Uses> {
+        let StepBody::Uses { uses, .. } = &self.inner.body else {
+            return None;
+        };
+
+        Some(uses)
+    }
+
+    fn matrix(&self) -> Option<Matrix<'doc>> {
+        self.job().matrix()
+    }
+
+    fn body(&self) -> StepBodyCommon<'doc> {
+        match &self.body {
+            StepBody::Uses { uses, with } => StepBodyCommon::Uses { uses, with },
+            StepBody::Run {
+                run,
+                working_directory,
+                shell,
+            } => StepBodyCommon::Run {
+                run,
+                _working_directory: working_directory.as_deref(),
+                _shell: shell.as_ref(),
+            },
+        }
+    }
+
+    fn document(&self) -> &'doc yamlpath::Document {
+        self.workflow().as_document()
+    }
+
+    fn shell(&self) -> Option<(&str, SymbolicLocation<'doc>)> {
+        // For workflow steps, we can use the existing shell() method
+        self.shell()
+    }
+}
+
+impl<'doc> Step<'doc> {
+    fn new(index: usize, inner: &'doc workflow::job::Step, parent: NormalJob<'doc>) -> Self {
+        Self {
+            index,
+            inner,
+            parent,
+        }
+    }
+
+    /// Returns this step's parent [`NormalJob`].
+    pub(crate) fn job(&self) -> &NormalJob<'doc> {
+        &self.parent
+    }
+
+    /// Returns this step's (grand)parent [`Workflow`].
+    pub(crate) fn workflow(&self) -> &'doc Workflow {
+        self.parent.parent()
+    }
+
+    /// Returns the the shell used by this step, or `None`
+    /// if the shell can't be statically inferred.
+    ///
+    /// Invariant: panics if the step is not a `run:` step.
+    pub(crate) fn shell(&self) -> Option<(&str, SymbolicLocation<'doc>)> {
+        let StepBody::Run {
+            run: _,
+            working_directory: _,
+            shell,
+        } = &self.inner.body
+        else {
+            panic!("API misuse: can't call shell() on a uses: step")
+        };
+
+        // The steps's own `shell:` takes precedence, followed by the
+        // job's default, followed by the entire workflow's default,
+        // followed by the runner's default.
+        // If any of these is an expression, we can't infer the shell
+        // statically, so we terminate early with `None`.
+        let shell = match shell {
+            Some(LoE::Literal(shell)) => Some((
+                shell.as_str(),
+                self.location()
+                    .with_keys(["shell".into()])
+                    .annotated("shell defined here"),
+            )),
+            Some(LoE::Expr(_)) => return None,
+            None => match self
+                .job()
+                .defaults
+                .as_ref()
+                .and_then(|d| d.run.as_ref().and_then(|r| r.shell.as_ref()))
+            {
+                Some(LoE::Literal(shell)) => Some((
+                    shell.as_str(),
+                    self.job()
+                        .location()
+                        .with_keys(["defaults".into(), "run".into(), "shell".into()])
+                        .annotated("job default shell defined here"),
+                )),
+                Some(LoE::Expr(_)) => return None,
+                None => match self
+                    .workflow()
+                    .defaults
+                    .as_ref()
+                    .and_then(|d| d.run.as_ref().and_then(|r| r.shell.as_ref()))
+                {
+                    Some(LoE::Literal(shell)) => Some((
+                        shell.as_str(),
+                        self.workflow()
+                            .location()
+                            .with_keys(["defaults".into(), "run".into(), "shell".into()])
+                            .annotated("workflow default shell defined here"),
+                    )),
+                    Some(LoE::Expr(_)) => return None,
+                    None => None,
+                },
+            },
+        };
+
+        shell.or_else(|| {
+            self.parent.runner_default_shell().map(|shell| {
+                (
+                    shell,
+                    self.job()
+                        .location()
+                        .with_keys(["runs-on".into()])
+                        .annotated("shell implied by runner"),
+                )
+            })
+        })
+    }
+}
+
+/// An iterable container for steps within a [`Job`].
+pub(crate) struct Steps<'doc> {
+    inner: std::iter::Enumerate<std::slice::Iter<'doc, github_actions_models::workflow::job::Step>>,
+    parent: NormalJob<'doc>,
+}
+
+impl<'doc> Steps<'doc> {
+    /// Create a new [`Steps`].
+    fn new(job: &NormalJob<'doc>) -> Self {
+        Self {
+            inner: job.steps.iter().enumerate(),
+            parent: job.clone(),
+        }
+    }
+}
+
+impl<'doc> Iterator for Steps<'doc> {
+    type Item = Step<'doc>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.inner.next();
+
+        match item {
+            Some((idx, step)) => Some(Step::new(idx, step, self.parent.clone())),
+            None => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::models::{
+        inputs::{Capability, HasInputs as _},
+        workflow::Workflow,
+    };
+
+    #[test]
+    fn test_workflow_has_inputs() -> anyhow::Result<()> {
+        let workflow = r#"
+name: Test Workflow
+on:
+  workflow_dispatch:
+    inputs:
+      foo:
+        type: string
+        required: true
+      bar:
+        type: boolean
+        required: false
+  workflow_call:
+    inputs:
+      foo:
+        type: number
+        required: true
+      bar:
+        type: boolean
+        required: false
+
+jobs:
+  test_job:
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+"#;
+
+        let workflow = Workflow::from_string(
+            workflow.into(),
+            crate::InputKey::local("fakegroup".into(), "dummy", None),
+        )?;
+
+        // `foo` unifies in favor of the more permissive capability,
+        // which is `Capability::Arbitrary` from the `string` input type
+        // under `workflow_dispatch`.
+        let foo_cap = workflow.get_input("foo").unwrap();
+        assert_eq!(foo_cap, Capability::Arbitrary);
+
+        // `bar` unifies to `Capability::Fixed` since both
+        // `workflow_dispatch` and `workflow_call` define it as a boolean.
+        let bar_cap = workflow.get_input("bar").unwrap();
+        assert_eq!(bar_cap, Capability::Fixed);
+
+        Ok(())
+    }
+}
