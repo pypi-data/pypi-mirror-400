@@ -1,0 +1,90 @@
+# fewsxml
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Overview](#overview)
+- [Usage Example](#usage-example)
+  - [Creating a PI-XML File and Writing to Disk](#creating-a-pi-xml-file-and-writing-to-disk)
+  - [Reading a PI-XML File and Creating Pydantic Models](#reading-a-pi-xml-file-and-creating-pydantic-models)
+- [API Reference](#api-reference)
+- [Schema Compatibility](#schema-compatibility)
+
+## Installation
+```commandline
+pip install fewsxml
+```
+
+## Overview
+
+fewsxml provides Python APIs to construct, read, and write PI-XML files 
+compatible with the Delft-FEWS system. It uses Pydantic models for data 
+validation and supports the PI TimeSeries schema.
+
+There are two main categories of functions:
+1. **Creating PI-XML Files**: Functions to create PIHeader, PISeries, and PITimeSeries objects, and to write them to XML files.
+2. **Reading PI-XML Files**: Functions to read and parse existing PI-XML files into Pydantic models.
+
+## Usage Example
+
+### Creating a PI-XML File and Writing to Disk
+
+Below is a minimal example to create a PI-XML file with a time series, including all required header fields such as `timeStep` and `missVal`:
+
+```python
+from fewsxml import (
+    create_pi_header, create_pi_series, create_pi_timeseries, write,
+    PITimeStep
+)
+from datetime import datetime
+
+time_step = PITimeStep(unit="second", multiplier=3600)
+
+# Create the header with all required fields
+header = create_pi_header(
+    type="instantaneous",
+    location_id="LOC001",
+    parameter_id="H.waterlevel",
+    start_date=datetime(2023, 1, 1, 0, 0),
+    end_date=datetime(2023, 1, 1, 2, 0),
+    timeStep=time_step,
+    missVal="-999"
+)
+
+# Create events (time series values)
+events = [
+    {"date": datetime(2023, 1, 1, 0, 0), "value": 1.23},
+    {"date": datetime(2023, 1, 1, 1, 0), "value": 1.25},
+    {"date": datetime(2023, 1, 1, 2, 0), "value": 1.20},
+]
+
+# Build the series and root object
+series = create_pi_series(header, events)
+pi = create_pi_timeseries(series)
+
+# Write to XML file
+write(pi, "output.xml")
+```
+
+### Reading a PI-XML File and Creating Pydantic Models
+
+```python
+import fewsxml as fx
+parsed_timeseries = fx.read("timeseries_import.xml")
+```
+
+The `parsed_timeseries` variable now contains a `PITimeSeries` object 
+with all data from the XML file, accessible via Pydantic models. As mentioned in the previous example, you can create an XML file 
+from these models using the `write` function: `fx.write(parsed_timeseries, "output.xml")`. 
+The created XML file will be compatible with the PI TimeSeries schema.
+
+## API Reference
+
+- `create_pi_header(...)`: Creates a PIHeader object (series metadata).
+- `create_pi_series(header, events, ...)`: Creates a PISeries object from a header and events.
+- `create_pi_timeseries(series, ...)`: Creates the root PITimeSeries object.
+- `write(pi, filename)`: Writes a PITimeSeries object to an XML file.
+
+## Schema Compatibility
+
+The generated XML files are compatible with the [PI TimeSeries schema](https://fewsdocs.deltares.nl/schemas/version1.0/pi-schemas/pi_timeseries.xsd).
