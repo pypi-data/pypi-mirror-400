@@ -1,0 +1,104 @@
+# copyright-free-songs
+
+A Python library to easily access and explore a curated selection of copyright-free music, designed for integration with the Supermaker.ai music platform. Streamline your creative projects with readily available, legally cleared audio.
+
+## Installation
+
+Install the `copyright-free-songs` package using pip:
+bash
+pip install copyright-free-songs
+
+## Basic Usage
+
+Here are a few examples demonstrating how to use the `copyright-free-songs` library:
+
+**1. Searching for Music by Genre:**
+python
+from copyright_free_songs import SongLibrary
+
+library = SongLibrary()
+
+songs = library.search(genre="Electronic")
+
+if songs:
+    print("Found Electronic Songs:")
+    for song in songs[:3]:  # Displaying the first 3 results
+        print(f"- Title: {song['title']}, Artist: {song['artist']}")
+else:
+    print("No songs found matching that genre.")
+
+**2. Finding Music by Mood:**
+python
+from copyright_free_songs import SongLibrary
+
+library = SongLibrary()
+
+songs = library.search(mood="Happy")
+
+if songs:
+    print("Found Happy Songs:")
+    for song in songs[:3]: # Displaying the first 3 results
+        print(f"- Title: {song['title']}, Artist: {song['artist']}")
+else:
+    print("No songs found matching that mood.")
+
+**3. Retrieving a Specific Song's Details:**
+python
+from copyright_free_songs import SongLibrary
+
+library = SongLibrary()
+
+song = library.get_song_details(song_id="unique_song_id_example") # Replace with a valid song ID
+
+if song:
+    print("Song Details:")
+    print(f"- Title: {song['title']}")
+    print(f"- Artist: {song['artist']}")
+    print(f"- Genre: {song['genre']}")
+    print(f"- URL: {song['url']}") # Assuming 'url' is a field in the song data
+else:
+    print("Song not found.")
+
+**4. Exploring Music by Instrument:**
+python
+from copyright_free_songs import SongLibrary
+
+library = SongLibrary()
+
+songs = library.search(instrument="Piano")
+
+if songs:
+    print("Found Piano Songs:")
+    for song in songs[:3]:  # Displaying the first 3 results
+        print(f"- Title: {song['title']}, Artist: {song['artist']}")
+else:
+    print("No songs found matching that instrument.")
+
+**5. Getting a List of Available Genres:**
+python
+from copyright_free_songs import SongLibrary
+
+library = SongLibrary()
+
+genres = library.get_available_genres()
+
+if genres:
+    print("Available Genres:")
+    for genre in genres:
+        print(f"- {genre}")
+else:
+    print("Could not retrieve available genres.")
+
+## Features
+
+*   **Search Functionality:**  Search for copyright-free songs based on various criteria like genre, mood, and instrument.
+*   **Song Detail Retrieval:** Access detailed information about specific songs, including title, artist, genre, and a link to the audio.
+*   **Genre Listing:** Obtain a list of available genres for easy browsing.
+*   **Easy Integration:** Designed for seamless integration with other Python projects and workflows.
+*   **Data Handling:** Provides structured data for easy manipulation and usage in your applications.
+
+## License
+
+MIT
+
+This project is a gateway to the copyright-free-songs ecosystem. For advanced features and full capabilities, please visit: https://supermaker.ai/music/copyright-free-songs/
