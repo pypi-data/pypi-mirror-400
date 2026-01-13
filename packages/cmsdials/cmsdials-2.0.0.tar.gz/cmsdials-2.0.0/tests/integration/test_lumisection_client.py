@@ -1,0 +1,53 @@
+import pandas as pd
+from urllib3.util import Retry
+
+from cmsdials.clients.lumisection.models import Lumisection, PaginatedLumisectionList
+from cmsdials.filters import LumisectionFilters
+
+from .env import TEST_DATASET_ID, TEST_LS_NUMBER, TEST_RUN_NUMBER
+from .utils import setup_dials_object
+
+
+def test_get_lumisection() -> None:
+    dials = setup_dials_object()
+    data = dials.lumi.get(dataset_id=TEST_DATASET_ID, run_number=TEST_RUN_NUMBER, ls_number=TEST_LS_NUMBER)
+    assert isinstance(data, Lumisection)
+
+
+def test_list_lumisection() -> None:
+    dials = setup_dials_object()
+    data = dials.lumi.list()
+    assert isinstance(data, PaginatedLumisectionList)
+    assert isinstance(data.to_pandas(), pd.DataFrame)
+
+
+def test_list_all_lumisection() -> None:
+    dials = setup_dials_object()
+    data = dials.lumi.list_all(LumisectionFilters(), max_pages=5)
+    assert isinstance(data, PaginatedLumisectionList)
+    assert isinstance(data.to_pandas(), pd.DataFrame)
+
+
+def test_get_lumisection_with_retries() -> None:
+    dials = setup_dials_object()
+    data = dials.lumi.get(
+        dataset_id=TEST_DATASET_ID,
+        run_number=TEST_RUN_NUMBER,
+        ls_number=TEST_LS_NUMBER,
+        retries=Retry(total=3, backoff_factor=0.1),
+    )
+    assert isinstance(data, Lumisection)
+
+
+def test_list_lumisection_with_retries() -> None:
+    dials = setup_dials_object()
+    data = dials.lumi.list(retries=Retry(total=3, backoff_factor=0.1))
+    assert isinstance(data, PaginatedLumisectionList)
+    assert isinstance(data.to_pandas(), pd.DataFrame)
+
+
+def test_list_all_lumisection_with_retries() -> None:
+    dials = setup_dials_object()
+    data = dials.lumi.list_all(LumisectionFilters(), max_pages=5, retries=Retry(total=3, backoff_factor=0.1))
+    assert isinstance(data, PaginatedLumisectionList)
+    assert isinstance(data.to_pandas(), pd.DataFrame)
