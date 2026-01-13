@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./backend:/app
+      - pdf-storage:/app/generated_pdfs
+    env_file:
+      - ./backend/.env
+    environment:
+      - FLASK_ENV=development
+    networks:
+      - rendercv-net
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:5001/api
+    depends_on:
+      - backend
+    networks:
+      - rendercv-net
+
+networks:
+  rendercv-net:
+    driver: bridge
+
+volumes:
+  pdf-storage:
