@@ -1,0 +1,63 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - name: Install Hatch
+        run: pip install hatch
+      - name: Install Bandit
+        run: pip install bandit
+      - name: Install dev deps
+        run: hatch env create
+      - name: Bandit
+        run: make bandit
+
+  test:
+    name: Tests & SBOM
+    needs: security
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: ${{ matrix.python-version }}
+    # Python 3.14 temporarily excluded until ecosystem (pytest plugins, deps) stabilizes.
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          # allow-prereleases removed (no 3.14 pre-release testing for now)
+      - name: Install Hatch
+        run: pip install hatch
+      - name: Install dev deps
+        run: hatch env create
+      - name: Install optional dependencies for testing
+        run: hatch run pip install -e ".[pandas,db]"
+      - name: List installed packages
+        run: hatch run pip list
+      - name: Test suite
+        run: hatch run cov
+      - name: Live API Tests
+        if: matrix.python-version == '3.9'
+        env:
+          ATHENA_LIVE_TESTS: "true"
+        run: hatch run pytest tests/test_live_api.py -v
+      - name: Generate SBOM
+        if: github.ref == 'refs/heads/main' && matrix.python-version == '3.9'
+        run: make cyclonedx
+      - name: Upload SBOM
+        if: github.ref == 'refs/heads/main' && matrix.python-version == '3.9'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
