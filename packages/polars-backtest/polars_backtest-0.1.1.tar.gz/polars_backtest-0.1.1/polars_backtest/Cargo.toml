@@ -1,0 +1,46 @@
+[package]
+name = "polars_backtest"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+description = "Polars extension for portfolio backtesting"
+keywords = ["polars", "backtest", "trading", "finance", "python"]
+categories = ["finance", "science"]
+readme = "README.md"
+
+[lib]
+name = "_polars_backtest"
+crate-type = ["cdylib"]
+
+[dependencies]
+btcore = { path = "../btcore" }
+# polars with features needed for this crate
+# lazy + timezones: fix polars 0.52 compile bugs with pyo3-polars
+# new_streaming: required for lazy collect operations
+polars = { version = "0.52", default-features = false, features = [
+    "lazy",
+    "timezones",
+    "temporal",
+    "pivot",
+    "cum_agg",
+    "dtype-date",
+    "dtype-datetime",
+    "dtype-struct",
+    "rows",
+    "new_streaming",
+    "abs"
+] }
+# polars-lazy with python feature to fix PythonScan compile error
+polars-lazy = { version = "0.52", default-features = false, features = ["python"] }
+polars-ops = { version = "0.52", default-features = false, features = ["pivot"] }
+polars-arrow = "0.52"
+arrow.workspace = true
+pyo3 = { version = "0.26" }
+pyo3-polars = { version = "0.25", features = ["derive"] }
+chrono.workspace = true
+serde.workspace = true
+rayon.workspace = true
+fastant = "0.1"
+
+[features]
+default = []

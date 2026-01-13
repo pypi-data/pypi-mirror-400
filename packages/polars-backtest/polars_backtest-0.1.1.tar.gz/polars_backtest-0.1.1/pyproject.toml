@@ -1,0 +1,72 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "polars_backtest"
+version = "0.1.1"
+description = "Polars extension for portfolio backtesting"
+readme = "README.md"
+license = { text = "PolyForm Noncommercial 1.0.0" }
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+keywords = ["polars", "backtest", "trading", "finance", "quantitative"]
+dependencies = [
+    "polars>=1.0.0",
+    "pyarrow>=21.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov",
+    "hypothesis",
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "polars_backtest._polars_backtest"
+manifest-path = "polars_backtest/Cargo.toml"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (requires finlab data, deselect with '-m \"not slow\"')",
+]
+addopts = "-m 'not slow'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[dependency-groups]
+dev = [
+    "dotenv>=0.9.9",
+    "finlab>=1.5.5; python_version < '3.14'",
+    "ipykernel>=6.31.0",
+    "maturin>=1.7,<2.0",
+    "pandas>=2.3.3",
+    "patchelf>=0.17.2.4; sys_platform == 'linux'",
+    "pytest>=8.4.2",
+    "ruff>=0.14.10",
+]
