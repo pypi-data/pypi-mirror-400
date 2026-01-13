@@ -1,0 +1,203 @@
+===========================
+Django Hashable File Fields
+===========================
+
+Purpose
+=======
+
+The ``django-hashable-file-fields`` app provides a ``HashableFileFieldsBaseModel`` model mixin
+allowing to easily compute the hash of file fields.
+
+How it works
+============
+
+In the simplest case, we have non-nullable file fields and we want to compute their md5 checksum.
+In this case, using this app is as simple as adding a ``hashable_fields`` list that contain, for
+each entry, the name of the file field, and the name of the hash field that will hold the
+computed checksum:
+
+.. code-block:: python
+
+    class MyModel(HashableFileFieldsBaseModel):
+        img = models.ImageField(...)
+        hash = models.CharField(...)
+    ...
+        hashable_fields = [
+            ('img', 'hash')
+        ]
+
+
+The hash will be computed when the model will be saved.
+
+Hashing
+=======
+
+On each entry, a hash function can be specified (as a third entry in the tuple).
+By default it uses ``md5_hash`` from ``django_hashable_file_fields.hashers`` which simple compute
+the md5 checksum of the file content.
+
+The hash function simply take the file field from an instance, and the instance itself (not used by
+the default function but could be useful on some cases).
+
+Here is the signature of such a function:
+
+.. code-block:: python
+
+    def hashing_function(file_field: FileField, instance: HashableFileFieldsBaseModel) -> str
+
+
+The ``django_hashable_file_fields.hashers`` module also provides a decorator (sort of) to allow
+nullable file fields to have a default hash value. It's called ``with_defaut`` and must be used
+this way:
+
+.. code-block:: python
+
+    class MyModel(HashableFileFieldsBaseModel):
+        nullable_img = models.ImageField(null=True, ...)
+        nullable_hash = models.CharField(null=True, ...)
+    ...
+        hashable_fields = [
+            ('nullable_img', 'nullable_hash', with_default(
+                    default='some-default-hash',
+                    hash_function=md5_hash,
+                    exceptions=[ValueError]
+                )
+            )
+        ]
+
+Only the ``default`` argument is mandatory. It's the default value to use when an exception is
+raised by the hash function.
+The ``hash_function`` argument is optional, and if not set, the default one defined on the model
+will be used.
+
+By default, the default value will be used on all exceptions. But if you want to be more specific,
+you can pass a list of exceptions to catch by passing it to the ``exceptions`` argument.
+
+So the most common usage is:
+
+.. code-block:: python
+
+    class MyModel(HashableFileFieldsBaseModel):
+        nullable_img = models.ImageField(null=True, ...)
+        nullable_hash = models.CharField(null=True, ...)
+    ...
+        hashable_fields = [
+            ('nullable_img', 'nullable_hash', with_default('some-default-hash'))
+        ]
+
+Configuring
+===========
+
+In most cases, using ``hashable_fields`` will be enough. But the ``HashableFileFieldsBaseModel``
+base model provides some ways to configure how it works
+
+Let's explain the whole process to see how things can be changed.
+
+When the ``save`` method of an ``HashableFileFieldsBaseModel`` model is called, it starts by
+calling the ``compute_hashable_fields`` method (and it's only after that it will call
+``super().save`` to save the instance.)
+
+In this method, it simply iterates on entries in the ``hashable_fields`` list and for each one, it
+will call a hash method (and not the hash function, at least not at this point) and save the result
+of this hash method into the right hash field.
+
+The hash method is configurable. By default it's ``compute_hash``, but you can change it by
+specifying the name in the ``default_compute_hash_method`` attribute.
+
+This method takes the name of the file field, and the hash function to use (this last argument is
+optional if you want to define your own method without using any hash function). And it simply
+returns the hash for the given field name.
+
+Here is the signature of such a method:
+
+.. code-block:: python
+
+    def compute_hash(field_name: str, hash_function: function) -> str
+
+
+This method (either ``compute_hash`` or your own if defined in ``default_compute_hash_method``) will
+be called for each entry in ``hashable_fields``, and will call the hash function for the file field
+defined by its name.
+
+But you can easily add a method for a specific field by using the pattern defined in the
+``compute_hash_method_pattern`` attribute, which is, by default, ``'compute_hash_%(field_name)s'``.
+
+So for the ``img`` field, you can define the ``compute_hash_img`` method, and it will be called
+instead of ``compute_hash``.
+
+You can change this pattern by changing the ``compute_hash_method_pattern`` attribute. The pattern
+accept two placeholders, ``%(field_name)s``, that will be replaced by the name of the file field to
+hash, and ``%(hash_field_name)s``, that will be replaced by the name of the field that will store
+the computed hash (this placeholder is not used in the default pattern).
+
+The methods to create using the patterns have the same signature as the default hash method as seen
+above.
+
+Here is an example where the default hash method and function will be used to compute ``img_hash``
+but a specific method will locally compute the hash for ``file_hash``:
+
+.. code-block:: python
+
+    class MyModel(HashableFileFieldsBaseModel):
+        img = models.ImageField(...)
+        img_hash = models.CharField(...)
+
+        file = models.FileField(...)
+        file_hash = models.CharField(...)
+
+        hashable_fields = [
+            ('img', 'img_hash'),
+            ('file', 'file_hash'),
+        ]
+
+        compute_hash_method_pattern = 'compute_hash_%(hash_field_name)s'
+
+        def compute_file_hash(field_name, hash_function=None):
+            return 'hash_for_file'
+
+
+The last way to customize the ``HashableFileFieldsBaseModel`` model is to change the default hash
+function to use.
+
+Defined in the ``default_hash_function``, it's by default the ``md5_hash`` function defined in
+``django_hashable_file_fields.hashers``. But if you want to use another hash function for all the
+file fields in a model, simply use another one by replacing this attribute, instead it to all the
+entries in ``hashable_fields``.
+
+It's useful for example if all your file fields are nullable: simply use the ``with_default`` as
+seen above in the ``default_hash_function``:
+
+.. code-block:: python
+
+
+    class MyModel(HashableFileFieldsBaseModel):
+        nullable_img = models.ImageField(null=True, ...)
+        nullable_hash = models.CharField(null=True, ...)
+
+        default_hash_function = with_default(md5_hash, 'default_value')
+    ...
+        hashable_fields = [
+            ('img', 'hash')
+        ]
+
+
+Note: when using ``with_default`` to define the ``default_hash_function`` attribute, the
+``hash_function`` is mandatory (because if not set, it will use ``default_hash_function`` so a
+infinite recursive loop will occur)
+
+
+Installation
+============
+
+Install from PyPI:
+
+.. code-block:: sh
+
+    pip install django-hashable-file-fields
+
+
+Requirements
+============
+
+- Python 3.9, 3.10, 3.11, 3.12
+- Django 4.2, 5.0, 5.1
