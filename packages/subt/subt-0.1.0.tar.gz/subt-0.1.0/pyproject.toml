@@ -1,0 +1,86 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = [ "hatchling", "uv-dynamic-versioning" ]
+
+[project]
+name = "subt"
+description = "Translate a subtitle file"
+readme = "README.md"
+keywords = [
+  "subtitle",
+  "translate",
+]
+license = { text = "MIT" }
+authors = [ { name = "eggplants", email = "w10776e8w@yahoo.co.jp" } ]
+requires-python = ">=3.12,<4"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+dynamic = [ "version" ]
+dependencies = [
+  "pysubs2>=1.8,<2",
+  "translatepy>=2.3,<3",
+]
+
+urls.Repository = "https://github.com/eggplants/subt"
+scripts.subt = "subt.main:main"
+
+[dependency-groups]
+dev = [
+  "pymarkdownlnt>=0.9.33",
+  "pyproject-fmt>=2.11.1",
+  "pytest>=9.0.2",
+  "pytest-asyncio>=1.3",
+  "pytest-cov>=7",
+]
+docs = [
+  "pdoc>=16",
+]
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.hatch.build.targets.sdist]
+include = [ "subt" ]
+
+[tool.hatch.build.targets.wheel]
+include = [ "subt" ]
+
+[tool.uv]
+preview = true
+default-groups = [
+  "dev",
+  "docs",
+]
+exclude-newer = "P7D"
+
+[tool.ruff]
+line-length = 120
+format.indent-style = "space"
+format.quote-style = "double"
+lint.select = [ "ALL" ]
+lint.ignore = [
+  "COM812",
+  "D211",   # No blank lines allowed before class docstring
+  "D213",   # Multi-line docstring summary should start at the second line
+]
+lint.per-file-ignores."main.py" = [
+  "T201", # `print` found
+]
+lint.per-file-ignores."tests/*" = [
+  "D",
+  "S101", # Use of assert detected
+]
+lint.pydocstyle.convention = "google"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "semver"
+fallback-version = "0.0.0"
