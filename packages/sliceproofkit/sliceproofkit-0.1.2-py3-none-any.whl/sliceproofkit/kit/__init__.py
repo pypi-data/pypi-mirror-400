@@ -1,0 +1,1 @@
+# Template kit resources
