@@ -1,0 +1,173 @@
+Metadata-Version: 2.4
+Name: formed
+Version: 0.0.4
+Summary: 🧬 Flexible framework for organizing data/experiments/workflows
+Keywords: python,workflow
+Author: altescy
+Author-email: altescy <me@altescy.jp>
+License-Expression: MIT
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: cloudpickle>=3.1.1
+Requires-Dist: colt>=0.18.1
+Requires-Dist: filelock
+Requires-Dist: minato>=0.12
+Requires-Dist: pyyaml
+Requires-Dist: rich>=12.3
+Requires-Dist: rjsonnet
+Requires-Dist: typing-extensions>=4.15.0
+Requires-Dist: datasets>=2.0 ; extra == 'all'
+Requires-Dist: flax>=0.10 ; extra == 'all'
+Requires-Dist: mlflow>=2.0 ; extra == 'all'
+Requires-Dist: numpy>=1.26.4 ; extra == 'all'
+Requires-Dist: protobuf>=5.0 ; extra == 'all'
+Requires-Dist: scipy>=1.14 ; python_full_version >= '3.12' and extra == 'all'
+Requires-Dist: scipy>=1.13 ; python_full_version < '3.12' and extra == 'all'
+Requires-Dist: torch>=2.0 ; extra == 'all'
+Requires-Dist: pyarrow>=18.0 ; python_full_version >= '3.12' and extra == 'all'
+Requires-Dist: pyarrow ; python_full_version < '3.12' and extra == 'all'
+Requires-Dist: sentence-transformers>=3.0 ; extra == 'all'
+Requires-Dist: transformers[torch]>=4.0 ; extra == 'all'
+Requires-Dist: flax>=0.10 ; extra == 'flax'
+Requires-Dist: mlflow>=2.0 ; extra == 'mlflow'
+Requires-Dist: mlflow>=3.6.0 ; python_full_version >= '3.14' and extra == 'mlflow'
+Requires-Dist: numpy>=1.26.4 ; extra == 'mlflow'
+Requires-Dist: scipy>=1.14 ; python_full_version >= '3.12' and extra == 'mlflow'
+Requires-Dist: scipy>=1.13 ; python_full_version < '3.12' and extra == 'mlflow'
+Requires-Dist: pyarrow>=22.0 ; python_full_version >= '3.14' and extra == 'mlflow'
+Requires-Dist: pyarrow>=18.0 ; python_full_version >= '3.12' and extra == 'mlflow'
+Requires-Dist: pyarrow ; python_full_version < '3.12' and extra == 'mlflow'
+Requires-Dist: plotly>=6.3.0 ; extra == 'mlflow'
+Requires-Dist: datasets>=2.0 ; extra == 'sentence-transformers'
+Requires-Dist: sentence-transformers>=3.0 ; extra == 'sentence-transformers'
+Requires-Dist: transformers[torch]>=4.0 ; extra == 'sentence-transformers'
+Requires-Dist: torch>=2.0 ; extra == 'torch'
+Requires-Dist: datasets>=2.0 ; extra == 'transformers'
+Requires-Dist: protobuf>=5.0 ; extra == 'transformers'
+Requires-Dist: transformers>=4.0 ; extra == 'transformers'
+Requires-Python: >=3.11, <4.0
+Project-URL: Homepage, https://altescy.jp/formed
+Provides-Extra: all
+Provides-Extra: flax
+Provides-Extra: mlflow
+Provides-Extra: sentence-transformers
+Provides-Extra: torch
+Provides-Extra: transformers
+Description-Content-Type: text/markdown
+
+# 🧬 Formed
+
+[![CI](https://github.com/altescy/formed/actions/workflows/ci.yml/badge.svg)](https://github.com/altescy/formed/actions/workflows/ci.yml)
+[![Python version](https://img.shields.io/pypi/pyversions/formed)](https://github.com/altescy/formed)
+[![License](https://img.shields.io/github/license/altescy/formed)](https://github.com/altescy/formed/blob/master/LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/formed)](https://pypi.org/project/formed/)
+
+Formed is a flexible framework for managing data, experiments, and workflows in both research and production environments. It provides a simple yet powerful DAG-based workflow system with automatic caching, dependency tracking, and seamless integration with popular ML tools.
+
+## Key Features
+
+- **📊 DAG-based workflows**: Define complex workflows as directed acyclic graphs with automatic dependency resolution
+- **💾 Smart caching**: Content-based automatic caching that detects code changes via AST analysis
+- **🔧 Flexible configuration**: Use Jsonnet/JSON for declarative workflow definitions with type safety
+- **🔌 Rich integrations**: Built-in support for PyTorch, 🤗 Transformers, MLflow, and more
+- **🎯 Type-safe**: Leverage Python type hints for automatic object construction and validation
+- **📦 Extensible**: Easy to extend with custom steps, formats, and organizers
+
+## Quick Example
+
+Define reusable computation steps with automatic caching:
+
+```python
+# mysteps.py
+from collections.abc import Iterator
+from formed import workflow
+
+@workflow.step
+def load_dataset(size: int) -> Iterator[int]:
+    for i in range(size):
+        yield i
+
+@workflow.step
+def square(dataset: Iterator[int]) -> Iterator[int]:
+    for i in dataset:
+        yield i * i
+```
+
+Connect steps in a workflow configuration:
+
+```jsonnet
+// workflow.jsonnet
+{
+  steps: {
+    dataset: {
+      type: 'load_dataset',
+      size: 10
+    },
+    results: {
+      type: 'square',
+      dataset: { type: 'ref', ref: 'dataset' }
+    }
+  }
+}
+```
+
+Configure and run:
+
+```yaml
+# formed.yml
+workflow:
+  organizer:
+    type: filesystem
+
+required_modules:
+  - mysteps
+```
+
+```shell
+formed workflow run workflow.jsonnet --execution-id my-experiment
+```
+
+Results are automatically cached - rerunning only executes changed steps!
+
+## Installation
+
+```shell
+pip install formed
+```
+
+With integrations:
+
+```shell
+pip install formed[mlflow]        # MLflow integration
+pip install formed[torch]          # PyTorch integration
+pip install formed[transformers]   # 🤗 Transformers integration
+pip install formed[all]            # All integrations
+```
+
+## Documentation
+
+📖 **Full documentation available [here](https://altescy.jp/formed)**
+
+- [Quick Start](https://altescy.jp/formed/quick_start/) - Get started in minutes
+- [Tutorials](https://altescy.jp/formed/tutorials/) - Practical examples and use cases
+- [Guides](https://altescy.jp/formed/guides/) - Deep dives into concepts and features
+- [API Reference](https://altescy.jp/formed/reference/) - Complete API documentation
+
+## Why Formed?
+
+Formed bridges the gap between experimental notebooks and production pipelines:
+
+- **Reproducible**: Content-based caching ensures consistent results
+- **Iterative**: Only re-execute what changed, speeding up development
+- **Collaborative**: Declarative configs make workflows easy to share and review
+- **Production-ready**: Same code works in research and deployment
+
+Whether you're prototyping in Jupyter or deploying at scale, formed adapts to your workflow.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
