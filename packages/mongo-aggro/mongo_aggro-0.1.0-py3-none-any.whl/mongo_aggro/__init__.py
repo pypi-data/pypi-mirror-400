@@ -1,0 +1,188 @@
+"""
+Mongo Aggro - MongoDB Aggregation Pipeline Builder with Pydantic.
+
+A Python package for building MongoDB aggregation pipelines with
+strong type checking using Pydantic models.
+
+Example:
+    >>> from mongo_aggro import Pipeline, Match, Unwind, Group, Sort, Limit
+    >>>
+    >>> pipeline = Pipeline()
+    >>> pipeline.add_stage(Match(query={"status": "active"}))
+    >>> pipeline.add_stage(Unwind(path="items"))
+    >>> pipeline.add_stage(Group(id="$category", count={"$sum": 1}))
+    >>> pipeline.add_stage(Sort(fields={"count": -1}))
+    >>> pipeline.add_stage(Limit(count=10))
+    >>>
+    >>> # Pass directly to MongoDB - no need to call any methods
+    >>> results = collection.aggregate(pipeline)
+"""
+
+from .accumulators import (
+    Accumulate,
+    Accumulator,
+    AddToSet,
+    Avg,
+    BottomN,
+    Count_,
+    First,
+    FirstN,
+    Last,
+    LastN,
+    Max,
+    MaxN,
+    MergeObjects,
+    Min,
+    MinN,
+    Push,
+    StdDevPop,
+    StdDevSamp,
+    Sum,
+    TopN,
+    merge_accumulators,
+)
+from .base import (
+    ASCENDING,
+    DESCENDING,
+    AggregationInput,
+    BaseStage,
+    Pipeline,
+    SortSpec,
+)
+from .operators import (
+    All,
+    And,
+    ElemMatch,
+    Eq,
+    Exists,
+    Expr,
+    Gt,
+    Gte,
+    In,
+    Lt,
+    Lte,
+    Ne,
+    Nin,
+    Nor,
+    Not,
+    Or,
+    QueryOperator,
+    Regex,
+    Size,
+    Type,
+)
+from .stages import (
+    AddFields,
+    Bucket,
+    BucketAuto,
+    Count,
+    Densify,
+    Documents,
+    Facet,
+    Fill,
+    GeoNear,
+    GraphLookup,
+    Group,
+    Limit,
+    Lookup,
+    Match,
+    Merge,
+    Out,
+    Project,
+    Redact,
+    ReplaceRoot,
+    ReplaceWith,
+    Sample,
+    Set,
+    SetWindowFields,
+    Skip,
+    Sort,
+    SortByCount,
+    UnionWith,
+    Unset,
+    Unwind,
+)
+
+__all__ = [
+    # Base classes and types
+    "Pipeline",
+    "BaseStage",
+    "SortSpec",
+    "AggregationInput",
+    # Sort direction constants
+    "ASCENDING",
+    "DESCENDING",
+    # Query operators
+    "QueryOperator",
+    "And",
+    "Or",
+    "Not",
+    "Nor",
+    "Expr",
+    "Eq",
+    "Ne",
+    "Gt",
+    "Gte",
+    "Lt",
+    "Lte",
+    "In",
+    "Nin",
+    "Regex",
+    "Exists",
+    "Type",
+    "ElemMatch",
+    "Size",
+    "All",
+    # Accumulators
+    "Accumulator",
+    "Sum",
+    "Avg",
+    "Min",
+    "Max",
+    "First",
+    "Last",
+    "Push",
+    "AddToSet",
+    "StdDevPop",
+    "StdDevSamp",
+    "Count_",
+    "MergeObjects",
+    "Accumulate",
+    "TopN",
+    "BottomN",
+    "FirstN",
+    "LastN",
+    "MaxN",
+    "MinN",
+    "merge_accumulators",
+    # Stages
+    "Match",
+    "Project",
+    "Group",
+    "Sort",
+    "Limit",
+    "Skip",
+    "Unwind",
+    "Lookup",
+    "AddFields",
+    "Set",
+    "Unset",
+    "Count",
+    "SortByCount",
+    "Facet",
+    "Bucket",
+    "BucketAuto",
+    "ReplaceRoot",
+    "ReplaceWith",
+    "Sample",
+    "Out",
+    "Merge",
+    "Redact",
+    "UnionWith",
+    "GeoNear",
+    "GraphLookup",
+    "SetWindowFields",
+    "Densify",
+    "Fill",
+    "Documents",
+]
