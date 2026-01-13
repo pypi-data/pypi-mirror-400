@@ -1,0 +1,315 @@
+Metadata-Version: 2.4
+Name: mcp-melotts
+Version: 1.0.0
+Summary: MCP server for text-to-speech using MeloTTS - generates audio from text
+Project-URL: Homepage, https://github.com/aardpro/mcp-melotts
+Project-URL: Repository, https://github.com/aardpro/mcp-melotts
+Project-URL: Issues, https://github.com/aardpro/mcp-melotts/issues
+Author-email: aardpro <chileehong@outlook.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: audio,mcp,melo,melotts,text-to-speech,tts
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: melo
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# MCP MeloTTS 语音生成器 (MCP MeloTTS Audio Generator)
+
+本项目是一个 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 服务器，为 AI 助手提供将文本生成语音音频的能力，基于 MeloTTS。
+
+支持自动将长文本按标点与长度分割为不超过 100 字的小段，逐段生成 WAV 文件，并使用 ffmpeg 无损拼接为完整音频。
+
+## ✨ 功能特性
+
+- 文本转语音：使用 MeloTTS 将文本生成高质量语音
+- 自动分段：长文本自动分段，避免一次过长导致失败
+- 无损拼接：使用 ffmpeg 将分段 WAV 拼接为完整文件
+- 可配置语速、语言、设备与说话人
+- 跨平台：Windows、Linux、macOS
+
+## 🚀 安装
+
+### 使用 uvx (推荐)
+
+```bash
+docker run -d -p 127.0.0.1:9900:8888 kisaragi29/melotts:latest
+uvx mcp-melotts@latest
+```
+
+### 使用 pip
+
+```bash
+pip install mcp-melotts@latest
+```
+
+### 从源码安装
+
+```bash
+git clone https://github.com/aardpro/mcp-melotts.git
+cd mcp-melotts
+pip install -e .
+```
+
+## ⚙️ 配置
+
+### 配置
+
+#### 前置条件
+开发电脑已安装并可用：
+- ffmpeg（用于拼接音频）
+- MeloTTS（可通过本地 Python 包 melo.api 或 Docker Gradio 服务）
+
+#### 启动前检查
+启用 MCP 时会自动检查以下条件：
+- 本机 9900 端口是否启动了 MeloTTS HTTP 服务（用于 HTTP 模式）
+- 系统是否可调用 ffmpeg（用于无损拼接）
+任一不满足将抛出错误并终止启动
+
+#### 配置文件
+内置配置文件位于 src/main/config.json，可设置：
+- defaultLanguage：默认语言代码（ZH/EN/JP/ES）
+- defaultSpeed：默认语速
+- defaultDevice：默认设备（cpu 或 cuda:0）
+- defaultSpeaker：默认说话人标签
+- chunkSizeLimit：分段长度上限（推荐 100）
+
+### MCP 客户端配置
+
+将以下内容添加到你的 MCP 客户端配置中（例如 Claude Desktop, Cursor）：
+
+#### 选项 1: 使用 uvx 
+
+```json
+{
+  "mcpServers": {
+    "McpMeloTTS": {
+      "command": "uvx",
+      "args": ["mcp-melotts"]
+    }
+  }
+}
+```
+
+#### 选项 2: 使用 pip
+
+```json
+{
+  "mcpServers": {
+    "McpMeloTTS": {
+      "command": "mcp-melotts"
+    }
+  }
+}
+```
+
+#### 选项 3: Windows 系统 
+
+```json
+{
+  "mcpServers": {
+    "McpMeloTTS": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "chcp 65001 >nul && uvx mcp-melotts"
+      ]
+    }
+  }
+}
+```
+
+#### 选项 4: Linux/macOS：
+
+```json
+{
+  "mcpServers": {
+    "McpMeloTTS": {
+      "command": "python",
+      "args": ["-m", "main"]
+    }
+  }
+}
+```
+
+## 🛠️ 可用工具
+
+### `mcp_melotts_generate_audio`
+
+将文本生成语音文件。适用于“根据文本生成音频文件”等请求。支持自动分段与 ffmpeg 无损拼接，支持两种调用模式：本地 melo.api 与 Docker Gradio HTTP 接口。
+
+**参数:**
+- `text` (string, 必填): 要转换为语音的文本
+- `language` (string, 可选): 语言代码（默认 ZH）
+- `speaker` (string, 可选): 说话人标签（默认 ZH）
+- `speed` (number, 可选): 语速（默认 1.0）
+- `device` (string, 可选): cpu 或 cuda:0（默认 cpu）
+- `split_sentences` (boolean, 可选): 是否自动分段（默认 true）
+- `output_dir` (string, 必填): 输出目录
+- `target_filename` (string, 可选): 最终输出文件名，默认时间戳命名
+- `use_http_api` (boolean, 可选): 是否使用 Docker Gradio HTTP 接口（默认 false）
+- `api_base_url` (string, 可选): HTTP 接口基础地址（如 http://localhost:9900）
+- `fn_index` (number, 可选): Gradio 函数索引（默认 1）
+- `session_hash` (string, 可选): Gradio 会话哈希（不提供则自动生成）
+
+**调用示例（本地 melo.api 模式）:**
+
+```json
+{
+  "name": "mcp_melotts_generate_audio",
+  "arguments": {
+    "text": "我最近在学习machine learning，希望能够在未来的artificial intelligence领域有所建树。",
+    "language": "ZH",
+    "speaker": "ZH",
+    "speed": 1.0,
+    "output_dir": "./audio"
+  }
+}
+```
+
+**调用示例（Docker Gradio HTTP 模式）:**
+```json
+{
+  "name": "mcp_melotts_generate_audio",
+  "arguments": {
+    "text": "请将以下内容朗读为音频……",
+    "language": "ZH",
+    "speed": 1.0,
+    "output_dir": "./audio",
+    "use_http_api": true,
+    "api_base_url": "http://localhost:9900",
+    "fn_index": 1
+  }
+}
+```
+
+> 说明：HTTP 模式需要先运行 Docker 容器并开放 9900 端口，脚本会通过 /queue/join 与 /queue/data 监听生成进度并下载音频。
+
+## ⚡ 快速开始
+
+### 使用虚拟环境运行
+```bash
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -U pip
+.venv/Scripts/pip.exe install -r requirements.txt
+.venv/Scripts/python.exe -m main
+```
+
+### 一键启动（Windows）
+双击或执行项目根目录的 start_server.bat，它会自动创建 .venv、安装依赖并在虚拟环境中启动 MCP。
+
+### 生成音频的测试脚本
+```bash
+.venv/Scripts/python.exe test-generate-audio.py --input test-text.txt --output-dir output --use-http-api --api-base-url http://localhost:9900
+```
+打印的路径即生成的 wav 文件（如 output/1767514828_93829.wav）。
+
+
+## 💡 使用示例
+
+配置完成后，你可以直接让 AI 助手：
+- "将这段中文生成音频文件"
+- "用日语朗读下面这段文字，语速稍慢"
+- "把长文拆分生成语音并合并为一个文件"
+
+## 💻 开发
+
+### 设置开发环境
+
+```bash
+git clone https://github.com/aardpro/mcp-melotts.git
+cd mcp-melotts
+pip install -e ".[dev]"
+```
+
+### 运行测试
+
+```bash
+pytest
+```
+
+### 构建包
+
+build && upload
+```bash
+rm -rf dist && pip install build && python -m build && pip install twine && twine upload dist/*
+```
+
+```bash
+pip install build
+python -m build
+```
+
+### 发布到 PyPI
+
+```bash
+pip install twine
+twine upload dist/*
+```
+
+## 修改后的发布步骤
+
+当对项目进行修改后，按照以下步骤发布更新版本：
+
+1. 在 `pyproject.toml` 中增加版本号
+2. 安装构建依赖：
+   ```bash
+   pip install build twine
+   ```
+3. 构建包：
+   ```bash
+   python -m build
+   ```
+4. 本地测试构建的包（可选但推荐）：
+   ```bash
+   pip install dist/mcp_melotts-*.whl
+   ```
+5. 上传到 PyPI：
+   ```bash
+   twine upload dist/*
+   ```
+
+## 📂 项目结构
+
+```
+mcp-melotts/
+├── src/
+│   └── main/
+│       ├── __init__.py
+│       ├── __main__.py
+│       └── server.py
+├── pyproject.toml
+├── README.md
+└── LICENSE
+```
+
+## ❓ 常见问题
+
+### 配置问题
+
+请确保已安装 ffmpeg 与 MeloTTS，并能在 Python 中导入 melo.api。
+
+### 音频生成失败
+
+如果音频生成失败，请检查：
+1. 是否已正确安装 MeloTTS（Python 包 melo）
+2. 是否已正确设置语言与说话人标签
+3. ffmpeg 是否在系统 PATH 中可用
+
+## 📄 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件。
+
+## 🤝 贡献
+
+欢迎提交 Pull Request 来改进这个项目！
