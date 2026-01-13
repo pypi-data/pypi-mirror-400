@@ -1,0 +1,1 @@
+"""Model-level tests for djangoldp-indexing package.""" 

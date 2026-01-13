@@ -1,0 +1,429 @@
+Metadata-Version: 2.4
+Name: djangoldp-indexing
+Version: 2.0.1
+Summary: DjangoLDP extension for model indexing and pattern-based search
+Home-page: https://git.startinblox.com/djangoldp-packages/djangoldp-indexing
+Author: Startin'blox
+Author-email: tech@startinblox.com
+License: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 5.2
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Django>=5.2
+Requires-Dist: djangorestframework>=3.12.0
+Requires-Dist: djangoldp~=5.0.0
+Requires-Dist: djangoldp_edc~=1.0.0
+Requires-Dist: pyld~=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-django; extra == "dev"
+Requires-Dist: factory_boy; extra == "dev"
+Dynamic: license-file
+
+# DjangoLDP Indexing
+
+DjangoLDP extension for model indexing and pattern-based search.
+
+## Features
+
+- Instance-level indexing (WebID profile, public type index)
+- Model-based indexing with support for indexed fields
+- Pattern-based search for indexed fields
+- Static index file generation
+
+## Installation
+
+```bash
+pip install djangoldp-indexing
+```
+
+## Configuration
+
+1. Add to `INSTALLED_APPS`:
+```python
+INSTALLED_APPS = [
+    ...
+    'djangoldp_indexing',
+]
+```
+
+> **Note:** The `djangoldp_indexing` app must be added after all apps that will contain indexed models in the `INSTALLED_APPS` list.
+
+2. Add to `DJANGOLDP_PACKAGES`:
+```python
+DJANGOLDP_PACKAGES = [
+    ...
+    'djangoldp_indexing',
+]
+```
+
+> **Note:** The `djangoldp_indexing` package must be added after all packages that will contain indexed models in the `DJANGOLDP_PACKAGES` list.
+
+3. Create an `indexing_config.yml` file in the root of your server folder (the same directory as `manage.py`). The file should contain the configuration for indexed fields. Here’s an example structure:
+```yaml
+djangoldp_tems_trial8:
+    Trial8Object:
+        indexed_fields:
+            - title
+    AnotherModel:
+        indexed_fields:
+            - name
+            - created_at
+another_package:
+    MyOtherModel:
+        indexed_fields:
+            - field1
+            - field2
+```
+
+4. For models that sit directly in your application, you can safely add indexed fields directly to your models definition:
+```python
+class MyModel(Model):
+    class Meta:
+        indexed_fields = ['title', 'description']
+```
+
+5. Add the following to your `settings.yml` file (necessary to check the dataspace policy):
+```yaml
+server:
+    EDC_URL: 'http://localhost' # URL to the EDC connector (default: http://localhost)
+```
+
+## Architecture
+
+### Overview
+
+DjangoLDP Indexing implements a three-level hierarchical indexing system following the Solid Type Index specification. The package provides both dynamic views and static file generation for indexes, with integrated dataspace policy enforcement.
+
+### System Architecture
+
+```mermaid
+graph TD
+    subgraph "Configuration Layer"
+        YAML[indexing_config.yml]
+        META[Model Meta.indexed_fields]
+        YAML -->|apps.py ready| MODELS[Model._meta.indexed_fields]
+        META --> MODELS
+    end
+
+    subgraph "View Layer - Instance Level"
+        ROOT[InstanceRootContainerView<br/>/]
+        WEBID[InstanceWebIDView<br/>/profile]
+        PTI[PublicTypeIndexView<br/>/profile/publicTypeIndex]
+        IDXROOT[InstanceIndexesRootView<br/>/indexes/]
+
+        ROOT --> WEBID
+        WEBID --> PTI
+        ROOT --> IDXROOT
+    end
+
+    subgraph "View Layer - Model Level"
+        MRI[ModelRootIndexView<br/>/indexes/model/index]
+        MPI[ModelPropertyIndexView<br/>/indexes/model/field/index]
+        MPP[ModelPropertyPatternIndexView<br/>/indexes/model/field/pattern]
+
+        MRI -->|lists fields| MPI
+        MPI -->|lists patterns| MPP
+        MPP -->|returns resources| DB[(Database)]
+    end
+
+    subgraph "Static Generation"
+        CMD_LOCAL[generate_local_indexes]
+        CMD_FEDEX[crawl_indexes]
+
+        CMD_LOCAL -->|simulates requests| MRI
+        CMD_LOCAL -->|simulates requests| MPI
+        CMD_LOCAL -->|simulates requests| MPP
+        CMD_LOCAL -->|writes| STATIC_IDX[STATIC_ROOT/indexes/*.jsonld]
+
+        CMD_FEDEX -->|crawls LDP sources| REMOTE[Remote LDP Sources]
+        CMD_FEDEX -->|writes| STATIC_FDX[STATIC_ROOT/fedex/*.jsonld]
+    end
+
+    subgraph "Static Serving"
+        SERVE_IDX[serve_static_index]
+        SERVE_FDX[serve_static_fedex]
+        SERVE_PROF[serve_static_profile]
+
+        STATIC_IDX --> SERVE_IDX
+        STATIC_FDX --> SERVE_FDX
+        STATIC_FDX --> SERVE_PROF
+    end
+
+    subgraph "Policy Enforcement"
+        POLICY[check_dataspace_policy]
+        EDC[EDC Catalog API]
+        USER[User.dataSpaceProfile]
+
+        SERVE_IDX --> POLICY
+        POLICY -->|uses API key from| USER
+        POLICY -->|queries| EDC
+        EDC -->|catalog contains idx:IndexEntry| POLICY
+    end
+
+    MODELS -->|provides indexed fields| PTI
+    MODELS -->|provides indexed fields| MRI
+    MODELS -->|queries data| MPI
+
+    PTI -.->|references| MRI
+
+    classDef configClass fill:#e1f5ff,stroke:#0066cc
+    classDef viewClass fill:#fff4e1,stroke:#cc8800
+    classDef staticClass fill:#e1ffe1,stroke:#00cc00
+    classDef policyClass fill:#ffe1e1,stroke:#cc0000
+
+    class YAML,META,MODELS configClass
+    class ROOT,WEBID,PTI,IDXROOT,MRI,MPI,MPP viewClass
+    class CMD_LOCAL,CMD_FEDEX,STATIC_IDX,STATIC_FDX,SERVE_IDX,SERVE_FDX,SERVE_PROF staticClass
+    class POLICY,EDC,USER policyClass
+```
+
+### Three-Level Index Hierarchy
+
+The indexing system organizes data in three levels for efficient pattern-based search:
+
+```mermaid
+graph LR
+    subgraph "Level 1: Model Index"
+        MI["/indexes/users/index<br/>Lists: title, description"]
+    end
+
+    subgraph "Level 2: Property Index"
+        PI_T["/indexes/users/title/index<br/>Lists patterns: 'ali', 'bob', 'cha'"]
+        PI_D["/indexes/users/description/index<br/>Lists patterns: 'dev', 'eng'"]
+    end
+
+    subgraph "Level 3: Pattern Index"
+        PP_ALI["/indexes/users/title/ali<br/>Returns: alice, alison"]
+        PP_BOB["/indexes/users/title/bob<br/>Returns: bob, bobby"]
+        PP_DEV["/indexes/users/description/dev<br/>Returns: developer, devops"]
+    end
+
+    MI -->|field: title| PI_T
+    MI -->|field: description| PI_D
+    PI_T -->|pattern: ali| PP_ALI
+    PI_T -->|pattern: bob| PP_BOB
+    PI_D -->|pattern: dev| PP_DEV
+
+    classDef level1 fill:#ffcccc
+    classDef level2 fill:#ccffcc
+    classDef level3 fill:#ccccff
+
+    class MI level1
+    class PI_T,PI_D level2
+    class PP_ALI,PP_BOB,PP_DEV level3
+```
+
+**How it works:**
+
+1. **Level 1 - Model Index**: Lists all indexed fields for a model (e.g., `/indexes/users/index` shows that `title` and `description` are indexed)
+2. **Level 2 - Property Index**: For each field, analyzes actual database data to find all unique 3-character prefixes (e.g., `/indexes/users/title/index` lists patterns like 'ali', 'bob', 'cha')
+3. **Level 3 - Pattern Index**: Returns all resources where the field value starts with the pattern (e.g., `/indexes/users/title/ali` returns users with names like "alice", "alison")
+
+### Key Components
+
+**Configuration**: Indexed fields can be defined via YAML config (for external packages) or Model Meta class (for your own models). At startup, `DjangoLDPIndexingConfig.ready()` consolidates these into `model._meta.indexed_fields`.
+
+**Views**: All views inherit from `IndexBaseView` and return JSON-LD formatted responses with CORS headers. Instance-level views provide WebID profiles and type indexes, while model-level views handle the three-tier index hierarchy.
+
+**Static Generation**: Management commands simulate requests to the view classes and save rendered JSON-LD files to disk. This avoids database queries during production serving.
+
+**Policy Enforcement**: The `serve_static_index` view enforces dataspace policy by verifying that the requested index URL exists in the user's EDC catalog (obtained via their dataSpace profile API key). Can be bypassed with `X-Bypass-Policy: true` header.
+
+**Federation**: The `crawl_indexes` command discovers remote LDP sources with `federation: indexes` property and aggregates their type indexes into a federated index structure.
+
+## Authorization
+
+### Policy Enforcement
+
+Access to index resources is protected using a two-tier authorization approach:
+
+#### 1. Contract-Based Authorization (Primary)
+
+Clients can access indexes by providing a valid EDC contract agreement ID and participant ID via headers.
+
+**Required headers**:
+- `DSP-AGREEMENT-ID`: The contract agreement identifier
+- `DSP-PARTICIPANT-ID`: The participant identifier
+
+**Example request**:
+```bash
+curl -H "DSP-AGREEMENT-ID: contract-123" \
+     -H "DSP-PARTICIPANT-ID: participant-456" \
+     http://localhost:8000/indexes/users/index
+```
+
+**How it works**:
+1. System extracts contract ID and participant ID from request headers
+2. Verifies contract with EDC Management API v3 at `{EDC_URL}/management/v3/contractagreements/{contract_id}`
+3. Checks contract state is `FINALIZED` or `VERIFIED`
+4. Validates that requested resource is covered by the contract:
+   - If `assetId` is a URL: Direct matching against requested URL
+   - If `assetId` is an ID: Fetches asset from `{EDC_URL}/management/v3/assets/{assetId}` and checks `dataAddress.baseUrl`
+   - Fallback to `policy.target` if `assetId` is empty
+
+**Benefits**:
+- No user authentication required
+- Faster authorization (single API call)
+- Ideal for data sharing between organizations
+- Supports external clients with valid contracts
+
+#### 2. Profile-Based Authorization (Fallback)
+
+If no contract header is provided or contract verification fails, the system falls back to checking the authenticated user's dataspace profile.
+
+**How it works**:
+1. Verifies user is authenticated
+2. Fetches user's `dataSpaceProfile` from their profile URL
+3. Uses the profile's `edc_api_key` to query EDC catalog
+4. Checks if requested index URL exists in the catalog's `idx:IndexEntry` fields
+
+**Benefits**:
+- Backward compatible with existing implementations
+- User-specific access control
+- Works with standard authentication flows
+
+#### Authorization Flow Scenarios
+
+Understanding what happens when contracts exist, don't exist, or aren't provided:
+
+**Scenario 1: Valid contract provided**
+```bash
+curl -H "DSP-AGREEMENT-ID: 56d52ce8-5ae0-4f0b-bfce-3e6dd6124bfc" \
+     -H "DSP-PARTICIPANT-ID: stbx-consumer" \
+     http://localhost:8000/indexes/objects/trial6/index
+```
+- ✅ System verifies contract with EDC
+- ✅ Validates contract state (FINALIZED/VERIFIED)
+- ✅ Resolves asset and checks resource coverage
+- ✅ **Access granted** (no user authentication required)
+
+**Scenario 2: Invalid/non-existent contract provided**
+```bash
+curl -H "DSP-AGREEMENT-ID: nonexistent-contract-123" \
+     -H "DSP-PARTICIPANT-ID: stbx-consumer" \
+     http://localhost:8000/indexes/objects/trial6/index
+```
+- ❌ System attempts contract verification
+- ❌ EDC returns 404 or contract is invalid
+- ❌ **Access denied immediately** (no fallback to profile-based auth)
+- **Important**: When contract headers are provided, the system assumes you want contract-based authorization exclusively
+
+**Scenario 3: No contract headers, authenticated user with access**
+```bash
+curl -H "Cookie: sessionid=..." \
+     http://localhost:8000/indexes/objects/trial6/index
+```
+- ✅ No contract header → Falls back to profile-based authorization
+- ✅ User is authenticated
+- ✅ User has `dataSpaceProfile` with `edc_api_key`
+- ✅ System queries EDC catalog with user's API key
+- ✅ Requested index URL exists in catalog
+- ✅ **Access granted**
+
+**Scenario 4: No contract headers, user without access**
+```bash
+curl http://localhost:8000/indexes/objects/trial6/index
+```
+- ❌ No contract header → Falls back to profile-based authorization
+- ❌ User not authenticated OR no `dataSpaceProfile` OR index not in catalog
+- ❌ **Access denied**
+
+**Authorization Decision Table**
+
+| Scenario | Contract Header? | User Auth? | dataSpaceProfile? | In Catalog? | Result |
+|----------|-----------------|------------|-------------------|-------------|---------|
+| Valid contract | ✅ Valid | N/A | N/A | N/A | ✅ **Granted** |
+| Invalid contract | ✅ Invalid | N/A | N/A | N/A | ❌ **Denied** (no fallback) |
+| No contract | ❌ | ✅ | ✅ | ✅ | ✅ **Granted** (via profile) |
+| No contract | ❌ | ✅ | ✅ | ❌ | ❌ **Denied** |
+| No contract | ❌ | ✅ | ❌ | N/A | ❌ **Denied** (no profile) |
+| No contract | ❌ | ❌ | N/A | N/A | ❌ **Denied** (not authenticated) |
+| Bypass header | N/A | N/A | N/A | N/A | ✅ **Granted** (dev/test only) |
+
+#### Bypass Option
+
+For development or testing, policy checks can be bypassed using:
+```bash
+curl -H "X-Bypass-Policy: true" \
+     http://localhost:8000/indexes/users/index
+```
+
+#### Protected Resources
+
+**Protected** (require authorization):
+- Static local indexes: `/indexes/**`
+- Model-level dynamic views (if enabled)
+
+**Public** (no authorization required):
+- Federated indexes: `/fedex/**`
+- Instance-level views: `/profile`, `/profile/publicTypeIndex`
+
+## Generating the static local index files
+
+```bash
+python manage.py generate_local_indexes
+```
+Optional parameters:
+- `--root_url`: the base URL of the django LDP server (default: `http://localhost:8000`)
+- `--root_location`: the location to save the static index files (default: `indexes`) relative to the `<settings.STATIC_ROOT>` folder of the django project.
+    - *Note: At this time, the files are served from the `<settings.STATIC_ROOT>/indexes` folder, so changing this parameter will result in no change in the served files content.*
+
+At this stage, the static index files are not automatically generated so it needs to be done manually by running the command above. When initializing the server or when the data changes.
+
+## Generating the federated index files
+
+```bash
+python manage.py crawl_indexes
+```
+
+Optional parameters:
+- `--root_url`: the base URL of the django LDP server (default: `http://localhost:8000/fedex`)
+- `--root_location`: the location to save the static index files (default: `fedex`) relative to the `<settings.STATIC_ROOT>` folder of the django project.
+    - *Note: At this time, the files are served from the `<settings.STATIC_ROOT>/fedex` folder, so changing this parameter will result in no change in the served files content.*
+
+This command will browse the `LDP sources` on this server, with an `indexes` value for the `federation` property and use their `<host>/profile/publicTypeIndex` response to build the federated index.
+
+At this stage :
+- The federated index files are not automatically generated so it needs to be done manually by running the command above. When initializing the server or when the data changes.
+- The crawler isn't recursive, only the Model level of indexing is federated (Property and pattern-based indexing aren't federated).
+
+
+
+## Testing the package
+
+To run the tests after checking out the repository:
+
+```bash
+# 1. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# 2. Install djangoldp with the version you want to test the package against
+pip install djangoldp~=4.0.0
+
+# 3. Install the package in editable mode
+pip install -e .
+
+# 4. Run the tests
+python djangoldp_indexing/tests/runner.py
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details. 
