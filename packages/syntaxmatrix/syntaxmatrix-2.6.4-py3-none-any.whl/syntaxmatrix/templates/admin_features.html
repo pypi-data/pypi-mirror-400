@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feature toggles</title>
+  <style>
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#0b1224;color:#e5e7eb;}
+    .wrap{max-width:980px;margin:0 auto;padding:18px;}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
+    .top h1{margin:0;font-size:1.1rem;}
+    .btn{display:inline-block;padding:8px 12px;border-radius:999px;border:1px solid rgba(148,163,184,.35);color:#e5e7eb;text-decoration:none;background:transparent;cursor:pointer;font-weight:650;font-size:.85rem;}
+    .btn:hover{border-color:rgba(56,189,248,.6);color:#38bdf8;}
+    .card{background:rgba(2,6,23,.65);border:1px solid rgba(148,163,184,.25);border-radius:14px;padding:14px;box-shadow:0 18px 36px rgba(15,23,42,.6);margin-bottom:12px;}
+    .flash{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);padding:10px;border-radius:12px;margin-bottom:10px;color:#bbf7d0;font-size:.85rem;}
+    .hint{color:#9ca3af;font-size:.78rem;line-height:1.35;margin-top:8px;}
+    .row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid rgba(148,163,184,.15);}
+    .row:first-child{border-top:none;}
+    .label{font-weight:750;}
+    input[type="checkbox"]{transform: translateY(2px); width:16px; height:16px;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>Feature toggles</h1>
+      <a class="btn" href="{{ url_for('admin_panel') }}#system">Back to Admin</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=False) %}
+      {% if messages %}
+        {% for m in messages %}
+          <div class="flash">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="card">
+      <form method="post">
+        <div class="row">
+          <input type="checkbox" id="stream_mode" name="stream_mode" {% if stream_mode %}checked{% endif %}>
+          <div>
+            <div class="label">Enable stream mode</div>
+            <div class="hint">Streams assistant responses in real time (SSE). Applies to the chat UI immediately.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <input type="checkbox" id="user_files" name="user_files" {% if user_files %}checked{% endif %}>
+          <div>
+            <div class="label">Enable user files</div>
+            <div class="hint">Shows the “➕” upload icon and allows users to upload PDFs for that chat session.</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:10px;">
+          <button class="btn" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
