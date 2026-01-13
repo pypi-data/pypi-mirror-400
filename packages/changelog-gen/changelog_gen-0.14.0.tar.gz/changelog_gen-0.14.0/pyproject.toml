@@ -1,0 +1,167 @@
+[project]
+name = "changelog_gen"
+version = "0.14.0"
+description = "Changelog generation tool"
+authors = [
+    {name = "Daniel Edgecombe", email = "daniel@nrwl.co"},
+]
+maintainers = [
+    {name = "Daniel Edgecombe", email = "daniel@nrwl.co"},
+]
+license = "Apache-2.0"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["changelog", "version", "release", "bumpversion"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Version Control",
+    "Topic :: System :: Software Distribution",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3",
+]
+
+dependencies = [
+    "jinja2",
+    "typer-slim",
+    "rtoml",
+    "gitpython",
+    "pygments",
+    "typing_extensions >= 4.7.0; python_version <= '3.10'",
+]
+
+[project.urls]
+homepage="https://github.com/NRWLDev/changelog-gen/"
+documentation="https://nrwldev.github.io/changelog-gen/"
+
+[project.optional-dependencies]
+post-process = [
+    "httpx",
+    "auth-aws4",
+]
+
+test = [
+    # Tests
+    "freezegun >= 1.2.1",
+    "pytest >= 9.0.0",
+    "pytest-cov >= 7.0.0",
+    "pytest-random-order >= 1.2.0",
+    "pytest-git >=1.7.0,<1.8",
+    "path >= 16,<17",
+    "pytest-httpx >= 0.36.0",
+    "httpx >= 0",
+    "auth-aws4 >= 0",
+]
+
+dev = [
+    # Style
+    "ruff >= 0.14.10",
+    "pre-commit >= 3.0.2",
+]
+
+[project.scripts]
+changelog = "changelog_gen.cli.command:app"
+changelog-gen = "changelog_gen.cli.command:gen_app"
+changelog-init = "changelog_gen.cli.command:init_app"
+
+[tool.changelog_gen]
+current_version = "0.14.0"
+reject_empty = true
+statistics = true
+allowed_branches = [
+    "main",
+]
+date_format = "- %Y-%m-%d"
+
+[tool.changelog_gen.github]
+strip_pr_from_description = true
+extract_pr_from_description = true
+extract_common_footers = true
+
+[[tool.changelog_gen.extractors]]
+footer = ["closes", "fixes", "Refs"]
+pattern = '#(?P<issue_ref>\d+)'
+
+[[tool.changelog_gen.link_generators]]
+source = "issue_ref"
+link = "https://github.com/NRWLDev/changelog-gen/issues/{0}"
+
+[[tool.changelog_gen.link_generators]]
+source = "__change__"
+text = "{0.short_hash}"
+link = "https://github.com/NRWLDev/changelog-gen/commit/{0.commit_hash}"
+
+[[tool.changelog_gen.files]]
+filename = "README.md"
+
+[[tool.changelog_gen.files]]
+filename = "pyproject.toml"
+pattern = 'version = "{version}"'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "--random-order",
+    "-p no:logging",
+]
+filterwarnings = [
+]
+markers = [
+    "backwards_compat: marks tests as part of backwards compatibility checks.",
+]
+
+[tool.coverage.report]
+sort = "cover"
+fail_under = 95
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if t.TYPE_CHECKING:",
+    'warn',
+]
+
+[tool.coverage.run]
+branch = true
+source = ["changelog_gen"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D100",
+    "D104",
+    "D107",
+    "ANN002",  # ParamSpec not available in 3.9
+    "ANN003",  # ParamSpec not available in 3.9
+    "FIX",  # allow TODO
+    "E501",  # Handled by ruff format
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tasks.py" = ["ANN", "E501", "INP001"]
+"changelog_gen/cli/command.py" = ["UP007", "B008"]
+"tests/*" = ["ANN", "D", "S105", "S106", "SLF001", "S101", "PLR0913"]
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
