@@ -1,0 +1,596 @@
+openapi: 3.1.0
+info:
+  title: Arlogi Enhanced Logging Library API
+  description: |
+    Comprehensive Python logging library API specification.
+
+    The Arlogi library provides enhanced logging functionality with custom TRACE level,
+    colored console output, structured JSON logging, syslog support, and caller attribution features.
+
+    This API specification documents the Python package interface, not a web API. The specification
+    uses OpenAPI format to describe the Python module's public interface, method signatures, and
+    parameter documentation for consistency and tooling support.
+  version: 0.1.0
+  contact:
+    name: Anton Razumov
+    email: arazumov@checkpoint.com
+  license:
+    name: MIT
+servers:
+  - url: "python://arlogi"
+    description: Python module interface
+tags:
+  - name: Package API
+    description: Main package public API
+  - name: Logger Interface
+    description: Logger protocol interface
+  - name: Factory Interface
+    description: Factory pattern for logger creation
+paths:
+  /package/get_logger:
+    get:
+      tags:
+        - Package API
+      summary: Get configured logger instance
+      description: |
+        Get a configured logger instance with optional level setting.
+        Returns a logger that implements the LoggerProtocol interface.
+      operationId: getLogger
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Logger name (typically module name)
+        - name: level
+          in: query
+          schema:
+            oneOf:
+              - type: integer
+              - type: string
+          description: Optional log level (e.g., "DEBUG", 10, "INFO")
+      responses:
+        '200':
+          description: Logger instance created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoggerProtocol'
+              example:
+                type: "TraceLogger"
+                name: "my_module"
+                effectiveLevel: 20
+
+  /package/get_json_logger:
+    get:
+      tags:
+        - Package API
+      summary: Get JSON-formatted logger
+      description: |
+        Get a logger that outputs structured JSON logs.
+        Useful for log aggregation systems and production environments.
+      operationId: getJsonLogger
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            default: "json"
+          description: Logger name
+        - name: json_file_name
+          in: query
+          schema:
+            type: string
+          description: JSON log file path (null for stdout)
+      responses:
+        '200':
+          description: JSON logger instance created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoggerProtocol'
+
+  /package/get_syslog_logger:
+    get:
+      tags:
+        - Package API
+      summary: Get syslog logger
+      description: |
+        Get a logger that writes to syslog for enterprise logging integration.
+        Supports both UDP/TCP and Unix socket connections.
+      operationId: getSyslogLogger
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Logger name
+        - name: address
+          in: query
+          required: true
+          schema:
+            oneOf:
+              - type: string
+                description: Unix socket path (e.g., "/dev/log")
+              - type: array
+                items:
+                  type: string
+                maxItems: 2
+                description: Host and port tuple (e.g., ["localhost", 514])
+          description: Syslog server address
+      responses:
+        '200':
+          description: Syslog logger instance created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoggerProtocol'
+
+  /package/setup_logging:
+    post:
+      tags:
+        - Package API
+      summary: Configure global logging settings
+      description: |
+        Configure global logging settings for all loggers.
+        This should be called once at application startup.
+      operationId: setupLogging
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                level:
+                  oneOf:
+                    - type: integer
+                    - type: string
+                  description: Default logging level
+                module_levels:
+                  type: object
+                  additionalProperties:
+                    oneOf:
+                      - type: integer
+                      - type: string
+                  description: Module-specific logging levels
+                  example:
+                    "my_app.debug": "DEBUG"
+                    "external_api": "WARNING"
+                json_file_name:
+                  type: string
+                  description: JSON log file path (null for no file output)
+                json_file_only:
+                  type: boolean
+                  description: If true, only JSON output (no console)
+                use_syslog:
+                  type: boolean
+                  description: Enable syslog for all loggers
+                syslog_address:
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items:
+                        type: string
+                      maxItems: 2
+                  description: Syslog server address
+                show_time:
+                  type: boolean
+                  description: Show timestamps in console output
+                show_level:
+                  type: boolean
+                  description: Show log levels in console output
+                show_path:
+                  type: boolean
+                  description: Show file paths in console output
+      responses:
+        '200':
+          description: Logging configured successfully
+
+  /logger/trace:
+    post:
+      tags:
+        - Logger Interface
+      summary: Log TRACE level message
+      description: |
+        Log a message at TRACE level (level 5).
+        Supports caller attribution for debugging.
+      operationId: logTrace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  oneOf:
+                    - type: string
+                    - type: object
+                  description: Log message or object
+                args:
+                  type: array
+                  items: {}
+                  description: Message formatting arguments
+                from_caller:
+                  type: integer
+                  description: Stack depth for caller attribution
+                from_:
+                  type: integer
+                  description: Alternative parameter for caller attribution
+                extra:
+                  type: object
+                  description: Additional log record attributes
+      responses:
+        '200':
+          description: Message logged successfully
+
+  /logger/debug:
+    post:
+      tags:
+        - Logger Interface
+      summary: Log DEBUG level message
+      description: |
+        Log a message at DEBUG level.
+        Supports caller attribution for debugging.
+      operationId: logDebug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogMessage'
+      responses:
+        '200':
+          description: Message logged successfully
+
+  /logger/info:
+    post:
+      tags:
+        - Logger Interface
+      summary: Log INFO level message
+      description: |
+        Log a message at INFO level.
+        Supports caller attribution for debugging.
+      operationId: logInfo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogMessage'
+      responses:
+        '200':
+          description: Message logged successfully
+
+  /logger/warning:
+    post:
+      tags:
+        - Logger Interface
+      summary: Log WARNING level message
+      description: |
+        Log a message at WARNING level.
+        Supports caller attribution for debugging.
+      operationId: logWarning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogMessage'
+      responses:
+        '200':
+          description: Message logged successfully
+
+  /logger/error:
+    post:
+      tags:
+        - Logger Interface
+      summary: Log ERROR level message
+      description: |
+        Log a message at ERROR level.
+        Supports caller attribution for debugging.
+      operationId: logError
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogMessage'
+      responses:
+        '200':
+          description: Message logged successfully
+
+  /logger/critical:
+    post:
+      tags:
+        - Logger Interface
+      summary: Log CRITICAL level message
+      description: |
+        Log a message at CRITICAL level.
+        Supports caller attribution for debugging.
+      operationId: logCritical
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogMessage'
+      responses:
+        '200':
+          description: Message logged successfully
+
+  /logger/exception:
+    post:
+      tags:
+        - Logger Interface
+      summary: Log exception with traceback
+      description: |
+        Log an exception with full traceback information.
+        Automatically captures current exception if not provided.
+      operationId: logException
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogMessage'
+      responses:
+        '200':
+          description: Exception logged successfully
+
+  /logger/set_level:
+    put:
+      tags:
+        - Logger Interface
+      summary: Set logger level
+      description: |
+        Set the minimum log level for this logger.
+        Messages below this level will be ignored.
+      operationId: setLevel
+      parameters:
+        - name: level
+          in: query
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                description: Numeric log level (0-50)
+              - type: string
+                description: Named log level ("NOTSET", "DEBUG", "INFO", etc.)
+          examples:
+            numeric:
+              value: 10
+              summary: DEBUG level (numeric)
+            named:
+              value: "DEBUG"
+              summary: DEBUG level (named)
+      responses:
+        '200':
+          description: Level set successfully
+
+  /logger/is_enabled:
+    get:
+      tags:
+        - Logger Interface
+      summary: Check if level is enabled
+      description: |
+        Check if the specified log level would be processed by this logger.
+        Useful for avoiding expensive message formatting.
+      operationId: isEnabledFor
+      parameters:
+        - name: level
+          in: query
+          required: true
+          schema:
+            type: integer
+            description: Log level to check
+      responses:
+        '200':
+          description: Check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                    description: Whether the level is enabled
+              example:
+                enabled: true
+
+  /logger/effective_level:
+    get:
+      tags:
+        - Logger Interface
+      summary: Get effective log level
+      description: |
+        Get the effective log level considering logger hierarchy.
+        Returns the actual level that will be used for filtering.
+      operationId: getEffectiveLevel
+      responses:
+        '200':
+          description: Effective level
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  level:
+                    type: integer
+                    description: Effective log level (0-50)
+                  name:
+                    type: string
+                    description: Level name ("NOTSET", "DEBUG", etc.)
+              example:
+                level: 20
+                name: "INFO"
+
+  /factory/get_global:
+    get:
+      tags:
+        - Factory Interface
+      summary: Get global logger instance
+      description: |
+        Get the singleton global logger instance.
+        Creates one if it doesn't exist.
+      operationId: getGlobalLogger
+      responses:
+        '200':
+          description: Global logger instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoggerProtocol'
+
+  /factory/is_test_mode:
+    get:
+      tags:
+        - Factory Interface
+      summary: Check if running in test mode
+      description: |
+        Check if the application is running in test mode.
+        Detects pytest and unittest environments.
+      operationId: isTestMode
+      responses:
+        '200':
+          description: Test mode status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  testMode:
+                    type: boolean
+                    description: Whether test mode is enabled
+              example:
+                testMode: true
+
+components:
+  schemas:
+    LoggerProtocol:
+      type: object
+      description: Protocol defining the interface for all arlogi logger implementations
+      properties:
+        name:
+          type: string
+          description: Logger name
+          readOnly: true
+          example: "my_app.module"
+        effectiveLevel:
+          type: integer
+          description: Current effective log level
+          minimum: 0
+          maximum: 50
+          example: 20
+      example:
+        name: "my_app.module"
+        effectiveLevel: 20
+
+    LogMessage:
+      type: object
+      description: Standard log message with optional parameters
+      required:
+        - message
+      properties:
+        message:
+          oneOf:
+            - type: string
+            - type: object
+          description: Log message or object to log
+        args:
+          type: array
+          items: {}
+          description: Message formatting arguments (for % formatting)
+        from_caller:
+          type: integer
+          minimum: 0
+          description: Stack depth for caller attribution (0 = call site, 1 = caller of call site)
+        from_:
+          type: integer
+          minimum: 0
+          description: Alternative parameter name for caller attribution
+        extra:
+          type: object
+          description: Additional attributes to add to the LogRecord
+          additionalProperties: true
+      example:
+        message: "User {user} performed action {action}"
+        args: ["john_doe", "login"]
+        from_caller: 1
+        extra:
+          user_id: 123
+          ip_address: "192.168.1.1"
+
+    LogLevel:
+      type: string
+      description: Standard logging levels
+      enum:
+        - "NOTSET"    # 0
+        - "TRACE"     # 5 (custom arlogi level)
+        - "DEBUG"     # 10
+        - "INFO"      # 20
+        - "WARNING"   # 30
+        - "ERROR"     # 40
+        - "CRITICAL"  # 50
+
+    ModuleLevelConfig:
+      type: object
+      description: Module-specific logging level configuration
+      properties:
+        module_name:
+          oneOf:
+            - type: integer
+            - type: string
+            $ref: '#/components/schemas/LogLevel'
+      example:
+        "my_app.handlers": "DEBUG"
+        "external_api.client": "WARNING"
+        "database.queries": 10
+
+  securitySchemes:
+    # No authentication required for Python library API
+    None:
+      type: http
+      scheme: none
+
+security:
+  - {}
+
+# Reusable examples
+examples:
+  TraceLogging:
+    summary: TRACE level logging with caller attribution
+    value:
+      message: "Entering user authentication"
+      from_caller: 2
+      extra:
+        user_id: 12345
+
+  JsonLoggerConfig:
+    summary: JSON logger configuration
+    value:
+      name: "api_server"
+
+  SyslogLoggerConfig:
+    summary: Syslog logger configuration
+    value:
+      name: "payment_service"
+      address: ["syslog.company.com", 514]
+
+  GlobalSetup:
+    summary: Global logging setup
+    value:
+      level: "INFO"
+      module_levels:
+        "payment_service": "DEBUG"
+        "database": "WARNING"
+      json_file_name: "app.log"
+      show_time: true
+      show_level: true
+      show_path: false
