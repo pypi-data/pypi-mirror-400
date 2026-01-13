@@ -1,0 +1,141 @@
+[project]
+name = "koality"
+version = "0.6.0"
+authors = [
+    { name = "Team PiT @ Otto Group data.works GmbH" },
+    { name = "Norbert Maager" },
+    { name = "Benjamin Gutzmann", email = "benjamin.gutzmann@pm.me" },
+    { name = "Michel Lentzler" }
+]
+description = "Library for data checks and data quality monitoring based on duckdb."
+readme = "README.md"
+license = { file = "LICENSE.md" }
+keywords = [
+    "data-quality",
+    "data-validation",
+    "duckdb",
+    "data-checks",
+    "data-monitoring",
+    "etl",
+    "data-pipeline",
+    "data-engineering",
+    "data-testing",
+    "data-profiling",
+    "data-observability",
+    "sql",
+    "analytics",
+    "data-warehouse",
+    "cli",
+    "yaml",
+    "pydantic",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: SQL",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.1.3,<9",
+    "duckdb>=1.4.2,<2",
+    "pydantic>=2.12.5,<3",
+    "pydantic-yaml>=1.6.0,<2",
+    "pyyaml>=6.0,<7",
+    "tqdm>=4.67.1,<5",
+]
+
+[project.urls]
+Repository = "https://github.com/ottogroup/koality/"
+Documentation = "https://ottogroup.github.io/koality/latest/"
+Issues = "https://github.com/ottogroup/koality/issues"
+Releases = "https://github.com/ottogroup/koality/releases"
+
+[dependency-groups]
+dev = [
+    "deptry>=0.24.0,<1",
+    "poethepoet>=0.37.0,<1",
+    "pysentry-rs>=0.3.12,<1",
+    "pytest>=7.2.0,<8",
+    "pytest-cov>=4.0.0,<5",
+    "pytest-xdist>=3.0.2,<4",
+    "ruff>=0.14.10,<1",
+    "ty>=0.0.9,<1",
+    "types-pyyaml>=6.0.12.11,<7",
+    "zizmor>=1.2.2,<2",
+]
+
+docs = [
+    "mike>=2.1.3,<3",
+    "mkdocs>=1.4.3,<2",
+    "mkdocs-material>=9.1.15,<10",
+    "mkdocstrings-python>=1.1.2,<3",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "PLR0913",  # Too many arguments - check classes need many parameters
+    "TD002",  # Missing author in TODO
+    "TD003",  # Missing issue link for TODO
+    "FIX002",  # Line contains TODO
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/koality/checks.py" = ["S608"]
+"tests/*" = ["S101", "PLR2004"]
+
+[tool.pytest.ini_options]
+log_level = "DEBUG"
+markers = [
+    "unit: unit tests",
+    "integration: integration tests",
+]
+testpaths = ["tests"]
+
+[tool.poe.tasks]
+# Linting and formatting.
+format = [
+    { cmd = "ruff format" },
+    { cmd = "ruff check --fix" },
+]
+lint = [
+    { cmd = "ruff format --check" },
+    { cmd = "ruff check" },
+]
+# Security and dependency checks.
+check_vulnerable_dependencies = "pysentry-rs --sources pypa,osv,pypi"
+check_unused_dependencies = "deptry src/koality"
+check_githubactions = "zizmor .github/workflows/"
+# Testing.
+test_unit = "pytest -m unit"
+test_integration = "pytest -m integration"
+test = "pytest" # runs all tests
+# Docs
+docs_serve = "mkdocs serve"
+
+[project.scripts]
+koality = "koality.cli:cli"
+
+[build-system]
+requires = ["uv_build>=0.9.21,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.deptry]
+known_first_party = ["koality"]
