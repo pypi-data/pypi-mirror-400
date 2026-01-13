@@ -1,0 +1,2 @@
+from .dir_diff_main_window import DirDiffMainWindow
+from .image_diff_main_window import ImageDiffMainWindow
