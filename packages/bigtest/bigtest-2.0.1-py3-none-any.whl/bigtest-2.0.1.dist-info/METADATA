@@ -1,0 +1,103 @@
+Metadata-Version: 2.4
+Name: bigtest
+Version: 2.0.1
+Summary: Holy Grail Backtester - Institutional-grade quant backtesting engine with 100x leverage support
+Author: Kushal Garg
+License: MIT
+Project-URL: Homepage, https://github.com/kushalgarg/bigtest
+Project-URL: Repository, https://github.com/kushalgarg/bigtest
+Keywords: backtesting,trading,quantitative-finance,algorithmic-trading,forex,crypto,HFT
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Financial and Insurance Industry
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=1.5.0
+Requires-Dist: numpy>=1.21.0
+Requires-Dist: plotly>=5.0.0
+Requires-Dist: requests>=2.25.0
+Requires-Dist: dukascopy-python>=0.1.0
+Provides-Extra: alpaca
+Requires-Dist: alpaca-trade-api>=3.0.0; extra == "alpaca"
+Provides-Extra: binance
+Requires-Dist: ccxt>=4.0.0; extra == "binance"
+Provides-Extra: all
+Requires-Dist: alpaca-trade-api>=3.0.0; extra == "all"
+Requires-Dist: ccxt>=4.0.0; extra == "all"
+
+# BigTest - Holy Grail Backtester v2.0
+
+**Institutional-grade backtesting engine** for quantitative trading research. Supports 100x leverage, HFT strategies, and zero-bias execution.
+
+## Features
+
+- 🎯 **Zero-Bias i+1 Execution** - Signals execute on next bar's open, eliminating look-ahead bias
+- 💰 **100x Leverage Support** - Real-time margin monitoring with automatic liquidation
+- 📊 **Raw Bid/Ask Microstructure** - True market reality using Dukascopy tick data
+- 📋 **Limit Order System** - Proper fill logic with maker/taker commission
+- 📈 **ATR-Based Slippage** - Variable slippage that scales with volatility
+- ⚡ **Batch Tick Fetching** - Pre-load hours of tick data for performance
+
+## Installation
+
+```bash
+pip install bigtest
+```
+
+With optional providers:
+```bash
+pip install bigtest[all]  # Alpaca + Binance
+```
+
+## Quick Start
+
+```python
+from bigtest import BacktestEngine, BacktestConfig
+
+config = BacktestConfig(
+    symbol='EUR/USD',
+    timeframe='1m',
+    start_date='2024-01-01',
+    end_date='2024-02-01',
+    initial_capital=10000,
+    leverage=100,
+    stop_out_enabled=True
+)
+
+def my_strategy(df):
+    signals = []
+    # Your strategy logic here
+    return signals
+
+engine = BacktestEngine(config)
+metrics = engine.run(my_strategy)
+engine.generate_html_report('my_report.html')
+```
+
+## Key Config Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `leverage` | 1 | Leverage multiplier (up to 100x) |
+| `stop_out_enabled` | True | Enable margin call liquidation |
+| `use_notional_commission` | True | Commission on notional value |
+| `slippage_model` | 'fixed' | 'none', 'fixed', 'random', 'volume', 'atr' |
+| `maintenance_margin_pct` | 0.5 | Stop-out at 50% margin |
+
+## Supported Data Sources
+
+- **Forex**: Dukascopy (tick-level Bid/Ask)
+- **Stocks**: Alpaca (requires API key)
+- **Crypto**: Binance (BTC, ETH)
+
+## License
+
+MIT
