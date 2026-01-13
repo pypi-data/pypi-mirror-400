@@ -1,0 +1,181 @@
+# Zephyr Jira Linker
+
+[![PyPI version](https://badge.fury.io/py/zephyr-jira-linker.svg)](https://pypi.org/project/zephyr-jira-linker/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/zephyr-jira-linker.svg)](https://pypi.org/project/zephyr-jira-linker/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A command-line tool for automatically linking test cases in Zephyr Scale to Jira issues based on branch names and issue descriptions.
+
+## Features
+
+- **Automatic Issue Detection**: Extracts Jira issue keys from Git branch names
+- **Test Case Extraction**: Parses test case IDs from Jira issue descriptions using regex patterns
+- **Zephyr Scale Integration**: Links test cases to Jira issues via Zephyr Scale API
+- **Field Updates**: Automatically updates Jira custom fields with test case links and code changes
+- **Comprehensive Logging**: Detailed logging with file and console output for debugging
+- **Error Handling**: Robust error handling with retry logic and informative error messages
+
+## Installation
+
+### From PyPI (Recommended)
+
+```bash
+pip install zephyr-jira-linker
+```
+
+### From Source
+
+```bash
+git clone https://github.com/pandiyarajk/zephyr-jira-linker.git
+cd zephyr-jira-linker
+pip install .
+```
+
+### Requirements
+
+- Python 3.7+
+- requests>=2.25.0
+
+## Configuration
+
+The tool requires the following environment variables to be set:
+
+### Required Environment Variables
+
+- `JIRA_BASE_URL`: Your Jira instance URL (e.g., `https://yourcompany.atlassian.net`)
+- `JIRA_EMAIL`: Your Jira account email
+- `JIRA_API_TOKEN`: Your Jira API token (create one at https://id.atlassian.com/manage-profile/security/api-tokens)
+- `ZEPHYR_SCALE_TOKEN`: Your Zephyr Scale API token
+
+### Optional Environment Variables
+
+- `JIRA_PROJECT_KEY`: Default project key (can be overridden by branch name parsing)
+
+## Usage
+
+### Command Line
+
+```bash
+zephyr-jira-linker <branch_name>
+```
+
+### Examples
+
+```bash
+# Link test cases for a feature branch
+zephyr-test-linker feature/PROJ-123-add-user-authentication
+
+# Link test cases for a bug fix branch
+zephyr-test-linker bugfix/PROJ-456-fix-login-issue
+
+# Link test cases for a hotfix branch
+zephyr-test-linker hotfix/PROJ-789-critical-security-patch
+```
+
+### What the Tool Does
+
+1. **Extracts Issue Key**: Parses the Jira issue key from the branch name (e.g., `PROJ-123` from `feature/PROJ-123-add-user-authentication`)
+
+2. **Validates Issue**: Verifies the issue exists and retrieves its details from Jira
+
+3. **Extracts Test Cases**: Searches the issue description for test case IDs using regex pattern `\b([A-Z]+-T\d+)\b`
+
+4. **Links Test Cases**: Uses Zephyr Scale API to link identified test cases to the Jira issue
+
+5. **Updates Fields**:
+   - Updates the 'Link to Test Case' custom field with the first linked test case URL
+   - Updates the 'Code Changes' field with implementation details
+
+6. **Verification**: Validates that all links were created successfully and fields were updated
+
+### Branch Name Format
+
+The tool expects branch names to contain Jira issue keys in the format `PROJECT-NUMBER`. Examples:
+
+- `feature/PROJ-123-add-new-feature`
+- `bugfix/PROJ-456-fix-bug`
+- `hotfix/PROJ-789-security-patch`
+- `PROJ-100-maintenance-update`
+
+## Logging
+
+The tool creates detailed logs in the `logs/` directory:
+
+- **File Logging**: `logs/zephyr_test_status.log` with rotating files (10MB max, 5 backups)
+- **Console Logging**: Real-time output to stdout/stderr
+- **Log Levels**: INFO, WARNING, ERROR with timestamps
+
+## Custom Field Configuration
+
+The tool uses specific Jira custom field IDs. Update these in the source code if your instance uses different field IDs:
+
+```python
+CUSTOMFIELD_TESTCASE_LINK = "customfield_13292"  # Link to Test Case field
+CUSTOMFIELD_CODE_CHANGES = "customfield_13242"   # Code Changes field
+CUSTOMFIELD_IMPLEMENTOR = "customfield_10810"    # Implementor field
+CUSTOMFIELD_PULL_REQUEST = "customfield_12500"   # Pull Request field
+CUSTOMFIELD_STORY_POINTS = "customfield_10004"   # Story Points field
+CUSTOMFIELD_SPRINT = "customfield_10007"         # Sprint field
+```
+
+## API Rate Limiting
+
+The tool includes built-in delays and error handling for API rate limits. It will automatically retry failed requests with exponential backoff.
+
+## Error Handling
+
+- **Network Errors**: Automatic retry with backoff for temporary network issues
+- **Authentication Errors**: Clear error messages for invalid credentials
+- **Permission Errors**: Detailed messages for insufficient permissions
+- **Invalid Issue Keys**: Validation of issue key format and existence
+- **Test Case Not Found**: Graceful handling of missing test cases
+
+## Development
+
+### Setting up Development Environment
+
+```bash
+git clone https://github.com/pandiyarajk/zephyr-jira-linker.git
+cd zephyr-jira-linker
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -e .
+```
+
+### Running Tests
+
+```bash
+# Run the tool directly
+python -m zephyr_test_linker.main <branch_name>
+
+# Or use the installed command
+zephyr-jira-linker <branch_name>
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Make your changes and add tests
+4. Commit your changes: `git commit -am 'Add some feature'`
+5. Push to the branch: `git push origin feature/your-feature-name`
+6. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Changelog
+
+See [CHANGE_LOG.md](CHANGE_LOG.md) for version history and updates.
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/pandiyarajk/zephyr-jira-linker/issues)
+- **Documentation**: [GitHub Wiki](https://github.com/pandiyarajk/zephyr-jira-linker/wiki)
+- **Email**: pandiyarajk@live.com
+
+## Related Projects
+
+- [Zephyr Scale API Documentation](https://support.smartbear.com/zephyr-scale-cloud/api-docs/)
+- [Jira REST API Documentation](https://developer.atlassian.com/cloud/jira/platform/rest/v3/)
