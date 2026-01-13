@@ -1,0 +1,121 @@
+"""Coding Open Agent Tools.
+
+Advanced code generation and shell scripting toolkit for AI agents, complementing
+basic-open-agent-tools with development-focused capabilities.
+
+This project provides specialized code generation, script creation, and development
+automation capabilities designed specifically for AI agents.
+"""
+
+__version__ = "0.14.1"
+
+# Import migrated modules
+from . import (
+    advanced_analysis,
+    analysis,
+    config,
+    cpp,
+    csharp,
+    database,
+    dependencies,
+    git,
+    go,
+    java,
+    javascript,
+    profiling,
+    python,
+    quality,
+    ruby,
+    rust,
+    shell,
+)
+
+# Import helper functions
+from .helpers import (
+    get_tool_info,
+    list_all_available_tools,
+    load_all_advanced_analysis_tools,
+    load_all_analysis_tools,
+    load_all_config_tools,
+    load_all_cpp_tools,
+    load_all_csharp_tools,
+    load_all_database_tools,
+    load_all_dependencies_tools,
+    load_all_git_tools,
+    load_all_go_tools,
+    load_all_java_tools,
+    load_all_javascript_tools,
+    load_all_profiling_tools,
+    load_all_python_tools,
+    load_all_quality_tools,
+    load_all_ruby_tools,
+    load_all_rust_tools,
+    load_all_shell_tools,
+    load_all_tools,
+    load_cpp_loadout,
+    load_csharp_loadout,
+    load_go_loadout,
+    load_java_loadout,
+    load_javascript_loadout,
+    load_kotlin_loadout,
+    load_python_loadout,
+    load_ruby_loadout,
+    load_rust_loadout,
+    load_swift_loadout,
+    load_typescript_loadout,
+    merge_tool_lists,
+)
+
+__all__: list[str] = [
+    # Modules
+    "advanced_analysis",
+    "analysis",
+    "config",
+    "cpp",
+    "csharp",
+    "database",
+    "dependencies",
+    "git",
+    "go",
+    "java",
+    "javascript",
+    "profiling",
+    "python",
+    "quality",
+    "ruby",
+    "rust",
+    "shell",
+    # Helper functions
+    "get_tool_info",
+    "list_all_available_tools",
+    "load_all_advanced_analysis_tools",
+    "load_all_analysis_tools",
+    "load_all_config_tools",
+    "load_all_cpp_tools",
+    "load_all_csharp_tools",
+    "load_all_database_tools",
+    "load_all_dependencies_tools",
+    "load_all_git_tools",
+    "load_all_go_tools",
+    "load_all_java_tools",
+    "load_all_javascript_tools",
+    "load_all_profiling_tools",
+    "load_all_python_tools",
+    "load_all_quality_tools",
+    "load_all_ruby_tools",
+    "load_all_rust_tools",
+    "load_all_shell_tools",
+    "load_all_tools",
+    "load_cpp_loadout",
+    "load_csharp_loadout",
+    "load_go_loadout",
+    "load_java_loadout",
+    "load_javascript_loadout",
+    "load_kotlin_loadout",
+    "load_python_loadout",
+    "load_ruby_loadout",
+    "load_rust_loadout",
+    "load_swift_loadout",
+    "load_typescript_loadout",
+    "merge_tool_lists",
+]
