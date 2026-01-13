@@ -1,0 +1,206 @@
+Metadata-Version: 2.4
+Name: bequests
+Version: 0.1.0
+Summary: Stealth HTTP Engine for Python
+Author: PainDe0Mie
+Requires-Dist: curl-cffi
+Description-Content-Type: text/markdown
+
+
+
+<img width="200" height="200" alt="bequests-logo" src="https://github.com/user-attachments/assets/4c4d8742-e48b-4c1f-a49c-db0bac076ae5" />
+
+
+
+\# Bequests
+
+
+
+\*\*Honestly, we're all tired of spending 3 hours debugging headers only to get slapped with a 403.\*\* Bequests was born from a simple fact: making HTTP requests that actually fly under the radar has become a chore. This library isn't just another wrapper—it's an engine that handles the "dirty" work (TLS Fingerprinting, header ordering, hardware simulation) so you can focus on your data.
+
+
+
+---
+
+
+
+\## Why Bequests instead of Requests??
+
+
+
+\* \*\*TLS Fingerprinting that actually works\*\*: Powered by `curl\_cffi`, we perfectly mimic real JA3/HTTP2 fingerprints from Chrome 120 and Safari 15.5.
+
+\* \*\*Built-in Tor Support\*\*: Native tunneling through the Tor network for maximum anonymity.
+
+\* \*\*Layered Protection System\*\*: No need to reinvent the wheel. Activate `MAX` or `NUCLEAR` layers depending on how tough the WAF is.
+
+\* \*\*Passive Recon\*\*: The engine recognizes signatures from Cloudflare, Akamai, or Datadome and adjusts its behavior automatically.
+
+\* \*\*Hardware Simulation\*\*: We inject real telemetry (Canvas, RAM, Viewport) to prove to the site that you're a human on a browser, not a script in a terminal.
+
+\* \*\*Smart Features\*\*: Life-savers like `smart\_json` (doesn't crash on weird chars) and a `vault` system to keep your sessions alive.
+
+
+
+---
+
+
+
+\## Quick Start
+
+
+
+\### Standard Stealth Request
+
+```python
+
+from bequests import Bequests, MAX\_LAYER
+
+
+
+\# Fire up the engine
+
+bot = Bequests(logged=True)
+
+
+
+\# Max stealth + human-like navigation (favicon, robots.txt, etc.)
+
+bot.layers(MAX\_LAYER).imit\_nav(True)
+
+
+
+\# Fetch data, Bequests handles the bypass
+
+resp = bot.get("\[https://target-website.com](https://target-website.com)")
+
+print(resp.text)
+
+```
+
+
+
+\### TOR Integration
+
+
+
+```python
+
+\# Just toggle use\_tor to True (assumes Tor is running on default port 9050)
+
+bot = Bequests(use\_tor=True, logged=True)
+
+resp = bot.get("\[https://check.torproject.org](https://check.torproject.org)")
+
+```
+
+
+
+\###Async Version
+
+
+
+```python
+
+import asyncio
+
+from bequests import AsyncBequests
+
+
+
+async def main():
+
+&nbsp;   bot = AsyncBequests(logged=True)
+
+&nbsp;   
+
+&nbsp;   # Generate some noise to warm up cookies
+
+&nbsp;   await bot.generate\_noise(count=3)
+
+&nbsp;   
+
+&nbsp;   # Clean async request
+
+&nbsp;   resp = await bot.get("\[https://api.example.com/data](https://api.example.com/data)")
+
+&nbsp;   data = await bot.smart\_json(resp.url)
+
+&nbsp;   print(data)
+
+
+
+asyncio.run(main())
+
+```
+
+
+
+---
+
+
+
+\### Protection Layers Guide
+
+
+
+| Layer | Level | Features Included |
+
+| :--- | :--- | :--- |
+
+| \*\*LOWER\*\* | Basic | Identity (UA) + Jitter (random delays) |
+
+| \*\*MEDIUM\*\* | Standard | LOWER + Header ordering consistency (Client Hints) |
+
+| \*\*MAX\*\* | Professional | MEDIUM + Canvas/Hardware simulation + Cookie Warmup |
+
+| \*\*NUCLEAR\*\* | Final Boss | MAX + Automatic pivot through Google Cache if still blocked |
+
+
+
+---
+
+
+
+\## ⚙️ Under the Hood
+
+
+
+\### Session Management (Vault)
+
+Bequests manages a `bequests\_vault.json` file. Your cookies are automatically saved after each success, allowing you to maintain "warm" sessions over the long term.
+
+
+
+\### Rate Limiting \& Proxies
+
+\* \*\*Auto-Rotation\*\*: The engine can rotate your proxies automatically upon block detection.
+
+\* \*\*Tor Tunnel\*\*: Simple toggle for SOCKS5h routing.
+
+\* \*\*Limits\*\*: Use `bot.set\_rate\_limit(requests=10, per\_seconds=60)` to stay under the server's radar.
+
+
+
+\### Performance Tracking
+
+To know if your tunnel is efficient, use `bot.get\_stats()` to monitor real success rates and the types of WAFs encountered.
+
+
+
+---
+
+
+
+\## License
+
+MIT. Use it wisely.
+
+
+
+---
+
+\*\*Got an idea to improve the engine?\*\* Feel free to open an Issue or suggest a custom Hook!
+
+
+
