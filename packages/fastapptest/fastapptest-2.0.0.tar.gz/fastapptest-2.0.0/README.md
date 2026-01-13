@@ -1,0 +1,232 @@
+Here’s the README in proper **Markdown format** ready to save as `README.md`:
+
+````markdown
+# FastAPI Test Automation Library
+
+A production-ready **CI/CD and batch testing framework** for FastAPI projects. This library automatically scans your FastAPI project, detects endpoints and Pydantic models, generates payloads, runs tests, validates responses, and generates detailed reports.  
+
+It is designed to simplify automated API testing and improve quality assurance workflows for FastAPI applications.
+
+---
+
+## Features
+
+- **Automatic Project Scanning**: Detects FastAPI apps and routers across your project.
+- **Endpoint Extraction**: Automatically extracts all registered endpoints.
+- **Pydantic Model Extraction**: Extracts request and response models for payload validation.
+- **Payload Generation**: Generates test payloads for POST, PUT, PATCH requests.
+- **Automated Testing**: Runs single, batch, or CI/CD style tests with retries and timeouts.
+- **Validation**: 
+  - HTTP status code validation
+  - Response schema validation against Pydantic models
+- **Authentication Support**: Supports JWT, API keys, and custom headers.
+- **Reporting**: Generates JSON reports and prints a terminal summary.
+- **CLI Integration**: Run tests easily from the command line.
+
+---
+
+## Installation
+
+Install the library in your Python environment:
+
+```bash
+pip install fastapptest
+````
+
+Ensure your FastAPI project is accessible and all dependencies are installed.
+
+---
+
+## CLI Usage
+
+### CI/CD Testing
+
+Run full CI/CD style tests for your FastAPI project:
+
+```bash
+ci_test <project_root> [--output <output_dir>]
+```
+
+**Arguments**:
+
+* `project_root`: Root directory of your FastAPI project.
+* `--output`: Directory to save CI/CD reports (default: `ci_reports`).
+
+**Example**:
+
+```bash
+ci_test E:/Projects/my_fastapi_app --output ci_reports
+```
+
+This will:
+
+1. Scan your project for Python files.
+2. Detect FastAPI apps and routers.
+3. Extract endpoints and Pydantic models.
+4. Generate payloads for testing.
+5. Run automated tests.
+6. Validate responses and status codes.
+7. Generate a detailed JSON report and print a summary.
+
+---
+
+### Batch Testing
+
+Run tests using a JSON batch payload file:
+
+```bash
+batch_test <project_root> <batch_file> [--output <output_file>] [--auth <auth_json>]
+```
+
+**Arguments**:
+
+* `project_root`: Root directory of your FastAPI project.
+* `batch_file`: JSON file containing batch payloads.
+* `--output`: Path to save the batch test report (default: `batch_reports/batch_test_report.json`).
+* `--auth`: Optional JSON string for authentication headers, e.g., `{"Authorization": "Bearer <token>"}`.
+
+**Example**:
+
+```bash
+batch_test E:/Projects/my_fastapi_app batch_payload.json --output batch_reports/report.json --auth '{"Authorization": "Bearer <token>"}'
+```
+
+**Batch File Format**:
+
+```json
+[
+    {
+        "path": "/users",
+        "method": "POST",
+        "body": {"username": "test", "email": "test@example.com"}
+    },
+    {
+        "path": "/users/{id}",
+        "method": "GET",
+        "path_params": {"id": 1}
+    }
+]
+```
+
+---
+
+## Library Usage
+
+You can also use the library programmatically:
+
+### CI/CD Runner
+
+```python
+from fastapptest.cli.ci_runner import run_ci_cd_tests
+
+run_ci_cd_tests(
+    project_root="E:/Projects/my_fastapi_app",
+    output_dir="ci_reports",
+    auth={"Authorization": "Bearer <token>"},
+    fail_fast=True
+)
+```
+
+### Batch Runner
+
+```python
+from fastapptest.cli.batch_runner import run_batch_tests
+
+run_batch_tests(
+    project_root="E:/Projects/my_fastapi_app",
+    batch_file="batch_payload.json",
+    output_file="batch_reports/report.json",
+    auth={"Authorization": "Bearer <token>"}
+)
+```
+
+---
+
+## Authentication
+
+Supports common authentication methods:
+
+* **Bearer Token (JWT)**
+  Add in auth dict: `{"Authorization": "Bearer <token>"}`
+
+* **API Key**
+  Add in auth dict: `{"X-API-KEY": "<your-api-key>"}`
+
+Auth headers will be automatically added to all requests.
+
+---
+
+## Configuration Options
+
+### CI/CD Runner
+
+| Parameter      | Type | Default      | Description                           |
+| -------------- | ---- | ------------ | ------------------------------------- |
+| `project_root` | str  | None         | Root directory of the FastAPI project |
+| `output_dir`   | str  | `ci_reports` | Directory to save CI/CD JSON report   |
+| `auth`         | dict | None         | Optional auth headers (JWT/API keys)  |
+| `fail_fast`    | bool | False        | Stop execution on first test failure  |
+
+### Batch Runner
+
+| Parameter      | Type | Default                                | Description                           |
+| -------------- | ---- | -------------------------------------- | ------------------------------------- |
+| `project_root` | str  | None                                   | Root directory of the FastAPI project |
+| `batch_file`   | str  | None                                   | JSON file containing batch payloads   |
+| `output_file`  | str  | `batch_reports/batch_test_report.json` | Path to save JSON batch report        |
+| `auth`         | dict | None                                   | Optional auth headers (JWT/API keys)  |
+
+---
+
+## Reports
+
+* **JSON Reports**: Contain full details of each request:
+
+  * `status_code`
+  * `status_valid`
+  * `schema_valid`
+  * `response`
+  * `error`
+
+* **Terminal Summary**: Quick overview of tests with pass/fail indicators.
+
+---
+
+## Recommended Workflow
+
+1. Install the library in your project environment.
+2. Create batch payloads for your endpoints.
+3. Run `ci_test` during CI/CD pipeline for automated validation.
+4. Use `batch_test` for targeted testing with predefined payloads.
+5. Review JSON reports and fix failing endpoints.
+6. Integrate into your GitHub Actions, Jenkins, or GitLab CI pipeline for automated testing.
+
+---
+
+## Dependencies
+
+* Python 3.9+
+* FastAPI
+* requests
+* Standard Python libraries (`pathlib`, `json`, `typing`)
+
+---
+
+## License
+
+This library is released under the MIT License.
+
+```
+
+---
+
+If you want, I can also **create a ready-to-go `docs/` folder** with:
+
+- Example payloads
+- CI/CD pipeline YAML snippets (GitHub Actions, GitLab, Jenkins)
+- Full usage guide  
+
+This will make your repository **professional and production-ready**.  
+
+Do you want me to create that next?
+```
