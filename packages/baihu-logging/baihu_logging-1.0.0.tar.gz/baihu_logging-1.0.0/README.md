@@ -1,0 +1,87 @@
+# BaihuLogging
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
+
+`Baihu Logging` is a lightweight and easy-to-use Python library, designed to help developers quickly send logs to Discord channels. Through Discord Webhook or Bot Token, you can monitor your application status in real-time.
+
+---
+
+## Features
+
+- **Simple and Fast**: Just a few lines of code to complete the setup.
+- **Clear Levels**: Support five standard log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL), each level has its own color.
+- **Formatted Output**: Automatically formats logs into Discord Embed messages with timestamp and footer.
+- **Robust**: Built-in configuration validation and error handling.
+
+---
+
+## Installation
+
+You can install `BaihuLogging` from the project directory via `pip`:
+
+```bash
+pip install .
+```
+
+Or you can directly place the `BaihuLogging` folder into your project.
+
+---
+
+## Quick Start
+
+### 1. Get Discord Information
+Before starting, make sure you have:
+- **Bot Token**: Create a Bot in [Discord Developer Portal](https://discord.com/developers/applications) and get it.
+- **Channel ID**: The ID of the channel you want to receive logs.
+
+### 2. Basic Usage
+
+```python
+from BaihuLogging import DiscordLogger
+
+# Initialize Logger
+logger = DiscordLogger(
+    token="YOUR_DISCORD_BOT_TOKEN",
+    channel_id="YOUR_CHANNEL_ID"
+)
+
+# Send different level logs
+logger.info("This is an info log")
+logger.warning("This is a warning log!")
+logger.error("This is an error log, please handle it quickly.")
+```
+
+---
+
+## API Documentation
+
+### `DiscordLogger(token, channel_id)`
+Initialize the logger.
+- `token` (str): Discord Bot Token.
+- `channel_id` (str): The ID of the channel you want to receive logs.
+
+### Support Methods
+| Method | Log Level | Color | Description |
+| :--- | :--- | :--- | :--- |
+| `debug(msg)` | DEBUG | Gray | Used for debugging information in the development stage. |
+| `info(msg)` | INFO | Blue | General running information. |
+| `warning(msg)` | WARNING | Yellow | Warning of potential issues. |
+| `error(msg)` | ERROR | Red | An error has occurred, affecting some functionality. |
+| `critical(msg)` | CRITICAL | Purple | Serious system issues, need immediate intervention. |
+
+---
+
+## Development and Contribution
+
+If you have any suggestions or find any bugs, please submit an issue or pull request.
+
+### Developer
+- **Author**: Baihu
+- **GitHub**: [baihufox3210/Baihu-Logging](https://github.com/baihufox3210/Baihu-Logging)
+
+---
+
+## License
+
+This project is licensed under the **MIT License**. For more details, please refer to the [LICENSE](file:///d:/project/Logging%20bot/LICENSE) file.
