@@ -1,0 +1,138 @@
+defaults:
+  path: "examples"
+
+datasets:
+  house_prices:
+    description: "House pricing prediction dataset (from sklearn  fetch_openml(name='house_prices')"
+    path: "{path}/house_prices.csv"
+    format: CSV
+    type: local
+
+features:
+  house_prices:
+    description: "Feature set with explicit classification of teh feature type numeric/categorical"
+    dataset: house_prices
+    numerical: 
+      - 'YrSold'
+      - 'YearRemodAdd'
+      - 'BsmtUnfSF'
+      - 'MasVnrArea'
+      - 'MSSubClass'
+      - 'GarageCars'
+      - 'OverallQual'
+      - 'TotalBsmtSF'
+      - 'BsmtFinSF1'
+      - 'MoSold'
+    categorical:
+      - 'HeatingQC'
+      - 'Street'
+      - 'Heating'
+      - 'MasVnrType'
+      - 'Foundation'
+      - 'ExterQual'
+      - 'Condition2'
+      - 'GarageType'
+      - 'HouseStyle'
+      - 'MiscFeature'
+  house_prices_no_type:
+    description: "Same feature set with field classification to be determined automatically based on DataFrame dtypes"
+    dataset: house_prices
+    columns: 
+      - 'YrSold'
+      - 'YearRemodAdd'
+      - 'BsmtUnfSF'
+      - 'MasVnrArea'
+      - 'MSSubClass'
+      - 'GarageCars'
+      - 'OverallQual'
+      - 'TotalBsmtSF'
+      - 'BsmtFinSF1'
+      - 'MoSold'
+      - 'HeatingQC'
+      - 'Street'
+      - 'Heating'
+      - 'MasVnrType'
+      - 'Foundation'
+      - 'ExterQual'
+      - 'Condition2'
+      - 'GarageType'
+      - 'HouseStyle'
+      - 'MiscFeature'
+  house_prices_all_columns:
+    description: "Feature set where all columns (excluding target) are included and classification to be determined automatically"
+    dataset: house_prices
+    columns: 
+      - __all__
+
+
+models:
+  lasso:
+    description: "Lasso regression with cross-validation"
+    type: "sklearn.linear_model.LassoCV"
+    params:
+      random_state: 42
+      max_iter: 100000
+      tol: 0.0001
+      cv: 5
+    tuning:
+      method: "random_search"
+      inner_cv: 3
+      outer_cv: 3
+  random_forest:
+    description: "Random forest regression"
+    type: "sklearn.ensemble.RandomForestRegressor"
+    params:
+      n_estimators: 100
+      max_depth: 10
+      random_state: 42
+      n_jobs: -1
+    tuning:
+      method: "grid_search"
+      inner_cv: 3
+      outer_cv: 3
+  gradient_boosting:
+    description: "Gradient boosting regression"
+    type: "sklearn.ensemble.GradientBoostingRegressor"
+    params:
+      n_estimators: 100
+      max_depth: 10
+      random_state: 42
+    tuning:
+      method: "grid_search"
+      inner_cv: 3
+      outer_cv: 3
+  histogram_gradient_boosting:
+    description: "Histogram gradient boosting regression"
+    type: "sklearn.ensemble.HistGradientBoostingRegressor"
+    params:
+      max_depth: 10
+      random_state: 42
+    tuning:
+    
+      method: "grid_search"
+      inner_cv: 3
+      outer_cv: 3
+
+experiments:
+  house_prices_prediction_simple:
+    description: "Predict house prices"
+    models: [lasso]
+    dataset: house_prices
+    target: SalePrice
+    features: house_prices
+    metrics: [r2, mse]
+    split:
+      test_size: 0.2
+      validation_size: 0.1
+      random_state: 42
+  house_prices_prediction_all:
+    description: "Predict house prices"
+    models: [lasso, random_forest, gradient_boosting, histogram_gradient_boosting]
+    dataset: house_prices
+    target: SalePrice
+    features: house_prices
+    metrics: [r2, mse]
+    split:
+      test_size: 0.2
+      validation_size: 0.1
+      random_state: 42

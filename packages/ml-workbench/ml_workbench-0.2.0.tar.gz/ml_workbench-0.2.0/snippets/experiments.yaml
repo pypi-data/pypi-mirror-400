@@ -1,0 +1,24 @@
+include:
+  - snippets/datasets.yaml
+  - snippets/features.yaml
+  - snippets/models.yaml
+  - snippets/mlflow.yaml
+  
+########################################################
+# Experiment configuration
+########################################################
+experiments:
+  cgm_prediction:
+    description: "Predict HbA1c from CGM data"
+    models: [lasso, elasticnet]   # list of models to use in the experiment (names of models from models.yaml)
+    dataset: cgm_combined_dataset # name of dataset from datasets.yaml to use as dataset 
+    target: hba1c               # name of target column from dataset to predict (can be a single name or a list of names)
+    features: cgm                  # name of feature group from features.yaml to use as features (single feature name)
+    do_not_split_by: [participant_uuid]   # split/hold_out by this column to keep all data for each participant in the same set
+    drop_outliers: 3.0 # whether to drop outliers from the dataset, default threshold is 3.0. Set to 0.0 or "false" to disable.    
+    metrics: [r2,mse,rmse,mae]  # the first metrics ot be used to select the best model if multiple specified
+    hold_out:
+      fraction: 0.3  # Set to 0.0 to disable hold-out set
+      random_state: 42
+      stratify: false  # whether to stratify by target (for classification)
+  

@@ -1,0 +1,65 @@
+# Defaults used for interpolation in this test fixture
+defaults:
+  catalog: pheno
+  table: my_interpolated_table
+
+datasets:
+  # Formats explicitly provided should be preserved
+  explicit_csv:
+    description: "Explicit CSV format should be preserved"
+    path: "/tmp/data/explicit.csv"
+    format: "csv"
+
+  explicit_delta:
+    description: "Explicit Delta format should be preserved"
+    path: "pheno.ml.some_explicit_table"
+    format: "delta"
+
+  # File extension inference (case-insensitive)
+  infer_csv:
+    description: "Infer format csv via extension"
+    path: "/tmp/data/infer_me.csv"
+
+  infer_txt:
+    description: "Infer format txt via extension (upper case)"
+    path: "/tmp/data/HDeviceCGM.TXT"
+
+  infer_parquet:
+    description: "Infer format parquet via extension"
+    path: "/tmp/data/events.parquet"
+
+  infer_json:
+    description: "Infer format json via extension (upper case)"
+    path: "/tmp/data/config.JSON"
+
+  # S3 scheme with recognizable extension
+  s3_parquet:
+    description: "S3 path with parquet extension should infer parquet"
+    path: "s3://bucket/path/data.parquet"
+
+  # Databricks table name heuristic (catalog.schema.table)
+  dbr_table:
+    description: "Should be inferred as delta from catalog.schema.table"
+    path: "pheno.ml.inferred_table"
+
+  dbr_table_interpolated:
+    description: "Interpolate catalog/table then infer delta"
+    path: "{catalog}.ml.{table}"
+
+  # Unknown extension shouldn't infer a format
+  unknown_ext:
+    description: "Unknown extension should not infer a format"
+    path: "/tmp/data/unknown.data"
+
+  # Combined/merge dataset should be left untouched (no format added)
+  combined:
+    description: "Merge multiple datasets"
+    merge_specs:
+      infer_csv:
+        left_on: id
+      explicit_csv:
+        right_on: id
+        left_on: id
+        how: inner
+
+
