@@ -1,0 +1,274 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.5.0] - 2025-11-01
+
+### 🚀 Features
+
+- migrate pdm to uv and many more
+
+## [0.4.1] - 2025-05-16
+
+### ⚙️ Miscellaneous Tasks
+
+- add cliff.toml
+- rewrite CHANGELOG.md with git-cliff
+
+## [0.4.0] - 2025-05-15
+
+### 🚀 Features
+
+- implement holiday callout on calendar.py
+
+### 🐛 Bug Fixes
+
+- fix age calculation on icalendar.py
+
+### 🚜 Refactor
+
+- [**breaking**] rename module ical.py to icalendar.py
+- simplify icalendar.py
+- rename function on lunar.py
+- [**breaking**] update multiple configuration fields
+- [**breaking**] update example config fields
+- clean up src/lunar_birthday_ical/icalendar.py
+
+### 📚 Documentation
+
+- update README.md
+
+### 🧪 Testing
+
+- fix icalendar module rename
+- fix tests/test_lunar.py
+- implement tests/test_calendar.py
+
+### ⚙️ Miscellaneous Tasks
+
+- split pypi-publish steps
+- add config/not-a-public-holiday.yaml
+- add description on add_event_to_calendar
+- use zh-CN description on holiday_callout
+- update default global.year_end to 2030
+- enrich description on vEvent
+- add .pre-commit-config.yaml
+- disable verbose output for lint session
+- ruff reformat
+- prepare for version v0.4.0
+
+### 💼 Other
+
+- include example config python wheels
+- pdm add -G dev pre-commit
+- pdm update
+
+## [0.3.7] - 2025-04-25
+
+### ⚙️ Miscellaneous Tasks
+
+- implement setup_logger on logging.py
+- use json.dumps() on json log line
+- prepare for version v0.3.7
+
+## [0.3.6] - 2025-03-26
+
+### 🚜 Refactor
+
+- [**breaking**] update pastebin configuration fields
+
+### ⚙️ Miscellaneous Tasks
+
+- add ruff.toml with isort (I) enabled
+- add ruff check --fix and format
+- [**breaking**] replace baseurl with base_url
+- prepare for version v0.3.6
+
+## [0.3.5] - 2025-02-10
+
+### 📚 Documentation
+
+- update and optimize README.md
+
+### ⚙️ Miscellaneous Tasks
+
+- move skip_days out of for loop
+
+## [0.3.4] - 2025-02-10
+
+### 🐛 Bug Fixes
+
+- fix log_dir not exists
+
+### 🧪 Testing
+
+- split tests/test_lunar.py
+
+## [0.3.3] - 2025-02-10
+
+### 📚 Documentation
+
+- update CHANGELOG.md
+
+### 🧪 Testing
+
+- ignore caplog on tests/test_main.py
+
+### ⚙️ Miscellaneous Tasks
+
+- set lunar_birthday to False on ical.py
+- enrich get_logger on utils.py
+- use dictConfig instead of get_logger
+- remove unnecessary logs
+
+## [0.3.2] - 2025-02-09
+
+### 🚀 Features
+
+- implement default_config with dict Union
+- add argcomplete support
+
+### 🐛 Bug Fixes
+
+- use deep merge instead of dict union
+
+## [0.3.1] - 2025-02-08
+
+### 📚 Documentation
+
+- update README.md
+
+## [0.3.0] - 2025-02-08
+
+### 🚀 Features
+
+- multiple config files support
+
+### ⚙️ Miscellaneous Tasks
+
+- disable pastebin on example config
+
+## [0.2.6] - 2025-02-08
+
+### 📚 Documentation
+
+- translate README.md and example config
+
+### ⚙️ Miscellaneous Tasks
+
+- fix license on pyproject.toml
+
+## [0.2.5] - 2025-02-08
+
+### 🚀 Features
+
+- add --lunar-to-solar and --solar-to-lunar
+
+### ⚙️ Miscellaneous Tasks
+
+- use config file name as calendar_name
+
+## [0.2.4] - 2025-02-07
+
+### 🚀 Features
+
+- use absolute datetime for reminders
+
+### ⚙️ Miscellaneous Tasks
+
+- update default reminders on example config
+
+## [0.2.3] - 2025-02-06
+
+### 🐛 Bug Fixes
+
+- fix get_logger setLevel on utils.py
+
+### 📚 Documentation
+
+- update CHANGELOG.md
+
+### 🧪 Testing
+
+- add pytest test cases with help of copilot
+
+### ⚙️ Miscellaneous Tasks
+
+- enable pastebin on example config
+- add noxfile.py, pytest and ruff
+- add with.python-version on setup-pdm
+- add matrix tests on multiple python-version
+
+## [0.2.2] - 2025-01-29
+
+### 💼 Other
+
+- use dynamic version from scm tag
+
+## [0.2.1] - 2025-01-29
+
+### 🚀 Features
+
+- add UID and DTSTAMP on ical.py
+
+## [0.2.0] - 2025-01-29
+
+### 🚜 Refactor
+
+- [**breaking**] update multiple configuration fields
+
+### ⚙️ Miscellaneous Tasks
+
+- comment env on pypi-publish.yaml
+
+## [0.1.3] - 2025-01-25
+
+### ⚙️ Miscellaneous Tasks
+
+- add .github/workflows/pypi-publish.yaml
+
+## [0.1.0] - 2025-01-25
+
+### 🚀 Features
+
+- implement src/lunar_birthday_ical/main.py
+- add pastebin upload/update support
+- add global.skip_days option
+- add global.max_events option
+
+### 🐛 Bug Fixes
+
+- fix timezone on lunar.py
+- fix future_solar_datetime time
+- fix event_count_lunar_birthday
+
+### 🚜 Refactor
+
+- split src/lunar_birthday_ical/main.py
+- simplify add_event_to_calendar
+
+### 📚 Documentation
+
+- initial commit
+- implement README.md
+- update README.md
+
+### ⚙️ Miscellaneous Tasks
+
+- add LICENSE
+- update pastebin update/upload
+- add config/example-lunar-birthday.yaml
+- update argparse description
+- update logger name
+- add return type notation
+- disable global.pastebin on example config
+- update ical event summary
+- update example config
+- update default config
+
+### 💼 Other
+
+- pdm init
+- add dependencies
+
+<!-- generated by git-cliff -->
