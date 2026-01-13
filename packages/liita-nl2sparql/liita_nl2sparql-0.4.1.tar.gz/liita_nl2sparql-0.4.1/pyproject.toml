@@ -1,0 +1,102 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "liita-nl2sparql"
+version = "0.4.1"
+description = "Natural Language to SPARQL translation for the LiITA knowledge base"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Giovanna Tonazzo" }
+]
+keywords = ["sparql", "nlp", "knowledge-base", "linguistics", "italian"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "sentence-transformers>=2.2.0",
+    "faiss-cpu>=1.7.0",
+    "rdflib>=6.0.0",
+    "SPARQLWrapper>=2.0.0",
+    "rank_bm25>=0.2.0",
+    "click>=8.0.0",
+    "numpy>=1.21.0",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.18.0"]
+mistral = ["mistralai>=0.0.7"]
+gemini = ["google-generativeai>=0.3.0"]
+ollama = ["ollama>=0.1.0"]
+agent = [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+]
+agent-openai = [
+    "liita-nl2sparql[agent]",
+    "langchain-openai>=0.2.0",
+]
+agent-anthropic = [
+    "liita-nl2sparql[agent]",
+    "langchain-anthropic>=0.2.0",
+]
+agent-mistral = [
+    "liita-nl2sparql[agent]",
+    "langchain-mistralai>=0.1.0",
+]
+agent-gemini = [
+    "liita-nl2sparql[agent]",
+    "langchain-google-genai>=2.0.0",
+]
+agent-ollama = [
+    "liita-nl2sparql[agent]",
+    "langchain-ollama>=0.2.0",
+]
+agent-all = [
+    "liita-nl2sparql[agent-openai,agent-anthropic,agent-mistral,agent-gemini,agent-ollama]",
+]
+synthetic = [
+    "liita-nl2sparql[agent]",
+    "datasets>=2.14.0",  # HuggingFace datasets for export
+]
+all = [
+    "liita-nl2sparql[openai,anthropic,mistral,gemini,ollama,agent-all,synthetic]"
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+nl2sparql = "nl2sparql.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tonazzog/nl2sparql"
+Documentation = "https://github.com/tonazzog/nl2sparql#readme"
+Repository = "https://github.com/tonazzog/nl2sparql"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nl2sparql"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
