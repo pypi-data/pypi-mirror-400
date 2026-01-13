@@ -1,0 +1,450 @@
+from bge import logic
+from bge import render
+from bge.types import KX_GameObject as GameObject
+from bge.types import KX_PolyProxy
+from mathutils import Vector
+from .math import clamp
+from uplogic import console
+
+
+def ray_data(
+    origin: Vector,
+    dest: Vector,
+    local: bool,
+    dist: float
+):
+    """Get necessary data to calculate the ray.\n
+    Not intended for manual use.
+    """
+    origin = getattr(origin, 'worldPosition', origin)
+    dest = getattr(dest, 'worldPosition', dest)
+    if local:
+        dest = origin + dest
+    d = dest - origin
+    d.normalize()
+    dist = dist if dist else (origin - dest).length
+    dest = origin + d * dist
+    return d, dist, dest
+
+
+class RayCastData(tuple):
+    @property
+    def obj(self) -> GameObject:
+        return self[0]
+
+    @property
+    def point(self) -> Vector:
+        return self[1]
+
+    @property
+    def normal(self) -> Vector:
+        return self[2]
+
+    @property
+    def direction(self) -> Vector:
+        return self[3]
+
+    @property
+    def face(self) -> KX_PolyProxy:
+        return self[4]
+
+    @property
+    def uv(self) -> Vector:
+        return self[5]
+
+# class RayCastDataPoly(RayCastData):
+
+
+
+def raycast(
+    caster: GameObject,
+    origin: Vector,
+    dest: Vector,
+    distance: float = 0,
+    prop: str = '',
+    material: str = '',
+    exclude: bool = None,
+    xray: bool = False,
+    local: bool = False,
+    mask: int = 65535,
+    face_data: bool = False,
+    visualize: bool = False
+) -> RayCastData[GameObject, Vector, Vector, Vector, KX_PolyProxy, Vector]:
+    """Raycast from any point to any target
+
+    :param caster: casting object, this object will be ignored by the ray.
+    :param origin: origin point; any vector or list.
+    :param dest: target point; any vector or list.
+    :param distance: distance the ray will be cast
+    (0 means the ray will only be cast to target).
+    :param prop: look only for objects with this property.
+    :param material: look only for objects with this material applied.
+    :param exclude: [DEPRECATED] invert the selection for `prop` and `material`.
+    :param xray: look for objects behind others.
+    :param local: add the target vector to the origin.
+    :param mask: Collision Mask for this ray.
+    :param face_data: Return additional information about the target polygon.
+    :param visualize: Show the raycast.
+
+    :returns: (`obj`, `point`, `normal`, `direction`, `face`, `uv`)
+    """
+    if exclude is not None:
+        from ..console import warning
+        warning("raycast parameter 'exclude' is deprecated and will be removed in future versions!")
+        # exclude_prop, prop = prop, ''
+    origin = getattr(origin, 'worldPosition', Vector(origin)).copy()
+    dest = getattr(dest, 'worldPosition', Vector(dest)).copy()
+    direction, distance, dest = ray_data(origin, dest, local, distance)
+    ret_dat = [None, None, None, direction, None, None]
+    data = caster.rayCast(
+        dest,
+        objfrom=origin,
+        dist=distance,
+        prop=prop,
+        xray=xray,
+        mask=mask,
+        poly=2 if face_data else 0
+    )
+    obj, point = data[0], data[1]
+    if (material and point):
+        bo = obj.blenderObject
+        leftover_dist = distance - (origin - point).length
+        while (
+            material not in [
+                slot.material.name for
+                slot in
+                bo.material_slots
+            ]
+        ) and leftover_dist > 0:
+            if not xray:
+                data = [None, None, None, direction, None, None]
+                break
+            elif point:
+                old_point = point
+                data = obj.rayCast(
+                    dest,
+                    point,
+                    leftover_dist,
+                    prop,
+                    xray=xray,
+                    mask=mask,
+                    poly=2 if face_data else 0
+                )
+                obj, point = data[0], data[1]
+                if not obj:
+                    break
+                bo = obj.blenderObject
+                leftover_dist -= (origin - old_point).length
+            else:
+                data = [None, None, None, direction, None, None]
+                break
+    ret_dat[0] = data[0]
+    ret_dat[1] = data[1]
+    ret_dat[2] = data[2]
+    if face_data and len(data) > 3:
+        ret_dat[4] = data[3]
+        ret_dat[5] = data[4]
+    data = RayCastData(ret_dat)
+    if visualize:
+        line_dest: Vector = direction.copy()
+        line_dest.x *= distance
+        line_dest.y *= distance
+        line_dest.z *= distance
+        line_dest = line_dest + origin
+        if not data.obj:
+            render.drawLine(
+                origin,
+                line_dest,
+                [1, 0, 0, 1]
+            )
+        else:
+            render.drawLine(
+                origin,
+                point,
+                [0, 1, 0, 1]
+            )
+            render.drawLine(
+                point,
+                line_dest,
+                [1, 0, 0, 1]
+            )
+    return data
+
+
+class RayCastFaceData(RayCastData):
+    pass
+
+
+def raycast_face(
+    caster: GameObject,
+    origin: Vector,
+    dest: Vector,
+    distance: float = 0,
+    prop: str = '',
+    material: str = '',
+    exclude: bool = False,
+    xray: bool = False,
+    local: bool = False,
+    mask: int = 65535,
+    face_data: bool = False,
+    visualize: bool = False
+) -> RayCastFaceData[GameObject, Vector, Vector, Vector, KX_PolyProxy, Vector]:
+    """[DEPRECATED]\n
+    Raycast from any point to any target. Returns additional face data.
+
+    :param caster: casting object, this object will be ignored by the ray.
+    :param origin: origin point; any vector or list.
+    :param dest: target point; any vector or list.
+    :param distance: distance the ray will be cast
+    (0 means the ray will only be cast to target).
+    :param prop: look only for objects with this property.
+    :param material: look only for objects with this material applied.
+    :param exclude: invert the selection for `prop` and `material`.
+    :param xray: look for objects behind others.
+    :param local: add the target vector to the origin.
+    :param mask: Collision Mask for this ray.
+    :param visualize: show the raycast.
+
+    :returns: (`obj`, `point`, `normal`, `direction`, `face`, `uv`)
+    """
+    console.warning("'uplogic.utils.raycasting.raycast_face()' is deprecated, use '...raycasting.raycast(face_data=True)' instead")
+    return RayCastFaceData((None, None, None, None, None, None))
+
+
+class RayCastDataProjectile(RayCastData):
+
+    @property
+    def points(self) -> list[Vector]:
+        return self[3]
+
+    @property
+    def direction(self) -> Vector:
+        p = self.points
+        if len(p) > 1:
+            return (p[-1] - p[-2]).normalized()
+        else:
+            return Vector((0, 0, 0))
+
+
+def raycast_projectile(
+    caster: GameObject,
+    origin: Vector,
+    aim: Vector,
+    power: float,
+    distance: float = 100,
+    resolution: float = .05,
+    prop: str = '',
+    material: str = '',
+    xray: bool = False,
+    local: bool = False,
+    mask: int = 65535,
+    gravity: Vector = None,
+    face_data: bool = False,
+    visualize: bool = False
+) -> RayCastDataProjectile[GameObject, Vector, Vector, Vector, KX_PolyProxy, Vector, list]:
+    """Raycast along the predicted parabola of a projectile.
+
+    :param caster: casting object, this object will be ignored by the ray.
+    :param origin: origin point; any vector or list.
+    :param aim: target point; the parabola will start towards this point.
+    :param power: "speed" of the projectile; a higher values mean further throws
+    :param distance: total distance the ray will be cast
+    :param resolution: detail quality of the parabola; higher values mean less detail
+    :param prop: look only for objects with this property.
+    :param material: look only for objects with this material.
+    :param xray: look for objects behind others.
+    :param local: add the target vector to the origin.
+    :param mask: Collision Mask for this ray.
+    :param gravity: Define custom gravity. If left at `None`, scene gravity is used.
+    :param face_data: Include face data in the returned object. Comes at a slight extra cost.
+    :param visualize: show the raycast.
+
+    :returns: (`obj`, `point`, `normal`, `points`)
+    """
+    def calc_projectile(t, vel, pos, gravity):
+        half: float = gravity * (.5 * t * t)
+        vel = vel * t
+        return half + vel + pos
+
+    if not local:
+        aim = aim - origin
+    aim.normalize()
+    aim *= power
+    origin = getattr(origin, 'worldPosition', origin)
+
+    points: list = [origin]
+    color: list = [1, 0, 0]
+    idx = 0
+    total_dist: float = 0
+    resolution = clamp(resolution, .01, .99)
+
+    grav = gravity if gravity else logic.getCurrentScene().gravity
+    while total_dist < distance:
+        target = (calc_projectile(idx, aim, origin, grav))
+        start = origin if not points else points[-1]
+        data = raycast(
+            caster=caster,
+            origin=start,
+            dest=target,
+            prop=prop,
+            material=material,
+            xray=xray,
+            local=False,
+            mask=mask,
+            face_data=face_data,
+            visualize=False
+        )
+        total_dist += (target-start).length
+        if not data.obj:
+            points.append(target)
+        else:
+            points.append(data.point)
+            color = [0, 1, 0]
+            break
+        idx += resolution
+    if visualize:
+        for i, p in enumerate(points):
+            if i < len(points) - 1:
+                render.drawLine(p, points[i+1], color)
+    return RayCastDataProjectile((data.obj, data.point, data.normal, points, data.face, data.uv))
+
+
+class RayCastCameraData(tuple):
+    @property
+    def obj(self) -> GameObject:
+        return self[0]
+
+    @property
+    def point(self) -> Vector:
+        return self[1]
+
+    @property
+    def normal(self) -> Vector:
+        return self[2]
+
+
+def raycast_camera(
+    distance: float = 0,
+    prop: str = '',
+    xray: bool = False,
+    aim: Vector = Vector((.5, .5)),
+    mask: int = 65535
+) -> RayCastCameraData:
+    """
+    [DEPRECATED]
+
+    Raycast from any point to any target. Returns additional face data.
+
+    :param distance: distance the ray will be cast
+    :param prop: look only for objects with this property.
+    :param xray: look for objects behind others.
+    :param aim: X and Y coordinates of the screen from 0-1
+    :param mask: Collision Mask for this ray.
+
+    :returns: (`obj`, `point`, `normal`)
+    """
+    # assume screen coordinates
+    from ..console import warning
+    warning("'raycasting.raycast_camera' is deprecated and will be removed in future versions, please use 'raycasting.raycast_screen' instead!")
+    camera = logic.getCurrentScene().active_camera
+    if isinstance(aim, Vector) and len(aim) == 2:
+        vec = 10 * camera.getScreenVect(aim[0], aim[1])
+        ray_target = camera.worldPosition - vec
+        aim = ray_target
+    obj, point, normal = camera.rayCast(
+        aim,
+        None,
+        distance,
+        prop,
+        xray=xray,
+        mask=mask
+    )
+    return RayCastCameraData((obj, point, normal))
+
+
+def raycast_screen(
+    caster=None,
+    aim: Vector = None,
+    distance: float = 100,
+    prop: str = '',
+    material: str = '',
+    xray: bool = False,
+    mask: int = 65535,
+    face_data: bool = False
+
+) -> RayCastCameraData[GameObject, Vector, Vector, Vector, KX_PolyProxy, Vector]:
+    """Raycast from any point to any target. Returns additional face data.
+
+    :param caster: Caster object, this object will be ignored by the raycast itself
+    :param aim: Target screen coordinates
+    :param distance: look for objects behind others.
+    :param prop: Only look for objects that have this property attached
+    :param material: Only look for objects that have this material attached
+    :param xray: Ignore objects that don't have either material or property attached
+    :param mask: Collision Mask for this ray.
+    :param face_data: Add `KX_Polygon` and `Vector` of hitpoint UV coordinates to result.
+
+    :returns: (`obj`, `point`, `normal`, `direction`, `polygon`, `uv`)
+    """
+    # assume screen coordinates
+    camera = logic.getCurrentScene().active_camera
+    if isinstance(aim, Vector) and len(aim) == 2:
+        vec = 10 * camera.getScreenVect(aim[0], aim[1])
+    else:
+        mpos = logic.mouse.position
+        vec = 10 * camera.getScreenVect(*mpos)
+    ray_target = camera.worldPosition - vec
+    aim = ray_target
+    data = raycast(
+        caster=caster if caster is not None else camera,
+        dest=aim,
+        origin=camera.worldPosition,
+        distance=distance,
+        material=material,
+        prop=prop,
+        xray=xray,
+        mask=mask,
+        face_data=face_data
+    )
+    return RayCastData(data)
+
+
+def raycast_mouse(
+    distance: float = 100,
+    prop: str = '',
+    material: str = '',
+    exclude: bool = False,
+    xray: bool = False,
+    mask: int = 65535
+) -> RayCastData:
+    """
+    [DEPRECATED]
+
+    Raycast from the active camera to world cursor coordinates.
+
+    :param distance: distance the ray will be cast
+    :param prop: look only for objects with this property.
+    :param material: look only for objects with this material applied.
+    :param exclude: invert the selection for `prop` and `material`.
+    :param xray: look for objects behind others.
+    :param mask: Collision Mask for this ray.
+
+    :returns: (`obj`, `point`, `normal`, `direction`, `None`, `None`)
+    """
+    from ..console import warning
+    warning("'raycasting.raycast_camera' is deprecated and will be removed in future versions, please use 'raycasting.raycast_screen' instead!")
+    camera = logic.getCurrentScene().active_camera
+    mpos = logic.mouse.position
+    vec = 10 * camera.getScreenVect(*mpos)
+    ray_target = camera.worldPosition - vec
+    return raycast(
+        camera,
+        camera.worldPosition,
+        ray_target,
+        distance,
+        prop,
+        material,
+        exclude,
+        xray,
+        mask=mask
+    )

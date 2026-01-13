@@ -1,0 +1,53 @@
+from bge import logic
+from mathutils import Euler
+from mathutils import Quaternion
+from mathutils import Vector
+from uplogic.nodes import ULParameterNode
+
+
+class ULBoneStatus(ULParameterNode):
+    def __init__(self):
+        ULParameterNode.__init__(self)
+        self.armature = None
+        self.bone_name = None
+        self._prev_armature = None
+        self._prev_bone = None
+        self._channel = None
+        self._pos = Vector((0, 0, 0))
+        self._rot = Euler((0, 0, 0), "XYZ")
+        self._sca = Vector((0, 0, 0))
+        self.XYZ_POS = self.add_output(self._get_pos)
+        self.XYZ_ROT = self.add_output(self._get_rot)
+        self.XYZ_SCA = self.add_output(self._get_sca)
+
+    def _get_pos(self):
+        return self._pos
+
+    def _get_sca(self):
+        return self._sca
+
+    def _get_rot(self):
+        return self._rot
+
+    def evaluate(self):
+        armature = self.get_input(self.armature)
+        bone_name = self.get_input(self.bone_name)
+        channel = None
+        if (
+            (armature is self._prev_armature) and
+            (bone_name == self._prev_bone)
+        ):
+            channel = self._channel
+        else:
+            self._prev_armature = armature
+            self._prev_bone = bone_name
+            self._channel = armature.channels[bone_name]
+            channel = self._channel
+        if channel.rotation_mode is logic.ROT_MODE_QUAT:
+            self._rot[:] = (
+                Quaternion(channel.rotation_quaternion).to_euler()
+            )
+        else:
+            self._rot[:] = channel.rotation_euler
+        self._pos[:] = channel.location
+        self._sca[:] = channel.scale

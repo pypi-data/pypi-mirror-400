@@ -1,0 +1,18 @@
+from mathutils import Euler
+from mathutils import Matrix
+from mathutils import Vector
+from uplogic.nodes import ULParameterNode
+
+
+class ULEulerToMatrix(ULParameterNode):
+    def __init__(self):
+        ULParameterNode.__init__(self)
+        self.input_e = None
+        self.matrix = Matrix()
+        self.OUT = self.add_output(self.get_matrix)
+
+    def get_matrix(self):
+        vec = self.get_input(self.input_e)
+        if isinstance(vec, Vector):
+            vec = Euler((vec.x, vec.y, vec.z), 'XYZ')
+        return vec.to_matrix()
