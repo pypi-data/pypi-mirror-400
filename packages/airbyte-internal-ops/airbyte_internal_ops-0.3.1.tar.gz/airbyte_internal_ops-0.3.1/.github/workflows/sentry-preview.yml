@@ -1,0 +1,156 @@
+name: Sentry Preview
+
+on:
+  pull_request:
+    paths:
+      - 'infra/sentry/**'
+      - '.github/workflows/sentry-preview.yml'
+
+permissions:
+  contents: read
+  actions: read  # For downloading artifacts
+  pull-requests: write  # For Pulumi PR comments
+
+env:
+  STATE_ARTIFACT_NAME: pulumi-sentry-state
+  WORKING_DIRECTORY: infra/sentry
+  # Directory where Pulumi stores stack state (for artifact-based state storage)
+  # Note: This is the backend storage location, NOT PULUMI_HOME (which is for CLI config)
+  PULUMI_BACKEND_DIR: ${{ github.workspace }}/infra/sentry/.pulumi-state
+
+jobs:
+  preview:
+    name: Pulumi Preview
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Pulumi CLI
+        uses: pulumi/setup-pulumi@v2
+
+      - name: Install base Pulumi dependency
+        run: |
+          pip install "pulumi>=3.147.0,<4.0.0"
+
+      - name: Generate Sentry provider SDK
+        run: |
+          pulumi package add terraform-provider jianyuan/sentry 0.14.5
+
+      - name: Install generated SDK
+        run: |
+          pip install sdks/sentry
+
+      - name: Download state artifact
+        id: download-state
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: ${{ env.STATE_ARTIFACT_NAME }}
+          path: ${{ env.PULUMI_BACKEND_DIR }}
+          # Must specify the Apply workflow to get state from production deploys
+          workflow: sentry-apply-command.yml
+          branch: main
+          workflow_conclusion: success
+          search_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: Initialize local backend
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        run: |
+          # Ensure backend directory exists
+          mkdir -p "$PULUMI_BACKEND_DIR"
+          
+          # Login to local filesystem backend at specific directory
+          # Note: file:// URL tells Pulumi WHERE to store state (not --local which uses ~/.pulumi)
+          pulumi login "file://$PULUMI_BACKEND_DIR"
+          
+          # Verify backend location
+          echo "Backend URL: $(pulumi whoami -v 2>/dev/null | grep -i backend || echo 'file://$PULUMI_BACKEND_DIR')"
+          
+          # If state was downloaded, it's already in PULUMI_BACKEND_DIR
+          # If not, this is a fresh start
+          if [ -d "$PULUMI_BACKEND_DIR/.pulumi/stacks" ]; then
+            echo "State restored from artifact"
+            ls -la "$PULUMI_BACKEND_DIR/.pulumi/stacks/" || true
+          else
+            echo "No existing state found, starting fresh"
+          fi
+
+      - name: Select stack
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        run: |
+          pulumi stack select prod --create
+
+      - name: Pulumi Preview (Summary)
+        id: preview
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_READONLY }}
+        run: |
+          # Run preview and capture output (summary view)
+          pulumi preview --stack prod 2>&1 | tee /tmp/pulumi-preview.txt
+          echo "preview_output<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/pulumi-preview.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Pulumi Preview (Detailed Diff)
+        id: preview_diff
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_READONLY }}
+        run: |
+          # Run preview with --diff for detailed property-level changes
+          pulumi preview --stack prod --diff 2>&1 | tee /tmp/pulumi-preview-diff.txt
+          echo "preview_diff_output<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/pulumi-preview-diff.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Find existing preview comment
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '<!-- pulumi-preview-comment -->'
+
+      - name: Create or update preview comment
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body: |
+            <!-- pulumi-preview-comment -->
+            #### Pulumi Preview
+
+            <details><summary>Summary (readable overview)</summary>
+
+            ```
+            ${{ steps.preview.outputs.preview_output }}
+            ```
+
+            </details>
+
+            <details><summary>Detailed Diff (property-level changes for audit)</summary>
+
+            ```diff
+            ${{ steps.preview_diff.outputs.preview_diff_output }}
+            ```
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: `${{ github.event_name }}`*
+
+            ---
+            These changes will be applied when this PR is merged to `main`. Alternatively, you can run `/sentry-apply` to apply these changes now, before merging.
