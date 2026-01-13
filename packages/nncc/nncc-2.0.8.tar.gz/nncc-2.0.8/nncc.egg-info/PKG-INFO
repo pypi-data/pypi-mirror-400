@@ -1,0 +1,152 @@
+Metadata-Version: 2.4
+Name: nncc
+Version: 2.0.8
+Summary: Neural Network to C Compiler
+Author-email: Aadi Srivastava <aadisrivastava.iitm@gmail.com>
+Project-URL: Homepage, https://github.com/AadiSrivastava05/nncc-neural-net-2-C
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch
+Requires-Dist: safetensors
+Requires-Dist: numpy
+Dynamic: license-file
+
+# nncc - Neural Network to C Compiler
+
+A minimal, dependency-free compiler that converts PyTorch models into portable C99 code for inference.
+
+## Features
+
+- **Python-First Workflow**: Compile directly from your Python training script using `nncc.compile()`.
+- **Zero-Dependency Inference**: Generated C code only requires `<math.h>` and `<stdlib.h>`.
+- **Embedded Weights**: Weights are embedded directly into the generated C header/source, making it a single-file solution.
+- **Dynamic & Portable**: Supports arbitrary model architectures and runs on any C99-compliant compiler (GCC, Clang, MSVC).
+
+## Installation
+
+```bash
+pip install nncc
+```
+
+## Quick Start
+
+### 1. Compile directly from PyTorch
+
+```python
+import torch
+import torch.nn as nn
+import nncc
+
+# 1. Define your model
+model = nn.Sequential(
+    nn.Linear(10, 64),
+    nn.ReLU(),
+    nn.Linear(64, 2),
+    nn.Softmax(dim=-1)
+)
+
+# 2. Compile to C source code
+# We pass a sample input to infer shapes
+c_code = nncc.compile(model, torch.randn(1, 10), name="my_model")
+
+# 3. Save to file
+with open("model.c", "w") as f:
+    f.write(c_code)
+
+print("Saved model.c!")
+```
+
+### 2. Use the generated C code
+
+The generated file is a single-header library. You can include it directly in your C application.
+
+```c
+// main.c
+#define NNCC_IMPLEMENTATION // Define this in exactly one .c file
+#include "model.c"
+
+#include <stdio.h>
+
+int main() {
+    // Input matches the shape provided during compilation (1, 10)
+    float input[10] = {0.5f, -0.2f, /* ... */};
+    float output[2];
+    
+    // Run inference
+    my_model_inference(input, output);
+    
+    printf("Class 0: %f\n", output[0]);
+    printf("Class 1: %f\n", output[1]);
+    
+    return 0;
+}
+```
+
+Compile it with standard tools:
+```bash
+gcc -O3 main.c -o app -lm
+```
+
+## Supported Layers
+
+| Category | Operations |
+|----------|------------|
+| **Linear** | `Linear` (GEMM) |
+| **Conv** | `Conv2d` |
+| **Pool** | `MaxPool2d`, `AvgPool2d`, `AdaptiveAvgPool2d` (Global) |
+| **Act** | `ReLU`, `ReLU6`,, `Sigmoid`, `Tanh`, `Softmax` |
+| **Norm** | `BatchNorm2d` |
+| **Shape** | `Flatten`, `Dropout` (No-op) |
+
+## Advanced / Manual Usage
+
+### CLI Tool
+If you prefer the command-line interface or want to work with raw files:
+
+1.  **Export Model**: Use `scripts/export_model.py` to generate `.safetensors` and `.nnmodel` files.
+2.  **Compile**:
+    ```bash
+    nncc model.safetensors model.nnmodel -o model.c
+    ```
+
+### Building from Source
+
+To build the `nncc` compiler and shared library from source:
+
+**Windows (MinGW/Git Bash):**
+```bash
+make
+```
+**Windows (MSVC):**
+```bash
+cl /O2 /Fe:nncc.exe src/main.c src/model.c src/loader.c src/codegen.c
+```
+**Linux/macOS:**
+```bash
+make
+```
+
+## Project Structure
+
+```
+nncc/
+├── nncc/              # Python package
+│   ├── __init__.py
+│   ├── compiler.py    # Python API & Ctypes bindings
+│   └── nncc.dll       # Pre-compiled core
+├── src/               # C Compiler Core
+│   ├── libnncc.c      # Shared library entry point
+│   ├── main.c         # CLI entry point
+│   ├── model.c        # Graph IR
+│   └── codegen.c      # C99 Generator
+├── examples/          # Usage examples
+└── setup.py           # Packaging config
+```
+
+## License
+
+MIT License
