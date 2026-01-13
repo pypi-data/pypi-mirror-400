@@ -1,0 +1,133 @@
+Metadata-Version: 2.4
+Name: iotopen-bridge
+Version: 0.1.7
+Summary: Secure IoT Open Lynx ↔ Home Assistant MQTT Discovery bridge
+Author: IoT Open Bridge Contributors
+License-Expression: Apache-2.0
+Project-URL: Homepage, https://github.com/afiay/iotopen-bridge
+Project-URL: Repository, https://github.com/afiay/iotopen-bridge
+Project-URL: Documentation, https://github.com/afiay/iotopen-bridge#readme
+Project-URL: Issues, https://github.com/afiay/iotopen-bridge/issues
+Project-URL: Changelog, https://github.com/afiay/iotopen-bridge/releases
+Keywords: iot,mqtt,home-assistant,iotopen,lynx,discovery,bridge
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: aiohttp>=3.9
+Requires-Dist: paho-mqtt>=2.0
+Requires-Dist: prometheus-client>=0.20
+Requires-Dist: opentelemetry-api>=1.24
+Requires-Dist: opentelemetry-sdk>=1.24
+Requires-Dist: requests>=2.31
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Requires-Dist: ruff>=0.5; extra == "dev"
+Requires-Dist: mypy>=1.10; extra == "dev"
+Requires-Dist: types-PyYAML>=6.0.12.20240808; extra == "dev"
+Requires-Dist: build>=1.2; extra == "dev"
+Requires-Dist: twine>=6.0; extra == "dev"
+Requires-Dist: pre-commit>=3.7; extra == "dev"
+Requires-Dist: types-requests>=2.32.0; extra == "dev"
+Requires-Dist: build>=1.2; extra == "dev"
+Requires-Dist: twine>=6.0; extra == "dev"
+Requires-Dist: pre-commit>=3.7; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: mkdocs>=1.6; extra == "docs"
+Requires-Dist: mkdocs-material>=9.5; extra == "docs"
+Requires-Dist: mkdocstrings[python]>=0.25; extra == "docs"
+Dynamic: license-file
+
+# iotopen-bridge
+
+Secure, extensible bridge between **IoT Open Lynx** and **Home Assistant** using MQTT + HA MQTT Discovery.
+
+## Quick start
+
+### Install (PyPI)
+```bash
+pip install iotopen-bridge
+```
+
+### Install (dev)
+```bash
+pip install -e ".[dev]"
+```
+
+
+### Home Assistant integration helper (optional)
+
+If you are writing a Home Assistant custom integration and want **minimal glue code**,
+you can build a `BridgeConfig` from your config flow values and start the runtime from HA:
+
+```python
+from iotopen_bridge.ha import HABridgeHandle, build_bridge_config
+
+cfg = build_bridge_config(
+    base_url="https://lynx.iotopen.se",
+    api_key="...",
+    installation_id=2222,
+    mqtt_host="localhost",
+    mqtt_port=1883,
+)
+
+handle = HABridgeHandle.from_config(cfg)
+await handle.async_start(hass)
+```
+
+### Configure
+Create `config.yml` (see `examples/config.example.yaml`):
+
+```yaml
+lynx:
+  base_url: "https://lynx.example"
+  installation_id: 2222
+  api_key: "${IOTOPEN_API_KEY}"
+
+mqtt:
+  host: "mqtt.example"
+  port: 8883 #tls 1883 non secured 
+  username: "${MQTT_USER}"
+  password: "${MQTT_PASS}"
+  client_id: "iotopen-bridge"
+  tls:
+    enabled: true
+    cafile: "/etc/ssl/certs/ca-certificates.crt"
+    verify_hostname: true
+
+ha:
+  discovery:
+    enabled: true
+    prefix: "homeassistant"
+  state_prefix: "iotopen"
+```
+
+### Run
+```bash
+iotopen-bridge run --config config.yml
+```
+
+### Probes
+```bash
+iotopen-bridge probe-api --config config.yml
+iotopen-bridge probe-mqtt --config config.yml --sub "2086/obj/#" --count 20
+```
+
+## Design
+- Inventory from Lynx API (FunctionX).
+- Telemetry from FunctionX `topic_read`.
+- Commands to FunctionX `topic_set`.
+- HA MQTT Discovery auto-creates entities in Home Assistant.
+
+See `docs/architecture.md`.
