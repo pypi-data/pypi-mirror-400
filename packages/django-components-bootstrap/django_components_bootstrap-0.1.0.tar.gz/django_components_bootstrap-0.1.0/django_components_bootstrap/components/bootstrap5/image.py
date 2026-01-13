@@ -1,0 +1,41 @@
+from django.template import Context
+from django_components import Component, types
+
+
+class Image(Component):
+    class Kwargs:
+        src: str
+        alt: str = ""
+        fluid: bool = False
+        rounded: bool = False
+        rounded_circle: bool = False
+        thumbnail: bool = False
+        attrs: dict | None = None
+
+    def get_template_data(self, args, kwargs: Kwargs, slots, context: Context):
+        classes = []
+        if kwargs.fluid:
+            classes.append("img-fluid")
+        if kwargs.rounded:
+            classes.append("rounded")
+        if kwargs.rounded_circle:
+            classes.append("rounded-circle")
+        if kwargs.thumbnail:
+            classes.append("img-thumbnail")
+
+        return {
+            "src": kwargs.src,
+            "alt": kwargs.alt,
+            "classes": " ".join(classes) if classes else "",
+            "attrs": kwargs.attrs,
+        }
+
+    template: types.django_html = """
+        {% load component_tags %}
+
+        {% if classes %}
+            <img {% html_attrs attrs src=src alt=alt class=classes %} />
+        {% else %}
+            <img {% html_attrs attrs src=src alt=alt %} />
+        {% endif %}
+    """
