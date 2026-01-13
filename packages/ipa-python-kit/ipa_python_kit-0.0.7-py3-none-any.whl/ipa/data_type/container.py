@@ -1,0 +1,76 @@
+from abc import ABCMeta
+from collections import defaultdict
+from typing import Dict, Protocol, runtime_checkable
+
+from .base import NumberType
+from .unitable import NumberUnit
+
+
+class StoreResult(metaclass=ABCMeta):
+    """
+    存储结果
+    """
+
+    pass
+
+
+class RetrieveResult(metaclass=ABCMeta):
+    """
+    检索结果
+    """
+
+    pass
+
+
+class StoreStrategy(metaclass=ABCMeta):
+    """
+    存储策略
+    """
+
+
+@runtime_checkable
+class Storable(Protocol):
+    # class Storable(metaclass=ABCMeta):
+    """
+    可存储的
+
+    使用鸭子类型实现，相比ABC更灵活
+    """
+
+    def pre_store(self, *args, **kwargs):
+        """
+        预存储，一般用来实现资源检查、校验
+        """
+        pass
+
+    def pre_retrieve(self, *args, **kwargs):
+        """
+        预取回，一般用来实现资源检查、校验
+        """
+        pass
+
+    def store(self, *args, **kwargs) -> StoreResult:
+        """
+        真正的存储操作
+        """
+        pass
+
+    def retrieve(self, *args, **kwargs) -> RetrieveResult:
+        """
+        真正的取回操作
+        """
+        pass
+
+
+class QuantifiedValueContainer(Storable):
+
+    def __init__(self):
+        self.__container__: Dict[str, Dict[str, NumberType]] = defaultdict(
+            defaultdict(0)
+        )
+
+    def store(self, v: "NumberUnit"):
+        self.__container__[v.kind][v.unit] += v.quantity
+
+    def retrieve(self, v: "NumberUnit"):
+        self.__container__[v.kind][v.unit] -= v.quantity
