@@ -1,0 +1,241 @@
+Metadata-Version: 2.4
+Name: async-strict-timer
+Version: 0.1.0
+Summary: A precise, cancellation-safe asyncio timer for Python that avoids drift
+Author-email: sumitdhyani <sumitdhyani1@gmail.com>
+Keywords: asyncio timer,deterministic,drift,overrun
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Framework :: AsyncIO
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Utilities
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# asynctimer
+
+Deterministic, **asyncio-native** timer for predictable, repeated execution
+
+## Overview
+
+asynctimer is a precise, cancellation-safe asyncio timer for Python that avoids drift and enforces fixed scheduling semantics.
+It is intentionally conservative and explicit, making it suitable for protecting external systems (APIs, databases, hardware) where **bursts and ambiguity are unacceptable**.
+
+## Why this library exists
+
+Many timer utilities:
+- implicitly drift over time
+- allow bursts by default
+- rely on best-effort timing
+- do not clearly specify stop or overrun behavior
+
+**asynctimer** takes a different approach:
+
+> Behavior is explicit, testable, and deterministic — even if that costs some throughput, though in case of timers that's virtually never a concern.
+
+---
+
+## Why not just use `asyncio.sleep()`?
+
+A common way to implement a repeating task is:
+
+```python
+while True:
+    await asyncio.sleep(interval)
+    do_work()
+```
+
+This approach introduces timer drift because:
+- execution time is added to the interval
+- event loop scheduling latency compounds over time
+- For long-running tasks, this drift becomes observable and problematic.
+- No cancellation mechanism
+
+## Installation
+
+```bash
+pip install asynctimer
+```
+
+---
+
+### What it does
+
+Implements a repeating, async-friendly timer that calls a user-provided callback at a fixed interval until stopped. Callbacks may be synchronous functions or async coroutines.
+
+
+### Timer Guarantees
+
+- Callbacks never execute concurrently
+- Calling stop() guarantees that no further callbacks will be scheduled or started after it returns.
+- Drift behavior is explicitly configurable
+- Overrun behavior is well-defined and tested
+
+
+### API
+
+- `Timer(timeout: int | float, callback: Callback, schedule_policy: str = "FIXED_SCHEDULE")` — create a timer with a repeat interval, callback, and drift policy.
+    - **timeout_ns**: Tick interval in nanoseconds
+    - **callback**: `Callable[[], None | Awaitable[None]]`
+        - May be a synchronous function or an async coroutine
+        - Takes no arguments
+        - Returns nothing
+    - **schedule_policy**: Drift policy
+        - `"FIXED_SCHEDULE"` (default)
+        - `"FIXED_DELAY"`
+    - `start()` — start the timer loop (non-blocking; schedules repeated executions).
+    - `stop()` — stop the timer loop.
+
+### Drift / Schedule Policy
+
+Timers can be scheduled in two fundamentally different ways.
+
+#### Fixed Schedule (drift-free)
+
+```
+next_tick = initial_start + N × interval
+```
+
+- Anchored to the original schedule
+- Prevents long-term drift
+- Suitable for:
+  - heartbeats
+  - simulations
+  - clock-aligned tasks
+
+```python
+from asynctimer import Timer
+# callback can be async too
+def callback():
+    print('tick')
+
+timer = Timer(
+    2000_000_000,
+    callback,
+    schedule_policy="FIXED_SCHEDULE"
+)
+timer.start()  # starts the repeating timer
+# ... later: timer.stop()
+```
+
+#### Fixed Delay (completion-relative)
+
+```
+next_tick = callback_completion + interval
+```
+
+- Guarantees spacing between executions
+- Suitable for:
+  - retries
+  - polling
+  - cooldowns
+  - background maintenance
+
+```python
+from asynctimer import Timer
+
+timer = Timer(
+    2000_000_000,
+    callback,
+    schedule_policy="FIXED_DELAY"
+)
+timer.start()
+```
+
+### Overrun Behavior
+
+If a callback takes longer than the interval:
+- Missed ticks are not executed retroactively
+- The timer resumes according to its original schedule policy
+
+This avoids burst execution and keeps behavior predictable.
+
+### Stop Semantics
+
+Calling `stop()` guarantees:
+- No further callbacks will be scheduled or started after it returns.
+
+### Example
+
+```python
+import asyncio
+from asynctimer import Timer
+
+# callback can be async too
+def callback():
+    print('tick')
+
+async def main():
+    timer = Timer(2000_000_000, callback)
+    timer.start()  # starts the repeating timer
+    await asyncio.sleep(10)
+    timer.stop()
+
+asyncio.run(main())
+```
+
+
+## Working Examples
+
+For concrete examples showing actual working code using these classes, see the example code in the `examples/` directory:
+
+- [examples/BasicTimerExample.py](examples/BasicTimerExample.py) — basic `Timer` usage
+- [examples/MultipleTimersExample.py](examples/MultipleTimersExample.py) — using multiple `Timer` instances
+- [examples/SchedulePolicyTimerExample.py](examples/SchedulePolicyTimerExample.py) — using `SchedulePolicy` with `Timer`
+
+---
+
+## Build Package from Source
+
+The project uses `pyproject.toml`. To build distribution archives install `build` and run:
+
+```bash
+pip install --upgrade build
+python -m build
+```
+
+The above produces a `dist/` folder with `.whl` and `.tar.gz` files. You can also install locally with:
+
+```bash
+pip install .        # install from source
+pip install -e .     # editable install for development
+```
+
+Alternatively, this repository includes `build_package.py`; you can run it if you prefer (it wraps standard build steps):
+
+```bash
+python build_package.py
+```
+
+---
+
+## Run Tests
+
+The tests are in the `tests/` directory and use `unittest`'s async test support. You can run them with `unittest` or with `pytest`.
+
+Run with unittest (cross-platform):
+```bash
+python -m unittest discover -v
+```
+
+Run with pytest (if installed):
+```bash
+pip install pytest
+pytest -q
+```
+
+Platform-specific helper scripts are provided:
+- Windows: `run_tests.bat`
+- Unix/macOS: `run_tests.sh`
+
+---
+
+## Notes & Troubleshooting
+
+- The utilities depend only on Python's standard library (`asyncio`, `datetime`, etc.). Tests use `unittest.IsolatedAsyncioTestCase` which requires Python 3.8+.
+---
+
+## License
+
+MIT
