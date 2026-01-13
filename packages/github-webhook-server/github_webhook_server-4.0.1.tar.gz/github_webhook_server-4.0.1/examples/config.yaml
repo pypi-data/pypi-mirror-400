@@ -1,0 +1,168 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/myk-org/github-webhook-server/refs/heads/main/webhook_server/config/schema.yaml
+
+log-level: INFO # Set global log level, change take effect immediately without server restart
+log-file: webhook-server.log # Set global log file, change take effect immediately without server restart
+mcp-log-file: mcp_server.log # Set global MCP log file, change take effect immediately without server restart
+logs-server-log-file: logs_server.log # Set global Logs Server log file, change take effect immediately without server restart
+mask-sensitive-data: true # Mask sensitive data in logs (default: true). Set to false for debugging (NOT recommended in production)
+
+# Server configuration
+disable-ssl-warnings: true # Disable SSL warnings (useful in production to reduce log noise from SSL certificate issues)
+
+github-app-id: 123456 # GitHub app id
+github-tokens:
+  - <GITHIB TOKEN1>
+  - <GITHIB TOKEN2>
+
+webhook-ip: <HTTP://IP OR URL:PORT/webhook_server> # Full URL with path (e.g., https://your-domain.com/webhook_server or https://smee.io/your-channel)
+
+docker: # Used to pull images from docker.io
+  username: <username>
+  password: <password>
+
+default-status-checks:
+  - "WIP"
+  - "dpulls"
+  - "can-be-merged"
+
+auto-verified-and-merged-users:
+  - "renovate[bot]"
+  - "pre-commit-ci[bot]"
+
+auto-verify-cherry-picked-prs: true  # Default: true - automatically verify cherry-picked PRs. Set to false to require manual verification.
+
+create-issue-for-new-pr: true  # Global default: create tracking issues for new PRs
+
+# Global PR size label configuration (optional)
+# Define custom categories based on total lines changed (additions + deletions)
+# threshold: positive integer or 'inf' for unbounded largest category
+# color: CSS3 color name (e.g., red, green, blue, lightgray, darkorange)
+# Infinity behavior: 'inf' ensures all PRs beyond largest finite threshold are captured
+#                   Always sorted last, regardless of definition order
+pr-size-thresholds:
+  Tiny:
+    threshold: 10      # PRs with 0-9 lines changed
+    color: lightgray
+  Small:
+    threshold: 50      # PRs with 10-49 lines changed
+    color: green
+  Medium:
+    threshold: 150     # PRs with 50-149 lines changed
+    color: orange
+  Large:
+    threshold: 300     # PRs with 150-299 lines changed
+    color: red
+  Massive:
+    threshold: inf     # PRs with 300+ lines changed (unbounded largest category)
+    color: darkred     # 'inf' means no upper limit - catches all PRs above 300 lines
+
+branch-protection:
+  strict: True
+  require_code_owner_reviews: True
+  dismiss_stale_reviews: False
+  required_approving_review_count: 1
+  required_linear_history: True
+  required_conversation_resolution: True
+
+repositories:
+  my-repository:
+    name: my-org/my-repository
+    log-level: DEBUG # Override global log-level for repository
+    log-file: my-repository.log # Override global log-file for repository
+    mask-sensitive-data: false # Override global setting - disable masking for debugging this specific repo (NOT recommended in production)
+    slack-webhook-url: <Slack webhook url> # Send notification to slack on several operations
+    verified-job: true
+    pypi:
+      token: <PYPI TOKEN>
+
+    events: # To listen to all events do not send events
+      - push
+      - pull_request
+      - issue_comment
+      - check_run
+      - pull_request_review
+    tox:
+      main: all # Run all tests in tox.ini when pull request parent branch is main
+      dev: testenv1,testenv2 # Run testenv1 and testenv2 tests in tox.ini when pull request parent branch is dev
+
+    pre-commit: true # Run pre-commit check
+
+    protected-branches:
+      dev: []
+      main: # set [] in order to set all defaults run included
+        include-runs:
+          - "pre-commit.ci - pr"
+          - "WIP"
+        exclude-runs:
+          - "SonarCloud Code Analysis"
+    container:
+      username: <registry username>
+      password: <registry_password>
+      repository: <registry_repository_full_path>
+      tag: <image_tag>
+      release: true # Push image to registry on new release with release as the tag
+      build-args: # build args to send to podman build command
+        - my-build-arg1=1
+        - my-build-arg2=2
+      args: # args to send to podman build command
+        - --format docker
+
+    auto-verified-and-merged-users: # override auto verified users per repository
+      - "my[bot]"
+
+    auto-verify-cherry-picked-prs: false  # Disable auto-verification for cherry-picked PRs in this repository
+
+    github-tokens: # override GitHub tokens per repository
+      - <GITHUB TOKEN1>
+      - <GITHUB TOKEN2>
+
+    can-be-merged-required-labels: # check for extra labels to set PR as can be merged
+      - my-label1
+      - my-label2
+
+    # Conventional Commits validation
+    # Enforces Conventional Commits v1.0.0 specification for PR titles
+    # Format: <type>[optional scope]: <description>
+    #
+    # Standard types (recommended):
+    #   - feat: New features (triggers MINOR version bump in semver)
+    #   - fix: Bug fixes (triggers PATCH version bump in semver)
+    #   - build, chore, ci, docs, style, refactor, perf, test, revert
+    #
+    # Custom types: You can define your own types! The spec allows any noun.
+    # Examples: my-title, hotfix, release, custom
+    #
+    # Valid PR title examples:
+    #   - feat: add user authentication
+    #   - fix(parser): handle edge case in XML parsing
+    #   - feat!: breaking API change to authentication
+    #   - my-title: custom type example
+    #   - hotfix(api): resolve production issue
+    #
+    # Resources: https://www.conventionalcommits.org/en/v1.0.0/
+    conventional-title: "feat,fix,build,chore,ci,docs,style,refactor,perf,test,revert"
+    branch-protection:
+      strict: True
+      require_code_owner_reviews: True
+      dismiss_stale_reviews: False
+      required_approving_review_count: 1
+      required_linear_history: True
+      required_conversation_resolution: True
+
+    minimum-lgtm: 0 # The minimum PR lgtm required before approve the PR
+    create-issue-for-new-pr: true # Override global setting: create tracking issues for new PRs (default: true)
+
+    # Repository-specific PR size labels (overrides global configuration)
+    pr-size-thresholds:
+      Express:
+        threshold: 25      # PRs with 0-24 lines changed
+        color: lightblue
+      Standard:
+        threshold: 100     # PRs with 25-99 lines changed
+        color: green
+      Premium:
+        threshold: 500     # PRs with 100-499 lines changed
+        color: orange      # PRs with 500+ lines changed get this category
+
+    set-auto-merge-prs:
+      - main

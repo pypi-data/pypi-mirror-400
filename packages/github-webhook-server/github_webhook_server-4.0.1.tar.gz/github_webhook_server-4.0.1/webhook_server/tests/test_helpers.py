@@ -1,0 +1,507 @@
+import asyncio
+import datetime
+import logging
+import os
+import subprocess as sp
+import sys
+from unittest.mock import Mock, patch
+
+import pytest
+
+from webhook_server.libs.config import Config
+from webhook_server.libs.exceptions import NoApiTokenError
+from webhook_server.utils.helpers import (
+    get_api_with_highest_rate_limit,
+    get_apis_and_tokes_from_config,
+    get_future_results,
+    get_github_repo_api,
+    get_logger_with_params,
+    log_rate_limit,
+    run_command,
+)
+
+
+class TestHelpers:
+    """Test suite for utility helper functions."""
+
+    def test_get_logger_with_params_default(self) -> None:
+        """Test logger creation with default parameters."""
+        logger = get_logger_with_params()
+        assert isinstance(logger, logging.Logger)
+        # Logger name is now the log file path (or 'console') to ensure single handler instance
+        assert logger.name  # Just verify it has a name
+
+    def test_get_logger_with_params_with_repository(self) -> None:
+        """Test logger creation with repository name."""
+        logger = get_logger_with_params(repository_name="test-repo")
+        assert isinstance(logger, logging.Logger)
+        # The logger should have repository-specific formatting
+
+    @patch.dict(os.environ, {"WEBHOOK_SERVER_DATA_DIR": "webhook_server/tests/manifests"})
+    def test_get_apis_and_tokes_from_config(self) -> None:
+        """Test getting APIs and tokens from configuration."""
+
+        config = Config(repository="test-repo")
+        apis_and_tokens = get_apis_and_tokes_from_config(config=config)
+
+        # Should return a list of tuples (api, token)
+        assert isinstance(apis_and_tokens, list)
+        # Each item should be a tuple
+        for api, token in apis_and_tokens:
+            assert isinstance(token, str)
+            # API objects should have certain attributes
+            assert hasattr(api, "get_user")
+
+    @patch.dict(os.environ, {"WEBHOOK_SERVER_DATA_DIR": "webhook_server/tests/manifests"})
+    @patch("webhook_server.utils.helpers.get_apis_and_tokes_from_config")
+    @patch("webhook_server.utils.helpers.log_rate_limit")
+    def test_get_api_with_highest_rate_limit(self, mock_log_rate_limit: Mock, mock_get_apis: Mock) -> None:
+        """Test getting API with highest rate limit."""
+
+        # Mock APIs with different rate limits
+        mock_api1 = Mock()
+        mock_api1.rate_limiting = [100, 5000]  # 100 remaining, 5000 limit
+        mock_api1.get_user.return_value.login = "user1"
+        mock_rate_limit1 = Mock()
+        mock_rate_limit1.rate.remaining = 100
+        mock_rate_limit1.rate.reset = Mock()
+        mock_rate_limit1.rate.limit = 5000
+        mock_api1.get_rate_limit.return_value = mock_rate_limit1
+
+        mock_api2 = Mock()
+        mock_api2.rate_limiting = [200, 5000]  # 200 remaining, 5000 limit
+        mock_api2.get_user.return_value.login = "user2"
+        mock_rate_limit2 = Mock()
+        mock_rate_limit2.rate.remaining = 200
+        mock_rate_limit2.rate.reset = Mock()
+        mock_rate_limit2.rate.limit = 5000
+        mock_api2.get_rate_limit.return_value = mock_rate_limit2
+
+        mock_get_apis.return_value = [(mock_api1, "token1"), (mock_api2, "token2")]
+
+        config = Config(repository="test-repo")
+        api, token, user = get_api_with_highest_rate_limit(config=config, repository_name="test-repo")
+
+        # Should return the API with higher rate limit (mock_api2)
+        assert api == mock_api2
+        assert token == "token2"
+        assert user == "user2"
+
+    @patch.dict(os.environ, {"WEBHOOK_SERVER_DATA_DIR": "webhook_server/tests/manifests"})
+    @patch("webhook_server.utils.helpers.get_apis_and_tokes_from_config")
+    def test_get_api_with_highest_rate_limit_no_apis(self, mock_get_apis: Mock) -> None:
+        """Test getting API when no APIs available."""
+
+        mock_get_apis.return_value = []
+
+        config = Config(repository="test-repo")
+
+        # Should raise NoApiTokenError when no APIs available
+        with pytest.raises(NoApiTokenError, match="Failed to get API with highest rate limit"):
+            get_api_with_highest_rate_limit(config=config, repository_name="test-repo")
+
+    def test_get_github_repo_api(self) -> None:
+        """Test getting GitHub repository API."""
+        mock_github_api = Mock()
+        mock_repo = Mock()
+        mock_github_api.get_repo.return_value = mock_repo
+
+        repository_name = "owner/repo"
+        result = get_github_repo_api(github_app_api=mock_github_api, repository=repository_name)
+
+        mock_github_api.get_repo.assert_called_once_with(repository_name)
+        assert result == mock_repo
+
+    def test_get_github_repo_api_exception(self) -> None:
+        """Test getting GitHub repository API with exception."""
+        mock_github_api = Mock()
+        mock_github_api.get_repo.side_effect = Exception("Repository not found")
+
+        repository_name = "owner/repo"
+
+        # Should raise the exception when it occurs
+        with pytest.raises(Exception, match="Repository not found"):
+            get_github_repo_api(github_app_api=mock_github_api, repository=repository_name)
+
+    @patch("webhook_server.utils.helpers.get_apis_and_tokes_from_config")
+    @patch("webhook_server.utils.helpers.log_rate_limit")
+    def test_get_api_with_highest_rate_limit_invalid_tokens(
+        self, mock_log_rate_limit: Mock, mock_get_apis: Mock
+    ) -> None:
+        """Test getting API with invalid tokens (rate limit 60)."""
+
+        # Mock API with invalid token (rate limit 60)
+        mock_api1 = Mock()
+        mock_api1.rate_limiting = [30, 60]  # Invalid token indicator
+        mock_api1.get_user.return_value.login = "user1"
+
+        # Mock API with valid token
+        mock_api2 = Mock()
+        mock_api2.rate_limiting = [100, 5000]  # Valid token
+        mock_api2.get_user.return_value.login = "user2"
+        mock_rate_limit2 = Mock()
+        mock_rate_limit2.rate.remaining = 100
+        mock_rate_limit2.rate.reset = Mock()
+        mock_rate_limit2.rate.limit = 5000
+        mock_api2.get_rate_limit.return_value = mock_rate_limit2
+
+        mock_get_apis.return_value = [(mock_api1, "invalid_token"), (mock_api2, "valid_token")]
+
+        with patch.dict(os.environ, {"WEBHOOK_SERVER_DATA_DIR": "webhook_server/tests/manifests"}):
+            config = Config(repository="test-repo")
+            api, token, user = get_api_with_highest_rate_limit(config=config, repository_name="test-repo")
+
+            # Should skip invalid token and return valid one
+            assert api == mock_api2
+            assert token == "valid_token"
+            assert user == "user2"
+
+    def test_get_logger_with_params_log_file_path(self, tmp_path, monkeypatch):
+        """Test get_logger_with_params with log_file that is not an absolute path."""
+        # Patch Config.get_value to return a log file name
+        with patch("webhook_server.utils.helpers.Config") as MockConfig:
+            mock_config = MockConfig.return_value
+            mock_config.get_value.side_effect = lambda value, **kwargs: "test.log" if value == "log-file" else "INFO"
+            mock_config.data_dir = str(tmp_path)
+            logger = get_logger_with_params(repository_name="repo")
+            assert isinstance(logger, logging.Logger)
+            log_dir = tmp_path / "logs"
+            assert log_dir.exists()
+            assert (log_dir / "test.log").exists() or True  # File may not be created until logging
+
+    def test_get_logger_with_params_mask_sensitive_default(self, tmp_path):
+        """Test get_logger_with_params masks sensitive data by default."""
+        with patch("webhook_server.utils.helpers.Config") as mock_config:
+            # Set up config to return default values (mask_sensitive not set)
+            def get_value_side_effect(value, **kwargs):
+                if value == "log-file":
+                    return "test.log"
+                if value == "log-level":
+                    return "INFO"
+                if value == "mask-sensitive-data":
+                    return kwargs.get("return_on_none", True)
+                return kwargs.get("return_on_none")
+
+            mock_config.return_value.get_value.side_effect = get_value_side_effect
+            mock_config.return_value.data_dir = str(tmp_path)
+
+            with patch("webhook_server.utils.helpers.get_logger") as mock_get_logger:
+                get_logger_with_params()
+                # Verify mask_sensitive=True was passed
+                mock_get_logger.assert_called_once()
+                call_kwargs = mock_get_logger.call_args[1]
+                assert call_kwargs["mask_sensitive"] is True
+
+    def test_get_logger_with_params_mask_sensitive_disabled(self, tmp_path):
+        """Test get_logger_with_params respects mask-sensitive-data=false config."""
+        with patch("webhook_server.utils.helpers.Config") as mock_config:
+            # Set up config to explicitly disable masking
+            def get_value_side_effect(value, **kwargs):
+                if value == "log-file":
+                    return "test.log"
+                if value == "log-level":
+                    return "INFO"
+                if value == "mask-sensitive-data":
+                    return False  # Explicitly disabled
+                return kwargs.get("return_on_none")
+
+            mock_config.return_value.get_value.side_effect = get_value_side_effect
+            mock_config.return_value.data_dir = str(tmp_path)
+
+            with patch("webhook_server.utils.helpers.get_logger") as mock_get_logger:
+                get_logger_with_params()
+                # Verify mask_sensitive=False was passed
+                mock_get_logger.assert_called_once()
+                call_kwargs = mock_get_logger.call_args[1]
+                assert call_kwargs["mask_sensitive"] is False
+
+    def test_get_logger_with_params_mask_sensitive_enabled_explicit(self, tmp_path):
+        """Test get_logger_with_params respects mask-sensitive-data=true config."""
+        with patch("webhook_server.utils.helpers.Config") as mock_config:
+            # Set up config to explicitly enable masking
+            def get_value_side_effect(value, **kwargs):
+                if value == "log-file":
+                    return "test.log"
+                if value == "log-level":
+                    return "INFO"
+                if value == "mask-sensitive-data":
+                    return True  # Explicitly enabled
+                return kwargs.get("return_on_none")
+
+            mock_config.return_value.get_value.side_effect = get_value_side_effect
+            mock_config.return_value.data_dir = str(tmp_path)
+
+            with patch("webhook_server.utils.helpers.get_logger") as mock_get_logger:
+                get_logger_with_params()
+                # Verify mask_sensitive=True was passed
+                mock_get_logger.assert_called_once()
+                call_kwargs = mock_get_logger.call_args[1]
+                assert call_kwargs["mask_sensitive"] is True
+
+    @pytest.mark.asyncio
+    async def test_run_command_success(self):
+        """Test run_command with a successful command."""
+        result = await run_command("echo hello", log_prefix="[TEST]")
+        assert result[0] is True
+        assert "hello" in result[1]
+
+    @pytest.mark.asyncio
+    async def test_run_command_failure(self):
+        """Test run_command with a failing command."""
+        result = await run_command("false", log_prefix="[TEST]")
+        assert result[0] is False
+
+    @pytest.mark.asyncio
+    async def test_run_command_stderr(self):
+        """Test run_command with stderr and verify_stderr=True."""
+        # Use python to print to stderr
+        result = await run_command(
+            f'{sys.executable} -c "import sys; sys.stderr.write("err")"', log_prefix="[TEST]", verify_stderr=True
+        )
+        assert result[0] is False
+        assert "err" in result[2]
+
+    @pytest.mark.asyncio
+    async def test_run_command_exception(self):
+        """Test run_command with an invalid command to trigger exception."""
+        result = await run_command("nonexistent_command_xyz", log_prefix="[TEST]")
+        assert result[0] is False
+
+    def test_log_rate_limit_all_branches(self):
+        """Test log_rate_limit for all color/warning branches."""
+
+        # Patch logger to capture logs
+        with patch("webhook_server.utils.helpers.get_logger_with_params") as mock_get_logger:
+            mock_logger = Mock()
+            mock_get_logger.return_value = mock_logger
+            now = datetime.datetime.now(datetime.UTC)
+            # RED branch (below_minimum)
+            rate_core = Mock()
+            rate_core.remaining = 600
+            rate_core.limit = 5000
+            rate_core.reset = now + datetime.timedelta(seconds=1000)
+            rate_limit = Mock()
+            rate_limit.rate = rate_core
+            log_rate_limit(rate_limit, api_user="user1")
+            # YELLOW branch
+            rate_core.remaining = 1000
+            log_rate_limit(rate_limit, api_user="user2")
+            # GREEN branch
+            rate_core.remaining = 3000
+            log_rate_limit(rate_limit, api_user="user3")
+            # Check that warning was called for RED branch
+            assert mock_logger.warning.called
+            assert mock_logger.debug.called
+
+    def test_get_future_results_all_branches(self):
+        """Test get_future_results for all result/exception branches."""
+
+        # Success result
+        class DummyFuture:
+            def result(self):
+                return (True, "success", lambda msg: self.log(msg))
+
+            def exception(self):
+                return None
+
+            def log(self, msg):
+                self.logged = msg
+
+        # Failure result
+        class DummyFutureFail:
+            def result(self):
+                return (False, "fail", lambda msg: self.log(msg))
+
+            def exception(self):
+                return None
+
+            def log(self, msg):
+                self.logged = msg
+
+        # Exception result - result() should RAISE the exception
+        class DummyFutureException:
+            def result(self):
+                raise RuntimeError("Repository configuration crashed")
+
+            def exception(self):
+                return RuntimeError("Repository configuration crashed")
+
+            def log(self, msg):
+                self.logged = msg
+
+        futures = [DummyFuture(), DummyFutureFail(), DummyFutureException()]
+
+        # Patch as_completed to just yield the futures and capture logger calls
+        with patch("webhook_server.utils.helpers.as_completed", return_value=futures):
+            with patch("webhook_server.utils.helpers.get_logger_with_params") as mock_get_logger:
+                mock_logger = Mock()
+                mock_get_logger.return_value = mock_logger
+
+                get_future_results(futures)
+
+                # Verify logger.exception was called for the exception case
+                mock_logger.exception.assert_called_once_with(
+                    "Repository configuration crashed. Check for archived repositories or API permission issues."
+                )
+
+                # Verify all futures were processed (success and failure futures should have logged)
+                assert futures[0].logged == "success"
+                assert futures[1].logged == "fail"
+                # futures[2] raised exception so no log attribute set
+
+    @pytest.mark.asyncio
+    async def test_run_command_timeout_cleanup(self) -> None:
+        """Test that subprocess is properly cleaned up on timeout."""
+        # Get initial zombie count
+        initial_zombies = 0
+        try:
+            proc = sp.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+            initial_zombies = proc.stdout.count("<defunct>")
+        except Exception:
+            pass
+
+        # Run command that times out
+        result = await run_command("sleep 100", log_prefix="[TEST]", timeout=1)
+        assert result[0] is False
+        assert "timed out" in result[2].lower()
+
+        # Wait for cleanup
+        await asyncio.sleep(0.2)
+
+        # Verify no new zombies created
+        try:
+            proc = sp.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+            final_zombies = proc.stdout.count("<defunct>")
+            assert final_zombies == initial_zombies, f"Zombie count increased from {initial_zombies} to {final_zombies}"
+        except Exception:
+            pass  # ps not available, but timeout test still validates behavior
+
+    @pytest.mark.asyncio
+    async def test_run_command_cancelled_cleanup(self) -> None:
+        """Test that subprocess is properly cleaned up when cancelled."""
+        # Create a task that runs a long command
+        task = asyncio.create_task(run_command("sleep 100", log_prefix="[TEST]"))
+
+        # Let it start, then cancel
+        await asyncio.sleep(0.1)
+        task.cancel()
+
+        # Verify CancelledError is raised
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        # Give process time to be reaped
+        await asyncio.sleep(0.1)
+        # Verify no zombie processes (implicit - would cause issues if zombies exist)
+
+    @pytest.mark.asyncio
+    async def test_run_command_oserror_cleanup(self) -> None:
+        """Test that subprocess is properly cleaned up on OSError."""
+        # Try to run nonexistent command
+        result = await run_command("totally_nonexistent_command_12345", log_prefix="[TEST]")
+        assert result[0] is False
+
+        # Give process time to be reaped
+        await asyncio.sleep(0.1)
+        # Verify no zombie processes (implicit verification)
+
+    @pytest.mark.asyncio
+    async def test_run_command_no_zombie_processes(self) -> None:
+        """Test that multiple failed commands don't create zombie processes."""
+        # Get initial zombie count at the start
+        initial_zombies = 0
+        try:
+            proc = sp.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+            initial_zombies = proc.stdout.count("<defunct>")
+        except Exception:
+            pytest.skip("ps command not available")
+
+        # Run more iterations to trigger potential race conditions
+        tasks = [
+            run_command("sleep 10", log_prefix="[TEST]", timeout=0.5),  # Timeout
+            run_command("sleep 10", log_prefix="[TEST]", timeout=0.5),  # Timeout
+            run_command("sleep 10", log_prefix="[TEST]", timeout=0.5),  # Timeout
+            run_command("nonexistent_cmd", log_prefix="[TEST]"),  # OSError
+            run_command("nonexistent_cmd", log_prefix="[TEST]"),  # OSError
+            run_command("false", log_prefix="[TEST]"),  # Normal failure
+            run_command("false", log_prefix="[TEST]"),  # Normal failure
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Verify all commands failed appropriately
+        for result in results:
+            if isinstance(result, tuple):
+                assert result[0] is False, "All test commands should fail"
+
+        # Wait longer for cleanup with multiple processes
+        await asyncio.sleep(0.5)
+
+        # Check zombie count hasn't increased
+        try:
+            proc = sp.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+            final_zombies = proc.stdout.count("<defunct>")
+            assert final_zombies == initial_zombies, (
+                f"Zombie processes created: {final_zombies - initial_zombies} "
+                f"(initial: {initial_zombies}, final: {final_zombies})"
+            )
+        except Exception:
+            # ps command failed, but test still validates no exceptions occurred
+            pass
+
+    @pytest.mark.asyncio
+    async def test_run_command_race_condition_cleanup(self) -> None:
+        """Test that zombie is reaped even in race condition where returncode is set quickly."""
+        # Get initial zombie count
+        initial_zombies = 0
+        try:
+            proc = sp.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+            initial_zombies = proc.stdout.count("<defunct>")
+        except Exception:
+            pass
+
+        # Run multiple timeouts concurrently to trigger race conditions
+        tasks = [run_command("sleep 100", log_prefix="[TEST]", timeout=0.5) for _ in range(10)]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # All should timeout
+        for result in results:
+            if isinstance(result, tuple):
+                assert result[0] is False, "All commands should timeout"
+
+        # Wait for all cleanup
+        await asyncio.sleep(0.5)
+
+        # Verify no zombies created despite race conditions
+        try:
+            proc = sp.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+            final_zombies = proc.stdout.count("<defunct>")
+            assert final_zombies == initial_zombies, f"Zombie processes created: {final_zombies - initial_zombies}"
+        except Exception:
+            pass
+
+    @pytest.mark.asyncio
+    async def test_run_command_stdin_cleanup(self) -> None:
+        """Test that subprocess is properly cleaned up when using stdin."""
+        # Use a command that processes stdin slowly - sleep after reading to simulate slow processing
+        # This ensures we can cancel during the communicate() phase
+        task = asyncio.create_task(
+            run_command(
+                f"{sys.executable} -c 'import sys, time; sys.stdin.read(); time.sleep(10)'",
+                log_prefix="[TEST]",
+                stdin_input="test data",
+            )
+        )
+
+        # Let it start and begin reading stdin, then cancel
+        await asyncio.sleep(0.1)
+        task.cancel()
+
+        # Verify CancelledError is raised
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        # Give process time to be reaped
+        await asyncio.sleep(0.1)
+        # Verify no zombie processes (implicit - would cause issues if zombies exist)
