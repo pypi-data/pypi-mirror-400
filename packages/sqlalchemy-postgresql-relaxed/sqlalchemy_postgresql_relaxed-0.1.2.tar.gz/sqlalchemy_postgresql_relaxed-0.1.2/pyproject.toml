@@ -1,0 +1,181 @@
+# ==================
+# Project definition
+# ==================
+
+# Derived from https://peps.python.org/pep-0621/
+
+[project]
+name = "sqlalchemy-postgresql-relaxed"
+version = "0.1.2"
+description = "Relaxed PostgreSQL dialects for SQLAlchemy"
+readme = "README.rst"
+keywords = [
+  "dialect",
+  "postgresql",
+  "sqlalchemy",
+]
+license = { text = "MIT" }
+authors = [
+  { name = "Andreas Motl", email = "andreas.motl@panodata.org" },
+]
+requires-python = ">=3.7"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Customer Service",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: Manufacturing",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: System Administrators",
+  "Intended Audience :: Telecommunications Industry",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS :: MacOS X",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Unix",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Communications",
+  "Topic :: Database",
+  "Topic :: Documentation",
+  "Topic :: Education",
+  "Topic :: Office/Business",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: Code Generators",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Testing",
+  "Topic :: System :: Archiving",
+  "Topic :: System :: Systems Administration",
+  "Topic :: Text Processing",
+  "Topic :: Utilities",
+]
+dependencies = [
+  "asyncpg",
+  "psycopg[binary]",
+  "sqlalchemy>=2,<3",
+]
+optional-dependencies.develop = [
+  "poethepoet<1",
+  "proselint>=0.16,<1; python_version>='3.10'",
+  "pyproject-fmt<3",
+  "ruff<0.15",
+  "validate-pyproject<1",
+]
+optional-dependencies.release = [
+  "build<2",
+  "minibump<1; python_version>='3.10'",
+  "twine<7",
+]
+optional-dependencies.test = [
+  "pandas<2.4",
+  "polars[pyarrow]<1.37",
+  "pytest<9",
+  "pytest-asyncio<2",
+  "pytest-cov<8",
+  "sqlalchemy-cratedb",
+]
+urls.changelog = "https://github.com/pyveci/sqlalchemy-postgresql-relaxed/blob/main/CHANGES.rst"
+urls.documentation = "https://github.com/pyveci/sqlalchemy-postgresql-relaxed"
+urls.homepage = "https://github.com/pyveci/sqlalchemy-postgresql-relaxed"
+urls.repository = "https://github.com/pyveci/sqlalchemy-postgresql-relaxed"
+entry-points."sqlalchemy.dialects"."postgresql.asyncpg_relaxed" = "sqlalchemy_postgresql_relaxed.asyncpg:dialect"
+entry-points."sqlalchemy.dialects"."postgresql.psycopg_relaxed" = "sqlalchemy_postgresql_relaxed.psycopg:dialect"
+entry-points."sqlalchemy.dialects"."postgresql.psycopg_relaxed_async" = "sqlalchemy_postgresql_relaxed.psycopg:dialect_async"
+
+[tool.setuptools.packages]
+find = {}
+
+[tool.ruff]
+line-length = 120
+lint.select = [
+  # Builtins
+  "A",
+  # Bugbear
+  "B",
+  # comprehensions
+  "C4",
+  # Pycodestyle
+  "E",
+  # eradicate
+  "ERA",
+  # Pyflakes
+  "F",
+  # isort
+  "I",
+  # pandas-vet
+  "PD",
+  # return
+  "RET",
+  # Bandit
+  "S",
+  # print
+  "T20",
+  "W",
+  # flake8-2020
+  "YTT",
+]
+
+lint.extend-ignore = [  ]
+lint.per-file-ignores."tests/*" = [ "S101" ] # Use of `assert` detected
+
+[tool.pytest.ini_options]
+minversion = "2.0"
+addopts = "-rsfEX -p pytester --strict-markers --verbosity=3 --cov --cov-report=term-missing --cov-report=xml"
+log_level = "DEBUG"
+testpaths = [ "testing" ]
+xfail_strict = true
+markers = [
+]
+
+[tool.coverage.run]
+omit = [
+  "tests/*",
+]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+
+# ===================
+# Tasks configuration
+# ===================
+
+[tool.poe.tasks]
+
+check = [
+  "lint",
+  "test",
+]
+
+format = [
+  { cmd = "ruff format ." },
+  # Configure Ruff not to auto-fix (remove!) unused variables (F841) and `print` statements (T201).
+  { cmd = "ruff check --fix --ignore=ERA --ignore=F401 --ignore=F841 --ignore=T20 ." },
+  { cmd = "pyproject-fmt pyproject.toml" },
+]
+
+lint = [
+  { cmd = "ruff check sqlalchemy_postgresql_relaxed/ tests/" },
+  { cmd = "ruff format --check sqlalchemy_postgresql_relaxed/ tests/" },
+  { cmd = "validate-pyproject pyproject.toml" },
+  { cmd = "proselint check *.rst" },
+  # { cmd = "mypy" },
+]
+
+release = [
+  # { cmd = "minibump bump --relax minor" },
+  { cmd = "python -m build" },
+  { cmd = "twine upload --skip-existing --verbose dist/*.tar.gz dist/*.whl" },
+]
+
+test = { cmd = "pytest" }
