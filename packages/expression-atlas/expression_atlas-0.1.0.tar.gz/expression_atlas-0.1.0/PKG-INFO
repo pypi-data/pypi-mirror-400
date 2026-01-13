@@ -1,0 +1,144 @@
+Metadata-Version: 2.4
+Name: expression-atlas
+Version: 0.1.0
+Summary: Python client for searching and downloading gene expression datasets from EMBL-EBI Expression Atlas
+Project-URL: Homepage, https://www.ebi.ac.uk/gxa
+Project-URL: Documentation, https://github.com/ebi-gene-expression-group/expression-atlas-python
+Project-URL: Repository, https://github.com/ebi-gene-expression-group/expression-atlas-python
+Project-URL: Issues, https://github.com/ebi-gene-expression-group/expression-atlas-python/issues
+Author-email: Expression Atlas Team <atlas-feedback@ebi.ac.uk>
+License-Expression: GPL-3.0-or-later
+License-File: LICENSE
+Keywords: bioinformatics,ebi,expression-atlas,gene-expression,microarray,rna-seq
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Requires-Python: >=3.9
+Requires-Dist: numpy>=1.23.0
+Requires-Dist: pandas>=1.5.0
+Requires-Dist: requests>=2.28.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pre-commit>=3.0.0; extra == 'dev'
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest-mock>=3.10.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: responses>=0.23.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: docs
+Requires-Dist: myst-parser>=1.0.0; extra == 'docs'
+Requires-Dist: sphinx-rtd-theme>=1.2.0; extra == 'docs'
+Requires-Dist: sphinx>=6.0.0; extra == 'docs'
+Provides-Extra: r
+Requires-Dist: rpy2>=3.5.0; extra == 'r'
+Description-Content-Type: text/markdown
+
+# Expression Atlas Python Client
+
+Python client for searching and downloading gene expression datasets from [EMBL-EBI Expression Atlas](https://www.ebi.ac.uk/gxa), mirroring the R Bioconductor package.
+
+## Features
+
+- Search for Expression Atlas experiments by properties and species
+- Download RNA-seq and microarray experiment data
+- R-compatible data structures: `SummarizedExperiment` (RNA-seq) and `ExpressionSet` (microarray) wrapped in `SimpleList`
+- Sync API with full type hints
+
+## Installation
+
+```bash
+pip install expression-atlas
+```
+
+For development:
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+```python
+from expression_atlas import ExpressionAtlasClient
+
+client = ExpressionAtlasClient()
+
+# Search experiments (DataFrame with Accession/Species/Type/Title)
+results = client.search_experiments(properties=["cancer"], species="homo sapiens")
+
+# Download a single experiment (SimpleList)
+exp = client.get_experiment("E-MTAB-1624")
+
+# RNA-seq example
+rnaseq = exp["rnaseq"]  # SummarizedExperiment
+counts = rnaseq.assays["counts"]  # numpy array genes × samples
+sample_annotations = rnaseq.colData
+
+# Microarray example
+eset = exp["A-AFFY-126"]  # ExpressionSet
+exprs = eset.exprs  # probes × samples
+pheno = eset.phenoData
+
+# Multiple experiments
+exps = client.get_experiments(["E-MTAB-1624", "E-MTAB-1625"])
+```
+
+## Data Structures
+
+### RNA-seq Data
+RNA-seq experiments are returned as `SummarizedExperiment` objects containing:
+- `assays["counts"]`: genes × samples matrix (orientation matches R package)
+- `colData`: sample annotations
+- `rowData`: gene annotations
+
+### Microarray Data
+Microarray experiments are returned as `ExpressionSet` objects containing:
+- `exprs`: probes × samples matrix (orientation matches R package)
+- `phenoData`: sample annotations
+- `featureData`: probe annotations
+
+## API Reference
+
+### `ExpressionAtlasClient`
+
+#### `search_experiments(properties, species=None)`
+Search for experiments matching given properties.
+
+**Parameters:**
+- `properties`: List of search terms (e.g., `["cancer", "breast"]`)
+- `species`: Optional species filter (e.g., `"homo sapiens"`)
+
+**Returns:** `pandas.DataFrame` with columns: Accession, Species, Type, Title
+
+#### `get_experiment(accession)`
+Download a single experiment.
+
+**Parameters:**
+- `accession`: ArrayExpress/BioStudies accession (e.g., `"E-MTAB-1624"`)
+
+**Returns:** `ExperimentSummary` object
+
+#### `get_experiments(accessions)`
+Download multiple experiments.
+
+**Parameters:**
+- `accessions`: List of accessions
+
+**Returns:** Dictionary mapping accessions to `ExperimentSummary` objects
+
+## License
+
+GPL-3.0-or-later
+
+## Links
+
+- [Expression Atlas](https://www.ebi.ac.uk/gxa)
+- [BioStudies](https://www.ebi.ac.uk/biostudies)
+- [Contact Support](https://www.ebi.ac.uk/about/contact/support/gxa)
