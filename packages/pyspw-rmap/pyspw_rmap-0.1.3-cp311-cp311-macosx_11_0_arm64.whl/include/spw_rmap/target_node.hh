@@ -1,0 +1,94 @@
+// Copyright (c) 2025 Gen
+// Licensed under the MIT License. See LICENSE file for details.
+#pragma once
+
+#include <cstdint>
+#include <span>
+#include <vector>
+
+namespace spw_rmap {
+
+class TargetNodeBase {
+ private:
+  uint8_t logical_address_{};
+
+ public:
+  TargetNodeBase(uint8_t logical_address = 0x00) noexcept
+      : logical_address_(logical_address) {}
+  TargetNodeBase(const TargetNodeBase&) = default;
+  TargetNodeBase(TargetNodeBase&&) = default;
+  auto operator=(const TargetNodeBase&) -> TargetNodeBase& = default;
+  auto operator=(TargetNodeBase&&) -> TargetNodeBase& = default;
+  virtual ~TargetNodeBase() = default;
+
+  [[nodiscard]] auto getTargetLogicalAddress() const noexcept -> uint8_t {
+    return logical_address_;
+  }
+
+  [[nodiscard]] virtual auto getTargetSpaceWireAddress() const noexcept
+      -> std::span<const uint8_t> = 0;
+
+  [[nodiscard]] virtual auto getReplyAddress() const noexcept
+      -> std::span<const uint8_t> = 0;
+};
+
+template <size_t TargetLength, size_t ReplyLength>
+class TargetNodeFixed : public TargetNodeBase {
+ private:
+  std::array<uint8_t, TargetLength> target_spacewire_address{};
+  std::array<uint8_t, ReplyLength> reply_address{};
+
+ public:
+  TargetNodeFixed(uint8_t logical_address,
+                  std::array<uint8_t, TargetLength>&& target_spacewire_address,
+                  std::array<uint8_t, ReplyLength>&& reply_address) noexcept
+      : TargetNodeBase(logical_address),
+        target_spacewire_address(std::move(target_spacewire_address)),
+        reply_address(std::move(reply_address)) {}
+
+  [[nodiscard]] auto getTargetSpaceWireAddress() const noexcept
+      -> std::span<const uint8_t> override {
+    return target_spacewire_address;
+  }
+
+  [[nodiscard]] auto getReplyAddress() const noexcept
+      -> std::span<const uint8_t> override {
+    return reply_address;
+  };
+};
+
+class TargetNodeDynamic : public TargetNodeBase {
+ private:
+  std::vector<uint8_t> target_spacewire_address{};
+  std::vector<uint8_t> reply_address{};
+
+ public:
+  TargetNodeDynamic(uint8_t logical_address,
+                    std::vector<uint8_t>&& target_spacewire_address,
+                    std::vector<uint8_t>&& reply_address) noexcept
+      : TargetNodeBase(logical_address),
+        target_spacewire_address(std::move(target_spacewire_address)),
+        reply_address(std::move(reply_address)) {}
+
+  [[nodiscard]] auto getTargetSpaceWireAddress() const noexcept
+      -> std::span<const uint8_t> override {
+    return target_spacewire_address;
+  }
+
+  [[nodiscard]] auto getReplyAddress() const noexcept
+      -> std::span<const uint8_t> override {
+    return reply_address;
+  };
+};
+
+[[nodiscard]] inline auto makeTargetNode(
+    uint8_t logical_address,
+    std::initializer_list<uint8_t> target_spacewire_address,
+    std::initializer_list<uint8_t> reply_address)
+    -> std::shared_ptr<TargetNodeBase> {
+  return std::make_shared<TargetNodeDynamic>(
+      logical_address, std::vector<uint8_t>(target_spacewire_address),
+      std::vector<uint8_t>(reply_address));
+}
+
+};  // namespace spw_rmap
