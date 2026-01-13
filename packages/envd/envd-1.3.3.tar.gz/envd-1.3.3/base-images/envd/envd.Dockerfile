@@ -1,0 +1,3 @@
+FROM scratch
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/envd /usr/bin/envd

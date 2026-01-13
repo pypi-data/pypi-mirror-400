@@ -1,0 +1,101 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+version: 2
+git:
+  # if there are more than one tag in the same commit.
+  tag_sort: -version:creatordate
+before:
+  hooks:
+    - go mod tidy
+universal_binaries:
+  - id: envd
+    replace: false
+builds:
+  - env:
+      - CGO_ENABLED=0
+      - MACOSX_DEPLOYMENT_TARGET=14.0
+    goos:
+      - linux
+      - darwin
+    id: envd
+    main: ./cmd/envd
+    binary: envd
+    ldflags:
+      - -s -w
+      - -X github.com/tensorchord/envd/pkg/version.version={{ .Version }}
+      - -X github.com/tensorchord/envd/pkg/version.buildDate={{ .Date }}
+      - -X github.com/tensorchord/envd/pkg/version.gitCommit={{ .Commit }}
+      - -X github.com/tensorchord/envd/pkg/version.gitTreeState=clean
+      - -X github.com/tensorchord/envd/pkg/version.gitTag={{ .Tag }}
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    id: envd-sshd
+    main: ./cmd/envd-sshd
+    binary: envd-sshd
+    ldflags:
+      - -s -w
+      - -X github.com/tensorchord/envd/pkg/version.version={{ .Version }}
+      - -X github.com/tensorchord/envd/pkg/version.buildDate={{ .Date }}
+      - -X github.com/tensorchord/envd/pkg/version.gitCommit={{ .Commit }}
+      - -X github.com/tensorchord/envd/pkg/version.gitTreeState=clean
+archives:
+  - id: envd
+    formats: ["binary"]
+    ids:
+      - envd
+    name_template: >-
+      {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+  - id: envd-sshd
+    formats: ["binary"]
+    ids:
+      - envd-sshd
+    name_template: >-
+      {{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: 'Exciting New Features 🎉'
+      regexp: "^.*feat.*"
+      order: 0
+    - title: 'Bug Fix 🛠'
+      regexp: "^.*(Fix|fix|bug).*"
+      order: 1
+    - title: 'Refactor 🏗️'
+      regexp: "^.*refact.*"
+      order: 2
+    - title: 'Documentation 🖊️'
+      regexp: "^.*docs.*"
+      order: 3
+    - title: 'Others:'
+      order: 999
+dockers_v2:
+- id: "envd"
+  images:
+  - "tensorchord/envd-from-scratch"
+  - "ghcr.io/tensorchord/envd-from-scratch"
+  dockerfile: base-images/envd/envd.Dockerfile
+  ids: ["envd"]
+  tags:
+  - "v{{ .Version }}"
+  platforms:
+  - linux/amd64
+  - linux/arm64
+- id: "envd-sshd"
+  images:
+  - "tensorchord/envd-sshd-from-scratch"
+  - "ghcr.io/tensorchord/envd-sshd-from-scratch"
+  dockerfile: base-images/envd-sshd/envd-sshd.Dockerfile
+  ids: ["envd-sshd"]
+  tags:
+  - "v{{ .Version }}"
+  platforms:
+  - linux/amd64
+  - linux/arm64
