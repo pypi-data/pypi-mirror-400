@@ -1,0 +1,97 @@
+Metadata-Version: 2.4
+Name: jupytergis-tiler
+Version: 0.2.1
+Summary: Tiler layer for JupyterGIS
+Author-email: David Brochart <david.brochart@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2025 David Brochart
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Keywords: gis,jupyter
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Python: <3.14,>=3.10
+Requires-Dist: anycorn
+Requires-Dist: anyio
+Requires-Dist: fastapi
+Requires-Dist: httpx
+Requires-Dist: jupyter-server
+Requires-Dist: jupytergis<0.12,>=0.11
+Requires-Dist: rio-tiler>=7.7.1
+Requires-Dist: titiler
+Requires-Dist: tornado
+Requires-Dist: xarray
+Description-Content-Type: text/markdown
+
+<p align="center" width="100%">
+<video src="https://github.com/user-attachments/assets/5c2d669a-ff8c-4a66-97e3-1845220fb819" width="80%" controls></video>
+</p>
+
+# jupytergis-tiler
+
+A JupyterGIS extension for creating and serving raster layers using your own data.
+
+## Install from PyPI
+
+Rasterio currently doesn't ship wheels for Python 3.14, so be sure to pin `python <3.14` for now.
+
+Also, there is currently an incompatibility between JupyterLab 4.5 and jupyter-collaboration 3.
+Until JupyterGIS supports jupyter-collaboration 4, you should pin `jupyterlab <4.5`.
+
+```bash
+pip install jupytergis-tiler
+```
+
+## Development install
+
+Clone or fork this repository and:
+
+```bash
+pip install .
+```
+
+## Usage
+
+First create a `GISDocument` in a cell and display it:
+
+```py
+doc = GISDocument("my_file.jGIS")
+doc
+```
+
+Say you have a `xarray.DataArray` called `da` with geographical coordinates,
+you can show it as a raster layer like so:
+
+```py
+await doc.add_tiler_layer(
+    name="My layer",
+    data_array=da,
+)
+```
+
+Please look at the notebooks in the `examples` directory.
