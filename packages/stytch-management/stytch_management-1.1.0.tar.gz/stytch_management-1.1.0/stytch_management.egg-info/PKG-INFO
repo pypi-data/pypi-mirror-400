@@ -1,0 +1,242 @@
+Metadata-Version: 2.4
+Name: stytch-management
+Version: 1.1.0
+Summary: Stytch Management API Python client
+Download-URL: https://github.com/stytchauth/stytch-management-python
+Author: Stytch
+Author-email: hello@stytch.com
+License: MIT
+Keywords: stytch,management,api,workspace,programmatic
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.7.0
+Requires-Dist: pydantic>=2.0.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: download-url
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Stytch Management Python Library
+
+The Stytch Management Python library makes it easy to use Stytch's Programmatic Workspace Actions API in Python applications.
+
+This library requires Python 3.8 or later.
+
+## Installation
+
+```bash
+pip install stytch-management
+```
+
+## Pre-requisites
+
+You need your Stytch Management API credentials from the workspace management section of your
+[Stytch Dashboard](https://stytch.com/dashboard/settings/management-api).
+
+**Note:** These credentials allow you to perform read and write actions on your workspace,
+potentially modifying or deleting important Stytch resources like projects, environments, or secrets.
+
+## Examples
+
+### Create a new API client:
+
+```python
+from stytch_management import Client
+
+# Set your Stytch Management API credentials
+client = Client(
+    workspace_key_id="workspace-test-...",
+    workspace_key_secret="secret-test-..."
+)
+```
+
+### Create a new B2B project:
+
+```python
+response = client.projects.create(
+    name="My new project",
+    vertical="B2B"
+)
+
+new_project = response.project
+print(f"Created project: {new_project.project_slug}")
+```
+
+### Get the live environment in the new project:
+
+```python
+response = client.environments.get_all(
+    project_slug=new_project.project_slug
+)
+
+live_env = next((env for env in response.environments if env.type == "LIVE"), None)
+print(f"Live environment: {live_env.environment_slug}")
+```
+
+### Alternatively, create a new custom environment:
+
+```python
+response = client.environments.create(
+    project_slug=new_project.project_slug,
+    name="My custom environment",
+    type="TEST"
+)
+
+custom_env = response.environment
+print(f"Created environment: {custom_env.environment_slug}")
+```
+
+### Create a new secret in the live environment:
+
+```python
+response = client.secrets.create(
+    project_slug=new_project.project_slug,
+    environment_slug=live_env.environment_slug
+)
+
+secret = response.secret
+print(f"Created secret: {secret.secret_id}")
+```
+
+### Get SDK configuration:
+
+```python
+response = client.sdk.get_consumer_config(
+    project_slug=new_project.project_slug,
+    environment_slug=live_env.environment_slug
+)
+
+print("Consumer SDK config:", response.config)
+```
+
+## Type Safety
+
+All request and response types are fully typed using Pydantic models. Import them from the models subpackages:
+
+```python
+from stytch_management.models import projects, environments, secrets
+
+# Responses are typed
+response: projects.CreateResponse = client.projects.create(
+    name="My project",
+    vertical="B2B"
+)
+```
+
+## Error Handling
+
+```python
+from stytch_management import Client, StytchError, ClientError
+
+client = Client(
+    workspace_key_id="workspace-test-...",
+    workspace_key_secret="secret-test-..."
+)
+
+try:
+    client.projects.get(project_slug="invalid-slug")
+except StytchError as e:
+    print(f"Stytch error: {e.error_type}")
+    print(f"Message: {e.error_message}")
+    print(f"Request ID: {e.request_id}")
+except ClientError as e:
+    print(f"Client error: {e.message}")
+```
+
+## Running Tests
+
+This library includes comprehensive integration tests that verify functionality against the Stytch API. These tests create and clean up disposable projects and resources.
+
+### Prerequisites
+
+To run the tests, you need valid Stytch Management API credentials:
+
+```bash
+export STYTCH_WORKSPACE_KEY_ID="your-workspace-key-id"
+export STYTCH_WORKSPACE_KEY_SECRET="your-workspace-key-secret"
+```
+
+**Important:** Tests will be skipped if these environment variables are not set. The tests create real resources in your workspace but clean them up automatically.
+
+### Running All Tests
+
+```bash
+# Install dependencies (if not already installed)
+pip install -r requirements_dev.txt
+
+# Run all tests
+python -m unittest discover test/
+
+# Run a specific test file
+python test/test_secrets.py
+```
+
+### Test Coverage
+
+The test suite includes integration tests for:
+
+- **Email Templates** - Create, get, update, delete, and default management
+- **Environments** - Environment lifecycle with user locking and IDP configurations
+- **Secrets** - Secret creation, retrieval, and deletion
+- **Public Tokens** - Public token management
+- **JWT Templates** - Session and M2M JWT template configuration
+- **Redirect URLs** - URL validation and type management
+- **Password Strength Config** - LUDS and ZXCVBN policy configuration
+- **Country Code Allowlist** - SMS and WhatsApp country code management
+
+Each test suite:
+
+- ✓ Creates disposable projects/environments
+- ✓ Tests all CRUD operations
+- ✓ Validates error handling
+- ✓ Cleans up all resources automatically
+- ✓ Runs independently without side effects
+
+### Continuous Integration
+
+Tests are designed to run in CI environments. Set the environment variables in your CI configuration:
+
+```yaml
+# Example GitHub Actions
+env:
+  STYTCH_WORKSPACE_KEY_ID: ${{ secrets.STYTCH_WORKSPACE_KEY_ID }}
+  STYTCH_WORKSPACE_KEY_SECRET: ${{ secrets.STYTCH_WORKSPACE_KEY_SECRET }}
+```
+
+## Development
+
+See [DEVELOPMENT.md](./DEVELOPMENT.md) for information on building and testing the SDK.
+
+## Documentation
+
+See the full [Stytch Management API documentation](https://stytch.com/docs/workspaces/management-api) for more details on available endpoints and functionality.
+
+## Support
+
+If you've found a bug, [open an issue](https://github.com/stytchauth/stytch-management-python/issues/new)!
+
+If you have questions or want help troubleshooting, join us in [Slack](https://stytch.com/docs/resources/support/overview) or email support@stytch.com.
+
+If you've found a security vulnerability, please follow our [responsible disclosure instructions](https://stytch.com/docs/resources/security-and-trust/security#:~:text=Responsible%20disclosure%20program).
+
+## License
+
+MIT
