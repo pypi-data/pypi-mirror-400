@@ -1,0 +1,135 @@
+[project]
+name = "conan-explorer"
+authors = [{name = "Péter Gosztolya and Contributors"}]
+version = "2.4.2"
+requires-python = ">=3.8"
+description = "Package Explorer and App Launcher for Conan"
+keywords = ["conan", "gui"]
+license = {'file'="LICENSE"}
+classifiers = [
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Environment :: X11 Applications :: Qt",
+    "Environment :: Win32 (MS Windows)"
+]
+dependencies = [
+    "conan-unified-api >=2.15.0, <3.0.0",  # MIT License
+    # 6.4.3 is needed for off-the-shelf U20 support
+    "PySide6-Essentials>=6.4.3", # LGPLv3 License
+    "jsonschema>=3.2.0, <5", # MIT License
+    "dictdiffer==0.9.0",  # MIT License
+    # compatibility
+    'contextlib-chdir==1.0.2; python_version<"3.11"',  # BSD License (BSD-3-Clause)
+    'typing-extensions>=4.2.0, <5',  # Python Software Foundation License(PSF)
+    # deprecated, but can not be subsituted yet for specifier handling
+    "packaging",  # BSD License and Apache License 2.0
+]
+readme = "README.md"
+
+[project.urls]
+repository = "https://github.com/goszpeti/conan_explorer"
+issues = "https://github.com/goszpeti/conan_explorer/issues"
+
+# Build dependencies and configs
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]  # list of folders that contain the packages (["."] by default)
+include = ["conan_explorer*"]  # package names should match these glob patterns (["*"] by default)
+namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
+
+[tool.setuptools.package-data]
+"conan_explorer" = ["**/*.pyi", "**/*.html", "**/*.ini", "**assets/**/*.*", "**/*.in"]
+
+[project.gui-scripts]
+conan_explorer = "conan_explorer.__main__:run_conan_explorer"
+
+# Test dependencies and configs
+
+[project.optional-dependencies]
+dev = [
+    "rope", # refactoring
+    "debugpy", # Qt thread debugging
+]
+test = [
+    "pytest==8.3.3",
+    "pytest-cov==5.0.0",
+    "pytest-mock==3.14.0",
+    "pytest-qt==4.4.0",
+    "psutil==6.1.1",
+    "pytest-check==2.4.1",
+    "pywin32; sys_platform=='win32'"
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = [
+    "test",
+]
+qt_api="pyside6"
+markers = [
+    "conanv1: mark as working with conan 1.x installed",
+    "conanv2: mark as working with conan 2.x installed"
+]
+
+# Development configs
+
+[tool.ruff]
+line-length=96
+target-version = "py38"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle
+    "F",  # pyflakes
+    "LOG", # flake8-logging
+    "G", # lake8-logging-format
+]
+
+# Coverage configs
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["conan_explorer"]
+
+[tool.coverage.paths]
+source = [
+   "src", "*/site-packages"
+]
+
+[tool.coverage.report]
+precision = 2
+# Regexes for lines to exclude from consideration
+exclude_also = [
+    # Don't complain about missing debug-only code:
+    "def __repr__",
+
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+    ]
+
+ignore_errors = true
