@@ -1,0 +1,62 @@
+
+################################################################################
+##                                                                            ##
+##  This file is part of MCPL (see https://mctools.github.io/mcpl/)           ##
+##                                                                            ##
+##  Copyright 2015-2026 MCPL developers.                                      ##
+##                                                                            ##
+##  Licensed under the Apache License, Version 2.0 (the "License");           ##
+##  you may not use this file except in compliance with the License.          ##
+##  You may obtain a copy of the License at                                   ##
+##                                                                            ##
+##      http://www.apache.org/licenses/LICENSE-2.0                            ##
+##                                                                            ##
+##  Unless required by applicable law or agreed to in writing, software       ##
+##  distributed under the License is distributed on an "AS IS" BASIS,         ##
+##  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  ##
+##  See the License for the specific language governing permissions and       ##
+##  limitations under the License.                                            ##
+##                                                                            ##
+################################################################################
+
+[project]
+name = "mcpl-core"
+version = "2.2.6"
+requires-python = ">=3.8"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+  { name="MCPL developers (Thomas Kittelmann, et. al.)" },
+]
+description = "Utilities and API for accessing MCPL (.mcpl) files"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+[project.urls]
+"Homepage" = "https://mctools.github.io/mcpl/"
+"Bug Tracker" = "https://github.com/mctools/mcpl/issues"
+
+[project.scripts]
+mcpl-config = "_mcpl_core.info:_mcpl_config_cli_wrapper"
+mcpltool = "_mcpl_core.info:_mcpl_tool_cli_wrapper"
+
+[build-system]
+requires = ["scikit-build-core>=0.11.0"]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+logging.level = "INFO"
+minimum-version = "build-system.requires"
+wheel.packages = ['skbld_autogen/_mcpl_core']
+sdist.include = ["/src/","/include/","/cmake/",
+                 '/app_config/','/CMakeLists.txt','/pyproject.toml',
+                 '/skbld_autogen/'
+                 ]
+sdist.cmake = true
+wheel.py-api = "py3" # as close to "noarch" as possible (ABI3)
+
+[tool.cibuildwheel.linux]
+#No 32bit wheels, since it gives problems with files >2GB.
+archs = ["auto64"]
