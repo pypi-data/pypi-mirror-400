@@ -1,0 +1,63 @@
+# -*- coding: utf-8; -*-
+"""
+Master view for Departments
+"""
+
+from wuttapos.db.model.departments import Department
+
+from wuttaweb.views import MasterView
+
+
+class DepartmentView(MasterView):
+    """
+    Master view for Departments
+    """
+    model_class = Department
+    model_title = "Department"
+    model_title_plural = "Departments"
+
+    route_prefix = "departments"
+    url_prefix = "/departments"
+
+    creatable = True
+    editable = True
+    deletable = True
+
+
+    grid_columns = [
+        "department_id",
+        "name",
+        "for_products",
+        "for_personnel",
+        "exempt_from_gross_sales",
+    ]
+
+    form_fields = [
+        "department_id",
+        "name",
+        "for_products",
+        "for_personnel",
+        "exempt_from_gross_sales",
+    ]
+
+
+    def configure_grid(self, grid):
+        g = grid
+        super().configure_grid(g)
+
+        # TODO: tweak grid however you need here
+        #
+        #     g.set_label("foo", "FOO")
+        #     g.set_link("foo")
+        #     g.set_renderer("foo", self.render_special_field)
+
+
+def defaults(config, **kwargs):
+    base = globals()
+
+    DepartmentView = kwargs.get('DepartmentView', base['DepartmentView'])
+    DepartmentView.defaults(config)
+
+
+def includeme(config):
+    defaults(config)

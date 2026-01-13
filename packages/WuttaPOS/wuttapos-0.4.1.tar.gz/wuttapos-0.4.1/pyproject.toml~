@@ -1,0 +1,84 @@
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "WuttaPOS"
+# nb. 0.3.0 was the last release of the previous rattail WuttaPOS app.
+# pretty sure this will bump to 0.4.0 and then i can remove this note.
+version = "0.3.0"
+description = "Point of Sale system based on Wutta Framework"
+readme = "README.md"
+authors = [{name = "Lance Edgar", email = "lance@wuttaproject.org"}]
+classifiers = [
+        # TODO: remove this if you intend to publish your project
+        # (it's here by default, to prevent accidental publishing)
+        "Private :: Do Not Upload",
+
+        "Development Status :: 3 - Alpha",
+        "Environment :: Win32 (MS Windows)",
+        "Environment :: X11 Applications",
+        "Framework :: Pyramid",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+        "Natural Language :: English",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Topic :: Office/Business",
+]
+dependencies = [
+        "psycopg2",
+        "WuttJamaican[db]>=0.28.2",
+        "WuttaWeb",
+
+        # nb. for now we are just testing one version, for simplicity
+        # "flet==0.23.2",
+        # "flet<0.21",
+        # "flet[all]==0.80.0",
+        "flet[all]<0.80.0",
+]
+
+
+[project.scripts]
+"wuttapos" = "wuttapos.cli:wuttapos_typer"
+
+[project.entry-points."paste.app_factory"]
+"main" = "wuttapos.server.app:main"
+
+[project.entry-points."wutta.app.providers"]
+wuttapos = "wuttapos.app:WuttaPosAppProvider"
+
+[project.entry-points."wutta.config.extensions"]
+"wuttapos" = "wuttapos.config:WuttaPosConfigExtension"
+
+# TODO: (why) is this needed again?
+[project.entry-points."wutta.web.menus"]
+"wuttapos" = "wuttapos.server.menus:serverMenuHandler"
+
+
+[project.urls]
+Homepage = "https://wuttaproject.org/"
+Repository = "https://forgejo.wuttaproject.org/wutta/wuttapos"
+Issues = "https://forgejo.wuttaproject.org/wutta/wuttapos/issues"
+Changelog = "https://forgejo.wuttaproject.org/wutta/wuttapos/src/branch/master/CHANGELOG.md"
+
+
+[tool.commitizen]
+version_provider = "pep621"
+tag_format = "v$version"
+update_changelog_on_bump = true
+
+# [tool.hatch.build.targets.sdist]
+# exclude = [
+#   "htmlcov/",
+# ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wuttapos"]

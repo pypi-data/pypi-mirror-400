@@ -1,0 +1,61 @@
+# -*- coding: utf-8; -*-
+"""
+Master view for Employees
+"""
+
+from wuttapos.db.model.employees import Employee
+
+from wuttaweb.views import MasterView
+
+
+class EmployeeView(MasterView):
+    """
+    Master view for Employees
+    """
+    model_class = Employee
+    model_title = "Employee"
+    model_title_plural = "Employees"
+
+    route_prefix = "employees"
+    url_prefix = "/employees"
+
+    creatable = True
+    editable = True
+    deletable = True
+
+
+    grid_columns = [
+        "person",
+        "name",
+        "public_name",
+        "active",
+    ]
+
+    form_fields = [
+        "person",
+        "name",
+        "public_name",
+        "active",
+    ]
+
+
+    def configure_grid(self, grid):
+        g = grid
+        super().configure_grid(g)
+
+        # TODO: tweak grid however you need here
+        #
+        #     g.set_label("foo", "FOO")
+        #     g.set_link("foo")
+        #     g.set_renderer("foo", self.render_special_field)
+
+
+def defaults(config, **kwargs):
+    base = globals()
+
+    EmployeeView = kwargs.get('EmployeeView', base['EmployeeView'])
+    EmployeeView.defaults(config)
+
+
+def includeme(config):
+    defaults(config)

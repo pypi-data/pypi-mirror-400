@@ -1,0 +1,63 @@
+# -*- coding: utf-8; -*-
+"""
+Master view for Customers
+"""
+
+from wuttapos.db.model.customers import Customer
+
+from wuttaweb.views import MasterView
+
+
+class CustomerView(MasterView):
+    """
+    Master view for Customers
+    """
+    model_class = Customer
+    model_title = "Customer"
+    model_title_plural = "Customers"
+
+    route_prefix = "customers"
+    url_prefix = "/customers"
+
+    creatable = True
+    editable = True
+    deletable = True
+
+
+    grid_columns = [
+        "customer_id",
+        "name",
+        "account_holder",
+        "phone_number",
+        "email_address",
+    ]
+
+    form_fields = [
+        "customer_id",
+        "name",
+        "account_holder",
+        "phone_number",
+        "email_address",
+    ]
+
+
+    def configure_grid(self, grid):
+        g = grid
+        super().configure_grid(g)
+
+        # TODO: tweak grid however you need here
+        #
+        #     g.set_label("foo", "FOO")
+        #     g.set_link("foo")
+        #     g.set_renderer("foo", self.render_special_field)
+
+
+def defaults(config, **kwargs):
+    base = globals()
+
+    CustomerView = kwargs.get('CustomerView', base['CustomerView'])
+    CustomerView.defaults(config)
+
+
+def includeme(config):
+    defaults(config)

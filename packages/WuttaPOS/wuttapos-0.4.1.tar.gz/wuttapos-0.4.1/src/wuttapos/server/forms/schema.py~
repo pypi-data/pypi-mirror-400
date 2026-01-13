@@ -1,0 +1,53 @@
+# -*- coding: utf-8; -*-
+"""
+Form schema types
+"""
+
+from wuttaweb.forms.schema import ObjectRef
+
+
+class InventoryAdjustmentTypeRef(ObjectRef):
+    """
+    Schema type for a
+    :class:`~countmeow.db.model.products.InventoryAdjustmentType`
+    reference field.
+
+    This is a subclass of
+    :class:`~wuttaweb:wuttaweb.forms.schema.ObjectRef`.
+    """
+
+    @property
+    def model_class(self):
+        model = self.app.model
+        return model.InventoryAdjustmentType
+
+    def sort_query(self, query):
+        return query.order_by(self.model_class.name)
+
+    def get_object_url(self, obj):
+        adjustment_type = obj
+        return self.request.route_url(
+            "inventory_adjustment_types.view", uuid=adjustment_type.uuid
+        )
+
+
+class ProductRef(ObjectRef):
+    """
+    Schema type for a
+    :class:`~countmeow.db.model.products.Product` reference field.
+
+    This is a subclass of
+    :class:`~wuttaweb:wuttaweb.forms.schema.ObjectRef`.
+    """
+
+    @property
+    def model_class(self):
+        model = self.app.model
+        return model.Product
+
+    def sort_query(self, query):
+        return query.order_by(self.model_class.description)
+
+    def get_object_url(self, obj):
+        product = obj
+        return self.request.route_url("products.view", uuid=product.uuid)

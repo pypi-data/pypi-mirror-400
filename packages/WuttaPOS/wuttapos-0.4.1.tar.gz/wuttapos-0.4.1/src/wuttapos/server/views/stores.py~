@@ -1,0 +1,59 @@
+# -*- coding: utf-8; -*-
+"""
+Master view for Stores
+"""
+
+from wuttapos.db.model.stores import Store
+
+from wuttaweb.views import MasterView
+
+
+class StoreView(MasterView):
+    """
+    Master view for Stores
+    """
+    model_class = Store
+    model_title = "Store"
+    model_title_plural = "Stores"
+
+    route_prefix = "stores"
+    url_prefix = "/stores"
+
+    creatable = True
+    editable = True
+    deletable = True
+
+
+    grid_columns = [
+        "store_id",
+        "name",
+        "active",
+    ]
+
+    form_fields = [
+        "store_id",
+        "name",
+        "active",
+    ]
+
+
+    def configure_grid(self, grid):
+        g = grid
+        super().configure_grid(g)
+
+        # TODO: tweak grid however you need here
+        #
+        #     g.set_label("foo", "FOO")
+        #     g.set_link("foo")
+        #     g.set_renderer("foo", self.render_special_field)
+
+
+def defaults(config, **kwargs):
+    base = globals()
+
+    StoreView = kwargs.get('StoreView', base['StoreView'])
+    StoreView.defaults(config)
+
+
+def includeme(config):
+    defaults(config)

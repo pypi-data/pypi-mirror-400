@@ -1,0 +1,74 @@
+# -*- coding: utf-8; -*-
+"""
+Master view for Products
+"""
+
+from wuttapos.db.model.products import Product
+
+from wuttaweb.views import MasterView
+
+
+class ProductView(MasterView):
+    """
+    Master view for Products
+    """
+    model_class = Product
+    model_title = "Product"
+    model_title_plural = "Products"
+
+    route_prefix = "products"
+    url_prefix = "/products"
+
+    creatable = True
+    editable = True
+    deletable = True
+
+
+    grid_columns = [
+        "product_id",
+        "brand_name",
+        "description",
+        "size",
+        "sold_by_weight",
+        "case_size",
+        "department",
+        "special_order",
+        "unit_price_reg",
+    ]
+
+    form_fields = [
+        "product_id",
+        "brand_name",
+        "description",
+        "size",
+        "department",
+        "sold_by_weight",
+        "case_size",
+        "special_order",
+        "unit_cost",
+        "unit_price_reg",
+        "notes",
+        "inventory",
+    ]
+
+
+    def configure_grid(self, grid):
+        g = grid
+        super().configure_grid(g)
+
+        # TODO: tweak grid however you need here
+        #
+        #     g.set_label("foo", "FOO")
+        #     g.set_link("foo")
+        #     g.set_renderer("foo", self.render_special_field)
+
+
+def defaults(config, **kwargs):
+    base = globals()
+
+    ProductView = kwargs.get('ProductView', base['ProductView'])
+    ProductView.defaults(config)
+
+
+def includeme(config):
+    defaults(config)

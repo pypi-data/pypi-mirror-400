@@ -1,0 +1,47 @@
+# -*- coding: utf-8; -*-
+"""
+Common views
+"""
+
+from wuttaweb.views import common as base
+
+
+class CommonView(base.CommonView):
+    """
+    Common views
+    """
+
+    def setup_enhance_admin_user(self, user):
+        """ """
+        model = self.app.model
+        session = self.app.get_session(user)
+        site_admin = session.query(model.Role).filter_by(name="Site Admin").first()
+        if site_admin:
+            auth = self.app.get_auth_handler()
+            site_admin_perms = [
+                "products.list",
+                "products.create",
+                "products.view",
+                "products.edit",
+                "products.delete",
+                "inventory_adjustment_types.list",
+                "inventory_adjustment_types.create",
+                "inventory_adjustment_types.view",
+                "inventory_adjustment_types.edit",
+                "inventory_adjustment_types.delete",
+                "inventory_adjustments.list",
+                "inventory_adjustments.create",
+                "inventory_adjustments.view",
+            ]
+            for perm in site_admin_perms:
+                auth.grant_permission(site_admin, perm)
+
+
+def defaults(config, **kwargs):
+    local = globals()
+    CommonView = kwargs.get("CommonView", local["CommonView"])
+    base.defaults(config, **{"CommonView": CommonView})
+
+
+def includeme(config):
+    defaults(config)
