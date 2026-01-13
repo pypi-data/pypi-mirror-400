@@ -1,0 +1,67 @@
+# pwhl_api
+## An API Client Package to Access the APIs of thepwhl.com
+pwhl_api is a client for APIs used by [thepwhl.com](https://www.thepwhl.com) to retrieve statistics for PWHL league teams and personnel.
+
+This client is based on the work done by [Swar Patel](https://github.com/swar) and other contributors on [nba_api](https://github.com/swar/nba_api), a similar package for endpoints on [nba.com](https://www.nba.com/). Further, in the process of creating endpoints for this client, [Isabelle Lefebvre's](https://github.com/IsabelleLefebvre97) [write-up](https://github.com/IsabelleLefebvre97/PWHL-Data-Reference) regarding the [https://lscluster.hockeytech.com/feed/](https://lscluster.hockeytech.com/feed/) endpoints used on the PWHL site was used for identification and validation.
+ 
+
+## Getting Started
+pwhl_api requires Python version `3.8` or higher, and can be installed through `pip` using the following command:
+```bash
+pip install pwhl_api
+```
+### Getting Static Team Information
+```python
+# Getting team information by id
+from pwhl_api.static.teams import get_team, get_team_by_name
+get_team("2")
+```
+Expected output:
+```json
+{'id': '2',
+ 'name': 'Minnesota Frost',
+ 'nickname': 'Frost',
+ 'team_code': 'MIN',
+ 'division_id': '1',
+ 'logo': 'https://assets.leaguestat.com/pwhl/logos/50x50/2.png'}
+```
+
+```python
+# Getting team information by name
+get_team_by_name("Boston Fleet")
+```
+Expected output:
+```json
+{'id': '1',
+ 'name': 'Boston Fleet',
+ 'nickname': 'Fleet',
+ 'team_code': 'BOS',
+ 'division_id': '1',
+ 'logo': 'https://assets.leaguestat.com/pwhl/logos/50x50/1.png'}
+```
+
+### Retrieving Team Rosters
+```python
+from pwhl_api.endpoints.teamroster import TeamRoster
+roster = TeamRoster(team_id="2", season="8") # team: Minnesota Frost, season: 2025-26 Regular
+roster_dfs = roster.get_data_frames()
+roster_dfs['Forwards'].head(5)
+```
+```plain
+shoots         hometown player_id   birthdate tp_jersey_number position  \
+0      R  Mississauga, ON       265  2001-03-02                3        F   
+1      R      Amherst, NY       191  2001-01-16                6        F   
+2      R      Andover, MN       102  1999-09-24                7        F   
+3      R      Atlanta, GA       194  2001-09-20               11        F   
+4      R     Plymouth, MN        23  1995-12-29               12        F   
+
+                name  
+0     Alyssa Machado  
+1         Katy Knoll  
+2     Claire Butorac  
+3  Kaitlyn O'Donohoe  
+4       Kelly Pannek
+```
+
+## Documentation
+* [Endpoints](https://github.com/masonlanger/pwhl_api/tree/main/docs/pwhl_api/endpoints)
