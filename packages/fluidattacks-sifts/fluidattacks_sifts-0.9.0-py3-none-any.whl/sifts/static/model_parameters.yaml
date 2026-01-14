@@ -1,0 +1,181 @@
+version: "0.1.0"
+top_findings: []
+finding_candidates_exclusion:
+  - "009" # Sensitive information in source code
+  - "011" # Use of software with known vulnerabilities
+  - "020" # Non-encrypted confidential information
+  - "079" # Non-upgradable dependencies
+  - "117" # Unverifiable files
+  - "119" # Metadata with sensitive information
+  - "142" # Sensitive information in source code - API Key
+  - "140" # Insecure exceptions - Empty or no catch
+  - "215" # Business information leak - Repository
+  - "216" # Business information leak - Source Code
+  - "222" # Business information leak - DB
+  - "223" # Business information leak - JFROG
+  - "224" # Business information leak - AWS
+  - "226" # Business information leak - Personal Information
+  - "247" # Non-encrypted confidential information - AWS
+  - "248" # Non-encrypted confidential information - LDAP
+  - "249" # Non-encrypted confidential information - Credentials
+  - "251" # Non-encrypted confidential information - JFROG
+  - "284" # Non-encrypted confidential information - Base 64
+  - "316" # Improper resource allocation - Buffer overflow
+  - "326" # Sensitive information in source code - Dependencies
+  - "359" # Sensitive information in source code - Credentials
+  - "385" # Non-encrypted confidential information - Keys
+  - "393" # Use of software with known vulnerabilities in development
+  - "433" # Non-encrypted confidential information - Redshift Cluster
+  - "439" # Sensitive information in source code - IP
+  - "441" # Non-encrypted confidential information - Azure
+  - "200" # Traceability loss
+  - "278" # Insecure exceptions - NullPointerException
+  - "372" # Use of an insecure channel - HTTP
+  - "335" # Insecure service configuration - Bucket
+  - "187" # Lack of data validation - Source Code
+  - "066" # Technical information leak - Console functions
+  - "039" # Improper authorization control for web services
+  - "037" # Technical information leak
+  - "066" # Technical information leak - Console functions
+  - "237" # Technical information leak - Print Functions
+  - "006" # Authentication mechanism absence or evasion
+  - "234" # Technical information leak - Stacktrace
+  - "072" # Duplicate code
+  - "079" # Unverifiable files
+  - "074"
+  - "379"
+  - "091"
+exclusion_candidates_finding_title:
+  - "sensitive information"
+  - "information leak"
+  - "confidential information"
+  # - "log"
+  - "Lack of data validation"
+  - "inappropriate"
+prompts:
+  agents:
+    vuln_strict:
+      version: "0.1.0"
+      system: |
+        You are a security code analyst. Determine if code is VULNERABLE or SAFE based on the suspected vulnerability.
+      instructions: |
+        ## CONTEXT
+        File: $filePath
+        Function: $functionName
+
+        ## VULNERABILITY TO CHECK
+        $vulnerability_knowledge
+
+        ## CODE TO ANALYZE
+        $imports
+
+        $code
+
+        ## VALIDATION REQUIREMENTS
+        Before reporting VULNERABLE, you MUST verify:
+        1. **Confirm the vulnerability pattern exists**: The actual vulnerable code pattern is present
+        2. **Verify exploitation path**: There is a concrete path from user input to the vulnerable sink
+        3. **Check context of use**: Investigate how this function's output is used (use tools to check callers)
+        4. **Look for mitigations**: Check if sanitization/validation exists in the calling code or downstream
+
+        ## ANALYSIS APPROACH
+        - Use available tools to investigate function calls that might provide security
+        - Check how the output of this function is actually used in the codebase
+        - Don't report vulnerabilities based on hypothetical scenarios ("if this were used in HTML...")
+        - Don't assume a risk exists just because sanitization isn't visible in THIS function
+
+        ## DECISION RULES
+        **VULNERABLE** - ALL of these must be true:
+        - The vulnerability pattern is present in the code
+        - There is a traceable path from attacker-controlled input to vulnerable operation
+        - No effective mitigations exist in the execution path
+        - The vulnerability is exploitable in the actual usage context (verified, not assumed)
+
+        **SAFE** - ANY of these is true:
+        - The vulnerability pattern is not present
+        - Effective security controls exist (in this function or verified in callers)
+        - No path from user input to the suspected vulnerability
+        - The context of use prevents exploitation
+
+        ## CRITICAL RULE
+        When in doubt or when exploitation depends on unknown usage context → **SAFE**
+        Only report VULNERABLE when you have concrete evidence, not theoretical possibilities.
+
+        Respond with VULNERABLE or SAFE and brief reasoning explaining your verification.
+    # --------------------------------------------------------------------
+    # LOOSE – heuristic check *only* for the listed vulnerability types
+    vuln_loose:
+      version: "0.1.0"
+      system: |
+        You are a security‑minded code reviewer performing a **quick sweep
+        for the specific vulnerability classes supplied**.
+      instructions: |
+        ## ANALYSIS CONTEXT
+        File: $filePath
+        Focus function: $functionName
+
+        ### Target vulnerabilities
+        $vulnerability_knowledge
+
+        ### Code under review
+        ```
+        $imports
+
+        $code
+        ```
+
+        ## MISSION
+
+        Determine if the code contains any of the target vulnerabilities using a two-step approach.
+
+        ## PROCESS
+
+        ### STEP 1: QUICK RELEVANCE CHECK
+        For each vulnerability, assess if investigation is warranted:
+        * Could the code contain patterns that might lead to this vulnerability?
+        * Are there any functions, imports, or data flows that could be related?
+        * When in doubt about relevance, err on the side of investigation
+
+        If OBVIOUSLY UNRELATED (e.g., pure math for web vulnerabilities) → mark as UNLIKELY immediately
+        If ANY POSSIBLE RELEVANCE or UNCERTAINTY → proceed to Step 2 (be inclusive)
+
+        ### STEP 2: DETAILED ANALYSIS (only for relevant vulnerabilities)
+        * Use available tools to investigate suspicious patterns
+        * Verify if the vulnerability is actually present
+        * Mark as LIKELY or UNLIKELY based on evidence
+    # --------------------------------------------------------------------
+    # LINES CLARIFICATION – identifies exact vulnerable lines
+    lines_clarification:
+      version: "0.1.0"
+      system: |
+        You are a security code analyst. Identify the exact line numbers where the vulnerability is introduced.
+      instructions: |
+        A vulnerability has been confirmed. Identify the specific lines where the vulnerability is INTRODUCED,
+        meaning where untrusted input is directly concatenated, substituted, or embedded into a vulnerable context.
+
+        Vulnerability Type: $vulnerability_type
+        Vulnerability Description: $vulnerability_description
+        Vulnerability Explanation: $vulnerability_explanation
+
+        Code:
+        $code
+
+        Report the lines where the vulnerability is CREATED, not where it is executed or used.
+        Focus on where the insecure operation occurs that introduces the security risk.
+        
+        Exclude setup code like variable declarations or data preparation that only passes data without
+        creating the vulnerability itself.
+    classify:
+      system: You are an expert Cyber Security agent focused on the classification of code portions that could contain some vulnerability, your task is to define if a more rigorous analysis is required
+      instructions: |
+          ### Decide whether the target code needs manual security review.
+
+          Target code (X):
+          ```$code```
+
+          Hypothesis title (The type of vulnerability): $Possible vulnerabilities
+
+          Confirmed vulnerable example:
+          ```$vulnerability_example```
+
+          If there is the minimum suspicion that the analysis object of the analysis could contain a vulnerable pattern similar to that of the example code, it would be a valid object for a deeper analysis
