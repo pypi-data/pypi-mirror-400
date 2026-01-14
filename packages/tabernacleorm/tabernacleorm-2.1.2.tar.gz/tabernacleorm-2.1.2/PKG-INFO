@@ -1,0 +1,177 @@
+Metadata-Version: 2.4
+Name: tabernacleorm
+Version: 2.1.2
+Summary: A unified, multi-engine async ORM for Python (MongoDB, PostgreSQL, MySQL, SQLite)
+Author-email: Ganilson Garcia <ganilsongarcia87@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/ganilson/tabernacleorm
+Project-URL: Documentation, https://github.com/ganilson/tabernacleorm#readme
+Project-URL: Repository, https://github.com/ganilson/tabernacleorm
+Project-URL: Issues, https://github.com/ganilson/tabernacleorm/issues
+Keywords: orm,database,async,mongodb,postgresql,mysql,sqlite,fastapi
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Database
+Classifier: Framework :: AsyncIO
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pydantic>=2.0
+Provides-Extra: postgresql
+Requires-Dist: asyncpg>=0.27.0; extra == "postgresql"
+Provides-Extra: mysql
+Requires-Dist: aiomysql>=0.1.1; extra == "mysql"
+Provides-Extra: mongodb
+Requires-Dist: motor>=3.1.0; extra == "mongodb"
+Requires-Dist: pymongo>=4.0.0; extra == "mongodb"
+Provides-Extra: all
+Requires-Dist: asyncpg>=0.27.0; extra == "all"
+Requires-Dist: aiomysql>=0.1.1; extra == "all"
+Requires-Dist: motor>=3.1.0; extra == "all"
+Requires-Dist: pymongo>=4.0.0; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Dynamic: license-file
+
+# TabernacleORM 2.1.2 🐍⚡
+
+**The Async, Pydantic-powered ORM for Python.**
+
+TabernacleORM is a modern, lightweight, and fully async Object-Relational Mapper (ORM) designed for **FastAPI** and modern Python applications. It supports **PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB** with a unified, expressive API.
+
+## Features
+
+*   **Pydantic V2 Native**: Models are Pydantic models. Automatic validation, JSON serialization, and OpenAPI schema generation.
+*   **Fully Async**: Built from the ground up for `asyncio`. No blocking IO.
+*   **Unified API**: Switch between SQL and NoSQL databases without changing your business logic.
+*   **Relationships**: `OneToMany`, `ManyToMany`, `ForeignKey` with lazy loading.
+*   **Fluent Query Builder**: Write expressive queries like `User.filter(User.age > 18)`.
+*   **Lifecycle Hooks**: `before_save`, `after_create`, etc., for powerful automation.
+*   **Stateless Sessions**: Thread-safe and concurrency-safe session management.
+*   **Read/Write Splitting**: Native support for replicas and high availability.
+
+## Installation
+
+```bash
+pip install tabernacleorm
+# For specific engines:
+pip install tabernacleorm[postgresql]
+pip install tabernacleorm[mysql]
+pip install tabernacleorm[mongodb]
+```
+
+## Quickstart
+
+### 1. Define your Models
+
+Since Tabernacle models are Pydantic models, defining schemas is intuitive:
+
+```python
+from typing import Optional
+from tabernacleorm import Model, connect
+from tabernacleorm.fields import StringField, IntegerField, ForeignKey, OneToMany
+
+# Connect to DB (Postgres, MySQL, or SQLite)
+connect("sqlite:///:memory:")
+
+class User(Model):
+    name: str = StringField(max_length=50)
+    age: int = IntegerField(default=18)
+    
+    # Relationships
+    posts: list["Post"] = OneToMany("Post", back_populates="author_id")
+
+    # Lifecycle Hooks
+    async def before_save(self):
+        self.name = self.name.capitalize()
+
+class Post(Model):
+    title: str = StringField()
+    content: str = StringField()
+    author_id: int = ForeignKey("User")
+```
+
+### 2. Create and Query
+
+```python
+import asyncio
+
+async def main():
+    # Create Tables
+    await User.get_engine().executeRaw(User.get_create_table_sql())
+    await Post.get_engine().executeRaw(Post.get_create_table_sql())
+
+    # Create Records
+    user = await User.create(name="alice", age=30)
+    await Post.create(title="Hello World", content="My first post", author_id=user.id)
+
+    # Fluent Querying (Async)
+    users = await User.filter(User.age > 20).all()
+    
+    # Eager Loading (New!)
+    # Fetch users with their 'posts' in one go
+    users_with_posts = await User.filter(User.age > 20).include("posts").all()
+
+    # Lazy Loading (New!)
+    my_posts = await user.fetch_related("posts")
+
+    # Complex Filtering
+    posts = await Post.filter(Post.title.startswith("Hello")).limit(5).all()
+
+asyncio.run(main())
+```
+
+## Documentation
+
+*   **[FEATURES.md](FEATURES.md)** - Detailed guide on Mongoose-style features, advanced populate/include, and complex query operators.
+*   **[REPLICA_QUICKSTART.md](REPLICA_QUICKSTART.md)** - Guide for using Read Replicas.
+
+## Advanced Features
+
+### Transactions
+
+Use the session context manager for safe transactions:
+
+```python
+engine = User.get_engine()
+async with engine.transaction() as session:
+    user = await User.create(name="Bob", age=25)
+    # Pass session to save() to participate in transaction
+    await Post.create(title="Intro", content="...", author_id=user.id, session=session)
+```
+
+### Hooks
+
+Available hooks:
+*   `before_save` / `after_save`
+*   `before_create` / `after_create`
+*   `before_delete` / `after_delete`
+
+```python
+class user(Model):
+    password: str
+    
+    async def before_save(self):
+        if not self.password.startswith("hash:"):
+            self.password = f"hash:{self.password}"
+```
+
+### Relationships
+
+Define relationships using `OneToMany`, `ManyToMany`, or standard `ForeignKey`.
+Use `await instance.fetch_related("field_name")` to load them efficiently.
+
+---
+*Built with ❤️ by the Tabernacle Team.*
