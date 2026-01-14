@@ -1,0 +1,207 @@
+Metadata-Version: 2.4
+Name: python-age
+Version: 0.1.0
+Summary: Python implementation of the age (Actually Good Encryption) v1 file format
+Author: Dennis Vink
+License: BSD-3-Clause
+Project-URL: Homepage, https://github.com/dennisvink/python-age
+Project-URL: Repository, https://github.com/dennisvink/python-age
+Project-URL: Issues, https://github.com/dennisvink/python-age/issues
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security :: Cryptography
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: cryptography>=41.0.0
+
+# age.py usage
+
+`age.py` is a small Python implementation of the age v1 format
+(`age-encryption.org/v1`). It supports:
+- X25519 recipients (`age1...`)
+- scrypt passphrase encryption (`-p`)
+
+It is intended for simple, local use and interoperability with the Go `age`
+tool for these recipient types.
+
+## Requirements
+
+- Python 3.9+ (3.8 may work, 3.9+ is recommended)
+- The `cryptography` package for X25519 and ChaCha20-Poly1305
+
+Install the dependency:
+
+```
+python3 -m pip install cryptography
+```
+
+## Quick start
+
+Generate a keypair:
+
+```
+python3 age.py --keygen
+```
+
+Encrypt a file to a recipient:
+
+```
+python3 age.py -r age1... input.txt -o input.txt.age
+```
+
+Decrypt a file with an identity:
+
+```
+python3 age.py -d -i key.txt input.txt.age -o input.txt
+```
+
+## Keys and recipients
+
+`--keygen` prints the secret key to stdout and the recipient public key to
+stderr. The secret key is an `AGE-SECRET-KEY-1...` string. The public key is an
+`age1...` string.
+
+Store secret keys in a file with one key per line. Lines starting with `#` and
+empty lines are ignored.
+
+Example `key.txt`:
+
+```
+# my key
+AGE-SECRET-KEY-1...
+```
+
+Recipient files use the same format (one `age1...` per line).
+
+## Encrypting
+
+Encrypt from a file:
+
+```
+python3 age.py -r age1... input.bin -o input.bin.age
+```
+
+Encrypt from stdin:
+
+```
+echo "hello" | python3 age.py -r age1... -o message.age
+```
+
+Multiple recipients:
+
+```
+python3 age.py -r age1... -r age1... input.txt -o input.txt.age
+```
+
+Recipients from a file:
+
+```
+python3 age.py -R recipients.txt input.txt -o input.txt.age
+```
+
+Passphrase encryption:
+
+```
+python3 age.py -p input.txt -o input.txt.age
+```
+
+If `-p` is used, passphrase recipients cannot be mixed with `-r` or `-R`.
+The default scrypt work factor (18) uses ~256 MiB of memory. If you hit memory
+limits, lower it with `--scrypt-work-factor`.
+
+You can set `AGE_PASSPHRASE` to provide the passphrase non-interactively:
+
+```
+AGE_PASSPHRASE="secret" python3 age.py -p input.txt -o input.txt.age
+```
+
+## Decrypting
+
+Decrypt to a file:
+
+```
+python3 age.py -d -i key.txt input.txt.age -o input.txt
+```
+
+Decrypt to stdout:
+
+```
+python3 age.py -d -i key.txt input.txt.age
+```
+
+Decrypt passphrase-encrypted files:
+
+```
+python3 age.py -d -p input.txt.age -o input.txt
+```
+
+You can set `AGE_PASSPHRASE` for non-interactive decryption as well.
+
+## Command reference
+
+```
+python3 age.py [input]
+  -o, --output PATH               Output file (default: stdout)
+  -d, --decrypt                   Decrypt mode
+  -r, --recipient RECIPIENT       Encrypt to recipient (repeatable)
+  -R, --recipients-file PATH      Encrypt to recipients listed in a file
+  -i, --identity PATH             Decrypt with identities listed in a file
+  -p, --passphrase                Use a passphrase (encrypt or decrypt)
+  --scrypt-work-factor N          scrypt work factor for encryption (default 18)
+  --scrypt-max-work-factor N      max scrypt factor for decryption (default 22)
+  --keygen                        Generate a keypair
+```
+
+## Programmatic use
+
+Import the module and call the helpers directly:
+
+```python
+from age import (
+    ScryptRecipient,
+    ScryptIdentity,
+    X25519Recipient,
+    X25519Identity,
+    encrypt_bytes,
+    decrypt_bytes,
+    parse_recipient,
+    parse_identity,
+)
+
+recipient = parse_recipient("age1...")
+ciphertext = encrypt_bytes(b"hello", [recipient])
+
+identity = parse_identity("AGE-SECRET-KEY-1...")
+plaintext = decrypt_bytes(ciphertext, [identity])
+```
+
+File-like streaming is also supported:
+
+```python
+from age import encrypt_file, decrypt_file, parse_recipient, parse_identity
+
+with open("input.txt", "rb") as src, open("input.txt.age", "wb") as dst:
+    encrypt_file(src, dst, [parse_recipient("age1...")])
+
+with open("input.txt.age", "rb") as src, open("input.txt", "wb") as dst:
+    decrypt_file(src, dst, [parse_identity("AGE-SECRET-KEY-1...")])
+```
+
+## Compatibility and limitations
+
+- Compatible with the Go `age` tool for X25519 and scrypt recipients.
+- Does not implement SSH keys, plugins, armor, or post-quantum hybrid keys.
+- Uses the age v1 binary format (not ASCII armor).
+
+## Troubleshooting
+
+- "cryptography is required": install `cryptography` as above.
+- "no recipients specified": provide `-r` or `-R`, or use `-p`.
+- "no identities specified": provide `-i` or use `-p`.
