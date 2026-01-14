@@ -1,0 +1,1 @@
+Diplotocus is a package to render animations of matplotlib plots, in a sequential timeline style.
