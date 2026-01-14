@@ -1,0 +1,49 @@
+name: naavre-catalogue-jl-dev
+
+services:
+  catalogue-service:
+    image: ghcr.io/naavre/naavre-catalogue-service:v0.5.0-alpha.1
+    network_mode: host
+    ports:
+      - '127.0.0.1:8000:8000'
+    volumes:
+      - ./catalogue-fixtures.json:/code/app/fixtures.json
+    env_file:
+      - catalogue-service.env
+
+  catalogue-db:
+    image: postgres:17
+    network_mode: host
+    ports:
+      - '127.0.0.1:5432:5432'
+    environment:
+      POSTGRES_PASSWORD: fake-postgres-password
+
+  catalogue-s3:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    network_mode: host
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    env_file:
+      - catalogue-s3.env
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  catalogue-configure-s3:
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      catalogue-s3:
+        condition: service_healthy
+    network_mode: host
+    env_file:
+      - catalogue-s3.env
+    entrypoint: ["bash", "-e"]
+    command: "/configure-s3.sh"
+    volumes:
+      - ./configure-catalogue-s3.sh:/configure-s3.sh
+      - ./notebook.ipynb:/notebook.ipynb

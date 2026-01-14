@@ -1,0 +1,221 @@
+import React, { ReactNode, useContext, useState } from 'react';
+import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Skeleton from '@mui/material/Skeleton';
+import SvgIcon, { SvgIconProps } from '@mui/material/SvgIcon';
+import TableCell from '@mui/material/TableCell';
+import TableRow from '@mui/material/TableRow';
+import Tooltip from '@mui/material/Tooltip';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import DeleteIcon from '@mui/icons-material/Delete';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import PeopleIcon from '@mui/icons-material/People';
+import ShareIcon from '@mui/icons-material/Share';
+
+import { ShareDialog } from './share-dialog';
+import { IJupyterContext, JupyterContext } from '../../contexts/JupyterContext';
+import { UserInfoContext } from '../../contexts/UserInfoContext';
+import { Asset, AssetKind } from './asset-kinds';
+import { DeleteDialog } from './delete-dialog';
+import { downloadAndOpenFile } from '../../services/jupyterlab';
+
+type Action = {
+  title: string;
+  icon: ReactNode;
+  handler: () => void;
+  enabled: boolean;
+  showInline: boolean;
+};
+
+function GetFileFromCatIcon(props: SvgIconProps) {
+  return (
+    <SvgIcon {...props} inheritViewBox>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" viewBox="0 0 22 22">
+        <path
+          d="m12.04 5.191c-0.8691-0.003638-1.685 0.3147-2.387 0.7976-0.3292 0.2264-0.6346 0.4882-0.9158 0.7815l1.289 1.241c0.203-0.2116 0.419-0.3991 0.6392-0.5505 0.4697-0.323 0.946-0.4825 1.367-0.4807 0.6234 0.00258 1.153 0.06533 1.552 0.2927 0.3992 0.2274 0.7776 0.6197 1.061 1.652l0.1772 0.6472 0.6714 0.008057c0.8614 0.0113 1.476 0.2898 1.909 0.7493 0.4333 0.4595 0.709 1.14 0.709 2.089 0 0.7938-0.2222 1.463-0.5801 1.901-0.3579 0.4387-0.8291 0.7036-1.622 0.7036h-10.52c-0.04279 0-0.3637-0.1427-0.8083-0.4941l-1.109 1.402c0.4734 0.3742 1.036 0.8809 1.917 0.8809h10.52c1.254 0 2.332-0.5293 3.01-1.362s0.9802-1.911 0.9802-3.032c5e-6 -1.312-0.4108-2.482-1.198-3.317-0.6527-0.6921-1.578-1.053-2.583-1.19-0.3932-1.017-0.945-1.793-1.649-2.194-0.8367-0.4767-1.714-0.5234-2.43-0.5264zm-6.448 1.41c-0.0293-9.106e-4 -0.05912 6.85e-4 -0.08862 0.002686-0.2362 0.01605-0.4565 0.1252-0.6123 0.3035l-2.498 2.857c-0.3018 0.345-0.2936 0.8624 0.0188 1.198l2.549 2.72c0.3369 0.36 0.9016 0.3793 1.262 0.04297 0.36-0.3369 0.3793-0.9016 0.04297-1.262l-1.157-1.235 4.616-0.02148c0.494-0.001184 0.8934-0.4029 0.8916-0.897-0.002661-0.494-0.4056-0.8922-0.8997-0.8889l-4.67 0.02148 1.19-1.362c0.3235-0.3717 0.285-0.9352-0.08594-1.26-0.1561-0.1359-0.3535-0.2138-0.5586-0.2202z"
+          fill="#3c8f49"
+        />
+      </svg>
+    </SvgIcon>
+  );
+}
+
+function getDownloadAction(
+  asset: Asset,
+  jupyterContext: IJupyterContext | null
+): Action {
+  const inJupyter = jupyterContext !== null;
+  const hasFile = 'file' in asset;
+  if (hasFile && inJupyter) {
+    return {
+      title: 'Add to my files',
+      icon: <SvgIcon component={GetFileFromCatIcon} />,
+      handler: () =>
+        downloadAndOpenFile(jupyterContext?.docManager, asset.file),
+      enabled: hasFile,
+      showInline: true
+    };
+  } else {
+    return {
+      title: '',
+      icon: <></>,
+      handler: () => {},
+      enabled: false,
+      showInline: true
+    };
+  }
+}
+
+function MoreMenu({ actions }: { actions: Action[] }) {
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  return (
+    <>
+      <IconButton
+        id="basic-button"
+        aria-label="More"
+        aria-controls={open ? 'basic-menu' : undefined}
+        aria-haspopup="true"
+        aria-expanded={open ? 'true' : undefined}
+        onClick={handleClick}
+        style={{ borderRadius: '100%' }}
+      >
+        <MoreVertIcon />
+      </IconButton>
+      <Menu
+        id="basic-menu"
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        slotProps={{
+          list: {
+            'aria-labelledby': 'basic-button'
+          }
+        }}
+      >
+        {actions
+          .filter(a => a.enabled)
+          .map(a => (
+            <MenuItem
+              key={a.title}
+              onClick={e => {
+                a.handler();
+                handleClose();
+              }}
+            >
+              <ListItemIcon>{a.icon}</ListItemIcon>
+              <ListItemText>{a.title}</ListItemText>
+            </MenuItem>
+          ))}
+      </Menu>
+    </>
+  );
+}
+
+export function ListItem({
+  asset,
+  assetKind,
+  fetchAssetsListResponse
+}: {
+  asset: Asset;
+  assetKind: AssetKind;
+  fetchAssetsListResponse: () => void;
+}) {
+  const userinfo = useContext(UserInfoContext);
+  const jupyterContext = useContext(JupyterContext);
+  const userIsOwner = asset.owner === userinfo.preferred_username;
+  const hasVersion = 'version' in asset;
+  const isShared =
+    (asset.shared_with_users || []).length > 0 ||
+    (asset.shared_with_scopes || []).length > 0;
+
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const regex = new RegExp(`-${asset.owner}$`);
+  const title = asset.title.replace(regex, '');
+
+  const actions: Action[] = [
+    getDownloadAction(asset, jupyterContext),
+    {
+      title: !isShared ? 'Share' : userIsOwner ? 'Shared' : 'Shared with me',
+      icon: isShared ? <PeopleIcon /> : <ShareIcon />,
+      handler: () => setShareDialogOpen(true),
+      enabled: true,
+      showInline: true
+    },
+    {
+      title: 'Delete',
+      icon: <DeleteIcon />,
+      handler: () => setDeleteDialogOpen(true),
+      enabled: userIsOwner,
+      showInline: false
+    }
+  ];
+
+  return (
+    <TableRow hover>
+      <TableCell sx={{ fontWeight: 'bold' }}>{title}</TableCell>
+      {hasVersion && <TableCell>v{asset.version}</TableCell>}
+      <TableCell>{asset.owner && userIsOwner ? 'me' : asset.owner}</TableCell>
+      <TableCell>
+        <>
+          {actions
+            .filter(a => a.enabled && a.showInline)
+            .map(a => (
+              <Tooltip key={a.title} title={a.title}>
+                <IconButton
+                  aria-label={a.title}
+                  style={{ borderRadius: '100%' }}
+                  sx={{ width: '40px' }}
+                  onClick={a.handler}
+                >
+                  {a.icon}
+                </IconButton>
+              </Tooltip>
+            ))}
+        </>
+        <ShareDialog
+          open={shareDialogOpen}
+          onClose={() => setShareDialogOpen(false)}
+          onUpdated={fetchAssetsListResponse}
+          asset={asset}
+          readonly={!userIsOwner}
+        />
+        <DeleteDialog
+          open={deleteDialogOpen}
+          onClose={() => setDeleteDialogOpen(false)}
+          onUpdated={fetchAssetsListResponse}
+          asset={asset}
+          assetKind={assetKind}
+          readonly={!userIsOwner}
+        />
+        <MoreMenu actions={actions} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+export function LoadingListItem() {
+  return (
+    <Skeleton
+      variant="rounded"
+      style={{
+        fontSize: '14px',
+        borderRadius: '5px',
+        display: 'flex',
+        height: '53px',
+        margin: '10px'
+      }}
+    />
+  );
+}
