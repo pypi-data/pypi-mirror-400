@@ -1,0 +1,48 @@
+name: Build Wheels (Manual)
+
+# This workflow is for manually building wheels without creating a release
+# For automatic wheel building with releases, use the "Release" workflow
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+permissions:
+  contents: write
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist --find-interpreter
+          manylinux: auto
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: dist
+          retention-days: 7
+
+      - name: Build complete
+        run: |
+          echo "✅ Wheels built successfully for ${{ matrix.os }}"
+          echo "📦 Download artifacts from the Actions tab"
