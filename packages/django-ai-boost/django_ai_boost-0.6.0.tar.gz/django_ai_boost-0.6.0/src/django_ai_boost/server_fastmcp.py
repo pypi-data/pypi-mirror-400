@@ -1,0 +1,852 @@
+from __future__ import annotations
+
+import logging
+import os
+import sys
+from typing import Any
+
+import django
+from asgiref.sync import sync_to_async
+from django.apps import apps
+from django.conf import settings
+from django.core.management import get_commands
+from django.db import connection
+from django.urls import get_resolver
+from fastmcp import FastMCP
+
+logger = logging.getLogger(__name__)
+
+
+def initialize_django(settings_module: str | None = None) -> None:
+    """Initialize Django with the specified settings module."""
+    if settings_module is None:
+        settings_module = os.environ.get("DJANGO_SETTINGS_MODULE")
+
+    if not settings_module:
+        raise ValueError(
+            "Django settings module not specified. "
+            "Set DJANGO_SETTINGS_MODULE environment variable or pass settings_module parameter."
+        )
+
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", settings_module)
+
+    # Add the project directory to the Python path if needed
+    project_dir = os.getcwd()
+    if project_dir not in sys.path:
+        sys.path.insert(0, project_dir)
+
+    django.setup()
+
+
+def is_production_environment() -> bool:
+    """Detect if running in production mode (DEBUG=False)."""
+    return not settings.DEBUG
+
+
+def get_auth_token(cli_token: str | None = None) -> str | None:
+    """
+    Get authentication token with precedence: env var > CLI arg.
+    Never log the actual token value.
+    """
+    env_token = os.environ.get("DJANGO_MCP_AUTH_TOKEN")
+
+    if env_token:
+        logger.info(
+            "Using authentication token from DJANGO_MCP_AUTH_TOKEN environment variable"
+        )
+        return env_token
+
+    if cli_token:
+        logger.info("Using authentication token from --auth-token CLI argument")
+        return cli_token
+
+    return None
+
+
+def create_auth_provider(token: str):
+    """Create StaticTokenVerifier for bearer token authentication."""
+    from fastmcp.server.auth import StaticTokenVerifier
+
+    tokens = {
+        token: {
+            "client_id": "django-mcp-client",
+            "scopes": ["read"],  # All tools are read-only
+        }
+    }
+    return StaticTokenVerifier(tokens=tokens)
+
+
+def validate_and_create_auth(token: str | None, is_production: bool, transport: str):
+    """
+    Validate auth requirements and create provider if needed.
+
+    Returns:
+        StaticTokenVerifier | None
+
+    Raises:
+        ValueError: If production + SSE but no token provided
+    """
+    # Production + SSE requires auth
+    if is_production and transport == "sse" and not token:
+        raise ValueError(
+            "Production mode detected (DEBUG=False) with SSE transport but no authentication token provided.\n"
+            "For security, authentication is required in production.\n"
+            "Please set DJANGO_MCP_AUTH_TOKEN environment variable or use --auth-token argument.\n"
+            "Alternatively, use --transport stdio for local-only access."
+        )
+
+    # No token configured
+    if not token:
+        if is_production and transport == "stdio":
+            logger.warning(
+                "Running in production mode (DEBUG=False) with stdio transport. "
+                "Stdio transport has no authentication. Ensure this is only accessible locally."
+            )
+        return None
+
+    # Token with non-SSE transport - error
+    if transport != "sse":
+        raise ValueError(
+            f"Authentication token provided but transport is '{transport}'.\n"
+            "Bearer tokens only work with SSE transport.\n"
+            "\n"
+            "Choose one:\n"
+            "  1. Use SSE with authentication: --transport sse --auth-token <token>\n"
+            f"  2. Use {transport} without authentication: --transport {transport} (remove --auth-token)\n"
+        )
+
+    # Valid: token + SSE
+    logger.info("Authentication enabled with bearer token for SSE transport")
+    return create_auth_provider(token)
+
+
+async def application_info() -> dict[str, Any]:
+    """
+    Get Django application information including versions, installed apps, and database configuration.
+
+    Returns:
+        Dictionary containing Django version, Python version, installed apps, middleware, and database engine.
+    """
+    import django
+
+    installed_apps = list(settings.INSTALLED_APPS)
+    middleware = list(settings.MIDDLEWARE) if hasattr(settings, "MIDDLEWARE") else []
+
+    db_config = settings.DATABASES.get("default", {})
+    db_engine = db_config.get("ENGINE", "unknown").split(".")[-1]
+
+    all_models = apps.get_models()
+
+    return {
+        "django_version": django.get_version(),
+        "python_version": sys.version,
+        "installed_apps": installed_apps,
+        "middleware": middleware,
+        "database_engine": db_engine,
+        "models_count": len(all_models),
+        "debug_mode": settings.DEBUG,
+    }
+
+
+async def get_setting(key: str) -> Any:
+    """
+    Get a Django setting value using dot notation.
+
+    Args:
+        key: Setting key using dot notation (e.g., "DATABASES.default.ENGINE")
+
+    Returns:
+        The setting value or an error message if not found.
+    """
+    try:
+        parts = key.split(".")
+        value = settings
+
+        for part in parts:
+            if hasattr(value, part):
+                value = getattr(value, part)
+            elif isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
+                return {"error": f"Setting '{key}' not found"}
+
+        if isinstance(value, (str, int, float, bool, type(None))):
+            return {"key": key, "value": value}
+        elif isinstance(value, (list, tuple)):
+            return {"key": key, "value": list(value)}
+        elif isinstance(value, dict):
+            return {"key": key, "value": value}
+        else:
+            return {"key": key, "value": str(value)}
+
+    except Exception as e:
+        return {"error": f"Error retrieving setting: {str(e)}"}
+
+
+async def list_models(app_labels: list[str] | None = None) -> dict[str, Any]:
+    """
+    List all Django models with their fields, types, and relationships.
+
+    Args:
+        app_labels: Optional list of app labels to filter (e.g., ["blog", "auth"]).
+                   If None, returns all models (may be truncated by some clients like PyCharm).
+
+    Returns:
+        Dictionary containing:
+        - total_count: Total number of models matching filter
+        - app_filter: Applied app filter (None if no filter)
+        - models: List of model information with detailed field information
+    """
+    models_info = []
+
+    # Get all models, optionally filtered by app labels
+    all_models = apps.get_models()
+
+    # Filter by app labels if provided
+    if app_labels:
+        all_models = [m for m in all_models if m._meta.app_label in app_labels]
+
+    for model in all_models:
+        app_label = model._meta.app_label
+        model_name = model._meta.object_name
+
+        fields = []
+        for field in model._meta.get_fields():
+            field_info = {
+                "name": field.name,
+                "type": field.__class__.__name__,
+            }
+
+            if hasattr(field, "max_length") and field.max_length:
+                field_info["max_length"] = field.max_length
+
+            if hasattr(field, "null"):
+                field_info["null"] = field.null
+
+            if hasattr(field, "blank"):
+                field_info["blank"] = field.blank
+
+            if hasattr(field, "related_model") and field.related_model:
+                field_info["related_model"] = field.related_model._meta.label
+
+            if hasattr(field, "primary_key"):
+                field_info["primary_key"] = field.primary_key
+
+            fields.append(field_info)
+
+        models_info.append(
+            {
+                "app": app_label,
+                "model": model_name,
+                "db_table": model._meta.db_table,
+                "fields": fields,
+            }
+        )
+
+    return {
+        "total_count": len(models_info),
+        "app_filter": app_labels,
+        "models": models_info,
+    }
+
+
+async def list_urls() -> list[dict[str, Any]]:
+    """
+    List all URL patterns in the Django project.
+
+    Returns:
+        List of URL patterns with names and view handlers.
+    """
+    url_patterns = []
+
+    def extract_urls(urlpatterns, prefix=""):
+        for pattern in urlpatterns:
+            pattern_str = str(pattern.pattern)
+            full_pattern = prefix + pattern_str
+
+            if hasattr(pattern, "url_patterns"):
+                extract_urls(pattern.url_patterns, full_pattern)
+            else:
+                url_info = {
+                    "pattern": full_pattern,
+                    "name": pattern.name if hasattr(pattern, "name") else None,
+                }
+
+                if hasattr(pattern, "callback"):
+                    callback = pattern.callback
+                    if callback:
+                        if hasattr(callback, "view_class"):
+                            # Class-based view
+                            url_info["view"] = (
+                                f"{callback.view_class.__module__}.{callback.view_class.__name__}"
+                            )
+                        elif hasattr(callback, "__name__"):
+                            # Function-based view
+                            url_info["view"] = (
+                                f"{callback.__module__}.{callback.__name__}"
+                            )
+                        else:
+                            url_info["view"] = str(callback)
+
+                url_patterns.append(url_info)
+
+    try:
+        resolver = get_resolver()
+        extract_urls(resolver.url_patterns)
+    except Exception as e:
+        return [{"error": f"Error extracting URLs: {str(e)}"}]
+
+    return url_patterns
+
+
+async def database_schema() -> dict[str, Any]:
+    """
+    Get the complete database schema including tables, columns, indexes, and foreign keys.
+
+    Returns:
+        Dictionary containing complete database schema information.
+    """
+
+    @sync_to_async
+    def get_schema():
+        schema_info = {
+            "tables": [],
+            "database_name": connection.settings_dict.get("NAME"),
+            "database_engine": connection.settings_dict.get("ENGINE"),
+        }
+
+        with connection.cursor() as cursor:
+            tables = connection.introspection.table_names()
+
+            for table_name in tables:
+                table_info = {
+                    "name": table_name,
+                    "columns": [],
+                    "indexes": [],
+                    "foreign_keys": [],
+                }
+
+                table_description = connection.introspection.get_table_description(
+                    cursor, table_name
+                )
+                for column in table_description:
+                    column_info = {
+                        "name": column.name,
+                        "type": str(column.type_code),
+                        "internal_size": column.internal_size,
+                        "null_ok": column.null_ok,
+                    }
+                    table_info["columns"].append(column_info)
+
+                indexes = connection.introspection.get_constraints(cursor, table_name)
+                for index_name, index_info in indexes.items():
+                    if index_info.get("index"):
+                        table_info["indexes"].append(
+                            {
+                                "name": index_name,
+                                "columns": index_info.get("columns", []),
+                                "unique": index_info.get("unique", False),
+                                "primary_key": index_info.get("primary_key", False),
+                            }
+                        )
+
+                relations = connection.introspection.get_relations(cursor, table_name)
+                for column, (related_table, related_column) in relations.items():
+                    table_info["foreign_keys"].append(
+                        {
+                            "column": column,
+                            "related_table": related_table,
+                            "related_column": related_column,
+                        }
+                    )
+
+                schema_info["tables"].append(table_info)
+
+        return schema_info
+
+    return await get_schema()
+
+
+async def list_migrations() -> list[dict[str, Any]]:
+    """
+    List all migrations and their application status.
+
+    Returns:
+        List of migrations per app with their applied status.
+    """
+
+    @sync_to_async
+    def get_migrations():
+        from django.db.migrations.loader import MigrationLoader
+
+        loader = MigrationLoader(connection)
+
+        migrations_info = []
+
+        for app_label in loader.migrated_apps:
+            app_migrations = []
+
+            for migration_name in loader.disk_migrations:
+                if migration_name[0] == app_label:
+                    is_applied = migration_name in loader.applied_migrations
+                    app_migrations.append(
+                        {
+                            "name": migration_name[1],
+                            "applied": is_applied,
+                        }
+                    )
+
+            if app_migrations:
+                migrations_info.append(
+                    {
+                        "app": app_label,
+                        "migrations": sorted(app_migrations, key=lambda x: x["name"]),
+                    }
+                )
+
+        return sorted(migrations_info, key=lambda x: x["app"])
+
+    return await get_migrations()
+
+
+async def list_management_commands() -> list[dict[str, Any]]:
+    """
+    List all available Django management commands.
+
+    Returns:
+        List of management commands with their app labels.
+    """
+    commands = get_commands()
+
+    commands_info = []
+    for command_name, app_name in sorted(commands.items()):
+        commands_info.append(
+            {
+                "command": command_name,
+                "app": app_name,
+            }
+        )
+
+    return commands_info
+
+
+async def get_absolute_url(
+    app_label: str, model_name: str, pk: int | str
+) -> dict[str, Any]:
+    """
+    Get the absolute URL for a specific model instance.
+
+    Args:
+        app_label: The app label (e.g., "blog")
+        model_name: The model name (e.g., "Post")
+        pk: The primary key of the instance
+
+    Returns:
+        Dictionary containing the absolute URL or error message.
+    """
+
+    @sync_to_async
+    def get_url():
+        try:
+            model = apps.get_model(app_label, model_name)
+        except LookupError:
+            return {"error": f"Model '{app_label}.{model_name}' not found"}
+
+        try:
+            instance = model.objects.get(pk=pk)
+        except model.DoesNotExist:
+            return {
+                "error": f"Instance with pk={pk} not found in {app_label}.{model_name}"
+            }
+        except Exception as e:
+            return {"error": f"Error fetching instance: {str(e)}"}
+
+        if hasattr(instance, "get_absolute_url") and callable(
+            getattr(instance, "get_absolute_url")
+        ):
+            try:
+                url = instance.get_absolute_url()
+                return {
+                    "app": app_label,
+                    "model": model_name,
+                    "pk": pk,
+                    "url": url,
+                }
+            except Exception as e:
+                return {"error": f"Error calling get_absolute_url(): {str(e)}"}
+        else:
+            return {
+                "error": f"Model {app_label}.{model_name} does not have a get_absolute_url() method"
+            }
+
+    return await get_url()
+
+
+async def reverse_url(
+    url_name: str, args: list[Any] | None = None, kwargs: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """
+    Reverse a URL pattern name to get its URL path.
+
+    Args:
+        url_name: The URL pattern name (e.g., "post_detail" or "admin:index")
+        args: Optional list of positional arguments for the URL
+        kwargs: Optional dictionary of keyword arguments for the URL
+
+    Returns:
+        Dictionary containing the reversed URL or error message.
+    """
+    from django.urls import reverse
+    from django.urls.exceptions import NoReverseMatch
+
+    try:
+        reverse_args = args if args else []
+        reverse_kwargs = kwargs if kwargs else {}
+
+        url = reverse(url_name, args=reverse_args, kwargs=reverse_kwargs)
+
+        return {
+            "url_name": url_name,
+            "url": url,
+            "args": args,
+            "kwargs": kwargs,
+        }
+    except NoReverseMatch as e:
+        return {"error": f"No reverse match found for '{url_name}': {str(e)}"}
+    except Exception as e:
+        return {"error": f"Error reversing URL: {str(e)}"}
+
+
+async def query_model(
+    app_label: str,
+    model_name: str,
+    filters: dict[str, Any] | None = None,
+    order_by: list[str] | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """
+    Query a Django model with read-only operations using the Django ORM manager.
+
+    Args:
+        app_label: The app label (e.g., "blog")
+        model_name: The model name (e.g., "Post")
+        filters: Optional dictionary of field lookups (e.g., {"status": "published", "featured": true})
+        order_by: Optional list of fields to order by (e.g., ["-created_at", "title"])
+        limit: Maximum number of results to return (default: 100, max: 1000)
+
+    Returns:
+        Dictionary containing query results or error message.
+    """
+
+    @sync_to_async
+    def execute_query():
+        try:
+            # Get the model
+            try:
+                model = apps.get_model(app_label, model_name)
+            except LookupError:
+                return {"error": f"Model '{app_label}.{model_name}' not found"}
+
+            # Enforce maximum limit for safety
+            max_limit = 1000
+            actual_limit = min(limit, max_limit) if limit else 100
+
+            # Start with all objects
+            queryset = model.objects.all()
+
+            # Apply filters if provided
+            if filters:
+                try:
+                    queryset = queryset.filter(**filters)
+                except Exception as e:
+                    return {"error": f"Invalid filter parameters: {str(e)}"}
+
+            # Apply ordering if provided
+            if order_by:
+                try:
+                    queryset = queryset.order_by(*order_by)
+                except Exception as e:
+                    return {"error": f"Invalid order_by parameters: {str(e)}"}
+
+            # Get total count before limiting
+            total_count = queryset.count()
+
+            # Limit results
+            queryset = queryset[:actual_limit]
+
+            # Convert queryset to list of dictionaries
+            results = []
+            for obj in queryset:
+                obj_dict = {}
+                for field in model._meta.get_fields():
+                    # Skip reverse relations
+                    if field.many_to_many or field.one_to_many:
+                        continue
+
+                    field_name = field.name
+                    try:
+                        value = getattr(obj, field_name)
+
+                        # Handle different field types
+                        if value is None:
+                            obj_dict[field_name] = None
+                        elif hasattr(field, "related_model") and field.related_model:
+                            # Foreign key - store the pk
+                            obj_dict[field_name] = value.pk if value else None
+                            obj_dict[f"{field_name}_str"] = (
+                                str(value) if value else None
+                            )
+                        elif isinstance(value, (str, int, float, bool)):
+                            obj_dict[field_name] = value
+                        else:
+                            # For dates, times, and other complex types
+                            obj_dict[field_name] = str(value)
+                    except Exception:
+                        # Skip fields that can't be accessed
+                        continue
+
+                results.append(obj_dict)
+
+            return {
+                "app": app_label,
+                "model": model_name,
+                "total_count": total_count,
+                "returned_count": len(results),
+                "limit": actual_limit,
+                "filters": filters or {},
+                "order_by": order_by or [],
+                "results": results,
+            }
+
+        except Exception as e:
+            return {"error": f"Error executing query: {str(e)}"}
+
+    return await execute_query()
+
+
+async def run_check(
+    app_labels: list[str] | None = None,
+    tags: list[str] | None = None,
+    deploy: bool = False,
+    fail_level: str = "ERROR",
+    databases: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Run Django system checks to identify potential problems in the project.
+
+    Args:
+        app_labels: Optional list of app labels to check (e.g., ["blog", "auth"])
+        tags: Optional list of check tags to run (e.g., ["models", "compatibility"])
+        deploy: Whether to include deployment checks (default: False)
+        fail_level: Minimum message level that causes the check to fail: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG" (default: "ERROR")
+        databases: Optional list of database aliases to check (e.g., ["default"])
+
+    Returns:
+        Dictionary containing check results with errors, warnings, and info messages.
+    """
+
+    @sync_to_async
+    def execute_checks():
+        from django.core.checks import run_checks
+        from django.core.checks.messages import (
+            DEBUG,
+            INFO,
+            WARNING,
+            ERROR,
+            CRITICAL,
+        )
+
+        try:
+            # Map fail_level string to Django check level constant
+            level_map = {
+                "DEBUG": DEBUG,
+                "INFO": INFO,
+                "WARNING": WARNING,
+                "ERROR": ERROR,
+                "CRITICAL": CRITICAL,
+            }
+            check_level = level_map.get(fail_level.upper(), ERROR)
+
+            # Get app_configs if app_labels provided
+            app_configs = None
+            if app_labels:
+                app_configs = [apps.get_app_config(label) for label in app_labels]
+
+            # Run the checks
+            messages = run_checks(
+                app_configs=app_configs,
+                tags=tags,
+                include_deployment_checks=deploy,
+                databases=databases or [],
+            )
+
+            # Organize messages by level
+            result = {
+                "success": True,
+                "checked_apps": app_labels or "all",
+                "tags": tags or "all",
+                "deploy_checks": deploy,
+                "fail_level": fail_level,
+                "total_issues": len(messages),
+                "critical": [],
+                "errors": [],
+                "warnings": [],
+                "info": [],
+                "debug": [],
+            }
+
+            # Categorize messages by level
+            for msg in messages:
+                message_dict = {
+                    "id": msg.id,
+                    "level": msg.level,
+                    "message": msg.msg,
+                    "hint": msg.hint or "",
+                    "obj": str(msg.obj) if msg.obj else "",
+                }
+
+                if msg.level >= CRITICAL:
+                    result["critical"].append(message_dict)
+                    result["success"] = False
+                elif msg.level >= ERROR:
+                    result["errors"].append(message_dict)
+                    if check_level <= ERROR:
+                        result["success"] = False
+                elif msg.level >= WARNING:
+                    result["warnings"].append(message_dict)
+                    if check_level <= WARNING:
+                        result["success"] = False
+                elif msg.level >= INFO:
+                    result["info"].append(message_dict)
+                    if check_level <= INFO:
+                        result["success"] = False
+                else:
+                    result["debug"].append(message_dict)
+                    if check_level <= DEBUG:
+                        result["success"] = False
+
+            # Add summary
+            result["summary"] = {
+                "critical_count": len(result["critical"]),
+                "error_count": len(result["errors"]),
+                "warning_count": len(result["warnings"]),
+                "info_count": len(result["info"]),
+                "debug_count": len(result["debug"]),
+            }
+
+            return result
+
+        except LookupError as e:
+            return {"error": f"App not found: {str(e)}"}
+        except Exception as e:
+            return {"error": f"Error running checks: {str(e)}"}
+
+    return await execute_checks()
+
+
+async def search_django_docs(topic: str) -> str:
+    """
+    Generate a prompt to help search for specific topics in Django documentation.
+
+    Args:
+        topic: The Django topic or feature to search for (e.g., "models", "queryset", "migrations", "authentication")
+
+    Returns:
+        A formatted prompt to help the user search Django documentation effectively.
+    """
+    django_version = django.get_version()
+    major_version = ".".join(django_version.split(".")[:2])
+
+    prompt = f"""I need help finding information about "{topic}" in Django documentation.
+
+Current Django version: {django_version}
+
+Please help me by:
+1. Searching the official Django documentation at https://docs.djangoproject.com/en/{major_version}/
+2. Providing relevant links to documentation pages about "{topic}"
+3. Explaining key concepts and best practices
+4. Showing code examples if applicable
+
+Focus on documentation that is relevant to Django {major_version} to ensure compatibility with my project.
+
+Key areas to consider:
+- Core concepts and usage patterns
+- API reference and method signatures
+- Common pitfalls and solutions
+- Related topics that might be helpful
+
+Please provide clear, actionable information with direct links to the official documentation."""
+
+    return prompt
+
+
+TOOLS = [
+    application_info,
+    get_setting,
+    list_models,
+    list_urls,
+    database_schema,
+    list_migrations,
+    list_management_commands,
+    get_absolute_url,
+    reverse_url,
+    query_model,
+    run_check,
+]
+
+PROMPTS = [
+    search_django_docs,
+]
+
+
+def register_tools(mcp_server: FastMCP) -> None:
+    """
+    Register all the Tools and Prompts
+    """
+    for fn in TOOLS:
+        mcp_server.tool()(fn)
+
+    for fn in PROMPTS:
+        mcp_server.prompt()(fn)
+
+
+def run_server(
+    settings_module: str | None = None,
+    transport: str = "stdio",
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    auth_token: str | None = None,
+):
+    """
+    Run the Django MCP server.
+
+    Args:
+        settings_module: Django settings module path
+        transport: Transport type (stdio or sse)
+        host: Host to bind to for SSE transport (default: 127.0.0.1)
+        port: Port to bind to for SSE transport (default: 8000)
+        auth_token: Bearer token for authentication (optional)
+    """
+    # Initialize Django before starting the server
+    initialize_django(settings_module)
+
+    # Determine auth requirements
+    token = get_auth_token(auth_token)
+    is_production = is_production_environment()
+    auth_provider = validate_and_create_auth(token, is_production, transport)
+
+    # Create FastMCP server instance with auth
+    mcp_server = FastMCP("Django AI Boost Server", auth=auth_provider)
+
+    # Register all tools and prompts
+    register_tools(mcp_server)
+
+    # Run the server
+    if transport == "sse":
+        mcp_server.run(transport=transport, host=host, port=port)
+    else:
+        mcp_server.run(transport=transport)
+
+
+if __name__ == "__main__":
+    run_server()
