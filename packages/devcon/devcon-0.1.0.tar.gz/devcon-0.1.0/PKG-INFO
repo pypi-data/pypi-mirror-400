@@ -1,0 +1,328 @@
+Metadata-Version: 2.4
+Name: devcon
+Version: 0.1.0
+Summary: Generate VS Code devcontainer configurations for MacOS
+Author: DevCon Contributors
+License: MIT
+Project-URL: Homepage, https://gitlab.com/hoogvliets/devcon
+Project-URL: Documentation, https://gitlab.com/hoogvliets/devcon#readme
+Project-URL: Repository, https://gitlab.com/hoogvliets/devcon
+Project-URL: Issues, https://gitlab.com/hoogvliets/devcon/-/issues
+Keywords: devcontainer,docker,vscode,development,macos,data-science,llm,web-development
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Environment :: Console
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.1.0
+Requires-Dist: jinja2>=3.1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: mypy>=1.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: types-click; extra == "dev"
+Dynamic: license-file
+
+# DevCon - DevContainer Configuration Generator
+
+Generate production-ready VS Code devcontainer configurations for MacOS with one command.
+
+## Overview
+
+DevCon automatically generates fully-configured VS Code devcontainer setups tailored for data science, LLM finetuning, and web development workflows. Each container comes pre-installed with Claude Code, Powerlevel10k terminal theme, and seamless SSH credential mounting.
+
+## Features
+
+### Container Types
+
+- **Data Science**: Python + Jupyter/marimo + pandas/scikit-learn + MLflow
+- **LLM Finetuning**: Python + PyTorch/Transformers + GPU support + PEFT
+- **Web Development**: Node.js + TypeScript + Vite + modern web tools
+
+### Included in Every Container
+
+- **Claude Code CLI**: Latest version or pinned release
+- **Powerlevel10k**: Beautiful terminal with multiple style options
+- **SSH Mounting**: Automatic MacOS SSH credential mounting
+- **Version Control**: Configurable Python (3.9-3.13) and Node.js (18-22) versions
+
+### CLI Commands
+
+- `devcon generate`: Create new devcontainer configurations
+- `devcon build`: Rebuild containers in VS Code
+- `devcon list`: Show available templates
+
+## Quick Start
+
+### Installation
+
+```bash
+# From source (during development)
+git clone https://github.com/yourusername/dev-containers.git
+cd dev-containers
+pip install -e .
+```
+
+### Generate Your First Devcontainer
+
+```bash
+# Generate a data science environment
+devcon generate -t data-science
+
+# Open in VS Code
+code .
+
+# Click "Reopen in Container" when prompted
+# Wait for build (5-10 minutes first time)
+# Start coding!
+```
+
+### More Examples
+
+```bash
+# LLM finetuning with GPU support
+devcon generate -t llm-finetuning --gpu --python-version 3.11
+
+# Web development with specific Node version
+devcon generate -t web-dev --node-version 20
+
+# Preview before generating
+devcon generate -t data-science --dry-run
+
+# Update existing devcontainer
+devcon generate -t data-science --force
+devcon build --no-cache
+```
+
+## Requirements
+
+### System Requirements
+
+- **MacOS** (Darwin platform)
+- **Python 3.9+** (recommended: 3.11 or later)
+- **Docker Desktop for Mac** (running)
+- **Visual Studio Code** with Dev Containers extension
+- **SSH Agent** (running with keys loaded)
+
+### Verification
+
+```bash
+# Check all requirements
+python3 --version  # Should be 3.9+
+docker info        # Should succeed
+code --version     # Should show VS Code version
+ssh-add -l         # Should list SSH keys
+```
+
+## Documentation
+
+### Guides
+
+- [Installation Guide](docs/installation.md) - Detailed installation instructions
+- [Usage Guide](docs/usage.md) - Complete command reference and examples
+- [Quick Start Guide](specs/001-devcontainer-config/quickstart.md) - Step-by-step tutorial
+
+### Development
+
+- [Contributing Guide](CONTRIBUTING.md) - Development setup and guidelines
+- [Technical Plan](specs/001-devcontainer-config/plan.md) - Architecture and design
+- [Tasks](specs/001-devcontainer-config/tasks.md) - Implementation tracker
+
+## Container Specifications
+
+### Data Science
+
+**Python Environment**: 3.9-3.13
+**Key Packages**:
+- Jupyter Lab, marimo (reactive notebooks)
+- pandas, numpy, scipy, matplotlib
+- scikit-learn, seaborn
+- MLflow (experiment tracking)
+
+**Use Cases**: Data analysis, machine learning, statistical computing, MLOps workflows
+
+### LLM Finetuning
+
+**Python Environment**: 3.9-3.13
+**Key Packages**:
+- PyTorch with CUDA (GPU support)
+- Hugging Face Transformers, datasets
+- PEFT (parameter-efficient fine-tuning)
+- accelerate, bitsandbytes, wandb
+
+**Use Cases**: LLM fine-tuning, transformer training, GPU-accelerated deep learning
+
+### Web Development
+
+**Node.js Environment**: 18-22 (LTS recommended)
+**Key Tools**:
+- TypeScript, npm, yarn, pnpm
+- ESLint, Prettier (code quality)
+- Vite (build tooling)
+
+**Use Cases**: React/Vue/Svelte apps, Node.js backends, full-stack development
+
+## CLI Reference
+
+### Generate Command
+
+```bash
+devcon generate -t <type> [OPTIONS]
+
+Options:
+  -t, --type TEXT              Container type (required)
+  -o, --output-dir PATH        Output directory (default: .)
+  --python-version TEXT        Python version (default: 3.11)
+  --node-version TEXT          Node.js version (default: 20)
+  --gpu                        Enable GPU support (llm-finetuning only)
+  --p10k-style TEXT            Powerlevel10k style (lean, rainbow, classic, pure)
+  --claude-version TEXT        Claude Code version (default: latest)
+  -f, --force                  Overwrite existing configuration
+  --dry-run                    Preview without creating files
+  --verbose                    Show detailed progress
+  -q, --quiet                  Suppress non-error output
+```
+
+### Build Command
+
+```bash
+devcon build [OPTIONS]
+
+Options:
+  --no-cache    Rebuild without using Docker cache
+  --verbose     Show detailed progress
+  -q, --quiet   Suppress non-error output
+```
+
+### List Command
+
+```bash
+devcon list
+
+Shows all available container types with descriptions.
+```
+
+## Architecture
+
+DevCon uses:
+- **Click** for CLI framework
+- **Jinja2** for template rendering
+- **Docker** for container runtime
+- **VS Code Dev Containers** for IDE integration
+
+Generated `.devcontainer/` includes:
+- `devcontainer.json`: VS Code configuration
+- `Dockerfile`: Container image definition
+- `.p10k.zsh`: Powerlevel10k configuration
+
+## Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src/devcon --cov-report=term-missing
+
+# Type checking
+mypy src/devcon
+
+# Linting
+ruff check src/devcon tests/
+```
+
+**Current Status**: 96 tests passing, 90% coverage
+
+## Development Status
+
+- ✅ Phase 1: Setup & Infrastructure
+- ✅ Phase 2: Foundational Components
+- ✅ Phase 3: Data Science Container (MVP)
+- ✅ Phase 4: LLM Finetuning Container
+- ✅ Phase 5: Web Development Container
+- ✅ Phase 6: Regeneration Support
+- ✅ Phase 7: Additional Commands (build, list)
+- 🚧 Phase 8: Polish & Documentation (in progress)
+
+## Roadmap
+
+### Completed
+
+- ✅ Core CLI with generate, build, list commands
+- ✅ Three container types (data-science, llm-finetuning, web-dev)
+- ✅ Version validation for Python, Node.js, Claude Code
+- ✅ GPU support for LLM containers
+- ✅ SSH credential mounting for MacOS
+- ✅ Powerlevel10k terminal theme
+- ✅ Comprehensive test suite (90% coverage)
+- ✅ Type checking and linting
+
+### In Progress
+
+- 🚧 Documentation guides
+- 🚧 Additional CLI options (verbose, quiet modes)
+- 🚧 Example configurations
+
+### Future
+
+- PyPI package publication
+- Additional container types (Rust, Go, etc.)
+- Multi-platform support (Linux, Windows)
+- Custom template support
+
+## Contributing
+
+Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup
+- Code style guidelines
+- Testing requirements
+- Pull request process
+
+## Support
+
+### Common Issues
+
+**"Docker Desktop is not running"**
+```bash
+open -a Docker  # Start Docker Desktop
+```
+
+**"SSH agent is not running"**
+```bash
+eval $(ssh-agent -s)
+ssh-add ~/.ssh/id_rsa
+```
+
+**"VS Code 'code' command not found"**
+- Open VS Code
+- Press `Cmd+Shift+P`
+- Run: "Shell Command: Install 'code' command in PATH"
+
+See [Installation Guide](docs/installation.md) for more troubleshooting.
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Authors
+
+Developed with Claude Code
+
+## Acknowledgments
+
+- VS Code Dev Containers team
+- Docker community
+- Powerlevel10k project
+- Anthropic Claude team
