@@ -1,0 +1,167 @@
+# vbz-drug-persistency
+
+A Python package that estimates **treatment persistency (retention)** and produces a **Total TRx fit (and optional projection)** using:
+
+- **New Patients** per period (input column: `NBRx`)
+- **Total Prescriptions (TRx)** per period (input column: `TRx`)
+- a **Weibull-based retention curve** (“VBZ S(t)”)
+
+This tool is designed for longitudinal brand analytics where total prescriptions (new + refills) depend on how long patients remain on therapy.
+
+> **Terminology note:** The input column is named `NBRx` for compatibility with common datasets, but in this package it represents **new patients / new starts**, not “new prescriptions.”
+
+---
+
+## What the package does
+
+Given a time series of:
+
+- `NBRx` = **New Patients (New Starts)** each period  
+- `TRx` = **Total Prescriptions** each period
+
+IMPORTANT: This should be provided from the launch of the drug. Not at any given time.
+
+the package fits a retention model and returns:
+
+1. **Retention curve:**  
+   - \(S(t)\) = probability a patient is still on therapy at age \(t\) periods  
+   - plus dropout summaries (optional)
+
+2. **TRx fitted series:**  
+   - \(\widehat{TRx}_t\) generated from new patient cohorts + retention
+
+
+---
+
+## Model (VBZ retention)
+
+### Retention curve (Weibull survival)
+The retention curve is modeled as:
+
+\[
+S(t) = \exp\left(-\left(\frac{t}{\alpha}\right)^\beta\right)
+\]
+
+where:
+- \(t\) = patient “age” in periods since start (0, 1, 2, …)
+- \(\alpha > 0\) = scale parameter  
+- \(\beta > 0\) = shape parameter
+
+### From New Patients to Total TRx
+Each month’s total retained “active cohort mass” is computed as:
+
+\[
+A_t = \sum_{i=0}^{t} NBRx_i \cdot S(t-i)
+\]
+
+Total prescriptions are modeled as:
+
+\[
+\widehat{TRx}_t = k \cdot A_t
+\]
+
+where:
+- \(k > 0\) is a fitted multiplier that maps retained patient mass to prescription volume (captures refills and average fill behavior at an aggregate level).
+
+The package fits \(\alpha, \beta, k\) by minimizing squared error between observed `TRx` and fitted \(\widehat{TRx}\).
+
+---
+
+## Input format
+
+### CSV or Excel
+The package accepts `.csv` or `.xlsx` input with **two columns only**:
+
+| Column | Meaning |
+|---|---|
+| `NBRx` | New Patients (New Starts) per period |
+| `TRx` | Total Prescriptions per period |
+
+**Notes:**
+- One row per period (typically monthly).
+- Rows must be in chronological order (oldest → newest).
+- Values must be non-negative.
+- MUST be right from launch.
+
+Example CSV:
+
+```csv
+NBRx,TRx
+120,120
+135,205
+150,295
+...
+
+
+## Installation
+
+```bash
+pip install vbz-drug-persistency
+
+
+## Quick start (CLI)
+
+```bash
+persistency run --input input.csv --months-forward 0 --output results.xlsx
+
+This writes an Excel file with sheets:
+- Inputs_Clean
+- Fit_Params
+- Retention_S(t)
+- TRx_Fit_Forecast (contains Actual vs Fitted; projection appears only if months-forward > 0)
+
+
+## Optional projection
+
+persistency run --input input.csv --months-forward 12 --output results.xlsx
+
+
+## Jupyter Notebook example (tables + plots)
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from persistency.io import load_input
+from persistency.fit import fit_weibull_and_scale, predict_trx
+from persistency.forecast import build_retention_table
+
+df = load_input("input.csv")
+
+nbrx = df["nbrx"].to_numpy()
+trx  = df["trx"].to_numpy()
+
+fit = fit_weibull_and_scale(nbrx, trx, max_lag=36)
+trx_hat = predict_trx(nbrx, fit.alpha, fit.beta, fit.k, max_lag=36)
+
+fit_table = pd.DataFrame({
+    "t": df["t"],
+    "new_patients": df["nbrx"],
+    "trx_actual": df["trx"],
+    "trx_fitted": trx_hat
+})
+
+ret = build_retention_table(fit.alpha, fit.beta, horizon=36)
+ret["dropout_cum"] = 1.0 - ret["S_t"]
+
+display(fit_table.tail(12))
+display(ret.head(12))
+print(fit)
+
+plt.figure()
+plt.plot(ret["age_months"], ret["S_t"])
+plt.xlabel("Age (months)")
+plt.ylabel("Retention S(t)")
+plt.title("Retention Curve (VBZ S(t))")
+plt.show()
+
+plt.figure()
+plt.plot(fit_table["t"], fit_table["trx_actual"], label="Actual")
+plt.plot(fit_table["t"], fit_table["trx_fitted"], label="Fitted")
+plt.xlabel("Time (t)")
+plt.ylabel("TRx")
+plt.title("TRx: Actual vs Fitted")
+plt.legend()
+plt.show()
+
+
