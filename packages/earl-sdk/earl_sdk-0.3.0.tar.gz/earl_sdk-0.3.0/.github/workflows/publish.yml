@@ -1,0 +1,82 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Remove 'v' prefix from tag if present
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip build
+
+      - name: Clean dist directory
+        run: rm -rf dist/
+
+      - name: Build package
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ steps.version.outputs.version }}
+        run: python -m build
+
+      - name: Verify built version
+        run: |
+          echo "Built packages:"
+          ls -la dist/
+          WHEEL_FILE=$(ls dist/*.whl)
+          VERSION=$(echo $WHEEL_FILE | sed 's/.*earl_sdk-\([^-]*\)-.*/\1/')
+          echo "Package version: $VERSION"
+          echo "Expected version: ${{ steps.version.outputs.version }}"
+          
+          if [[ "$VERSION" != "${{ steps.version.outputs.version }}" ]]; then
+            echo "ERROR: Version mismatch!"
+            exit 1
+          fi
+          echo "✅ Version matches!"
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/earl-sdk
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
