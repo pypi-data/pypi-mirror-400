@@ -1,0 +1,277 @@
+![GitHub repo size](https://img.shields.io/github/repo-size/kenscripts/coconutPy?style=flat)  
+# coconutPy
+A Python wrapper for the [COCONUT](https://coconut.naturalproducts.net/) natural product database REST API. All responses are retrieved as JSON.
+
+
+
+# Install
+```
+# from github using pip
+pip install git+https://github.com/kenscripts/coconutPy.git
+```
+
+
+# Quick Start
+## Load Packages
+```
+import os
+from cocoAPI import cocoPy
+```
+
+
+## Login to COCONUT Database
+To get login credentials, sign up on [COCONUT](https://coconut.naturalproducts.net/login).
+
+
+Enter email and password to login. This can be done manually or by saving credentials to ENVIRONMENT variable
+```
+# save login credenitals as env variables
+# get email and password from env 
+# account email may need to be verified periodically through website
+EMAIL = os.getenv(
+                  "COCONUT_EMAIL"
+                  )
+PSSWD = os.getenv(
+                  "COCONUT_PASSWORD"
+                  )
+
+# login
+coco = cocoPy(
+              email = EMAIL,
+              password = PSSWD
+              )
+```
+
+
+## Get COCONUT Resource Details
+COCONUT resources include: `citations`, `collections`, `molecules`, `organisms`, `properties`, and `reports`.
+
+To retrive resource details:
+```
+coco.get.resource_json(
+                       resource_endpoint = "properties"
+                       )
+```
+
+To retrieve resource fields
+```
+coco.get.resource_fields(
+                         resource_endpoint = "properties"
+                         )
+```
+
+
+## Search COCONUT Resources
+### Input
+`search_query` is a list of entries. Each entry is a list of the format [`key`,`field`,`value`].
+
+### Find Keys & Fields
+To find keys for resource:
+```
+# molecules resource
+coco.search.default_molecules_search_req["search"].keys()
+```
+
+To find fields for resource:
+```
+# molecules resource
+coco.get.resource_fields(
+                         resource_endpoint = "molecules"
+                         )
+```
+
+### Search Example (Molecules)
+Here is a search example for molecules:
+```
+# save search query as variable for readability
+mol_search_query = [
+                    ["filters","name","Ferutidin"],
+                    ["selects","standard_inchi_key",None] # selects key doesn't have values
+                    ]
+
+# molecules search
+coco.search.query(
+                  resource_endpoint = "molecules",
+                  search_query = mol_search_query
+                  )
+```
+
+Properties can be included with molecule search:
+```
+# value to include properties
+include_properties = [
+                      {'relation':'properties'}
+                      ]
+
+# search query
+mol_search_query = [
+                    ["filters","name","Ferutidin"],
+                    ["includes",None,include_properties]
+                    ]
+
+# molecules search with properties included
+coco.search.query(
+                  resource_endpoint = "molecules",
+                  search_query = mol_search_query
+                  )
+```
+
+### Search Example (Properties)
+Here is a search example for properties:
+```
+# save search query as variable for readability
+prop_search_query = [
+                     ["filters","lipinski_rule_of_five_violations","0"],
+                     ["filters","np_classifier_pathway","Terpenoids"],
+                     ["selects","np_classifier_superclass",None],
+                     ["limit",None,50] # a limit of >50 not allowed by COCONUT API
+                     ]
+
+# properties search
+# increase sleep_time for 502 Bad Gateway error
+coco.search.query(
+                  resource_endpoint = "properties",
+                  search_query = prop_search_query,
+                  sleep_time = 0.5
+                  )
+```
+
+### Search Example (Collections)
+Here is a search example for collections to identify plant collections:
+```
+# get fields for collections resource
+coco.get.resource_fields(
+                         resource_endpoint = "collections"
+                         )
+
+# get all records for collections resource
+coll_recs = coco.search.get_all_records(
+                                        resource_endpoint = "collections"
+                                        )
+
+# find plant collections
+for coll in coll_recs:
+   # find collections that mention plants
+   if "plant" in coll["description"]:
+      print(
+            coll["title"]
+            )
+```
+
+
+## Advanced Search For COCONUT Molecules Resource
+### Input
+`adv_search_query` is a list of entries. Each entry is a list of the following format: [`type`, `tag|filter`,`value`].
+
+### Find Types, Tags, & Filters
+To find accepted types:
+```
+coco.advSearch.adv_mol_search_types
+```
+To find accepted tags:
+```
+coco.advSearch.adv_mol_search_info["tags"]
+```
+To find accepted filters:
+```
+coco.advSearch.adv_mol_search_info["filters"]
+```
+
+### Tag-Based Advanced Search
+```
+# advanced search query
+adv_mol_search_query = [
+                        ["tags","organisms","Ferula"]
+                        ]
+
+# tag-based advanced search
+# API may fail with page limits > 50
+# increase sleep_time for 502 Bad Gateway error
+coco.advSearch.advanced_query(
+                              adv_search_query = adv_mol_search_query,
+                              sleep_time = 0.5,
+                              pg_limit = 50
+                              )
+```
+
+### Filter-Based Advanced Search (Single Filter)
+```
+# advanced search query
+adv_mol_search_query = [
+                        ["filters","np_pathway","Alkaloids"]
+                        ]
+
+# filter-based advanced search
+# API may fail with page limits > 50
+# increase sleep_time for 502 Bad Gateway error
+coco.advSearch.advanced_query(
+                              adv_search_query = adv_mol_search_query,
+                              sleep_time = 0.5,
+                              pg_limit = 50
+                              )
+```
+
+### Filter-Based Advanced Search (Multiple Filters)
+First build the advanced search request:
+```
+# advanced searcy query
+adv_mol_search_query = [
+                        ["filters","np_pathway","Alkaloids"],
+                        ["filters","mw","500..1000"]
+                        ]
+
+# filter-based advanced search
+# API may fail with page limits > 50
+# increase sleep_time for 502 Bad Gateway error
+coco.advSearch.advanced_query(
+                              adv_search_query = adv_mol_search_query,
+                              sleep_time = 0.5,
+                              pg_limit = 50
+                              )
+```
+
+### Filter-Based Advanced Search (Complex Filters)
+```
+# build the advanced search request with OR logical operator:
+adv_mol_search_query = [
+                        ["filters","np_pathway","Alkaloids"],
+                        ["filters","cs","true OR"],
+                        ["filters","mw","500..1000"]
+                        ]
+
+# filter-based advanced search
+# API may fail with page limits > 50
+# increase sleep_time for 502 Bad Gateway error
+coco.advSearch.advanced_query(
+                              adv_search_query = adv_mol_search_query,
+                              sleep_time = 0.5,
+                              pg_limit = 50
+                              )
+```
+
+### Basic Advanced Search
+```
+# value for basic advanced search must be a string of name, SMILES, InChI, or InChI key.
+adv_mol_search_query = [
+                        ["basic",None,"REFJWTPEDVJJIY-UHFFFAOYSA-N"]
+                        ]
+
+# basic advanced search
+coco.advSearch.advanced_query(
+                              adv_search_query = adv_mol_search_query
+                              )
+```
+
+# Documentation
+API documentation is available at: https://coconutpy.readthedocs.io/en/latest/api.html
+
+# Database Citations
+COCONUT Paper:  
+Venkata Chandrasekhar, Kohulan Rajan, Sri Ram Sagar Kanakam, Nisha Sharma, Viktor Weißenborn, Jonas Schaub, Christoph Steinbeck, 
+COCONUT 2.0: a comprehensive overhaul and curation of the collection of open natural products database, Nucleic Acids Research, 2024;, gkae1063, 
+https://doi.org/10.1093/nar/gkae1063
+
+COCONUT Software:  
+Venkata, C., Kanakam, S. R. S., Sharma, N., Schaub, J., Steinbeck, C., & Rajan, K. (2024).
+COCONUT (Version v0.0.1 - prerelease) [Computer software].
+https://doi.org/10.5281/zenodo.13283949
