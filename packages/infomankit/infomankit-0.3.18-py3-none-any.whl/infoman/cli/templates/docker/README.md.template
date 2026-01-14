@@ -1,0 +1,240 @@
+# Docker Configuration
+
+This directory contains Docker configuration files for {project_name}.
+
+## Files
+
+- `Dockerfile` - Multi-stage Docker image definition
+- `docker-compose.yml` - Docker Compose orchestration
+- `.dockerignore` - Files to exclude from Docker build
+- `mysql/conf.d/custom.cnf` - MySQL configuration
+- `mysql/init/01-init.sql` - Database initialization script
+
+## Quick Start
+
+### 1. Configure Environment
+
+Ensure `.env` file exists in project root with required variables:
+
+```bash
+# Copy from config directory
+cp config/.env.dev .env
+
+# Or create minimal .env
+cat > .env <<EOF
+APP_ENV=dev
+MYSQL_DB={project_name}_db
+MYSQL_USER={project_name}_user
+MYSQL_PASSWORD=your_password
+MYSQL_ROOT_PASSWORD=root_password
+EOF
+```
+
+### 2. Build and Start Services
+
+```bash
+# Build images
+docker-compose -f docker/docker-compose.yml build
+
+# Start all services
+docker-compose -f docker/docker-compose.yml up -d
+
+# View logs
+docker-compose -f docker/docker-compose.yml logs -f
+```
+
+### 3. Access Services
+
+- Application: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+- MySQL: localhost:3306
+- Redis: localhost:6379
+
+### 4. Stop Services
+
+```bash
+# Stop services
+docker-compose -f docker/docker-compose.yml down
+
+# Stop and remove volumes
+docker-compose -f docker/docker-compose.yml down -v
+```
+
+## Services
+
+### App Service
+
+- FastAPI application
+- Auto-reload enabled for development
+- Health checks configured
+- Depends on MySQL and Redis
+
+### MySQL Service
+
+- MySQL 8.0
+- Persistent data volume
+- Custom configuration in `mysql/conf.d/`
+- Initialization scripts in `mysql/init/`
+- Health checks configured
+
+### Redis Service
+
+- Redis 7 (Alpine Linux)
+- Persistent data volume
+- Optional password protection
+- Health checks configured
+
+## Development Workflow
+
+### Run with auto-reload
+
+```bash
+docker-compose -f docker/docker-compose.yml up
+```
+
+The `app/` directory is mounted as a volume, so code changes are reflected immediately.
+
+### Execute commands in container
+
+```bash
+# Shell access
+docker-compose -f docker/docker-compose.yml exec app bash
+
+# Run tests
+docker-compose -f docker/docker-compose.yml exec app pytest
+
+# Database migrations
+docker-compose -f docker/docker-compose.yml exec app alembic upgrade head
+```
+
+### View logs
+
+```bash
+# All services
+docker-compose -f docker/docker-compose.yml logs -f
+
+# Specific service
+docker-compose -f docker/docker-compose.yml logs -f app
+docker-compose -f docker/docker-compose.yml logs -f mysql
+```
+
+## MySQL Configuration
+
+### Custom Configuration
+
+Edit `mysql/conf.d/custom.cnf` to customize MySQL settings:
+- Character sets
+- Buffer sizes
+- Connection limits
+- Logging options
+
+### Initialization Scripts
+
+Add `.sql` files to `mysql/init/` directory. They will run automatically on first container startup in alphabetical order.
+
+### Connect to MySQL
+
+```bash
+# From host
+mysql -h localhost -P 3306 -u {project_name}_user -p
+
+# From app container
+docker-compose -f docker/docker-compose.yml exec app mysql -h mysql -u {project_name}_user -p
+```
+
+## Redis Configuration
+
+Redis is configured with:
+- AOF persistence enabled
+- Optional password protection via `REDIS_PASSWORD` env var
+
+Connect to Redis:
+
+```bash
+# From host
+redis-cli -h localhost -p 6379
+
+# From app container
+docker-compose -f docker/docker-compose.yml exec app redis-cli -h redis
+```
+
+## Production Deployment
+
+For production:
+
+1. Use production `.env` file:
+   ```bash
+   cp config/.env.prod .env
+   ```
+
+2. Update docker-compose.yml:
+   - Remove volume mounts for code
+   - Use specific image tags
+   - Configure resource limits
+   - Set up proper secrets management
+
+3. Use Docker secrets or external secret management:
+   ```yaml
+   secrets:
+     mysql_password:
+       external: true
+   ```
+
+4. Configure reverse proxy (nginx, traefik) for HTTPS
+
+5. Set up monitoring and logging
+
+## Troubleshooting
+
+### Container won't start
+
+```bash
+# Check logs
+docker-compose -f docker/docker-compose.yml logs
+
+# Check container status
+docker-compose -f docker/docker-compose.yml ps
+```
+
+### Database connection errors
+
+```bash
+# Verify MySQL is healthy
+docker-compose -f docker/docker-compose.yml exec mysql mysqladmin ping
+
+# Check connection from app
+docker-compose -f docker/docker-compose.yml exec app ping mysql
+```
+
+### Reset everything
+
+```bash
+# Stop and remove all containers, networks, and volumes
+docker-compose -f docker/docker-compose.yml down -v
+
+# Rebuild from scratch
+docker-compose -f docker/docker-compose.yml build --no-cache
+docker-compose -f docker/docker-compose.yml up -d
+```
+
+## Volume Management
+
+### Backup database
+
+```bash
+# Backup
+docker-compose -f docker/docker-compose.yml exec mysql mysqldump -u root -p{project_name}_db > backup.sql
+
+# Restore
+docker-compose -f docker/docker-compose.yml exec -T mysql mysql -u root -p {project_name}_db < backup.sql
+```
+
+### Inspect volumes
+
+```bash
+# List volumes
+docker volume ls
+
+# Inspect specific volume
+docker volume inspect docker_mysql_data
+```

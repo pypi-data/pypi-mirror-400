@@ -1,0 +1,38 @@
+.PHONY: help dev test lint format clean
+
+help:
+	@echo "Available commands:"
+	@echo "  make dev          - Start development server"
+	@echo "  make test         - Run tests"
+	@echo "  make lint         - Run linter"
+	@echo "  make format       - Format code"
+	@echo "  make clean        - Clean temporary files"
+
+dev:
+	@echo "Starting development server..."
+	infoman-serve run app.app:app --reload --host 0.0.0.0 --port 8000
+
+test:
+	@echo "Running tests..."
+	pytest tests/ -v --cov=app
+
+lint:
+	@echo "Running linter..."
+	ruff check .
+	mypy app/
+
+format:
+	@echo "Formatting code..."
+	black .
+	ruff check --fix .
+
+clean:
+	@echo "Cleaning temporary files..."
+	find . -type d -name "__pycache__" -exec rm -rf {{}} +
+	find . -type f -name "*.pyc" -delete
+	find . -type f -name "*.pyo" -delete
+	find . -type d -name "*.egg-info" -exec rm -rf {{}} +
+	find . -type d -name ".pytest_cache" -exec rm -rf {{}} +
+	find . -type d -name ".ruff_cache" -exec rm -rf {{}} +
+	find . -type d -name ".mypy_cache" -exec rm -rf {{}} +
+	rm -rf dist/ build/

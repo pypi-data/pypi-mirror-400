@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: {project_name}_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../app:/app/app
+      - ../logs:/app/logs
+    environment:
+      - APP_ENV=${{APP_ENV:-dev}}
+      - MYSQL_HOST=mysql
+      - REDIS_HOST=redis
+    env_file:
+      - ../.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mysql:
+    image: mysql:8.0
+    container_name: {project_name}_mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${{MYSQL_PASSWORD:-root_password}}
+      MYSQL_DATABASE: ${{MYSQL_DB:-{project_name}_db}}
+      MYSQL_USER: ${{MYSQL_USER:-{project_name}_user}}
+      MYSQL_PASSWORD: ${{MYSQL_PASSWORD:-user_password}}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${{MYSQL_PASSWORD:-root_password}}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: {project_name}_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes ${{REDIS_PASSWORD:+--requirepass}} ${{REDIS_PASSWORD}}
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
