@@ -1,0 +1,80 @@
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel
+
+
+class Volatility(Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class Frequency(Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class Directionality(Enum):
+    LONG = "Long"
+    SHORT = "Short"
+    MARKET_NEUTRAL = "market_neutral"
+    DELTA_NEUTRAL = "delta_neutral"
+
+
+class Complexity(Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class TokenExposure(Enum):
+    STABLECOINS = "Stablecoins"
+    MAJORS = "Majors"
+    ALTS = "Alts"
+
+
+# Default token rewards for all strategies
+DEFAULT_TOKEN_REWARDS = [
+    {
+        "symbol": "B3",
+        "name": "B3",
+        "address": "0xB3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3",
+        "image_url": "https://storage.googleapis.com/prod-wayfinder-app-assets/asset-icons/B3.png",
+    },
+]
+
+
+class StratDescriptor(BaseModel):
+    description: str
+
+    summary: str
+
+    gas_token_symbol: str
+    gas_token_id: str
+    deposit_token_id: str
+    minimum_net_deposit: float
+    gas_maximum: float
+    gas_threshold: float
+
+    available_rewards: dict[str, Any] = {
+        "token_rewards": DEFAULT_TOKEN_REWARDS,
+        "point_rewards": None,
+    }
+
+    # risk indicators
+    volatility: Volatility
+    volatility_description_short: str
+    directionality: Directionality
+    directionality_description: str
+    complexity: Complexity
+    complexity_description: str
+    token_exposure: TokenExposure
+    token_exposure_description: str
+    frequency: Frequency
+    frequency_description: str
+
+    return_drivers: list[str]
+
+    config: dict[str, Any]
