@@ -1,0 +1,166 @@
+Metadata-Version: 2.4
+Name: jetio-auth
+Version: 0.2.3
+Summary: Seamless, zero-config authentication and authorization for the Jetio framework.
+Home-page: https://github.com/cehstephen/jetio-auth
+Author: Stephen Tete
+Author-email: cehtete@gmail.com
+Project-URL: Homepage, https://jetio.org
+Project-URL: Bug Tracker, https://github.com/cehstephen/jetio-auth/issues
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Framework :: AsyncIO
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: passlib[bcrypt]>=1.7.4
+Requires-Dist: aiosmtplib>=5.0.0
+Dynamic: license-file
+
+# Jetio Auth 🔐
+
+**Seamless, zero-config authentication for the [Jetio](https://jetio.org) framework.**
+
+`jetio-auth` is a battery-included authentication plugin designed to get your application secured in minutes. It bridges your SQLAlchemy database models directly to your API, handling password hashing, JWT token issuance, and granular permission policies automatically.
+
+![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)
+![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)
+![PyPI version](https://img.shields.io/pypi/v/jetio-auth)
+![Tests](https://github.com/cehstephen/jetio-auth/actions/workflows/tests.yml/badge.svg)
+[![Coverage Status](https://coveralls.io/repos/github/cehstephen/jetio-auth/badge.svg?branch=main)](https://coveralls.io/github/cehstephen/jetio-auth?branch=main)
+![Async](https://img.shields.io/badge/asyncio-supported-brightgreen)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.x-red)
+![Type hints](https://img.shields.io/badge/type%20hints-PEP%20484-blue)
+
+---
+
+### ✨ Key Features
+
+* **🧠 Intelligent Auto-Discovery:** Automatically detects your admin flags (`is_admin`, `is_superuser`, etc.). No configuration required.
+* **🏗️ Dynamic Schema Generation:** Inspects your SQLAlchemy User model and instantly generates a Pydantic validation schema for registration. (Adds `age`, `phone`, etc., to the API automatically!)
+* **🛡️ Secure by Default:**
+    * Built-in **Bcrypt** password hashing.
+    * **Mass Assignment Protection** (prevents users from registering as admins).
+    * Standardized **JWT** (JSON Web Token) flow.
+* **🔌 Drop-in Mixins:** Provides a `JetioAuthMixin` to equip your models with auth columns instantly.
+
+---
+
+### 📦 Installation
+
+```bash
+pip install jetio-auth 
+```
+
+
+🚀 Quick Start
+1. Define your User Model
+
+Inherit from JetioAuthMixin to get hashed_password and is_admin columns automatically.
+
+
+```python 
+# models.py
+from jetio import JetioModel
+from jetio_auth import JetioAuthMixin
+from sqlalchemy.orm import Mapped, mapped_column
+
+class User(JetioModel, JetioAuthMixin):
+    # You define the identity fields (username/email)
+    username: Mapped[str] = mapped_column(unique=True)
+    email: Mapped[str] = mapped_column(unique=True)
+    age: Mapped[int] = mapped_column(default=18)
+```
+
+2. Initialize the Auth Router
+
+In your main application file:
+```python
+# app.py
+from jetio_auth import AuthRouter
+from models import User
+
+# Initialize the router with your model
+# The plugin automatically detects 'is_admin' and builds the schemas.
+auth = AuthRouter(user_model=User)
+
+# Register endpoints (/login, /register)
+auth.register_routes(app)
+
+# Register admin management endpoints (/admin/{id}/make-admin)
+auth.register_admin_routes(app)
+```
+
+3. Protect your Routes
+
+Use the provided policies to secure your data.
+```python 
+from jetio import CrudRouter
+
+# Example: A router where access policy is enforced using jetio-auth - using: get_auth_dependency, Owner (or an Admin)
+CrudRouter(
+    model=Post,
+    secure=True,
+    auth_dependency=auth.get_auth_dependency(), # Validates JWT - restricts 'read' acces to any logged in user 
+    policy={        
+        "POST": auth.get_auth_dependency(), # Any logged-in user can create
+         "PUT": auth.owner_or_admin(Post), # only the owner or admin can edit a post
+         "DELETE": auth.admin_only() # Only admins can delete. making the delete method call for this resource only available to admins.
+    }
+).register_routes(app)
+```
+
+🛠️ Utilities
+Creating the First Admin
+
+Since the API protects against self-promotion, use the ensure_admin helper in your startup script.
+
+```python
+async def init_db():
+    async with AsyncSession(engine) as session:
+        # Idempotent: safe to run on every startup
+        await auth.ensure_admin(
+            db=session,
+            username="admin",
+            password="securePassword123",
+            email="admin@jetio.org"
+        )
+```
+
+Manual Admin Promotion
+
+If you are already an admin, you can promote other users via the API:
+```bash 
+POST /admin/5/make-admin
+Authorization: Bearer <your-admin-token>
+```
+
+⚙️ How it works
+The "Single Source of Truth"
+
+jetio-auth doesn't force you to use a specific column name for permissions. It scans your model for standard flags in this order:
+
+    is_admin
+
+    is_superuser
+
+    is_staff
+
+    is_master
+
+Whichever it finds first, it locks onto as the authority for admin_only policies.
+Dynamic Validation
+
+When a user hits /register, the plugin doesn't just look for username/password. It looks at your User table columns:
+
+    age: int → API requires an Integer (or Optional if default exists).
+
+    bio: str → API accepts a String.
+
+    is_admin → Excluded automatically for security.
