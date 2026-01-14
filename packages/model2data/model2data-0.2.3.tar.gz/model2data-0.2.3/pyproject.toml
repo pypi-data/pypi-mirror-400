@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "model2data"
+version = "0.2.3"
+description = "Generate analytics-ready datasets from DBML models"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "dbt-core>=1.5.0",
+    "dbt-duckdb>=1.5.0",
+    "faker>=37.12.0",
+    "pandas>=2.3.3",
+    "pyyaml>=6.0.3",
+    "typer>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "pre-commit",
+  "ruff>=0.1.0",
+  "black>=23.0.0",
+  "ty>=0.0.4",
+  "types-pyyaml",
+  "poethepoet>=0.38.0",
+]
+
+[project.scripts]
+model2data = "model2data.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["model2data*"]
+
+[tool.setuptools.package-data]
+model2data = [
+    "dbt/templates/**/*",
+    "examples/**/*",
+]
+
+# Ruff configuration (fast Python linter)
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "C",    # flake8-comprehensions
+    "B",    # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "C901",  # complexity (handled with noqa when needed)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["model2data"]
+
+# Black configuration (code formatter)
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+# ty configuration (type checker)
+[tool.ty]
+
+# Poe the Poet task runner
+[tool.poe.tasks]
+lint = "ruff check ."
+fix = "ruff check . --fix --exit-zero"
+type = "ty check"
+test-quick = "pytest -q --no-header -p no:warnings --no-cov"
+check = ["fix", "lint", "type", "test-quick"]
