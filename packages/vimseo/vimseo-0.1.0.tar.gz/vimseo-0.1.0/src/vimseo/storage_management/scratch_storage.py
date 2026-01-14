@@ -1,0 +1,99 @@
+# Copyright 2021 IRT Saint Exupéry, https://www.irt-saintexupery.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 3 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# Copyright (c) 2019 IRT-AESE.
+# All rights reserved.
+#
+# Contributors:
+#    INITIAL AUTHORS - API and implementation and/or documentation
+#        :author: XXXXXXXXXXX
+#    OTHER AUTHORS   - MACROSCOPIC CHANGES
+from __future__ import annotations
+
+import logging
+import shutil
+from typing import TYPE_CHECKING
+
+from pydantic import Field
+
+from vimseo.core.model_metadata import MetaDataNames
+from vimseo.storage_management.base_storage_manager import BaseStorageManager
+from vimseo.storage_management.base_storage_manager import PersistencyPolicy
+from vimseo.tools.base_settings import BaseSettings
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+LOGGER = logging.getLogger(__name__)
+
+
+class DirectoryScratchOptions(BaseSettings):
+    """The options of the ``IntegratedModel`` constructor."""
+
+    directory_scratch_root: Path | str = Field(
+        default="default_scratch/",
+        description="Path to the scratch root directory, "
+        "wherein unique directories will be created to perform job "
+        "executions, and possibly store the temporary scratch files."
+        "Default value is './default_scratch'.",
+    )
+
+    job_name: str = Field(
+        default="",
+        description="The name of the job, used for directory and files naming in the "
+        "scratch and archive. By default, the job name is generated as a "
+        "unique ID.",
+    )
+
+    directory_scratch_persistency: PersistencyPolicy = Field(
+        default=PersistencyPolicy.DELETE_IF_SUCCESSFUL,
+        description="Whether to delete the scratch job directory after "
+        "post-processing.",
+    )
+
+
+class DirectoryScratch(BaseStorageManager):
+    def __init__(
+        self,
+        root_directory: Path,
+        persistency: PersistencyPolicy,
+        job_name,
+        model_name,
+        load_case_name,
+    ):
+
+        super().__init__(persistency)
+        self._root_directory = root_directory
+        self._job_name = job_name
+        self._experiment_name = f"./{model_name}/{load_case_name}/"
+        self._accept_overwrite_job_dir = True
+        self._job_directory = ""
+
+    def create_job_directory(self):
+        """Create a new job directory."""
+        self._job_directory = self._create_job_directory(
+            self._root_directory,
+            self._job_name,
+            self._experiment_name,
+        )
+
+    def delete_job_directory(self):
+        if self._job_directory != "":
+            LOGGER.info(f"Removing job directory: {self._job_directory}")
+            shutil.rmtree(str(self._job_directory))
+
+    def enforce_persistency_policy(self, model_result: dict):
+        if self.whether_to_delete(model_result["outputs"][MetaDataNames.error_code][0]):
+            self.delete_job_directory()

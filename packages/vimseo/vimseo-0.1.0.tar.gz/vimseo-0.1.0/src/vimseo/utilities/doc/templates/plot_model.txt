@@ -1,0 +1,55 @@
+# copyright section to be added automatically by syntax check
+"""
+# Overview of the {{ model_name }} for load case {{ load_case }}
+
+{{ model_summary }}
+"""
+from __future__ import annotations
+
+from vims import EXAMPLE_RUNS_DIR_NAME
+from vims.api import create_model
+from vims.core.base_integrated_model import BaseModelOptions
+from vims.core.base_integrated_model import PersistencyPolicy
+
+# %%
+# First, let's instantiate the model for a given load case:
+
+model_name = "{{ model_name }}"
+load_case = "{{ load_case }}"
+model = create_model(
+    model_name,
+    load_case,
+    check_subprocess=True,
+    model_options=BaseModelOptions(
+        directory_archive_root=f"../{EXAMPLE_RUNS_DIR_NAME}/archive/model_gallery",
+        directory_scratch_root=f"../{EXAMPLE_RUNS_DIR_NAME}/scratch/model_gallery",
+        cache_file_path=f"../{EXAMPLE_RUNS_DIR_NAME}/caches/model_gallery/{model_name}_{load_case}_cache.hdf"
+    ),
+)
+
+# %%
+# The model description can be accessed like this:
+
+print(model.description)
+
+# %%
+# An illustration of the load case:
+
+model.show_image()
+
+# %%
+# The model is executed with its default input values:
+
+model.execute()
+
+# %%
+# And the results are visualised with the pre-defined plots:
+
+figures = model.plot_results(show=True)
+
+{% for k in figure_keys %}
+# %%
+# Plot of {{ k }}
+
+figures["{{ k }}"]
+{% endfor %}

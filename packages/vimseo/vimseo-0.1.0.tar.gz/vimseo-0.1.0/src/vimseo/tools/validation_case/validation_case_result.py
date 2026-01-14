@@ -1,0 +1,81 @@
+# Copyright 2021 IRT Saint Exupéry, https://www.irt-saintexupery.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 3 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# Copyright (c) 2019 IRT-AESE.
+# All rights reserved.
+#
+# Contributors:
+#    INITIAL AUTHORS - API and implementation and/or documentation
+#        :author: XXXXXXXXXXX
+#    OTHER AUTHORS   - MACROSCOPIC CHANGES
+from __future__ import annotations
+
+import logging
+from collections import defaultdict
+from dataclasses import dataclass
+from dataclasses import field
+from typing import TYPE_CHECKING
+
+from numpy import ndarray
+from pandas import DataFrame
+
+from vimseo.tools.base_tool import BaseResult
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from collections.abc import Mapping
+
+    from gemseo.datasets.io_dataset import IODataset
+
+    from vimseo.tools.validation.validation_point_result import ValidationPointResult
+
+LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class StochasticValidationCaseResult(BaseResult):
+    """The result of a validation case."""
+
+    validation_point_results: Iterable[ValidationPointResult] = ()
+    """A list of validation point results."""
+
+    def to_dataframe(self, metric_name: str):
+        """Return a ``Pandas.DataFrame`` containing on each row the nominal inputs and
+        the integrated metrics as outputs of each ``ValidationPointResult``.
+
+        Args:
+            metric_name: The name of the metric to export.
+        """
+        data = defaultdict(list)
+        for result in self.validation_point_results:
+            for name, value in result.nominal_data.items():
+                # data is then converted to dataframe.
+                # arrays are stringified because they could be of different lengths
+                if isinstance(value, ndarray) and value.size > 1:
+                    value = str(value)
+                data[name].append(value)
+            for name, value in result.integrated_metrics[metric_name].items():
+                data[f"{metric_name}[{name}]"].append(value)
+        return DataFrame.from_dict(data)
+
+
+class DeterministicValidationCaseResult(BaseResult):
+    """The result of a deterministic validation."""
+
+    element_wise_metrics: IODataset | None = field(default_factory=None)
+
+    integrated_metrics: Mapping[str, Mapping[str, float]] | None = None
+    """A dictionary mapping variable names and metric names to integrated metric values
+    corresponding the each validation point (i.e. each sample of the reference data)."""

@@ -1,0 +1,198 @@
+# Copyright 2021 IRT Saint Exupéry, https://www.irt-saintexupery.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 3 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# Copyright (c) 2019 IRT-AESE.
+# All rights reserved.
+#
+# Contributors:
+#    INITIAL AUTHORS - API and implementation and/or documentation
+#        :author: XXXXXXXXXXX
+#    OTHER AUTHORS   - MACROSCOPIC CHANGES
+from __future__ import annotations
+
+import pytest
+from gemseo.core.grammars.json_grammar import JSONGrammar
+
+from vimseo.io.space_io import SpaceToolFileIO
+from vimseo.material.material import Material
+from vimseo.material.material_relation import MaterialProperty
+from vimseo.material.material_relation import MaterialRelation
+from vimseo.material.metadata import MaterialMetadata
+from vimseo.material.test_references import MATERIAL_TEST_REFERENCES
+from vimseo.material_lib import MATERIAL_LIB_DIR
+from vimseo.utilities.distribution import DistributionParameters
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        None,
+        MaterialMetadata(misc={"foo1": "bar", "foo2": 1.0, "foo3": [1.0, 2.0]}),
+    ],
+)
+@pytest.mark.parametrize(
+    "distribution",
+    [
+        DistributionParameters(name="Normal", mu=1e5, sigma=1e2),
+    ],
+)
+def test_material_relation(tmp_wd, metadata, distribution):
+    """Check that a material relation can be exported to json file and loaded from a json
+    file."""
+    property = MaterialProperty(
+        name="young_modulus",
+        value=1e5,
+        lower_bound=9e4,
+        upper_bound=1.1e5,
+        distribution=distribution,
+    )
+    if metadata:
+        mat_rel_1 = MaterialRelation(
+            tag="Ta6v_v1",
+            name="Ta6v",
+            metadata=metadata,
+            properties=[property],
+        )
+    else:
+        mat_rel_1 = MaterialRelation(
+            tag="Ta6v_v1",
+            name="Ta6v",
+            properties=[property],
+        )
+    # Override datetime to be able to compare the two material relations.
+    mat_rel_1.metadata.generic["datetime"] = ""
+    file_name = "mat_rel_1.json"
+    mat_rel_1.to_json(file_name=file_name)
+    mat_rel_loaded = MaterialRelation.from_json(file_name)
+    mat_rel_loaded.metadata.generic["datetime"] = ""
+    assert str(mat_rel_1) == str(mat_rel_loaded)
+
+
+# def test_json_schema():
+#     mat_rel_1 = MaterialRelation(
+#         tag="Ta6v_v1",
+#         name="Ta6v",
+#         data=[MaterialProperty(name="young_modulus", value=1e5)],
+#     )
+#     with open("mat_rel_1_grammar.json", "w") as f:
+#         f.write(mat_rel_1.to_json_schema())
+
+
+def test_material(tmp_wd):
+    """Check that a material can be serialized to a JSON file and reloaded."""
+    mat_rel_1 = MaterialRelation(
+        tag="Ta6v_v1",
+        name="Ta6v_elastic_iso",
+        properties=[
+            MaterialProperty(
+                name="young_modulus",
+                value=2.1e5,
+                lower_bound=1.9e5,
+                upper_bound=2.3e5,
+                distribution=DistributionParameters(name="Normal", mu=2.1e5, sigma=1e2),
+            ),
+            MaterialProperty(
+                name="nu_p",
+                value=0.3,
+                distribution=DistributionParameters(name="Normal", mu=0.3, sigma=0.02),
+            ),
+        ],
+    )
+    material = Material(name="Ta6v", material_relations=[mat_rel_1])
+
+    assert [prop.name for prop in material.properties] == ["young_modulus", "nu_p"]
+
+    file_name = "material.json"
+    material.to_json(file_name=file_name)
+    material_loaded = Material.from_json(file_name)
+
+    assert material == material_loaded
+    assert material.get_values_as_dict() == material_loaded.get_values_as_dict()
+
+    legacy_schema = material_loaded.to_legacy_json_schema(write=True)
+
+    ref_legacy_grammar = JSONGrammar("ref_legacy_material")
+    ref_legacy_grammar.update_from_file(
+        MATERIAL_TEST_REFERENCES / "Ta6v_legacy_grammar.json"
+    )
+
+    assert ref_legacy_grammar.schema["properties"] == legacy_schema["properties"]
+
+
+def test_uncertain_variables():
+    """Check that a material with uncertain properties can return its property names and
+    can be exported as a parameter space."""
+    mat_rel_1 = MaterialRelation(
+        tag="Ta6v_v1",
+        name="Ta6v_elastic_iso",
+        properties=[
+            MaterialProperty(
+                name="young_modulus",
+                value=2.1e5,
+                lower_bound=1.9e5,
+                upper_bound=2.3e5,
+                distribution=DistributionParameters(name="Normal", mu=2.1e5, sigma=1e2),
+            ),
+            MaterialProperty(
+                name="nu_p",
+                value=0.3,
+            ),
+        ],
+    )
+    material = Material(name="Ta6v", material_relations=[mat_rel_1])
+    assert material.uncertain_variables == ["young_modulus"]
+
+    parameter_space = material.to_parameter_space()
+    assert parameter_space.variable_names == ["young_modulus"]
+
+
+def test_update_from_parameter_space():
+    """Check that a stochastic material can be defined from a parameter space."""
+    material = Material.from_json(MATERIAL_LIB_DIR / "Mock.json")
+    parameter_space = (
+        SpaceToolFileIO()
+        .read(MATERIAL_TEST_REFERENCES / "Mock_E1_distribution.json")
+        .parameter_space
+    )
+    material.update_from_parameter_space(parameter_space)
+    assert material.name_to_property["E1"].distribution == DistributionParameters(
+        **parameter_space.distributions["E1"].marginals[0].settings
+    )
+
+
+def test_update_deterministic_material():
+    """Check that a deterministic values of a material can updated."""
+    material = Material.from_json(MATERIAL_LIB_DIR / "Mock.json")
+    print(material)
+    assert material.get_values_as_dict()["E1"] == 1.5e5
+    new_e1 = 1.4e5
+    material.update_from_dict({"E1": new_e1})
+    assert material.get_values_as_dict()["E1"] == new_e1
+
+
+def test_update_stochastic_material():
+    """Check that a stochastic material property can be updated to a new value."""
+    material = Material.from_json(MATERIAL_LIB_DIR / "Ta6v.json")
+    prop = material.get_property("Ta6v_elastic_iso", "young_modulus")
+    mu = prop.distribution.mu
+    sigma = prop.distribution.sigma
+    new_value = 2.2e5
+    material.update_from_dict({"young_modulus": new_value})
+    # TODO add a get_property()
+    assert prop.name == "young_modulus"
+    assert prop.value == new_value
+    assert prop.distribution.name == "Normal"
+    assert prop.distribution.mu == new_value
+    assert prop.distribution.sigma == pytest.approx(sigma * new_value / mu)
