@@ -1,0 +1,164 @@
+# Django Cognito Auth Middleware
+
+A reusable Django middleware that authenticates API requests using AWS Cognito
+Access Tokens. It validates incoming requests by calling
+`cognito-idp.get_user`, attaches authenticated user data to the request, and
+optionally caches Cognito responses to reduce repeated network calls.
+
+This package is designed to be plug-and-play, production-safe, and reusable
+across multiple Django projects.
+
+## Features
+
+- Verifies AWS Cognito Access Tokens
+- Protects all API endpoints by default
+- Supports public (bypass) paths
+- Optional short-lived caching using Django cache backends
+- Attaches Cognito user data directly to the request object
+- Works with both Django and Django REST Framework
+- Clean, minimal, and reusable design
+
+## Installation
+
+```bash
+pip install django-cognito-auth-middleware
+````
+
+---
+
+## Basic Usage
+
+Add the middleware to your Django project’s `settings.py`:
+
+```python
+MIDDLEWARE = [
+    # ...
+    "django_cognito_auth.middleware.CognitoAuthMiddleware",
+]
+```
+
+Once added, all incoming requests will be authenticated using AWS Cognito
+unless explicitly bypassed.
+
+
+## How It Works
+
+For every incoming HTTP request:
+
+1. The middleware checks whether the request path is configured as a bypass path.
+2. It reads the `Authorization` header and expects the format:
+   `Authorization: Bearer <ACCESS_TOKEN>`.
+3. The access token is validated by calling AWS Cognito
+   `cognito-idp.get_user`.
+4. If the token is valid, the authenticated user data is attached to the
+   request object.
+5. If the token is missing, invalid, or expired, the middleware immediately
+   returns an HTTP 401 response.
+
+
+## Request Attributes
+
+After successful authentication, the following attributes are available on
+the request object:
+
+```python
+request.cognito_user         # Cognito username (string)
+request.cognito_attributes   # Dict of Cognito user attributes
+request.cognito_token        # Raw access token
+```
+
+These can be accessed in Django views, DRF views, serializers, permissions,
+or business logic.
+
+
+## Configuration Options
+
+All configuration is optional and controlled via `settings.py`.
+
+### Cognito Region
+
+```python
+COGNITO_REGION = "ap-south-1"
+```
+
+If not provided, the middleware falls back to `AWS_REGION`.
+If neither is set, it defaults to `ap-south-1`.
+
+
+### Bypass Paths (Public Endpoints)
+
+```python
+COGNITO_BYPASS_PATHS = [
+    "/health/",
+    "/login/",
+    "/public/",
+]
+```
+
+Requests whose paths match any entry in this list will skip Cognito
+authentication.
+
+### Cognito Response Caching
+
+```python
+COGNITO_GET_USER_CACHE_SECONDS = 60
+```
+
+When enabled:
+
+* Cognito `get_user` responses are cached using Django’s cache framework
+* Cache keys are derived from a secure SHA-256 hash of the access token
+* This significantly reduces repeated calls to AWS Cognito
+
+Set to `0` (default) to disable caching.
+
+
+## Error Handling
+
+If authentication fails, the middleware returns an HTTP 401 response:
+
+```json
+{
+  "detail": "Invalid or expired access token"
+}
+```
+
+No view or business logic is executed for unauthorized requests.
+
+## Example Usage in a View
+
+```python
+from django.http import JsonResponse
+
+def my_view(request):
+    username = request.cognito_user
+    tenant_id = request.cognito_attributes.get("custom:tenant_id")
+    profile = request.cognito_attributes.get("profile")
+
+    return JsonResponse({
+        "user": username,
+        "tenant_id": tenant_id,
+        "profile": profile,
+    })
+```
+
+## Compatible Cache Backends
+
+The middleware works with any Django-supported cache backend, including:
+
+* Redis
+* Memcached
+* Local memory cache
+* Database cache
+
+## Security Notes
+
+* This middleware validates Cognito Access Tokens by calling AWS Cognito
+* Tokens are never logged or stored in plaintext
+* Cached tokens are stored using a secure hash
+* HTTPS is strongly recommended in production
+
+## License
+
+This project is licensed under the MIT License.
+
