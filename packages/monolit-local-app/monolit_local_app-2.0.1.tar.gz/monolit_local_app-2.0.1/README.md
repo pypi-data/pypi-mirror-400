@@ -1,0 +1,73 @@
+# Welcome to the Monolit 2.0.0 !!!
+Starting with version 2.0.0, the approach to running JavaScript projects locally was completely changed. Versions 1.n.n__ focused on using pure HTML, CSS, and JavaScript. On the one hand, this could be seen as a plus—novices don't need to understand complex front-end technologies. On the other hand, this feature prevented the library's API from being used for commercial project development, as by early 2026, every company, from startups to big tech corporations, uses a wide range of JavaScript libraries for quick and easy front-end development.
+
+But as mentioned earlier, this is no longer a problem. Almost the entire library code has been rewritten and adapted for standard JavaScript technologies such as React, Vue, and Angular. The essence of these frameworks is that they take the developer's source code and, through complex transformations (transpilation, compilation, etc.), place the compressed code into a group of files. Typically, these files are placed in the __build__ folder, which can also contain a __static__ folder for storing static CSS and JS files. Monolit then works with this compiled folder, not the developer's source code.
+
+And in this part, the approach remains virtually unchanged. The library still requires specific paths (and now multiple paths will be required), and then, via the Flask API, the root file __index.html__ will be returned to the URL __localhost:3000/__ (which can now be changed if desired). Subsequently, requests for the root HTML file will include all other files, including images, fonts, and static CSS and JS files.
+
+# How to install Monolit 2.0.0
+The library can be installed using Python’s built-in package manager, pip. Simply type "pip install monolit_local_app" in your terminal, and all necessary packages will be automatically downloaded to your computer.
+
+# How to use Monolit 2.0.0
+The library's usage hasn't changed dramatically. However, starting with version 2.0.0, the developer will be required to take slightly more responsibility for the process of including compiled files from the __build__ folder. Previously, it was only necessary to specify the path to the folder containing the __index.html__ file.
+Now, the developer must enter:
+1. Full path to the folder __build__ (compiled js project's folders)
+2. Full path to the file __index.html__ (often found in the root directory __build__)
+3. Full path to the folder __static__ (also often found in the root directory __build__)
+
+You can run a JavaScript project from a local server in the following ways:
+
+1. With function __run__:
+```python
+import monolit_local_app as ml
+
+if __name__ == "__main__":
+    ml.run(
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build",
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build\\index.html",
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build\\static"
+        # ...
+        # You can see all aruments list in function's doc-string
+    )
+```
+The __run__ function will simply start the server host at the given (default local) address.
+
+2. With class __LocalServer__ (OOP wrapper for __run__):
+```python
+import monolit_local_app as ml
+
+class App(ml.LocalServer):
+    def process_request(self, request):
+        return ml.jsonify({"code": 200})
+                                       
+    def process_path(self, path):
+        return {
+            "home": "index.html",
+            "www": "index.html"
+        }.get(path)
+    
+if __name__ == "__main__":
+    App(
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build",
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build\\index.html",
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build\\static",
+    )()
+#    ^
+#    call object 'App' -> call function '__call__' -> call function 'run'
+```
+When objects inheriting from __LocalServer__ are called, their attributes will be passed as arguments to the __run__ function mentioned earlier.
+
+# The problems in Monolit 2.0.0
+Currently, version 2.0.0 has one nasty vulnerability. It's not a bug, but it's also not a feature; it's a complex mechanism. The Monolit library uses the Flask API to handle HTTP requests. The problem is that Flask is very sensitive to names like __'static'__ and __'template'__. These are reserved names, and their usage differs from that of any other names. Many web packers and JavaScript technologies place static files (often CSS and JavaScript) in the __static__ folder, and then place this folder in the root of the __build__ folder. Because of this, almost all requests for static data begin with "/static/...", which causes errors in Flask.
+
+To address the aforementioned issue, a rather cumbersome, hacky, complex, and highly arbitrary solution was added. In the arguments to the __```LocalServer.__init__```__ and __run__ functions, the last argument is the __Boolean parameter 'preprocessing'__ (default True). This value determines whether the preprocessing algorithm for the compiled build folder will be used. The preprocessing algorithm involves escaping all paths beginning with __'static'__, adding the __"_"__ character at the end.
+
+Was:
+    ```<link href="/static/css/main.38f68f80.css" rel="stylesheet"/>```
+
+Became:
+    ```<link href="/static_/css/main.38f68f80.css" rel="stylesheet"/>```
+
+But as you can imagine, this is a very hacky and poorly extensible solution, since the structure of the __build__ folder varies across different JavaScript technologies. Currently, as of version 2.0.0, the algorithm is not ideal or 100% functional. We hope this solution is temporary, and that a more flexible and adaptable solution will be found in the future. If you see strange errors related to requested paths that include __'static'__, you can try the following: Check if preprocessing mode is enabled. If it isn't, enable it. If it is, disable it and rename the folders and paths manually in the appropriate locations.
+
+We apologize for any inconvenience...    :(
