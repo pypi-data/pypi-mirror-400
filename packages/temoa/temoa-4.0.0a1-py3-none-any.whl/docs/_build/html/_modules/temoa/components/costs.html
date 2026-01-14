@@ -1,0 +1,834 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>temoa.components.costs &mdash; Tools for Energy Model Optimization and Analysis (Temoa) 4.0.0a1.dev20251113 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/my_theme.css?v=a08f7516" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=09296c51"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Tools for Energy Model Optimization and Analysis (Temoa)
+              <img src="../../../_static/Temoa_logo_color_small.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html">Preface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#quick-start">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#database-construction">Database Construction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#data-quality">Data Quality</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#visualization">Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-math-behind-temoa">The Math Behind Temoa</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-temoa-computational-implementation">The Temoa Computational Implementation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#temoa-code-style-guide">Temoa Code Style Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Tools for Energy Model Optimization and Analysis (Temoa)</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">temoa.components.costs</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for temoa.components.costs</h1><div class="highlight"><pre>
+<span></span><span class="c1"># temoa/components/costs.py</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Defines the cost-related components and the objective function of the Temoa model.</span>
+
+<span class="sd">This module is responsible for:</span>
+<span class="sd">-  Defining financial helper functions for Present Value, Future Value, and Annuity calculations.</span>
+<span class="sd">-  Pre-computing and populating cost parameters.</span>
+<span class="sd">-  Defining the rules for calculating all investment, fixed, variable, and emission-related</span>
+<span class="sd">    costs incurred over the model horizon.</span>
+<span class="sd">-  Defining the model&#39;s objective function (total_cost_rule) to minimize the</span>
+<span class="sd">    net present value of the total system cost.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">deprecated</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyomo.core</span><span class="w"> </span><span class="kn">import</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Var</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyomo.core.base.component</span><span class="w"> </span><span class="kn">import</span> <span class="n">ComponentData</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="kn">import</span> <span class="n">quicksum</span><span class="p">,</span> <span class="n">value</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">temoa.types.core_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Region</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">temoa.core.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemoaModel</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">getLogger</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># FINANCIAL HELPER FUNCTIONS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_default_loan_rate</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="o">*</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;get the default loan rate from the default_loan_rate param&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">default_loan_rate</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="annuity_to_pv">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.costs.annuity_to_pv">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">annuity_to_pv</span><span class="p">(</span><span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">periods</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Expression</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Multiplication factor to convert an annuity to net present value</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: annuity_to_pv</span>
+
+<span class="sd">        \frac{P}{A}(i, N) = \frac{(1 + i)^N - 1}{i (1 + i)^N}</span>
+
+<span class="sd">    where:</span>
+
+<span class="sd">    - :math:`i` is the interest/discount rate</span>
+<span class="sd">    - :math:`N` is the number of periods</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">rate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">periods</span>
+    <span class="k">return</span> <span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="n">rate</span><span class="p">)</span> <span class="o">**</span> <span class="n">periods</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">rate</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">rate</span><span class="p">)</span> <span class="o">**</span> <span class="n">periods</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="pv_to_annuity">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.costs.pv_to_annuity">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">pv_to_annuity</span><span class="p">(</span><span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">periods</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Expression</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Multiplication factor to convert net present value to an annuity</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: pv_to_annuity</span>
+
+<span class="sd">        \frac{A}{P}(i, N) = \frac{i + (1 + i)^N}{(1 + i)^N - 1}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">rate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">periods</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">rate</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">rate</span><span class="p">)</span> <span class="o">**</span> <span class="n">periods</span><span class="p">)</span> <span class="o">/</span> <span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="n">rate</span><span class="p">)</span> <span class="o">**</span> <span class="n">periods</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="fv_to_pv">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.costs.fv_to_pv">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fv_to_pv</span><span class="p">(</span><span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">periods</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Expression</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Multiplication factor to convert a future value to net present value</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: fv_to_pv</span>
+
+<span class="sd">        \frac{P}{F}(i, N) = \frac{1}{(1 + i)^N}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">rate</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">rate</span><span class="p">)</span> <span class="o">**</span> <span class="n">periods</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_loan_life</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO INDEX SET FUNCTIONS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cost_fixed_indices</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="c1"># we pull the unlimited capacity techs from this index.  They cannot have fixed costs</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">active_activity_rptv</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">active_activity_rptv</span> <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span>
+        <span class="p">}</span>
+    <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cost_variable_indices</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">active_activity_rptv</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">active_activity_rptv</span>
+    <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">lifetime_loan_process_indices</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Based on the efficiency parameter&#39;s indices and time_future parameter, this</span>
+<span class="sd">    function returns the set of process indices that may be specified in the</span>
+<span class="sd">    cost_invest parameter.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">min_period</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">vintage_optimize</span><span class="p">)</span>
+
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">efficiency</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;=</span> <span class="n">min_period</span><span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># COST CALCULATION FUNCTIONS</span>
+<span class="c1"># These functions are the building blocks for the objective function.</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">loan_cost</span><span class="p">(</span>
+    <span class="n">capacity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Var</span> <span class="o">|</span> <span class="n">ComponentData</span><span class="p">,</span>
+    <span class="n">invest_cost</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">loan_annualize</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">lifetime_loan_process</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">lifetime_process</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">p_0</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">p_e</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">global_discount_rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">vintage</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Expression</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    function to calculate the loan cost.  It can be used with fixed values to produce a hard number or</span>
+<span class="sd">    pyomo variables/params to make a pyomo Expression</span>
+<span class="sd">    :param capacity: The capacity to use to calculate cost</span>
+<span class="sd">    :param invest_cost: the cost/capacity</span>
+<span class="sd">    :param loan_annualize: parameter</span>
+<span class="sd">    :param lifetime_loan_process: lifetime of the loan</span>
+<span class="sd">    :param P_0: the year to discount the costs back to</span>
+<span class="sd">    :param P_e: the &#39;end year&#39; or cutoff year for loan payments</span>
+<span class="sd">    :param GDR: Global Discount Rate</span>
+<span class="sd">    :param vintage: the base year of the loan</span>
+<span class="sd">    :return: fixed number or pyomo expression based on input types</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># calculate the amortised loan repayment (annuity)</span>
+    <span class="n">annuity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">capacity</span>
+        <span class="o">*</span> <span class="n">invest_cost</span>  <span class="c1"># lump investment cost is capacity times cost_invest</span>
+        <span class="o">*</span> <span class="n">loan_annualize</span>  <span class="c1"># calculate loan annuities for investment cost, if used</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">global_discount_rate</span><span class="p">:</span>
+        <span class="c1"># Undiscounted result</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">annuity</span>
+            <span class="o">*</span> <span class="n">lifetime_loan_process</span>  <span class="c1"># sum of loan payments over loan period</span>
+            <span class="o">/</span> <span class="n">lifetime_process</span>  <span class="c1"># redistributed over lifetime of process</span>
+            <span class="o">*</span> <span class="nb">min</span><span class="p">(</span>
+                <span class="n">lifetime_process</span><span class="p">,</span> <span class="n">p_e</span> <span class="o">-</span> <span class="n">vintage</span>
+            <span class="p">)</span>  <span class="c1"># sum of redistributed costs for life of process (within planning horizon)</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Discounted result</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">annuity</span>
+            <span class="o">*</span> <span class="n">annuity_to_pv</span><span class="p">(</span>
+                <span class="n">global_discount_rate</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">lifetime_loan_process</span><span class="p">)</span>
+            <span class="p">)</span>  <span class="c1"># PV of all loan payments, discounted to vintage year using GDR</span>
+            <span class="o">*</span> <span class="n">pv_to_annuity</span><span class="p">(</span>
+                <span class="n">global_discount_rate</span><span class="p">,</span> <span class="n">lifetime_process</span>
+            <span class="p">)</span>  <span class="c1"># reamortised over lifetime of process using GDR</span>
+            <span class="o">*</span> <span class="n">annuity_to_pv</span><span class="p">(</span>
+                <span class="n">global_discount_rate</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">lifetime_process</span><span class="p">,</span> <span class="n">p_e</span> <span class="o">-</span> <span class="n">vintage</span><span class="p">)</span>
+            <span class="p">)</span>  <span class="c1"># PV of all reamortised costs (within planning horizon)</span>
+            <span class="o">*</span> <span class="n">fv_to_pv</span><span class="p">(</span>
+                <span class="n">global_discount_rate</span><span class="p">,</span> <span class="n">vintage</span> <span class="o">-</span> <span class="n">p_0</span>
+            <span class="p">)</span>  <span class="c1"># finally, discounted from vintage year to P_0</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">loan_cost_survival_curve</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+    <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">,</span>
+    <span class="n">capacity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Var</span> <span class="o">|</span> <span class="n">ComponentData</span><span class="p">,</span>
+    <span class="n">invest_cost</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">loan_annualize</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">lifetime_loan_process</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">p_0</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">p_e</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">global_discount_rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Expression</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    function to calculate the loan cost only in the case of processes :math:`(r, t, v)` using</span>
+<span class="sd">    survival curves. It can be used with fixed values to produce a hard number or pyomo</span>
+<span class="sd">    variables/params to make a pyomo Expression</span>
+<span class="sd">    :param capacity: The capacity to use to calculate cost</span>
+<span class="sd">    :param invest_cost: the cost/capacity</span>
+<span class="sd">    :param loan_annualize: parameter</span>
+<span class="sd">    :param lifetime_loan_process: lifetime of the loan</span>
+<span class="sd">    :param P_0: the year to discount the costs back to</span>
+<span class="sd">    :param P_e: the &#39;end year&#39; or cutoff year for loan payments</span>
+<span class="sd">    :param GDR: Global Discount Rate</span>
+<span class="sd">    :return: fixed number or pyomo expression based on input types</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># calculate the amortised loan repayment (annuity)</span>
+    <span class="n">annuity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">capacity</span>
+        <span class="o">*</span> <span class="n">invest_cost</span>  <span class="c1"># lump investment cost is capacity times cost_invest</span>
+        <span class="o">*</span> <span class="n">loan_annualize</span>  <span class="c1"># calculate loan annuities for investment cost, if used</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">global_discount_rate</span><span class="p">:</span>
+        <span class="c1"># Undiscounted result</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">annuity</span>
+            <span class="o">*</span> <span class="n">lifetime_loan_process</span>  <span class="c1"># sum of loan payments over loan period</span>
+            <span class="o">/</span> <span class="nb">sum</span><span class="p">(</span>  <span class="c1"># redistributed over survival curve within horizon</span>
+                <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">survival_curve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;=</span> <span class="n">p</span>
+            <span class="p">)</span>
+            <span class="o">*</span> <span class="nb">sum</span><span class="p">(</span>  <span class="c1"># summed over survival curve within horizon</span>
+                <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">survival_curve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;=</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="n">p_e</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Discounted result</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">annuity</span>
+            <span class="o">*</span> <span class="n">annuity_to_pv</span><span class="p">(</span>
+                <span class="n">global_discount_rate</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">lifetime_loan_process</span><span class="p">)</span>
+            <span class="p">)</span>  <span class="c1"># PV of all loan payments, discounted to vintage year using GDR</span>
+            <span class="o">/</span> <span class="nb">sum</span><span class="p">(</span>  <span class="c1"># redistributed over survival curve within horizon</span>
+                <span class="n">value</span><span class="p">(</span>
+                    <span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+                <span class="p">)</span>  <span class="c1"># reamortised over survival curve of process using GDR</span>
+                <span class="o">*</span> <span class="n">fv_to_pv</span><span class="p">(</span>
+                    <span class="n">global_discount_rate</span><span class="p">,</span> <span class="n">p</span> <span class="o">-</span> <span class="n">v</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="p">)</span>  <span class="c1"># +1 because LSC is indexed to start of p not end of p</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">survival_curve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;=</span> <span class="n">p</span>  <span class="c1"># this shouldnt be possible but play it safe</span>
+            <span class="p">)</span>
+            <span class="o">*</span> <span class="nb">sum</span><span class="p">(</span>  <span class="c1"># PV of all reamortised costs (within planning horizon)</span>
+                <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+                <span class="o">*</span> <span class="n">fv_to_pv</span><span class="p">(</span><span class="n">global_discount_rate</span><span class="p">,</span> <span class="n">p</span> <span class="o">-</span> <span class="n">v</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">survival_curve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;=</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="n">p_e</span>
+            <span class="p">)</span>
+            <span class="o">*</span> <span class="n">fv_to_pv</span><span class="p">(</span>
+                <span class="n">global_discount_rate</span><span class="p">,</span> <span class="n">v</span> <span class="o">-</span> <span class="n">p_0</span>
+            <span class="p">)</span>  <span class="c1"># finally, discounted from vintage year to P_0</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">fixed_or_variable_cost</span><span class="p">(</span>
+    <span class="n">cap_or_flow</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Var</span> <span class="o">|</span> <span class="n">ComponentData</span><span class="p">,</span>
+    <span class="n">cost_factor</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">cost_years</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">ComponentData</span><span class="p">,</span>
+    <span class="n">global_discount_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">p_0</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Expression</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extraction of the fixed and var cost formulation.  (It is same for both with either capacity or</span>
+<span class="sd">    flow as the driving variable.)</span>
+<span class="sd">    :param cap_or_flow: Capacity if fixed cost / flow out if variable</span>
+<span class="sd">    :param cost_factor: the cost (either fixed or variable) of the cap/flow variable</span>
+<span class="sd">    :param cost_years: for how many years is this cost incurred</span>
+<span class="sd">    :param GDR: discount rate or None</span>
+<span class="sd">    :param P_0: the period to discount this back to</span>
+<span class="sd">    :param p: the period under evaluation</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">annual_cost</span> <span class="o">=</span> <span class="n">cap_or_flow</span> <span class="o">*</span> <span class="n">cost_factor</span>  <span class="c1"># annual fixed, variable, or emission cost</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">global_discount_rate</span><span class="p">:</span>
+        <span class="c1"># Undiscounted result</span>
+        <span class="k">return</span> <span class="n">annual_cost</span> <span class="o">*</span> <span class="n">cost_years</span>  <span class="c1"># annual cost times years paying that cost</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Discounted result</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">annual_cost</span>
+            <span class="o">*</span> <span class="n">annuity_to_pv</span><span class="p">(</span>
+                <span class="n">global_discount_rate</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">cost_years</span><span class="p">)</span>
+            <span class="p">)</span>  <span class="c1"># PV of annual costs over this period, discounted to period p</span>
+            <span class="o">*</span> <span class="n">fv_to_pv</span><span class="p">(</span><span class="n">global_discount_rate</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="n">p_0</span><span class="p">))</span>  <span class="c1"># discounted from p to p_0</span>
+        <span class="p">)</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO EXPRESSION AND OBJECTIVE FUNCTION RULES</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">period_cost_rule</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Expression</span><span class="p">:</span>
+    <span class="n">p_0</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span><span class="p">)</span>
+    <span class="n">p_e</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_future</span><span class="o">.</span><span class="n">last</span><span class="p">()</span>  <span class="c1"># End point of modeled horizon</span>
+    <span class="n">global_discount_rate</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">global_discount_rate</span><span class="p">)</span>
+    <span class="c1"># MPL = M.ModelProcessLife</span>
+
+    <span class="k">if</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">myopic_discounting_year</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">p_0</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">myopic_discounting_year</span><span class="p">)</span>
+
+    <span class="n">loan_costs</span> <span class="o">=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">loan_cost</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_new_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">],</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_invest</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">loan_annualize</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">loan_lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p_e</span><span class="p">,</span>
+            <span class="n">global_discount_rate</span><span class="p">,</span>
+            <span class="n">vintage</span><span class="o">=</span><span class="n">S_v</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_invest</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">S_v</span> <span class="o">==</span> <span class="n">p</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">model</span><span class="o">.</span><span class="n">is_survival_curve_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">loan_costs</span> <span class="o">+=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">loan_cost_survival_curve</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span>
+            <span class="n">r</span><span class="p">,</span>
+            <span class="n">S_t</span><span class="p">,</span>
+            <span class="n">S_v</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_new_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">],</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_invest</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">loan_annualize</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">loan_lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p_e</span><span class="p">,</span>
+            <span class="n">global_discount_rate</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_invest</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">S_v</span> <span class="o">==</span> <span class="n">p</span> <span class="ow">and</span> <span class="n">model</span><span class="o">.</span><span class="n">is_survival_curve_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">fixed_costs</span> <span class="o">=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">fixed_or_variable_cost</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">],</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_fixed</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]),</span>
+            <span class="n">global_discount_rate</span><span class="p">,</span>
+            <span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p</span><span class="o">=</span><span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_fixed</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">S_p</span> <span class="o">==</span> <span class="n">p</span>
+    <span class="p">)</span>
+
+    <span class="n">variable_costs</span> <span class="o">=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">fixed_or_variable_cost</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">],</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_variable</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]),</span>
+            <span class="n">global_discount_rate</span><span class="p">,</span>
+            <span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_variable</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">S_p</span> <span class="o">==</span> <span class="n">p</span> <span class="ow">and</span> <span class="n">S_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+    <span class="p">)</span>
+
+    <span class="n">variable_costs_annual</span> <span class="o">=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">fixed_or_variable_cost</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">],</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_variable</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]),</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]),</span>
+            <span class="n">global_discount_rate</span><span class="p">,</span>
+            <span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_variable</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">S_p</span> <span class="o">==</span> <span class="n">p</span> <span class="ow">and</span> <span class="n">S_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># The emissions costs occur over the five possible emission sources.</span>
+    <span class="c1"># to do any/all of them we need 2 baseline sets:  The regular and annual sets</span>
+    <span class="c1"># of indices that are valid which is basically the filter of:</span>
+    <span class="c1">#     EmissionActivty by cost_emission</span>
+    <span class="c1"># and to ensure that the techology is active we need to filter that</span>
+    <span class="c1"># result with processInput</span>
+
+    <span class="c1"># ================= Emissions and Flex and Curtailment =================</span>
+    <span class="c1"># Flex flows are deducted from v_flow_out, so it is NOT NEEDED to tax them again.  (See commodity balance constr)</span>
+    <span class="c1"># Curtailment does not draw any inputs, so it seems logical that curtailed flows not be taxed either</span>
+    <span class="c1"># Earlier versions of this code had accounting for flex &amp; curtailment that have been removed.</span>
+
+    <span class="n">base</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">emission_activity</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_emission</span>  <span class="c1"># tightest filter first</span>
+        <span class="ow">and</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span>
+    <span class="p">]</span>
+
+    <span class="c1"># then expand the base for the normal (season/tod) set and annual separately:</span>
+    <span class="n">normal</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="ow">in</span> <span class="n">base</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+    <span class="p">]</span>
+
+    <span class="n">annual</span> <span class="o">=</span> <span class="p">[(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="ow">in</span> <span class="n">base</span> <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span><span class="p">]</span>
+
+    <span class="c1"># 1. variable emissions</span>
+    <span class="n">var_emissions</span> <span class="o">=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">fixed_or_variable_cost</span><span class="p">(</span>
+            <span class="n">cap_or_flow</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">]</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">emission_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">]),</span>
+            <span class="n">cost_factor</span><span class="o">=</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_emission</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">]),</span>
+            <span class="n">cost_years</span><span class="o">=</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]),</span>
+            <span class="n">global_discount_rate</span><span class="o">=</span><span class="n">global_discount_rate</span><span class="p">,</span>
+            <span class="n">p_0</span><span class="o">=</span><span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p</span><span class="o">=</span><span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="ow">in</span> <span class="n">normal</span>
+    <span class="p">)</span>
+
+    <span class="c1"># 2. flex emissions -- removed (double counting, flex wastes are SUBTRACTIVE from flowout)</span>
+
+    <span class="c1"># 3. curtailment emissions -- removed (curtailment is no-flow, for accounting only, so no emissions)</span>
+
+    <span class="c1"># 4. annual emissions</span>
+    <span class="n">var_annual_emissions</span> <span class="o">=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">fixed_or_variable_cost</span><span class="p">(</span>
+            <span class="n">cap_or_flow</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">]</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">emission_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">]),</span>
+            <span class="n">cost_factor</span><span class="o">=</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_emission</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">]),</span>
+            <span class="n">cost_years</span><span class="o">=</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]),</span>
+            <span class="n">global_discount_rate</span><span class="o">=</span><span class="n">global_discount_rate</span><span class="p">,</span>
+            <span class="n">p_0</span><span class="o">=</span><span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p</span><span class="o">=</span><span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="ow">in</span> <span class="n">annual</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_flex</span>
+    <span class="p">)</span>
+
+    <span class="c1"># 5. flex annual emissions -- removed (double counting, flex wastes are SUBTRACTIVE from flowout)</span>
+
+    <span class="c1"># 6. embodied - treated as a fixed cost distributed over the deployment period (vintage)</span>
+    <span class="n">embodied_emissions</span> <span class="o">=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">fixed_or_variable_cost</span><span class="p">(</span>
+            <span class="n">cap_or_flow</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">v_new_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">emission_embodied</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]),</span>
+            <span class="n">cost_factor</span><span class="o">=</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_emission</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">]),</span>
+            <span class="n">cost_years</span><span class="o">=</span><span class="n">value</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">v</span><span class="p">]</span>
+            <span class="p">),</span>  <span class="c1"># We assume the embodied emissions are emitted in the same year as the capacity is installed.</span>
+            <span class="n">global_discount_rate</span><span class="o">=</span><span class="n">global_discount_rate</span><span class="p">,</span>
+            <span class="n">p_0</span><span class="o">=</span><span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p</span><span class="o">=</span><span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">emission_embodied</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_emission</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="o">==</span> <span class="n">p</span>
+    <span class="p">)</span>
+
+    <span class="c1"># 6. endoflife - treated as a fixed cost distributed over the retirement period</span>
+    <span class="n">endoflife_emissions</span> <span class="o">=</span> <span class="n">quicksum</span><span class="p">(</span>
+        <span class="n">fixed_or_variable_cost</span><span class="p">(</span>
+            <span class="n">cap_or_flow</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">v_annual_retirement</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">emission_end_of_life</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]),</span>
+            <span class="n">cost_factor</span><span class="o">=</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_emission</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">]),</span>
+            <span class="n">cost_years</span><span class="o">=</span><span class="n">value</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+            <span class="p">),</span>  <span class="c1"># We assume the embodied emissions are emitted in the same year as the capacity is installed.</span>
+            <span class="n">global_discount_rate</span><span class="o">=</span><span class="n">global_discount_rate</span><span class="p">,</span>
+            <span class="n">p_0</span><span class="o">=</span><span class="n">p_0</span><span class="p">,</span>
+            <span class="n">p</span><span class="o">=</span><span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">emission_end_of_life</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_emission</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_periods</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">period_emission_cost</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">var_emissions</span> <span class="o">+</span> <span class="n">var_annual_emissions</span> <span class="o">+</span> <span class="n">embodied_emissions</span> <span class="o">+</span> <span class="n">endoflife_emissions</span>
+    <span class="p">)</span>
+
+    <span class="n">period_costs</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">loan_costs</span> <span class="o">+</span> <span class="n">fixed_costs</span> <span class="o">+</span> <span class="n">variable_costs</span> <span class="o">+</span> <span class="n">variable_costs_annual</span> <span class="o">+</span> <span class="n">period_emission_cost</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">period_costs</span>
+
+
+<span class="c1"># ---------------------------------------------------------------</span>
+<span class="c1"># Define the Objective Function</span>
+<span class="c1"># ---------------------------------------------------------------</span>
+<div class="viewcode-block" id="total_cost_rule">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.costs.total_cost_rule">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">total_cost_rule</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Expression</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    Using the :code:`FlowOut` and :code:`Capacity` variables, the Temoa objective</span>
+<span class="sd">    function calculates the cost of energy supply, under the assumption that capital</span>
+<span class="sd">    costs are paid through loans. This implementation sums up all the costs incurred,</span>
+<span class="sd">    and is defined as :math:`C_{tot} = C_{loans} + C_{fixed} + C_{variable} + C_{emissions}`.</span>
+<span class="sd">    Each term on the right-hand side represents the cost incurred over the model</span>
+<span class="sd">    time horizon and discounted to the initial year in the horizon (:math:`{P}_0`).</span>
+<span class="sd">    The calculation of each term is given below.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: obj_invest</span>
+
+<span class="sd">        \begin{aligned}</span>
+<span class="sd">            C_{loans} =&amp; \sum_{r, t, v \in \Theta_{CI}} CI_{r, t, v} \cdot \textbf{NCAP}_{r, t, v}</span>
+<span class="sd">            &amp;&amp; \text{(overnight capital cost)} \\</span>
+<span class="sd">            &amp;\cdot \frac{A}{P}(i=\text{LR}_{r,t,v}, N=\text{LLP}_{r,t,v})</span>
+<span class="sd">            &amp;&amp; \text{(overnight cost amortised into annual loan payments)} \\</span>
+<span class="sd">            &amp;\cdot \frac{P}{A}(i=GDR, N=\text{LLP}_{r,t,v})</span>
+<span class="sd">            &amp;&amp; \text{(annual loan payments discounted to NPV in vintage year)} \\</span>
+<span class="sd">            &amp;\cdot \frac{A}{P}(i=GDR, N=\text{LTP}_{r,t,v})</span>
+<span class="sd">            &amp;&amp; \text{(NPV reamortised over lifetime of process using GDR)} \\</span>
+<span class="sd">            &amp;\cdot \frac{P}{A}(i=GDR, N=\min(\text{LTP}_{r,t,v}, P_e - v))</span>
+<span class="sd">            &amp;&amp; \text{(costs within planning horizon discounted to NPV in vintage year)} \\</span>
+<span class="sd">            &amp;\cdot \frac{P}{F}(i=GDR, N=v - P_0)</span>
+<span class="sd">            &amp;&amp; \text{(NPV in vintage year discounted to base year } P_0\text{)} \\</span>
+<span class="sd">        \end{aligned}</span>
+
+<span class="sd">    Note that capital costs (:math:`{CI}_{r,t,v}`) are handled in several steps.</span>
+
+<span class="sd">        1. Each capital cost is amortized using the loan rate (i.e., technology-specific discount rate) and loan period.</span>
+
+<span class="sd">        2. The annual stream of payments is converted into a lump sum using the global discount rate and loan period.</span>
+
+<span class="sd">        3. The new lump sum is amortized at the global discount rate over the process lifetime.</span>
+
+<span class="sd">        4. Loan payments beyond the model time horizon are removed and the lump sum recalculated.</span>
+
+<span class="sd">        5. Finally, the lump sum is discounted back to the beginning of the horizon (:math:`P_0`) using the global discount rate.</span>
+
+<span class="sd">    Steps 3 and 4 serve to correctly balance the cost-benefit of technologies whose useful lives</span>
+<span class="sd">    would extend beyond the planning horizon. While an explicit salvage term is not included, this approach properly</span>
+<span class="sd">    captures the capital costs incurred within the model time horizon, accounting for process-specific loan rates</span>
+<span class="sd">    and periods.</span>
+
+<span class="sd">    In the case of processes using survival curves, steps 3 and 4 do not reamortise costs uniformly over the process lifetime.</span>
+<span class="sd">    Instead, costs are amortised over the life of the process in proportion to the survival fraction in each year.</span>
+<span class="sd">    Note that, for this calculation, a survival curve :math:`{LSC}_{r,y,t,v}` must be defined out to the year in which the</span>
+<span class="sd">    surviving fraction is zero, even if that extends beyond the planning horizon. It must also be defined for each integer</span>
+<span class="sd">    year between model periods and, if not, these gaps will be filled by linear interpolation ahead of this calculation.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: obj_invest_survival_curve</span>
+
+<span class="sd">        \begin{aligned}</span>
+<span class="sd">            C_{loans,LSC} =&amp; \sum_{r, t, v \in \Theta_{CI}} CI_{r, t, v} \cdot \textbf{NCAP}_{r, t, v}</span>
+<span class="sd">            &amp;&amp; \text{(overnight capital cost)} \\</span>
+<span class="sd">            &amp;\cdot \frac{A}{P}(i=\text{LR}_{r,t,v}, N=\text{LLP}_{r,t,v})</span>
+<span class="sd">            &amp;&amp; \text{(overnight cost amortised into annual loan payments)} \\</span>
+<span class="sd">            &amp;\cdot \frac{P}{A}(i=GDR, N=\text{LLP}_{r,t,v})</span>
+<span class="sd">            &amp;&amp; \text{(annual loan payments discounted to NPV in vintage year)} \\</span>
+<span class="sd">            &amp;\cdot \left(</span>
+<span class="sd">                \sum_{v &lt; Y} LSC_{r,y,t,v} \cdot \frac{P}{F}(i=GDR, N=P - v + 1)</span>
+<span class="sd">                \right)^{-1}</span>
+<span class="sd">            &amp;&amp; \text{(reamortised over survival curve (normalized)} \\</span>
+<span class="sd">            &amp;\cdot \sum_{v &lt; Y &lt; P_e} LSC_{r,y,t,v} \cdot \frac{P}{F}(i=GDR, N=P - v + 1)</span>
+<span class="sd">            &amp;&amp; \text{(costs within planning horizon discounted to NPV in vintage year)} \\</span>
+<span class="sd">            &amp;\cdot \frac{P}{F}(i=GDR, N=v - P_0)</span>
+<span class="sd">            &amp;&amp; \text{(NPV in vintage year discounted to base year } P_0 \text{)}</span>
+<span class="sd">        \end{aligned}</span>
+
+<span class="sd">    Where :math:`Y` is the set of each integer year :math:`y` within the planning horizon.</span>
+
+<span class="sd">    .. figure:: images/survival_curve_discounting.*</span>
+<span class="sd">        :align: center</span>
+<span class="sd">        :width: 100%</span>
+<span class="sd">        :figclass: align-center</span>
+<span class="sd">        :figwidth: 60%</span>
+
+<span class="sd">        Steps 3 and 4 for processes with survival curves.</span>
+
+<span class="sd">    Fixed, variable, and emissions annual cost factors are determined by:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: annual_fixed_variable_emission</span>
+
+<span class="sd">        \begin{aligned}</span>
+<span class="sd">            C_{fixed} =&amp; \sum_{r, p, t, v \in \Theta_{CF}} CF_{r, p, t, v} \cdot \textbf{CAP}_{r, p, t, v}</span>
+<span class="sd">            &amp;&amp; \text{(annual fixed cost)} \\</span>
+<span class="sd">            \\</span>
+<span class="sd">            C_{variable} =&amp; \sum_{r, p, t \notin T^a, v \in \Theta_{CV}}</span>
+<span class="sd">            CV_{r, p, t, v} \cdot \sum_{S, D, I, O} \mathbf{FO}_{r, p, s, d, i, t, v, o}</span>
+<span class="sd">            &amp;&amp; \text{(annual variable cost on flow)} \\</span>
+<span class="sd">            &amp; \text{where } t \notin T^a \\</span>
+<span class="sd">            &amp;+\\</span>
+<span class="sd">            &amp; \sum_{r, p, t \in T^a,\ v \in \Theta_{VC}} CV_{r, p, t, v}</span>
+<span class="sd">            \cdot \sum_{I, O} \mathbf{FOA}_{r, p, i, t, v, o}</span>
+<span class="sd">            &amp;&amp; \text{(annual variable cost on annual flows)} \\</span>
+<span class="sd">            &amp; \text{where } t \in T^a \\</span>
+<span class="sd">            &amp;+\\</span>
+<span class="sd">            C_{emissions} =&amp; \sum_{r, p, e \in \Theta_{CE}} CE_{r, p, e}</span>
+<span class="sd">            \cdot EAC_{r, i, t, v, o, e} \cdot \sum_{S, D, I, O} \mathbf{FO}_{r, p, s, d, i, t, v, o}</span>
+<span class="sd">            &amp;&amp; \text{(annual emission cost on flow)} \\</span>
+<span class="sd">            &amp; \text{where } t \notin T^a \\</span>
+<span class="sd">            &amp;+\\</span>
+<span class="sd">            &amp; \sum_{r, p, e \in \Theta_{CE}} CE_{r, p, e}</span>
+<span class="sd">            \cdot EAC_{r, i, t, v, o, e} \cdot \sum_{I, O} \mathbf{FOA}_{r, p, i, t, v, o}</span>
+<span class="sd">            &amp;&amp; \text{(annual emission cost on annual flows)} \\</span>
+<span class="sd">            &amp; \text{where } t \in T^a \\</span>
+<span class="sd">            &amp;+\\</span>
+<span class="sd">            &amp; \sum_{r, p, e \in \Theta_{CE}} \frac{CE_{r, p, e}</span>
+<span class="sd">            \cdot EE_{r, e, t, v} \cdot \mathbf{NCAP}_{r, t, v=p}}{{LEN}_p}</span>
+<span class="sd">            &amp;&amp; \text{(annual embodied emission cost)} \\</span>
+<span class="sd">            &amp;+\\</span>
+<span class="sd">            &amp; \sum_{r, p, e \in \Theta_{CE}, v} CE_{r, p, e}</span>
+<span class="sd">            \cdot EEOL_{r, e, t, v} \cdot \mathbf{ART}_{r, p, t, v}</span>
+<span class="sd">            &amp;&amp; \text{(annual retirement/end of life emission cost)} \\</span>
+<span class="sd">        \end{aligned}</span>
+
+<span class="sd">    Each of these costs are then discounted within each period and then to the base year:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: obj_fixed_variable_emission</span>
+
+<span class="sd">        \begin{aligned}</span>
+<span class="sd">            C_{fix,var,emiss} =&amp; C_{fixed} + C_{variable} + C_{emissions} \\</span>
+<span class="sd">            &amp;\cdot \frac{P}{A}(i=GDR,\ N=LEN_p)</span>
+<span class="sd">            &amp;&amp; \text{(for each year in period } p \text{ discounted to NPV in } p \text{)}\\</span>
+<span class="sd">            &amp;\cdot \frac{P}{F}(i=GDR,\ N=p - P_0)</span>
+<span class="sd">            &amp;&amp; \text{(discounted from period } p \text{ to NPV in base year } P_0 \text{)}</span>
+<span class="sd">        \end{aligned}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">quicksum</span><span class="p">(</span><span class="n">period_cost_rule</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PRE-COMPUTATION AND PARAMETER INITIALIZATION</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="nd">@deprecated</span><span class="p">(</span><span class="n">reason</span><span class="o">=</span><span class="s1">&#39;vintage defaults are no longer available, so this should not be needed&#39;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_costs</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Steps to creating fixed and variable costs:</span>
+<span class="sd">    1. Collect all possible cost indices (cost_fixed, cost_variable)</span>
+<span class="sd">    2. Find the ones _not_ specified in cost_fixed and cost_variable</span>
+<span class="sd">    3. Set them, based on Cost*VintageDefault</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Started Creating Fixed and Variable costs in CreateCosts()&#39;</span><span class="p">)</span>
+    <span class="n">cost_fixed</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_fixed</span>
+    <span class="n">cost_variable</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_variable</span>
+
+    <span class="c1"># Step 1</span>
+    <span class="n">fixed_indices</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_fixed_rptv</span><span class="p">)</span>
+    <span class="n">var_indices</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_variable_rptv</span><span class="p">)</span>
+
+    <span class="c1"># Step 2</span>
+    <span class="n">unspecified_fixed_prices</span> <span class="o">=</span> <span class="n">fixed_indices</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">cost_fixed</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">())</span>
+    <span class="n">unspecified_var_prices</span> <span class="o">=</span> <span class="n">var_indices</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">cost_variable</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">())</span>
+
+    <span class="c1"># Step 3</span>
+
+    <span class="c1"># Some hackery: We futz with _constructed because Pyomo thinks that this</span>
+    <span class="c1"># Param is already constructed.  However, in our view, it is not yet,</span>
+    <span class="c1"># because we&#39;re specifically targeting values that have not yet been</span>
+    <span class="c1"># constructed, that we know are valid, and that we will need.</span>
+
+    <span class="k">if</span> <span class="n">unspecified_fixed_prices</span><span class="p">:</span>
+        <span class="c1"># CF._constructed = False</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">unspecified_fixed_prices</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_fixed_vintage_default</span><span class="p">:</span>
+                <span class="n">cost_fixed</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_fixed_vintage_default</span><span class="p">[</span>
+                    <span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span>
+                <span class="p">]</span>  <span class="c1"># CF._constructed = True</span>
+
+    <span class="k">if</span> <span class="n">unspecified_var_prices</span><span class="p">:</span>
+        <span class="c1"># CV._constructed = False</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">unspecified_var_prices</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_variable_vintage_default</span><span class="p">:</span>
+                <span class="n">cost_variable</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">cost_variable_vintage_default</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+    <span class="c1"># CV._constructed = True</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Created M.cost_fixed with size: </span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_fixed</span><span class="p">)))</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Created M.cost_variable with size: </span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">cost_variable</span><span class="p">)))</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Finished creating Fixed and Variable costs&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">param_loan_annualize_rule</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Expression</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rule to calculate the annualized loan rate from the loan rate and lifetime.&quot;&quot;&quot;</span>
+    <span class="n">dr</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">loan_rate</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+    <span class="n">lln</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">loan_lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+    <span class="n">annualized_rate</span> <span class="o">=</span> <span class="n">pv_to_annuity</span><span class="p">(</span><span class="n">dr</span><span class="p">,</span> <span class="n">lln</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">annualized_rate</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2011-2025, NC State University.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
