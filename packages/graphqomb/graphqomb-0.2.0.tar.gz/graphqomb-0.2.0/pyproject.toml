@@ -1,0 +1,161 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphqomb"
+version = "0.2.0"
+description = "A modular Graph State qompiler for measurement-based quantum computing."
+readme = "README.md"
+requires-python = ">=3.9, <3.14"
+license = {text = "MIT"}
+authors = [
+    {name = "Masato Fukushima", email = "masa1063fuk@gmail.com"},
+    {name = "Sora Shiratani"},
+    {name = "Yuki Watanabe"},
+    {name = "Daichi Sasaki"},
+]
+maintainers = [
+    {name = "Masato Fukushima", email = "masa1063fuk@gmail.com"},
+]
+keywords = [
+    "quantum computing",
+    "MBQC",
+    "measurement-based quantum computing",
+    "quantum compilation",
+    "fault-tolerant quantum computing",
+    "graph state",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Quantum Computing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dynamic = ["dependencies", "optional-dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/TeamGraphix/graphqomb"
+Documentation = "https://graphqomb.readthedocs.io/"
+Repository = "https://github.com/TeamGraphix/graphqomb"
+Changelog = "https://github.com/TeamGraphix/graphqomb/blob/master/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/TeamGraphix/graphqomb/issues"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = { file = ["requirements-dev.txt"] }
+doc = { file = ["docs/requirements.txt"] }
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+preview = true
+select = ["ALL"]
+ignore = [
+  # Conflicts with ruff format
+  "COM812",
+  "COM819",
+  "D206",
+  "D300",
+  "E111",
+  "E114",
+  "E117",
+  "ISC001",
+  "ISC002",
+  "Q000",
+  "Q001",
+  "Q002",
+  "Q003",
+  "W191",
+
+  # Not necessary for this project
+  "AIR",
+  "ASYNC",
+  "DJ",
+  "PD",
+
+  # Manually disabled
+  "CPY",     # copyright missing
+  "D105",    # undocumented magic method
+  "ERA",     # commented-out code
+  "FBT",     # boolean-trap
+  "FIX",     # fixme
+  "PLR0904", # too-many-public-methods
+]
+
+[tool.ruff.lint.pylint]
+allow-dunder-method-names = [
+  "__array__",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+  "S101",    # `assert` detected
+  "SLF001",  # private method
+  "PLC2701", # private method
+  "PLR2004", # magic value in test(should be removed)
+  "D100",
+  "D103",
+  "D104",
+  "D400",
+]
+"examples/*.py" = [
+  "T201", # print
+  "D",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["graphqomb"]
+testpaths = ["tests"]
+filterwarnings = "ignore::DeprecationWarning"
+markers = "slow: mark test as slow"
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  'raise NotImplementedError\(.*\)',
+  "return NotImplemented",
+  'typing_extensions.assert_never\(.*\)',
+  "@abc.abstractmethod",
+]
+fail_under = 50
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+files = ["graphqomb", "tests", "examples"]
+
+[tool.pyright]
+include = ["graphqomb", "tests", "examples"]
+reportUnknownArgumentType = "information"
+reportUnknownLambdaType = "information"
+reportUnknownMemberType = "information"
+reportUnknownParameterType = "information"
+reportUnknownVariableType = "information"
