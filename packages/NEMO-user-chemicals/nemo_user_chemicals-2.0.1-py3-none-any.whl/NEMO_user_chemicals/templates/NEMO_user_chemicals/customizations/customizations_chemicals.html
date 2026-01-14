@@ -1,0 +1,59 @@
+{% load custom_tags_and_filters %}
+<div class="panel-body" style="padding-bottom: 0">
+    <h3 class="customization-section-title">User Chemical Email Addresses</h3>
+    <form method="POST" action="{% url 'customize' 'chemicals' %}" class="form-horizontal">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="control-label col-md-2" for="chemical_request_email_addresses">Chemical Request Emails</label>
+            <div class="col-md-5">
+                <input type="text"
+                       id="chemical_request_email_addresses"
+                       name="chemical_request_email_addresses"
+                       class="form-control"
+                       value="{% if errors.chemical_request_email_addresses %}{{ errors.chemical_request_email_addresses.value }}{% else %}{{ chemical_request_email_addresses }}{% endif %}"
+                       placeholder="userchemicals@example.org">
+            </div>
+            <div class="col-md-5 help-block light-grey">
+                {% if errors.chemical_request_email_addresses %}
+                    {{ errors.chemical_request_email_addresses.error }}
+                {% else %}
+                    The point of contact for chemical requests for the {{ facility_name }}. Multiple addresses separated by commas can be entered.
+                {% endif %}
+            </div>
+        </div>
+        <div class="customization-separation" style="margin-bottom: 15px"></div>
+        <div class="text-center" style="margin-bottom: 15px">{% button type="save" value="Save settings" %}</div>
+    </form>
+    <div class="customization-separation"></div>
+    <div class="form-group form-horizontal" style="margin-top: 15px">
+        <h3 class="customization-section-title" id="chemical_request_email_id">New chemical request email message</h3>
+        <p>
+            This is the email the user chemical staff contacts will receive when a new chemical request is created. The following context variables are provided when the email is rendered:
+        </p>
+        <ul style="margin-bottom: 25px">
+            <li>
+                <b>chemical request</b> - the contents of the chemical request. See the chemical request model for details
+            </li>
+        </ul>
+        <div class="col-md-6">
+            {% include 'customizations/customizations_upload.html' with element=chemical_request_email name='chemical request email' button_name='Upload chemical request email' key='chemicals' %}
+        </div>
+    </div>
+    <div class="customization-separation"></div>
+    <div class="form-group form-horizontal" style="margin-top: 15px">
+        <h3 class="customization-section-title" id="chemical_request_update_email_id">
+            Chemical request update email message
+        </h3>
+        <p>
+            This is the email sent when a staff member updates a chemical request. The following context variables are provided when the email is rendered:
+        </p>
+        <ul style="margin-bottom: 25px">
+            <li>
+                <b>chemical request</b> - the contents of the chemical request, including requester, chemical, approval status. See the chemical request model for details.
+            </li>
+        </ul>
+        <div class="col-md-6">
+            {% include 'customizations/customizations_upload.html' with element=chemical_request_update_email name='chemical request update email' button_name='Upload chemical request update email' key='chemicals' %}
+        </div>
+    </div>
+</div>

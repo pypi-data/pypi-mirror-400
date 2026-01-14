@@ -1,0 +1,191 @@
+{% load humanize %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <h2 style="margin-top: 10px;">
+                Material Request: <span class="text-primary">{{ chemical_request.chemical_name }}</span>
+            </h2>
+            <hr>
+        </div>
+    </div>
+    <div class="row">
+        <!-- Left Column: Request Overview & Safety -->
+        <div class="col-md-6">
+            <!-- Request Information Panel -->
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    <h3 class="panel-title">
+                        <i class="glyphicon glyphicon-info-sign"></i> Request Information
+                    </h3>
+                </div>
+                <div class="panel-body">
+                    <dl class="dl-horizontal" style="margin-bottom: 0;">
+                        <dt>Requester</dt>
+                        <dd>
+                            {{ chemical_request.requester.get_full_name|default:chemical_request.requester }}
+                        </dd>
+                        <dt>Date Submitted</dt>
+                        <dd>
+                            {{ chemical_request.date|date:"Y-m-d" }} <small class="text-muted">({{ chemical_request.date|naturaltime }})</small>
+                        </dd>
+                        <dt>Current Status</dt>
+                        <dd>
+                            {% if chemical_request.approved == 1 %}
+                                <span class="label label-success">Approved</span>
+                            {% elif chemical_request.approved == 2 %}
+                                <span class="label label-danger">Denied</span>
+                            {% else %}
+                                <span class="label label-warning">Pending</span>
+                            {% endif %}
+                        </dd>
+                        {% if chemical_request.approver %}
+                            <dt>Approver</dt>
+                            <dd>
+                                {{ chemical_request.approver.get_full_name|default:chemical_request.approver }}
+                            </dd>
+                        {% endif %}
+                        <dt>SDS Document</dt>
+                        <dd>
+                            {% if chemical_request.sds %}
+                                <a href="{{ chemical_request.sds.url }}" target="_blank" class="btn btn-xs btn-default"><i class="glyphicon glyphicon-file"></i> View SDS</a>
+                            {% else %}
+                                <span class="text-muted">No SDS Uploaded</span>
+                            {% endif %}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+            <!-- Hazards Panel -->
+            <div class="panel panel-danger">
+                <div class="panel-heading">
+                    <h3 class="panel-title">
+                        <i class="glyphicon glyphicon-warning-sign"></i> Hazards & Safety
+                    </h3>
+                </div>
+                <div class="panel-body">
+                    <dl>
+                        <dt>Hazards Identification</dt>
+                        <dd>
+                            {% for hazard in hazards %}
+                                <span class="label label-danger" style="font-size: 90%; display: inline-block; margin-bottom: 3px;">{{ hazard.name }}</span>
+                            {% empty %}
+                                <span class="text-muted">None listed</span>
+                            {% endfor %}
+                        </dd>
+                    </dl>
+                    <hr style="margin: 10px 0;">
+                    <dl>
+                        <dt>Stability Concerns</dt>
+                        <dd>
+                            {{ chemical_request.stability|linebreaksbr|default:"None" }}
+                        </dd>
+                        <br>
+                        <dt>Incompatibilities</dt>
+                        <dd>
+                            {{ chemical_request.incompatibilities|linebreaksbr|default:"None" }}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <!-- Right Column: Procedure, Exposure & Waste -->
+        <div class="col-md-6">
+            <!-- Usage & Exposure Panel -->
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">Usage & Exposure</h3>
+                </div>
+                <div class="panel-body">
+                    <dl>
+                        <dt>Procedure</dt>
+                        <dd>
+                            {{ chemical_request.procedure|linebreaksbr }}
+                        </dd>
+                    </dl>
+                    <hr style="margin: 10px 0;">
+                    <dl>
+                        <dt>Exposure Routes</dt>
+                        <dd>
+                            {{ chemical_request.exposure_routes|linebreaksbr|default:"None" }}
+                        </dd>
+                        <br>
+                        <dt>Exposure Controls</dt>
+                        <dd>
+                            {{ chemical_request.exposure_controls|linebreaksbr|default:"None" }}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+            <!-- Waste Panel -->
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">Waste Management</h3>
+                </div>
+                <div class="panel-body">
+                    <p>
+                        <strong>Hazardous Waste Generation:</strong>
+                        {% if chemical_request.hazardous_waste %}
+                            <span class="label label-warning">Yes</span>
+                        {% else %}
+                            <span class="label label-success">No</span>
+                        {% endif %}
+                    </p>
+                    <dl style="margin-bottom: 0;">
+                        <dt>Disposal Procedure</dt>
+                        <dd>
+                            {{ chemical_request.waste_disposal|linebreaksbr }}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Approval Section (Only visible to staff) -->
+    {% if user.is_staff %}
+        <div class="row">
+            <div class="col-md-12">
+                <div class="panel panel-primary">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Administrative Action</h3>
+                    </div>
+                    <div class="panel-body">
+                        <form class="form-horizontal" action="{% url 'update_request' chemical_request.id %}" method="post">
+                            {% csrf_token %}
+                            <div class="form-group">
+                                <label for="approved" class="control-label col-sm-2">Approval Status</label>
+                                <div class="col-sm-4">
+                                    <select id="approved" name="approved" class="form-control">
+                                        {% for status in chemical_request.Approval.Choices %}
+                                            <option value="{{ status.0 }}" {% if chemical_request.approved == status.0 %}selected{% endif %}>
+                                                {{ status.1 }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="approval_comments" class="control-label col-sm-2">Comments</label>
+                                <div class="col-sm-8">
+                                    <textarea id="approval_comments"
+                                              name="approval_comments"
+                                              class="form-control"
+                                              rows="3"
+                                              placeholder="Enter reasons for approval/denial or other administrative notes...">{% if chemical_request.approval_comments %}{{ chemical_request.approval_comments }}{% endif %}</textarea>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="col-sm-offset-2 col-sm-10">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="glyphicon glyphicon-save"></i> Update Request Status
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    <!-- Spacing at bottom -->
+    <div style="margin-bottom: 50px;"></div>
+</div>

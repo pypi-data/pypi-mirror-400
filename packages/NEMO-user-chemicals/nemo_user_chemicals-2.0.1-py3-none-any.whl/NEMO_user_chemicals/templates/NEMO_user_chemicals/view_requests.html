@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block extrahead %}
+    {% load static %}
+    <script type="text/javascript" src="{% static "datetimepicker/bootstrap-datetimepicker.js" %}"></script>
+    <link rel="stylesheet" type="text/css" href="{% static "datetimepicker/bootstrap-datetimepicker.css" %}" />
+{% endblock %}
+{% block title %}Material Requests{% endblock %}
+{% block body %}
+    <div class="container-fluid">
+        <h1 class="pull-left" style="margin-right:20px; margin-top:0; margin-bottom:0">View Material Requests</h1>
+        <ul class="nav nav-pills" id="tabs">
+            <li class="active">
+                <a href="#pending">Pending</a>
+            </li>
+            <li>
+                <a href="#all">All</a>
+            </li>
+        </ul>
+    </div>
+    <div class="tab-content">
+        <div id="pending" class="tab-pane active">
+            <div class="split-screen-left-panel">
+                <table id="pending_requests" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>
+                                <a href="{% url 'view_requests' sort_by='requester' %}?tab=pending">Requester</a>
+                            </th>
+                            <th>
+                                <a href="{% url 'view_requests' sort_by='date' %}?tab=pending">Date</a>
+                            </th>
+                            <th>
+                                <a href="{% url 'view_requests' sort_by='name' %}?tab=pending">Chemical Name</a>
+                            </th>
+                            <th>
+                                <a href="{% url 'view_requests' sort_by='approved' %}?tab=pending">Status</a>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for x in pending_requests %}
+                            <tr onclick="pending_request_details(this, '{% url 'request_details' x.id %}');">
+                                <td>{{ x.requester.get_full_name }}</td>
+                                <td>{{ x.date|date:"Y-m-d" }}</td>
+                                <td>
+                                    {{ x.name }}
+                                    {% if user.is_staff %}
+                                        <a href="{% url 'add_chemical_from_request' x.id %}"
+                                           class="btn btn-xs btn-primary"
+                                           style="margin-left: 10px"
+                                           title="Add to Chemical Database"
+                                           onclick="event.stopPropagation();">Add Chemical</a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ x.get_approved_display }}
+                                    {% if x.approved == 1 and user.is_staff %}
+                                        <a href="{% url 'add_user_chemical' x.id %}"
+                                           class="btn btn-xs btn-success"
+                                           style="margin-left: 10px"
+                                           title="Add to User Inventory"
+                                           onclick="event.stopPropagation();">Add to Inventory</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="split-screen-right-panel" id="pending_request_details"></div>
+        </div>
+        <div id="all" class="tab-pane">
+            <div class="split-screen-left-panel">
+                <table id="all_requests" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>
+                                <a href="{% url 'view_requests' sort_by='requester' %}?tab=all">Requester</a>
+                            </th>
+                            <th>
+                                <a href="{% url 'view_requests' sort_by='date' %}?tab=all">Date</a>
+                            </th>
+                            <th>
+                                <a href="{% url 'view_requests' sort_by='name' %}?tab=all">Chemical Name</a>
+                            </th>
+                            <th>
+                                <a href="{% url 'view_requests' sort_by='approved' %}?tab=all">Status</a>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for x in all_requests %}
+                            <tr onclick="all_request_details(this, '{% url 'request_details' x.id %}');">
+                                <td>{{ x.requester.get_full_name }}</td>
+                                <td>{{ x.date|date:"Y-m-d" }}</td>
+                                <td>
+                                    {{ x.name }}
+                                    {% if user.is_staff %}
+                                        <a href="{% url 'add_chemical_from_request' x.id %}"
+                                           class="btn btn-xs btn-primary"
+                                           style="margin-left: 10px"
+                                           title="Add to Chemical Database"
+                                           onclick="event.stopPropagation();">Add Chemical</a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ x.get_approved_display }}
+                                    {% if x.approved == 1 and user.is_staff %}
+                                        <a href="{% url 'add_user_chemical' x.id %}"
+                                           class="btn btn-xs btn-success"
+                                           style="margin-left: 10px"
+                                           title="Add to User Inventory"
+                                           onclick="event.stopPropagation();">Add to Inventory</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="split-screen-right-panel" id="all_request_details"></div>
+        </div>
+    </div>
+    <script>
+	$("#tabs a").click(function(e){
+		e.preventDefault();
+		$(this).tab('show');
+	});
+
+	function pending_request_details(row, url)
+	{
+		$("#pending_requests tr").removeClass('active');
+		$(row).addClass('active');
+		$("#pending_request_details").html("Loading request details...").load(url, undefined, on_pending_request_details_failure);
+	}
+
+	function all_request_details(row, url)
+	{
+		$("#all_requests tr").removeClass('active');
+		$(row).addClass('active');
+		$("#all_request_details").html("Loading request details...").load(url, undefined, on_all_request_details_failure);
+	}
+
+	function on_pending_request_details_failure(response, status, xml_header_request)
+	{
+		if(status == "error")
+		{
+			var message = "Unable to load request details.";
+			if (xml_header_request.responseText)
+				message += " " + xml_header_request.responseText;
+			$("#pending_request_details").html(message)
+		}
+	}
+
+	function on_all_request_details_failure(response, status, xml_header_request)
+	{
+		if(status == "error")
+		{
+			var message = "Unable to load request details.";
+			if (xml_header_request.responseText)
+				message += " " + xml_header_request.responseText;
+			$("#all_request_details").html(message)
+		}
+	}
+
+	function reload_request_page(response, status, xml_http_request)
+	{
+		save_active_request();
+		location.reload(true);
+	}
+
+	function save_active_request()
+	{
+		var active_row = $("#pending_requests tr.active");
+		localStorage.setItem("active_request", active_row.index());
+	}
+
+	function restore_active_request()
+	{
+		var active_row_index = localStorage.getItem("active_request");
+		if(active_row_index)
+		{
+			var row = $("#pending_requests tbody tr").eq(active_row_index);
+			row.click();
+			localStorage.removeItem("active_request");
+		}
+	}
+
+	function restore_active_tab()
+	{
+		var urlParams = new URLSearchParams(window.location.search);
+		var tab = urlParams.get('tab');
+		if(tab)
+		{
+			$('#tabs a[href="#' + tab + '"]').tab('show');
+		}
+	}
+
+	$(document).ready(function() {
+		restore_active_request();
+		restore_active_tab();
+	});
+
+    </script>
+{% endblock %}

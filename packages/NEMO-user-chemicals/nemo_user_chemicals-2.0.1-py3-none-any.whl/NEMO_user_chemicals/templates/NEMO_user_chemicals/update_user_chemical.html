@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+{% load custom_tags_and_filters %}
+{% block title %}Update User Chemical{% endblock %}
+{% block extrahead %}
+    {% load static %}
+    <script type="text/javascript" src="{% static "datetimepicker/bootstrap-datetimepicker.js" %}"></script>
+    <link rel="stylesheet" type="text/css" href="{% static "datetimepicker/bootstrap-datetimepicker.css" %}" />
+{% endblock %}
+{% block content %}
+    <h1>Update User Chemical in Inventory</h1>
+    <p>Use this form to update user owned chemicals currently in the {{ facility_name }}.</p>
+    <h3>Chemical Information</h3>
+    <form action="{% url 'delete_user_chemical' form.instance.id %}" method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <input type="submit"
+                   class="btn btn-danger"
+                   value="Delete User Chemical"
+                   onclick="return confirm('Are you sure you want to delete this chemical from inventory?');">
+        </div>
+    </form>
+    <br>
+    <form action="{% url 'update_user_chemical' form.instance.id %}" method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% if form.instance.request %}<input type="hidden" name="request" value="{{ form.instance.request.id }}">{% endif %}
+        <div class="form-group">
+            <label for="owner_search" class="control-label col-sm-2">Chemical Owner</label>
+            <div class="col-sm-6">
+                <input type="text"
+                       class="form-control"
+                       style="max-width:250px;
+                              display:none"
+                       id="owner_search"
+                       placeholder="Search for a labmember">
+                <input type="button"
+                       id="chosen_owner"
+                       class="btn btn-default"
+                       value="{{ owner.get_full_name }}"
+                       onclick="clear_selected_owner()">
+                <input type="hidden" name="owner" id="owner" value="{{ owner.id }}" required>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="chemical_search" class="control-label col-sm-2">Chemical</label>
+            <div class="col-sm-6">
+                <input type="text"
+                       class="form-control"
+                       id="chemical_search"
+                       placeholder="Search for a chemical"
+                       style="display:none">
+                <input type="button"
+                       id="chosen_chemical"
+                       class="btn btn-default"
+                       value="{{ form.instance.chemical.name }}"
+                       onclick="clear_selected_chemical()">
+                <input type="hidden" name="chemical" id="chemical" value="{{ form.instance.chemical.id }}" required>
+                {% if form.instance.request %}
+                    <span class="help-block">Originally from request: <a href="{% url 'request_details' form.instance.request.id %}">{{ form.instance.request.chemical_name }}</a></span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="label_id" class="control-label col-sm-2">Label ID</label>
+            <div class="col-sm-6">
+                <input type="text"
+                       name="label_id"
+                       id="label_id"
+                       class="form-control"
+                       value="{{ form.label_id.value }}"
+                       required>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="location" class="control-label col-sm-2">Location</label>
+            <div class="col-sm-6">
+                <select name="location" id="location" class="form-control" required>
+                    <option value="" disabled>Select a location</option>
+                    {% for loc in locations %}
+                        <option value="{{ loc.id }}" {% if form.instance.location.id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="in_date" class="control-label col-sm-2">Date In</label>
+            <div class="col-sm-3">
+                <input id="in_date"
+                       type="text"
+                       name="in_date"
+                       class="form-control"
+                       value="{{ form.in_date.value|input_date_format }}"
+                       required>
+            </div>
+            <div class="col-sm-2" style="text-align:left; padding-top: 7px;">
+                <a href="javascript:void(0)" onclick="$('#in_date').val('{{ today|input_date_format }}')">Today</a>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="expiration" class="control-label col-sm-2">Expiration</label>
+            <div class="col-sm-3">
+                <input id="expiration"
+                       type="text"
+                       name="expiration"
+                       class="form-control"
+                       value="{{ form.expiration.value|input_date_format }}"
+                       required>
+            </div>
+            <div class="col-sm-2" style="text-align:left; padding-top: 7px;">
+                <a href="javascript:void(0)"
+                   onclick="$('#expiration').val('{{ one_year_from_now.date|input_date_format }}')">One year
+                from now</a>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="comments" class="control-label col-sm-2">Comments</label>
+            <div class="col-sm-6">
+                <textarea name="comments"
+                          id="comments"
+                          class="form-control"
+                          rows="3"
+                          placeholder="Enter comments for history tracking..."></textarea>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <input type="submit" value="Update User Chemical" class="btn btn-success">
+            </div>
+        </div>
+    </form>
+    <script type="text/javascript">
+        function clear_selected_owner() {
+            $("#chosen_owner").val('').hide();
+            $("#owner_search").typeahead('val', '').show().focus();
+            $("#owner").val('');
+        }
+
+        function fetch_user(jquery_event, search_selection, dataset_name) {
+            $('#owner_search').hide();
+            $('#chosen_owner').val(search_selection.name).show();
+            $('#owner').val(search_selection.id);
+        }
+
+        function clear_selected_chemical() {
+            $("#chosen_chemical").val('').hide();
+            $("#chemical_search").typeahead('val', '').show().focus();
+            $("#chemical").val('');
+        }
+
+        function fetch_chemical(jquery_event, search_selection, dataset_name) {
+            $('#chemical_search').hide();
+            $('#chosen_chemical').val(search_selection.name).show();
+            $('#chemical').val(search_selection.id);
+        }
+
+        function on_load() {
+            $('#owner_search').autocomplete('users', fetch_user, {{ users|json_search_base }});
+
+            $('#chemical_search').autocomplete('chemicals', fetch_chemical, {{ chemicals|json_search_base }});
+
+            $('#in_date, #expiration').datetimepicker(timepicker_properties);
+        }
+
+        var timepicker_properties =
+            {
+                format: '{{ date_input_format }}',
+                autoclose: true,
+                todayBtn: true,
+                pickerPosition: 'bottom-left',
+                minView: 2,
+                showMeridian: false,
+                todayHighlight: true
+            };
+
+        $(document).ready(on_load);
+
+    </script>
+{% endblock %}
