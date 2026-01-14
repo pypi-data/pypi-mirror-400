@@ -1,0 +1,93 @@
+[project]
+name = "mm-toolbox"
+version = "1.0.0"
+description = "High-performance Python tools for market making systems"
+readme = "README.md"
+authors = [
+    { name = "beatzxbt", email = "121855680+beatzxbt@users.noreply.github.com" }
+]
+requires-python = ">=3.12,<3.14"
+license = "MIT"
+keywords = ["market making", "hft", "high-frequency trading", "trading", "cython", "performance"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed"
+]
+urls = { homepage = "https://github.com/beatzxbt/mm-toolbox", repository = "https://github.com/beatzxbt/mm-toolbox" }
+dependencies = [
+    "numpy",
+    "picows",
+    "ciso8601",
+    "msgspec",
+    "zmq",
+    "aiohttp",
+]
+
+[build-system]
+requires = [
+    "uv_build>=0.8.0,<0.9",
+    "setuptools>=75",
+    "wheel",
+    "Cython>=3.0.11",
+    "numpy>=1.26",
+]
+build-backend = "uv_build"
+
+[tool.setuptools]
+zip-safe = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.cibuildwheel]
+build = "cp312-* cp313-*"
+skip = "*-win32 *-manylinux_i686 *-musllinux_*"
+test-command = "pytest {project}/tests"
+test-requires = ["pytest", "pytest-asyncio"]
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y gcc-c++ || apt-get update && apt-get install -y g++"
+
+[tool.cibuildwheel.macos]
+environment = { MACOSX_DEPLOYMENT_TARGET = "10.14" }
+
+[tool.cibuildwheel.windows]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
+
+[dependency-groups]
+dev = [
+    "ty>=0.0.7",
+    "pytest>=9.0.2",
+    "ruff>=0.14.9",
+    "cython>=3.0.11",
+    "uv>=0.8.8",
+    "setuptools>=80.9.0",
+    "pytest-asyncio>=1.1.0",
+]
+build = [
+    "build>=1.0.0",
+    "twine>=5.0.0",
+    "cibuildwheel>=2.16.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "boundary: marks boundary condition tests",
+    "property: marks property/invariant tests",
+]
