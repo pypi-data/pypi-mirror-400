@@ -1,0 +1,287 @@
+{
+    "recognition": {
+        "filename_pattern": "S2[A-Z]_OPER_AUX_SADATA|S02SADRAW.*",
+        "product_type": "S02SADRAW",
+        "processing_version": "2025"
+    },
+    "chunk_sizes": {},
+    "l0_mapping": {
+        "types": {
+            "bool": "bool",
+            "scalar_bool": "s_bool",
+            "uint8": "uint8",
+            "scalar_uint8": "s_uint8",
+            "uint16": "uint16",
+            "scalar_uint16": "s_uint16",
+            "uint32": "uint32",
+            "scalar_uint32": "s_uint32",
+            "uint64": "uint64",
+            "scalar_uint64": "s_uint64",
+            "double": "double",
+            "var_bytearray": "var_bytearray",
+            "bytearray": "bytearray",
+            "isp": "var_bytearray"
+        },
+        "accessor_config_sad": {
+            "primary_header_length_bytes": 6,
+            "ancillary_header_length_bytes": 20,
+            "packet_length_start_position_bytes": 24,
+            "packet_length_stop_position_bytes": 26,
+            "product_type": "S02SADRAW"
+        }
+    },
+    "stac_discovery": {
+        "type": "Text(Feature)",
+        "stac_version": "Text(1.1.0)",
+        "stac_extensions": [
+            "Text(https://stac-extensions.github.io/eopf/v1.0.0/schema.json)",
+            "Text(https://stac-extensions.github.io/product/v0.1.0/schema.json)",
+            "Text(https://stac-extensions.github.io/eo/v1.1.0/schema.json)",
+            "Text(https://stac-extensions.github.io/sat/v1.0.0/schema.json)",
+            "Text(https://stac-extensions.github.io/view/v1.0.0/schema.json)",
+            "Text(https://stac-extensions.github.io/scientific/v1.0.0/schema.json)",
+            "Text(https://stac-extensions.github.io/processing/v1.2.0/schema.json)"
+        ],
+        "id": "//n1im:File_ID",
+        "geometry": "to_geoJson(//n1im:Geographic_Localization/n1im:List_Of_Geo_Pnt/p14_im:Geo_Pnt)",
+        "bbox": "to_bbox(//n1im:Geographic_Localization/n1im:List_Of_Geo_Pnt/n1im:Geo_Pnt)",
+        "properties": {
+            "platform": "//n1im:Satellite_Code",
+            "providers": [
+                {
+                    "name": "Text(ESA)",
+                    "roles": [
+                        "Text(producer)"
+                    ]
+                },
+                {
+                    "name": "//n1im:Processing_Station",
+                    "roles": [
+                        "Text(processor)"
+                    ]
+                }
+            ],
+            "datetime": "Text(null)",
+            "start_datetime": "corrected_Date_ISO8601(//n1im:Validity_Start)",
+            "end_datetime": "corrected_Date_ISO8601(//n1im:Validity_Stop)",
+            "created": "corrected_Date_ISO8601(//n1im:Generation_Time)",
+            "sat:absolute_orbit": "to_int(//n1im:Start_Orbit_Number)",
+            "sat:relative_orbit": "TBD",
+            "product:timeliness_category": "Text(NRT)",
+            "product:timeliness": "Text(PT3H)",
+            "eopf:instrument_mode": "//n1im:Sensor_Mode",
+            "processing:level": "Text(L0)",
+            "product:type": "Text(S02SADRAW)",
+            "instruments": [
+                "Text(msi)"
+            ],
+            "constellation": "Text(sentinel-2)"
+        },
+        "links": [
+            {
+                "rel": "Text(self)",
+                "href": "Text(./.zattrs.json)",
+                "type": "Text(application/json)"
+            }
+        ],
+        "assets": {}
+    },
+    "other_metadata": {
+        "eopf_category": "Text(eoproduct)"
+    },
+    "manifest_template_path": {
+        "template_folder": "$EOPF_ROOT/product/store/templates",
+        "template_name": "S01_L0_manifest.xml"
+    },
+    "namespaces": {
+        "sdf": "http://www.gael.fr/2004/12/drb/sdf",
+        "xs": "http://www.w3.org/2001/XMLSchema",
+        "safe": "http://www.esa.int/safe/sentinel/1.1",
+        "s0": "http://www.esa.int/safe/sentinel-1.0",
+        "s2": "http://www.esa.int/safe/sentinel-1.1/sentinel-2",
+        "xfdu": "urn:ccsds:schema:xfdu:1",
+        "gml": "http://www.opengis.net/gml",
+        "sentinel1": "http://www.esa.int/safe/sentinel/sentinel-1/1.0",
+        "xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        "n1im": "http://pdgs.s2.esa.int/PSD/Inventory_Metadata.xsd"
+    },
+    "data_mapping": [
+        {
+            "target_path": "attrs:/:other_metadata",
+            "source_path": "Inventory_Metadata.xml",
+            "accessor_id": "xmlmetadata",
+            "accessor_config": {
+                "mapping": "@#copy{'map':'<SELF[other_metadata]>'}#@",
+                "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@",
+                "path_template": "@#copy{'map':'<SELF[manifest_template_path]>'}#@"
+            }
+        },
+        {
+            "target_path": "attrs:/:stac_discovery",
+            "source_path": "Inventory_Metadata.xml",
+            "accessor_id": "xmlmetadata",
+            "accessor_config": {
+                "mapping": "@#copy{'map':'<SELF[stac_discovery]>'}#@",
+                "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@",
+                "path_template": "@#copy{'map':'<SELF[manifest_template_path]>'}#@"
+            }
+        },
+        {
+            "target_path": "attrs:/:processing_history",
+            "source_path": "Inventory_Metadata.xml",
+            "accessor_id": "xmlmetadata",
+            "accessor_config": {
+                "mapping": "@#copy{'map':'<SELF[processing_history]>'}#@",
+                "namespaces": "@#copy{'map':'<SELF[namespaces]>'}#@",
+                "path_template": "@#copy{'map':'<SELF[manifest_template_path]>'}#@"
+            }
+        },
+        {
+            "@#unroll{'unroll_vars':'<SELF[unroll_vars_SAD]>', 'json_data_in':'<VALUE>'}#@": {
+                "short_name": "isp",
+                "source_path": "S2*_OPER_AUX_S{{SAD}}*",
+                "target_path": "/measurements/s{{SAD}}/isp",
+                "accessor_id": "L0AccessorMultiFiles",
+                "accessor_config": "@#copy{'map':'<SELF[l0_mapping/accessor_config_sad]>'}#@",
+                "transform": {
+                    "attributes": {
+                        "long_name": "instrument source packet"
+                    },
+                    "rechunk": "@#copy{'map':'<SELF[chunk_sizes]>'}#@",
+                    "dimensions": [
+                        "packet_number",
+                        "packet_data_length"
+                    ]
+                },
+                "local_path": "measurementData",
+                "coords_namespace": "s{{SAD}}",
+                "is_optional": true
+            }
+        },
+        {
+            "@#unroll{'unroll_vars':'<SELF[unroll_vars_SAD]>', 'json_data_in':'<VALUE>'}#@": {
+                "short_name": "packet_data_length",
+                "source_path": "S2*_OPER_AUX_S{{SAD}}*",
+                "target_path": "/conditions/s{{SAD}}/packet_data_length",
+                "accessor_id": "L0AccessorMultiFiles",
+                "accessor_config": "@#copy{'map':'<SELF[l0_mapping/accessor_config_sad]>'}#@",
+                "transform": {
+                    "attributes": {
+                        "long_name": "packet data length"
+                    },
+                    "rechunk": "@#copy{'map':'<SELF[chunk_sizes]>'}#@",
+                    "dimensions": [
+                        "packet_number"
+                    ]
+                },
+                "local_path": "packetDataLength",
+                "coords_namespace": "s{{SAD}}",
+                "is_optional": true
+            }
+        },
+        {
+            "@#unroll{'unroll_vars':'<SELF[unroll_vars_SAD]>', 'json_data_in':'<VALUE>'}#@": {
+                "short_name": "sensing_time",
+                "source_path": "S2*_OPER_AUX_S{{SAD}}*",
+                "target_path": "coords:s{{SAD}}:sensing_time",
+                "accessor_id": "L0AccessorMultiFiles",
+                "accessor_config": "@#copy{'map':'<SELF[l0_mapping/accessor_config_sad]>'}#@",
+                "transform": {
+                    "attributes": {
+                        "long_name": "sensing time",
+                        "dtype": "<M8[ns]"
+                    },
+                    "rechunk": "@#copy{'map':'<SELF[chunk_sizes]>'}#@",
+                    "dimensions": [
+                        "packet_number"
+                    ]
+                },
+                "local_path": "sensing_time",
+                "is_optional": true
+            }
+        }
+    ],
+    "finalize_function": {
+        "module": "l0.common.eopf_converters.S01L0",
+        "class": "L0SadSafeFinalize"
+    },
+    "unroll_vars_SAD": {
+        "{{SAD}}": [
+            "09123",
+            "11105",
+            "11106",
+            "11107",
+            "11108",
+            "11109",
+            "11110",
+            "11111",
+            "11112",
+            "11113",
+            "11114",
+            "11115",
+            "11116",
+            "11117",
+            "11118",
+            "11119",
+            "11120",
+            "11121",
+            "11122",
+            "11123",
+            "11124",
+            "11125",
+            "11126",
+            "37105",
+            "38105",
+            "39105",
+            "48218",
+            "48223",
+            "48224",
+            "48225",
+            "48226",
+            "48227"
+        ]
+    },
+    "unroll_vars_DET_BAND": {
+        "{{DET}}": [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12"
+        ],
+        "{{BAND}}": [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "8A",
+            "09",
+            "10",
+            "11",
+            "12"
+        ]
+    },
+    "processing_history": {
+        "Level-0 Product": [
+            {
+                "processor": "//n1im:Source",
+                "version": "//n1im:Source_Sw_Version",
+                "facility": "//n1im:System",
+                "inputs": "Text(Downlinked Data)",
+                "outputs": "Text(S02SADRAW)",
+                "time": "substring(//n1im:Validity_Stop, 5,26)"
+            }
+        ]
+    }
+}
