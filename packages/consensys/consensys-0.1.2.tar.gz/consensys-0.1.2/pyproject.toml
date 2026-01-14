@@ -1,0 +1,90 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "consensys"
+version = "0.1.2"
+description = "Multi-agent code review with AI debate"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Consensys Team", email = "consensys@example.com"}
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+]
+keywords = ["code-review", "ai", "multi-agent", "claude", "anthropic"]
+dependencies = [
+    "anthropic>=0.18.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "sqlite-utils>=3.35",
+    "python-dotenv>=1.0.0",
+    "tenacity>=8.2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "websockets>=11.0",
+    "jinja2>=3.1.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "black",
+    "ruff",
+]
+all = [
+    "consensys[web]",
+    "consensys[dev]",
+]
+
+[project.scripts]
+consensys = "src.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/noah-ing/consensys"
+Documentation = "https://github.com/noah-ing/consensys#readme"
+Repository = "https://github.com/noah-ing/consensys"
+Issues = "https://github.com/noah-ing/consensys/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "consensys*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.json", "*.html", "*.css", "*.js"]
+src = ["web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
