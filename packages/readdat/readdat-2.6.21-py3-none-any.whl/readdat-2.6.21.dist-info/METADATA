@@ -1,0 +1,331 @@
+Metadata-Version: 2.4
+Name: readdat
+Version: 2.6.21
+Author: Maximilien Lehujeur, Thibaud Devie, Pierric Mora, Olivier Durand, Apolline Laurent, Rouba Hariri, and the GeoEND Team
+Author-email: maximilien.lehujeur@univ-eiffel.fr
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Python: >=3.8,<3.13
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: obspy
+Requires-Dist: pytest
+Requires-Dist: parse
+Requires-Dist: jupyter
+Requires-Dist: notebook
+Requires-Dist: pytz
+Requires-Dist: pandas
+Requires-Dist: pyseg2>=1.4.5
+Requires-Dist: dbpack>=1.0.0
+Requires-Dist: seiscod>=3.3.4
+Requires-Dist: tqdm
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+
+![Status](https://github.com/mlehujeur/readdat/actions/workflows/test-linux.yml/badge.svg)
+![Status](https://github.com/mlehujeur/readdat/actions/workflows/test-windows.yml/badge.svg)
+![Status](https://github.com/mlehujeur/readdat/actions/workflows/test-python3.10.yml/badge.svg)
+![Status](https://github.com/mlehujeur/readdat/actions/workflows/test-python3.11.yml/badge.svg)
+![Status](https://github.com/mlehujeur/readdat/actions/workflows/test-python3.12.yml/badge.svg)
+
+# ReadDat
+
+Read/write various data file formats in python.
+
+# 1. Installation instructions
+
+Download this repo from [gitlab](https://gitlab.univ-eiffel.fr/maximilien.lehujeur/readdat.git) (download button)  
+
+Move to the location of file `setup.py` and install the package
+
+```bash 
+# eventually : 
+#    conda create -n <name_of_environment> python=3.9 --yes
+#    conda activate <name_of_environment>
+pip install -e .
+
+# test the package with
+pytest --verbose .
+```
+
+# 2. Supported files formats
+## 2.1 Waveforms
+
+The waveforms are packed into an `obspy.core.stream.Stream object`.    
+This program includes a python layer added on top of `obspy.read` for file formats 
+that are not handled by Obspy or to account for some specific header conventions.
+
+**File Format**  
+The field `format` is used to specify the file format,  
+use `format="AUTO"` for automatic format detection (based on extension name for now).  
+See the file formats supported below.
+
+**Header conventions**  
+The header conventions are handled using the argument `acquistion_system`.  
+Use `acquistion_system=None` to stick to the standard obspy behavior.    
+Use `acquistion_system="AUTO"` to attempt automatic detection of the acquisition system.
+
+*warning* : 
+reading a file with a given `acquistion_system` will modify some field values (like unit conversions).
+Please keep this in mind when you export your file to a new one.
+
+**Calendar time managment**  
+Obspy is designed for seismologists and work with universal times (UTC+0).  
+The default behavior of this program is to store calendar times as if they were expressed in UTC+0.  
+To convert times to UTC+0 from local times in a given timezone, 
+you can use the argument `timezone` of `readdat.read`.  
+Be careful when converting files from one format to another.  
+
+**SEG2 concatenation**  
+Obspy cannot export seg2 files, this program let you combine seismic traces  
+from several files and reexport them to new seg2 files.
+
+**Database**  
+Readdat can store header and metadata in a local sqlite database.
+You can then access the data using SQL requests.   
+This procedure avoids converting the experimental data, since the database loads the data directly from the original files. 
+The database can then be enriched with attributes, quality controls, processing results...
+
+### 2.1.1 SEG2
+
+###### (i) Standard SEG2 files
+Seg2 files can be read using the obspy standard conventions using `acquisition_system=None` 
+```python
+from readdat import read 
+stream = read('filename.sg2', format="SEG2", acquisition_system=None)
+```
+
+Obspy cannot write standard seg2 files by default, this package uses pyseg2 to  
+export an obspy stream into seg2 file.  
+*Warning* : do not overwrite experimental data, 
+any remaining bug in the writing method might result in corrupted data files, 
+I decline any responsibility in case of overwritten data files.
+
+```python
+from readdat.write import write
+stream = write('filename_test.sg2', format="SEG2", acquisition_system=None)
+```
+
+To interpret calendar times in the headers as local french times, use  
+```python
+from readdat import read, print_stream
+stream = read('filename.sg2', format="SEG2", timezone="Europe/Paris")
+print_stream(stream)  # Have a look at the starttime/endtime fields of the trace headers
+```
+
+###### (ii) SEG2MUSC
+Seg2 Files from MUSC are expressed in milliseconds and millimeters   
+(except for the fields `RECEIVER_LOCATION` and `SOURCE_LOCATION` which are expressed in meters).   
+The argument `acquisition_system="MUSC"` can be used to convert all time units to seconds   
+and all distance units to meters.
+
+```python
+from readdat.read import read
+stream = read('filename_from_MUSC.sg2', format="SEG2", acquisition_system="MUSC")
+```
+or equivalently
+```python
+stream = read('filename_from_MUSC.sg2', format="AUTO", acquisition_system="AUTO")
+```
+The stream can be modified as saved as SEGYMUSC or SUMUSC formats  
+that are regular segy and su with nanoseconds / tenth of millimeters convention  
+(the reason is that segy and su headers only support integers).  
+NB : to load/modify/export SEG2 files, I recommand working with acquisition_system=None
+so that the attribute units remain exactly as the original (see (i))
+
+```python
+from readdat.write import write
+write(stream, filename='filename_from_MUSC.segy', format="SEGY", acquisition_system="MUSC", endian="big")
+```
+which can be read with Seismic Unix (not installed with this package) as
+```bash
+segyread tape=filename_from_MUSC.segy endian=0 | suxwigb
+```
+
+###### (iii) SEG2ONDULYS
+For seg2 files from Ondulys, use `acquisition_system="ONDULYS"` in `readdat.read.read`.
+
+* This option will collect the receiver coordinates (text entry from seg2 trace attributes)  
+and pack them in the receiver coordinates fields `trace.stats.receiver_{x,y,z}` in meters.  
+the source coordinates fields `trace.stats.source_{x-z}` are nan.  
+
+* The year is corrected to 4 digits (instead of 2) to avoid obspy issues.  
+
+* See also option --ondulys in `read_seg2.py` and `show_seg2.py`  
+Example in linux terminal (or wsl for windows),  you may look at the file content using :  
+`read_seg2.py --ondulys seg2file_ondulys.sg2 | grep 'receiver_x\|starttime'`
+
+###### (iv) SEG2CODA
+For seg2 files from CODA, use `acquisition_system="CODA"` in `readdat.read.read`.  
+Changes implied by the mode `acquisition_system="CODA"` 
+* Acquisition times  
+the field `trace.stats.seg2['NOTE']` is used 
+to determine the acquisition time of the trace in `trace.stats.starttime` instead of the field `trace.stats.seg2['ACQUISITION_DATE']` and `trace.stats.seg2['ACQUISITION_TIME']`.  
+
+* Coordinates   
+The available source/receiver coordinates are stored in 
+`trace.stats.seg2.receiver_{x,y,z}` and `trace.stats.seg2.source_{x,y,z}`
+* Temperature / Relative humidity  
+when available, these values are loaded from the trace NOTES and stored into
+`trace.stats.seg2.temperature_degc`
+`trace.stats.seg2.relative_humidity_percent`
+
+* See also the script `plot_temperature_humidity_from_seg2coda.py /path/to/files*.sg2 `
+to display temperature humidity curves.
+
+###### (v) SEG2CDZ
+Obspy may fail at loading the files because the time string is not formatted as usual.  
+Readdat loads the data using pyseg2 instead.   
+The starttime is inferred from the file creation time.  
+
+
+###  2.1.2 SEGY/SU
+
+###### (i) Standard SEGY/SU files
+Segy/Su files can be read with the default read function from obspy 
+```python
+from readdat.read import read
+stream = read('filename.sgy', format="SEGY", acquisition_system=None)
+```
+
+###### (ii) SEGYMUSC/SUMUSC 
+
+To reload MUSC files converted from seg2musc (millimeters & milliseconds convention, see above) to segymusc or sumusc (nanoseconds & tenth of millimeters),
+use simply 
+```python
+from readdat.read import read
+stream = read('filename_from_MUSC.segy', format="SEGY", acquisition_system="MUSC")
+```
+
+###  2.1.3 SEGD
+Revision 2.X modified after the original program from C. Satriano (IPGP)
+https://github.com/claudiodsf/read_segd.git  
+
+Revision 3.0 writen by M.L. 16/11/2022
+
+###  2.1.4 TUSMUS
+File Format from O. Durand, Univ Gustav Eiffel,   
+program modfied after Tom Druet, CEA
+
+###  2.1.5 SIG
+read_sig : M.L. after GageScope user's guide for version 3.1
+
+###  2.1.6 DZT
+read DZT binary File: T. Devie 09/2022
+
+###  2.1.7 MAT
+
+###### (i) MATQUANTUM
+mat files from HBM QuantumX   
+modified after P.Mora 2023/05/09
+```python
+from readdat.read import read
+stream = read('filename_from_QUANTUM.mat', format="MAT", acquisition_system="QUANTUM")
+```
+###### (ii) MATUSCAN
+P.Mora 2025/05/06
+
+###  2.1.8 ARB
+Arbitrary generation ascii file format from Keysight Technologies, Inc.
+Shaojie X, Olivier D 2025/04
+
+###  2.1.999 MSEED
+Readdat will use the default read function from obspy.
+
+## 2.2 Resistivity data 
+
+### BINIris
+Read resistivity data from Iris .bin bindary format, 
+Writen by Thibaud Devie, oct. 2023
+
+## 2.3 Miscelaneous
+
+### SPS : Shell Processing Support
+writen by M.L. after doc from SEG SPS 
+revisions 0 and 2.1  
+
+### Tomographic files from P. Cote
+Read and display tomographic files as implemented by P. Cote in PRIAM
+
+###### Travel time data (.dat)
+Command line
+```bash
+show_datfiles.py  /path/to/file.dat
+```
+Programming
+```pyhon
+from readdat.tomocote.datfiles import DatFile
+import matplotlib.pyplot as plt
+
+dat = DatFile('/path/to/file.dat')
+dat.show(plt.gca(), which="time")
+plt.show()
+```
+
+###### Tomographic models (.map)
+
+```bash
+show_mapfiles.py  /path/to/file.map
+```
+
+# 3. Usage in a python program  
+```python  
+from readdat import read  
+
+stream = read(filename="./readdat/filesamples/seg2file_musc.sg2",     
+              format="SEG2", acquisition_system="MUSC")  
+# see some useful information about the stream in stream.stats  
+
+# to quickly see the content of the stream, use   
+from readdat import print_stream  
+print_stream(stream[:3])  # print the first 3 traces in the stream  
+
+# to loop over the traces   
+for trace in stream:  
+    # print the sampling rate and the first 3 samples  
+    print(trace.stats.sampling_rate, trace.data[:3])  
+```
+
+# 4. Callable scripts 
+
+Some additionnal scripts are installed with the package
+
+```bash 
+
+# Print the content of a seg2 file in terminal
+read_seg2.py --ondulys readdat/readdat/filesamples/seg2file_ondulys.sg2
+read_seg2.py --musc readdat/readdat/filesamples/seg2file_musc.sg2
+read_seg2.py --coda readdat/readdat/filesamples/seg2file_coda.sg2
+
+# Quick display of a seg2 file (wiggle)
+show_seg2.py --musc readdat/readdat/filesamples/seg2file_musc.sg2
+
+# Convert seg2musc to sumusc, (suxwigb assumes that seismic unix is installed):
+seg2musc_to_segymusc.py readdat/readdat/filesamples/seg2file_musc.sg2 toto.segy big && segyread tape=toto.segy endian=0 | suxwigb
+seg2musc_to_sumusc.py readdat/readdat/filesamples/seg2file_musc.sg2 toto.su big && suxwigb < toto.su
+
+# Show segd rev 2.X
+read_segd2X.py readdat/readdat/filesamples/segdfile.segd
+
+# Show segd rev 3.0
+read_segd30.py readdat/readdat/filesamples/segdfile_rev3_0.segd
+```
+
+# 5. Unit tests
+
+ReadDat is equipped with a unit test sequence, to run the tests  
+```bash
+pytest --verbose .
+```
+
+In case of failing tests, please contact me.  
+
