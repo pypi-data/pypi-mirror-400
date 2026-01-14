@@ -1,0 +1,396 @@
+Metadata-Version: 2.4
+Name: jentic-openapi-parser
+Version: 1.0.0a33
+Summary: Jentic OpenAPI Parser
+Author: Jentic
+Author-email: Jentic <hello@jentic.com>
+License-Expression: Apache-2.0
+License-File: LICENSE
+License-File: NOTICE
+Requires-Dist: attrs~=25.4.0
+Requires-Dist: jentic-openapi-common~=1.0.0a33
+Requires-Dist: jentic-openapi-datamodels~=1.0.0a33
+Requires-Dist: pyyaml~=6.0.3
+Requires-Dist: requests~=2.32.5
+Requires-Dist: ruamel-yaml~=0.18.15
+Requires-Python: >=3.11
+Project-URL: Homepage, https://github.com/jentic/jentic-openapi-tools
+Description-Content-Type: text/markdown
+
+# jentic-openapi-parser
+
+A Python library for parsing OpenAPI documents using pluggable parser backends. This package is part of the Jentic OpenAPI Tools ecosystem and provides a flexible, extensible architecture for OpenAPI document parsing with support for multiple YAML/JSON parsing libraries.
+
+## Features
+
+- **Pluggable Backend Architecture**: Support for multiple parsing strategies via entry points
+- **Multiple Input Formats**: Parse OpenAPI documents from file URIs or text strings (JSON/YAML)
+- **Multiple Parser Backends**: Choose from PyYAML, ruamel.yaml (safe/roundtrip/AST modes), or typed datamodels
+- **Low-Level Datamodels**: Parse directly to typed `OpenAPI30`/`OpenAPI31` objects with source tracking
+- **Enhanced JSON Serialization**: Built-in support for datetime, UUID, Path, Decimal, Enum, and attrs classes
+- **Type Safety**: Full type hints with overloaded methods for precise return types
+- **Extensible Design**: Easy integration of third-party parser backends
+
+## Installation
+
+```bash
+pip install jentic-openapi-parser
+```
+
+**Prerequisites:**
+- Python 3.11+
+
+## Quick Start
+
+### Basic Parsing
+
+```python
+from jentic.apitools.openapi.parser.core import OpenAPIParser
+
+# Create parser with default backend (pyyaml)
+parser = OpenAPIParser()
+
+# Parse from file URI
+doc = parser.parse("file:///path/to/openapi.yaml")
+print(doc["info"]["title"])
+
+# Parse from JSON string
+json_doc = '{"openapi":"3.1.2","info":{"title":"My API","version":"1.0.0"}}'
+doc = parser.parse(json_doc)
+
+# Parse from YAML string
+yaml_doc = """
+openapi: 3.1.2
+info:
+  title: My API
+  version: 1.0.0
+"""
+doc = parser.parse(yaml_doc)
+```
+
+### Parse with Type Conversion
+
+```python
+from ruamel.yaml import CommentedMap
+
+# Parse with specific return type
+parser = OpenAPIParser("ruamel-roundtrip")
+doc = parser.parse(yaml_doc, return_type=CommentedMap)
+
+# Parse with strict type checking
+doc = parser.parse(yaml_doc, return_type=CommentedMap, strict=True)
+```
+
+### Using Different Backends
+
+```python
+# Use PyYAML backend (default)
+parser = OpenAPIParser("pyyaml")
+doc = parser.parse("file:///path/to/openapi.yaml")
+
+# Use ruamel.yaml backend (safe mode)
+parser = OpenAPIParser("ruamel-safe")
+doc = parser.parse("file:///path/to/openapi.yaml")
+
+# Use ruamel.yaml roundtrip mode (preserves comments and formatting info)
+parser = OpenAPIParser("ruamel-roundtrip")
+doc = parser.parse("file:///path/to/openapi.yaml", return_type=CommentedMap)
+# Access line/column information
+print(doc.lc.line, doc.lc.col)
+
+# Use ruamel.yaml AST mode (returns YAML nodes with source tracking)
+from jentic.apitools.openapi.parser.backends.ruamel_ast import MappingNode
+parser = OpenAPIParser("ruamel-ast")
+node = parser.parse("file:///path/to/openapi.yaml", return_type=MappingNode)
+# Access precise line/column for any node
+for key_node, value_node in node.value:
+    print(f"{key_node.value} at line {key_node.start_mark.line}")
+```
+
+## Configuration Options
+
+### Backend Selection
+
+```python
+# Use backend by name
+parser = OpenAPIParser("pyyaml")
+
+# Pass backend instance directly
+from jentic.apitools.openapi.parser.backends.pyyaml import PyYAMLParserBackend
+backend = PyYAMLParserBackend()
+parser = OpenAPIParser(backend=backend)
+
+# Pass backend class
+parser = OpenAPIParser(backend=PyYAMLParserBackend)
+```
+
+### Custom Configuration
+
+```python
+import logging
+
+# Configure with custom logger and timeouts
+logger = logging.getLogger(__name__)
+parser = OpenAPIParser(
+    backend="pyyaml",
+    logger=logger,
+    conn_timeout=10,  # Connection timeout in seconds
+    read_timeout=30   # Read timeout in seconds
+)
+```
+
+## Working with Return Types
+
+The parser supports flexible return type handling:
+
+```python
+from ruamel.yaml import CommentedMap
+
+parser = OpenAPIParser("ruamel-roundtrip")
+
+# Without return_type: Returns plain dict
+doc = parser.parse(yaml_doc)
+assert isinstance(doc, dict)
+
+# With return_type: Returns specified type
+doc = parser.parse(yaml_doc, return_type=CommentedMap)
+assert isinstance(doc, CommentedMap)
+
+# With strict=True: Raises error if type doesn't match
+try:
+    doc = parser.parse(yaml_doc, return_type=list, strict=True)
+except TypeConversionError:
+    print("Type mismatch!")
+```
+
+## API Reference
+
+### OpenAPIParser
+
+```python
+class OpenAPIParser:
+    def __init__(
+        self,
+        backend: str | BaseParserBackend | Type[BaseParserBackend] | None = None,
+        *,
+        logger: logging.Logger | None = None,
+        conn_timeout: int = 5,
+        read_timeout: int = 10,
+    ) -> None
+```
+
+**Parameters:**
+- `backend`: Parser backend to use. Can be:
+  - `str`: Name of a backend registered via entry points (e.g., "pyyaml", "ruamel-safe", "ruamel-roundtrip", "ruamel-ast", "datamodel-low")
+  - `BaseParserBackend`: Instance of a parser backend
+  - `Type[BaseParserBackend]`: Class of a parser backend (will be instantiated)
+  - Defaults to `"pyyaml"` if `None`
+- `logger`: Custom logger instance (optional)
+- `conn_timeout`: Connection timeout in seconds for URI loading
+- `read_timeout`: Read timeout in seconds for URI loading
+
+**Methods:**
+
+- `parse(document: str) -> dict[str, Any]`
+  - Parse without type conversion, returns plain dict
+
+- `parse(document: str, *, return_type: type[T], strict: bool = False) -> T`
+  - Parse with optional type conversion
+  - `document`: File URI or text string (JSON/YAML)
+  - `return_type`: Expected return type (e.g., `dict`, `CommentedMap`)
+  - `strict`: If `True`, raises `TypeConversionError` if result doesn't match `return_type`
+  - Returns: Parsed document
+
+- `load_uri(uri: str) -> str`
+  - Load content from a URI (HTTP(S), file://, or local file path)
+
+- `list_backends() -> list[str]`
+  - Static method to list all available parser backends
+
+### JSON Serialization
+
+The parser includes enhanced JSON serialization utilities for working with OpenAPI documents:
+
+```python
+from jentic.apitools.openapi.parser.core import json_dumps
+
+# Serialize with special type support
+from datetime import datetime
+from pathlib import Path
+from uuid import UUID
+
+data = {
+    "timestamp": datetime(2025, 10, 1, 12, 0, 0),
+    "id": UUID("550e8400-e29b-41d4-a716-446655440000"),
+    "path": Path("/var/log/app.log")
+}
+
+json_str = json_dumps(data, indent=2)
+# Output:
+# {
+#   "id": "550e8400-e29b-41d4-a716-446655440000",
+#   "path": "/var/log/app.log",
+#   "timestamp": "2025-10-01T12:00:00"
+# }
+```
+
+**Supported Types:**
+- `datetime` / `date` - Serialized to ISO 8601 format
+- `UUID` - Converted to string
+- `Path` - Converted to string
+- `Decimal` - Converted to float
+- `Enum` - Serialized using enum value
+- `attrs` classes - Converted to dictionaries
+
+### Exceptions
+
+```python
+from jentic.apitools.openapi.parser.core.exceptions import (
+    OpenAPIParserError,        # Base exception
+    DocumentParseError,        # Parsing failed
+    DocumentLoadError,         # URI loading failed
+    InvalidBackendError,       # Backend initialization failed
+    BackendNotFoundError,      # Backend not found
+    TypeConversionError,       # Type conversion failed
+)
+```
+
+## Available Backends
+
+### pyyaml (Default)
+Standard PyYAML-based parser. Fast and reliable for basic parsing needs.
+
+**Accepts:** `text` (JSON/YAML strings)
+
+```python
+parser = OpenAPIParser("pyyaml")
+doc = parser.parse(content)
+```
+
+### ruamel-safe
+ruamel.yaml-based parser with safe loading. Provides better YAML 1.2 support than PyYAML.
+
+**Accepts:** `text` (JSON/YAML strings), `uri` (file paths/URLs)
+
+```python
+parser = OpenAPIParser("ruamel-safe")
+doc = parser.parse(content)
+```
+
+### ruamel-roundtrip
+ruamel.yaml roundtrip mode that preserves comments, formatting, and provides line/column information.
+
+**Accepts:** `text` (JSON/YAML strings), `uri` (file paths/URLs)
+
+```python
+from ruamel.yaml import CommentedMap
+
+parser = OpenAPIParser("ruamel-roundtrip")
+doc = parser.parse(content, return_type=CommentedMap)
+
+# Access line/column information
+print(f"Line: {doc.lc.line}, Column: {doc.lc.col}")
+```
+
+### ruamel-ast
+ruamel.yaml AST mode that returns YAML nodes with complete source location tracking. Ideal for building low-level data models with precise error reporting.
+
+**Accepts:** `text` (JSON/YAML strings), `uri` (file paths/URLs)
+
+**Returns:** `yaml.MappingNode` (YAML AST) instead of dictionaries
+
+```python
+from jentic.apitools.openapi.parser.backends.ruamel_ast import MappingNode
+
+parser = OpenAPIParser("ruamel-ast")
+node = parser.parse(content, return_type=MappingNode)
+
+# Access YAML nodes with source information
+assert isinstance(node, MappingNode)
+
+# Get precise line/column information for any node
+for key_node, value_node in node.value:
+    print(f"Key: {key_node.value}")
+    print(f"  Line: {key_node.start_mark.line}, Column: {key_node.start_mark.column}")
+
+# Perfect for building low-level datamodels with source tracking
+# Works seamlessly with jentic-openapi-datamodels
+```
+
+**Note:** You can also import directly from `ruamel.yaml` if preferred:
+```python
+from ruamel.yaml import MappingNode  # Alternative import
+```
+
+**Use Cases:**
+- Building low-level data models that preserve source locations
+- Implementing precise error reporting with line/column numbers
+- AST-based transformations and analysis
+- Integration with validation tools that need exact source positions
+
+### datamodel-low
+Low-level OpenAPI data model parser that automatically detects the OpenAPI version (3.0.x or 3.1.x) and returns the appropriate typed datamodel with complete source tracking.
+
+**Accepts:** `text` (JSON/YAML strings), `uri` (file paths/URLs)
+
+**Returns:** `OpenAPI30` or `OpenAPI31` data model (from `jentic-openapi-datamodels`)
+
+```python
+from jentic.apitools.openapi.parser.core import OpenAPIParser
+from jentic.apitools.openapi.parser.backends.datamodel_low import DataModelLow
+from jentic.apitools.openapi.datamodels.low.v30.openapi import OpenAPI30
+from jentic.apitools.openapi.datamodels.low.v31.openapi import OpenAPI31
+
+
+parser = OpenAPIParser("datamodel-low")
+
+# Parse OpenAPI 3.0.x document
+doc = parser.parse("file:///path/to/openapi-3.0.yaml", return_type=OpenAPI30)
+assert isinstance(doc, OpenAPI30)
+print(doc.openapi.value)  # "3.0.4"
+print(doc.info.value.title.value)  # Access with source tracking
+
+# Parse OpenAPI 3.1.x document
+doc = parser.parse("file:///path/to/openapi-3.1.yaml", return_type=OpenAPI31)
+assert isinstance(doc, OpenAPI31)
+print(doc.openapi.value)  # "3.1.2"
+
+# Access fields with source information
+print(f"Title at line {doc.info.key_node.start_mark.line}")
+
+doc = parser.parse("file:///path/to/openapi.yaml", return_type=DataModelLow)
+# Type checker sees 'Any', runtime type will be one of: OpenAPI30, OpenAPI31, or ValueSource
+print(type(doc).__name__)  # "OpenAPI30" or "OpenAPI31"
+
+# Optional: Enable strict runtime validation
+doc = parser.parse("file:///path/to/openapi.yaml", return_type=DataModelLow, strict=True)
+# Raises TypeConversionError if result is not one of the union types
+```
+
+**Features:**
+- **Automatic Version Detection**: Parses `openapi` field and routes to correct builder
+- **Typed Datamodels**: Returns strongly-typed `OpenAPI30` or `OpenAPI31` objects
+- **Complete Source Tracking**: Every field preserves YAML node information
+- **Error Handling**: Clear errors for unsupported versions (2.0, 3.2+)
+
+**Supported Versions:**
+- OpenAPI 3.0.x → returns `OpenAPI30`
+- OpenAPI 3.1.x → returns `OpenAPI31`
+
+**Unsupported (raises ValueError):**
+- OpenAPI 2.0 (Swagger)
+- OpenAPI 3.2.x and above
+
+**Use Cases:**
+- Type-safe OpenAPI document manipulation
+- Building validation tools with precise error messages
+- Code generation from OpenAPI specifications
+- AST transformations with version-aware logic
+
+## Testing
+
+Run the test suite:
+
+```bash
+uv run --package jentic-openapi-parser pytest packages/jentic-openapi-parser -v
+```
