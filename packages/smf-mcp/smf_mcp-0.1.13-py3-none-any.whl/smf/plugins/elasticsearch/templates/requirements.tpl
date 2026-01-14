@@ -1,0 +1,1 @@
+smf-mcp[elasticsearch]>={version}
