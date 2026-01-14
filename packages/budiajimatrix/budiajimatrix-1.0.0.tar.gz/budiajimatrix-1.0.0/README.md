@@ -1,0 +1,292 @@
+# BudiajiMatrix
+
+[![PyPI version](https://badge.fury.io/py/budiajimatrix.svg)](https://badge.fury.io/py/budiajimatrix)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**BudiajiMatrix** adalah library Python untuk pengolahan matrix yang lengkap dan mudah digunakan. Cocok untuk keperluan analisis time series, GSTAR, VARIMA, dan berbagai analisis statistik lainnya.
+
+## 🚀 Fitur Utama
+
+- **Operasi Dasar**: Penjumlahan, pengurangan, perkalian, pembagian matrix
+- **Dekomposisi**: Cholesky, QR, LU, SVD, Eigendecomposition, Schur
+- **Nilai Karakteristik**: Determinant, trace, rank, norm, condition number, eigenvalues, eigenvectors
+- **Properti Matrix**: Cek simetris, positif definit, orthogonal, singular, diagonal
+- **Statistik**: Mean, variance, standard deviation, covariance, correlation
+- **Normalisasi**: Normalisasi baris/kolom, standardisasi
+- **Solving Systems**: Linear system solver, least squares
+- **Matrix Power**: Pangkat, exponential, logarithm, square root
+- **Dan banyak lagi!**
+
+## 📦 Instalasi
+
+```bash
+pip install budiajimatrix
+```
+
+## 💡 Cara Penggunaan
+
+### Import Library
+
+```python
+import numpy as np
+from budiajimatrix import transpose, multiply, eigenvalues, inverse, covariance
+```
+
+### Contoh Penggunaan Dasar
+
+```python
+import numpy as np
+from budiajimatrix import transpose, multiply, add
+
+# Buat matrix
+A = np.array([[1, 2], [3, 4]])
+B = np.array([[5, 6], [7, 8]])
+
+# Transpose
+print("Transpose A:")
+print(transpose(A))
+# Output:
+# [[1 3]
+#  [2 4]]
+
+# Perkalian matrix
+print("A × B:")
+print(multiply(A, B))
+# Output:
+# [[19 22]
+#  [43 50]]
+
+# Penjumlahan
+print("A + B:")
+print(add(A, B))
+# Output:
+# [[ 6  8]
+#  [10 12]]
+```
+
+### Eigenvalues dan Eigenvectors
+
+```python
+from budiajimatrix import eigenvalues, eigenvectors
+
+A = np.array([[4, 2], [1, 3]])
+
+# Hitung eigenvalues (akar ciri)
+eig_vals = eigenvalues(A)
+print("Eigenvalues:", eig_vals)
+
+# Hitung eigenvectors (vektor ciri)
+eig_vecs = eigenvectors(A)
+print("Eigenvectors:")
+print(eig_vecs)
+```
+
+### Dekomposisi Matrix
+
+```python
+from budiajimatrix import svd, qr_decomposition, cholesky
+
+# Singular Value Decomposition
+A = np.array([[1, 2], [3, 4], [5, 6]])
+U, S, Vt = svd(A)
+print("U:", U)
+print("S:", S)
+print("Vt:", Vt)
+
+# QR Decomposition
+A = np.array([[12, -51, 4], [6, 167, -68], [-4, 24, -41]])
+Q, R = qr_decomposition(A)
+print("Q:", Q)
+print("R:", R)
+
+# Cholesky (untuk matrix positif definit)
+A = np.array([[4, 12], [12, 37]])
+L = cholesky(A)
+print("L:", L)
+```
+
+### Statistik Matrix
+
+```python
+from budiajimatrix import covariance, correlation, mean, std
+
+# Data matrix (observasi × variabel)
+data = np.array([[1, 2, 3],
+                 [4, 5, 6],
+                 [7, 8, 9],
+                 [10, 11, 12]])
+
+# Covariance matrix
+cov_matrix = covariance(data)
+print("Covariance Matrix:")
+print(cov_matrix)
+
+# Correlation matrix
+corr_matrix = correlation(data)
+print("Correlation Matrix:")
+print(corr_matrix)
+
+# Mean per kolom
+print("Mean:", mean(data, axis=0))
+
+# Standard deviation per kolom
+print("Std:", std(data, axis=0))
+```
+
+### Normalisasi dan Standardisasi
+
+```python
+from budiajimatrix import standardize, normalize_rows
+
+data = np.array([[1, 2, 3],
+                 [4, 5, 6],
+                 [7, 8, 9]])
+
+# Standardisasi (mean=0, std=1)
+standardized = standardize(data)
+print("Standardized:")
+print(standardized)
+
+# Normalisasi per baris
+normalized = normalize_rows(data)
+print("Normalized Rows:")
+print(normalized)
+```
+
+### Properti Matrix
+
+```python
+from budiajimatrix import is_symmetric, is_positive_definite, rank, determinant
+
+A = np.array([[2, 1], [1, 2]])
+
+# Cek simetris
+print("Symmetric?", is_symmetric(A))
+
+# Cek positif definit
+print("Positive Definite?", is_positive_definite(A))
+
+# Rank
+print("Rank:", rank(A))
+
+# Determinant
+print("Determinant:", determinant(A))
+```
+
+### Solving Linear Systems
+
+```python
+from budiajimatrix import solve_linear_system, least_squares
+
+# Solve Ax = b
+A = np.array([[3, 1], [1, 2]])
+b = np.array([9, 8])
+x = solve_linear_system(A, b)
+print("Solution x:", x)
+
+# Least squares (untuk overdetermined system)
+A = np.array([[1, 1], [1, 2], [1, 3]])
+b = np.array([2, 3, 4])
+x = least_squares(A, b)
+print("Least Squares Solution:", x)
+```
+
+## 📚 Dokumentasi Lengkap
+
+### Operasi Dasar
+- `add(matrix1, matrix2)` - Penjumlahan matrix
+- `subtract(matrix1, matrix2)` - Pengurangan matrix
+- `multiply(matrix1, matrix2)` - Perkalian matrix
+- `element_multiply(matrix1, matrix2)` - Perkalian elemen per elemen
+- `scalar_multiply(matrix, scalar)` - Perkalian dengan skalar
+- `divide(matrix, scalar)` - Pembagian dengan skalar
+
+### Transformasi
+- `transpose(matrix)` - Transpose matrix
+- `inverse(matrix)` - Inverse matrix
+- `pseudo_inverse(matrix)` - Moore-Penrose pseudo-inverse
+- `conjugate(matrix)` - Konjugat matrix
+- `adjoint(matrix)` - Adjoint matrix
+
+### Dekomposisi
+- `cholesky(matrix)` - Dekomposisi Cholesky
+- `qr_decomposition(matrix)` - Dekomposisi QR
+- `lu_decomposition(matrix)` - Dekomposisi LU
+- `svd(matrix)` - Singular Value Decomposition
+- `eigendecomposition(matrix)` - Dekomposisi Eigen
+- `schur(matrix)` - Dekomposisi Schur
+
+### Nilai Karakteristik
+- `determinant(matrix)` - Determinan
+- `trace(matrix)` - Trace
+- `rank(matrix)` - Rank
+- `norm(matrix, ord)` - Norm matrix
+- `condition_number(matrix)` - Condition number
+- `eigenvalues(matrix)` - Eigenvalues (akar ciri)
+- `eigenvectors(matrix)` - Eigenvectors (vektor ciri)
+
+### Properti Matrix
+- `is_symmetric(matrix)` - Cek simetris
+- `is_positive_definite(matrix)` - Cek positif definit
+- `is_orthogonal(matrix)` - Cek orthogonal
+- `is_singular(matrix)` - Cek singular
+- `is_diagonal(matrix)` - Cek diagonal
+
+### Matrix Khusus
+- `identity(n)` - Identity matrix n×n
+- `zeros(shape)` - Matrix nol
+- `ones(shape)` - Matrix satu
+- `diagonal(values)` - Diagonal matrix
+- `random_matrix(shape, distribution)` - Random matrix
+
+### Statistik
+- `mean(matrix, axis)` - Mean
+- `variance(matrix, axis)` - Variance
+- `std(matrix, axis)` - Standard deviation
+- `covariance(matrix)` - Covariance matrix
+- `correlation(matrix)` - Correlation matrix
+
+### Operasi Baris/Kolom
+- `row_sum(matrix)` - Jumlah per baris
+- `col_sum(matrix)` - Jumlah per kolom
+- `row_mean(matrix)` - Mean per baris
+- `col_mean(matrix)` - Mean per kolom
+- `normalize_rows(matrix)` - Normalisasi per baris
+- `normalize_cols(matrix)` - Normalisasi per kolom
+- `standardize(matrix)` - Standardisasi matrix
+
+### Solving Systems
+- `solve_linear_system(A, b)` - Solve Ax = b
+- `least_squares(A, b)` - Least squares solution
+
+### Matrix Power
+- `matrix_power(matrix, n)` - Matrix pangkat n
+- `matrix_exp(matrix)` - Matrix exponential
+- `matrix_log(matrix)` - Matrix logarithm
+- `matrix_sqrt(matrix)` - Matrix square root
+
+### Distance/Similarity
+- `frobenius_distance(matrix1, matrix2)` - Jarak Frobenius
+- `cosine_similarity(vector1, vector2)` - Cosine similarity
+
+## 🛠️ Requirements
+
+- Python >= 3.7
+- NumPy >= 1.18.0
+- SciPy >= 1.4.0
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👨‍💻 Author
+
+**Budi Aji**
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome!
+
+## ⭐ Show your support
+
+Give a ⭐️ if this project helped you!
