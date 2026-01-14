@@ -1,0 +1,130 @@
+Metadata-Version: 2.4
+Name: snowleopard
+Version: 0.2.0
+Summary: snowleopard.ai client library
+Author-email: Snowy <hello@snowleopard.ai>
+License: MIT License
+        
+        Copyright (c) 2025 Snow Leopard AI
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Requires-Python: >=3.8
+Requires-Dist: httpx>=0.28.1
+Description-Content-Type: text/markdown
+
+# Snow Leopard SDK for Python
+
+This repo contains the Python client library for [Snow Leopard Playground](https://try.snowleopard.ai) APIs. 
+
+See our [API documentation](https://docs.snowleopard.ai/#api-documentation) for more details.
+
+## Installation
+
+```bash
+pip install snowleopard
+```
+
+## Quick Start
+
+```python
+from snowleopard import SnowLeopardClient
+
+# Initialize the client (or AsyncSnowLeopardClient)
+client = SnowLeopardClient(api_key="your-api-key")
+
+# Query your data in natural language
+response = client.retrieve(user_query="How many users signed up last month?", datafile_id="your-datafile-id")
+```
+
+## Getting Started
+
+1. **Get your API key** from [https://auth.snowleopard.ai/account/api_keys](https://auth.snowleopard.ai/account/api_keys)
+2. **Upload your datafiles** at [https://try.snowleopard.ai](https://try.snowleopard.ai)
+3. **Set your API key** via environment variable:
+    ```bash
+    export SNOWLEOPARD_API_KEY="your-api-key"
+    ```
+    
+    Or pass it directly to the client:
+    
+    ```python
+    SnowLeopardClient(api_key="your-api-key")
+    ```
+
+## Usage
+
+### Synchronous Client
+
+```python
+from snowleopard import SnowLeopardClient
+
+with SnowLeopardClient() as client:
+   # Get data directly from a natural language query
+   response = client.retrieve(user_query="How many superheroes are there?")
+   print(response.data)
+
+   # Stream natural language summary of live data
+   for chunk in client.response(user_query="How many superheroes are there?"):
+      print(chunk)
+```
+
+### Async Client
+
+```python
+from snowleopard import AsyncSnowLeopardClient
+
+async with AsyncSnowLeopardClient() as client:
+   # Get complete results
+   response = await client.retrieve(user_query="How many superheroes are there?")
+   print(response.data)
+
+   # Get streaming results
+   async for chunk in client.response(user_query="How many superheroes are there?"):
+      print(chunk)
+```
+
+### CLI
+
+The SDK includes a command-line interface:
+
+```bash
+pip install snowleopard
+snowy retrieve --datafile <datafile-id> "How many records are there?"
+snowy response --datafile <datafile-id> "Summarize the data"
+```
+
+### On Premise Customers
+
+For our customers who have a separate deployment per dataset, you should declare <url> explicitly when creating a 
+client and omit <datafile id> when querying.
+
+Example:
+```python
+client = SnowLeopardClient(url="https://{your-vm-ip}:{port}", api_key="your-api-key")
+response = client.retrieve(user_query="How many users signed up last month?")
+```
+
+
+## Contributing
+
+For SDK developer docs and how to contribute, see [CONTRIBUTING.md](CONTRIBUTING.md)
