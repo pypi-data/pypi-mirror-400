@@ -1,0 +1,102 @@
+#! /usr/bin/env python
+
+'''
+@author: Soizic Laguitton
+
+@organization: I2BM, Neurospin, Gif-sur-Yvette, France
+@organization: CATI, France
+@organization: U{IFR 49<http://www.ifr49.org>}
+
+@license: U{CeCILL version 2<http://www.cecill.info/licences/Licence_CeCILL_V2-en.html>}
+'''
+
+import sys
+import argparse
+
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('-u', '--user', help="User for logging in to server")
+parser.add_argument('-a', '--auto-connect', dest='auto_connect', default=False,
+                    action='store_true', help="Try to connect directly, "
+                    "without displaying connection dialog.")
+parser.add_argument('-i', '--interactive', action='store_true',
+                    help='open connection dialog at startup. '
+                    'Incompatible with -a.')
+parser.add_argument('-r', '--computing-resource', dest='computing_resource',
+                    help='computing resource identifier')
+parser.add_argument('--database', dest='database',
+                    help='connect localhost with the specified database file')
+parser.add_argument('--config', dest='config',
+                    help='use the specified config file')
+parser.add_argument('--isolated',
+                    help='use an isolates soma-workflow directory in light '
+                    'mode. If the associated value is "temp", generate a '
+                    'temporary directory.')
+parser.add_argument('--gui', dest='gui',
+                    help='use the specified Qt GUI type: PyQt4, PyQt5, PySide.'
+                    'Default: guess in the above order.')
+
+options = parser.parse_args(sys.argv[1:])
+
+gui = options.gui
+if gui == 'PyQt4':
+    import PyQt4
+elif gui == 'PyQt5':
+    import PyQt5
+elif gui == 'PySide':
+    import PySide
+elif gui is not None:
+    raise ValueError('unrecognized GUI type: %s' % gui)
+
+from soma_workflow.gui.workflowGui import ApplicationModel, MainWindow, SomaWorkflowWidget, QtCore, QtGui
+
+
+if __name__=="__main__":
+  
+    app = QtGui.QApplication(sys.argv)
+
+    #QtCore.pyqtRemoveInputHook()
+
+    model = ApplicationModel()
+    isolated_dir = options.isolated
+    if isolated_dir == 'temp':
+        isolated_dir = True
+
+    i = 1
+
+    if i == 1:
+
+        if options.computing_resource is None and options.database is not None:
+            options.computing_resource = None
+        sw_main_window = MainWindow(model,
+                                    options.user,
+                                    options.auto_connect,
+                                    options.computing_resource,
+                                    config_file=options.config,
+                                    db_file=options.database,
+                                    interactive=options.interactive,
+                                    isolated_light_mode=isolated_dir)
+
+        sw_main_window.show()
+
+    elif i == 2:
+        sw_widget = SomaWorkflowWidget(model,
+                                      options.user,
+                                      options.auto_connect,
+                                      options.computing_resource,
+                                      config_file=options.config,
+                                      db_file=options.database,
+                                      interactive=options.interactive,
+                                      isolated_light_mode=isolated_dir)
+        sw_widget.show()
+
+
+    app.exec()
+
+    if i == 1:
+        del sw_main_window
+    else:
+        del sw_widget
+
+    del model
