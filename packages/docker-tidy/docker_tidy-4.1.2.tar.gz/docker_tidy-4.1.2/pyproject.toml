@@ -1,0 +1,152 @@
+[tool.poetry]
+authors = ["Robert Kaussow <mail@thegeeklab.de>"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "License :: OSI Approved :: Apache Software License",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: System Administrators",
+  "Natural Language :: English",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: System :: Systems Administration",
+  "Topic :: Utilities",
+  "Topic :: Software Development",
+]
+description = "Keep docker hosts tidy."
+documentation = "https://docker-tidy.geekdocs.de/"
+homepage = "https://docker-tidy.geekdocs.de/"
+include = ["LICENSE"]
+keywords = ["docker", "gc", "prune", "garbage"]
+license = "Apache-2.0"
+name = "docker-tidy"
+packages = [{ include = "dockertidy", format = ["sdist", "wheel"] }]
+readme = "README.md"
+repository = "https://github.com/thegeeklab/docker-tidy/"
+version = "4.1.2"
+
+[tool.poetry.dependencies]
+anyconfig = "0.14.0"
+appdirs = "1.4.4"
+certifi = "2026.1.4"
+colorama = "0.4.6"
+dateparser = "1.2.2"
+docker = "7.1.0"
+docker-pycreds = "0.4.0"
+environs = "14.5.0"
+idna = "3.11"
+ipaddress = "1.0.23"
+jsonschema = "4.26.0"
+nested-lookup = "0.2.25"
+pathspec = "1.0.3"
+python = "^3.11.0"
+python-dateutil = "2.9.0.post0"
+python-json-logger = "4.0.0"
+requests = "2.32.5"
+"ruamel.yaml" = "0.19.1"
+websocket_client = "1.9.0"
+zipp = "3.23.0"
+
+[tool.poetry.scripts]
+docker-tidy = "dockertidy.cli:main"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "0.14.10"
+pytest = "9.0.2"
+pytest-mock = "3.15.1"
+pytest-cov = "7.0.0"
+toml = "0.10.2"
+types-appdirs = "1.4.3.5"
+types-docker = "7.1.0.20251202"
+mypy = "1.19.1"
+types-python-dateutil = "2.9.0.20251115"
+types-dateparser = "1.2.2.20250809"
+types-jsonschema = "4.25.1.20251009"
+types-colorama = "0.4.15.20250801"
+
+[tool.poetry-dynamic-versioning]
+enable = false
+style = "semver"
+vcs = "git"
+
+[tool.pytest.ini_options]
+addopts = "dockertidy --cov=dockertidy --cov-report=xml:coverage.xml --cov-report=term --no-cov-on-fail"
+filterwarnings = [
+  "ignore::FutureWarning",
+  "ignore::DeprecationWarning",
+  "ignore:.*pep8.*:FutureWarning",
+]
+
+[tool.coverage.run]
+omit = ["**/test/*"]
+
+[build-system]
+build-backend = "poetry_dynamic_versioning.backend"
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
+
+[tool.ruff]
+exclude = [
+  ".git",
+  "__pycache__",
+  "build",
+  "dist",
+  "test",
+  "*.pyc",
+  "*.egg-info",
+  ".cache",
+  ".eggs",
+  "env*",
+]
+
+line-length = 99
+indent-width = 4
+
+[tool.ruff.lint]
+# Explanation of errors
+#
+# D102: Missing docstring in public method
+# D103: Missing docstring in public function
+# D105: Missing docstring in magic method
+# D107: Missing docstring in __init__
+# D202: No blank lines allowed after function docstring
+# D203: One blank line required before class docstring
+# D212: Multi-line docstring summary should start at the first line
+ignore = ["D102", "D103", "D105", "D107", "D202", "D203", "D212", "RUF012"]
+select = [
+  "D",
+  "E",
+  "F",
+  "Q",
+  "W",
+  "I",
+  "S",
+  "BLE",
+  "N",
+  "UP",
+  "B",
+  "A",
+  "C4",
+  "T20",
+  "SIM",
+  "RET",
+  "ARG",
+  "ERA",
+  "RUF",
+]
+
+[tool.ruff.lint.flake8-builtins]
+builtins-allowed-modules = ["parser"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.mypy]
+strict = true
+files = ["dockertidy/"]
