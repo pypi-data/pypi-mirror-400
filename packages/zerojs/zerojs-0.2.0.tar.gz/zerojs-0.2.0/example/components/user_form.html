@@ -1,0 +1,49 @@
+<form
+    id="user-form"
+    method="POST"
+    hx-post="/users/{{ id }}"
+    hx-target="#user-form"
+    hx-swap="outerHTML"
+>
+    {% if success %}
+    {% with swap_oob=True %}{% include 'user_card.html' %}{% endwith %}
+    {% endif %}
+    {{ csrf_input(csrf_token) }}
+    {% if csrf_error %}
+    <p role="alert" class="error">Your previous session expired. Please try again.</p>
+    {% endif %}
+    {% if success %}
+    <p role="status" class="success">Changes saved successfully!</p>
+    {% endif %}
+
+    <label for="name">
+        Name
+        <input
+            type="text"
+            id="name"
+            name="name"
+            value="{{ values.name if values else user.name }}"
+            {% if errors and errors.name %}aria-invalid="true"{% endif %}
+        >
+
+        {% if errors and errors.name %}
+        <small>{{ errors.name }}</small>
+        {% endif %}
+    </label>
+
+    <label for="email">
+        Email
+        <input
+            type="email"
+            id="email"
+            name="email"
+            value="{{ values.email if values else user.email }}"
+            {% if errors and errors.email %}aria-invalid="true"{% endif %}
+        >
+        {% if errors and errors.email %}
+        <small>{{ errors.email }}</small>
+        {% endif %}
+    </label>
+
+    <button type="submit">Save Changes</button>
+</form>

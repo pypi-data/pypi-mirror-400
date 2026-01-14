@@ -1,0 +1,64 @@
+name: Testing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run linter
+        run: uv run ruff check .
+
+      - name: Run formatter check
+        run: uv run ruff format --check .
+
+      - name: Run type checker
+        run: uv run mypy zerojs/
+
+      - name: Run tests
+        run: uv run pytest tests/ -v --cov=zerojs --cov-report=xml
+
+      - name: Upload coverage artifact
+        if: matrix.python-version == '3.10'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: error
+
+  sonarcloud:
+    needs: test
+    if: github.actor != 'dependabot[bot]'
+    uses: ./.github/workflows/reusable-sonarcloud.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

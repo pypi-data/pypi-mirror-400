@@ -1,0 +1,37 @@
+fail_fast: true
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']  # 500KB max
+
+  - repo: local
+    hooks:
+      - id: check-file-length
+        name: check file length
+        entry: python scripts/check_file_length.py
+        language: system
+        types: [python]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.0
+    hooks:
+      - id: mypy
+        args: [zerojs/]
+        pass_filenames: false
+        additional_dependencies:
+          - fastapi
+          - jinja2
+          - pydantic
+          - secweb
+          - slowapi
+          - uvicorn
