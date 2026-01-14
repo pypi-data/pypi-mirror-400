@@ -1,0 +1,68 @@
+{% macro tnaGallery(params) %}
+{%- from 'components/button/macro.html' import tnaButton -%}
+
+{%- set containerClasses = [params.classes] if params.classes else [] -%}
+{%- if params.bounded -%}
+  {%- set containerClasses = containerClasses + ['tna-gallery--bounded'] -%}
+{%- endif -%}
+{%- set classes = containerClasses | join(' ') -%}
+<section class="tna-gallery{% if classes %} {{ classes }}{% endif %}" data-module="tna-gallery" {%- if params.attributes %}{% for attribute, value in params.attributes.items() %} {{ attribute }}{% if value != '' %}="{{ value }}"{% endif %}{% endfor %}{% endif %}>
+  {%- if params.title or params.text or params.body %}
+  <div class="tna-gallery__header">
+    <div class="tna-gallery__header-inner">
+      {%- if params.title %}
+      <h{{ params.headingLevel }} class="tna-heading-{{ params.headingSize or 'm' }}">
+        {{ params.title }}
+      </h{{ params.headingLevel }}>
+      {%- endif %}
+      {%- if params.text %}
+        <p>{{ params.text }}</p>
+      {%- else %}
+        {{ params.body | safe }}
+      {%- endif %}
+    </div>
+  </div>
+  {%- endif %}
+  <div class="tna-gallery__items">
+    {%- for item in params['items'] %}
+    <div class="tna-gallery__item" id="{{ params.id }}-item-{{ loop.index }}">
+      <p class="tna-gallery__item-header">Image {{ loop.index }} of {{ params['items'] | length }}</p>
+      <figure class="tna-gallery__item-figure">
+        <div class="tna-gallery__item-figure-inner">
+          <img src="{{ item.src }}" class="tna-gallery__item-image" alt="{{ item.alt }}" width="{{ item.width }}" height="{{ item.height }}" loading="lazy">
+        </div>
+        {%- if item.description %}
+        <figcaption class="tna-gallery__item-description">
+          {{ item.description }}
+        </figcaption>
+        {%- endif %}
+      </figure>
+    </div>
+    {%- endfor %}
+  </div>
+  <div class="tna-gallery__navigation-buttons" hidden>
+    <button type="button" class="tna-gallery__navigation-button tna-gallery__navigation-prev" aria-label="{% if params.title %}Show previous image in '{{ params.title }}' gallery{% else %}Show previous gallery image{% endif %}">
+      <span class="tna-button tna-gallery__navigation-button-label">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" height="24" aria-hidden="true" focusable="false"><!--!Font Awesome Free v7.0.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M169.4 297.4C156.9 309.9 156.9 330.2 169.4 342.7L361.4 534.7C373.9 547.2 394.2 547.2 406.7 534.7C419.2 522.2 419.2 501.9 406.7 489.4L237.3 320L406.6 150.6C419.1 138.1 419.1 117.8 406.6 105.3C394.1 92.8 373.8 92.8 361.3 105.3L169.3 297.3z"/></svg>
+        Previous
+      </span>
+    </button>
+    <button type="button" class="tna-gallery__navigation-button tna-gallery__navigation-next" aria-label="{% if params.title %}Show next image in '{{ params.title }}' gallery{% else %}Show next gallery image{% endif %}">
+      <span class="tna-button tna-button--icon-right tna-gallery__navigation-button-label">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" height="24" aria-hidden="true" focusable="false"><!--!Font Awesome Free v7.0.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M471.1 297.4C483.6 309.9 483.6 330.2 471.1 342.7L279.1 534.7C266.6 547.2 246.3 547.2 233.8 534.7C221.3 522.2 221.3 501.9 233.8 489.4L403.2 320L233.9 150.6C221.4 138.1 221.4 117.8 233.9 105.3C246.4 92.8 266.7 92.8 279.2 105.3L471.2 297.3z"/></svg>
+        Next
+      </span>
+    </button>
+  </div>
+  <div class="tna-gallery__navigation" hidden>
+    {%- for item in params['items'] -%}
+    <button type="button" class="tna-gallery__navigation-item" aria-label="{% if params.title %}Show image {{ loop.index }} of {{ params['items'] | length }} of '{{ params.title }}' gallery{% else %}Show gallery image {{ loop.index }} of {{ params['items'] | length }}{% endif %}" aria-controls="{{ params.id }}-item-{{ loop.index }}">
+      <img src="{{ item.src }}" class="tna-gallery__navigation-item-image" alt="" width="{{ item.width }}" height="{{ item.height }}" loading="lazy">
+      <span class="tna-visually-hidden">Image</span>
+      <span class="tna-gallery__navigation-item-label">{{ loop.index }}</span>
+      <span class="tna-visually-hidden"> of {{ params['items'] | length }}</span>
+    </button>
+    {%- endfor -%}
+  </div>
+</section>
+{% endmacro %}
