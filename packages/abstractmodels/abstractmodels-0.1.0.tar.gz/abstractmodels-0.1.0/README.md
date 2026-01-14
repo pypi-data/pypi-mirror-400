@@ -1,0 +1,104 @@
+# AbstractModels
+
+**Foundational data models for the AbstractFramework ecosystem**
+
+[![PyPI version](https://badge.fury.io/py/abstractmodels.svg)](https://badge.fury.io/py/abstractmodels)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Overview
+
+AbstractModels is a lightweight, dependency-free Python package that provides shared data structures and type definitions for the AbstractFramework ecosystem. By centralizing model definitions, it:
+
+- **Eliminates circular dependencies** between framework packages
+- **Ensures consistency** of data structures across components
+- **Simplifies maintenance** with a single source of truth
+- **Enables clean architecture** with clear separation of concerns
+
+## Purpose
+
+In a multi-package framework like AbstractFramework (which includes AbstractCode, AbstractFlow, AbstractRuntime, etc.), components often need to share common data structures. Without a central model repository, this leads to:
+
+- Circular import dependencies
+- Duplicate model definitions
+- Version drift and inconsistencies
+- Complex dependency graphs
+
+AbstractModels solves these issues by serving as the foundational layer that all other packages can depend on without creating cycles.
+
+## Installation
+
+```bash
+pip install abstractmodels
+```
+
+## Usage
+
+```python
+from abstractmodels import __version__
+
+print(f"AbstractModels version: {__version__}")
+```
+
+As the framework evolves, models will be added to represent various entities:
+
+```python
+# Future usage examples (not yet implemented)
+from abstractmodels.flow import FlowConfig, NodeDefinition
+from abstractmodels.agent import AgentConfig, ProviderConfig
+from abstractmodels.runtime import RuntimeConfig, ExecutionState
+```
+
+## Package Structure
+
+```
+abstractmodels/
+├── __init__.py          # Package initialization and version info
+├── flow.py              # (Future) Flow and node models
+├── agent.py             # (Future) Agent and provider models
+├── runtime.py           # (Future) Runtime and execution models
+└── common.py            # (Future) Common utilities and base classes
+```
+
+## Design Principles
+
+1. **Zero dependencies**: No external dependencies to avoid dependency hell
+2. **Lightweight**: Minimal overhead, fast imports
+3. **Type-safe**: Full type hints for IDE support and static analysis
+4. **Immutable where possible**: Prefer frozen dataclasses for safety
+5. **Well-documented**: Clear docstrings and examples
+6. **Backwards compatible**: Semantic versioning and deprecation warnings
+
+## Development Status
+
+AbstractModels is in early development (v0.1.0). The initial release establishes the package structure and dependency-free foundation. Model definitions will be added incrementally as the AbstractFramework ecosystem matures.
+
+## Contributing
+
+Contributions are welcome! When adding new models:
+
+- Keep the package dependency-free (use only Python stdlib)
+- Add comprehensive docstrings with examples
+- Use type hints for all public APIs
+- Follow snake_case naming conventions
+- Keep files focused and under 600 lines
+
+## Related Packages
+
+AbstractModels is part of the AbstractFramework ecosystem:
+
+- **AbstractCode**: LLM agent framework with tool support
+- **AbstractFlow**: Visual workflow and flow-based programming
+- **AbstractRuntime**: Execution runtime for workflows and agents
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Version History
+
+### 0.1.0 (2026-01-08)
+- Initial release
+- Package structure and foundation
+- Zero-dependency architecture established
+
