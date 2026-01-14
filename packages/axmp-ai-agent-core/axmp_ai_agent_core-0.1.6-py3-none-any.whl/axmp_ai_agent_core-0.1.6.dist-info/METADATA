@@ -1,0 +1,482 @@
+Metadata-Version: 2.3
+Name: axmp-ai-agent-core
+Version: 0.1.6
+Summary: Add your description here
+Author: Kilsoo Kang
+Author-email: Kilsoo Kang <kilsoo75@gmail.com>
+Requires-Dist: a2a-sdk>=0.3.20,<0.4.0
+Requires-Dist: axmp-ai-agent-spec>=0.1.6
+Requires-Dist: axmp-openapi-helper>=0.1.13
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: langchain-core>=0.3.79,<0.4.0
+Requires-Dist: langchain-community>=0.3.31,<0.4.0
+Requires-Dist: langchain-openai>=0.3.35,<0.4.0
+Requires-Dist: langchain-google-genai>=2.1.9,<3.0.0
+Requires-Dist: langchain-anthropic>=0.3.22,<0.4.0
+Requires-Dist: langchain-aws==0.2.35
+Requires-Dist: langchain-mcp-adapters>=0.1.14,<0.2.0
+Requires-Dist: langgraph>=0.6.11,<1.0.0
+Requires-Dist: langsmith>=0.4.27,<0.5.0
+Requires-Dist: langgraph-checkpoint>=2.1.2,<3.0.0
+Requires-Dist: langgraph-checkpoint-postgres>=2.0.25,<3.0.0
+Requires-Dist: mcp>=1.14.0
+Requires-Dist: motor>=3.7.1
+Requires-Dist: psycopg-pool>=3.2.6
+Requires-Dist: psycopg[binary]>=3.2.10
+Requires-Dist: pydantic-settings>=2.10.1
+Requires-Dist: pymongo>=4.15.0
+Requires-Dist: python-dotenv>=1.1.1
+Requires-Dist: redis>=5.3.1
+Requires-Dist: zmp-authentication-provider>=0.3.1
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+
+# AXMP AI Agent Core
+
+> A Python-based AI agent framework built on LangGraph and LangChain for creating intelligent, multi-LLM agent systems with support for Model Context Protocol (MCP) servers.
+
+[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
+## 🚀 Features
+
+- **🤖 Multi-LLM Support**: Seamless integration with OpenAI, Anthropic, and Google AI models
+- **🔗 LangGraph Orchestration**: Advanced agent state management with persistent checkpointing
+- **🛠️ MCP Server Integration**: Native support for Model Context Protocol with stdio, SSE, and HTTP transports
+- **💬 Conversation Management**: Thread-based chat history with MongoDB persistence
+- **🔄 Stateful Agents**: PostgreSQL-backed checkpoint storage for conversation resumption
+- **🎯 Node-Based Workflows**: Visual workflow system with triggers (chatbot, webhook, scheduler)
+- **🔐 RBAC & Authentication**: Built-in role-based access control and user management
+- **📦 Dependency Injection**: Clean architecture with IoC container pattern
+- **⚡ FastAPI Backend**: High-performance REST API with SSE streaming support
+
+## 📋 Table of Contents
+
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Architecture](#-architecture)
+- [Configuration](#-configuration)
+- [Development](#-development)
+- [Testing](#-testing)
+- [API Documentation](#-api-documentation)
+- [Contributing](#-contributing)
+
+## 📦 Installation
+
+### Prerequisites
+
+- Python 3.12+
+- MongoDB (for data persistence)
+- PostgreSQL (for LangGraph checkpointing)
+- Redis (optional, for caching)
+- AWS S3 (optional, for file storage)
+
+### Using uv (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/axmp-ai-agent-core.git
+cd axmp-ai-agent-core
+
+# Install dependencies with uv
+uv sync
+
+# Install development dependencies
+uv sync --group dev
+
+# Activate virtual environment
+source .venv/bin/activate
+```
+
+### Using pip
+
+```bash
+pip install axmp-ai-agent-core
+```
+
+## 🎯 Quick Start
+
+### 1. Environment Setup
+
+Create a `.env` file in the project root:
+
+```env
+# AI Service Keys
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Core Settings
+CORE_API_ENDPOINT=http://localhost:8000
+CORE_WEB_ENDPOINT=http://localhost:3000
+CORE_DEFAULT_MODEL=openai/gpt-4.1-mini
+
+# MongoDB Configuration
+MONGODB_HOSTNAME=localhost
+MONGODB_PORT=27017
+MONGODB_USERNAME=admin
+MONGODB_PASSWORD=password
+MONGODB_DATABASE=axmp_ai_agent
+
+# PostgreSQL Configuration (for LangGraph checkpointing)
+POSTGRESQL_HOSTNAME=localhost
+POSTGRESQL_PORT=5432
+POSTGRESQL_USERNAME=postgres
+POSTGRESQL_PASSWORD=password
+POSTGRESQL_DATABASE=langgraph_checkpoints
+
+# AWS S3 (Optional)
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_DEFAULT_REGION=us-east-1
+AWS_S3_BUCKET_NAME=axmp-ai-storage
+AWS_S3_BUCKET_ROOT=agents
+```
+
+### 2. Basic Usage
+
+```python
+from axmp_ai_agent_core.agent.default_agent import DefaultAgent
+from axmp_ai_agent_core.agent.configuration import Configuration
+
+# Create agent configuration
+config = Configuration(
+    provider_and_model="openai/gpt-4-turbo",
+    api_key="your-api-key",
+    temperature=0.7,
+    max_tokens=2000
+)
+
+# Initialize agent
+agent = DefaultAgent()
+await agent.initialize(connections={})
+
+# Run conversation
+response = await agent.agent.ainvoke(
+    {"messages": [{"role": "user", "content": "Hello!"}]},
+    config={"configurable": config.model_dump()}
+)
+```
+
+### 3. Running the API Server
+
+```python
+from fastapi import FastAPI
+from axmp_ai_agent_core.router import agent_router, healthy_router
+from axmp_ai_agent_core.di.service_container import ServicesContainer
+
+app = FastAPI(title="AXMP AI Agent API")
+
+# Initialize dependency injection
+container = ServicesContainer()
+container.wire(packages=["axmp_ai_agent_core.router"])
+
+# Register routers
+app.include_router(agent_router.router, prefix="/api/v1", tags=["agents"])
+app.include_router(healthy_router.router, prefix="/api/v1", tags=["health"])
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+## 🏗️ Architecture
+
+### System Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      FastAPI Routers                        │
+│  (HTTP Layer - REST API Endpoints + SSE Streaming)         │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Service Layer                            │
+│  (Business Logic - AgentProfileService, UserService, etc.)  │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Repository Layer                           │
+│  (Data Access - MongoDB CRUD Operations)                    │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Entity Models                            │
+│  (Domain Models - Pydantic Schemas)                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Components
+
+#### Agent System
+
+- **`AxmpBaseAgent`**: Abstract base class for all agents
+- **`DefaultAgent`**: Standard conversational agent
+- **`SingleSpecAgent`**: Profile-based agent with custom specifications
+- **`LanggraphReactAgent`**: ReAct pattern agent with tool calling
+
+#### Dependency Injection
+
+The project uses a three-layer DI container architecture:
+
+1. **`ResourcesContainer`**: External resources (MongoDB, PostgreSQL, Redis, S3)
+2. **`RepositoriesContainer`**: Data access layer repositories
+3. **`ServicesContainer`**: Business logic services
+
+#### Entity Models
+
+- **`AgentProfile`**: Node-based agent workflow definitions
+- **`ChatConversation`**: Thread-based conversation history
+- **`ChatMemory`**: Persistent agent memory
+- **`LlmProvider`**: LLM provider credentials
+- **`UserCredential`**: User-specific service credentials
+
+### Agent Workflow System
+
+Agents use a visual node-based workflow system:
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Trigger    │────▶│   LLM Node   │────▶│   Tool Node  │
+│   (Entry)    │     │ (Processing) │     │  (Actions)   │
+└──────────────┘     └──────────────┘     └──────────────┘
+                             │
+                             ▼
+                     ┌──────────────┐
+                     │   End Node   │
+                     │   (Output)   │
+                     └──────────────┘
+```
+
+**Node Types:**
+- **Trigger Nodes**: Chatbot, Webhook, Scheduler (with cron expressions)
+- **LLM Nodes**: Execute language model inference with tool/MCP bindings
+- **Tool Nodes**: External API and service integrations
+- **Subflow Nodes**: Nested workflow execution
+- **End Nodes**: Terminal output nodes
+
+## ⚙️ Configuration
+
+### Core Settings
+
+All configuration is managed through Pydantic settings classes in `setting.py`:
+
+#### AI Service Configuration
+
+```python
+from axmp_ai_agent_core.setting import ai_service_key_settings
+
+# Access API keys
+openai_key = ai_service_key_settings.openai_api_key
+anthropic_key = ai_service_key_settings.anthropic_api_key
+```
+
+#### Core Application Settings
+
+```python
+from axmp_ai_agent_core.setting import core_settings
+
+# Agent configuration
+default_model = core_settings.default_model  # "openai/gpt-4.1-mini"
+max_tokens = core_settings.default_model_max_tokens  # 5000
+recursion_limit = core_settings.recursion_limit  # 30
+
+# Caching configuration
+agent_cache_ttl = core_settings.agent_cache_ttl  # 3600 seconds
+agent_cache_max_size = core_settings.agent_cache_max_size  # 100 agents
+```
+
+#### Database Configuration
+
+```python
+from axmp_ai_agent_core.setting import mongodb_settings, postgresql_settings
+
+# MongoDB connection
+mongo_uri = mongodb_settings.uri
+
+# PostgreSQL connection (for LangGraph)
+postgres_uri = postgresql_settings.db_uri_with_params
+```
+
+## 🛠️ Development
+
+### Code Quality
+
+```bash
+# Run linter with auto-fix
+ruff check . --fix
+
+# Run formatter
+ruff format .
+
+# Run pre-commit hooks
+pre-commit run --all-files
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+### Code Style Guidelines
+
+- **Docstrings**: Google-style docstrings required (enforced by ruff)
+- **First Line**: Must be in imperative mood (e.g., "Create user" not "Creates user")
+- **Type Hints**: Modern Python 3.12+ syntax required
+- **Import Sorting**: Automatic via ruff (isort-compatible)
+
+## 🧪 Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=src/axmp_ai_agent_core --cov-report=html
+
+# Run in watch mode (auto-rerun on file changes)
+pytest-watcher
+
+# Run specific test file
+pytest tests/test_agent.py
+
+# Run with verbose output
+pytest -v --tb=short
+
+# Fail fast (stop on first failure)
+pytest -x
+```
+
+### Test Configuration
+
+The project uses:
+- **`pytest`** with **`pytest-asyncio`** for async test support
+- **`pytest-cov`** for coverage tracking
+- **`pytest-watcher`** for watch mode
+- Warnings filtered for cleaner output
+
+### Writing Tests
+
+```python
+import pytest
+from axmp_ai_agent_core.agent.default_agent import DefaultAgent
+
+@pytest.mark.asyncio
+async def test_agent_initialization():
+    """Test agent initialization."""
+    agent = DefaultAgent()
+    await agent.initialize(connections={})
+
+    assert agent._initialized is True
+    assert agent.tools is not None
+```
+
+## 📚 API Documentation
+
+### Key Endpoints
+
+#### Agent Profile Management
+
+```http
+GET    /api/v1/ai-agents              # List agent profiles
+POST   /api/v1/ai-agents              # Create agent profile
+GET    /api/v1/ai-agents/{id}         # Get agent profile
+PUT    /api/v1/ai-agents/{id}         # Update agent profile
+DELETE /api/v1/ai-agents/{id}         # Delete agent profile
+```
+
+#### Chat Conversations
+
+```http
+POST   /api/v1/ai-agents/{agent_id}/conversations/{thread_id}/chat
+       # Send message to agent (SSE streaming response)
+
+POST   /api/v1/ai-agents/{agent_id}/conversations/{thread_id}/title
+       # Generate conversation title
+
+GET    /api/v1/ai-agents/{agent_id}/conversations/{thread_id}
+       # Get conversation history
+```
+
+#### Health Check
+
+```http
+GET    /api/v1/health                 # Health check endpoint
+```
+
+### SSE Streaming Response
+
+Chat endpoints return Server-Sent Events for real-time streaming:
+
+```javascript
+const eventSource = new EventSource(
+  '/api/v1/ai-agents/agent-123/conversations/thread-456/chat'
+);
+
+eventSource.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log(data.content);
+};
+```
+
+## 🤝 Contributing
+
+### Development Workflow
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes**
+4. **Run tests**: `pytest`
+5. **Run linter**: `ruff check . --fix`
+6. **Commit your changes**: `git commit -m 'Add amazing feature'`
+7. **Push to the branch**: `git push origin feature/amazing-feature`
+8. **Open a Pull Request**
+
+### Commit Message Convention
+
+Follow conventional commits:
+
+```
+feat: add MCP server support
+fix: resolve conversation persistence issue
+docs: update README with examples
+test: add agent initialization tests
+refactor: improve repository pattern
+```
+
+### Pre-commit Hooks
+
+The project uses pre-commit hooks to ensure code quality:
+
+- Trailing whitespace removal
+- End-of-file fixer
+- Debug statement detection
+- Ruff linting and formatting
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👥 Authors
+
+- **Kilsoo Kang** - *Initial work* - [kilsoo75@gmail.com](mailto:kilsoo75@gmail.com)
+
+## 🙏 Acknowledgments
+
+- Built with [LangChain](https://www.langchain.com/) and [LangGraph](https://langchain-ai.github.io/langgraph/)
+- Powered by [FastAPI](https://fastapi.tiangolo.com/)
+- Code quality ensured by [Ruff](https://github.com/astral-sh/ruff)
+
+## 📞 Support
+
+For questions and support:
+
+- 📧 Email: kilsoo75@gmail.com
+- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/axmp-ai-agent-core/issues)
+
+---
+
+<p align="center">Made with ❤️ by the AXMP Team</p>
