@@ -1,0 +1,1005 @@
+[![](https://img.shields.io/pypi/pyversions/python-fontbro.svg?color=blue&logo=python&logoColor=white)](https://www.python.org/)
+[![](https://img.shields.io/pypi/v/python-fontbro.svg?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/python-fontbro/)
+[![](https://static.pepy.tech/badge/python-fontbro/month)](https://pepy.tech/project/python-fontbro)
+[![](https://img.shields.io/github/stars/fabiocaccamo/python-fontbro?logo=github&style=flat)](https://github.com/fabiocaccamo/python-fontbro/stargazers)
+[![](https://img.shields.io/pypi/l/python-fontbro?color=blue)](https://github.com/fabiocaccamo/python-fontbro/blob/main/LICENSE.txt)
+
+[![](https://results.pre-commit.ci/badge/github/fabiocaccamo/python-fontbro/main.svg)](https://results.pre-commit.ci/latest/github/fabiocaccamo/python-fontbro/main)
+[![](https://img.shields.io/github/actions/workflow/status/fabiocaccamo/python-fontbro/test-package.yml?branch=main&label=build&logo=github)](https://github.com/fabiocaccamo/python-fontbro)
+[![](https://img.shields.io/codecov/c/gh/fabiocaccamo/python-fontbro?logo=codecov)](https://codecov.io/gh/fabiocaccamo/python-fontbro)
+[![](https://img.shields.io/codacy/grade/dd3a046db4b14b988a2f1fcfbfaa51eb?logo=codacy)](https://www.codacy.com/app/fabiocaccamo/python-fontbro)
+[![](https://img.shields.io/badge/code%20style-black-000000.svg?logo=python&logoColor=black)](https://github.com/psf/black)
+[![](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+# python-fontbro
+friendly font operations on top of `fontTools`. :billed_cap:
+
+## Installation
+```bash
+pip install python-fontbro
+```
+
+## Usage
+Just import the font class:
+
+```python
+from fontbro import Font
+
+font = Font("fonts/MyFont.ttf")
+
+# or you can use any file-like object:
+with open("fonts/MyFont.ttf") as fh:
+    font = Font(fh)
+```
+
+### Methods
+-   [`clone`](#clone)
+-   [`close`](#close)
+-   [`from_collection`](#from_collection)
+-   [`get_characters`](#get_characters)
+-   [`get_characters_count`](#get_characters_count)
+-   [`get_family_classification`](#get_family_classification)
+-   [`get_family_name`](#get_family_name)
+-   [`get_features`](#get_features)
+-   [`get_features_tags`](#get_features_tags)
+-   [`get_filename`](#get_filename)
+-   [`get_fingerprint`](#get_fingerprint)
+-   [`get_fingerprint_match`](#get_fingerprint_match)
+-   [`get_format`](#get_format)
+-   [`get_glyphs`](#get_glyphs)
+-   [`get_glyphs_count`](#get_glyphs_count)
+-   [`get_image`](#get_image)
+-   [`get_italic_angle`](#get_italic_angle)
+-   [`get_name`](#get_name)
+-   [`get_names`](#get_names)
+-   [`get_style_flag`](#get_style_flag)
+-   [`get_style_flags`](#get_style_flags)
+-   [`get_style_name`](#get_style_name)
+-   [`get_svg`](#get_svg)
+-   [`get_ttfont`](#get_ttfont)
+-   [`get_unicode_block_by_name`](#get_unicode_block_by_name)
+-   [`get_unicode_blocks`](#get_unicode_blocks)
+-   [`get_unicode_script_by_name`](#get_unicode_script_by_name)
+-   [`get_unicode_scripts`](#get_unicode_scripts)
+-   [`get_variable_axes`](#get_variable_axes)
+-   [`get_variable_axes_tags`](#get_variable_axes_tags)
+-   [`get_variable_axis_by_tag`](#get_variable_axis_by_tag)
+-   [`get_variable_instances`](#get_variable_instances)
+-   [`get_variable_instance_by_style_name`](#get_variable_instance_by_style_name)
+-   [`get_variable_instance_closest_to_coordinates`](#get_variable_instance_closest_to_coordinates)
+-   [`get_version`](#get_version)
+-   [`get_vertical_metrics`](#get_vertical_metrics)
+-   [`get_weight`](#get_weight)
+-   [`get_width`](#get_width)
+-   [`is_color`](#is_color)
+-   [`is_monospace`](#is_monospace)
+-   [`is_static`](#is_static)
+-   [`is_variable`](#is_variable)
+-   [`rename`](#rename)
+-   [`sanitize`](#sanitize)
+-   [`save`](#save)
+-   [`save_as_woff`](#save_as_woff)
+-   [`save_as_woff2`](#save_as_woff2)
+-   [`save_to_file_object`](#save_to_file_object)
+-   [`save_variable_instances`](#save_variable_instances)
+-   [`set_family_classification`](#set_family_classification)
+-   [`set_family_name`](#set_family_name)
+-   [`set_name`](#set_name)
+-   [`set_names`](#set_names)
+-   [`set_style_flag`](#set_style_flag)
+-   [`set_style_flags`](#set_style_flags)
+-   [`set_style_flags_by_subfamily_name`](#set_style_flags_by_subfamily_name)
+-   [`set_style_name`](#set_style_name)
+-   [`set_vertical_metrics`](#set_vertical_metrics)
+-   [`subset`](#subset)
+-   [`to_sliced_variable`](#to_sliced_variable)
+-   [`to_static`](#to_static)
+
+#### `clone`
+```python
+"""
+Creates a new Font instance reading the same binary file.
+"""
+font_clone = font.clone()
+```
+
+#### `close`
+```python
+"""
+Close the wrapped TTFont instance.
+"""
+font.close()
+```
+
+#### `from_collection`
+```python
+"""
+Gets a list of Font objects from a font collection file (.ttc / .otc)
+
+:param filepath: The filepath
+:type filepath: str or pathlib.Path
+
+:returns: A list of Font objects.
+:rtype: list
+"""
+fonts = Font.from_collection(filepath="my-font-collection.ttc")
+```
+
+#### `get_characters`
+```python
+"""
+Gets the font characters.
+
+:param ignore_blank: If True, characters without contours will not be returned.
+:type ignore_blank: bool
+
+:returns: The characters.
+:rtype: generator of dicts
+
+:raises TypeError: If it's not possible to find the 'best' unicode cmap dict in the font.
+"""
+chars = font.get_characters(ignore_blank=False)
+```
+
+#### `get_characters_count`
+```python
+"""
+Gets the font characters count.
+
+:param ignore_blank: If True, characters without contours will not be counted.
+:type ignore_blank: bool
+
+:returns: The characters count.
+:rtype: int
+"""
+chars_count = font.get_characters_count(ignore_blank=False)
+```
+
+#### `get_family_classification`
+```python
+"""
+Gets the font family classification info reading
+the sFamilyClass field from the OS/2 table.
+If the OS/2 table is not available None is returned.
+
+:returns: A dictionary containing the font family classification info, e.g.
+    {
+        "full_name": "Sans Serif / Neo-grotesque Gothic",
+        "class_id": 8,
+        "class_name": "Sans Serif",
+        "subclass_id": 5,
+        "subclass_name": "Neo-grotesque Gothic",
+    }
+:rtype: dict
+"""
+family_classification = font.get_family_classification()
+```
+
+#### `get_family_name`
+```python
+"""
+Gets the family name reading the name records with priority order (16, 21, 1).
+
+:returns: The font family name.
+:rtype: str
+"""
+family_name = font.get_family_name()
+```
+
+#### `get_features`
+```python
+"""
+Gets the font opentype features.
+
+:returns: The features.
+:rtype: list of dict
+"""
+features = font.get_features()
+```
+
+#### `get_features_tags`
+```python
+"""
+Gets the font opentype features tags.
+
+:returns: The features tags list.
+:rtype: list of str
+"""
+features_tags = font.get_features_tags()
+```
+
+#### `get_filename`
+```python
+"""
+Gets the filename to use for saving the font to file-system.
+
+:param variable_suffix: The variable suffix, default "Variable"
+:type variable_suffix: str
+:param variable_axes_tags: The variable axes tags flag,
+    if True, the axes tags will be appended, eg '[wght,wdth]'
+:type variable_axes_tags: bool
+:param variable_axes_values: The variable axes values flag
+    if True, each axis values will be appended, eg '[wght(100,100,900),wdth(75,100,125)]'
+:type variable_axes_values: bool
+
+:returns: The filename.
+:rtype: str
+"""
+filename = font.get_filename(variable_suffix="Variable", variable_axes_tags=True, variable_axes_values=False)
+```
+
+#### `get_fingerprint`
+```python
+"""
+Gets the font fingerprint: an hash calculated from an image representation of the font.
+Changing the text option affects the returned fingerprint.
+
+:param text: The text used for generating the fingerprint, default value: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".
+:type text: str
+:returns: The fingerprint hash.
+:rtype: imagehash.ImageHash
+"""
+hash = font.get_fingerprint()
+```
+
+#### `get_fingerprint_match`
+```python
+"""
+Gets the fingerprint match between this font and another one.
+by checking if their fingerprints are equal (difference <= tolerance).
+
+:param other: The other font, can be either a filepath or a Font instance.
+:type other: str or Font
+:param tolerance: The diff tolerance, default 3.
+:type tolerance: int
+:param text: The text used for generating the fingerprint, default value: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".
+:type text: str
+:returns: A tuple containing the match info (match, diff, hash, other_hash).
+:rtype: tuple
+"""
+match, diff, hash, other_hash = font.get_fingerprint_match(other="other_font.ttf", tolerance=10)
+```
+
+#### `get_format`
+```python
+"""
+Gets the font format: otf, ttf, woff, woff2.
+
+:param ignore_flavor: If True, the original format without compression will be returned.
+:type ignore_flavor: bool
+
+:returns: The format.
+:rtype: str or None
+"""
+format = font.get_format(ignore_flavor=False)
+```
+
+#### `get_glyphs`
+```python
+"""
+Gets the font glyphs and their own composition.
+
+:returns: The glyphs.
+:rtype: generator of dicts
+"""
+glyphs = font.get_glyphs()
+```
+
+#### `get_glyphs_count`
+```python
+"""
+Gets the font glyphs count.
+
+:returns: The glyphs count.
+:rtype: int
+"""
+glyphs_count = font.get_glyphs_count()
+```
+
+#### `get_image`
+```python
+"""
+Gets an image representation of the font rendering
+some text using the given options.
+
+:param text: The text rendered in the image
+:type text: str
+:param size: The font size
+:type size: int
+:param color: The text color
+:type color: tuple
+:param background_color: The background color
+:type background_color: tuple
+"""
+img = font.get_image(text="Hello!", size=48, color=(0, 0, 0, 255), background_color=(255, 255, 255, 255))
+```
+
+#### `get_italic_angle`
+```python
+"""
+Gets the font italic angle.
+
+:returns: The angle value including backslant, italic and roman flags.
+:rtype: dict or None
+"""
+italic_angle = font.get_italic_angle()
+```
+
+#### `get_name`
+```python
+"""
+Gets the name by its identifier from the font name table.
+
+:param key: The name id or key (eg. "family_name")
+:type key: int or str
+
+:returns: The name.
+:rtype: str or None
+
+:raises KeyError: if the key is not a valid name key/id
+"""
+family_name = font.get_name(key=Font.NAME_FAMILY_NAME)
+```
+
+#### `get_names`
+```python
+"""
+Gets the names records mapped by their property name.
+
+:returns: The names.
+:rtype: dict
+"""
+names = font.get_names()
+```
+
+#### `get_style_flag`
+```python
+"""
+Gets the style flag reading OS/2 and macStyle tables.
+
+:param key: The key
+:type key: string
+
+:returns: The style flag.
+:rtype: bool
+"""
+flag = font.get_style_flag(Font.STYLE_FLAG_BOLD)
+```
+
+#### `get_style_flags`
+```python
+"""
+Gets the style flags reading OS/2 and macStyle tables.
+
+:returns: The dict representing the style flags.
+:rtype: dict
+"""
+flags = font.get_style_flags()
+```
+
+#### `get_style_name`
+```python
+"""
+Gets the style name reading the name records with priority order (17, 22, 2).
+
+:returns: The font style name.
+:rtype: str
+"""
+style_name = font.get_style_name()
+```
+
+#### `get_svg`
+```python
+"""
+Gets an SVG representation of the font rendering
+some text using the given options.
+
+:param text: The text to be rendered as SVG paths.
+:type text: str
+:param size: The size of the font to be used for rendering the text, in points.
+:type size: int
+
+:returns: An SVG string that represents the rendered text.
+:rtype: str
+"""
+svg_str = font.get_svg(text="Hello!", size=48)
+```
+
+#### `get_ttfont`
+```python
+"""
+Gets the wrapped TTFont instance.
+
+:returns: The TTFont instance.
+:rtype: TTFont
+"""
+ttfont = font.get_ttfont()
+```
+
+#### `get_unicode_block_by_name`
+```python
+"""
+Gets the unicode block by name (name is case-insensitive and ignores "-").
+
+:param name: The name
+:type name: str
+
+:returns: The unicode block dict if the name is valid, None otherwise.
+:rtype: dict or None
+"""
+block = font.get_unicode_block_by_name(name="Basic Latin")
+```
+
+#### `get_unicode_blocks`
+```python
+"""
+Gets the unicode blocks and their coverage.
+Only blocks with coverage >= coverage_threshold (0.0 <= coverage_threshold <= 1.0) will be returned.
+
+:param coverage_threshold: The minumum required coverage for a block to be returned.
+:type coverage_threshold: float
+
+:returns: The list of unicode blocks.
+:rtype: list of dicts
+"""
+blocks = font.get_unicode_blocks(coverage_threshold=0.00001)
+```
+
+#### `get_unicode_script_by_name`
+```python
+"""
+Gets the unicode script by name/tag (name/tag is case-insensitive and ignores "-").
+
+:param name: The name
+:type name: str
+
+:returns: The unicode script dict if the name/tag is valid, None otherwise.
+:rtype: dict or None
+"""
+script = font.get_unicode_script_by_name(name="Latn")
+```
+
+#### `get_unicode_scripts`
+```python
+"""
+Gets the unicode scripts and their coverage.
+Only scripts with coverage >= coverage_threshold (0.0 <= coverage_threshold <= 1.0) will be returned.
+
+:param coverage_threshold: The minumum required coverage for a script to be returned.
+:type coverage_threshold: float
+
+:returns: The list of unicode scripts.
+:rtype: list of dicts
+"""
+scripts = font.get_unicode_scripts(coverage_threshold=0.00001)
+```
+
+#### `get_variable_axes`
+```python
+"""
+Gets the font variable axes.
+
+:returns: The list of axes if the font is a variable font otherwise None.
+:rtype: list of dict or None
+"""
+axes = font.get_variable_axes()
+```
+
+#### `get_variable_axes_tags`
+```python
+"""
+Gets the variable axes tags.
+
+:returns: The variable axis tags.
+:rtype: list or None
+"""
+axes_tags = font.get_variable_axes_tags()
+```
+
+#### `get_variable_axis_by_tag`
+```python
+"""
+Gets a variable axis by tag.
+
+:param tag: The tag
+:type tag: string
+
+:returns: The variable axis by tag.
+:rtype: dict or None
+"""
+axis = font.get_variable_axis_by_tag(tag="wght")
+```
+
+#### `get_variable_instances`
+```python
+"""
+Gets the variable instances.
+
+:returns: The list of instances if the font is a variable font otherwise None.
+:rtype: list of dict or None
+"""
+instances = font.get_variable_instances()
+```
+
+#### `get_variable_instance_by_style_name`
+```python
+"""
+Gets the variable instance by style name, eg. style_name = 'Bold'
+
+:param style_name: The style name
+:type style_name: str
+
+:returns: The variable instance matching the given style name.
+:rtype: dict or None
+"""
+instance = font.get_variable_instance_by_style_name(style_name="Bold")
+```
+
+#### `get_variable_instance_closest_to_coordinates`
+```python
+"""
+Gets the variable instance closest to coordinates.
+eg. coordinates = {"wght": 1000, "slnt": 815, "wdth": 775}
+If coordinates do not specify some axes, axes default value is used for lookup.
+
+:param coordinates: The coordinates
+:type coordinates: dict
+
+:returns: The variable instance closest to coordinates.
+:rtype: dict or None
+"""
+instance = font.get_variable_instance_closest_to_coordinates(coordinates={"wght": 1000, "slnt": 815, "wdth": 775})
+```
+
+#### `get_version`
+```python
+"""
+Gets the font version.
+
+:returns: The font version value.
+:rtype: float
+"""
+version = font.get_version()
+```
+
+#### `get_vertical_metrics`
+```python
+"""
+Gets the font vertical metrics.
+
+:returns: A dictionary containing the following vertical metrics:
+    "units_per_em", "y_max", "y_min", "ascent", "descent", "line_gap",
+    "typo_ascender", "typo_descender", "typo_line_gap", "cap_height", "x_height",
+    "win_ascent", "win_descent"
+:rtype: dict
+"""
+metrics = font.get_vertical_metrics()
+```
+
+#### `get_weight`
+```python
+"""
+Gets the font weight value and name.
+
+:returns: The weight name and value.
+:rtype: dict or None
+"""
+weight = font.get_weight()
+```
+
+#### `get_width`
+```python
+"""
+Gets the font width value and name.
+
+:returns: The width name and value.
+:rtype: dict or None
+"""
+width = font.get_width()
+```
+
+#### `is_color`
+```python
+"""
+Determines if the font is a color font.
+
+:returns: True if color font, False otherwise.
+:rtype: bool
+"""
+color = font.is_color()
+```
+
+#### `is_monospace`
+```python
+"""
+Determines if the font is a monospace font.
+
+:param threshold: The threshold (0.0 <= n <= 1.0) of glyphs with the same width to consider the font as monospace.
+:type threshold: float
+
+:returns: True if monospace font, False otherwise.
+:rtype: bool
+"""
+mono = font.is_monospace(threshold=0.85)
+```
+
+#### `is_static`
+```python
+"""
+Determines if the font is a static font.
+
+:returns: True if static font, False otherwise.
+:rtype: bool
+"""
+static = font.is_static()
+```
+
+#### `is_variable`
+```python
+"""
+Determines if the font is a variable font.
+
+:returns: True if variable font, False otherwise.
+:rtype: bool
+"""
+variable = font.is_variable()
+```
+
+#### `rename`
+```python
+"""
+Renames the font names records (1, 2, 4, 6, 16, 17) according to
+the given family_name and style_name (subfamily_name).
+
+If family_name is not defined it will be auto-detected.
+If style_name is not defined it will be auto-detected.
+
+:param family_name: The family name
+:type family_name: str
+:param style_name: The style name
+:type style_name: str
+:param update_style_flags: if True the style flags will be updated by subfamily name
+:type update_style_flags: bool
+
+:raises ValueError: if the computed PostScript-name is longer than 63 characters.
+"""
+font.rename(family_name="My Font New", style_name="Bold Italic", update_style_flags=True)
+```
+
+#### `sanitize`
+```python
+"""
+Sanitize the font file using OpenType Sanitizer.
+https://github.com/googlefonts/ots-python
+
+:param strict: If True (default), raises an exception even on sanitizer warnings.
+    If False, only raises an exception on sanitizer failure (non-zero exit code).
+:type strict: bool
+
+:raises Exception: If the OpenType Sanitizer reports an error during the sanitization process.
+:return: None
+
+:note: Uses OpenType Sanitizer (ots) to sanitize the font file.
+    Saves the font to a temporary directory and invokes the sanitizer on the saved file.
+    If `strict` is True (default), treats sanitizer warnings as errors.
+    If `strict` is False, only checks for sanitizer errors.
+"""
+font.sanitize(strict=True)
+```
+
+#### `save`
+```python
+"""
+Saves the font at filepath.
+
+:param filepath: The filepath, if None the source filepath will be used
+:type filepath: str or None
+:param overwrite: The overwrite, if True the source font file can be overwritten
+:type overwrite: bool
+
+:returns: The filepath where the font has been saved to.
+:rtype: str
+
+:raises ValueError: If the filepath is the same of the source font and overwrite is not allowed.
+"""
+saved_font_path = font.save(filepath=None, overwrite=False)
+```
+
+#### `save_as_woff`
+```python
+"""
+Saves font as woff.
+
+:param filepath: The filepath
+:type filepath: str
+:param overwrite: The overwrite, if True the source font file can be overwritten
+:type overwrite: bool
+
+:returns: The filepath where the font has been saved to.
+:rtype: str
+"""
+saved_font_path = font.save_as_woff(filepath=None, overwrite=True)
+```
+
+#### `save_as_woff2`
+```python
+"""
+Saves font as woff2.
+
+:param filepath: The filepath
+:type filepath: str
+:param overwrite: The overwrite, if True the source font file can be overwritten
+:type overwrite: bool
+
+:returns: The filepath where the font has been saved to.
+:rtype: str
+"""
+saved_font_path = font.save_as_woff2(filepath=None, overwrite=True)
+```
+
+#### `save_to_fileobject`
+```python
+"""
+Writes the font to a file-like object. If no file-object is passed, an
+instance of `BytesIO` is created for the user.
+:param fileobject: A file-like object to write to.
+
+:returns: The file object that was originally pass, or a new BytesIO
+instance.
+:rtype: typing.io.IO
+"""
+
+fileobject = font.save_to_fileobject(fileobject=None)
+```
+
+#### `save_variable_instances`
+```python
+"""
+Save all instances of a variable font to specified directory in one or more format(s).
+
+:param dirpath: The dirpath
+:type dirpath: The directory path where the instances will be saved.
+:param woff2: Whether to save instances also in WOFF2 format. Default is True.
+:type woff2: bool
+:param woff: Whether to save instances also in WOFF format. Default is True.
+:type woff: bool
+:param overwrite: Whether to overwrite existing files in the directory. Default is True.
+:type overwrite: bool
+:param options: Additional options to be passed to the instancer when generating static instances.
+:type options: dictionary
+
+:returns: A list containing dictionaries for each saved instance. Each dictionary
+    includes 'instance' (containing instance metadata) and 'files' (a dictionary
+    with file formats as keys and file-paths as values).
+
+:raises TypeError: If the font is not a variable font.
+"""
+
+saved_fonts = font.save_variable_instances(dirpath, woff2=True, woff=True, overwrite=True, **options)
+```
+
+#### `set_family_classification`
+```python
+"""
+Sets font family classification (sFamilyClass in the OS/2 table)
+based on provided class_id and subclass_id.
+
+:param class_id: Numeric identifier of the font family class.
+:param subclass_id: Optional numeric identifier of the font family subclass (default is 0).
+:raises OperationError: If the OS/2 table is not available in the font.
+:raises ArgumentError: If class_id is invalid or subclass_id is specified but invalid.
+"""
+font.set_family_classification(**font.FAMILY_CLASSIFICATION_SCRIPTS_CALLIGRAPHIC)
+# alternatively:
+font.set_family_classification(class_id=10, subclass_id=5)
+```
+
+#### `set_family_name`
+```python
+"""
+Sets the family name updating the related font names records.
+
+:param name: The name
+:type name: The new family name.
+"""
+font.set_family_name(name="My Font New")
+```
+
+#### `set_name`
+```python
+"""
+Sets the name by its identifier in the font name table.
+
+:param key: The name id or key (eg. "family_name")
+:type key: int or str
+:param value: The value
+:type value: str
+"""
+font.set_name(Font.NAME_FAMILY_NAME, "Family Name Renamed")
+```
+
+#### `set_names`
+```python
+"""
+Sets the names by their identifier in the name table.
+
+:param names: The names
+:type names: dict
+"""
+font.set_names(names={
+    Font.NAME_FAMILY_NAME: "Family Name Renamed",
+    Font.NAME_SUBFAMILY_NAME: "Regular Renamed",
+})
+```
+
+#### `set_style_flag`
+```python
+"""
+Sets the style flag.
+
+:param key: The flag key
+:type key: str
+:param value: The value
+:type value: bool
+"""
+font.set_style_flag(Font.STYLE_FLAG_BOLD, True)
+```
+
+#### `set_style_flags`
+```python
+"""
+Sets the style flags, flags set to None will be ignored.
+
+:param bold: The bold flag value.
+:type bold: bool or None
+:param italic: The italic flag value.
+:type italic: bool or None
+:param underline: The underline flag value.
+:type underline: bool or None
+:param outline: The outline flag value.
+:type outline: bool or None
+"""
+font.set_style_flags(regular=None, bold=None, italic=None, outline=None, underline=None)
+```
+
+#### `set_style_flags_by_subfamily_name`
+```python
+"""
+Sets the style flags by the subfamily name value.
+The subfamily values should be "regular", "italic", "bold" or "bold italic"
+to allow this method to work properly.
+"""
+font.set_style_flags_by_subfamily_name()
+```
+
+#### `set_style_name`
+```python
+"""
+Sets the style name updating the related font names records.
+
+:param name: The name
+:type name: The new style name.
+"""
+font.set_style_name(name="Bold Italic")
+```
+
+#### `set_vertical_metrics`
+```python
+"""
+Sets the vertical metrics.
+
+:param metrics: Keyword arguments representing the vertical metrics that can be set:
+    "units_per_em", "y_max", "y_min", "ascent", "descent", "line_gap",
+    "typo_ascender", "typo_descender", "typo_line_gap", "cap_height", "x_height",
+    "win_ascent", "win_descent"
+"""
+font.set_vertical_metrics(units_per_em=2000, y_max=2102, y_min=-533, ascent=1800, descent=-400, line_gap=0, typo_ascender=1800, typo_descender=-400, typo_line_gap=0, cap_height=1400, x_height=1080, win_ascent=2160, win_descent=540)
+```
+
+#### `subset`
+```python
+"""
+Subsets the font using the given options (unicodes or glyphs or text),
+it is possible to pass also subsetter options, more info here:
+https://github.com/fonttools/fonttools/blob/main/Lib/fontTools/subset/__init__.py
+
+:param unicodes: The unicodes
+:type unicodes: str or list
+:param glyphs: The glyphs
+:type glyphs: list
+:param text: The text
+:type text: str
+:param options: The subsetter options
+:type options: dict
+"""
+font.subset(unicodes="", glyphs=[], text="", **options)
+```
+
+#### `to_sliced_variable`
+```python
+"""
+Converts the variable font to a partial one slicing the variable axes at the given coordinates.
+If an axis value is not specified, the axis will be left untouched.
+If an axis min and max values are equal, the axis will be pinned.
+
+:param coordinates: The coordinates dictionary, each item value must be tuple/list/dict
+    (with 'min', 'default' and 'max' keys) for slicing or float/int for pinning, eg.
+    {'wdth':100, 'wght':(100,600), 'ital':(30,65,70)} or
+    {'wdth':100, 'wght':[100,600], 'ital':[30,65,70]} or
+    {'wdth':100, 'wght':{'min':100,'max':600}, 'ital':{'min':30,'default':65,'max':70}}
+:type coordinates: dict
+:param options: The options for the fontTools.varLib.instancer
+:type options: dictionary
+
+:raises TypeError: If the font is not a variable font
+:raises ValueError: If the coordinates are not defined (empty)
+:raises ValueError: If the coordinates axes are all pinned
+"""
+font.to_sliced_variable(coordinates, **options)
+```
+
+#### `to_static`
+```python
+"""
+Converts the variable font to a static one pinning
+the variable axes at the given coordinates.
+If an axis value is not specified, the axis will be pinned at its default value.
+If coordinates are not specified each axis will be pinned at its default value.
+
+:param coordinates: The coordinates, eg. {'wght':500, 'ital':50}
+:type coordinates: dict or None
+:param style_name: The existing instance style name, eg. 'Black'
+:type style_name: str or None
+:param update_names: if True the name records will be updated based on closest instance
+:type update_names: bool
+:param update_style_flags: if True the style flags will be updated based on closest instance
+:type update_style_flags: bool
+
+:param options: The options for the fontTools.varLib.instancer
+:type options: dictionary
+
+:raises TypeError: If the font is not a variable font
+:raises ValueError: If the coordinates axes are not all pinned
+"""
+font.to_static(coordinates=None, style_name=None, update_names=True, update_style_flags=True, **options)
+```
+
+## Testing
+```bash
+# clone repository
+git clone https://github.com/fabiocaccamo/python-fontbro.git && cd python-fontbro
+
+# create virtualenv and activate it
+python -m venv venv && . venv/bin/activate
+
+# upgrade pip
+python -m pip install --upgrade pip
+
+# install requirements
+python -m pip install -r requirements.txt -r requirements-test.txt
+
+# install pre-commit to run formatters and linters
+pre-commit install --install-hooks
+
+# run tests using tox
+tox
+
+# or run tests using unittest
+python -m unittest
+```
+
+## License
+Released under [MIT License](LICENSE.txt).
+
+## Credits
+Special thanks to [Jérémie Hornus](https://github.com/JeremieHornus) and [Just Van Rossum](https://github.com/justvanrossum).
+
+## Supporting
+- :star: Star this project on [GitHub](https://github.com/fabiocaccamo/python-fontbro)
+- :octocat: Follow me on [GitHub](https://github.com/fabiocaccamo)
+- :blue_heart: Follow me on [Bluesky](https://bsky.app/profile/fabiocaccamo.bsky.social)
+- :moneybag: Sponsor me on [Github](https://github.com/sponsors/fabiocaccamo)
+
+## See also
+- [`python-benedict`](https://github.com/fabiocaccamo/python-benedict) - dict subclass with keylist/keypath support, I/O shortcuts (base64, csv, json, pickle, plist, query-string, toml, xml, yaml) and many utilities. 📘
+- [`python-fsutil`](https://github.com/fabiocaccamo/python-fsutil) - file-system utilities for lazy devs. 🧟‍♂️
