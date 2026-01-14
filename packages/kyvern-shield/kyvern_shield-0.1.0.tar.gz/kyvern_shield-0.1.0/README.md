@@ -1,0 +1,272 @@
+# Kyvern Shield Python SDK
+
+Official Python SDK for [Kyvern Shield](https://kyvernlabs.com) - Transaction security for AI agents.
+
+Protect your AI agents from prompt injection attacks, wallet drains, and unauthorized transactions.
+
+## Installation
+
+```bash
+pip install kyvern-shield
+```
+
+## Quick Start
+
+```python
+from kyvern_shield import KyvernShield
+
+# Initialize with your API key
+shield = KyvernShield(api_key="sk_live_kyvern_xxxxx")
+
+# Before executing any transaction, verify with Shield
+result = shield.analyze(
+    intent="Transfer 10 SOL to partner wallet",
+    to="7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    amount=10.0,
+    reasoning="Payment for API services per invoice #1234"
+)
+
+if result.is_blocked:
+    print(f"BLOCKED: {result.explanation}")
+else:
+    print(f"APPROVED (risk: {result.risk_score}/100)")
+    # Safe to proceed with transaction
+```
+
+## Configuration
+
+### Environment Variables
+
+```bash
+export KYVERN_API_KEY=sk_live_kyvern_xxxxx
+export KYVERN_AGENT_ID=my-trading-bot  # Optional default agent ID
+export KYVERN_API_URL=https://api.kyvernlabs.com  # Optional, for self-hosted
+```
+
+### Client Options
+
+```python
+shield = KyvernShield(
+    api_key="sk_live_kyvern_xxxxx",  # Or use KYVERN_API_KEY env var
+    agent_id="my-trading-bot",        # Default agent ID for requests
+    base_url="https://api.kyvernlabs.com",  # API endpoint
+    timeout=30.0,                     # Request timeout in seconds
+)
+```
+
+## Usage
+
+### Basic Analysis
+
+```python
+from kyvern_shield import KyvernShield
+
+with KyvernShield() as shield:
+    result = shield.analyze(
+        intent="Swap 5 SOL for USDC",
+        to="JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+        amount=5.0,
+        reasoning="User requested swap via chat interface"
+    )
+
+    if result.decision == "allow":
+        execute_swap()
+```
+
+### Response Properties
+
+```python
+result = shield.analyze(...)
+
+# Decision
+result.decision      # "allow" or "block"
+result.is_blocked    # True if blocked
+result.is_allowed    # True if allowed
+
+# Risk Assessment
+result.risk_score    # 0-100
+result.is_high_risk  # True if risk_score >= 70
+result.is_low_risk   # True if risk_score < 30
+
+# Details
+result.explanation   # Human-readable explanation
+result.request_id    # Unique request ID for debugging
+
+# Layer Results (optional, based on analysis)
+result.heuristic_result        # Blacklist/amount checks
+result.source_detection_result # Untrusted source detection
+result.llm_result             # LLM-based analysis
+```
+
+### Async Support
+
+For async/await workflows:
+
+```python
+import asyncio
+from kyvern_shield import AsyncKyvernShield
+
+async def protect_transaction():
+    async with AsyncKyvernShield() as shield:
+        result = await shield.analyze(
+            intent="Transfer 10 SOL",
+            to="7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+            amount=10.0,
+            reasoning="Automated payment"
+        )
+
+        if result.is_allowed:
+            await execute_transaction()
+
+asyncio.run(protect_transaction())
+```
+
+### Error Handling
+
+```python
+from kyvern_shield import (
+    KyvernShield,
+    KyvernShieldError,
+    AuthenticationError,
+    ValidationError,
+    APIError,
+    NetworkError,
+)
+
+try:
+    result = shield.analyze(...)
+except AuthenticationError:
+    print("Invalid API key")
+except ValidationError as e:
+    print(f"Invalid request: {e}")
+except NetworkError:
+    print("Network error - fail safe, block transaction")
+except APIError as e:
+    print(f"API error ({e.status_code}): {e}")
+except KyvernShieldError as e:
+    print(f"Shield error: {e}")
+```
+
+## Integration Patterns
+
+### Fail-Safe Pattern (Recommended)
+
+Always block transactions if Shield is unreachable:
+
+```python
+def protected_transfer(to: str, amount: float, reasoning: str) -> bool:
+    try:
+        result = shield.analyze(
+            intent=f"Transfer {amount} SOL",
+            to=to,
+            amount=amount,
+            reasoning=reasoning,
+        )
+
+        if result.is_blocked:
+            log_blocked_transaction(result)
+            return False
+
+        execute_transfer(to, amount)
+        return True
+
+    except KyvernShieldError as e:
+        # FAIL SAFE: Don't execute if Shield is unavailable
+        log_shield_error(e)
+        return False
+```
+
+### Human-in-the-Loop Pattern
+
+Require approval for high-risk transactions:
+
+```python
+result = shield.analyze(...)
+
+if result.is_blocked:
+    reject_transaction()
+elif result.is_high_risk:
+    queue_for_approval(result)  # Send to human reviewer
+else:
+    execute_transaction()
+```
+
+### Batch Analysis
+
+Analyze multiple transactions efficiently:
+
+```python
+import asyncio
+from kyvern_shield import AsyncKyvernShield
+
+async def analyze_batch(transactions: list[dict]) -> list:
+    async with AsyncKyvernShield() as shield:
+        tasks = [
+            shield.analyze(
+                intent=tx["intent"],
+                to=tx["to"],
+                amount=tx["amount"],
+                reasoning=tx["reasoning"],
+            )
+            for tx in transactions
+        ]
+        return await asyncio.gather(*tasks)
+```
+
+## API Reference
+
+### KyvernShield
+
+Main synchronous client class.
+
+#### Constructor
+
+```python
+KyvernShield(
+    api_key: str | None = None,    # API key (or use env var)
+    base_url: str | None = None,   # API base URL
+    timeout: float = 30.0,         # Request timeout
+    agent_id: str | None = None,   # Default agent ID
+)
+```
+
+#### Methods
+
+- `analyze(intent, to, amount, reasoning, *, agent_id=None, function_signature="transfer")` - Analyze transaction intent
+- `health_check()` - Check API health
+- `close()` - Close HTTP client
+
+### AsyncKyvernShield
+
+Async version with identical API, using `await` for all methods.
+
+### AnalysisResult
+
+Response from `analyze()` method.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `request_id` | `str` | Unique request identifier |
+| `decision` | `"allow"` \| `"block"` | Shield decision |
+| `risk_score` | `int` | Risk score 0-100 |
+| `explanation` | `str` | Human-readable explanation |
+| `is_blocked` | `bool` | True if decision is "block" |
+| `is_allowed` | `bool` | True if decision is "allow" |
+| `is_high_risk` | `bool` | True if risk_score >= 70 |
+| `is_low_risk` | `bool` | True if risk_score < 30 |
+
+## Requirements
+
+- Python 3.9+
+- httpx >= 0.25.0
+- pydantic >= 2.0.0
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Support
+
+- Documentation: https://docs.kyvernlabs.com
+- Issues: https://github.com/kyvernlabs/shield-sdk-python/issues
+- Email: hello@kyvernlabs.com
