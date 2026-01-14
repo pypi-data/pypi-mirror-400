@@ -1,0 +1,52 @@
+<div class="modal-dialog modal-xl">
+    <div class="modal-content">
+        <div class="modal-header align-items-center">
+            <h5 id="xpathParserModalLabel" class="mb-0">Parse XPath:</h5>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <form class="js-modal-submit mb-4" id="parseXPath"
+                action="{{ url_for('collection.modal_xpath_parser', projectname=projectname, collectionname=collectionname) }}">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Enter XPath query" name="xpath"
+                        value="{{ xpath }}">
+                    <button type="submit" class="btn btn-secondary">Parse</button>
+                </div>
+            </form>
+            {% set elements = collection_parser.elements %}
+            <div class="row">
+                {% if elements %}
+                {% for element in elements %}
+                {% set result = element['tei_parser'].find(xpath) if xpath else None %}
+                <div class="col mb-3">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0 text-truncate">
+                                <i class="bi bi-file-earmark-text"></i> {{ element['file']['filename'] }}
+                            </h6>
+                        </div>
+                        {% if xpath %}
+                        <div class="card-body border border-2 {{'border-success' if result else 'border-danger'}}">
+                            {% else %}
+                            <div class="card-body">
+                                {% endif %}
+                                {% if xpath %}
+                                <p class="mb-0 text-muted small">
+                                    <b>XPath Result:</b>
+                                    <br>
+                                    {{ result }}
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="col-12">
+                        <p class="text-center text-muted">No files available for parsing.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
