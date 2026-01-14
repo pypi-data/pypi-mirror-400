@@ -1,0 +1,199 @@
+## <ins> Echo </ins>
+
+Echo is a lightweight and intuitive Python library for building and managing LLM-based chat conversations <br>
+It provides structured tools for managing chat, including FIFO queue management, <br>
+conversation topic evaluation, pertinence filtering, archiving, and more <br>
+
+### <ins> Features </ins>
+
+- Capacity: Limit the number of messages stored in the conversation (FIFO) <br>
+- Topic evaluation: Evaluate the topic of the conversation and update it dynamically <br>
+- Pertinence filtering: Filter out irrelevant messages based on the current topic <br>
+- Archive messages: Archive the original message, keep a summarized version in the chat <br>
+
+### <ins> Algorithms </ins>
+
+<ins> Topic Evaluation </ins> <br>
+
+- Init Message Topic (IMT) - The conversation topic is inferred solely from the content of the first message <br>
+- Nth Message Topic (NMT) - The conversation topic is inferred from the content of the first N messages <br>
+- Anchored Topic Evaluation (ATE) - The conversation topic is initially anchored using the first N messages <br>
+  Afterward, the topic is dynamically re-evaluated with each new message, <br>
+  allowing the model to adapt to topic shifts while maintaining stability around the original anchor <br>
+  A new message may or may not affect the topic, <br>
+  depending on whether it introduces a significant shift in content relative to the anchor <br>
+
+_gemini.py_ <br>
+
+```
+import google.generativeai as genai
+from synapse import Synapse
+
+class GeminiClient(Synapse):
+    def __init__(self, model_name: str = "gemini-2.5-flash-lite"):
+        genai.configure(api_key='<API Key>')
+        self.model = genai.GenerativeModel(model_name)
+
+    def prompt(self, text: str) -> str:
+        """ Sends a single string to the model and returns the text response """
+        try:
+            response = self.model.generate_content(text)
+            return response.text
+        except Exception as e:
+            return f"An error occurred: {e}"
+```
+
+_main.py_ <br>
+
+```
+# main.py
+
+client = GeminiClient()
+
+rec = Record(
+    synapse=client,
+    topic_evaluation_algorithm='SATE2'
+)
+
+rec.add(
+    Message(
+        text="Hello World",
+        author='John Doe'
+    )
+)
+```
+
+### <ins> Examples </ins>
+
+<ins> Archive Example </ins>
+
+```
+[Message]
+"""
+The capital city of England is London.
+London is a large, historic, and highly influential city located in the southeast of England, along the River Thames.
+It has been a major settlement for nearly 2,000 years, originally founded by the Romans as Londinium.
+Key characteristics:
+- Political center: Home to the UK government, Parliament, and the Prime Minister’s residence at 10 Downing Street.
+- Cultural hub: Famous landmarks include Big Ben, Buckingham Palace, Tower Bridge, and the British Museum.
+- Economic powerhouse: One of the world’s leading financial centers, especially around the City of London and Canary Wharf.
+- Diverse and global: Known for its multicultural population, languages, food, and arts.
+- Transport and infrastructure: Extensive public transport, including the London Underground, one of the oldest metro systems in the world.
+- London combines deep historical roots with modern global influence, making it one of the most important cities in the world.
+"""
+
+[Distilled Message]
+"Description of London, England. (Archived 9e63c59908b84572bb6356af3db6a015)"
+```
+
+<ins> Pertinence Filter and Topic Evaluation Examples </ins>
+
+**1. Topic Evaluation Algorithm: Non-Strict Init Message Topic (NSIMT)**
+
+```
+[Messages]
+"The sky is blue."
+"The sun is yellow."
+"My name is John Doe."
+"I am 21 years old."
+
+[Evaluated Topic]
+"Observations of the world"
+
+[Included Messages]
+"The sky is blue."
+"The sun is yellow."
+
+[Excluded Messages]
+"My name is John Doe."
+"I am 21 years old."
+```
+
+**2. Topic Evaluation Algorithm: Strict Init Message Topic (SIMT)**
+
+```
+[Messages]
+"The sky is blue."
+"The sun is yellow."
+"My name is John Doe."
+"I am 21 years old."
+
+[Evaluated Topic]
+"The Sky's Color"
+
+[Included Messages]
+"The sky is blue."
+"The sun is yellow."
+
+[Excluded Messages]
+"My name is John Doe."
+"I am 21 years old."
+```
+
+**3. Topic Evaluation Algorithm: Non-Strict Nth Message Topic - First 2 Messages (NSNMT2)**
+
+```
+[Messages]
+"The sky is blue."
+"The sun is yellow."
+"My name is John Doe."
+"I am 21 years old."
+
+[Evaluated Topic]
+"Observations about the environment"
+
+[Included Messages]
+"The sky is blue."
+"The sun is yellow."
+
+[Excluded Messages]
+"My name is John Doe."
+"I am 21 years old."
+```
+
+**4. Topic Evaluation Algorithm: Strict Nth Message Topic - First 2 Messages (SNMT2)**
+
+```
+[Messages]
+"The sky is blue."
+"The sun is yellow."
+"My name is John Doe."
+"I am 21 years old."
+
+[Evaluated Topic]
+"Sky and Sun Colors"
+
+[Included Messages]
+"The sky is blue."
+"The sun is yellow."
+
+[Excluded Messages]
+"My name is John Doe."
+"I am 21 years old."
+```
+
+**5. Topic Evaluation Algorithm: Non-Strict Anchored Topic Evaluation - First 2 Messages (NSATE2)**
+
+```
+[Messages]
+"The sky is blue."
+"The sun is yellow."
+"My name is John Doe."
+"I am 21 years old."
+
+[Evaluated Topic]
+"Observations about the natural world"
+```
+
+**6. Topic Evaluation Algorithm: Strict Anchored Topic Evaluation - First 2 Messages (SATE2)**
+
+```
+[Messages]
+"The sky is blue."
+"The sun is yellow."
+"My name is John Doe."
+"I am 21 years old."
+
+[Evaluated Topic]
+Sky and Sun Colors
+```
