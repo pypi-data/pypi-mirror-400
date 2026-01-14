@@ -1,0 +1,142 @@
+Metadata-Version: 2.4
+Name: momapy
+Version: 0.2.3
+Summary: A library to work with molecular maps
+Project-URL: Homepage, https://github.com/adrienrougny/momapy
+Project-URL: Issues, https://github.com/adrienrougny/momapy/issues
+Author-email: Adrien Rougny <adrienrougny@gmail.com>
+License: GPL-3.0-or-later
+License-File: COPYING
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Requires-Dist: bezier>=2023.7.28
+Requires-Dist: colorama>=0.4.6
+Requires-Dist: frozendict>=2.3.10
+Requires-Dist: lxml>=5.3.2
+Requires-Dist: matplotlib>=3.10.8
+Requires-Dist: numpy>=1.26.2
+Requires-Dist: pyparsing>=3.1.1
+Requires-Dist: shapely>=2.0.2
+Requires-Dist: typing-extensions>=4.15.0
+Requires-Dist: uharfbuzz>=0.53.0
+Provides-Extra: all
+Requires-Dist: pycairo>=1.29.0; extra == 'all'
+Requires-Dist: pygobject>=3.54.5; extra == 'all'
+Requires-Dist: skia-python>=138.0; extra == 'all'
+Provides-Extra: cairo
+Requires-Dist: pycairo>=1.29.0; extra == 'cairo'
+Requires-Dist: pygobject>=3.54.5; extra == 'cairo'
+Provides-Extra: skia
+Requires-Dist: skia-python>=138.0; extra == 'skia'
+Description-Content-Type: text/markdown
+
+# <span style="font-weight:bold;color:rgb(22 66 81)">moma</span><span style="font-weight:bold;color:rgb(242 200 100)">py</span>
+
+[![PyPI](https://img.shields.io/pypi/v/momapy)](https://pypi.org/project/momapy/)
+[![Python](https://img.shields.io/pypi/pyversions/momapy)](https://pypi.org/project/momapy/)
+[![License](https://img.shields.io/github/license/adrienrougny/momapy)](<https://github.com/adrienrougny/momapy/blob/main/COPYING>)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/adrienrougny/momapy/main?filepath=demo/demo.ipynb)
+[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://adrienrougny.github.io/momapy/)
+
+<span style="font-weight:bold;color:rgb(22 66 81)">moma</span><span style="font-weight:bold;color:rgb(242 200 100)">py</span> is a library for working with molecular maps.
+It currently supports [SBGN](https://www.sbgn.org) and [CellDesigner](https://www.celldesigner.org/) maps.
+Its key feature is its definition of a map, that is formed of two entities: a model, that describes what concepts are represented, and a layout, that describes how these concepts are represented.
+This definition is borrowed from [SBML](https://www.sbml.org) and its extensions layout+render, that allow users to add a layout to an SBML model.
+<span style="font-weight:bold;color:rgb(22 66 81)">moma</span><span style="font-weight:bold;color:rgb(242 200 100)">py</span> aims at extending this definition to SBGN and CellDesigner maps.
+
+Features of <span style="font-weight:bold;color:rgb(22 66 81)">moma</span><span style="font-weight:bold;color:rgb(242 200 100)">py</span> include the following:
+
+* support for SBGN PD and AF maps (read/write SBGN-ML with annotations, rendering information, and notes) and CellDesigner (read only, with annotations)
+* decomposition of a map object into:
+  * a model object;
+  * a layout object;
+  * a mapping from layout element objects to model element objects.
+* map, model, layout and mapping objects comparison; fast object in set checking
+* rendering of maps to images (SVG, PDF, JPEG, PNG, WebP) and other surfaces (e.g. GLFW window)
+* support for styling and CSS like stylesheets (including effects such as shadows)
+* automatic geometry and anchors (for arcs, shape borders)
+* local positioning (e.g. right of shape, fit set of shapes)
+* easy extension with new model and layout element types
+
+## Installation
+
+<span style="font-weight:bold;color:rgb(22 66 81)">moma</span><span style="font-weight:bold;color:rgb(242 200 100)">py</span> is available as a Python package and can be installed with pip as follows (Python >=3.10,<=3.12):
+
+`pip install momapy`
+
+### Optional dependencies
+
+<span style="font-weight:bold;color:rgb(22 66 81)">moma</span><span style="font-weight:bold;color:rgb(242 200 100)">py</span> includes several optional dependencies for rendering maps with the skia or cairo backends:
+
+**skia**
+
+`pip install momapy[skia]`
+
+This extra depends on skia-python (<https://github.com/kyamagu/skia-python>), which itself depends on the following system packages:
+
+* opengl
+* libegl
+* fontconfig
+
+**cairo**
+
+`pip install momapy[cairo]`
+
+This extra depends on pygobject (<https://pygobject.gnome.org/guide/sysdeps.html>), which itself depends on the following system packages:
+
+* glib
+* libffi
+
+**all**
+
+All optional dependencies can also be installed together:
+
+`pip install momapy[all]`
+
+## Usage
+
+Typical usage of <span style="font-weight:bold;color:rgb(22 66 81)">moma</span><span style="font-weight:bold;color:rgb(242 200 100)">py</span> includes reading a map and exploring its model:
+
+```python
+from momapy.io.core import read
+
+map_ = read("my_map.sbgn").obj
+for process in map_.model.processes:
+    print(process)
+```
+
+Or rendering its layout:
+
+```python
+from momapy.rendering.core import render_map
+
+render_map(map_, "my_file.svg")
+```
+
+## Demo
+
+### Online (no installation required)
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/adrienrougny/momapy/main?filepath=demo/demo.ipynb)
+
+### Local
+
+To run the demo locally:
+
+```bash
+git clone https://github.com/adrienrougny/momapy.git
+cd momapy
+pip install . jupyter
+jupyter notebook demo/demo.ipynb
+```
+
+The demo includes additional files (`utils.py`, example data) in the `demo/` directory that are only available in the repository.
+
+## Documentation
+
+The documentation for <span style="font-weight:bold;color:rgb(22 66 81)">moma</span><span style="font-weight:bold;color:rgb(242 200 100)">py</span> is available [here](https://adrienrougny.github.io/momapy/).
