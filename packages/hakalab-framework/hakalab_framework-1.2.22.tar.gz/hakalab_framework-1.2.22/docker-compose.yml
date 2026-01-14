@@ -1,0 +1,215 @@
+# ==========================================
+# DOCKER COMPOSE PARA HAKALAB FRAMEWORK v1.2.12
+# Configuración optimizada para paralelización y CI/CD
+# ==========================================
+
+version: '3.8'
+
+# Configuración de red personalizada
+networks:
+  hakalab-network:
+    driver: bridge
+
+# Volúmenes para persistencia de datos
+volumes:
+  test-results:
+  reports-data:
+  screenshots-data:
+
+services:
+  # ==========================================
+  # SERVICIO PRINCIPAL - EJECUCIÓN ESTÁNDAR
+  # ==========================================
+  hakalab-tests:
+    build: 
+      context: .
+      args:
+        PARALLEL_WORKERS: ${PARALLEL_WORKERS:-4}
+        BROWSER: ${BROWSER:-chromium}
+    container_name: hakalab-tests
+    networks:
+      - hakalab-network
+    volumes:
+      # Código fuente (solo lectura en producción)
+      - ./features:/home/testuser/app/features:ro
+      - ./json_poms:/home/testuser/app/json_poms:ro
+      - ./.env:/home/testuser/app/.env:ro
+      # Resultados (escritura)
+      - ./html-reports:/home/testuser/app/html-reports
+      - ./screenshots:/home/testuser/app/screenshots
+      - ./logs:/home/testuser/app/logs
+      - ./downloads:/home/testuser/app/downloads
+      - ./videos:/home/testuser/app/videos
+      - test-results:/home/testuser/app/test-results
+    environment:
+      - BROWSER=${BROWSER:-chromium}
+      - HEADLESS=${HEADLESS:-true}
+      - PARALLEL_WORKERS=${PARALLEL_WORKERS:-4}
+      - BASE_URL=${BASE_URL:-https://example.com}
+      - TIMEOUT=${TIMEOUT:-30000}
+      - HTML_REPORT_CAPTURE_ALL_STEPS=true
+      - SCREENSHOT_FULL_PAGE=true
+      - CLEANUP_OLD_FILES=true
+    command: ["behave", "--processes", "4", "--format", "html", "--outdir", "html-reports"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import playwright; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================
+  # SMOKE TESTS - EJECUCIÓN RÁPIDA
+  # ==========================================
+  hakalab-smoke:
+    build: .
+    container_name: hakalab-smoke
+    networks:
+      - hakalab-network
+    volumes:
+      - ./features:/home/testuser/app/features:ro
+      - ./json_poms:/home/testuser/app/json_poms:ro
+      - ./html-reports:/home/testuser/app/html-reports
+      - ./screenshots:/home/testuser/app/screenshots
+    environment:
+      - BROWSER=chromium
+      - HEADLESS=true
+      - PARALLEL_WORKERS=8
+      - TIMEOUT=15000
+      - BASE_URL=${BASE_URL:-https://example.com}
+    command: ["smoke"]
+    profiles: ["smoke"]
+
+  # ==========================================
+  # REGRESSION TESTS - SUITE COMPLETA
+  # ==========================================
+  hakalab-regression:
+    build: .
+    container_name: hakalab-regression
+    networks:
+      - hakalab-network
+    volumes:
+      - ./features:/home/testuser/app/features:ro
+      - ./json_poms:/home/testuser/app/json_poms:ro
+      - ./html-reports:/home/testuser/app/html-reports
+      - ./screenshots:/home/testuser/app/screenshots
+      - ./videos:/home/testuser/app/videos
+    environment:
+      - BROWSER=${BROWSER:-chromium}
+      - HEADLESS=true
+      - PARALLEL_WORKERS=6
+      - BASE_URL=${BASE_URL:-https://example.com}
+      - VIDEO_RECORDING=true
+    command: ["regression"]
+    profiles: ["regression"]
+
+  # ==========================================
+  # MULTI-BROWSER - EJECUCIÓN EN PARALELO CON MÚLTIPLES NAVEGADORES
+  # ==========================================
+  hakalab-multi-browser:
+    build: .
+    container_name: hakalab-multi-browser
+    networks:
+      - hakalab-network
+    volumes:
+      - ./features:/home/testuser/app/features:ro
+      - ./json_poms:/home/testuser/app/json_poms:ro
+      - ./html-reports:/home/testuser/app/html-reports
+      - ./screenshots:/home/testuser/app/screenshots
+    environment:
+      - HEADLESS=true
+      - PARALLEL_WORKERS=6
+      - BASE_URL=${BASE_URL:-https://example.com}
+    command: ["parallel-browsers"]
+    profiles: ["multi-browser"]
+
+  # ==========================================
+  # EJECUCIÓN PERSONALIZADA POR TAGS
+  # ==========================================
+  hakalab-custom:
+    build: .
+    container_name: hakalab-custom
+    networks:
+      - hakalab-network
+    volumes:
+      - ./features:/home/testuser/app/features:ro
+      - ./json_poms:/home/testuser/app/json_poms:ro
+      - ./html-reports:/home/testuser/app/html-reports
+      - ./screenshots:/home/testuser/app/screenshots
+    environment:
+      - BROWSER=${BROWSER:-chromium}
+      - HEADLESS=${HEADLESS:-true}
+      - PARALLEL_WORKERS=${PARALLEL_WORKERS:-4}
+      - BASE_URL=${BASE_URL:-https://example.com}
+      - CUSTOM_TAGS=${CUSTOM_TAGS:-@smoke}
+    command: >
+      bash -c "
+        echo '🏷️  Ejecutando tests con tags: ${CUSTOM_TAGS}' &&
+        behave --processes ${PARALLEL_WORKERS} --tags '${CUSTOM_TAGS}' --format html --outdir html-reports
+      "
+    profiles: ["custom"]
+
+  # ==========================================
+  # SERVIDOR DE REPORTES - NGINX
+  # ==========================================
+  hakalab-reports-server:
+    image: nginx:alpine
+    container_name: hakalab-reports-server
+    networks:
+      - hakalab-network
+    ports:
+      - "${REPORTS_PORT:-8080}:80"
+    volumes:
+      - ./html-reports:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - hakalab-tests
+    profiles: ["reports"]
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # MONITOR DE RECURSOS - OPCIONAL
+  # ==========================================
+  hakalab-monitor:
+    image: prom/node-exporter:latest
+    container_name: hakalab-monitor
+    networks:
+      - hakalab-network
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.rootfs=/host'
+    volumes:
+      - '/:/host:ro,rslave'
+    profiles: ["monitoring"]
+
+  # ==========================================
+  # SERVICIO DE DEBUG - PARA DESARROLLO
+  # ==========================================
+  hakalab-debug:
+    build: .
+    container_name: hakalab-debug
+    networks:
+      - hakalab-network
+    volumes:
+      - ./:/home/testuser/app
+    environment:
+      - BROWSER=${BROWSER:-chromium}
+      - HEADLESS=false
+      - DEBUG_MODE=true
+    command: ["debug"]
+    stdin_open: true
+    tty: true
+    profiles: ["debug"]
+
+# ==========================================
+# CONFIGURACIÓN DE EXTENSIONES
+# ==========================================
+x-common-variables: &common-variables
+  PYTHONUNBUFFERED: 1
+  PYTHONDONTWRITEBYTECODE: 1
+  NODE_OPTIONS: --max-old-space-size=4096

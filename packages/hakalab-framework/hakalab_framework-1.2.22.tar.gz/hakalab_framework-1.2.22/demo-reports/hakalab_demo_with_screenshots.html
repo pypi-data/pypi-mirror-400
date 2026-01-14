@@ -1,0 +1,1686 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hakalab Framework - Reporte de Pruebas</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #3498db 0%, #2c3e50 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #1a1a1a;  /* Negro muy oscuro */
+            color: white;
+            padding: 20px 30px;
+            position: relative;
+            min-height: 200px;
+        }
+        
+        .logo-top-left {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .logo-top-right {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .logo-top-left img,
+        .logo-top-right img {
+            max-height: 50px;
+            max-width: 150px;
+            object-fit: contain;
+        }
+        
+        .header-title {
+            text-align: center;
+            margin: 40px 0 30px 0;
+            padding: 0 180px; /* Espacio para los logos */
+        }
+        
+        .header-title h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+            background: linear-gradient(45deg, #00bcd4, #2196f3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header-title .subtitle {
+            font-size: 1.2em;
+            opacity: 0.8;
+        }
+        
+        .report-info-section {
+            margin-top: 20px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .info-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #ecf0f1;
+        }
+        
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            text-align: center;
+            transition: transform 0.3s ease;
+            border-top: 4px solid #3498db;
+        }
+        
+        .summary-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .summary-card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+        
+        .chart-and-stats {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        
+        .mini-chart {
+            flex-shrink: 0;
+            width: 120px;
+            height: 120px;
+        }
+        
+        .summary-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+        }
+        
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .passed { color: #27ae60; }
+        .failed { color: #e74c3c; }
+        .skipped { color: #f39c12; }
+        .undefined { color: #9b59b6; }
+        
+        .features-section {
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .features-section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 2em;
+        }
+        
+        .feature {
+            background: white;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border-left: 5px solid #3498db;
+        }
+        
+        .feature-header {
+            padding: 20px;
+            background: #2c3e50;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+        
+        .feature-header:hover {
+            background: #2c3e50;
+        }
+        
+        .feature-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .feature-status.passed { background: #27ae60; }
+        .feature-status.failed { background: #e74c3c; }
+        .feature-status.skipped { background: #f39c12; }
+        
+        .feature-content {
+            display: none;
+            padding: 20px;
+        }
+        
+        .feature-content.active {
+            display: block;
+        }
+        
+        .scenario {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .scenario-header {
+            padding: 15px;
+            background: #ecf0f1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .scenario-header:hover {
+            background: #d5dbdb;
+        }
+        
+        .scenario-info {
+            flex: 1;
+        }
+        
+        .scenario-meta {
+            display: flex;
+            gap: 15px;
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #666;
+        }
+        
+        .scenario-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .scenario-status.passed { background: #27ae60; }
+        .scenario-status.failed { background: #e74c3c; }
+        .scenario-status.skipped { background: #f39c12; }
+        
+        .scenario-content {
+            display: none;
+            padding: 15px;
+        }
+        
+        .scenario-content.active {
+            display: block;
+        }
+        
+        .scenario-error {
+            background: #fadbd8;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #c0392b;
+            border-left: 4px solid #e74c3c;
+        }
+        
+        .steps-list {
+            margin-bottom: 20px;
+        }
+        
+        .steps-list h4 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        .step {
+            margin-bottom: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .step.passed { 
+            background: #d5f4e6; 
+            border-left: 4px solid #27ae60; 
+        }
+        .step.failed { 
+            background: #fadbd8; 
+            border-left: 4px solid #e74c3c; 
+        }
+        .step.skipped { 
+            background: #fef9e7; 
+            border-left: 4px solid #f39c12; 
+        }
+        
+        .step-content {
+            padding: 12px;
+        }
+        
+        .step-text {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .step-name {
+            flex: 1;
+            font-weight: 500;
+        }
+        
+        .step-status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .step-status-badge.passed { background: #27ae60; }
+        .step-status-badge.failed { background: #e74c3c; }
+        .step-status-badge.skipped { background: #f39c12; }
+        
+        .step-screenshot {
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 6px;
+            border-left: 3px solid #3498db;
+        }
+        
+        .step-screenshot-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .step-screenshot img {
+            max-width: 250px;
+            max-height: 180px;
+            border-radius: 6px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            object-fit: cover;
+            border: 2px solid #e9ecef;
+        }
+        
+        .step-screenshot img:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.25);
+            border-color: #3498db;
+        }
+        
+        .step.failed .step-screenshot {
+            border-left-color: #e74c3c;
+        }
+        
+        .step.failed .step-screenshot img {
+            border-color: #e74c3c;
+        }
+        
+        .step.skipped .step-screenshot {
+            border-left-color: #f39c12;
+        }
+        
+        .step.skipped .step-screenshot img {
+            border-color: #f39c12;
+        }
+        
+        .step-error {
+            background: #fadbd8;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #c0392b;
+        }
+        
+        .scenario-screenshots {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px solid #e9ecef;
+        }
+        
+        .scenario-screenshots h5 {
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+        
+        .scenario-screenshots-note {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border-left: 3px solid #3498db;
+        }
+        
+        .scenario-screenshots-note small {
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .screenshots {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+        
+        .screenshot {
+            text-align: center;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .screenshot:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        
+        .screenshot img {
+            max-width: 100%;
+            height: 120px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            object-fit: cover;
+            border: 1px solid #dee2e6;
+        }
+        
+        .screenshot img:hover {
+            transform: scale(1.02);
+            border-color: #3498db;
+        }
+        
+        .screenshot-caption {
+            margin-top: 8px;
+            font-size: 0.8em;
+            color: #666;
+            line-height: 1.3;
+        }
+        
+        .screenshot-caption strong {
+            color: #2c3e50;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+        }
+        
+        .modal-content {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+            max-height: 80%;
+            margin-top: 5%;
+        }
+        
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #bbb;
+        }
+        
+        .execution-info {
+            background: #ecf0f1;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .execution-info .info-item {
+            text-align: center;
+        }
+        
+        .execution-info .info-label {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .execution-info .info-value {
+            color: #666;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 10px;
+            }
+            
+            .header {
+                padding: 15px;
+                min-height: 180px;
+            }
+            
+            .logo-top-left,
+            .logo-top-right {
+                position: static;
+                display: inline-block;
+                margin: 5px;
+            }
+            
+            .header-title {
+                padding: 0 20px;
+                margin: 20px 0;
+            }
+            
+            .header-title h1 {
+                font-size: 2em;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .summary {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+            
+            .chart-and-stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .mini-chart {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .scenario-meta {
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .step-text {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .screenshots {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .header {
+                text-align: center;
+                min-height: 160px;
+            }
+            
+            .logo-top-left,
+            .logo-top-right {
+                position: relative;
+                top: auto;
+                left: auto;
+                right: auto;
+                display: block;
+                margin: 10px auto;
+                width: fit-content;
+            }
+            
+            .header-title {
+                padding: 0 10px;
+            }
+            
+            .summary {
+                padding: 15px;
+            }
+            
+            .summary-card {
+                padding: 20px;
+            }
+            
+            .step-screenshot img {
+                max-width: 150px;
+                max-height: 100px;
+            }
+        }
+        
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <div class="header">
+            <!-- Logos en las esquinas superiores -->
+            
+            <div class="logo-top-left">
+                <img src="data:image/svg+xml;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgNDAwIDE2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgICAgICAgICAgPGRlZnM+CiAgICAgICAgICAgICAgICA8bGluZWFyR3JhZGllbnQgaWQ9Imhha2FHcmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMCUiPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMwMGJjZDQ7c3RvcC1vcGFjaXR5OjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMjE5NmYzO3N0b3Atb3BhY2l0eToxIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICAKICAgICAgICAgICAgPCEtLSBIYWthIExhYiBMb2dvIC0tPgogICAgICAgICAgICA8ZyBmaWxsPSJ1cmwoI2hha2FHcmFkaWVudCkiPgogICAgICAgICAgICAgICAgPCEtLSBIIC0tPgogICAgICAgICAgICAgICAgPHJlY3QgeD0iMjAiIHk9IjMwIiB3aWR0aD0iMTIiIGhlaWdodD0iNjAiLz4KICAgICAgICAgICAgICAgIDxyZWN0IHg9IjIwIiB5PSI1NSIgd2lkdGg9IjM1IiBoZWlnaHQ9IjEwIi8+CiAgICAgICAgICAgICAgICA8cmVjdCB4PSI0MyIgeT0iMzAiIHdpZHRoPSIxMiIgaGVpZ2h0PSI2MCIvPgogICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICA8IS0tIGEgLS0+CiAgICAgICAgICAgICAgICA8Y2lyY2xlIGN4PSI4MCIgY3k9IjcwIiByPSIxNSIvPgogICAgICAgICAgICAgICAgPHJlY3QgeD0iODgiIHk9IjU1IiB3aWR0aD0iOCIgaGVpZ2h0PSIzNSIvPgogICAgICAgICAgICAgICAgPHJlY3QgeD0iNzIiIHk9Ijc1IiB3aWR0aD0iMTYiIGhlaWdodD0iOCIvPgogICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICA8IS0tIGsgLS0+CiAgICAgICAgICAgICAgICA8cmVjdCB4PSIxMjAiIHk9IjMwIiB3aWR0aD0iMTIiIGhlaWdodD0iNjAiLz4KICAgICAgICAgICAgICAgIDxwb2x5Z29uIHBvaW50cz0iMTMyLDU1IDE0NSw0MiAxNTUsNDIgMTQyLDU1IDE1NSw2OCAxNDUsNjgiLz4KICAgICAgICAgICAgICAgIDxwb2x5Z29uIHBvaW50cz0iMTMyLDY1IDE0NSw3OCAxNTUsNzggMTQyLDY1Ii8+CiAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgIDwhLS0gYSAtLT4KICAgICAgICAgICAgICAgIDxjaXJjbGUgY3g9IjE4MCIgY3k9IjcwIiByPSIxNSIvPgogICAgICAgICAgICAgICAgPHJlY3QgeD0iMTg4IiB5PSI1NSIgd2lkdGg9IjgiIGhlaWdodD0iMzUiLz4KICAgICAgICAgICAgICAgIDxyZWN0IHg9IjE3MiIgeT0iNzUiIHdpZHRoPSIxNiIgaGVpZ2h0PSI4Ii8+CiAgICAgICAgICAgIDwvZz4KICAgICAgICAgICAgCiAgICAgICAgICAgIDwhLS0gTGFiIC0tPgogICAgICAgICAgICA8ZyBmaWxsPSIjMzQ0OTVlIj4KICAgICAgICAgICAgICAgIDwhLS0gTCAtLT4KICAgICAgICAgICAgICAgIDxyZWN0IHg9IjI0MCIgeT0iMzAiIHdpZHRoPSIxMiIgaGVpZ2h0PSI2MCIvPgogICAgICAgICAgICAgICAgPHJlY3QgeD0iMjQwIiB5PSI3OCIgd2lkdGg9IjMwIiBoZWlnaHQ9IjEyIi8+CiAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgIDwhLS0gYSAtLT4KICAgICAgICAgICAgICAgIDxjaXJjbGUgY3g9IjI5MCIgY3k9IjcwIiByPSIxMiIvPgogICAgICAgICAgICAgICAgPHJlY3QgeD0iMjk2IiB5PSI1OCIgd2lkdGg9IjYiIGhlaWdodD0iMzIiLz4KICAgICAgICAgICAgICAgIDxyZWN0IHg9IjI4NCIgeT0iNzUiIHdpZHRoPSIxMiIgaGVpZ2h0PSI2Ii8+CiAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgIDwhLS0gYiAtLT4KICAgICAgICAgICAgICAgIDxyZWN0IHg9IjMyMCIgeT0iMzAiIHdpZHRoPSIxMCIgaGVpZ2h0PSI2MCIvPgogICAgICAgICAgICAgICAgPGVsbGlwc2UgY3g9IjM0MCIgY3k9IjU1IiByeD0iMTIiIHJ5PSIxMCIvPgogICAgICAgICAgICAgICAgPGVsbGlwc2UgY3g9IjM0MCIgY3k9Ijc1IiByeD0iMTIiIHJ5PSIxMCIvPgogICAgICAgICAgICA8L2c+CiAgICAgICAgICAgIAogICAgICAgICAgICA8IS0tIFN1YnRpdGxlIC0tPgogICAgICAgICAgICA8dGV4dCB4PSIyMCIgeT0iMTEwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM3ZjhjOGQiPgogICAgICAgICAgICAgICAgQ09OVElOVU9VUyBWQUxVRSBERUxJVkVSWQogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgPC9zdmc+CiAgICAgICAg" 
+                     alt="Haka Lab Logo" 
+                     style="max-width: 200px; height: auto;">
+            </div>
+            
+            
+            <div class="logo-top-right">
+                <img src="data:image/svg+xml;base64,CiAgICA8c3ZnIHdpZHRoPSIxNTAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCAxNTAgNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgPHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSI2MCIgZmlsbD0iIzM0NDk1ZSIgcng9IjgiLz4KICAgICAgICA8dGV4dCB4PSI3NSIgeT0iMzUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICBUVSBMT0dPCiAgICAgICAgPC90ZXh0PgogICAgPC9zdmc+CiAgICA=" 
+                     alt="Logo Empresa Demo" 
+                     style="max-width: 150px; height: auto;">
+            </div>
+            
+            
+            <!-- Título Principal -->
+            <div class="header-title">
+                <h1>Reporte de Pruebas Haka Lab</h1>
+                <div class="subtitle">Reporte de Pruebas Automatizadas</div>
+            </div>
+            
+            <!-- Información del Proyecto -->
+            <div class="report-info-section">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">👨‍💻 Ingeniero:</span>
+                        <span class="info-value">Felipe Farias - QA Engineer</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">📅 Fecha:</span>
+                        <span class="info-value">06/01/2026 09:34:07</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">📦 Producto:</span>
+                        <span class="info-value">Sistema E-commerce Demo</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">🏢 Empresa:</span>
+                        <span class="info-value">Haka Lab - Continuous Value Delivery</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">🔖 Versión:</span>
+                        <span class="info-value">2.1.0</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">🌍 Ambiente:</span>
+                        <span class="info-value">Staging</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="summary">
+            
+        <div class="execution-info">
+            <div class="info-item">
+                <div class="info-label">🕐 Inicio</div>
+                <div class="info-value">2026-01-06 09:34:07</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">🏁 Fin</div>
+                <div class="info-value">2026-01-06 09:34:07</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">⏱️ Duración</div>
+                <div class="info-value">0.00s</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">🌐 Navegador</div>
+                <div class="info-value">Chromium</div>
+            </div>
+        </div>
+        
+            
+            <div class="summary-card">
+                <h3>📁 Features</h3>
+                <div class="chart-and-stats">
+                    <div class="mini-chart">
+                        <canvas id="featuresChart" width="120" height="120"></canvas>
+                    </div>
+                    <div class="summary-stats">
+                        <div class="stat">
+                            <div class="stat-number passed">1</div>
+                            <div class="stat-label">Passed</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number failed">2</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number skipped">0</div>
+                            <div class="stat-label">Skipped</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="summary-card">
+                <h3>🎬 Scenarios</h3>
+                <div class="chart-and-stats">
+                    <div class="mini-chart">
+                        <canvas id="scenariosChart" width="120" height="120"></canvas>
+                    </div>
+                    <div class="summary-stats">
+                        <div class="stat">
+                            <div class="stat-number passed">3</div>
+                            <div class="stat-label">Passed</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number failed">2</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number skipped">1</div>
+                            <div class="stat-label">Skipped</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="summary-card">
+                <h3>👣 Steps</h3>
+                <div class="chart-and-stats">
+                    <div class="mini-chart">
+                        <canvas id="stepsChart" width="120" height="120"></canvas>
+                    </div>
+                    <div class="summary-stats">
+                        <div class="stat">
+                            <div class="stat-number passed">21</div>
+                            <div class="stat-label">Passed</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number failed">2</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number skipped">1</div>
+                            <div class="stat-label">Skipped</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="features-section">
+            <h2>📁 Features y Scenarios</h2>
+            
+            <div class="feature">
+                <div class="feature-header" onclick="toggleFeature(0)">
+                    <div class="feature-info">
+                        <h3>Sistema de Autenticación</h3>
+                        <div class="feature-meta">
+                            <span>Pruebas completas del sistema de login con capturas por step</span>
+                            <div class="feature-stats">
+                                <span>⏱️ 0.00s</span>
+                                <span>🎬 2 scenarios</span>
+                                <span>🏷️ @auth, @critical</span>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="feature-status failed">FAILED</span>
+                </div>
+                <div class="feature-content" id="feature-0">
+                    
+                <div class="scenario">
+                    <div class="scenario-header" onclick="toggleScenario(0, 0)">
+                        <div class="scenario-info">
+                            <strong>Login exitoso con credenciales válidas</strong>
+                            <div class="scenario-meta">
+                                <span>⏱️ 0.00s</span>
+                                <span>👣 5 steps</span>
+                                <span>📸 1 screenshots</span>
+                                <span>🏷️ @smoke, @positive</span>
+                            </div>
+                        </div>
+                        <span class="scenario-status passed">PASSED</span>
+                    </div>
+                    <div class="scenario-content" id="scenario-0-0">
+                        
+                        <div class="steps-list">
+                            <h4>📋 Steps:</h4>
+                            
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Given I navigate to login page</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogR2l2ZW4gSSBuYXZpZ2F0ZSB0byBsb2dpbiBwYWdlLi4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iIzI3YWU2MCIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiMyN2FlNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: Given I navigate to login page" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Given I navigate to login page...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">When I fill email field with valid credentials</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogV2hlbiBJIGZpbGwgZW1haWwgZmllbGQgd2l0aCB2YWxpZCBjcmVkZS4uLgogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDxjaXJjbGUgY3g9IjE1MCIgY3k9IjEyMCIgcj0iMzAiIGZpbGw9IiMyN2FlNjAiIG9wYWNpdHk9IjAuMyIvPgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjEyNSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjIwIiBmaWxsPSIjMjdhZTYwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7gKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjE3MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEwIiBmaWxsPSIjN2Y4YzhkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA5OjM0OjA3CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICA8L3N2Zz4KICAgICAgICA=" 
+                                 alt="Screenshot del paso: When I fill email field with valid credentials" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: When I fill email field with valid credentials...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">And I fill password field with valid credentials</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">And I click on Login Button</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogQW5kIEkgY2xpY2sgb24gTG9naW4gQnV0dG9uLi4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iIzI3YWU2MCIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiMyN2FlNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: And I click on Login Button" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: And I click on Login Button...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Then I should see Welcome message</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogVGhlbiBJIHNob3VsZCBzZWUgV2VsY29tZSBtZXNzYWdlLi4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iIzI3YWU2MCIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiMyN2FlNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: Then I should see Welcome message" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Then I should see Welcome message...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                        </div>
+                        
+                    <div class="scenario-screenshots">
+                        <h5>📷 Screenshots Adicionales del Scenario:</h5>
+                        <div class="scenario-screenshots-note">
+                            <small>Estas capturas son generales del scenario, no están asociadas a steps específicos.</small>
+                        </div>
+                        <div class="screenshots">
+                    
+                            <div class="screenshot">
+                                <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJzY2VuYXJpb0JnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgICAgICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMzQ5OGRiO3N0b3Atb3BhY2l0eTowLjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmMzZTUwO3N0b3Atb3BhY2l0eTowLjIiIC8+CiAgICAgICAgICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgICAgICA8L2RlZnM+CiAgICAgICAgICAgIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJ1cmwoI3NjZW5hcmlvQmcpIiByeD0iMTIiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMzcwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMzQ5OGRiIiByeD0iNiIvPgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjQwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7ggU2NlbmFyaW8gU2NyZWVuc2hvdAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzJjM2U1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBWaXN0YSBnZW5lcmFsIGRlbCBkYXNoYm9hcmQgZGVzcHXDqXMgZGVsIGxvZ2luCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPHJlY3QgeD0iNTAiIHk9IjEwMCIgd2lkdGg9IjMwMCIgaGVpZ2h0PSIxNTAiIGZpbGw9IndoaXRlIiBzdHJva2U9IiNkZGQiIHN0cm9rZS13aWR0aD0iMiIgcng9IjgiLz4KICAgICAgICAgICAgPHJlY3QgeD0iNjAiIHk9IjExMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIyMCIgZmlsbD0iI2VjZjBmMSIgcng9IjQiLz4KICAgICAgICAgICAgPHJlY3QgeD0iNjAiIHk9IjE0MCIgd2lkdGg9IjIwMCIgaGVpZ2h0PSIxNSIgZmlsbD0iI2JkYzNjNyIgcng9IjMiLz4KICAgICAgICAgICAgPHJlY3QgeD0iNjAiIHk9IjE2NSIgd2lkdGg9IjI1MCIgaGVpZ2h0PSIxNSIgZmlsbD0iI2JkYzNjNyIgcng9IjMiLz4KICAgICAgICAgICAgPHJlY3QgeD0iNjAiIHk9IjE5MCIgd2lkdGg9IjE4MCIgaGVpZ2h0PSIxNSIgZmlsbD0iI2JkYzNjNyIgcng9IjMiLz4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMzIwIiBjeT0iMTgwIiByPSIyNSIgZmlsbD0iIzI3YWU2MCIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjMyMCIgeT0iMTg1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiMyN2FlNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg4pyTCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPHRleHQgeD0iMjAwIiB5PSIyODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMSIgZmlsbD0iIzk1YTVhNiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBEZW1vIFNjcmVlbnNob3QgLSAwNi8wMS8yMDI2IDA5OjM0OjA3CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICA8L3N2Zz4KICAgICAgICA=" 
+                                     alt="Screenshot general del scenario" 
+                                     onclick="openModal(this.src)"
+                                     title="Screenshot general: Vista general del dashboard después del login">
+                                <div class="screenshot-caption">
+                                    <strong>General #1</strong><br>
+                                    Vista general del dashboard después del login
+                                </div>
+                            </div>
+                            </div></div>
+                    </div>
+                </div>
+                
+                <div class="scenario">
+                    <div class="scenario-header" onclick="toggleScenario(0, 1)">
+                        <div class="scenario-info">
+                            <strong>Login fallido con credenciales inválidas</strong>
+                            <div class="scenario-meta">
+                                <span>⏱️ 0.00s</span>
+                                <span>👣 4 steps</span>
+                                <span>📸 1 screenshots</span>
+                                <span>🏷️ @negative</span>
+                            </div>
+                        </div>
+                        <span class="scenario-status failed">FAILED</span>
+                    </div>
+                    <div class="scenario-content" id="scenario-0-1">
+                        <div class="scenario-error">Validación de mensaje de error falló</div>
+                        <div class="steps-list">
+                            <h4>📋 Steps:</h4>
+                            
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Given I navigate to login page</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogR2l2ZW4gSSBuYXZpZ2F0ZSB0byBsb2dpbiBwYWdlLi4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iIzI3YWU2MCIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiMyN2FlNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: Given I navigate to login page" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Given I navigate to login page...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">When I fill email with invalid credentials</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogV2hlbiBJIGZpbGwgZW1haWwgd2l0aCBpbnZhbGlkIGNyZWRlbnRpYS4uLgogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDxjaXJjbGUgY3g9IjE1MCIgY3k9IjEyMCIgcj0iMzAiIGZpbGw9IiMyN2FlNjAiIG9wYWNpdHk9IjAuMyIvPgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjEyNSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjIwIiBmaWxsPSIjMjdhZTYwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7gKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjE3MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEwIiBmaWxsPSIjN2Y4YzhkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA5OjM0OjA3CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICA8L3N2Zz4KICAgICAgICA=" 
+                                 alt="Screenshot del paso: When I fill email with invalid credentials" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: When I fill email with invalid credentials...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">And I click on Login Button</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step failed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Then I should see error message</span>
+                                <span class="step-status-badge failed">FAILED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6I2U3NGMzYztzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6I2U3NGMzYztzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iI2U3NGMzYyIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBGQUlMRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogVGhlbiBJIHNob3VsZCBzZWUgZXJyb3IgbWVzc2FnZS4uLgogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDxjaXJjbGUgY3g9IjE1MCIgY3k9IjEyMCIgcj0iMzAiIGZpbGw9IiNlNzRjM2MiIG9wYWNpdHk9IjAuMyIvPgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjEyNSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZTc0YzNjIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7gKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjE3MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEwIiBmaWxsPSIjN2Y4YzhkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA5OjM0OjA3CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICA8L3N2Zz4KICAgICAgICA=" 
+                                 alt="Screenshot del paso: Then I should see error message" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Then I should see error message...">
+                        </div>
+                        
+                        </div>
+                        <div class="step-error">Expected "Invalid credentials" but found "Login failed"</div>
+                    </div>
+                    
+                        </div>
+                        
+                    <div class="scenario-screenshots">
+                        <h5>📷 Screenshots Adicionales del Scenario:</h5>
+                        <div class="scenario-screenshots-note">
+                            <small>Estas capturas son generales del scenario, no están asociadas a steps específicos.</small>
+                        </div>
+                        <div class="screenshots">
+                    
+                            <div class="screenshot">
+                                <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJzY2VuYXJpb0JnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgICAgICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMzQ5OGRiO3N0b3Atb3BhY2l0eTowLjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmMzZTUwO3N0b3Atb3BhY2l0eTowLjIiIC8+CiAgICAgICAgICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgICAgICA8L2RlZnM+CiAgICAgICAgICAgIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJ1cmwoI3NjZW5hcmlvQmcpIiByeD0iMTIiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMzcwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMzQ5OGRiIiByeD0iNiIvPgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjQwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7ggU2NlbmFyaW8gU2NyZWVuc2hvdAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzJjM2U1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBQYW50YWxsYSBjb21wbGV0YSBtb3N0cmFuZG8gZWwgZXJyb3IgZGUgbG9naW4KICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8cmVjdCB4PSI1MCIgeT0iMTAwIiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0id2hpdGUiIHN0cm9rZT0iI2RkZCIgc3Ryb2tlLXdpZHRoPSIyIiByeD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTEwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZWNmMGYxIiByeD0iNCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTQwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTY1IiB3aWR0aD0iMjUwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTkwIiB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIzMjAiIGN5PSIxODAiIHI9IjI1IiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMzIwIiB5PSIxODUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDinJMKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjI4MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjOTVhNWE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA2LzAxLzIwMjYgMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                     alt="Screenshot general del scenario" 
+                                     onclick="openModal(this.src)"
+                                     title="Screenshot general: Pantalla completa mostrando el error de login">
+                                <div class="screenshot-caption">
+                                    <strong>General #1</strong><br>
+                                    Pantalla completa mostrando el error de login
+                                </div>
+                            </div>
+                            </div></div>
+                    </div>
+                </div>
+                
+                </div>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-header" onclick="toggleFeature(1)">
+                    <div class="feature-info">
+                        <h3>Carrito de Compras</h3>
+                        <div class="feature-meta">
+                            <span>Funcionalidad del carrito con capturas en pasos importantes</span>
+                            <div class="feature-stats">
+                                <span>⏱️ 0.00s</span>
+                                <span>🎬 2 scenarios</span>
+                                <span>🏷️ @cart, @ecommerce</span>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="feature-status failed">FAILED</span>
+                </div>
+                <div class="feature-content" id="feature-1">
+                    
+                <div class="scenario">
+                    <div class="scenario-header" onclick="toggleScenario(1, 0)">
+                        <div class="scenario-info">
+                            <strong>Agregar producto al carrito</strong>
+                            <div class="scenario-meta">
+                                <span>⏱️ 0.00s</span>
+                                <span>👣 4 steps</span>
+                                <span>📸 2 screenshots</span>
+                                <span>🏷️ @smoke</span>
+                            </div>
+                        </div>
+                        <span class="scenario-status passed">PASSED</span>
+                    </div>
+                    <div class="scenario-content" id="scenario-1-0">
+                        
+                        <div class="steps-list">
+                            <h4>📋 Steps:</h4>
+                            
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Given I navigate to product page</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogR2l2ZW4gSSBuYXZpZ2F0ZSB0byBwcm9kdWN0IHBhZ2UuLi4KICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIxNTAiIGN5PSIxMjAiIHI9IjMwIiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIxMjUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMCIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDwn5O4CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIxNzAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMCIgZmlsbD0iIzdmOGM4ZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBEZW1vIFNjcmVlbnNob3QgLSAwOTozNDowNwogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgPC9zdmc+CiAgICAgICAg" 
+                                 alt="Screenshot del paso: Given I navigate to product page" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Given I navigate to product page...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">When I select quantity 2</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">And I click Add to Cart button</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogQW5kIEkgY2xpY2sgQWRkIHRvIENhcnQgYnV0dG9uLi4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iIzI3YWU2MCIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiMyN2FlNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: And I click Add to Cart button" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: And I click Add to Cart button...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Then product should be added to cart</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogVGhlbiBwcm9kdWN0IHNob3VsZCBiZSBhZGRlZCB0byBjYXJ0Li4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iIzI3YWU2MCIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiMyN2FlNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: Then product should be added to cart" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Then product should be added to cart...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                        </div>
+                        
+                    <div class="scenario-screenshots">
+                        <h5>📷 Screenshots Adicionales del Scenario:</h5>
+                        <div class="scenario-screenshots-note">
+                            <small>Estas capturas son generales del scenario, no están asociadas a steps específicos.</small>
+                        </div>
+                        <div class="screenshots">
+                    
+                            <div class="screenshot">
+                                <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJzY2VuYXJpb0JnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgICAgICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMzQ5OGRiO3N0b3Atb3BhY2l0eTowLjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmMzZTUwO3N0b3Atb3BhY2l0eTowLjIiIC8+CiAgICAgICAgICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgICAgICA8L2RlZnM+CiAgICAgICAgICAgIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJ1cmwoI3NjZW5hcmlvQmcpIiByeD0iMTIiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMzcwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMzQ5OGRiIiByeD0iNiIvPgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjQwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7ggU2NlbmFyaW8gU2NyZWVuc2hvdAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzJjM2U1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBDYXJyaXRvIGFudGVzIGRlIGFncmVnYXIgcHJvZHVjdG8KICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8cmVjdCB4PSI1MCIgeT0iMTAwIiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0id2hpdGUiIHN0cm9rZT0iI2RkZCIgc3Ryb2tlLXdpZHRoPSIyIiByeD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTEwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZWNmMGYxIiByeD0iNCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTQwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTY1IiB3aWR0aD0iMjUwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTkwIiB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIzMjAiIGN5PSIxODAiIHI9IjI1IiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMzIwIiB5PSIxODUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDinJMKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjI4MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjOTVhNWE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA2LzAxLzIwMjYgMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                     alt="Screenshot general del scenario" 
+                                     onclick="openModal(this.src)"
+                                     title="Screenshot general: Carrito antes de agregar producto">
+                                <div class="screenshot-caption">
+                                    <strong>General #1</strong><br>
+                                    Carrito antes de agregar producto
+                                </div>
+                            </div>
+                            
+                            <div class="screenshot">
+                                <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJzY2VuYXJpb0JnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgICAgICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMzQ5OGRiO3N0b3Atb3BhY2l0eTowLjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmMzZTUwO3N0b3Atb3BhY2l0eTowLjIiIC8+CiAgICAgICAgICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgICAgICA8L2RlZnM+CiAgICAgICAgICAgIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJ1cmwoI3NjZW5hcmlvQmcpIiByeD0iMTIiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMzcwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMzQ5OGRiIiByeD0iNiIvPgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjQwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7ggU2NlbmFyaW8gU2NyZWVuc2hvdAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzJjM2U1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBDYXJyaXRvIGRlc3B1w6lzIGRlIGFncmVnYXIgcHJvZHVjdG8KICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8cmVjdCB4PSI1MCIgeT0iMTAwIiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0id2hpdGUiIHN0cm9rZT0iI2RkZCIgc3Ryb2tlLXdpZHRoPSIyIiByeD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTEwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZWNmMGYxIiByeD0iNCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTQwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTY1IiB3aWR0aD0iMjUwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTkwIiB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIzMjAiIGN5PSIxODAiIHI9IjI1IiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMzIwIiB5PSIxODUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDinJMKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjI4MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjOTVhNWE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA2LzAxLzIwMjYgMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                     alt="Screenshot general del scenario" 
+                                     onclick="openModal(this.src)"
+                                     title="Screenshot general: Carrito después de agregar producto">
+                                <div class="screenshot-caption">
+                                    <strong>General #2</strong><br>
+                                    Carrito después de agregar producto
+                                </div>
+                            </div>
+                            </div></div>
+                    </div>
+                </div>
+                
+                <div class="scenario">
+                    <div class="scenario-header" onclick="toggleScenario(1, 1)">
+                        <div class="scenario-info">
+                            <strong>Modificar cantidad en carrito</strong>
+                            <div class="scenario-meta">
+                                <span>⏱️ 0.00s</span>
+                                <span>👣 4 steps</span>
+                                <span>📸 1 screenshots</span>
+                                <span>🏷️ @cart-modification</span>
+                            </div>
+                        </div>
+                        <span class="scenario-status failed">FAILED</span>
+                    </div>
+                    <div class="scenario-content" id="scenario-1-1">
+                        <div class="scenario-error">Cálculo incorrecto del total</div>
+                        <div class="steps-list">
+                            <h4>📋 Steps:</h4>
+                            
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Given I have products in cart</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">When I change quantity to 5</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogV2hlbiBJIGNoYW5nZSBxdWFudGl0eSB0byA1Li4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iIzI3YWU2MCIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiMyN2FlNjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: When I change quantity to 5" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: When I change quantity to 5...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">And I click Update button</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step failed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Then total should be recalculated</span>
+                                <span class="step-status-badge failed">FAILED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6I2U3NGMzYztzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6I2U3NGMzYztzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iI2U3NGMzYyIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBGQUlMRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogVGhlbiB0b3RhbCBzaG91bGQgYmUgcmVjYWxjdWxhdGVkLi4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iI2U3NGMzYyIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNlNzRjM2MiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: Then total should be recalculated" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Then total should be recalculated...">
+                        </div>
+                        
+                        </div>
+                        <div class="step-error">Total not updated: Expected $250.00 but got $200.00</div>
+                    </div>
+                    
+                        </div>
+                        
+                    <div class="scenario-screenshots">
+                        <h5>📷 Screenshots Adicionales del Scenario:</h5>
+                        <div class="scenario-screenshots-note">
+                            <small>Estas capturas son generales del scenario, no están asociadas a steps específicos.</small>
+                        </div>
+                        <div class="screenshots">
+                    
+                            <div class="screenshot">
+                                <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJzY2VuYXJpb0JnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgICAgICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMzQ5OGRiO3N0b3Atb3BhY2l0eTowLjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmMzZTUwO3N0b3Atb3BhY2l0eTowLjIiIC8+CiAgICAgICAgICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgICAgICA8L2RlZnM+CiAgICAgICAgICAgIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJ1cmwoI3NjZW5hcmlvQmcpIiByeD0iMTIiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMzcwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMzQ5OGRiIiByeD0iNiIvPgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjQwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7ggU2NlbmFyaW8gU2NyZWVuc2hvdAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzJjM2U1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBWaXN0YSBjb21wbGV0YSBkZWwgY2Fycml0byBjb24gZXJyb3IgZGUgY8OhbGN1bG8KICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8cmVjdCB4PSI1MCIgeT0iMTAwIiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0id2hpdGUiIHN0cm9rZT0iI2RkZCIgc3Ryb2tlLXdpZHRoPSIyIiByeD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTEwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZWNmMGYxIiByeD0iNCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTQwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTY1IiB3aWR0aD0iMjUwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTkwIiB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIzMjAiIGN5PSIxODAiIHI9IjI1IiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMzIwIiB5PSIxODUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDinJMKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjI4MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjOTVhNWE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA2LzAxLzIwMjYgMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                     alt="Screenshot general del scenario" 
+                                     onclick="openModal(this.src)"
+                                     title="Screenshot general: Vista completa del carrito con error de cálculo">
+                                <div class="screenshot-caption">
+                                    <strong>General #1</strong><br>
+                                    Vista completa del carrito con error de cálculo
+                                </div>
+                            </div>
+                            </div></div>
+                    </div>
+                </div>
+                
+                </div>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-header" onclick="toggleFeature(2)">
+                    <div class="feature-info">
+                        <h3>Navegación del Sistema</h3>
+                        <div class="feature-meta">
+                            <span>Pruebas de navegación con capturas en verificaciones</span>
+                            <div class="feature-stats">
+                                <span>⏱️ 0.00s</span>
+                                <span>🎬 2 scenarios</span>
+                                <span>🏷️ @navigation</span>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="feature-status passed">PASSED</span>
+                </div>
+                <div class="feature-content" id="feature-2">
+                    
+                <div class="scenario">
+                    <div class="scenario-header" onclick="toggleScenario(2, 0)">
+                        <div class="scenario-info">
+                            <strong>Navegación por menú principal</strong>
+                            <div class="scenario-meta">
+                                <span>⏱️ 0.00s</span>
+                                <span>👣 4 steps</span>
+                                <span>📸 2 screenshots</span>
+                                <span>🏷️ @smoke</span>
+                            </div>
+                        </div>
+                        <span class="scenario-status passed">PASSED</span>
+                    </div>
+                    <div class="scenario-content" id="scenario-2-0">
+                        
+                        <div class="steps-list">
+                            <h4>📋 Steps:</h4>
+                            
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Given I am on homepage</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogR2l2ZW4gSSBhbSBvbiBob21lcGFnZS4uLgogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDxjaXJjbGUgY3g9IjE1MCIgY3k9IjEyMCIgcj0iMzAiIGZpbGw9IiMyN2FlNjAiIG9wYWNpdHk9IjAuMyIvPgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjEyNSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjIwIiBmaWxsPSIjMjdhZTYwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7gKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjE3MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEwIiBmaWxsPSIjN2Y4YzhkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA5OjM0OjA3CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICA8L3N2Zz4KICAgICAgICA=" 
+                                 alt="Screenshot del paso: Given I am on homepage" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Given I am on homepage...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">When I hover over Products menu</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">And I click on Electronics</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogQW5kIEkgY2xpY2sgb24gRWxlY3Ryb25pY3MuLi4KICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIxNTAiIGN5PSIxMjAiIHI9IjMwIiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIxMjUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMCIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDwn5O4CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIxNzAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMCIgZmlsbD0iIzdmOGM4ZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBEZW1vIFNjcmVlbnNob3QgLSAwOTozNDowNwogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgPC9zdmc+CiAgICAgICAg" 
+                                 alt="Screenshot del paso: And I click on Electronics" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: And I click on Electronics...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Then I should see products grid</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogVGhlbiBJIHNob3VsZCBzZWUgcHJvZHVjdHMgZ3JpZC4uLgogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDxjaXJjbGUgY3g9IjE1MCIgY3k9IjEyMCIgcj0iMzAiIGZpbGw9IiMyN2FlNjAiIG9wYWNpdHk9IjAuMyIvPgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjEyNSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjIwIiBmaWxsPSIjMjdhZTYwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7gKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjE3MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEwIiBmaWxsPSIjN2Y4YzhkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA5OjM0OjA3CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICA8L3N2Zz4KICAgICAgICA=" 
+                                 alt="Screenshot del paso: Then I should see products grid" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Then I should see products grid...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                        </div>
+                        
+                    <div class="scenario-screenshots">
+                        <h5>📷 Screenshots Adicionales del Scenario:</h5>
+                        <div class="scenario-screenshots-note">
+                            <small>Estas capturas son generales del scenario, no están asociadas a steps específicos.</small>
+                        </div>
+                        <div class="screenshots">
+                    
+                            <div class="screenshot">
+                                <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJzY2VuYXJpb0JnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgICAgICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMzQ5OGRiO3N0b3Atb3BhY2l0eTowLjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmMzZTUwO3N0b3Atb3BhY2l0eTowLjIiIC8+CiAgICAgICAgICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgICAgICA8L2RlZnM+CiAgICAgICAgICAgIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJ1cmwoI3NjZW5hcmlvQmcpIiByeD0iMTIiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMzcwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMzQ5OGRiIiByeD0iNiIvPgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjQwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7ggU2NlbmFyaW8gU2NyZWVuc2hvdAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzJjM2U1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBIb21lcGFnZSBjb24gbWVuw7ogZGVzcGxlZ2FkbwogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDxyZWN0IHg9IjUwIiB5PSIxMDAiIHdpZHRoPSIzMDAiIGhlaWdodD0iMTUwIiBmaWxsPSJ3aGl0ZSIgc3Ryb2tlPSIjZGRkIiBzdHJva2Utd2lkdGg9IjIiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjYwIiB5PSIxMTAiIHdpZHRoPSIyODAiIGhlaWdodD0iMjAiIGZpbGw9IiNlY2YwZjEiIHJ4PSI0Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjYwIiB5PSIxNDAiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTUiIGZpbGw9IiNiZGMzYzciIHJ4PSIzIi8+CiAgICAgICAgICAgIDxyZWN0IHg9IjYwIiB5PSIxNjUiIHdpZHRoPSIyNTAiIGhlaWdodD0iMTUiIGZpbGw9IiNiZGMzYzciIHJ4PSIzIi8+CiAgICAgICAgICAgIDxyZWN0IHg9IjYwIiB5PSIxOTAiIHdpZHRoPSIxODAiIGhlaWdodD0iMTUiIGZpbGw9IiNiZGMzYzciIHJ4PSIzIi8+CiAgICAgICAgICAgIDxjaXJjbGUgY3g9IjMyMCIgY3k9IjE4MCIgcj0iMjUiIGZpbGw9IiMyN2FlNjAiIG9wYWNpdHk9IjAuMyIvPgogICAgICAgICAgICA8dGV4dCB4PSIzMjAiIHk9IjE4NSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE2IiBmaWxsPSIjMjdhZTYwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIOKckwogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iMjgwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTEiIGZpbGw9IiM5NWE1YTYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDYvMDEvMjAyNiAwOTozNDowNwogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgPC9zdmc+CiAgICAgICAg" 
+                                     alt="Screenshot general del scenario" 
+                                     onclick="openModal(this.src)"
+                                     title="Screenshot general: Homepage con menú desplegado">
+                                <div class="screenshot-caption">
+                                    <strong>General #1</strong><br>
+                                    Homepage con menú desplegado
+                                </div>
+                            </div>
+                            
+                            <div class="screenshot">
+                                <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJzY2VuYXJpb0JnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgICAgICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMzQ5OGRiO3N0b3Atb3BhY2l0eTowLjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmMzZTUwO3N0b3Atb3BhY2l0eTowLjIiIC8+CiAgICAgICAgICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgICAgICA8L2RlZnM+CiAgICAgICAgICAgIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJ1cmwoI3NjZW5hcmlvQmcpIiByeD0iMTIiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMzcwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMzQ5OGRiIiByeD0iNiIvPgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjQwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7ggU2NlbmFyaW8gU2NyZWVuc2hvdAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzJjM2U1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBQw6FnaW5hIGRlIGVsZWN0csOzbmljb3MgY29tcGxldGEKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8cmVjdCB4PSI1MCIgeT0iMTAwIiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0id2hpdGUiIHN0cm9rZT0iI2RkZCIgc3Ryb2tlLXdpZHRoPSIyIiByeD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTEwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZWNmMGYxIiByeD0iNCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTQwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTY1IiB3aWR0aD0iMjUwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTkwIiB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIzMjAiIGN5PSIxODAiIHI9IjI1IiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMzIwIiB5PSIxODUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDinJMKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjI4MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjOTVhNWE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA2LzAxLzIwMjYgMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                     alt="Screenshot general del scenario" 
+                                     onclick="openModal(this.src)"
+                                     title="Screenshot general: Página de electrónicos completa">
+                                <div class="screenshot-caption">
+                                    <strong>General #2</strong><br>
+                                    Página de electrónicos completa
+                                </div>
+                            </div>
+                            </div></div>
+                    </div>
+                </div>
+                
+                <div class="scenario">
+                    <div class="scenario-header" onclick="toggleScenario(2, 1)">
+                        <div class="scenario-info">
+                            <strong>Búsqueda de productos</strong>
+                            <div class="scenario-meta">
+                                <span>⏱️ 0.00s</span>
+                                <span>👣 3 steps</span>
+                                <span>📸 1 screenshots</span>
+                                <span>🏷️ @search</span>
+                            </div>
+                        </div>
+                        <span class="scenario-status skipped">SKIPPED</span>
+                    </div>
+                    <div class="scenario-content" id="scenario-2-1">
+                        
+                        <div class="steps-list">
+                            <h4>📋 Steps:</h4>
+                            
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Given I am on homepage</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step passed">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">When I search for "laptop"</span>
+                                <span class="step-status-badge passed">PASSED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6IzI3YWU2MDtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iIzI3YWU2MCIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBQQVNTRUQKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIxNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMyYzNlNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgU3RlcDogV2hlbiBJIHNlYXJjaCBmb3IgImxhcHRvcCIuLi4KICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIxNTAiIGN5PSIxMjAiIHI9IjMwIiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIxMjUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMCIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDwn5O4CiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIxNzAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMCIgZmlsbD0iIzdmOGM4ZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBEZW1vIFNjcmVlbnNob3QgLSAwOTozNDowNwogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgPC9zdmc+CiAgICAgICAg" 
+                                 alt="Screenshot del paso: When I search for "laptop"" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: When I search for "laptop"...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="step skipped">
+                        <div class="step-content">
+                            <div class="step-text">
+                                <span class="step-name">Then I should see search results</span>
+                                <span class="step-status-badge skipped">SKIPPED</span>
+                            </div>
+                            
+                        <div class="step-screenshot">
+                            <div class="step-screenshot-label">📸 Screenshot de este paso:</div>
+                            <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6I2YzOWMxMjtzdG9wLW9wYWNpdHk6MC4xIiAvPgogICAgICAgICAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6I2YzOWMxMjtzdG9wLW9wYWNpdHk6MC4zIiAvPgogICAgICAgICAgICAgICAgPC9saW5lYXJHcmFkaWVudD4KICAgICAgICAgICAgPC9kZWZzPgogICAgICAgICAgICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0idXJsKCNiZykiIHJ4PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzMCIgZmlsbD0iI2YzOWMxMiIgcng9IjQiLz4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBTY3JlZW5zaG90IERlbW8gLSBTS0lQUEVECiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPHRleHQgeD0iMTUwIiB5PSI2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjMmMzZTUwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIFN0ZXA6IFRoZW4gSSBzaG91bGQgc2VlIHNlYXJjaCByZXN1bHRzLi4uCiAgICAgICAgICAgIDwvdGV4dD4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMTUwIiBjeT0iMTIwIiByPSIzMCIgZmlsbD0iI2YzOWMxMiIgb3BhY2l0eT0iMC4zIi8+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNmMzljMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAg8J+TuAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjE1MCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM3ZjhjOGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPgogICAgICAgICAgICAgICAgRGVtbyBTY3JlZW5zaG90IC0gMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                 alt="Screenshot del paso: Then I should see search results" 
+                                 onclick="openModal(this.src)"
+                                 title="Click para ampliar - Paso: Then I should see search results...">
+                        </div>
+                        
+                        </div>
+                        
+                    </div>
+                    
+                        </div>
+                        
+                    <div class="scenario-screenshots">
+                        <h5>📷 Screenshots Adicionales del Scenario:</h5>
+                        <div class="scenario-screenshots-note">
+                            <small>Estas capturas son generales del scenario, no están asociadas a steps específicos.</small>
+                        </div>
+                        <div class="screenshots">
+                    
+                            <div class="screenshot">
+                                <img src="data:image/png;base64,CiAgICAgICAgPHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICAgICAgICAgIDxkZWZzPgogICAgICAgICAgICAgICAgPGxpbmVhckdyYWRpZW50IGlkPSJzY2VuYXJpb0JnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgICAgICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMzQ5OGRiO3N0b3Atb3BhY2l0eTowLjEiIC8+CiAgICAgICAgICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMmMzZTUwO3N0b3Atb3BhY2l0eTowLjIiIC8+CiAgICAgICAgICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgICAgICA8L2RlZnM+CiAgICAgICAgICAgIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSJ1cmwoI3NjZW5hcmlvQmcpIiByeD0iMTIiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMzcwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMzQ5OGRiIiByeD0iNiIvPgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjQwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIPCfk7ggU2NlbmFyaW8gU2NyZWVuc2hvdAogICAgICAgICAgICA8L3RleHQ+CiAgICAgICAgICAgIDx0ZXh0IHg9IjIwMCIgeT0iODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzJjM2U1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICBSZXN1bHRhZG9zIGRlIGLDunNxdWVkYSBjb21wbGV0b3MKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8cmVjdCB4PSI1MCIgeT0iMTAwIiB3aWR0aD0iMzAwIiBoZWlnaHQ9IjE1MCIgZmlsbD0id2hpdGUiIHN0cm9rZT0iI2RkZCIgc3Ryb2tlLXdpZHRoPSIyIiByeD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTEwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZWNmMGYxIiByeD0iNCIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTQwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTY1IiB3aWR0aD0iMjUwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8cmVjdCB4PSI2MCIgeT0iMTkwIiB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE1IiBmaWxsPSIjYmRjM2M3IiByeD0iMyIvPgogICAgICAgICAgICA8Y2lyY2xlIGN4PSIzMjAiIGN5PSIxODAiIHI9IjI1IiBmaWxsPSIjMjdhZTYwIiBvcGFjaXR5PSIwLjMiLz4KICAgICAgICAgICAgPHRleHQgeD0iMzIwIiB5PSIxODUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzI3YWU2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+CiAgICAgICAgICAgICAgICDinJMKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgICAgICA8dGV4dCB4PSIyMDAiIHk9IjI4MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjOTVhNWE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4KICAgICAgICAgICAgICAgIERlbW8gU2NyZWVuc2hvdCAtIDA2LzAxLzIwMjYgMDk6MzQ6MDcKICAgICAgICAgICAgPC90ZXh0PgogICAgICAgIDwvc3ZnPgogICAgICAgIA==" 
+                                     alt="Screenshot general del scenario" 
+                                     onclick="openModal(this.src)"
+                                     title="Screenshot general: Resultados de búsqueda completos">
+                                <div class="screenshot-caption">
+                                    <strong>General #1</strong><br>
+                                    Resultados de búsqueda completos
+                                </div>
+                            </div>
+                            </div></div>
+                    </div>
+                </div>
+                
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Modal para screenshots -->
+        <div id="imageModal" class="modal">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <img class="modal-content" id="modalImage">
+        </div>
+        
+    </div>
+    
+    <script>
+        
+        // Datos para los gráficos
+        const featuresData = {"total": 3, "passed": 1, "failed": 2, "skipped": 0};
+        const scenariosData = {"total": 6, "passed": 3, "failed": 2, "skipped": 1};
+        const stepsData = {"total": 24, "passed": 21, "failed": 2, "skipped": 1, "undefined": 0};
+        
+        // Configuración de colores
+        const colors = {
+            passed: '#27ae60',
+            failed: '#e74c3c',
+            skipped: '#f39c12',
+            undefined: '#9b59b6'
+        };
+        
+        // Función para crear mini gráfico de dona
+        function createMiniDoughnutChart(ctx, data, title) {
+            const labels = Object.keys(data).filter(key => key !== 'total' && data[key] > 0);
+            const values = labels.map(label => data[label]);
+            const backgroundColors = labels.map(label => colors[label]);
+            
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+                    datasets: [{
+                        data: values,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 0,
+                        cutout: '60%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label;
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        duration: 1000
+                    }
+                }
+            });
+        }
+        
+        // Inicializar gráficos cuando la página cargue
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mini gráficos en las cards
+            createMiniDoughnutChart(
+                document.getElementById('featuresChart').getContext('2d'),
+                featuresData,
+                'Features'
+            );
+            
+            createMiniDoughnutChart(
+                document.getElementById('scenariosChart').getContext('2d'),
+                scenariosData,
+                'Scenarios'
+            );
+            
+            createMiniDoughnutChart(
+                document.getElementById('stepsChart').getContext('2d'),
+                stepsData,
+                'Steps'
+            );
+        });
+        
+        // Funciones de interactividad
+        function toggleFeature(index) {
+            const content = document.getElementById(`feature-${index}`);
+            content.classList.toggle('active');
+        }
+        
+        function toggleScenario(featureIndex, scenarioIndex) {
+            const content = document.getElementById(`scenario-${featureIndex}-${scenarioIndex}`);
+            content.classList.toggle('active');
+        }
+        
+        function openModal(src) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            modal.style.display = 'block';
+            modalImg.src = src;
+        }
+        
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
+        
+        // Cerrar modal al hacer clic fuera de la imagen
+        window.onclick = function(event) {
+            const modal = document.getElementById('imageModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Expandir/contraer todos los features
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'e') {
+                e.preventDefault();
+                const features = document.querySelectorAll('.feature-content');
+                const allExpanded = Array.from(features).every(f => f.classList.contains('active'));
+                
+                features.forEach(feature => {
+                    if (allExpanded) {
+                        feature.classList.remove('active');
+                    } else {
+                        feature.classList.add('active');
+                    }
+                });
+            }
+        });
+        
+    </script>
+</body>
+</html>
+        
