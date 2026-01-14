@@ -1,0 +1,211 @@
+Metadata-Version: 2.4
+Name: sans
+Version: 1.3.3
+Summary: Synchronous / Asynchronous HTTPX extension for NationStates
+Author: Zephyrkul
+License: MIT License
+        
+        Copyright (c) 2018 - 2025
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Project-URL: homepage, https://github.com/Zephyrkul/sans
+Project-URL: documentation, https://sans.readthedocs.io/en/stable/
+Project-URL: repository, https://github.com/Zephyrkul/sans.git
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Framework :: AsyncIO
+Classifier: Framework :: AnyIO
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Developers
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Classifier: Typing :: Typed
+Requires-Python: <4.0,>=3.7.0
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx<0.29.0,>=0.24
+Requires-Dist: importlib_metadata>=1.4.0; python_version < "3.8"
+Provides-Extra: docs
+Requires-Dist: Sphinx~=5.3; extra == "docs"
+Provides-Extra: lxml
+Requires-Dist: lxml~=5.0; extra == "lxml"
+Provides-Extra: json
+Requires-Dist: xmltodict~=0.14; extra == "json"
+Dynamic: license-file
+
+# sans
+
+[![pypi](https://img.shields.io/pypi/v/sans.svg)](https://pypi.org/project/sans/)
+[![Licensed under the MIT License](https://img.shields.io/pypi/l/sans.svg)](https://choosealicense.com/licenses/mit/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Zephyrkul/sans/master.svg)](https://results.pre-commit.ci/latest/github/Zephyrkul/sans/master)
+[![Documentation Status](https://readthedocs.org/projects/sans/badge/?version=latest)](http://sans.readthedocs.org/en/latest/?badge=latest)
+
+**S**ynchronous / **A**synchronous **N**ation**S**tates
+
+A [fully typed](https://docs.python.org/3/library/typing.html) extension for [HTTPX](https://www.python-httpx.org/) for the [NationStates API](https://www.nationstates.net/pages/api.html).
+
+## Installing
+
+```sh
+python3 -m pip install -U sans
+```
+
+Development version:
+
+```sh
+python3 -m pip install -U https://github.com/zephyrkul/sans/archive/master.zip#egg=sans
+```
+
+## Support
+
+If you need help with using sans, find a bug, or have a feature request, feel free to find me in the [NS Coders](https://discord.gg/SgwWMTN) Discord server, or [file an issue](https://github.com/Zephyrkul/sans/issues/new/choose).
+
+## Examples
+
+### Synchronous
+
+```py
+import sans
+from xml.etree import ElementTree as ET
+
+def main():
+   sans.set_agent("Darcania")
+   request = sans.Nation(
+      "darcania",
+      "fullname population flag census",
+      mode="score",
+      scale="65 66",
+   )
+   root = sans.get(request).xml
+   sans.indent(root)
+   print(ET.tostring(root, encoding="unicode"))
+
+   with sans.stream("GET", sans.RegionsDump()) as response:
+      for region in response.iter_xml():
+         sans.indent(region)
+         print(ET.tostring(region, encoding="unicode"))
+
+if __name__ == "__main__":
+   main()
+```
+
+### Asynchronous
+
+```py
+import asyncio
+import sans
+from xml.etree import ElementTree as ET
+
+async def main():
+   sans.set_agent("Darcania")
+   async with sans.AsyncClient() as client:
+      request = sans.Nation(
+         "darcania",
+         "fullname population flag census",
+         mode="score",
+         scale="65 66",
+      )
+      root = (await client.get(request)).xml
+      sans.indent(root)
+      print(ET.tostring(root, encoding="unicode"))
+
+      async with client.stream("GET", sans.RegionsDump()) as response:
+         async for region in response.aiter_xml():
+            sans.indent(region)
+            print(ET.tostring(region, encoding="unicode"))
+
+if __name__ == "__main__":
+   asyncio.run(main())
+```
+
+### Authentication
+
+```py
+auth = sans.NSAuth(password="hunter2")
+sans.get(sans.Nation("testlandia", "ping"), auth=auth)
+# X-Autologin is automatically retrieved and stored for when the auth object is re-used
+print(auth.autologin)
+# X-Pin is cached internally for repeated requests
+root = sans.get(sans.Nation("testlandia", "packs"), auth=auth).xml
+```
+
+### Telegrams
+
+```py
+limiter = sans.TelegramLimiter(recruitment=False)
+# The Telegram API can be used without a TelegramLimiter, but marking it ahead of time can save an API call.
+response = sans.get(sans.Telegram(client="abcd1234", tgid="1234", key="abcdef1234567890", to="testlandia"), auth=limiter)
+assert response.content == b"queued"
+```
+
+### Server-Sent Events
+
+```py
+for event in sans.serversent_events(
+   client, "move", "founding", "cte", "member", "endo"
+).view(regions=["the north pacific"]):
+   print(event["str"])
+```
+
+## Command Line
+
+```xml
+sans --nation darcania census --scale "65 66" --mode score --agent Darcania
+<NATION id="darcania">
+   <CENSUS>
+      <SCALE id="65">
+         <SCORE>8145.00</SCORE>
+      </SCALE>
+      <SCALE id="66">
+         <SCORE>0.00</SCORE>
+      </SCALE>
+   </CENSUS>
+</NATION>
+
+sans --nation testlandia fullname
+<NATION id="testlandia">
+   <FULLNAME>The Hive Mind of Testlandia</FULLNAME>
+</NATION>
+
+sans --region "the north pacific" numnations lastupdate
+<REGION id="the_north_pacific">
+   <LASTUPDATE>1685681810</LASTUPDATE>
+   <NUMNATIONS>9535</NUMNATIONS>
+</REGION>
+
+sans --quit
+No query provided. Exiting...
+```
+
+## Requirements
+
+- [Python 3.7+](https://www.python.org/)
+- [httpx](https://pypi.org/project/httpx/)
