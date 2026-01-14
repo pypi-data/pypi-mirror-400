@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ZeroJS{% endblock %}</title>
+    {{ pyscript_head() }}
+    <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-M06VwgoUOHG3FN0UchwWKqh9jS4ejwpoL0yjF3EVljtsxFwFETEYMkyNL5lXbJ5/" crossorigin="anonymous" defer></script>
+    {% block head %}{% endblock %}
+</head>
+<body hx-boost="true">
+    {% block body %}
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    {% endblock %}
+    {% block scripts %}{% endblock %}
+    <script>
+    (function() {
+        var staticUrl = '{{ static_url }}';
+
+        /* ZeroJS: Disable hx-boost for static file links */
+        function disableBoostForStatic(root) {
+            root.querySelectorAll('a[href^="' + staticUrl + '"]').forEach(function(link) {
+                if (!link.hasAttribute('hx-boost')) {
+                    link.setAttribute('hx-boost', 'false');
+                }
+            });
+        }
+
+        /* ZeroJS: Declarative Shadow DOM polyfill for htmx navigation */
+        function activateShadowDOM(root) {
+            root.querySelectorAll('template[shadowrootmode]').forEach(function(template) {
+                var parent = template.parentElement;
+                var mode = template.getAttribute('shadowrootmode');
+                var shadow = parent.attachShadow({ mode: mode });
+                shadow.appendChild(template.content.cloneNode(true));
+                template.remove();
+            });
+        }
+
+        /* Apply on page load */
+        disableBoostForStatic(document);
+
+        /* Apply after htmx swaps */
+        document.body.addEventListener('htmx:afterSwap', function(e) {
+            disableBoostForStatic(e.detail.target);
+            activateShadowDOM(e.detail.target);
+        });
+    })();
+    </script>
+</body>
+</html>
