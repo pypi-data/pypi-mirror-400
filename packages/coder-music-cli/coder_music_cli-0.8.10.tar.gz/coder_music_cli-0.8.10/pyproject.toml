@@ -1,0 +1,126 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coder-music-cli"
+version = "0.8.10"
+description = "A command-line music application for coders with daemon support, radio streaming, and AI-generated music"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    {name = "Luong Nguyen", email = "luongnv89@gmail.com"}
+]
+maintainers = [
+    {name = "Luong Nguyen", email = "luongnv89@gmail.com"}
+]
+keywords = ["music", "cli", "daemon", "radio", "ai-music", "focus", "coding", "background-music", "lofi", "productivity", "media-keys", "mpris", "now-playing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Players",
+]
+
+dependencies = [
+    "click>=8.0",
+    "tomli>=2.0;python_version<'3.11'",
+    "tomli-w>=1.0",
+    # Media controller dependencies (platform-specific)
+    "pyobjc-framework-MediaPlayer>=10.0; sys_platform == 'darwin'",
+    "dbus-next>=0.2.3; sys_platform == 'linux'",
+    "winrt-Windows.Media.Playback>=2.0.0; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+ai = [
+    "torch>=2.0",
+    "transformers>=4.31,<4.51",
+    "diffusers>=0.15.0",
+    "scipy>=1.10",
+    "tqdm>=4.64",
+    "accelerate>=0.20",
+]
+youtube = [
+    "yt-dlp>=2023.1.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+    "bandit>=1.7",
+    "pre-commit>=3.0",
+]
+
+[project.scripts]
+music-cli = "music_cli.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/luongnv89/music-cli"
+Repository = "https://github.com/luongnv89/music-cli"
+Documentation = "https://github.com/luongnv89/music-cli#readme"
+Issues = "https://github.com/luongnv89/music-cli/issues"
+Changelog = "https://github.com/luongnv89/music-cli/releases"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["music_cli*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "S", "PTH"]
+ignore = [
+    "E501",   # Allow long lines
+    "S101",   # Allow assert statements
+    "S311",   # Allow random for non-crypto (music shuffle)
+    "S324",   # Allow md5 for non-crypto (file naming)
+    "S603",   # Allow subprocess without shell=True validation
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # Allow assert in tests
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_ignores = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+check_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --cov=music_cli --cov-report=term-missing"
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv"]
+skips = [
+    "B101",  # Allow assert statements
+    "B311",  # Allow random for non-crypto purposes (music shuffle)
+    "B404",  # Allow subprocess import (controlled usage)
+    "B603",  # Allow subprocess without shell=True (controlled usage)
+    "B615",  # Allow HuggingFace downloads without revision pinning (user-initiated)
+]
+
+[tool.coverage.run]
+source = ["music_cli"]
+omit = ["music_cli/sources/ai_generator.py"]  # Skip AI module (optional dependency)
