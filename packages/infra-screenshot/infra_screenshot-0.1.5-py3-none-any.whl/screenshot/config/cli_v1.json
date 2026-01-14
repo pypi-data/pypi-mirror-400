@@ -1,0 +1,266 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "package": "screenshot",
+    "description": "Shared screenshot job argument definitions"
+  },
+  "arguments": {
+    "urls": {
+      "flags": ["--urls"],
+      "type": "str",
+      "action": "append",
+      "metavar": "URL",
+      "help": "Website URL to capture (repeat flag to capture multiple sites)"
+    },
+    "job_id": {
+      "flags": ["--job-id"],
+      "dest": "site_ids",
+      "type": "str",
+      "action": "append",
+      "help": "Identifier to use for the corresponding URL (repeatable; defaults to derived name)"
+    },
+    "input": {
+      "flags": ["--input"],
+      "type": "path",
+      "help": "Optional JSONL file with objects {\"url\": ..., \"job_id\": ...}"
+    },
+    "backend": {
+      "flags": ["--backend"],
+      "type": "str",
+      "choices": ["playwright", "selenium"],
+      "default": "playwright",
+      "help": "Screenshot backend to use (default: playwright)."
+    },
+    "output_dir": {
+      "flags": ["--output-dir"],
+      "type": "path",
+      "required": true,
+      "help": "Directory where screenshots and metadata will be stored"
+    },
+    "partition_date": {
+      "flags": ["--partition-date"],
+      "type": "str",
+      "help": "Optional partition date (YYYY-MM-DD) to embed in metadata"
+    },
+    "max_pages": {
+      "flags": ["--max-pages"],
+      "type": "int",
+      "help": "Maximum number of pages to capture per site (default: 5)"
+    },
+    "depth": {
+      "flags": ["--depth"],
+      "type": "int",
+      "help": "Maximum link depth to follow when capturing screenshots (default: 1)"
+    },
+    "viewports": {
+      "flags": ["--viewports"],
+      "type": "str",
+      "nargs": "+",
+      "help": "Viewport presets for screenshot capture (default: desktop)"
+    },
+    "post_nav_wait_s": {
+      "flags": ["--post-nav-wait-s"],
+      "type": "float",
+      "help": "Seconds to wait after navigation before scripted settling (default: 6)."
+    },
+    "timeout": {
+      "flags": ["--timeout-s"],
+      "type": "float",
+      "help": "Timeout in seconds for each page capture attempt (default: 60)."
+    },
+    "max_retries": {
+      "flags": ["--max-retries"],
+      "type": "int",
+      "help": "Maximum capture retries per viewport (default: 3 or PLAYWRIGHT_CAPTURE_MAX_ATTEMPTS)."
+    },
+    "job_budget_s": {
+      "flags": ["--job-budget-s"],
+      "type": "float",
+      "help": "Overall time budget in seconds per job before following new links."
+    },
+    "max_viewport_concurrency": {
+      "flags": ["--max-viewport-concurrency"],
+      "type": "int",
+      "default": 1,
+      "help": "Maximum number of viewports captured concurrently (default: 1)."
+    },
+    "scroll": {
+      "flags": ["--scroll"],
+      "type": "bool",
+      "parser_type": "custom_bool",
+      "metavar": "{true|false}",
+      "help": "Enable or disable pre-capture scrolling (default: true)."
+    },
+    "scroll_step_delay_ms": {
+      "flags": ["--scroll-step-delay-ms"],
+      "type": "int",
+      "help": "Delay between scroll steps in milliseconds (default: 250)."
+    },
+    "max_scroll_steps": {
+      "flags": ["--max-scroll-steps"],
+      "type": "int",
+      "help": "Maximum scroll iterations per capture (default: 15)."
+    },
+    "allow_autoplay": {
+      "flags": ["--allow-autoplay"],
+      "type": "bool",
+      "parser_type": "custom_bool",
+      "nargs": "?",
+      "const": "true",
+      "help": "Control Chromium autoplay allowance (default: true)."
+    },
+    "hide_overlays": {
+      "flags": ["--hide-overlays"],
+      "type": "bool",
+      "parser_type": "custom_bool",
+      "nargs": "?",
+      "const": "true",
+      "help": "Control overlay-hiding CSS injection (default: true)."
+    },
+    "reduced_motion": {
+      "flags": ["--reduced-motion"],
+      "type": "bool",
+      "parser_type": "custom_bool",
+      "nargs": "?",
+      "const": "true",
+      "help": "Force prefers-reduced-motion media emulation (default: true)."
+    },
+    "full_page": {
+      "flags": ["--full-page"],
+      "type": "bool",
+      "parser_type": "custom_bool",
+      "nargs": "?",
+      "const": "true",
+      "help": "Capture full-page screenshots (default: true). Pass false for viewport-only."
+    },
+    "mute_media": {
+      "flags": ["--mute-media"],
+      "type": "bool",
+      "parser_type": "custom_bool",
+      "nargs": "?",
+      "const": "true",
+      "help": "Force media elements muted during capture (default: true)."
+    },
+    "disable_animations": {
+      "flags": ["--disable-animations"],
+      "type": "bool",
+      "parser_type": "custom_bool",
+      "nargs": "?",
+      "const": "true",
+      "help": "Disable CSS animations and transitions before capture (default: true)."
+    },
+    "block_media": {
+      "flags": ["--block-media"],
+      "type": "bool",
+      "parser_type": "custom_bool",
+      "nargs": "?",
+      "const": "true",
+      "help": "Block heavyweight media requests such as video/audio (default: false)."
+    },
+    "pre_capture_wait_s": {
+      "flags": ["--pre-capture-wait-s"],
+      "type": "float",
+      "help": "Seconds to wait after scrolling/settling before capturing (default: 2.5)."
+    },
+    "extra_css": {
+      "flags": ["--extra-css"],
+      "type": "path",
+      "action": "append",
+      "help": "Path to CSS snippet injected before capture (repeatable)."
+    },
+    "extra_js": {
+      "flags": ["--extra-js"],
+      "type": "path",
+      "action": "append",
+      "help": "Path to JS snippet executed before page scripts (repeatable)."
+    },
+    "override_custom_user_agent": {
+      "flags": ["--override-custom-user-agent"],
+      "type": "str",
+      "help": "Override the browser User-Agent string that Playwright would normally supply."
+    },
+    "playwright_executable_path": {
+      "flags": ["--playwright-executable-path"],
+      "type": "str",
+      "help": "Path to a Chrome/Chromium executable for Playwright (defaults to bundled Chromium)."
+    },
+    "chromium_compat": {
+      "flags": ["--chromium-compat"],
+      "type": "str",
+      "choices": ["low", "medium", "high"],
+      "help": "Chromium compatibility profile (default: high)."
+    }
+  },
+  "argument_groups": {
+    "job_inputs": {
+      "description": "Arguments that identify what to screenshot",
+      "arguments": ["urls", "job_id", "input", "partition_date"]
+    },
+    "capture_behavior": {
+      "description": "How screenshots are captured",
+      "arguments": [
+        "backend",
+        "max_pages",
+        "depth",
+        "viewports",
+        "scroll",
+        "scroll_step_delay_ms",
+        "max_scroll_steps",
+        "full_page",
+        "max_viewport_concurrency"
+      ]
+    },
+    "timing": {
+      "description": "Delays and timeouts",
+      "arguments": [
+        "post_nav_wait_s",
+        "pre_capture_wait_s",
+        "timeout",
+        "job_budget_s"
+      ]
+    },
+    "browser_control": {
+      "description": "Browser behavior tweaks",
+      "arguments": [
+        "allow_autoplay",
+        "hide_overlays",
+        "reduced_motion",
+        "mute_media",
+        "disable_animations",
+        "block_media"
+      ]
+    },
+    "advanced": {
+      "description": "Advanced customization",
+      "arguments": [
+        "extra_css",
+        "extra_js",
+        "override_custom_user_agent",
+        "playwright_executable_path",
+        "chromium_compat"
+      ]
+    }
+  },
+  "service_presets": {
+    "local_execution": {
+      "description": "Full argument set for local CLI",
+      "include_groups": [
+        "job_inputs",
+        "capture_behavior",
+        "timing",
+        "browser_control",
+        "advanced"
+      ],
+      "additional_args": ["output_dir"]
+    },
+    "azure_service": {
+      "description": "Arguments for Azure Function trigger",
+      "include_groups": [
+        "job_inputs",
+        "capture_behavior",
+        "timing",
+        "browser_control"
+      ]
+    }
+  }
+}
