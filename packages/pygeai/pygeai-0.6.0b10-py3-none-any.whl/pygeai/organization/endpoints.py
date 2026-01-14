@@ -1,0 +1,13 @@
+GET_ASSISTANT_LIST_V1 = "v1/organization/assistants"                # GET - Gets the list of assistants
+GET_PROJECT_LIST_V1 = "v1/organization/projects"	                # GET - Gets the list of projects
+GET_PROJECT_V1 = "v1/organization/project/{id}"	                    # GET - Gets project details
+CREATE_PROJECT_V1 = "v1/organization/project"	                    # POST - Creates a project
+UPDATE_PROJECT_V1 = "v1/organization/project/{id}"	                # PUT - Updates a project
+DELETE_PROJECT_V1 = "v1/organization/project/{id}"	                # DELETE - Deletes a project
+GET_PROJECT_TOKENS_V1 = "v1/organization/project/{id}/tokens"	    # GET - Gets the list of Tokens for the project
+GET_REQUEST_DATA_V1 = "v1/organization/request/export"	            # GET - Exports request data
+GET_MEMBERSHIPS_V2 = "v2/accessControl/memberships"                # GET - Lists Organizations and Projects a user belongs to with their Roles
+GET_PROJECT_MEMBERSHIPS_V2 = "v2/accessControl/projects/memberships"   # GET - Lists Projects and Roles for a user within a specific Organization
+GET_PROJECT_ROLES_V2 = "v2/accessControl/projects/roles"           # GET - Lists all Roles supported by a specific Project
+GET_PROJECT_MEMBERS_V2 = "v2/accessControl/projects/members"       # GET - Lists all members and their Roles for a specific Project
+GET_ORGANIZATION_MEMBERS_V2 = "v2/accessControl/organizations/members"  # GET - Lists all members and their Roles for a specific Organization
