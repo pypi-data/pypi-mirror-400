@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "p2pstore"
+version = "0.1.8.dev3"
+description = "P2P Store - 基于 RDMA 的高性能分布式数据传输系统, 修改 cache_all 逻辑先 list 再 cache"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    {name = "Paddle"}
+]
+keywords = ["p2p", "rdma", "distributed", "tensor", "transfer"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Distributed Computing",
+]
+
+dependencies = [
+    "numpy>=1.20.0",
+    "safetensors>=0.3.0",
+    "mooncake-transfer-engine==0.3.7",
+    "redis>=6.4.0",
+]
+
+[project.optional-dependencies]
+paddle = [
+    "paddlepaddle>=2.5.0",
+]
+redis = [
+    "redis>=6.4.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0",
+    "black",
+    "ruff",
+]
+benchmark = [
+    "paddlepaddle-gpu>=2.5.0",
+]
+
+[tool.setuptools]
+py-modules = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["p2pstore", "p2pstore.*"]
+exclude = ["p2pstore.benchmark", "p2pstore.benchmark.*", "p2pstore.examples", "p2pstore.examples.*"]
+[tool.setuptools.package-data]
+p2pstore = ["py.typed", "README.md"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
