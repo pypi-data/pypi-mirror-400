@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  oracle-parser:
+    image: gvenzl/oracle-free:slim 
+    container_name: rrc_oracle_parser
+    ports:
+      - "1521:1521"
+    environment:
+      - ORACLE_PASSWORD=ParserPassword123
+      # REMOVED: ORACLE_DATABASE=FREEPDB1 (It is the default, setting it causes a crash)
+    volumes:
+      # 1. Mount your data dump location
+      - ../data:/opt/oracle/admin/FREE/dpdump
+      # 2. Mount the init script to run the import automatically
+      - ./init_oracle.sh:/container-entrypoint-initdb.d/01_init.sh
+      # 3. OPTIONAL: Persist the actual database files locally so you don't lose them on restart
+      - oracle_data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  oracle_data:
