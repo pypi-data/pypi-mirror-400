@@ -1,0 +1,174 @@
+[tool.poetry]
+name = "complio"
+version = "0.1.0"
+description = "Compliance-as-Code Platform - Automated ISO 27001 infrastructure compliance testing for AWS"
+authors = ["Complio Team <team@compl.io>"]
+maintainers = ["Complio Team <team@compl.io>"]
+readme = "README.md"
+license = "MIT"
+homepage = "https://complio.tech"
+repository = "https://github.com/complio/complio"
+documentation = "https://docs.complio.tech"
+keywords = [
+    "compliance",
+    "iso27001",
+    "soc2",
+    "aws",
+    "security",
+    "devops",
+    "infrastructure",
+    "audit",
+    "governance",
+    "cloud-security",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "Topic :: Security",
+    "Topic :: System :: Monitoring",
+    "Topic :: Software Development :: Quality Assurance",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Typing :: Typed",
+]
+packages = [{include = "complio"}]
+include = ["complio/py.typed", "README.md", "LICENSE", "CHANGELOG.md"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# CLI Framework
+click = "^8.1.7"
+rich = "^13.7.0"
+
+# AWS SDK
+boto3 = "^1.34.0"
+botocore = "^1.34.0"
+
+# Data Validation & Configuration
+pydantic = "^2.5.3"
+pydantic-settings = "^2.1.0"
+
+# Cryptography
+cryptography = "^42.0.0"
+
+# Templating & Reports
+jinja2 = "^3.1.3"
+markdown = "^3.5.2"
+reportlab = "^4.0.9"
+
+# Structured Logging
+structlog = "^24.1.0"
+python-json-logger = "^2.0.7"
+
+# Utilities
+python-dateutil = "^2.8.2"
+pyyaml = "^6.0.1"
+requests = "^2.31.0"
+
+[tool.poetry.group.dev.dependencies]
+# Testing
+pytest = "^8.0.0"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.23.3"
+pytest-mock = "^3.12.0"
+moto = {extras = ["all"], version = "^5.0.0"}
+
+# Code Quality
+black = "^24.1.1"
+ruff = "^0.2.0"
+mypy = "^1.8.0"
+types-pyyaml = "^6.0.12"
+types-python-dateutil = "^2.8.19"
+
+# Type Stubs for AWS
+boto3-stubs = {extras = ["essential", "s3", "ec2", "iam", "cloudtrail"], version = "^1.34.0"}
+
+[tool.poetry.scripts]
+complio = "complio.cli.main:cli"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501", # line too long (handled by black)
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+check_untyped_defs = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = ["moto.*", "reportlab.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=complio",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+]
+
+[tool.coverage.run]
+source = ["complio"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
