@@ -1,0 +1,96 @@
+Metadata-Version: 2.4
+Name: acem
+Version: 0.1.0.post1
+Summary: Approximations of Cherenkov yields for particle showers
+Author-email: Ian Crawshaw <icrawshaw@wisc.edu>, Tianlu Yuan <tyuan@icecube.wisc.edu>
+Maintainer-email: Tianlu Yuan <tyuan@icecube.wisc.edu>
+License: BSD 2-Clause License
+        
+        Copyright (c) 2025, Ian Crawshaw, Tianlu Yuan
+        
+        Redistribution and use in source and binary forms, with or without
+        modification, are permitted provided that the following conditions are met:
+        
+        1. Redistributions of source code must retain the above copyright notice, this
+           list of conditions and the following disclaimer.
+        
+        2. Redistributions in binary form must reproduce the above copyright notice,
+           this list of conditions and the following disclaimer in the documentation
+           and/or other materials provided with the distribution.
+        
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+        AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+        IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+        FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+        DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+        SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+        CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+        OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        
+Project-URL: Repository, https://github.com/tianluyuan/acem
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.17
+Requires-Dist: scipy>=1.4
+Provides-Extra: misc
+Requires-Dist: matplotlib>=3.2; extra == "misc"
+Requires-Dist: pandas; extra == "misc"
+Requires-Dist: pythia8mc; extra == "misc"
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Dynamic: license-file
+
+[![PyPI version](https://img.shields.io/pypi/v/acem)](https://pypi.org/project/acem) [![Status](https://github.com/tianluyuan/acem/actions/workflows/checks.yml/badge.svg)](https://github.com/tianluyuan/acem/actions) [![Python versions](https://img.shields.io/pypi/pyversions/acem)](https://pypi.org/project/acem)
+
+# ACEM: Approximate Cherenkov Emission Model
+
+`acem` is a Python package designed for generation of Cherenkov light yield profiles from particle showers. One of the main goals is to more accurately include shower-to-shower fluctuations while preserving model simplicity.
+
+## Installation
+
+You can install `acem` directly from [PyPI](https://pypi.org/project/acem/).
+
+```bash
+pip install acem
+```
+
+Alternatively, clone this repository and from the directory run `pip install .` or to work with scripts in `misc/` use `pip install .[misc]`. The latter will allow you to run checks including plots like this
+
+```bash
+cd misc/scripts/
+./check.py 3 42 (energy at 1TeV, initial seed of 42)
+```
+
+It's also possible to install directly from github with
+
+```bash
+pip install git+https://github.com/pathtorepo/acem
+```
+
+## Usage
+
+Here is an example of how to import the models and use the package:
+
+```python
+from acem import model, media
+
+par = model.Parametrization1D(media.ICE)
+
+# Sample 100 showers profiles initiated by a 1 TeV pi+
+shos = par.sample(211, 1e3, 100)
+```
+
+`shos` will be a list of `Shower1D` objects, which is a simple container that consists of the amplitude and 1D shape of the Cherenkov-weighted track length (units are in cm). Its `.dldx(xs)` method can be used to evaluate the shower profile at some given distance(s) `xs` from the start position.
+
+## Example
+The 1D models are based on [FLUKA](https://www.fluka.eu/Fluka/www/html/fluka.php?) simulations. As an example, when used in combination with a hadronization library such as [PYTHIA8](https://pythia.org/), it can be used to generate neutrino DIS shower profiles.
+
+<img width="100%" alt="fig9" src="https://github.com/user-attachments/assets/db34e002-9217-4bd0-a655-db20028a9747">
