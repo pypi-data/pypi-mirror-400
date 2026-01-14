@@ -1,0 +1,359 @@
+# GitLab Issue Sync
+
+> Sync GitLab issues with local markdown files for offline management, AI workflows, and seamless collaboration.
+
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![GitLab](https://img.shields.io/badge/gitlab-self--hosted%20%7C%20.com-orange)](https://gitlab.levitnet.be/levit/glworkflow)
+
+**gl-issue-sync** enables bidirectional synchronization between GitLab issues and local markdown files, allowing you to:
+- Work with issues offline using your favorite text editor
+- Leverage AI assistants for intelligent issue management
+- Version control your issue workflows
+- Manage Kanban boards from the command line
+- Bulk edit issues using standard text tools
+
+## Key Features
+
+- **📥 Bidirectional Sync** - Pull issues from GitLab, edit locally, push changes back
+- **🎯 Kanban Board Management** - Move issues between columns, track progress
+- **🔗 Parent-Child Hierarchy** - Organize work items with task dependencies
+- **💬 Comments & Metadata** - Add comments, labels, assignees, milestones
+- **📝 Wiki Integration** - Clone and manage project wikis locally
+- **⚡ Offline-First** - Work without network access, sync when ready
+- **🤖 AI-Ready** - Perfect for AI-assisted workflows and automation
+- **🔒 Self-Hosted Support** - Works with gitlab.com and self-hosted instances
+
+## Installation
+
+### Prerequisites
+
+- Python 3.12 or higher
+- Git repository with GitLab remote
+- GitLab personal access token with `api` scope
+
+### Install from PyPI
+
+```bash
+# Using pip
+pip install gitlab-issue-sync
+
+# Using uv (recommended)
+uv pip install gitlab-issue-sync
+```
+
+### Verify Installation
+
+```bash
+gl-issue-sync --version
+```
+
+## Quick Start
+
+### 1. Initialize Your Repository
+
+Navigate to your GitLab project and run:
+
+```bash
+gl-issue-sync init
+```
+
+This will:
+- Detect your GitLab instance from git remote
+- Prompt for your personal access token
+- Configure Kanban board columns
+- Create `.issues/` directory structure
+
+### 2. Sync Your First Issues
+
+```bash
+# Pull all open issues
+gl-issue-sync pull
+
+# View issues by status
+gl-issue-sync status
+
+# Display a specific issue
+gl-issue-sync show 42
+```
+
+### 3. Work with Issues Locally
+
+Issues are stored as markdown files in `.issues/opened/`:
+
+```
+.issues/
+├── opened/
+│   ├── 1.md    # Issue #1
+│   ├── 42.md   # Issue #42
+│   └── ...
+├── closed/
+│   └── ...
+└── .sync/
+    └── originals/  # Snapshots for conflict detection
+```
+
+### 4. Make Changes and Push
+
+```bash
+# Create a new issue
+gl-issue-sync new "Fix login bug" --label bug --column "ToDo"
+
+# Add a comment
+gl-issue-sync comment 42 "Started working on this"
+
+# Move issue on Kanban board
+gl-issue-sync board move 42 "In Progress"
+
+# Push changes to GitLab
+gl-issue-sync push
+```
+
+## Common Workflows
+
+### Kanban Board Management
+
+```bash
+# View board columns
+gl-issue-sync board columns
+
+# Move to next column
+gl-issue-sync board move 42
+
+# Move to specific column
+gl-issue-sync board move 42 "Done"
+
+# Move backward
+gl-issue-sync board move 42 --back
+```
+
+### Labels and Metadata
+
+```bash
+# List available labels
+gl-issue-sync label list
+
+# Add labels to issue
+gl-issue-sync label 42 add bug urgent
+
+# Set assignees
+gl-issue-sync assignees 42 add alice bob
+
+# Set milestone
+gl-issue-sync milestone 42 set "v1.0"
+```
+
+### Parent-Child Hierarchy
+
+```bash
+# Create child issue
+gl-issue-sync new "Implement API endpoint" --parent 42
+
+# Set parent on existing issue
+gl-issue-sync parent 43 set 42
+
+# View hierarchy
+gl-issue-sync show 42  # Shows children
+gl-issue-sync show 43  # Shows parent
+```
+
+### Conflict Resolution
+
+```bash
+# List conflicts
+gl-issue-sync conflicts list
+
+# View conflict details
+gl-issue-sync conflicts show 42
+
+# After manually editing .issues/opened/42.md
+gl-issue-sync conflicts resolve 42
+gl-issue-sync push
+```
+
+### Wiki Management
+
+```bash
+# Clone project wiki
+gl-issue-sync wiki clone
+
+# Edit wiki files
+$EDITOR wiki/PRD.md
+
+# Commit and push changes
+gl-issue-sync wiki commit -m "Update PRD"
+gl-issue-sync wiki push
+```
+
+## Issue File Format
+
+Issues are markdown files with YAML frontmatter:
+
+```yaml
+---
+iid: 42
+title: "Fix login bug"
+state: "opened"
+labels:
+  - "bug"
+  - "ToDo"  # Kanban column
+assignees:
+  - "alice"
+milestone: "v1.0"
+parent_iid: 1  # Parent work item (optional)
+child_iids:    # Child work items (auto-managed)
+  - 43
+  - 44
+---
+
+# Fix login bug
+
+Users cannot login using OAuth providers.
+
+## Acceptance Criteria
+
+- [ ] Identify root cause
+- [ ] Implement fix
+- [ ] Add tests
+- [ ] Deploy to staging
+
+## Comments
+
+### alice - 2026-01-08 10:30:00
+
+Started investigating this issue...
+```
+
+## Configuration
+
+Configuration is stored in `~/.config/gitlab-issue-sync/config.toml`:
+
+```toml
+[project."gitlab.example.com/owner/project"]
+token = "glpat-xxxxxxxxxxxxxxxxxxxx"
+instance_url = "https://gitlab.example.com"
+namespace = "owner"
+project = "project"
+
+[project."gitlab.example.com/owner/project".board]
+columns = ["ToDo", "In Progress", "Needs Validation"]
+```
+
+**Security:** Config file permissions are automatically set to `0600` (owner read/write only).
+
+### Environment Variables
+
+```bash
+# Override config file token
+export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx
+gl-issue-sync pull
+```
+
+## Self-Hosted GitLab
+
+Works seamlessly with self-hosted instances:
+
+```bash
+# Auto-detected from git remote
+gl-issue-sync init
+
+# Or specify manually
+gl-issue-sync init --url https://gitlab.company.internal
+```
+
+## Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `init` | Initialize repository for issue sync |
+| `pull` | Fetch issues from GitLab |
+| `push` | Push local changes to GitLab |
+| `sync` | Bidirectional sync (pull + push) |
+| `status` | Show sync status and issue counts |
+| `list` | List issues with filters |
+| `show` | Display detailed issue information |
+| `new` | Create new issue locally |
+| `comment` | Add comment to issue |
+| `board` | Manage Kanban board operations |
+| `close` | Close issue |
+| `label` | Manage labels (project and issue-level) |
+| `milestone` | Manage milestones (project and issue-level) |
+| `assignees` | Manage issue assignees |
+| `linked` | Manage linked issues |
+| `parent` | Manage parent-child hierarchy |
+| `conflicts` | List and resolve conflicts |
+| `wiki` | Manage project wiki repository |
+
+Run `gl-issue-sync COMMAND --help` for detailed options on any command.
+
+## Exit Codes
+
+The tool uses distinct exit codes for scripting and automation:
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| 0 | Success | Command completed successfully |
+| 1 | General error | Validation errors, storage errors |
+| 2 | Configuration error | Missing config, no git remote |
+| 3 | Authentication error | Invalid token, insufficient permissions |
+| 4 | API error | GitLab API failures, network errors |
+
+### Example: Retry on Network Errors
+
+```bash
+#!/bin/bash
+gl-issue-sync pull
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 4 ]; then
+    echo "⚠ Network error, retrying..."
+    sleep 5
+    gl-issue-sync pull
+elif [ $EXIT_CODE -eq 2 ] || [ $EXIT_CODE -eq 3 ]; then
+    echo "✗ Configuration or authentication error"
+    exit 1
+fi
+```
+
+## Troubleshooting
+
+### Authentication Issues
+
+```bash
+# Verify token has 'api' scope
+gl-issue-sync init --token glpat-xxxxxxxxxxxxxxxxxxxx
+
+# Check token hasn't expired in GitLab Settings → Access Tokens
+```
+
+### Repository Not Found
+
+```bash
+# Verify git remote points to GitLab
+git remote -v
+
+# Manually specify instance URL
+gl-issue-sync init --url https://gitlab.example.com
+```
+
+### Board Columns Not Detected
+
+```bash
+# Refresh column configuration
+gl-issue-sync board columns --sync
+
+# Verify board exists: GitLab project → Issues → Boards
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Credits
+
+Inspired by [mitsuhiko/gh-issue-sync](https://github.com/mitsuhiko/gh-issue-sync) - the GitHub equivalent of this tool.
+
+## Links
+
+- **Project**: [GitLab Repository](https://gitlab.levitnet.be/levit/glworkflow)
+- **Wiki**: [Project Wiki](https://gitlab.levitnet.be/levit/glworkflow/-/wikis/home)
