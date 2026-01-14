@@ -1,0 +1,142 @@
+# Copyright 2021 IRT Saint Exupéry, https://www.irt-saintexupery.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 3 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# Copyright (c) 2019 IRT-AESE.
+# All rights reserved.
+#
+# Contributors:
+#    INITIAL AUTHORS - API and implementation and/or documentation
+#        :author: XXXXXXXXXXX
+#    OTHER AUTHORS   - MACROSCOPIC CHANGES
+"""Pytest helpers.
+
+This file has been copied from GEMSEO develop (02/11/2022). It was not available in
+GEMSEO 3.2.1. If vims becomes compatible with more recent GEMSEO, you can import the
+gemseo.utils.pytest_conftest and delete this file.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import matplotlib.testing.decorators
+import pytest
+from gemseo.core.base_factory import BaseFactory
+from packaging import version
+
+# from vimseo.config.config_manager import config
+# from vimseo.api import set_config
+
+
+def __tmp_wd(tmp_path):
+    """Generator to move into a tools directory forth and back.
+
+    Return the path to the tools directory.
+    """
+    prev_cwd = Path.cwd()
+    os.chdir(str(tmp_path))
+    try:
+        yield tmp_path
+    finally:
+        os.chdir(str(prev_cwd))
+
+
+# Fixture to move into a tools directory.
+tmp_wd = pytest.fixture()(__tmp_wd)
+
+
+def pytest_sessionstart(session):
+    """Bypass console pollution from fortran code."""
+    # Prevent fortran code (like lbfgs from scipy) from writing to the console
+    # by setting its stdout and stderr units to the standard file descriptors.
+    # As a side effect, the files fort.{0,6} are created with the content of
+    # the console outputs.
+    os.environ["GFORTRAN_STDOUT_UNIT"] = "1"
+    os.environ["GFORTRAN_STDERR_UNIT"] = "2"
+
+
+def pytest_sessionfinish(session):
+    """Remove file pollution from fortran code."""
+    # take care of pytest_sessionstart side effects
+    for file_ in Path().glob("fort.*"):
+        file_.unlink()
+
+
+@pytest.fixture(autouse=True)
+def skip_under_windows(request):
+    """Fixture that add a marker to skip under windows.
+
+    Use it like a usual skip marker.
+    """
+    if request.node.get_closest_marker("skip_under_windows"):
+        if sys.platform.startswith("win"):
+            pytest.skip("skipped on windows")
+
+
+@pytest.fixture(autouse=True)
+def skip_under_linux(request):
+    """Fixture that add a marker to skip under linux.
+
+    Use it like a usual skip marker.
+    """
+    if request.node.get_closest_marker("skip_under_linux"):
+        if not sys.platform.startswith("win"):
+            pytest.skip("skipped on linux")
+
+
+@pytest.fixture
+def baseline_images(request):
+    """Return the baseline_images contents.
+
+    Used when the compare_images decorator has indirect set.
+    """
+    return request.param
+
+
+@pytest.fixture
+def pyplot_close_all():
+    """Fixture that prevents figures aggregation with matplotlib pyplot."""
+    if version.parse(matplotlib.__version__) < version.parse("3.6.0"):
+        plt.close("all")
+
+
+@pytest.fixture
+def reset_factory():
+    """Reset the factory cache."""
+    BaseFactory.cache_clear()
+    yield
+    BaseFactory.cache_clear()
+
+
+# Backup before we monkey patch.
+original_image_directories = matplotlib.testing.decorators._image_directories
+
+
+if "GEMSEO_KEEP_IMAGE_COMPARISONS" not in os.environ:
+    # Context manager to change the current working directory to a tools one.
+    __ctx_tmp_wd = contextlib.contextmanager(__tmp_wd)
+
+    def _image_directories(func):
+        """Create the result_images directory in a tools parent directory."""
+        with __ctx_tmp_wd(tempfile.mkdtemp()):
+            baseline_dir, result_dir = original_image_directories(func)
+        return baseline_dir, result_dir
+
+    matplotlib.testing.decorators._image_directories = _image_directories

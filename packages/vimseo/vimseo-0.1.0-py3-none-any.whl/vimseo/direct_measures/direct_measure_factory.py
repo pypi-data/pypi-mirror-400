@@ -1,0 +1,42 @@
+# Copyright 2021 IRT Saint Exupéry, https://www.irt-saintexupery.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 3 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# Copyright (c) 2019 IRT-AESE.
+# All rights reserved.
+#
+# Contributors:
+#    INITIAL AUTHORS - API and implementation and/or documentation
+#        :author: XXXXXXXXXXX
+#    OTHER AUTHORS   - MACROSCOPIC CHANGES
+"""A factory of direct measures."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from typing import Any
+
+from gemseo.core.base_factory import BaseFactory
+
+from vimseo.direct_measures.direct_measure import BaseDirectMeasure
+
+
+class DirectMeasureFactory(BaseFactory[BaseDirectMeasure[Any, Any]]):
+    """A factory of direct measures."""
+
+    if TYPE_CHECKING:
+        _CLASS = BaseDirectMeasure[Any, Any]
+    else:
+        _CLASS = BaseDirectMeasure
+    _PACKAGE_NAMES = ("vimseo.direct_measures",)

@@ -1,0 +1,99 @@
+# Copyright 2021 IRT Saint Exupéry, https://www.irt-saintexupery.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 3 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# Copyright (c) 2019 IRT-AESE.
+# All rights reserved.
+#
+# Contributors:
+#    INITIAL AUTHORS - API and implementation and/or documentation
+#        :author: XXXXXXXXXXX
+#    OTHER AUTHORS   - MACROSCOPIC CHANGES
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from gemseo.utils.directory_creator import DirectoryNamingMethod
+from numpy import array
+
+from vimseo.api import create_model
+from vimseo.config.config_manager import config
+from vimseo.tools.base_analysis_tool import BaseAnalysisTool
+from vimseo.tools.base_composite_tool import BaseCompositeTool
+from vimseo.tools.base_settings import BaseSettings
+from vimseo.tools.base_tool import BaseResult
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from plotly.graph_objs import Figure
+
+    from vimseo.core.base_integrated_model import IntegratedModel
+
+
+class ModelCreationSettings(BaseSettings):
+    name: str = ""
+    load_case: str = ""
+    default_inputs: Mapping[str, list[float]] = {}
+
+
+class ModelResult(BaseResult):
+    model: IntegratedModel | None = None
+
+
+class ModelCreationTool(BaseAnalysisTool):
+    """A tool to create a model and set its default values."""
+
+    _SETTINGS = ModelCreationSettings
+
+    def __init__(
+        self,
+        root_directory: str | Path = config.ROOT_DIRECTORY,
+        directory_naming_method: DirectoryNamingMethod = DirectoryNamingMethod.NUMBERED,
+        working_directory: str | Path = config.WORKING_DIRECTORY,
+        **options,
+    ):
+        super().__init__(
+            root_directory=root_directory,
+            directory_naming_method=directory_naming_method,
+            working_directory=working_directory,
+            **options,
+        )
+        self.result = ModelResult()
+
+    @BaseCompositeTool.validate
+    def execute(self, settings=ModelCreationSettings, **options) -> ModelResult:
+        model = create_model(options["name"], options["load_case"])
+        model.default_input_data.update({
+            name: array(value) for name, value in options["default_inputs"].items()
+        })
+        self.result.model = model
+
+    def plot_results(
+        self,
+        result: ModelResult,
+        directory_path: str | Path = "",
+        save=False,
+        show=True,
+        **options,
+    ) -> Mapping[str, Figure]:
+        working_directory = (
+            self.working_directory if directory_path == "" else Path(directory_path)
+        )
+        return self.result.model.plot_results(
+            directory_path=working_directory,
+            save=save,
+            show=show,
+        )

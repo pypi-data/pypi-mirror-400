@@ -1,0 +1,173 @@
+# Copyright 2021 IRT Saint Exupéry, https://www.irt-saintexupery.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 3 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# Copyright (c) 2019 IRT-AESE.
+# All rights reserved.
+#
+# Contributors:
+#    INITIAL AUTHORS - API and implementation and/or documentation
+#        :author: XXXXXXXXXXX
+#    OTHER AUTHORS   - MACROSCOPIC CHANGES
+from __future__ import annotations
+
+import logging
+from copy import deepcopy
+from typing import TYPE_CHECKING
+
+from vimseo.config.config_manager import config
+from vimseo.core.base_integrated_model import IntegratedModel
+from vimseo.core.base_integrated_model import IntegratedModelSettings
+from vimseo.core.components.component_factory import ComponentFactory
+from vimseo.core.components.subroutines.subroutine_wrapper_factory import (
+    SubroutineWrapperFactory,
+)
+from vimseo.core.load_case_factory import LoadCaseFactory
+from vimseo.material.material import Material
+
+if TYPE_CHECKING:
+    from vimseo.core.components.post.post_processor import PostProcessor
+    from vimseo.core.components.pre.pre_processor import PreProcessor
+    from vimseo.core.components.run.run_processor import RunProcessor
+
+LOGGER = logging.getLogger(__name__)
+
+
+class PreRunPostModel(IntegratedModel):
+    """A model chaining a pre-processor, a run-processor, and a post-processor.
+
+    An ``PreRunPostModel`` contains three :class:`~.ExternalSoftwareComponent`:
+    The model execution is basically the sequenced
+    execution of these three chained components.
+
+    The description of the components is done through the following class attributes:
+    * ``PRE_PROC_FAMILY``
+    * ``RUN_FAMILY``
+    * ``POST_PROC_FAMILY``
+    For instance, PRE_PROC_FAMILY = "PreStraightBeam" corresponds to the preprocessor
+    family of the analytical beam model ``StraightBeamModel``.
+    If this model is instantiated for the ``Cantilever`` load case, the model
+    preprocessor class is ``PreStraightBeam_Cantilever`` according to the naming
+    convention `{PRE_PROC_FAMILY}_{load_case}` (and similarly for the postprocessor).
+
+    For FE models using a user subroutine, the list of subroutines used is defined
+    in class attribute ``SUBROUTINE_NAMES``.
+    """
+
+    _pre_processor: PreProcessor
+    _run_processor: RunProcessor
+    _post_processor: PostProcessor
+
+    PRE_PROC_FAMILY = None
+    """The prefix of the pre-processor class name (typically ``MyPre`` for a pre-
+    processor class named ``MyPre_MyLoadCase``)."""
+
+    RUN_FAMILY = None
+    """The prefix of the run-processor class name."""
+
+    POST_PROC_FAMILY = None
+    """The prefix of the post-processor class name."""
+
+    SUBROUTINES_NAMES = []
+    """The names of the subroutines."""
+
+    N_CPUS = 1
+    """The default number of cpus used to run the model."""
+
+    def __init__(self, load_case_name: str, **options):
+
+        options = IntegratedModelSettings(**options).model_dump()
+        material = (
+            Material.from_json(self.MATERIAL_FILE) if self.MATERIAL_FILE != "" else None
+        )
+
+        component_factory = ComponentFactory()
+
+        run_processor = component_factory.create(
+            self.RUN_FAMILY,
+            material_grammar_file=self._MATERIAL_GRAMMAR_FILE,
+            material=material,
+            check_subprocess=options["check_subprocess"],
+        )
+        self._subroutine_names = deepcopy(self.SUBROUTINES_NAMES)
+        for sub_name in self._subroutine_names:
+            run_processor.subroutine_list.append(
+                SubroutineWrapperFactory().create(sub_name)
+            )
+
+        load_case = LoadCaseFactory().create(
+            load_case_name, domain=self._LOAD_CASE_DOMAIN
+        )
+        components = [
+            component_factory.create(
+                self.PRE_PROC_FAMILY,
+                load_case_name,
+                load_case=load_case,
+                material_grammar_file=self._MATERIAL_GRAMMAR_FILE,
+                material=material,
+                check_subprocess=options["check_subprocess"],
+            ),
+            run_processor,
+            component_factory.create(
+                self.POST_PROC_FAMILY,
+                load_case_name,
+                load_case=load_case,
+                check_subprocess=options["check_subprocess"],
+            ),
+        ]
+
+        # run component has its grammar defined from pre and post components:
+        components[1].input_grammar = deepcopy(components[0].output_grammar)
+        components[1].input_grammar.update(components[0].input_grammar)
+        components[1].output_grammar = deepcopy(components[2].input_grammar)
+
+        super().__init__(load_case_name, components, **options)
+
+        self._pre_processor = self._chain.disciplines[0]
+        self._run_processor = self._chain.disciplines[1]
+        self._post_processor = self._chain.disciplines[2]
+
+        self._component_with_jacobian = self.run
+        self._set_differentiated_names(self.run)
+
+        n_cpus = int(config.N_CPUS) if config.N_CPUS != "" else self.N_CPUS
+        self.run.job_executor._user_job_options["n_cpus"] = n_cpus
+
+    @property
+    def run(self) -> RunProcessor:
+        """The component running the external software."""
+        return self._run_processor
+
+    @property
+    def n_cpus(self):
+        """The number of CPUs to run this model."""
+        return self.run.n_cpus
+
+    def set_n_cpus(self, n_cpus: int):
+        LOGGER.warning(
+            "This method is deprecated, "
+            "please use ``model.run.job_executor.set_options()."
+        )
+
+    def get_dataflow(self):
+        """The inputs and outputs of the components of the model.
+
+        Returns:
+             A dictionary mapping component name to its input and output names.
+        """
+
+        dataflow = super().get_dataflow()
+        dataflow["subroutine_names"] = self._subroutine_names
+
+        return dataflow
