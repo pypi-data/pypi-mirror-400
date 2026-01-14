@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""
+Create Desktop Shortcut for OpenLPT GUI
+Works on Windows and macOS.
+"""
+
+import os
+import sys
+import platform
+from pathlib import Path
+
+def get_desktop_path():
+    """Get the path to the user's desktop."""
+    if platform.system() == "Windows":
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
+            path_str = winreg.QueryValueEx(key, "Desktop")[0]
+            return Path(path_str)
+        except Exception:
+            return Path(os.environ.get("USERPROFILE", "")) / "Desktop"
+    else:
+        return Path.home() / "Desktop"
+
+def create_windows_shortcut(target, icon_path, is_script=True):
+    """
+    Create a Windows .lnk shortcut.
+    If is_script is True, target is the path to the python script.
+    If is_script is False, target is the name of the executable (pip entry point).
+    """
+    python_exe = sys.executable
+    
+    # Determine target and arguments
+    if is_script:
+        target_path = Path(target).resolve()
+        # For scripts, we run: python.exe "path/to/script.py"
+        exe_path = python_exe
+        args = f'"{target_path}"'
+        working_dir = target_path.parent.parent # Root
+    else:
+        # For pip entry points, we point directly to the .exe in the Scripts folder
+        # target is something like 'openlpt-gui'
+        import shutil
+        exe_path = shutil.which(target)
+        if not exe_path:
+             # Fallback: maybe it's in the same folder as python.exe
+             scripts_dir = Path(python_exe).parent / "Scripts"
+             exe_path = str(scripts_dir / f"{target}.exe")
+        
+        args = ""
+        # Working dir can be user home or desktop for pip installs
+        working_dir = get_desktop_path()
+
+    # Verify icon and ensure it's .ico for Windows
+    if not isinstance(icon_path, Path):
+        icon_path = Path(icon_path)
+    
+    icon_path = ensure_ico_for_windows(icon_path)
+    icon_str = str(icon_path.resolve()) if icon_path.exists() else ""
+    
+    # Get desktop path
+    desktop = get_desktop_path()
+    shortcut_path = desktop / "OpenLPT.lnk"
+    
+    if shortcut_path.exists():
+        print(f"Shortcut already exists at {shortcut_path}")
+        return 2
+    
+    try:
+        import win32com.client
+        import win32api
+    except ImportError:
+        print("[Shortcut] ERROR: pywin32 not installed.")
+        return -1
+    
+    try:
+        desktop_short = win32api.GetShortPathName(str(desktop))
+        shortcut_path_short = desktop_short + "\\OpenLPT.lnk"
+        
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortcut(shortcut_path_short)
+        shortcut.TargetPath = str(exe_path)
+        shortcut.Arguments = args
+        shortcut.WorkingDirectory = str(working_dir)
+        shortcut.Description = "OpenLPT 3D Particle Tracking"
+        if icon_str:
+            shortcut.IconLocation = icon_str
+        shortcut.Save()
+        print(f"Shortcut created at {shortcut_path}")
+        return 1
+    except Exception as e:
+        print(f"[Shortcut] ERROR creating shortcut: {e}")
+        return -1
+            
+    # Return 1 for success
+    return 1
+
+def ensure_ico_for_windows(png_path):
+    """
+    Ensure an .ico file exists for Windows shortcut.
+    If only .png exists, try to convert it using Pillow (if available).
+    Returns path to .ico file or original path if conversion fails/unnecessary.
+    """
+    if not isinstance(png_path, Path):
+        png_path = Path(png_path)
+        
+    if png_path.suffix.lower() == '.ico' and png_path.exists():
+        return png_path
+        
+    ico_path = png_path.with_suffix('.ico')
+    if ico_path.exists():
+        return ico_path
+        
+    # Attempt conversion
+    try:
+        from PIL import Image
+        img = Image.open(png_path)
+        img.save(ico_path, format='ICO', sizes=[(256, 256)])
+        print(f"[Shortcut] Converted icon to {ico_path}")
+        return ico_path
+    except ImportError:
+        print("[Shortcut] Warning: PIL/Pillow not installed. Cannot convert icon to .ico for Windows.")
+    except Exception as e:
+        print(f"[Shortcut] Icon conversion failed: {e}")
+        
+    return png_path
+
+def create_mac_shortcut(target_script, icon_path):
+    """
+    Create a macOS App Bundle (.app) instead of a simple .command file.
+    This allows for a native icon and better UX.
+    """
+    desktop = get_desktop_path()
+    app_name = "OpenLPT.app"
+    app_path = desktop / app_name
+    
+    # If app bundle exists, verify or skip
+    if app_path.exists():
+        return 2 # Already exists code
+        
+    target_path = Path(target_script).resolve()
+    # Assume target_path is .../gui/main.py, we want project root .../
+    working_dir = target_path.parent.parent
+    
+    # App Bundle Structure
+    contents_dir = app_path / "Contents"
+    macos_dir = contents_dir / "MacOS"
+    resources_dir = contents_dir / "Resources"
+    
+    try:
+        os.makedirs(macos_dir, exist_ok=True)
+        os.makedirs(resources_dir, exist_ok=True)
+        
+        # 1. Info.plist
+        info_plist = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>OpenLPTLauncher</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.openlpt.gui</string>
+    <key>CFBundleName</key>
+    <string>OpenLPT</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.1.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>"""
+        
+        with open(contents_dir / "Info.plist", "w", encoding="utf-8") as f:
+            f.write(info_plist)
+            
+        # 2. Launcher Script
+        # We need to ensure we use the same python interpreter that is running this script
+        # and set the working directory correctly.
+        launcher_script = f"""#!/bin/bash
+EXEC="{sys.executable}"
+SCRIPT="{target_path}"
+DIR="{working_dir}"
+
+cd "$DIR"
+"$EXEC" "$SCRIPT"
+"""
+        launcher_path = macos_dir / "OpenLPTLauncher"
+        with open(launcher_path, "w", encoding="utf-8") as f:
+            f.write(launcher_script)
+        
+        # Make executable
+        os.chmod(launcher_path, 0o755)
+        
+        # 3. Handle Icon (png -> icns)
+        # We try to use standard macOS tools (sips, iconutil) to create .icns
+        if icon_path.exists():
+            try:
+                # Create a temporary iconset directory
+                iconset_dir = resources_dir / "AppIcon.iconset"
+                os.makedirs(iconset_dir, exist_ok=True)
+                
+                # 16, 32, 128, 256, 512
+                # Apple strictly defines the required iconset names
+                icon_definitions = [
+                    (16, "icon_16x16.png"),
+                    (32, "icon_16x16@2x.png"),
+                    (32, "icon_32x32.png"),
+                    (64, "icon_32x32@2x.png"),
+                    (128, "icon_128x128.png"),
+                    (256, "icon_128x128@2x.png"),
+                    (256, "icon_256x256.png"),
+                    (512, "icon_256x256@2x.png"),
+                    (512, "icon_512x512.png"),
+                    (1024, "icon_512x512@2x.png")
+                ]
+                
+                # Try using PIL first for better transparency handling
+                has_pil = False
+                try:
+                    from PIL import Image
+                    src_img = Image.open(icon_path)
+                    has_pil = True
+                except ImportError:
+                    pass
+
+                for size, name in icon_definitions:
+                    out_path = iconset_dir / name
+                    
+                    if has_pil:
+                        # Resize with ANTIALIAS/LANCZOS and save preserving alpha
+                        try:
+                            # Use LANCZOS if available (Pillow 2.7+), else ANTIALIAS
+                            resample = getattr(Image, 'Resampling', Image).LANCZOS
+                            resized = src_img.resize((size, size), resample=resample)
+                            resized.save(out_path, format="PNG")
+                            continue
+                        except Exception as e:
+                            print(f"[Shortcut] PIL resize failed for {name}: {e}, falling back to sips")
+                    
+                    # Fallback to sips if PIL missing or failed
+                    os.system(f'sips -z {size} {size} "{icon_path}" --out "{out_path}" > /dev/null 2>&1')
+
+                # Convert iconset to icns
+                icns_path = resources_dir / "AppIcon.icns"
+                ret = os.system(f'iconutil -c icns "{iconset_dir}" -o "{icns_path}"')
+                
+                # Cleanup iconset
+                import shutil
+                shutil.rmtree(iconset_dir, ignore_errors=True)
+                
+                if ret != 0:
+                     print("[Shortcut] Warning: iconutil failed. Trying fallback to simple PNG copy.")
+                     # Fallback: Copy PNG as AppIcon.png (some macOS versions support this via plist)
+                     # We already set CFBundleIconFile to AppIcon, so AppIcon.png might work.
+                     import shutil
+                     shutil.copy(icon_path, resources_dir / "AppIcon.png")
+                     
+            except Exception as e:
+                print(f"[Shortcut] Icon generation failed: {e}")
+                
+    except Exception as e:
+        print(f"Failed to create Mac App Bundle: {e}")
+        return -1
+    
+    # Force Finder to verify the new app bundle (clears icon cache)
+    if app_path.exists():
+        os.system(f'touch "{app_path}"')
+        
+    return 1 if app_path.exists() else -1
+
+def check_and_create_shortcut():
+    """
+    Check if desktop shortcut exists. If not, create it.
+    Detects if this is a script-based run or a pip-installed run.
+    """
+    try:
+        current_dir = Path(__file__).parent
+        icon_path = current_dir / "assets" / "icon.png"
+        system = platform.system()
+        
+        # 1. Detect if we are in a Git/Source environment
+        # Search for main.py (source) or assume entry point (pip)
+        target_script = current_dir / "main.py"
+        
+        if target_script.exists():
+            # Source mode
+            if system == "Windows":
+                return create_windows_shortcut(target_script, icon_path, is_script=True)
+            elif system == "Darwin":
+                return create_mac_shortcut(target_script, icon_path)
+        else:
+            # Pip mode - use entry point 'openlpt-gui'
+            if system == "Windows":
+                return create_windows_shortcut("openlpt-gui", icon_path, is_script=False)
+            elif system == "Darwin":
+                # For Mac pip, shortcut creation is more complex (App Bundle needed)
+                # But we can try the basic one if implementation exists
+                return create_mac_shortcut(None, icon_path)
+        
+        return False
+            
+    except Exception as e:
+        print(f"[Shortcut] Error: {e}")
+        return -1
+
+if __name__ == "__main__":
+    if check_and_create_shortcut():
+        print("Shortcut created successfully.")
+    else:
+        print("Shortcut already exists or failed to create.")
