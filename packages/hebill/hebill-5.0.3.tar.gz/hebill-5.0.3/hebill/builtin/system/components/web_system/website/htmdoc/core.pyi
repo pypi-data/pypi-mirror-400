@@ -1,0 +1,16 @@
+from .areas.core import Areas
+from .caches.core import Caches
+from ....htmdoc import Htmdoc as PluginHtmDoc
+from ... import WebSystem
+from .. import Website
+
+class Htmdoc(PluginHtmDoc):
+    def __init__(self, website: Website): ...
+    @property
+    def __websystem__(self)-> WebSystem: ...
+    @property
+    def __website__(self)-> Website: ...
+    @property
+    def areas(self)-> Areas: ...
+    @property
+    def caches(self)-> Caches: ...
