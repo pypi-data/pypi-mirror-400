@@ -1,0 +1,45 @@
+{% extends "georgeforge/base.html" %}
+{% load i18n %}
+{% load humanize %}
+{% load static %}
+{% load django_bootstrap5 %}
+{% block details %}
+    {% include "georgeforge/partials/discord_notice.html" %}
+    <h4>{% translate "In Progress Orders" %}</h4>
+    <div class="table-responsive">
+        <table class="table table-hover table-striped w-100"
+               id="table-my-orders-active">
+            {% include "georgeforge/partials/order_table_header.html" with show_character=False show_estimated_delivery=True show_notes=False %}
+            <tbody>
+                {% for entry in my_orders %}
+                    {% include "georgeforge/partials/order_table_row.html" with entry=entry editable=False show_character=False show_estimated_delivery=True show_notes=False %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <h4>{% translate "Completed Orders" %}</h4>
+    <div class="table-responsive">
+        <table class="table table-hover table-striped w-100"
+               id="table-my-orders-completed">
+            {% include "georgeforge/partials/order_table_header.html" with show_character=False show_estimated_delivery=True show_notes=False %}
+            <tbody>
+                {% for entry in done_orders %}
+                    {% include "georgeforge/partials/order_table_row.html" with entry=entry editable=False show_character=False show_estimated_delivery=True show_notes=False %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock details %}
+{% block extra_javascript %}
+    {% include "bundles/datatables-js-bs5.html" %}
+    {% include "bundles/moment-js.html" %}
+    {% get_datatables_language_static LANGUAGE_CODE as DT_LANG_PATH %}
+    {% include "georgeforge/partials/order_table_javascript.html" with table_id="table-my-orders-active" %}
+    {% include "georgeforge/partials/order_table_javascript.html" with table_id="table-my-orders-completed" %}
+{% endblock extra_javascript %}
+{% block extra_css %}
+    {% include "bundles/datatables-css-bs5.html" %}
+    {% include "georgeforge/partials/order_pips.css.html" %}
+{% endblock extra_css %}
+{% block extra_script %}
+{% endblock extra_script %}
