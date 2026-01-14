@@ -1,0 +1,261 @@
+# playwright-self-healing
+
+AI-powered self-healing locators for Playwright Python tests using Claude API.
+
+When your Playwright locators fail, Claude automatically analyzes screenshots and HTML to find working locators and caches them for future use.
+
+## Features
+
+- **Automatic Healing**: When a locator fails, Claude Vision analyzes the page and finds the element
+- **YAML Cache**: Working locators are cached to avoid repeated API calls
+- **Rate Limiting**: Max 3 Claude API calls per test session (configurable)
+- **Screenshot Caching**: 30-second TTL to avoid repeated captures
+- **Zero Code Changes**: Simple decorator pattern - wrap your Page and you're done
+- **pytest-playwright Compatible**: Works seamlessly with existing test suites
+
+## Installation
+
+```bash
+pip install playwright-self-healing
+```
+
+## Quick Start
+
+```python
+from playwright.sync_api import sync_playwright, expect  # Use expect as normal!
+from playwright_self_healing import SelfHealingPage
+import os
+
+# Set your Claude API key
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+
+    # Wrap page with self-healing
+    sh_page = SelfHealingPage(page)
+
+    # Use like normal Playwright - healing happens automatically
+    sh_page.goto("https://example.com")
+    sh_page.get_by_role("button", name="Submit").click()
+
+    # expect() works automatically with SelfHealingLocators - no changes needed!
+    heading = sh_page.locator("h1")
+    expect(heading).to_be_visible()  # ✅ Just works!
+
+    browser.close()
+```
+
+## How It Works
+
+1. You use a locator: `sh_page.get_by_role("button", name="Submit").click()`
+2. If it fails (TimeoutError), the library:
+   - Checks the YAML cache for a working locator
+   - If not cached, captures a screenshot
+   - Sends screenshot + HTML to Claude API
+   - Claude analyzes and returns a working locator
+   - Tests the new locator
+   - Caches it in `.cache/locators.yaml`
+   - Retries your operation with the healed locator
+3. Next time, uses the cached locator (no API call)
+
+## Configuration
+
+All configuration via environment variables:
+
+```bash
+# Required
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Optional (defaults shown)
+export CLAUDE_MODEL="claude-sonnet-4.5"
+export SELF_HEALING_MAX_RETRIES="3"
+export SCREENSHOT_CACHE_TTL="30"
+export SELF_HEALING_CACHE_DIR=".cache"
+export SELF_HEALING_DEBUG="false"
+```
+
+## Pytest Integration
+
+```python
+# conftest.py
+import pytest
+from playwright.sync_api import Page
+from playwright_self_healing import SelfHealingPage
+
+@pytest.fixture
+def sh_page(page: Page):
+    return SelfHealingPage(page)
+
+# test_example.py
+from playwright.sync_api import expect  # ✅ Works as-is, no changes needed!
+
+def test_login(sh_page):
+    sh_page.goto("https://example.com/login")
+    sh_page.get_by_label("Email").fill("test@example.com")
+    sh_page.get_by_role("button", name="Login").click()
+
+    # expect() automatically works with SelfHealingLocators
+    welcome_message = sh_page.get_by_text("Welcome")
+    expect(welcome_message).to_be_visible()  # ✅ Just works!
+```
+
+**Zero Code Changes**: The library automatically patches Playwright's `expect()` function to handle SelfHealingLocators. You can continue using `from playwright.sync_api import expect` in all your existing code - no changes needed!
+
+## Cost Estimates
+
+- Claude API: ~$0.01-0.05 per healed locator
+- Max 3 API calls per session = ~$0.15 max per test run
+- Cached locators cost nothing on subsequent runs
+
+## Examples
+
+See the [`examples/`](examples/) directory:
+- [`basic_usage.py`](examples/basic_usage.py) - Simple standalone example
+- [`pytest_integration.py`](examples/pytest_integration.py) - pytest-playwright integration
+- [`advanced_config.py`](examples/advanced_config.py) - Configuration and statistics
+
+## API Reference
+
+### SelfHealingPage
+
+Main class that wraps a Playwright Page.
+
+```python
+from playwright_self_healing import SelfHealingPage
+
+sh_page = SelfHealingPage(page, context="Optional page context")
+```
+
+**Methods** (same as Playwright Page):
+- `get_by_role(role, **kwargs)` - Get element by role (with healing)
+- `get_by_label(text, **kwargs)` - Get element by label (with healing)
+- `get_by_text(text, **kwargs)` - Get element by text (with healing)
+- `get_by_placeholder(text, **kwargs)` - Get element by placeholder (with healing)
+- `locator(selector)` - Get element by CSS (with healing)
+- `goto(url)`, `reload()`, `title()`, etc. - All standard Page methods
+
+**Additional methods**:
+- `get_healing_stats()` - Returns dictionary with cache/rate limiter stats
+
+### SelfHealingLocator
+
+Locators returned by `SelfHealingPage` methods support all standard Playwright Locator operations:
+
+**Actions**:
+- `click()`, `fill()`, `type()`, `clear()` - Text input and clicks
+- `check()`, `uncheck()`, `set_checked()` - Checkbox operations
+- `select_option()` - Select dropdown options
+- `hover()`, `focus()`, `blur()` - Focus and hover operations
+- `press()` - Keyboard input
+- `set_input_files()` - File uploads
+- `tap()` - Touch interactions
+- `drag_to()` - Drag and drop
+
+**Queries**:
+- `is_visible()`, `is_hidden()` - Visibility checks
+- `is_enabled()`, `is_disabled()` - Enablement checks
+- `is_editable()`, `is_checked()` - State checks
+- `text_content()`, `inner_text()`, `inner_html()` - Content extraction
+- `all_inner_texts()`, `all_text_contents()` - Batch text extraction
+- `get_attribute()`, `input_value()` - Attribute access
+- `bounding_box()` - Element position/size
+- `count()` - Number of matching elements
+
+**Chaining**:
+- `.first`, `.last` - Access first/last matching element (properties)
+- `nth(index)` - Access specific element by index
+- `all()` - Get all matching elements as a list
+- `filter()` - Filter matched elements
+- `locator()` - Create sub-locator
+- `or_()` - Chain locators with OR logic
+
+**Other**:
+- `wait_for()` - Wait for element state
+- `screenshot()` - Capture element screenshot
+- `evaluate()` - Execute JavaScript
+- `dispatch_event()` - Dispatch custom events
+- `scroll_into_view_if_needed()` - Scroll element into view
+
+All locator operations support self-healing - if any operation fails, Claude will attempt to find the element automatically.
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | - | Your Claude API key |
+| `CLAUDE_MODEL` | No | `claude-sonnet-4.5` | Claude model to use |
+| `SELF_HEALING_MAX_RETRIES` | No | `3` | Max API calls per session |
+| `SCREENSHOT_CACHE_TTL` | No | `30` | Screenshot cache duration (seconds) |
+| `SELF_HEALING_CACHE_DIR` | No | `.cache` | Directory for locator cache |
+| `SELF_HEALING_DEBUG` | No | `false` | Enable debug logging |
+
+## Cache Format
+
+Healed locators are stored in `.cache/locators.yaml`:
+
+```yaml
+get_by_role(button, name=Submit):
+  locator: "page.get_by_role('button', name='Submit')"
+  last_updated: "2025-12-24T10:30:00Z"
+  original_locator: "page.get_by_role('button', name='Submit')"
+  heal_count: 1
+```
+
+## Limitations
+
+- **Rate limiting**: Max 3 Claude API calls per test session (configurable)
+- **Timeout**: If Claude fails, the original exception is re-raised
+- **Cost**: Each API call costs ~$0.01-0.05 (see Claude pricing)
+- **Python only**: Currently supports Playwright Python only (not Node.js)
+
+## Development
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/playwright-self-healing.git
+cd playwright-self-healing
+
+# Install dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest
+
+# Format code
+black .
+
+# Run linter
+flake8 playwright_self_healing/
+```
+
+## Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for your changes
+4. Run the test suite
+5. Submit a pull request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Credits
+
+Built with:
+- [Playwright](https://playwright.dev/) for browser automation
+- [Anthropic Claude](https://www.anthropic.com/claude) for AI-powered element finding
+- [PyYAML](https://pyyaml.org/) for cache storage
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/yourusername/playwright-self-healing/issues)
+- **Documentation**: [README.md](README.md) and [`docs/`](docs/)
+- **Examples**: [`examples/`](examples/)
+
+---
+
+Made with ❤️ for the Playwright testing community.
