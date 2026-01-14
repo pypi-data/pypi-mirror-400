@@ -1,0 +1,149 @@
+# Copyright 2026 Oliver
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for details.
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional, Any, Self
+
+from .base import BaseEntity
+from .dataset import Dataset
+
+
+@dataclass(slots=True)
+class LLMConfig(BaseEntity):
+    model_name: Optional[str] = None
+    model_type: Optional[str] = "chat"
+    temperature: Optional[float] = 0.1
+    top_p: Optional[float] = 0.3
+    presence_penalty: Optional[float] = 0.4
+    frequency_penalty: Optional[float] = 0.7
+
+    __export_fields__ = (
+        "model_name",
+        "model_type",
+        "temperature",
+        "top_p",
+        "presence_penalty",
+        "frequency_penalty",
+    )
+
+
+@dataclass(slots=True)
+class PromptConfig(BaseEntity):
+    similarity_threshold: Optional[float] = 0.2
+    keywords_similarity_weight: Optional[float] = 0.7
+    top_n: Optional[int] = 6
+    variables: Optional[list[dict[str, Any]]] = None
+    rerank_model: Optional[str] = None
+    empty_response: Optional[str] = None
+    opener: Optional[str] = None
+    show_quote: Optional[bool] = True
+    prompt: Optional[str] = None
+
+    __export_fields__ = (
+        "similarity_threshold",
+        "keywords_similarity_weight",
+        "top_n",
+        "show_quote",
+        "prompt",
+    )
+
+
+@dataclass(slots=True)
+class ChatAssistant(BaseEntity):
+    id: str
+    name: str
+    avatar: Optional[str] = None
+    datasets: Optional[list[str]] = None
+    llm: Optional[LLMConfig] = None
+    prompt: Optional[PromptConfig] = None
+    create_date: Optional[str] = None
+    create_time: Optional[int] = None
+    update_date: Optional[str] = None
+    update_time: Optional[int] = None
+    status: Optional[str] = None
+    top_k: Optional[int] = 1024
+    language: Optional[str] = "English"
+
+    __export_fields__ = (
+        "id",
+        "name",
+        "avatar",
+        "datasets",
+        "create_date",
+        "create_time",
+        "update_date",
+        "update_time",
+        "status",
+        "top_k",
+        "language",
+    )
+
+    @classmethod
+    def from_raw(cls, raw: dict) -> Self:
+        obj = super(ChatAssistant, cls).from_raw(raw)
+
+        if isinstance(raw.get("llm"), dict):
+            obj.llm = LLMConfig.from_raw(raw["llm"])
+        if isinstance(raw.get("prompt"), dict):
+            obj.prompt = PromptConfig.from_raw(raw["prompt"])
+        if isinstance(raw.get("datasets"), dict):
+            obj.datasets = [Dataset.from_raw(d) if isinstance(d, dict) else d for d in raw["datasets"]]
+        return obj
+
+
+@dataclass
+class ChatCompletionMessage(BaseEntity):
+    role: str
+    content: str
+
+
+@dataclass
+class ChatCompletionReference(BaseEntity):
+    chunk_id: Optional[str] = None
+    document_id: Optional[str] = None
+    dataset_id: Optional[str] = None
+    content: Optional[str] = None
+    score: Optional[float] = None
+
+
+@dataclass
+class ChatCompletionResult(BaseEntity):
+    """
+    Result of a non-streaming chat completion.
+    """
+    answer: Optional[str] = None
+    session_id: Optional[str] = None
+    messages: Optional[list[ChatCompletionMessage]] = None
+    reference: Optional[list[ChatCompletionReference]] = None
+
+    __export_fields__ = (
+        "answer",
+        "session_id",
+        "messages",
+    )
+
+    @classmethod
+    def from_raw(cls, raw: dict[str, Any]) -> Self:
+        obj = cls(
+            answer=raw.get("answer"),
+            session_id=raw.get("session_id"),
+        )
+
+        messages = raw.get("messages")
+        if isinstance(messages, list):
+            obj.messages = [
+                ChatCompletionMessage.from_raw(item)
+                for item in messages
+            ]
+
+        reference = raw.get("reference")
+        if isinstance(reference, list):
+            obj.reference = [
+                ChatCompletionReference.from_raw(item)
+                for item in reference
+            ]
+
+        return obj
