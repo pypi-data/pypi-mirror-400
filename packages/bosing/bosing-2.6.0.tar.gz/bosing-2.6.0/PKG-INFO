@@ -1,0 +1,94 @@
+Metadata-Version: 2.4
+Name: bosing
+Version: 2.6.0
+Classifier: Development Status :: 3 - Alpha
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering
+Classifier: License :: OSI Approved :: MIT License
+Requires-Dist: matplotlib>=3.5.0
+Requires-Dist: numpy>=1.19.3
+License-File: LICENSE.txt
+Summary: Waveform generator for pulse sequences in quantum computing
+Keywords: pulse,waveform,awg
+Author: Jiahao Yuan <kahojyun@icloud.com>
+Author-email: Jiahao Yuan <kahojyun@icloud.com>
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Documentation, https://bosing.readthedocs.io
+Project-URL: Issues, https://github.com/kahojyun/Bosing/issues
+Project-URL: Source, https://github.com/kahojyun/Bosing
+
+# Bosing
+
+[![Documentation Status](https://readthedocs.org/projects/bosing/badge/?version=latest)](https://bosing.readthedocs.io/zh-cn/latest/?badge=latest)
+[![PyPI - Version](https://img.shields.io/pypi/v/bosing)](https://pypi.org/project/bosing/)
+
+Waveform generator for superconducting circuits.
+
+## Installation
+
+```bash
+pip install bosing
+```
+
+## Documentation
+
+Docs are hosted on [Read the Docs](http://bosing.readthedocs.io/)
+
+## Usage
+
+Examples can be found in `python/examples`.
+
+```python
+import matplotlib.pyplot as plt
+
+from bosing import Barrier, Channel, Hann, Play, Stack, generate_waveforms
+
+channels = {"xy": Channel(30e6, 2e9, 1000)}
+shapes = {"hann": Hann()}
+schedule = Stack(duration=500e-9).with_children(
+    Play(
+        channel_id="xy",
+        shape_id="hann",
+        amplitude=0.3,
+        width=100e-9,
+        plateau=200e-9,
+    ),
+    Barrier(duration=10e-9),
+)
+result = generate_waveforms(channels, shapes, schedule)
+w = result["xy"]
+plt.plot(w[0], label="I")
+plt.plot(w[1], label="Q")
+plt.legend()
+plt.show()
+```
+
+## Performance
+
+`python/examples/schedule_stress.py` (0.15 s) vs `python/benches/naive.py` (1.4 s)
+
+CPU: AMD Ryzen 5 5600
+
+## Development
+
+### Prerequisites
+
+* Rustup for rust toolchain management.
+* [maturin](https://github.com/PyO3/maturin) 1.7+.
+* [uv](https://github.com/astral-sh/uv) for python project management.
+
+```bash
+git clone https://github.com/kahojyun/Bosing.git
+cd Bosing
+uv sync
+uv run task makedocs # build docs
+uv run task format # format rust and python code
+uv run task lint # lint rust and python code
+uv run task test # run cargo test and pytest
+```
+
