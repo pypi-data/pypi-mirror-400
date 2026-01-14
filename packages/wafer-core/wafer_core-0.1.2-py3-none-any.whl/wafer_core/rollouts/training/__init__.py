@@ -1,0 +1,189 @@
+"""Training infrastructure for rollouts framework.
+
+Includes:
+- Training loops (SFT, RL)
+- Dataset loading and preparation
+- Rollout generation for RL
+- Training backends (PyTorch, etc.)
+- Metrics logging
+
+Note: This module uses lazy imports for torch-dependent components
+to allow importing Sample/types without torch installed.
+"""
+
+# Types first - these don't need torch
+from ..training.types import (
+    RLTrainingConfig,
+    RolloutBatch,
+    RolloutConfig,
+    Sample,
+    SFTTrainingConfig,
+    Status,
+    TrainerConfig,
+)
+
+
+def __getattr__(name: str) -> object:
+    """Lazy import torch-dependent modules."""
+    # Backends (need torch)
+    if name == "PyTorchTrainingBackend":
+        from ..training.backends import PyTorchTrainingBackend
+
+        return PyTorchTrainingBackend
+    if name == "TrainingBackend":
+        from ..training.backends.protocol import TrainingBackend
+
+        return TrainingBackend
+
+    # Training loops (need torch)
+    if name == "run_sft_training":
+        from ..training.loops import run_sft_training
+
+        return run_sft_training
+    if name == "run_rl_training":
+        from ..training.loops import run_rl_training
+
+        return run_rl_training
+
+    # Datasets
+    if name == "DataBuffer":
+        from ..training.datasets import DataBuffer
+
+        return DataBuffer
+    if name == "load_sft_dataset":
+        from ..training.datasets import load_sft_dataset
+
+        return load_sft_dataset
+
+    # Filters
+    if name in (
+        "check_any_success",
+        "check_min_reward",
+        "check_quality_and_diversity",
+        "check_reasonable_length",
+        "check_response_diversity",
+        "check_reward_nonzero_std",
+        "make_length_filter",
+        "make_threshold_filter",
+    ):
+        from ..training import filters
+
+        return getattr(filters, name)
+
+    # Metrics
+    if name == "JSONLLogger":
+        from ..training.metrics import JSONLLogger
+
+        return JSONLLogger
+    if name == "MetricsLogger":
+        from ..training.metrics import MetricsLogger
+
+        return MetricsLogger
+
+    # Rollout generation
+    if name == "AsyncRolloutManager":
+        from ..training.rollout_gen import AsyncRolloutManager
+
+        return AsyncRolloutManager
+    if name == "generate_rollout_batches":
+        from ..training.rollout_gen import generate_rollout_batches
+
+        return generate_rollout_batches
+
+    # Agent integration
+    if name == "agent_rollout_to_sample":
+        from ..training.agent_integration import agent_rollout_to_sample
+
+        return agent_rollout_to_sample
+    if name == "generate_rollout_batch":
+        from ..training.agent_integration import generate_rollout_batch
+
+        return generate_rollout_batch
+    if name == "trajectory_to_sample":
+        from ..training.agent_integration import trajectory_to_sample
+
+        return trajectory_to_sample
+    if name == "trajectory_to_samples":
+        from ..training.agent_integration import trajectory_to_samples
+
+        return trajectory_to_samples
+
+    # Loss functions
+    if name in (
+        "pretrain_loss",
+        "sft_loss",
+        "grpo_loss",
+        "grpo_loss_clipped",
+        "grpo_loss_masked",
+        "ppo_loss",
+        "LossOutput",
+        "compute_group_advantages",
+    ):
+        from ..training import losses
+
+        return getattr(losses, name)
+
+    # GRPO training
+    if name == "GRPOConfig":
+        from ..training.grpo import GRPOConfig
+
+        return GRPOConfig
+    if name == "grpo_train":
+        from ..training.grpo import grpo_train
+
+        return grpo_train
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = [
+    # Loops
+    "run_sft_training",
+    "run_rl_training",
+    # Datasets
+    "DataBuffer",
+    "load_sft_dataset",
+    # Rollout generation
+    "generate_rollout_batches",
+    "AsyncRolloutManager",
+    # Backends
+    "PyTorchTrainingBackend",
+    "TrainingBackend",
+    # Metrics
+    "MetricsLogger",
+    "JSONLLogger",
+    # Types
+    "Sample",
+    "Status",
+    "SFTTrainingConfig",
+    "RLTrainingConfig",
+    "RolloutConfig",
+    "RolloutBatch",
+    "TrainerConfig",
+    # Filters (SLIME-style)
+    "check_reward_nonzero_std",
+    "check_min_reward",
+    "check_response_diversity",
+    "check_reasonable_length",
+    "check_any_success",
+    "check_quality_and_diversity",
+    "make_threshold_filter",
+    "make_length_filter",
+    # Agent integration
+    "agent_rollout_to_sample",
+    "generate_rollout_batch",
+    "trajectory_to_sample",
+    "trajectory_to_samples",
+    # Loss functions
+    "pretrain_loss",
+    "sft_loss",
+    "grpo_loss",
+    "grpo_loss_clipped",
+    "grpo_loss_masked",
+    "ppo_loss",
+    "LossOutput",
+    "compute_group_advantages",
+    # GRPO training
+    "GRPOConfig",
+    "grpo_train",
+]

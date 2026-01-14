@@ -1,0 +1,1603 @@
+import json
+import os
+import time
+from collections.abc import Awaitable, Callable, Iterator, Mapping
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import (
+    Any,
+    Literal,
+    Protocol,
+    Self,
+    runtime_checkable,
+)
+
+import dacite
+import trio
+
+# TODO: Better torch typing options explored:
+# 1. Create a Protocol for tensor-like objects (has .tolist(), .shape, .dtype) - cleanest approach
+# 2. Use torch-stubs package if available for lightweight type info
+# 3. Define proper Union types for tensor alternatives
+# 4. Previous approach used TYPE_CHECKING conditional imports but created dependency issues
+#
+# Current: Simple fallback for type hints - actual tensor handling is done at runtime via hasattr checks
+TorchTensor = Any
+
+# TUI formatter type - receives (tool_name, args, result, expanded, theme) and returns formatted string
+# Theme is optional to allow headless/non-TUI usage
+ToolFormatter = Callable[[str, dict[str, Any], dict[str, Any] | None, bool, Any], str]
+
+
+@dataclass
+class ToolRenderConfig:
+    """Rendering config for tool output in TUI.
+
+    Environments can optionally provide this to customize how tools render.
+    All fields have sensible defaults, so most tools need no config at all.
+
+    For simple tools: just override header_fn and maybe summaries
+    For complex tools: provide custom_formatter for full control
+
+    Example:
+        # Simple tool - just customize header
+        ToolRenderConfig(
+            header_fn=lambda name, args: f"bash(command={repr(args.get('command', '...'))})",
+            success_summary="Command completed",
+        )
+
+        # Complex tool - full control
+        ToolRenderConfig(custom_formatter=my_custom_format_fn)
+    """
+
+    # How to build the header line
+    # If None, uses default: tool_name(arg1=..., arg2=...)
+    header_fn: Callable[[str, dict[str, Any]], str] | None = None
+
+    # Output display settings
+    max_lines: int = 10
+    style_fn: str = "diff_context_fg"  # Theme method name for styling output lines
+
+    # Summary lines (shown after header, before output)
+    # If None, no summary shown - tool name is usually self-documenting
+    success_summary: str | None = None
+    error_summary: str | None = None
+
+    # For complex tools that need full control over rendering
+    # If provided, all other fields are ignored
+    # Signature: (tool_name, args, result, expanded, theme) -> str
+    custom_formatter: ToolFormatter | None = None
+
+
+# Verbose function for debugging
+def verbose(level: int = 1) -> bool:
+    """Check if verbose logging is enabled at given level"""
+    return int(os.getenv("VERBOSE", 0)) >= level
+
+
+def parse_streaming_json(partial_json: str) -> dict[str, Any]:
+    """Parse partial JSON string, returning best-effort partial object.
+
+    During streaming, tool call arguments arrive incrementally as incomplete JSON.
+    This function attempts to extract valid key-value pairs from incomplete JSON.
+
+    Examples:
+        '{"foo": "bar"'          -> {"foo": "bar"}
+        '{"foo": "bar", "baz":'  -> {"foo": "bar"}
+        '{"nested": {"a": 1'     -> {"nested": {"a": 1}}
+        '{"arr": [1, 2'          -> {"arr": [1, 2]}
+        ''                       -> {}
+        '{'                      -> {}
+
+    Tiger Style: Best-effort parsing, crash-loud on programmer error.
+    - Invalid UTF-8 -> crash (caller must ensure valid encoding)
+    - Incomplete JSON -> return partial parsed dict (expected during streaming)
+    - Malformed JSON -> return empty dict (streaming hasn't started yet)
+    """
+    assert isinstance(partial_json, str), f"Expected str, got {type(partial_json)}"
+
+    if not partial_json or partial_json.strip() == "":
+        return {}
+
+    # Try parsing as complete JSON first
+    try:
+        result = json.loads(partial_json)
+    except json.JSONDecodeError:
+        pass
+    else:
+        # Model might return non-object JSON (e.g., "8" instead of {"result": 8})
+        # Return empty dict rather than crashing - caller will handle via ToolCallError
+        if not isinstance(result, dict):
+            return {}
+        return result
+
+    # Incomplete JSON - try to extract what we can
+    # Strategy: Progressively trim incomplete parts from the end
+    # 1. Close incomplete string values
+    # 2. Remove incomplete keys
+    # 3. Close incomplete arrays
+    # 4. Close incomplete objects
+
+    cleaned = partial_json.strip()
+
+    # Handle edge cases
+    if cleaned in ("{", "[", ""):
+        return {}
+
+    # Try adding closing braces/brackets progressively
+    attempts = [
+        cleaned + '"}',  # Close incomplete string value
+        cleaned + "]",  # Close incomplete array
+        cleaned + "}",  # Close incomplete object
+        cleaned + '"}]',  # Close string in array
+        cleaned + '"}}',  # Close string in nested object
+    ]
+
+    # Also try removing trailing incomplete key/value
+    if "," in cleaned:
+        # Remove everything after the last comma (incomplete key-value pair)
+        last_comma = cleaned.rfind(",")
+        truncated = cleaned[:last_comma]
+        attempts.extend([truncated + "}", truncated + "]}", truncated + "}}"])
+
+    # If there's a colon without a value, remove the incomplete pair
+    if ":" in cleaned:
+        # Find the last complete comma before incomplete value
+        parts = cleaned.split(",")
+        for i in range(len(parts) - 1, -1, -1):
+            # Check if this part has both key and value
+            truncated = ",".join(parts[:i])
+            if truncated:
+                attempts.extend([truncated + "}", truncated + "]}", truncated + "}}"])
+
+    # Try each repair strategy
+    for attempt in attempts:
+        try:
+            result = json.loads(attempt)
+            if isinstance(result, dict):
+                return result
+            elif isinstance(result, list):
+                # Array of objects - return last object if available
+                if result and isinstance(result[-1], dict):
+                    return result[-1]
+        except json.JSONDecodeError:
+            continue
+
+    # All strategies failed - return empty dict
+    return {}
+
+
+class JsonSerializable:
+    """Base class for dataclasses with JSON serialization support.
+
+    Tiger Style: Pure serialization, no I/O side effects.
+    Caller controls where the JSON goes (file, network, memory, etc.).
+
+    TODO: Consider replacing inheritance with standalone functions:
+        def to_json(obj: Any) -> str: return json.dumps(asdict(obj), ensure_ascii=False)
+        def from_json(cls: type[T], s: str) -> T: return dacite.from_dict(cls, json.loads(s))
+    This would eliminate the base class and make each dataclass independent.
+    """
+
+    def to_json(self) -> str:
+        """Serialize to JSON string"""
+        assert self is not None
+        result = json.dumps(asdict(self), ensure_ascii=False)  # type:ignore
+        assert result is not None
+        assert isinstance(result, str)
+        assert len(result) > 0
+        return result
+
+    @classmethod
+    def from_json(cls, json_str: str) -> Self:
+        """Deserialize from JSON string using dacite"""
+        assert json_str is not None
+        assert isinstance(json_str, str)
+        assert len(json_str) > 0
+        data = json.loads(json_str)
+        assert data is not None
+        assert isinstance(data, dict)
+        result = dacite.from_dict(data_class=cls, data=data)
+        assert result is not None
+        return result
+
+
+@dataclass(frozen=True)
+class ToolCall(JsonSerializable):
+    id: str
+    name: str
+    args: Mapping[str, Any]
+    # Parse error info - set when tool call JSON was malformed
+    parse_error: str | None = None
+
+
+@dataclass(frozen=True)
+class StreamChunk(JsonSerializable):
+    """DEPRECATED: Legacy streaming event format. Use StreamEvent types instead.
+
+    This class is kept temporarily for backward compatibility during migration.
+    Will be removed once all consumers switch to the new granular event types.
+    """
+
+    type: str  # "token", "tool_call_complete", "tool_result", etc.
+    data: Mapping[str, Any]
+    timestamp: float = field(default_factory=time.time)
+
+
+# New granular streaming events (inspired by pi-ai)
+# Each event includes content_index for tracking which content block and timestamp for logging
+
+
+@dataclass(frozen=True)
+class LLMCallStart(JsonSerializable):
+    """Emitted before making the LLM API call (before connection established)"""
+
+    type: Literal["llm_call_start"] = "llm_call_start"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class StreamStart(JsonSerializable):
+    """Emitted at the start of a streaming response (connection established, first event received)"""
+
+    type: Literal["start"] = "start"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class TextStart(JsonSerializable):
+    """Emitted when a text content block begins"""
+
+    content_index: int
+    type: Literal["text_start"] = "text_start"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class TextDelta(JsonSerializable):
+    """Emitted for each text token/chunk during streaming"""
+
+    content_index: int
+    delta: str
+    type: Literal["text_delta"] = "text_delta"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class TextEnd(JsonSerializable):
+    """Emitted when a text content block completes"""
+
+    content_index: int
+    content: str  # Complete accumulated text
+    type: Literal["text_end"] = "text_end"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ThinkingStart(JsonSerializable):
+    """Emitted when a thinking/reasoning content block begins"""
+
+    content_index: int
+    type: Literal["thinking_start"] = "thinking_start"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ThinkingDelta(JsonSerializable):
+    """Emitted for each thinking token/chunk during streaming"""
+
+    content_index: int
+    delta: str
+    type: Literal["thinking_delta"] = "thinking_delta"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ThinkingEnd(JsonSerializable):
+    """Emitted when a thinking/reasoning content block completes"""
+
+    content_index: int
+    content: str  # Complete accumulated thinking
+    type: Literal["thinking_end"] = "thinking_end"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ToolCallStart(JsonSerializable):
+    """Emitted when a tool call content block begins"""
+
+    content_index: int
+    tool_call_id: str
+    tool_name: str
+    type: Literal["toolcall_start"] = "toolcall_start"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ToolCallDelta(JsonSerializable):
+    """Emitted for each chunk of tool call arguments during streaming
+
+    The partial_args field contains the best-effort parsed JSON from the
+    accumulated argument string so far. May be incomplete objects/arrays.
+    """
+
+    content_index: int
+    tool_call_id: str
+    delta: str  # Raw JSON chunk
+    partial_args: dict[str, Any]  # Best-effort parsed partial JSON
+    type: Literal["toolcall_delta"] = "toolcall_delta"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ToolCallEnd(JsonSerializable):
+    """Emitted when a tool call content block completes"""
+
+    content_index: int
+    tool_call: ToolCall  # Complete parsed tool call
+    type: Literal["toolcall_end"] = "toolcall_end"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ToolCallError(JsonSerializable):
+    """Emitted when tool call argument parsing fails"""
+
+    content_index: int
+    tool_call_id: str
+    tool_name: str
+    error: str
+    raw_arguments: str
+    type: Literal["toolcall_error"] = "toolcall_error"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ToolExecutionStart(JsonSerializable):
+    """Emitted when a tool begins execution (after confirmation, before result)"""
+
+    tool_call_id: str
+    tool_name: str
+    type: Literal["tool_execution_start"] = "tool_execution_start"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ToolResultReceived(JsonSerializable):
+    """Emitted when a tool execution result is received"""
+
+    tool_call_id: str
+    content: str | list["ContentBlock"]  # Forward ref - ContentBlock defined later
+    is_error: bool = False
+    error: str | None = None
+    details: dict[str, Any] | None = None  # UI-only structured data (e.g., diff for edit tool)
+    type: Literal["tool_result"] = "tool_result"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class StreamDone(JsonSerializable):
+    """Emitted when streaming completes successfully"""
+
+    finish_reason: str  # "stop", "length", "tool_calls", etc.
+    type: Literal["done"] = "done"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class StreamError(JsonSerializable):
+    """Emitted when streaming encounters an error"""
+
+    error: str
+    type: Literal["error"] = "error"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class RetryStart(JsonSerializable):
+    """Emitted when starting a retry attempt after a transient error.
+
+    Allows TUI to show retry status (e.g., "Retrying (1/3) in 2s... (esc to cancel)")
+    instead of raw print() statements that mess up the display.
+    """
+
+    attempt: int  # Current attempt number (1-indexed)
+    max_attempts: int  # Total number of attempts allowed
+    delay_seconds: float  # Seconds until retry
+    error_message: str  # What error triggered the retry
+    provider: str  # "anthropic", "openai", etc.
+    type: Literal["retry_start"] = "retry_start"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class RetryEnd(JsonSerializable):
+    """Emitted when retry completes (either success or final failure).
+
+    Allows TUI to clean up retry display and show appropriate status.
+    """
+
+    success: bool  # True if retry succeeded, False if all attempts exhausted
+    attempt: int  # Final attempt number
+    final_error: str | None = None  # Error message if failed
+    type: Literal["retry_end"] = "retry_end"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class LLMCallEnd(JsonSerializable):
+    """Emitted after LLM API call completes (success or error).
+
+    Wide event: includes all context needed for profiling without correlation.
+    """
+
+    duration_ms: float
+    provider: str  # "anthropic", "openai", etc.
+    model: str
+    tokens_in: int | None = None
+    tokens_out: int | None = None
+    status: Literal["success", "error"] = "success"
+    error: str | None = None
+    type: Literal["llm_call_end"] = "llm_call_end"
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(frozen=True)
+class ToolExecutionEnd(JsonSerializable):
+    """Emitted after tool execution completes (success or error).
+
+    Wide event: includes result summary for profiling without correlation.
+    """
+
+    tool_call_id: str
+    tool_name: str
+    duration_ms: float
+    status: Literal["success", "error"] = "success"
+    is_error: bool = False  # Tool returned error result
+    # Result summary (tool-specific, optional)
+    result_summary: dict[str, Any] | None = None
+    type: Literal["tool_execution_end"] = "tool_execution_end"
+    timestamp: float = field(default_factory=time.time)
+
+
+# Union type for all streaming events
+StreamEvent = (
+    LLMCallStart
+    | LLMCallEnd
+    | StreamStart
+    | TextStart
+    | TextDelta
+    | TextEnd
+    | ThinkingStart
+    | ThinkingDelta
+    | ThinkingEnd
+    | ToolCallStart
+    | ToolCallDelta
+    | ToolCallEnd
+    | ToolCallError
+    | ToolExecutionStart
+    | ToolExecutionEnd
+    | ToolResultReceived
+    | StreamDone
+    | StreamError
+    | RetryStart
+    | RetryEnd
+    | StreamChunk  # DEPRECATED: Included for backwards compatibility, will be removed
+)
+
+
+# Provider abstraction protocol (inspired by pi-ai)
+# All provider streaming functions must implement this interface
+@runtime_checkable
+class ProviderStreamFunction(Protocol):
+    """Protocol for provider-specific streaming functions.
+
+    All providers (OpenAI, Anthropic, Google, etc.) must implement a function
+    matching this signature. The function accepts an Actor (with endpoint, trajectory, tools)
+    and an event callback, then streams granular events back via the callback.
+
+    Providers may accept additional provider-specific parameters via **kwargs.
+
+    Example implementations:
+    - rollout_openai(actor, on_chunk) -> Actor
+    - rollout_anthropic(actor, on_chunk, user_message_for_thinking=..., **kwargs) -> Actor
+    - rollout_google(actor, on_chunk) -> Actor
+    """
+
+    async def __call__(
+        self,
+        actor: "Actor",
+        on_chunk: Callable[[StreamEvent], Awaitable[None]],
+        **kwargs: Any,
+    ) -> "Actor":
+        """Stream LLM response and return updated Actor with new trajectory message.
+
+        Args:
+            actor: Current actor state (endpoint, trajectory, tools)
+            on_chunk: Async callback for streaming events
+            **kwargs: Provider-specific optional parameters
+
+        Returns:
+            Updated actor with new assistant message appended to trajectory
+        """
+        ...
+
+
+# ContentBlock types for structured message content (inspired by pi-ai)
+# These allow messages to contain mixed content: text, thinking, tool calls, images
+
+
+@dataclass(frozen=True)
+class TextContent(JsonSerializable):
+    """Text content block in a message."""
+
+    type: Literal["text"] = "text"
+    text: str = ""
+    text_signature: str | None = None  # Provider-specific identifier
+
+
+@dataclass(frozen=True)
+class ThinkingContent(JsonSerializable):
+    """Thinking/reasoning content block in a message.
+
+    Used by Anthropic (thinking blocks) and OpenAI o1/o3 (reasoning_content).
+    """
+
+    type: Literal["thinking"] = "thinking"
+    thinking: str = ""
+    thinking_signature: str | None = (
+        None  # Provider-specific identifier (e.g., GPT-5 Codex reasoning item ID)
+    )
+
+
+@dataclass(frozen=True)
+class ToolCallContent(JsonSerializable):
+    """Tool call content block in a message."""
+
+    type: Literal["toolCall"] = "toolCall"
+    id: str = ""
+    name: str = ""
+    arguments: dict[str, Any] = field(default_factory=dict)
+    thought_signature: str | None = None  # Google-specific opaque context
+    # Parse error info - set when tool call JSON was malformed
+    parse_error: str | None = None
+    raw_arguments: str | None = None  # Original malformed JSON string
+
+
+@dataclass(frozen=True)
+class ImageContent(JsonSerializable):
+    """Image content block in a message (for vision models)."""
+
+    type: Literal["image"] = "image"
+    image_url: str = ""  # base64 data URL or HTTP URL
+    detail: str | None = None  # OpenAI detail parameter: "low", "high", "auto"
+
+
+# Union type for all content blocks
+ContentBlock = TextContent | ThinkingContent | ToolCallContent | ImageContent
+
+
+@dataclass(frozen=True)
+class Message(JsonSerializable):
+    """Unified message type supporting all providers.
+
+    Content can be:
+    - str: Simple text message (most common)
+    - list[ContentBlock]: Structured message with text/thinking/tools/images
+
+    Role can be:
+    - "user": User input
+    - "assistant": Model response
+    - "tool": Tool execution result
+    """
+
+    role: str
+    content: str | list[ContentBlock] | None
+    # Provider metadata for message transformation
+    provider: str | None = None  # e.g., "anthropic", "openai", "google"
+    api: str | None = None  # e.g., "anthropic-messages", "openai-completions", "openai-responses"
+    model: str | None = None  # e.g., "claude-3-5-sonnet-20241022", "gpt-4o"
+    # For tool role messages: which tool call this is responding to
+    tool_call_id: str | None = None
+    # UI-only structured data (stripped before LLM)
+    details: dict[str, Any] | None = None
+    # Session storage timestamp (optional, only set when persisting)
+    timestamp: str | None = None
+
+    def get_tool_calls(self) -> list[ToolCall]:
+        """Extract tool calls from ContentBlocks.
+
+        Tiger Style: Helper for common operation, makes migration easier.
+        """
+        if not isinstance(self.content, list):
+            return []
+
+        tool_calls = []
+        for block in self.content:
+            if isinstance(block, ToolCallContent):
+                tool_calls.append(
+                    ToolCall(
+                        id=block.id,
+                        name=block.name,
+                        args=block.arguments,
+                        parse_error=block.parse_error,
+                    )
+                )
+        return tool_calls
+
+    def __repr__(self) -> str:
+        """Tiger Style: Bounded repr, truncate large content.
+
+        Vision messages can contain base64 images (100KB+).
+        Always truncate to prevent terminal spam.
+        """
+        # Truncate content for display
+        if isinstance(self.content, str):
+            content_preview = (
+                self.content[:100] + "..." if len(self.content) > 100 else self.content
+            )
+        elif isinstance(self.content, list):
+            # Show ContentBlock types
+            block_types = [b.type for b in self.content if hasattr(b, "type")]
+            content_preview = f"[{len(self.content)} blocks: {', '.join(block_types)}]"
+        else:
+            content_preview = str(self.content)
+
+        return f"Message(role={self.role!r}, content={content_preview!r})"
+
+
+@dataclass(frozen=True)
+class Cost(JsonSerializable):
+    """Cost breakdown in USD. Immutable.
+
+    Following IMMUTABILITY_AND_FP: frozen dataclass for data that doesn't change.
+    """
+
+    input: float = 0.0
+    output: float = 0.0
+    cache_read: float = 0.0
+    cache_write: float = 0.0
+
+    @property
+    def total(self) -> float:
+        return self.input + self.output + self.cache_read + self.cache_write
+
+
+@dataclass(frozen=True)
+class Usage(JsonSerializable):
+    """Token usage with cost tracking. Immutable.
+
+    Following IMMUTABILITY_AND_FP: state changes are explicit via replace().
+    Following SSA: each transformation creates a new binding.
+
+    Example:
+        # SSA style - named intermediate values
+        raw_usage = Usage(input_tokens=100, output_tokens=50)
+        usage_with_cost = replace(raw_usage, cost=calculated_cost)
+    """
+
+    # Token counts (primary fields)
+    input_tokens: int = 0  # Non-cached input tokens
+    output_tokens: int = 0  # Output/completion tokens (excludes reasoning)
+    reasoning_tokens: int = 0  # Reasoning/thinking tokens (OpenAI o1/o3, Anthropic thinking)
+    cache_read_tokens: int = 0  # Tokens read from cache (Anthropic/OpenAI)
+    cache_write_tokens: int = 0  # Tokens written to cache (Anthropic)
+
+    # Cost breakdown (computed by provider after API response)
+    cost: Cost = field(default_factory=Cost)
+
+    # Computed properties
+    @property
+    def total_tokens(self) -> int:
+        return (
+            self.input_tokens
+            + self.output_tokens
+            + self.reasoning_tokens
+            + self.cache_read_tokens
+            + self.cache_write_tokens
+        )
+
+    # Legacy aliases for backwards compatibility (don't break userspace)
+    @property
+    def prompt_tokens(self) -> int:
+        """Legacy alias: input_tokens + cache_read_tokens"""
+        return self.input_tokens + self.cache_read_tokens
+
+    @property
+    def completion_tokens(self) -> int:
+        """Legacy alias: output_tokens + reasoning_tokens (rolled together for compat)"""
+        return self.output_tokens + self.reasoning_tokens
+
+
+@dataclass(frozen=True)
+class Logprob(JsonSerializable):
+    token: str
+    logprob: float
+    bytes: list[int]
+    top_logprobs: list[float]
+
+
+@dataclass(frozen=True)
+class Logprobs(JsonSerializable):
+    content: list[Logprob] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class Choice(JsonSerializable):
+    index: int
+    message: Message
+    finish_reason: str
+    logprobs: Logprobs | None = None
+    stop_reason: Any | None = None
+    token_ids: tuple[int, ...] | None = None  # Generated token IDs for TI/TO
+
+
+@dataclass(frozen=True)
+class TokenInfo(JsonSerializable):
+    logprob: float
+    rank: int
+    decoded_token: str
+
+
+PromptLogprob = dict[str, TokenInfo] | None
+"""
+{
+"8948": { # key is different every token
+"logprob": -12.845086097717285,
+"rank": 60822,
+"decoded_token": "system"
+}
+}
+"""
+
+
+@dataclass(frozen=True)
+class ChatCompletion(JsonSerializable):
+    id: str
+    object: str
+    created: int
+    model: str
+    usage: Usage
+    kv_transfer_params: Any | None = None
+    choices: list[Choice] = field(default_factory=list)
+    prompt_logprobs: list[PromptLogprob] | None = None
+
+
+@dataclass
+class Trajectory(JsonSerializable):
+    completions: list[ChatCompletion] = field(default_factory=list)
+    messages: list[Message] = field(default_factory=list)  # debugging only
+    rewards: float = 0.0
+    group: int = 0
+    replica: int = 0
+    advantages: float = 0.0  # scalar; broadcast later if needed
+    metadata: dict[str, Any] = field(
+        default_factory=dict
+    )  # For dataset-specific info (e.g., ground truth)
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "Trajectory":
+        """Rebuild nested dataclasses so type hints stay correct."""
+        assert data is not None
+        assert isinstance(data, dict)
+
+        comps: list[ChatCompletion] = []
+        for comp in data.get("completions", []):
+            assert comp is not None
+            assert isinstance(comp, dict)
+            usage_dict = comp.get("usage", {})
+            assert "prompt_tokens" in usage_dict
+            assert "completion_tokens" in usage_dict
+            assert "total_tokens" in usage_dict
+            usage = Usage(
+                input_tokens=usage_dict["prompt_tokens"],
+                output_tokens=usage_dict["completion_tokens"],
+            )
+            assert usage is not None
+            # Construct ChatCompletion with explicit parameters for type safety
+            comps.append(
+                ChatCompletion(
+                    id=comp.get("id", "unknown"),
+                    object=comp.get("object", "chat.completion"),
+                    created=comp.get("created", 0),
+                    model=comp.get("model", "unknown"),
+                    usage=usage,
+                    kv_transfer_params=comp.get("kv_transfer_params"),
+                    choices=comp.get("choices", []),
+                    prompt_logprobs=comp.get("prompt_logprobs"),
+                )
+            )
+
+        result = Trajectory(
+            completions=comps,
+            messages=data.get("messages", []),
+            rewards=data.get("rewards", 0.0),
+            group=data.get("group", 0),
+            replica=data.get("replica", 0),
+            advantages=data.get("advantages", 0.0),
+            metadata=data.get("metadata", {}),
+        )
+        assert result is not None
+        return result
+
+    # ---------- JSONL convenience layer -----------------------------------
+    def to_json(self) -> str:
+        assert self is not None
+        result = json.dumps(asdict(self), ensure_ascii=False)
+        assert result is not None
+        assert isinstance(result, str)
+        return result
+
+    @staticmethod
+    def to_jsonl(trajectories: list["Trajectory"]) -> str:
+        assert trajectories is not None
+        assert isinstance(trajectories, list)
+        result = "\n".join(t.to_json() for t in trajectories)
+        assert isinstance(result, str)
+        return result
+
+    @staticmethod
+    def from_json(json_str: str) -> "Trajectory":
+        assert json_str is not None
+        assert isinstance(json_str, str)
+        assert len(json_str) > 0
+        data = json.loads(json_str)
+        result = Trajectory.from_dict(data)
+        assert result is not None
+        return result
+
+    @staticmethod
+    def from_jsonl(jsonl_str: str) -> list["Trajectory"]:
+        assert jsonl_str is not None
+        assert isinstance(jsonl_str, str)
+        result = [Trajectory.from_json(line) for line in jsonl_str.strip().splitlines() if line]
+        assert isinstance(result, list)
+        return result
+
+    # ---------- disk I/O ---------------------------------------------------
+    @staticmethod
+    def save_jsonl(trajectories: list["Trajectory"], filepath: str) -> None:
+        assert trajectories is not None
+        assert isinstance(trajectories, list)
+        assert filepath is not None
+        assert len(filepath) > 0
+        jsonl_content = Trajectory.to_jsonl(trajectories)
+        assert jsonl_content is not None
+        path_obj = Path(filepath)
+        path_obj.write_text(jsonl_content, encoding="utf-8")
+        assert path_obj.exists()
+
+    @staticmethod
+    def load_jsonl(filepath: str) -> list["Trajectory"]:
+        assert filepath is not None
+        assert len(filepath) > 0
+        path_obj = Path(filepath)
+        assert path_obj.exists(), f"File not found: {filepath}"
+        assert path_obj.is_file()
+        content = path_obj.read_text(encoding="utf-8")
+        result = Trajectory.from_jsonl(content)
+        assert result is not None
+        assert isinstance(result, list)
+        return result
+
+    @staticmethod
+    def load_jsonl_streaming(filepath: str) -> Iterator["Trajectory"]:
+        assert filepath is not None
+        assert len(filepath) > 0
+        path_obj = Path(filepath)
+        assert path_obj.exists(), f"File not found: {filepath}"
+        assert path_obj.is_file()
+
+        with open(filepath, encoding="utf-8") as f:
+            for line in f:
+                line_stripped = line.strip()
+                if line_stripped:  # Skip empty lines
+                    yield Trajectory.from_json(line_stripped)
+
+    # ---------- helpers that work pre-/post-serialisation ------------------
+    @staticmethod
+    def _usage_total(usage: Usage | dict[str, Any], key: str) -> int:
+        assert usage is not None
+        assert key is not None
+        assert isinstance(key, str)
+        if isinstance(usage, Usage):
+            result = getattr(usage, key, 0)
+        else:
+            result = usage.get(key, 0)
+        assert isinstance(result, int)
+        assert result >= 0
+        return result
+
+    @staticmethod
+    def get_completion_tokens(traj: "Trajectory") -> int:
+        assert traj is not None
+        assert isinstance(traj, Trajectory)
+        result = sum(
+            Trajectory._usage_total(c.usage, "completion_tokens") for c in traj.completions
+        )
+        assert result >= 0
+        return result
+
+    @staticmethod
+    def get_total_tokens(traj: "Trajectory") -> int:
+        assert traj is not None
+        assert isinstance(traj, Trajectory)
+        result = sum(
+            Trajectory._usage_total(c.usage, "total_tokens") for c in traj.completions[-1:]
+        )
+        assert result >= 0
+        return result
+
+    @staticmethod
+    def hash(trajectory: "Trajectory") -> str:
+        """Generate a hash for a single trajectory."""
+        import hashlib
+
+        assert trajectory is not None
+        assert isinstance(trajectory, Trajectory)
+        traj_dict = asdict(trajectory)
+        assert traj_dict is not None
+        traj_str = json.dumps(traj_dict, sort_keys=True)
+        assert traj_str is not None
+        result = hashlib.sha256(traj_str.encode()).hexdigest()[:16]
+        assert result is not None
+        assert isinstance(result, str)
+        assert len(result) == 16
+        return result
+
+
+@dataclass(frozen=True)
+class ToolFunctionParameter(JsonSerializable):
+    properties: dict[str, Any]
+    type: str = "object"
+
+
+@dataclass(frozen=True)
+class ToolFunction(JsonSerializable):
+    name: str
+    description: str
+    parameters: ToolFunctionParameter
+    required: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class Tool(JsonSerializable):
+    function: ToolFunction
+    type: str = "function"
+
+
+class StopReason(Enum):
+    MAX_TURNS = "MAX_TURNS"
+    TOOL_ERROR = "TOOL_ERROR"
+    USER_ABORT = "USER_ABORT"
+    PROVIDER_ERROR = "PROVIDER_ERROR"
+    NO_TOOL_CALLED = "NO_TOOL_CALLED"
+    TASK_COMPLETED = "TASK_COMPLETED"
+    ABORTED = "ABORTED"
+    NEEDS_INPUT = "NEEDS_INPUT"  # Agent waiting for user input (interactive mode)
+
+
+@dataclass(frozen=True)
+class ToolResult(JsonSerializable):
+    tool_call_id: str = ""
+    is_error: bool = False
+    content: str | list[ContentBlock] = ""
+    error: str | None = None
+    stop_reason: StopReason | None = None
+    # UI-only structured data (stripped before LLM)
+    details: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class ToolConfirmResult(JsonSerializable):
+    """Result of tool confirmation"""
+
+    proceed: bool
+    tool_result: ToolResult | None = None
+    user_message: str | None = None
+
+
+# ── Core Agent Framework Types ────────────────────────────────────────────────
+
+
+@runtime_checkable
+class Environment(Protocol):
+    """Protocol that all environments must satisfy for composition over inheritance."""
+
+    def get_tools(self) -> list[Tool]:
+        """Return available tools for this environment."""
+        ...
+
+    async def exec_tool(
+        self,
+        tool_call: ToolCall,
+        current_state: "AgentState",
+        run_config: "RunConfig",
+        cancel_scope: trio.CancelScope | None = None,
+    ) -> ToolResult:
+        """Execute a tool call in this environment.
+
+        Args:
+            tool_call: The tool call to execute
+            current_state: Current agent state
+            run_config: Run configuration
+            cancel_scope: Optional Trio cancel scope for graceful cancellation
+        """
+        ...
+
+    def requires_confirmation(self, tool_call: ToolCall) -> bool:
+        """Check if tool requires confirmation."""
+        ...
+
+    def get_tool_formatter(self, tool_name: str) -> "ToolFormatter | None":
+        """Return optional TUI formatter for this tool.
+
+        Args:
+            tool_name: Name of the tool to format
+
+        Returns:
+            A formatter function or None to use the default formatter.
+            The formatter receives (tool_name, args, result, expanded) and returns
+            a formatted string for display in the TUI.
+        """
+        ...
+
+    def get_status_info(self) -> dict[str, str] | None:
+        """Return key-value pairs to display in TUI status line.
+
+        Optional method - environments can return None or not implement this.
+        Example: {"cwd": "~/research", "branch": "main"}
+        """
+        ...
+
+    def get_system_prompt(self) -> str | None:
+        """Return environment-specific system prompt content.
+
+        Optional method - environments can return None or not implement this.
+        The returned string will be appended to the base system prompt.
+
+        Use this to explain environment-specific concepts, tools, or strategies
+        that the model needs to understand.
+
+        Example (REPL environment):
+            return '''
+            The input context is stored in a Python variable called `context`.
+            Use the repl tool to explore it programmatically.
+            '''
+        """
+        ...
+
+    async def on_session_start(self, session_id: str) -> None:
+        """Called when an agent session starts, before any tools execute.
+
+        Optional method - environments can use this to initialize session-specific
+        resources (e.g., git worktrees, temp directories, etc.).
+
+        Args:
+            session_id: The session ID for this agent run
+        """
+        ...
+
+    async def on_assistant_message(self, message: "Message", state: "AgentState") -> "AgentState":
+        """Called after each assistant message, before tool processing.
+
+        Allows environment to respond to assistant messages with feedback, regardless
+        of whether tools were called. Useful for message-based environments that need
+        to execute code, provide feedback, or inject responses.
+
+        Args:
+            message: The assistant's message (may contain tool calls)
+            state: Current agent state
+
+        Returns:
+            Updated agent state with environment feedback injected into trajectory.
+            Return unchanged state for no response.
+
+        Example (backend-bench):
+            Parse code from message, execute it, inject feedback:
+            ```python
+            async def on_assistant_message(self, message, state):
+                code = self.parser.parse([{"role": "assistant", "content": message.content}])
+                result = await self.code_evaluator(code)
+                feedback_msg = Message(role="user", content=result.feedback)
+                # Inject feedback into trajectory
+                return replace(state, actor=replace(state.actor, trajectory=replace(
+                    state.actor.trajectory,
+                    messages=[*state.actor.trajectory.messages, feedback_msg]
+                )))
+            ```
+        """
+        ...
+
+    async def serialize(self) -> dict:
+        """Serialize environment state to dictionary.
+
+        Must include:
+            - env_kind: str (e.g., "calculator", "code_exec", "browser")
+            - version: str (e.g., "1.0.0", "2.0.0")
+            - ...rest of environment-specific state
+
+        The env_kind and version enable safe restore validation:
+        - Prevents restoring snapshots into wrong environment types
+        - Prevents restoring incompatible versions (schema changes)
+
+        Example:
+            >>> async def serialize(self) -> dict:
+            ...     return {
+            ...         "env_kind": self.ENV_KIND,  # Class constant
+            ...         "version": self.VERSION,    # Class constant
+            ...         "history": self._history,
+            ...         "state": self._state,
+            ...     }
+        """
+        ...
+
+    @staticmethod
+    async def deserialize(data: dict) -> "Environment":
+        """Deserialize environment from dictionary.
+
+        Should validate env_kind and version before restoring state.
+
+        Example:
+            >>> @staticmethod
+            ... async def deserialize(data: dict) -> 'MyEnvironment':
+            ...     assert data["env_kind"] == MyEnvironment.ENV_KIND
+            ...     assert data["version"].startswith("1.")  # compatible versions
+            ...     env = MyEnvironment()
+            ...     env._history = data["history"]
+            ...     return env
+        """
+        ...
+
+
+# TODO: Add provider-specific max_tokens limits and validate in Endpoint.__post_init__
+# Article quote: "Some providers have lower max_tokens than advertised, resulting in cut-off
+# responses, even though a higher limit was set via the API request. This affects SiliconFlow,
+# Friendly and Cerebras."
+#
+# Article quote: "Some providers have max_tokens limits which are lower than needed to evaluate
+# the corresponding model. These providers were dropped completely for the given eval."
+#
+# Problem: No validation that max_tokens is within provider/model limits. This causes silent
+# truncation where responses are cut off but we don't detect it.
+#
+# Fix: Add max_output_tokens to ModelInfo in models.py, then validate in __post_init__:
+#     model_meta = get_model(self.provider, self.model)
+#     if model_meta and model_meta.max_output_tokens:
+#         assert self.max_tokens <= model_meta.max_output_tokens
+
+
+@dataclass(frozen=True)
+class Endpoint(JsonSerializable):
+    provider: str
+    model: str
+    api_base: str = ""
+    api_key: str = ""
+    oauth_token: str = ""  # OAuth bearer token (takes precedence over api_key for Anthropic)
+    is_claude_code_api_key: bool = (
+        False  # API key created via Claude Code OAuth (requires special headers)
+    )
+    max_tokens: int = 8192
+    # TODO: Document temperature choice for evaluations
+    # Article quote: "Evaluators must also decide on the sampling parameters that models will
+    # be run with, in particular the temperature... Default temperature is 0.0 for API-based
+    # models [lm-evaluation-harness]... Default temperature is 0.5 [simple-evals]...
+    # Default temperature is 1.0 (when invoking the script via command line) [gpt-oss]"
+    #
+    # Problem: Different temperature defaults make results incomparable across frameworks.
+    # Our default of 1.0 increases variance. For reproducible evals, consider 0.0.
+    #
+    # Decision needed: Document why we chose 1.0, or change to 0.0 for deterministic evals.
+    temperature: float = 1.0
+    tool_choice: str | dict[str, Any] | None = None
+    parallel_tool_calls: bool | None = None
+    reasoning_effort: str | None = None  # for openai
+    max_completion_tokens: int | None = None  # for openai
+    thinking: dict[str, Any] | None = None  # for anthropic
+    # Retry configuration
+    max_retries: int = 10  # Number of retries for rate limits/transient errors
+    timeout: float = 120.0  # Timeout in seconds for API calls
+    # Extra params merged into the raw chat request for custom servers
+    extra_params: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        """Validate endpoint configuration.
+
+        Tiger Style: Crash loud on invalid config, explicit error messages.
+        """
+        # Validate Claude thinking budget (Anthropic requires >= 1024 tokens)
+        if self.thinking is not None and self.provider == "anthropic":
+            assert isinstance(self.thinking, dict), (
+                f"thinking must be dict, got {type(self.thinking)}"
+            )
+            if self.thinking.get("type") == "enabled":
+                budget = self.thinking.get("budget_tokens", 0)
+                assert isinstance(budget, int), f"budget_tokens must be int, got {type(budget)}"
+                assert budget >= 1024, (
+                    f"Claude thinking budget_tokens must be >= 1024, got {budget}. "
+                    "Anthropic API requirement for extended thinking mode."
+                )
+                # max_tokens must be greater than thinking budget
+                assert self.max_tokens > budget, (
+                    f"max_tokens ({self.max_tokens}) must be greater than thinking.budget_tokens ({budget}). "
+                    f"Anthropic requires max_tokens > budget_tokens to allow space for both thinking and response. "
+                    f"See https://docs.claude.com/en/docs/build-with-claude/extended-thinking#max-tokens-and-context-window-size"
+                )
+                # Anthropic requires temperature=1.0 when thinking is enabled
+                assert self.temperature == 1.0, (
+                    f"Anthropic requires temperature=1.0 when thinking is enabled, got {self.temperature}. "
+                    "See https://docs.claude.com/en/docs/build-with-claude/extended-thinking"
+                )
+
+    def to_dict(self, exclude_secrets: bool = True) -> dict[str, Any]:
+        """Serialize to dict for storage.
+
+        Args:
+            exclude_secrets: If True (default), omits api_key and oauth_token.
+        """
+        d = asdict(self)
+        if exclude_secrets:
+            d.pop("api_key", None)
+            d.pop("oauth_token", None)
+        return d
+
+    @classmethod
+    def from_dict(
+        cls, data: dict[str, Any], api_key: str = "", oauth_token: str = ""
+    ) -> "Endpoint":
+        """Deserialize from dict, injecting secrets at runtime.
+
+        Args:
+            data: Dict from to_dict()
+            api_key: API key to inject (not stored in session)
+            oauth_token: OAuth token to inject (not stored in session)
+        """
+        # Remove secrets if present (they shouldn't be, but be safe)
+        data = data.copy()
+        data.pop("api_key", None)
+        data.pop("oauth_token", None)
+        return cls(**data, api_key=api_key, oauth_token=oauth_token)
+
+
+@dataclass(frozen=True)
+class Actor(JsonSerializable):
+    trajectory: Trajectory
+    endpoint: Endpoint
+    tools: list[Tool] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class AgentState:
+    actor: Actor
+    environment: Environment | None
+    stop: StopReason | None = None
+    turn_idx: int = 0
+    pending_tool_calls: list[ToolCall] = field(default_factory=list)
+    next_tool_idx: int = 0  # Which tool we're about to process
+    timestamp: str = datetime.now(timezone.utc).isoformat() + "Z"
+    session_id: str | None = None  # Session ID for persistence (set by run_agent)
+    # For forking: when resuming with different config, create child session
+    parent_session_id: str | None = None  # Parent session to branch from
+    branch_point: int | None = None  # Message index where branching from parent
+    confirm_tools: bool = False  # Whether tool confirmation is required
+
+
+# Forward declarations for RunConfig (needs to be after AgentState but before default handlers)
+async def default_stdin_handler(prompt: str) -> str:
+    """Default input handler using trio.to_thread.run_sync for non-blocking input."""
+    return await trio.to_thread.run_sync(input, prompt)
+
+
+async def default_confirm_tool(
+    tc: ToolCall, state: "AgentState", run_config: "RunConfig"
+) -> tuple["AgentState", ToolConfirmResult]:
+    """Default tool confirmation handler - auto-confirm all tools."""
+    return state, ToolConfirmResult(proceed=True)
+
+
+async def default_no_tool_handler(state: "AgentState", run_config: "RunConfig") -> "AgentState":
+    """Default no-tool handler - do nothing."""
+    return state
+
+
+@dataclass(frozen=True)
+class RunConfig:
+    # TODO: Add runtime validation for on_chunk parameter to catch sync functions early
+    # Currently if a sync function is passed, it gets set to None silently, causing
+    # "object NoneType can't be used in 'await' expression" errors later. Should validate
+    # that on_chunk is properly async and has correct signature at construction time.
+    on_chunk: Callable[[StreamEvent], Awaitable[None]]
+    on_input: Callable[[str], Awaitable[str]] = field(default_factory=lambda: default_stdin_handler)
+    confirm_tool: Callable[
+        [ToolCall, "AgentState", "RunConfig"], Awaitable[tuple["AgentState", ToolConfirmResult]]
+    ] = field(default_factory=lambda: default_confirm_tool)
+    handle_tool_error: Callable[[ToolResult, "AgentState"], "AgentState"] = lambda tr, s: s
+    on_step_start: Callable[["AgentState"], "AgentState"] = lambda s: s
+    handle_stop: Callable[["AgentState"], "AgentState"] = lambda s: s
+    handle_no_tool: Callable[["AgentState", "RunConfig"], Awaitable["AgentState"]] = field(
+        default_factory=lambda: default_no_tool_handler
+    )
+    user_message_for_thinking: str | None = None
+    inline_thinking: str | None = None
+    show_progress: bool = False  # Enable turn-level progress tracking
+    cancel_scope: trio.CancelScope | None = (
+        None  # Optional Trio cancel scope for graceful cancellation. When cancel_scope.cancel() is called, any in-flight HTTP request is immediately cancelled and trio.Cancelled is raised. The agent loop catches this and sets stop=StopReason.ABORTED.
+    )
+    # Session persistence
+    session_store: Any | None = (
+        None  # SessionStore instance for persistence (session_id is on AgentState)
+    )
+    # TI/TO (Tokens-In/Tokens-Out) for RL training
+    # When enabled, uses token-level generation to avoid retokenization collapse
+    use_tito: bool = False
+    tokenizer: Any | None = None  # HuggingFace tokenizer (required if use_tito=True)
+    suffix_ids: tuple[int, ...] | None = None  # Pre-computed suffix tokens (computed if None)
+    # Two-level concurrency control for maximizing API throughput
+    # API limiter: controls concurrent LLM API calls (saturate tokens/min)
+    # Tool limiter: controls concurrent tool executions (respect file descriptors, GPU limits)
+    # When set, samples yield their slot while waiting for the other resource type
+    api_limiter: trio.CapacityLimiter | None = None
+    tool_limiter: trio.CapacityLimiter | None = None
+
+
+# ── Evaluation Types ──────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class Metric:
+    """A measured dimension. Weight=0 means track-only, weight>0 means contributes to reward.
+
+    Tiger Style: Immutable, explicit, composable.
+
+    Examples:
+        >>> # Reward component (contributes to training signal)
+        >>> Metric("correct", 1.0, weight=1.0)
+
+        >>> # Tracking-only metric (logged but not used for optimization)
+        >>> Metric("latency_ms", 145.2, weight=0)
+
+        >>> # With metadata for debugging
+        >>> Metric("format_valid", 0.0, weight=0.2, metadata={"error": "missing closing tag"})
+    """
+
+    name: str
+    value: float
+    weight: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Score:
+    """Collection of metrics, some of which are rewards (weight > 0).
+
+    Tiger Style: Immutable, explicit breakdown, single reward property for training.
+
+    Examples:
+        >>> score = Score(metrics=(
+        ...     Metric("correct", 1.0, weight=1.0),
+        ...     Metric("format", 0.5, weight=0.2),
+        ...     Metric("tokens", 150, weight=0),  # tracked only
+        ... ))
+        >>> score.reward  # Weighted average: (1.0*1.0 + 0.5*0.2) / (1.0 + 0.2) = 0.917
+        0.9166666666666666
+    """
+
+    metrics: tuple[Metric, ...]
+
+    @property
+    def reward(self) -> float:
+        """Weighted average of metrics with weight > 0."""
+        weighted = [(m.value, m.weight) for m in self.metrics if m.weight > 0]
+        if not weighted:
+            return 0.0
+        total_weight = sum(w for _, w in weighted)
+        return sum(v * w for v, w in weighted) / total_weight
+
+
+# Sample is unified in training.types - import here for backward compatibility
+from .training.types import Sample  # noqa: E402
+
+# Score function: pure transform from Sample -> Score
+# Sample has trajectory, ground_truth, input, etc. - access via sample.trajectory
+# Supports both sync and async (for external verifiers that need network calls)
+ScoreFn = Callable[[Sample], Score] | Callable[[Sample], Awaitable[Score]]
+
+# Type aliases for EvalConfig
+PrepareMessagesFn = Callable[[dict[str, Any]], list[Message]]
+EnvironmentFactory = Callable[[dict[str, Any]], Awaitable["Environment"]]
+
+
+@dataclass(frozen=True)
+class EvalConfig:
+    """Configuration for evaluation runs.
+
+    Tiger Style: All configuration explicit, immutable, composable.
+
+    TODO: Document API choice and its impact on results
+    Article quote: "OpenAI reports up to 3% improvements on SWE-bench Verified by using their
+    Responses API, while other providers, such as Anthropic, only offer a subset of features
+    in their OpenAI ChatCompletions compatible endpoint."
+
+    Article quote: "Minimax reports an astronomical 23 percentage point difference in performance
+    on tau-bench when using their API implementation compared to the standard ChatCompletions API."
+
+    Problem: We use native SDKs (good), but should document which API variant we use per provider
+    and ensure we're not leaving performance on the table by using compatibility endpoints.
+
+    Current status:
+    - OpenAI: Using Chat Completions (not Responses API - may underperform by ~3%)
+    - Anthropic: Using native Messages API (correct)
+    - Google: Using native Gemini API (correct)
+
+    Example:
+        >>> def prepare_messages(sample: dict) -> list[Message]:
+        ...     return [
+        ...         Message(role="system", content="You are a math tutor."),
+        ...         Message(role="user", content=sample["question"]),
+        ...     ]
+        >>> config = EvalConfig(
+        ...     endpoint=Endpoint(provider="openai", model="gpt-4o-mini"),
+        ...     score_fn=my_score_fn,
+        ...     prepare_messages=prepare_messages,
+        ...     max_concurrent=4,
+        ... )
+        >>> report = await evaluate(dataset, config)
+    """
+
+    # Required
+    endpoint: "Endpoint"
+    score_fn: ScoreFn
+    prepare_messages: PrepareMessagesFn
+
+    # Environment (optional - for tool-using agents)
+    environment_factory: EnvironmentFactory | None = None
+
+    # Agent execution
+    # TODO: Require run_config explicitly instead of constructing hidden default when None
+    run_config: RunConfig | None = None
+
+    # Dataset control
+    max_samples: int | None = None  # If None, evaluate all
+
+    # Parallelization
+    max_concurrent: int = 1
+
+    # Output
+    output_dir: Path | None = None
+    eval_name: str = "evaluation"
+
+    # Logging
+    # TODO: Consider consolidating verbose/show_progress/stream_tokens into single output mode
+    verbose: bool = True
+    show_progress: bool = False  # Enable sample-level progress tracking
+    stream_tokens: bool = False  # Stream LLM tokens to stdout (used if run_config is None)
+
+    # Sample-level retry for transient failures (rate limits, connection errors)
+    # Separates request-scale retries (SDK, seconds) from sample-scale retries (minutes)
+    max_sample_retries: int = 5  # Number of times to retry failed samples
+
+    # Two-level concurrency for maximizing API throughput during evals
+    # max_concurrent: total samples in flight (existing field)
+    # max_api_concurrent: max LLM API calls in flight (saturate tokens/min)
+    # max_tool_concurrent: max tool executions in flight (respect file descriptors, GPU limits)
+    # When both are set, samples yield their slot while waiting for the other resource type
+    max_api_concurrent: int | None = None  # None = use max_concurrent for API calls
+    max_tool_concurrent: int | None = None  # None = use max_concurrent for tool calls
+
+
+# ── Session Types ──────────────────────────────────────────────────────────────
+# Types for persisting agent sessions (trajectories, config, environment state).
+# See docs/design/rollouts-session-design.md for design details.
+
+
+class SessionStatus(Enum):
+    """Session status."""
+
+    PENDING = "pending"
+    COMPLETED = "completed"
+    TRUNCATED = "truncated"
+    ABORTED = "aborted"
+
+
+# EndpointConfig deleted - use Endpoint.to_dict(exclude_secrets=True) instead
+
+
+@dataclass
+class EnvironmentConfig:
+    """Environment configuration.
+
+    Stored in session for reproducibility.
+    """
+
+    type: str  # e.g., "gpumode", "localfs"
+    # Environment-specific config
+    config: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": self.type,
+            "config": self.config,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "EnvironmentConfig":
+        return cls(
+            type=data["type"],
+            config=data.get("config", {}),
+        )
+
+
+# SessionMessage deleted - use Message with optional timestamp instead
+
+
+@dataclass
+class AgentSession:
+    """A persisted agent session.
+
+    This is the record stored in ~/.rollouts/sessions/<session_id>/
+    """
+
+    # Identity
+    session_id: str
+    parent_id: str | None = None  # None for root sessions
+    branch_point: int | None = None  # message index where branched from parent
+
+    # Config (serializable, stored in session.json)
+    # Endpoint stored with secrets excluded via to_dict(exclude_secrets=True)
+    endpoint: Endpoint = field(default_factory=lambda: Endpoint(provider="", model=""))
+    environment: EnvironmentConfig = field(default_factory=lambda: EnvironmentConfig(type=""))
+
+    # Trajectory - uses Message directly (with optional timestamp field)
+    messages: list[Message] = field(default_factory=list)
+    message_count: int | None = None  # Set when listing (without loading messages)
+
+    # Environment state (opaque, env-specific)
+    environment_state: dict[str, Any] | None = None
+
+    # Outcome
+    status: SessionStatus = SessionStatus.PENDING
+    reward: float | dict[str, float] | None = None
+
+    # Metadata
+    tags: dict[str, str] = field(default_factory=dict)
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dict for JSON storage."""
+        return {
+            "session_id": self.session_id,
+            "parent_id": self.parent_id,
+            "branch_point": self.branch_point,
+            "endpoint": self.endpoint.to_dict(exclude_secrets=True),
+            "environment": self.environment.to_dict(),
+            # messages are stored separately in messages.jsonl
+            "environment_state": self.environment_state,
+            "status": self.status.value,
+            "reward": self.reward,
+            "tags": self.tags,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(
+        cls, data: dict[str, Any], messages: list[Message] | None = None
+    ) -> "AgentSession":
+        """Deserialize from dict."""
+        return cls(
+            session_id=data["session_id"],
+            parent_id=data.get("parent_id"),
+            branch_point=data.get("branch_point"),
+            endpoint=Endpoint.from_dict(data["endpoint"]),
+            environment=EnvironmentConfig.from_dict(data["environment"]),
+            messages=messages or [],
+            environment_state=data.get("environment_state"),
+            status=SessionStatus(data.get("status", "pending")),
+            reward=data.get("reward"),
+            tags=data.get("tags", {}),
+            created_at=data.get("created_at", datetime.now().isoformat()),
+            updated_at=data.get("updated_at", datetime.now().isoformat()),
+        )
