@@ -1,0 +1,142 @@
+import os
+import yaml
+import json
+import shutil
+import whisper
+import traceback
+import subprocess
+from .utils import validate_config_and_paths
+
+def format_timestamp(total_seconds):
+    # Convert seconds to hh:mm:ss.mmm format
+    hours = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = int(total_seconds % 60)
+    milliseconds = int((total_seconds - int(total_seconds)) * 1000)
+    return f"{hours:02}:{minutes:02}:{seconds:02}.{milliseconds:03}"
+
+def has_audio_stream(path: str) -> bool:
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "a",
+                "-show_entries", "stream=index",
+                "-of", "json",
+                path
+            ],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        data = json.loads(result.stdout or "{}")
+        return bool(data.get("streams"))
+    except Exception:
+        return False
+
+def transcribe_file(model, file_path, vtt_file_path, txt_file_path):
+    result = model.transcribe(file_path, task="transcribe", language="en")
+
+    # Check if transcription produced any segments
+    if not result.get("segments"):
+        return False
+
+    # Open the output VTT and TXT files
+    with open(vtt_file_path, 'w', encoding='utf-8') as vtt_file, \
+         open(txt_file_path, 'w', encoding='utf-8') as txt_file:
+        
+        # Write to VTT file
+        vtt_file.write("WEBVTT\n\n")
+        
+        # Iterate over the segments and format them as VTT and plain text
+        for segment in result["segments"]:
+            start = format_timestamp(segment["start"])
+            end = format_timestamp(segment["end"])
+            # Write the VTT cue
+            vtt_file.write(f"{start} --> {end}\n")
+            vtt_file.write(f"{segment['text'].strip()}\n\n")
+            # Write the plain text transcription (no timestamps)
+            txt_file.write(f"{segment['text'].strip()}\n")
+
+    print(f"Transcription saved to {vtt_file_path} and {txt_file_path}")
+    return True
+
+def create_transcription(collection_id, object_id, config_path="~/.iiiflow.yml"):
+    """
+    Processes a/v files in a given collection and object directory with Whisper,
+    creating VTT captions and TXT transcriptions, as well as content.txt
+    Designed to be used with the discovery storage specification
+    https://github.com/UAlbanyArchives/arclight_integration_project/blob/main/discovery_storage_spec.md
+
+    Args:
+        collection_id (str): The collection ID.
+        object_id (str): The object ID.
+        config_path (str): Path to the configuration YAML file.
+    """
+    
+    # Read config and validate paths
+    discovery_storage_root, log_file_path, object_path = validate_config_and_paths(
+        config_path, collection_id, object_id
+    )
+
+    metadata_path = os.path.join(object_path, "metadata.yml")
+    vtt_output_dir = os.path.join(object_path, "vtt")
+    txt_output_dir = os.path.join(object_path, "txt")
+    content_txt_path = os.path.join(object_path, "content.txt")
+
+    # Load metadata
+    with open(metadata_path, 'r', encoding="utf-8") as yml_file:
+        metadata = yaml.safe_load(yml_file)
+
+    # Determine file type and paths based on resource type
+    file_paths = []
+    if metadata["resource_type"].lower() == "audio":
+        # In preferential order
+        audio_formats = ["ogg", "mp3"]
+        for audio_format in audio_formats:
+            format_path = os.path.join(object_path, audio_format)
+            if os.path.isdir(format_path) and len(os.listdir(format_path)) > 0:
+                file_paths.extend(
+                    [os.path.join(format_path, f) for f in sorted(os.listdir(format_path)) if f.lower().endswith(f".{audio_format}")]
+                )
+                break
+    elif metadata["resource_type"].lower() == "video":
+        # In preferential order
+        video_formats = ["webm", "mp4", "mov", "mp3"]
+        for video_format in video_formats:
+            format_path = os.path.join(object_path, video_format)
+            if os.path.isdir(format_path) and len(os.listdir(format_path)) > 0:
+                file_paths.extend(
+                    [os.path.join(format_path, f) for f in sorted(os.listdir(format_path)) if f.lower().endswith(f".{video_format}")]
+                )
+                break
+    
+    # Load the Whisper model
+    model = whisper.load_model("base")
+    
+    # Process each file
+    for file_path in file_paths:
+        filename, file_extension = os.path.splitext(os.path.basename(file_path))
+        vtt_file_path = os.path.join(vtt_output_dir, f"{filename}.vtt")
+        txt_file_path = os.path.join(txt_output_dir, f"{filename}.txt")
+        print(f"Transcribing file: {file_path}")
+
+        if has_audio_stream(file_path):
+            transcribed = transcribe_file(model, file_path, vtt_file_path, txt_file_path)
+            
+            if transcribed:
+                # Create output directories only if transcription was successful
+                if not os.path.isdir(vtt_output_dir):
+                    os.mkdir(vtt_output_dir)
+                if not os.path.isdir(txt_output_dir):
+                    os.mkdir(txt_output_dir)
+
+                if os.path.isfile(content_txt_path):
+                    with open(content_txt_path, "a", encoding="utf-8") as content_file, \
+                         open(txt_file_path, "r", encoding="utf-8") as txt_file:
+                        content_file.write("\n" + txt_file.read())
+                else:
+                    shutil.copy2(txt_file_path, content_txt_path)
+        else:
+            print(f"Skipping {file_path}: no audio stream")
