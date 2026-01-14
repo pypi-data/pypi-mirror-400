@@ -1,0 +1,189 @@
+# gchat
+
+A command-line interface for Google Chat. Send messages, read conversations, and search across your Google Chat spaces - all from the terminal.
+
+## Features
+
+- **Multi-account support** - Switch between work and personal accounts
+- **Send messages** - Quick one-liners or interactive mode
+- **Read messages** - View recent conversations in any space
+- **Search** - Find messages by keyword, sender, or date range
+- **Beautiful TUI** - Rich terminal output with tables and colors
+- **JSON output** - Machine-readable format for scripting and automation
+
+## Installation
+
+### Using pip
+
+```bash
+pip install gchat-cli
+```
+
+### Using Homebrew (macOS)
+
+```bash
+brew install gchat
+```
+
+### From source
+
+```bash
+git clone https://github.com/chadsaun/gchat.git
+cd gchat
+pip install -e .
+```
+
+## Quick Start
+
+### 1. Set up Google Cloud credentials
+
+Before using gchat, you need OAuth credentials from Google Cloud Console:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create a new project (or select existing)
+3. Enable the **Google Chat API**
+4. Go to **Credentials** → **Create Credentials** → **OAuth client ID**
+5. Select **Desktop app** as the application type
+6. Download the JSON file
+
+### 2. Initialize gchat
+
+```bash
+gchat init
+```
+
+Follow the wizard to:
+- Name your account (e.g., "work" or "personal")
+- Provide the path to your credentials JSON file
+- Authenticate via browser
+
+### 3. Start using gchat
+
+```bash
+# List your spaces
+gchat spaces list
+
+# Send a message
+gchat send spaces/AAAA123 "Hello from the CLI!"
+
+# Send interactively (select space, type message)
+gchat send -i
+
+# Read recent messages
+gchat read spaces/AAAA123
+
+# Search messages
+gchat search spaces/AAAA123 "meeting notes"
+```
+
+## Commands
+
+### Account Management
+
+```bash
+gchat account add [NAME]       # Add a new account
+gchat account remove [NAME]    # Remove an account
+gchat account list             # List all accounts
+gchat account switch [NAME]    # Switch active account
+gchat account current          # Show current account
+```
+
+### Spaces
+
+```bash
+gchat spaces list              # List all spaces
+gchat spaces list --format json  # JSON output
+gchat spaces info SPACE_ID     # Get space details
+```
+
+### Messaging
+
+```bash
+# Send a message
+gchat send SPACE_ID "Your message"
+gchat send -i                  # Interactive mode
+gchat send SPACE_ID "msg" --no-confirm  # Skip confirmation
+
+# Read messages
+gchat read SPACE_ID            # Last 10 messages
+gchat read SPACE_ID -n 50      # Last 50 messages
+gchat read SPACE_ID --format json  # JSON output
+```
+
+### Search
+
+```bash
+# Search by keyword
+gchat search SPACE_ID "keyword"
+
+# Filter by sender
+gchat search SPACE_ID --from "john@example.com"
+
+# Filter by date
+gchat search SPACE_ID --after 2025-01-01
+gchat search SPACE_ID --before 2025-01-31
+
+# Combine filters
+gchat search SPACE_ID "budget" --from "finance" --after 2025-01-01
+```
+
+### Status
+
+```bash
+gchat status                   # Show current account and auth status
+gchat status --format json     # JSON output
+```
+
+## Multi-Account Usage
+
+gchat supports multiple Google accounts. The active account persists until you switch:
+
+```bash
+# Add accounts
+gchat account add work
+gchat account add personal
+
+# Switch between them
+gchat account switch personal
+
+# Or specify per-command
+gchat spaces list --account work
+```
+
+## JSON Output
+
+All commands support `--format json` for scripting:
+
+```bash
+# Get spaces as JSON
+gchat spaces list --format json | jq '.[] | .name'
+
+# Send message and get result
+gchat send SPACE_ID "Hello" --no-confirm --format json
+```
+
+## Configuration
+
+Configuration is stored in `~/.gchat/`:
+
+```
+~/.gchat/
+├── config.toml              # Main configuration
+└── accounts/
+    ├── work/
+    │   ├── credentials.json # OAuth client config
+    │   └── token.json       # OAuth tokens
+    └── personal/
+        ├── credentials.json
+        └── token.json
+```
+
+## Requirements
+
+- Python 3.11+
+- A Google Workspace account with Google Chat access
+- OAuth credentials from Google Cloud Console
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
