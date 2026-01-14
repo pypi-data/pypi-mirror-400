@@ -1,0 +1,214 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2023-2024 Andrew Rechnitzer
+    Copyright (C) 2023-2024 Colin B. Macdonald
+    Copyright (C) 2024 Bryan Tanady
+    Copyright (C) 2024 Aden Chan
+  -->
+{% extends "base/base.html" %}
+{% block title %}
+    Browse marking
+{% endblock title %}
+{% block page_heading %}
+    Browse marking
+    {% if username == "*" %}
+    {% else %}
+        by {{ username }}
+    {% endif %}
+    {% if paper == "*" %}
+    {% else %}
+        of paper {{ paper }}
+    {% endif %}
+    {% if question == "*" %}
+    {% else %}
+        of {{ question_label|safe }}
+    {% endif %}
+    {% if version == "*" %}
+    {% else %}
+        of v.{{ version }}
+    {% endif %}
+    {% if score == "*" %}
+    {% else %}
+        with score {{ score }}
+    {% endif %}
+    {% if the_tag == "*" %}
+    {% else %}
+        tagged <q>{{ the_tag }}</q>
+    {% endif %}
+    {% if status == "*" %}
+    {% else %}
+        with status {{ status_label }}
+    {% endif %}
+{% endblock page_heading %}
+{% block main_content %}
+    <div class="flex">
+        <a class="btn btn-primary" href="{% url 'overview_landing' %}">Overview</a>
+        <a class="btn btn-primary" href="{% url 'users' %}">User List</a>
+    </div>
+    <div class="w-100">
+        {% if warning %}<div class="alert alert-info w-25 my-2">Please set at least one filter.</div>{% endif %}
+        <div class="row border rounded my-4">
+            <form class="p-4 mb-2"
+                  action="{% url 'progress_marking_task_filter' %}"
+                  method="get">
+                <div class="row my-2">
+                    <label class="col-sm-1 col-form-label" for="paper">Paper:</label>
+                    <div class="col-sm-4">
+                        <select name="paper" class="form-select">
+                            <option>*</option>
+                            {% for pn in paper_list %}
+                                <option {% if paper == pn %}selected{% endif %}>{{ pn }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label class="col-sm-1 col-form-label" for="question">Question:</label>
+                    <div class="col-sm-4">
+                        <select name="question" class="form-select">
+                            <option value="*" label="*" />
+                            <!-- seems ok to use non-html-escaped in label="..." -->
+                            {% for q_idx, q_label in question_index_label_pairs %}
+                                <option value="{{ q_idx }}"
+                                        label="{{ q_label }}"
+                                        {% if question == q_idx %}selected{% endif %} />
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row my-2">
+                    <label class="col-sm-1 col-form-label" for="version">Version:</label>
+                    <div class="col-sm-4">
+                        <select name="version" class="form-select">
+                            <option>*</option>
+                            {% for v in version_list %}
+                                <option {% if version == v %}selected{% endif %}>{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label class="col-sm-1 col-form-label" for="score">Score:</label>
+                    <div class="col-sm-4">
+                        <select name="score" class="form-select">
+                            <option>*</option>
+                            {% for mk in mark_list %}
+                                <option {% if score == mk %}selected{% endif %}>{{ mk }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row my-2">
+                    <label class="col-sm-1 col-form-label" for="username">Marker:</label>
+                    <div class="col-sm-4">
+                        <select name="username" class="form-select">
+                            <option>*</option>
+                            {% for un in username_list %}
+                                <option {% if username == un %}selected{% endif %}>{{ un }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label class="col-sm-1 col-form-label" for="the_tag">Tag:</label>
+                    <div class="col-sm-4">
+                        <select name="the_tag" class="form-select">
+                            <option>*</option>
+                            {% for tg in tag_list %}
+                                <option {% if the_tag == tg %}selected{% endif %}>{{ tg }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row my-2">
+                    <label class="col-sm-1 col-form-label" for="username">Status:</label>
+                    <div class="col-sm-4">
+                        <select name="status" class="form-select">
+                            <option value="*" label="*" />
+                            {% for val, label in status_list %}
+                                <option value="{{ val }}"
+                                        label="{{ label }}"
+                                        {% if status == val %}selected{% endif %} />
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row my-2">
+                    <div class="col-sm-4">
+                        <button class="btn btn-primary" type="submit">filter tasks</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        {% if not warning %}
+            <div class="row">
+                <div class="col-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Marking tasks:</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="card-text  overflow-y-scroll"  style="max-height:55vh;">
+                                <table class="table table-sm table-bordered text-center sortable">
+                                    <thead>
+                                        <tr>
+                                            <th>P</th>
+                                            <th>Q_idx</th>
+                                            <th>V</th>
+                                            <th>Status</th>
+                                            <th>Last update</th>
+                                            <th>Marker</th>
+                                            <th>Score</th>
+                                            <th>tags</th>
+                                            <th>Show</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for task_data in task_info %}
+                                            <tr>
+                                                <td>{{ task_data.paper_number }}</td>
+                                                <td>{{ task_data.question }}</td>
+                                                <td>{{ task_data.version }}</td>
+                                                {% if task_data.status == "Complete" %}
+                                                    <td class="bg-success-subtle">{{ task_data.status }}</td>
+                                                {% elif task_data.status == "To Do" %}
+                                                    <td class="bg-warning-subtle">{{ task_data.status }}</td>
+                                                {% elif task_data.status == "Out" %}
+                                                    <td class="bg-info-subtle">{{ task_data.status }}</td>
+                                                {% else %}
+                                                    <td>{{ task_data.status }}</td>
+                                                {% endif %}
+                                                <td>{{ task_data.last_update }}</td>
+                                                <td>{{ task_data.username }}</td>
+                                                <td>{{ task_data.score_str }}</td>
+                                                <td class="vstack gap-1">
+                                                    {% for tg in task_data.attn_tags %}<div class="badge text-bg-warning">{{ tg }}</div>{% endfor %}
+                                                    {% for tg in task_data.tags %}<div class="badge bg-primary">{{ tg }}</div>{% endfor %}
+                                                </td>
+                                                <td class="text-start">
+                                                    <a class="btn btn-outline-primary"
+                                                       href="{% url 'progress_marking_task_details' task_data.task_pk %}">details</a>
+                                                    {% if task_data.status %}
+                                                        <button hx-get="{% url 'progress_original_img_wrap' task_data.paper_number task_data.question %}"
+                                                                hx-target="#imageHere"
+                                                                hx-replace="innerHTML"
+                                                                class="btn btn-outline-info">orig</button>
+                                                    {% endif %}
+                                                    {% if task_data.status == "Complete" %}
+                                                        <button hx-get="{% url 'progress_annotation_img_wrap' task_data.paper_number task_data.question %}"
+                                                                hx-target="#imageHere"
+                                                                hx-replace="innerHTML"
+                                                                class="btn btn-outline-success">annot</button>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            {% if not warning %}
+                <div class="col-auto">
+                    <div class="card" id="imageHere"></div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock main_content %}

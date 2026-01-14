@@ -1,0 +1,355 @@
+# SPDX-License-Identifier: FSFAP
+# Copyright (C) 2020-2023 Andrew Rechnitzer
+# Copyright (C) 2020-2025 Colin B. Macdonald
+# Copyright (C) 2021 Nicholas J H Lai
+# Copyright (C) 2022 Elizabeth Xiao
+# Copyright (C) 2022 Natalia Accomazzo Scotti
+# Copyright (C) 2022-2024 Edith Coates
+# Copyright (C) 2023 Julian Lapenna
+# Copyright (C) 2023 Divy Patel
+# Copyright (C) 2023 Natalie Balashov
+# Copyright (C) 2024-2025 Bryan Tanady
+# Copyright (C) 2025 Deep Shah
+#
+# Copying and distribution of this file, with or without modification,
+# are permitted in any medium without royalty provided the copyright
+# notice and this notice are preserved.  This file is offered as-is,
+# without any warranty.
+
+[build-system]
+requires = ['pip>=20.3', 'setuptools>=61', 'wheel']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'plom'
+description = 'Plom is Paperless Open Marking'
+authors = [
+    {name = 'Andrew Rechnitzer'},
+    {name = 'Colin B. Macdonald'},
+]
+license = "AGPL-3.0-or-later"
+classifiers=[
+    "Topic :: Education :: Testing",
+    "Development Status :: 3 - Alpha",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dynamic = ['version']
+requires-python = '>=3.10'
+# pyopenssl is not a direct dependency but old versions caused trouble: Issue #3150
+dependencies = [
+    "arrow>=1.1.1",
+    "canvasapi>=3.0.0",
+    "cryptography>=41.0.3",
+    "pyOpenSSL>=23.2.0",
+    "django>=5.1.1, <6.0.0",  # TODO: temporary block on Django 6
+    "django-braces>=1.15.0",
+    "django-filter>=23.2",
+    "django-htmx>=1.14.0",
+    "django-mathfilters>=1.0.0",
+    "django-huey>=1.1.1",
+    "django-polymorphic>=3.1.0",
+    "django-reset-migrations>=0.4.0",
+    "django-session-timeout>=0.1.0",
+    "djangorestframework>=3.14.0",
+    "django-tables2>=2.7.0",
+    "exif>=1.6.1",
+    "gunicorn>=21.1.0",
+    "imutils>=0.5.4",
+    "matplotlib>=3.6.3",
+    "model_bakery>=1.11.0",
+    "numpy>=1.26.4",
+    "opencv-python-headless>=4.7.0.72",
+    "packaging",
+    "pandas>=2.1.4",
+    "passlib",
+    "Pillow>=10.2",
+    "pymupdf>=1.25.3",
+    "PyMySQL>=1.0.2",
+    "pytest>=7.2.0",
+    "pytest_mock>=3.14.1",
+    "pytest-qt>=4.2.0",
+    "PyQt6>=6.2.0",
+    "psycopg[binary]>=3.1.8",
+    "random-username>=1.0.2",
+    "requests",
+    "requests-toolbelt",
+    "scikit-learn>=1.4.2",
+    "scipy>=1.11.4",
+    "seaborn>=0.12.2",
+    "segno>=1.5.2",
+    "setuptools>=74",
+    "stdiomask>=0.0.6",
+    "tabulate>=0.9.0",
+    'tomli>=2.0.1 ; python_version<"3.11"', # until we drop 3.10
+    "tomlkit>=0.11.7",
+    "tqdm>=4.63.2",
+    "weasyprint>=57.0",
+    "whitenoise>=6.4.0",
+    "zipfly>=6.0.1",
+    "zxing-cpp>=2.2.1",
+    "onnxruntime>=1.22.1",
+    "huggingface_hub>=0.34.3",
+    # "nplusone>=1.0.0",
+    # "django-silk>=5.2.0",
+    # plom_ml stuff
+    "scikit-image>=0.25.1",
+    "transformers>=4.53.2",
+]
+# TODO: how to get "or"?: https://gitlab.com/plom/plom/-/issues/1570
+#   "file-magic || python-magic>=0.4.20",
+
+# Non-Python deps for server
+#   - latex installation including (Debian/Ubuntu pkg names):
+#       texlive-latex-extra dvipng latexmk texlive-fonts-recommended
+#   - latex installation including (Fedora pkg names):
+#       tex-preview tex-dvipng texlive-scheme-basic tex-charter
+
+readme = {file = 'README.md', content-type = 'text/markdown'}
+
+[project.urls]
+Homepage = "https://plomgrading.org"
+Repository = "https://gitlab.com/plom/plom"
+'Bug Tracker' = "https://gitlab.com/plom/plom/-/issues"
+Documentation = "https://plom.readthedocs.org"
+Changelog = "https://gitlab.com/plom/plom/-/blob/main/CHANGELOG.md"
+
+# [project.optional-dependencies]
+
+# [tool.setuptools]
+# zip-safe = true
+
+# ugh, maintaining this list is horrible, need get get "find" working
+# with the flat layout.  But we have now two packages (plom and plom_server)
+# not sure how to make that work.
+[tool.setuptools]
+packages = [
+    "plom",
+    "plom.cli",
+    "plom.create",
+    "plom.create.fonts",
+    "plom.messenger",
+    "plom.scan",
+    "plom.finish",
+    "plom.idreader",
+    "plom.solutions",
+    "plom.canvas",
+    "plom.scripts",
+    "plom_server",
+    "plom_server.API",
+    "plom_server.API.services",
+    "plom_server.Authentication",
+    "plom_server.Authentication.services",
+    "plom_server.Base",
+    "plom_server.Base.services",
+    "plom_server.Base.management.commands",
+    "plom_server.BuildPaperPDF",
+    "plom_server.BuildPaperPDF.services",
+    "plom_server.Contrib",
+    "plom_server.Finish",
+    "plom_server.Finish.services",
+    "plom_server.Identify",
+    "plom_server.Identify.services",
+    "plom_server.QuestionTags",
+    "plom_server.QuestionTags.services",
+    "plom_server.QuestionClustering",
+    "plom_server.QuestionClustering.services",
+    "plom_server.QuestionClustering.exceptions",
+    "plom_server.Launcher",
+    "plom_server.Launcher.services",
+    "plom_server.Launcher.management.commands",
+    "plom_server.Mark",
+    "plom_server.Mark.services",
+    "plom_server.Mark.tests",
+    "plom_server.Papers",
+    "plom_server.Papers.services",
+    "plom_server.Papers.models",
+    "plom_server.Papers.tests",
+    "plom_server.Preparation",
+    "plom_server.Preparation.services",
+    "plom_server.Profile",
+    "plom_server.Progress",
+    "plom_server.Progress.services",
+    "plom_server.Rectangles",
+    "plom_server.Rectangles.services",
+    "plom_server.Reports",
+    "plom_server.Rubrics",
+    "plom_server.Rubrics.services",
+    "plom_server.Scan",
+    "plom_server.Scan.models",
+    "plom_server.Scan.services",
+    "plom_server.SpecCreator",
+    "plom_server.SpecCreator.services",
+    "plom_server.scripts",
+    "plom_server.static",
+    "plom_server.Tags",
+    "plom_server.Tags.services",
+    "plom_server.TaskOrder",
+    "plom_server.TaskOrder.services",
+    "plom_server.templates",
+    "plom_server.TestingSupport",
+    "plom_server.TestingSupport.services",
+    "plom_server.UserManagement",
+    "plom_server.UserManagement.services",
+    "plom_server.Visualization",
+    "plom_ml",
+    "plom_ml.clustering",
+    "plom_ml.clustering.embedding",
+    "plom_ml.clustering.model",
+    "plom_ml.clustering.pipeline",
+    "plom_ml.clustering.preprocessing"
+
+]
+# TODO: fixtures?  huey?  media?
+
+# somewhat deprecated?  not supposed to package things into share?
+# https://blog.raek.se/2022/10/31/os-integration-files-in-python-packages/u
+[tool.setuptools.data-files]
+"share/plom" = [
+    "plom/templateTestSpec.toml",
+    "plom/templateSolutionSpec.toml",
+    "plom/templateUserList.csv",
+    "plom/demoClassList.csv",
+    "plom/demo_rubrics.toml",
+    "plom/create/extra_pages_src.tex",
+    "plom/create/scrap_paper_src.tex",
+    "plom/create/bundle_separator_src.tex"
+]
+"share/plom/testTemplates" = ["testTemplates/*"]
+# "share/plom/contrib", ["contrib/**/*"]
+"share/plom/contrib" = [
+            "contrib/README.txt",
+            "contrib/plom-return_codes_to_canvas_csv.py",
+            "contrib/plom-write_grades_to_canvas_csv.py",
+            "contrib/upload_hw_from_zip_of_jpegs.py",
+            "contrib/plom-push-to-canvas.py",
+            "contrib/plom-push-to-canvas-uncached.py"
+]
+
+[tool.setuptools.dynamic]
+version = {attr = 'plom.common.__version__'}
+
+[project.scripts]
+plom-create = "plom.create.__main__:main"
+plom-scan = "plom.scan.__main__:main"
+plom-finish = "plom.finish.__main__:main"
+plom-hwscan = "plom.scripts.hwscan:main"
+plom-solutions = "plom.solutions.__main__:main"
+plom-new-server = "plom_server.scripts.launch_plom_server:main"
+plom-new-demo = "plom_server.scripts.launch_plom_demo_server:main"
+plom-cli = "plom.cli.__main__:main"
+
+
+# Tooling configuration
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.pylint.main]
+extension-pkg-allow-list = ["PyQt6", "cv2", "zxingcpp"]
+generated-members = ["pandas", "cv2.*"]
+# order matters: need errors-only before disable
+errors-only = true
+# TODO: lots of no-member in plom_server
+disable = ["no-member"]
+output-format = "colorized"
+# we have some in-tree deprecated or to-move code that needs tensorflow
+ignored-modules = ["tensorflow", "api_secrets"]
+
+[tool.coverage.report]
+# our CI runs /usr/local stuff for some reason
+# python*.py errors need -i or config match here
+omit = ["*/test_*", "/usr/*", "*/config*"]
+
+[tool.pytest.ini_options]
+qt_api = "pyqt6"
+python_files = "test_*.py *_test.py tests.py"
+
+[tool.djlint]
+# TODO: fix then remove from ignore list: H006, H013
+ignore="H006,H013,H021,H023,H030,H031"
+# indent=2
+
+[tool.mypy]
+# pretty = true
+exclude = [
+    'digitHunter.py',
+    '0001_initial.py',
+]
+
+# These avoid mypy errors: mostly libraries that don't yet have typing
+# Maintenance: try removing X, removing .mypy_cache, uninstalling types-X, and rerunning mypy locally
+[[tool.mypy.overrides]]
+module = [
+    'api_secrets',
+    'canvasapi',
+    'exif',
+    'imutils.*',
+    'requests_toolbelt',
+    'sklearn.*',
+    'stdiomask',
+    'zxingcpp',
+    'braces.*',
+    'django.*',
+    'django_huey',
+    'django_tables2',
+    'huey.*',
+    'polymorphic.models',
+    'pymupdf',
+    'random_username.generate',
+    'rest_framework.*',
+    'weasyprint',
+    'whitenoise',
+    'zipfly',
+]
+ignore_missing_imports = true
+
+# hide some things from mypy
+[[tool.mypy.overrides]]
+module = []
+ignore_errors = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+exclude = ['**/_digitHunter.py']
+# changing to "off" makes this much quieter
+typeCheckingMode = "basic"
+# lots of Django false positives?
+reportAttributeAccessIssue = false
+
+[tool.codespell]
+skip = "*.po,*.ts,*.pdf,*.png,*.jpg,*.svg,*.csv,*.json,.git"
+count = true
+check-filenames = true
+check-hidden = true
+quiet-level = 3
+ignore-words = ".codespell-ignorewords"
+exclude-file = ".codespell-ignorelines"
+
+[tool.ruff.lint]
+# enable docstring checking and import reordering
+# select = ["D", "I"]  # TODO: later?
+select = ["D"]
+# D107: perhaps init methods don't need docstrings
+# D100: public module docstrings: seem to get a lot of false positives
+# D10x: most of these are about missing docstrings
+ignore = ["D107", "D100", "D101", "D102", "D103", "D104", "D106"]
+# Legacy or autogenerated stuff
+exclude = ["plom/canvas/**", "plom_server/**/migrations/*.py"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# F401: defining __all__ might be right fix
+# E402, I001: re-ordering causes circular imports
+'__init__.py' = ['F401', 'E402', 'I001']
+# tests don't need docstrings
+'plom*/**/test*.py' = ['D100', 'D101', 'D102', 'D103', 'D104']
+# Django apps.py seem like boilerplate
+'plom*/**/apps.py' = ['D101']

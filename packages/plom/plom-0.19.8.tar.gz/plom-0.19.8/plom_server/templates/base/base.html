@@ -1,0 +1,152 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2022-2023 Edith Coates
+    Copyright (C) 2022-2023 Brennen Chiu
+    Copyright (C) 2023-2025 Colin B. Macdonald
+    Copyright (C) 2023 Julian Lapenna
+    Copyright (C) 2023-2024 Andrew Rechnitzer
+    Copyright (C) 2024 Aden Chan
+    Copyright (C) 2025 Aidan Murphy
+-->
+{% load static %}
+{% load django_htmx %}
+<!DOCTYPE html>
+<html lang="en">
+    <!-- always dark mode: -->
+    <!-- html lang="en" data-bs-theme="dark" -->
+    <head>
+        <meta charset="utf-8">
+        <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <!-- htmx and its extensions -->
+        <script src="{% static 'js3rdparty/htmx.js' %}"></script>
+        <script src="{% static 'js3rdparty/response-targets.js' %}"></script>
+        <!-- Alpine.js -->
+        <script defer src="{% static 'js3rdparty/alpine.js' %}"></script>
+        <!-- Bootstrap stylesheet -->
+        <link href="{% static 'css3rdparty/bootstrap.min.css' %}" rel="stylesheet" />
+        <script src="{% static 'js3rdparty/bootstrap.bundle.min.js' %}"></script>
+        <!-- Bootstrap icons: TODO: port to static; I had trouble with woff font? -->
+        <link href="{% static 'css3rdparty/bootstrap-icons.css' %}"
+              rel="stylesheet" />
+        <!-- Sorttable by Stuart Langridge, https://www.kryogenix.org/code/browser/sorttable/ -->
+        <script src="{% static '/js3rdparty/sorttable.js' %}"></script>
+        <!-- Base stylesheet -->
+        <link rel="stylesheet" href="{% static 'css/base.css' %}">
+        <link rel="stylesheet"
+              type="text/css"
+              href="{% static '/css/profile.css' %}">
+        <link rel="stylesheet"
+              type="text/css"
+              href="{% static '/css/diff_table.css' %}" />
+        <!-- Prevents indicator flicker on page load: https://github.com/bigskysoftware/htmx/issues/566 -->
+        <style>
+            .htmx-indicator {
+                opacity: 0;
+            }
+            .htmx-request .htmx-indicator {
+                opacity: 1;
+            }
+        </style>
+        <script>
+            // Modified from the color mode toggler for Bootstrap's docs (https://getbootstrap.com/)
+            // Copyright 2011-2024 The Bootstrap Authors
+            // Licensed under the Creative Commons Attribution 3.0 Unported License.
+            function setTheme() {
+              document.documentElement.setAttribute('data-bs-theme',
+                (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+              )
+            }
+            setTheme()
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', setTheme)
+        </script>
+        <title>
+            {% block full_title %}
+                {% block title_prefix %}
+                    {% if assessment_shortname_if_defined %}
+                        {{ assessment_shortname_if_defined }} -
+                    {% else %}
+                        Plom -
+                    {% endif %}
+                {% endblock title_prefix %}
+                {% block title %}
+                {% endblock title %}
+            {% endblock full_title %}
+        </title>
+    </head>
+    <!-- Need the csrf token to enable htmx -->
+    <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          hx-ext="response-targets">
+        <!-- TODO: vh-100 is not quite right: if the page is very long, the sidebar does not extend -->
+        <div class="container-fluid p-0 d-flex vh-100">
+            <!-- TODO: style max width here stops the hamburger menu from popping up too wide: find better fix -->
+            <div id="sidebar"
+                 class="d-flex flex-column flex-shrink-0 p-2 shadow bg-{{ navbar_color }}-subtle text-start offcanvas-md offcanvas-start overflow-auto"
+                 style="max-width: 13rem">
+                <!-- Plom logo-->
+                <a class="navbar-brand nav-link" href="{% url 'home' %}">
+                    <img class="img-fluid"
+                         src="{% static 'plomLogo.png' %}"
+                         alt="Plom logo"
+                         style="max-width: 8rem" />
+                </a>
+                {% if assessment_shortname_if_defined %}
+                    <p class="text-center fs-5 fw-dark mt-0 mb-0">
+                        <q>{{ assessment_shortname_if_defined }}</q>
+                    </p>
+                {% endif %}
+                {% block sidebar_content %}
+                    {% include "base/sidebar.html" %}
+                {% endblock sidebar_content %}
+                <p class="fw-light mt-0 mb-0 ms-2">
+                    <small>Plom v{{ plom_version }}</small>
+                </p>
+            </div>
+            <!-- flex-fill here will go off the screen for very wide pages -->
+            <div class="w-100">
+                <div class="p-2 d-md-none shadow bg-{{ navbar_color }}-subtle navbar">
+                    <a class="navbar-brand nav-link" href="{% url 'home' %}">
+                        <img class="img-fluid"
+                             src="{% static 'plomLogo.png' %}"
+                             style="max-width: 8rem" />
+                    </a>
+                    {% if assessment_shortname_if_defined %}
+                        <span class="nav-item fw-dark fs-4"> <q>{{ assessment_shortname_if_defined }}</q></span>
+                    {% endif %}
+                    <button class="btn ms-auto border border-black"
+                            type="button"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#sidebar">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
+                <!-- margin-start-4 b/c content was too close to navbar shadow -->
+                <div class="ms-4 me-2 mb-2">
+                    <!-- Page heading -->
+                    <h1 class="fw-lighter m-2">
+                        {% block page_heading %}
+                        {% endblock page_heading %}
+                    </h1>
+                    <p class="lead mb-2">
+                        {% block page_subheading %}
+                        {% endblock page_subheading %}
+                    </p>
+                    <!-- Main content -->
+                    {% block main_content %}
+                    {% endblock main_content %}
+                </div>
+            </div>
+        </div>
+        <!-- this django-htmx addon might help with debugging (not production) but
+               conflicts with our hx-target-error handling, use with caution.
+	       docs: https://django-htmx.readthedocs.io/en/latest/template_tags.html#django-htmx-extension-script -->
+        {% comment %}
+		  {% django_htmx_script %}
+        {% endcomment %}
+        <!-- This is a last ditch effort to catch htmx errors (400/500 responses,
+	or no connection to server).
+        It's important that this is placed near the bottom of the file, so htmx error
+        events can have propagation cancelled before they're heard here. -->
+        <script type="module" src="{% static '/js/plom_htmx_error_handler.js' %}"></script>
+    </body>
+</html>

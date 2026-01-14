@@ -1,0 +1,226 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2023 Andrew Rechnitzer
+    Copyright (C) 2023-2025 Colin B. Macdonald
+    Copyright (C) 2024 Aidan Murphy
+-->
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}
+    Mark Comparison
+{% endblock title %}
+{% block page_heading %}
+    Detailed view of {{ question_label_html|safe }} all versions
+{% endblock page_heading %}
+{% block main_content %}
+    <a class="btn btn-primary" href="{% url 'progress_mark_home' %}">Marking progress overview</a>
+    <a class="btn btn-info"
+       href="{% url 'progress_marking_task_filter' %}?question={{ question_idx }}">tasks & annotations</a>
+    <div class="container my-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Histograms and statistics - all versions together</h5>
+            </div>
+            <div class="card-body">
+                <div class="card-text">
+                    <div class="row">
+                        <div class="col">
+                            {% include "Progress/fragments/task_progress_bar.html" with total=stats.all_task_count n_complete=status_counts.Complete n_todo=status_counts|get_item:"To Do" n_out=status_counts.Out %}
+                            <table class="table table-sm table-bordered text-center">
+                                <thead>
+                                    <tr>
+                                        <th>avg time</th>
+                                        <th>estimated remaining time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>{{ stats.avg_marking_time }} s</td>
+                                        <td>{{ stats.approx_remaining_hours }} h</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col">
+                            <canvas class="col" id="pies" style="max-height:30vh;">
+                            </canvas>
+                        </div>
+                    </div>
+                    <table class="table table-sm table-bordered text-center">
+                        <thead>
+                            <tr>
+                                <th>number marked</th>
+                                <th>mean</th>
+                                <th>median</th>
+                                <th>mode</th>
+                                <th>stdev</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{{ stats.number_of_completed_tasks }}</td>
+                                <td>{{ stats.mark_mean_str }}</td>
+                                <td>{{ stats.mark_median_str }}</td>
+                                <td>{{ stats.mark_mode_str }}</td>
+                                <td>{{ stats.mark_stdev_str }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <canvas id="hist_all" style="max-height:30vh;">
+                    </canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="card">
+            {% for ver, data in version_hists.items %}
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span class="fs-5">Histograms and statistics: version {{ ver }}</span>
+                        <a href="{% url 'progress_mark_details' question_idx ver %}"
+                           class="btn btn-success">more details</a>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-text">
+                            <table class="table table-sm table-bordered text-center">
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th>number marked</th>
+                                        <th>mean</th>
+                                        <th>median</th>
+                                        <th>mode</th>
+                                        <th>stdev</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>{{ data.username }}</td>
+                                        <td>{{ data.number }}</td>
+                                        <td>{{ data.mark_mean_str }}</td>
+                                        <td>{{ data.mark_median_str }}</td>
+                                        <td>{{ data.mark_mode_str }}</td>
+                                        <td>{{ data.mark_stdev_str }}</td>
+                                    </tr>
+                                </tbody>
+                                <tfoot class="table-secondary">
+                                    <tr>
+                                        <td>vs All</td>
+                                        <td>{{ stats.number_of_completed_tasks }}</td>
+                                        <td>{{ stats.mark_mean_str }}</td>
+                                        <td>{{ stats.mark_median_str }}</td>
+                                        <td>{{ stats.mark_mode_str }}</td>
+                                        <td>{{ stats.mark_stdev_str }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                            <canvas id="hist_{{ ver }}" style="max-height:30vh;">
+                            </canvas>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    <!-- https://getbootstrap.com/docs/5.3/components/tooltips -->
+    <script>
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    </script>
+    <script src="{% static 'js3rdparty/chart.umd.js' %}"></script>
+    <script>
+  var ctx_all = document.getElementById('hist_all');
+    new Chart(ctx_all, {
+      type: 'bar',
+      data: {
+	labels: {{hist_keys}},
+	datasets: [{
+	    label: "counts",
+              data: {{hist_values}},
+              borderWidth: 3
+        }]
+      },
+        options: {
+	  plugins: {
+	      legend: { display: false },
+	      title: {
+		  display: true,
+		  text: 'Histogram of scores for all versions',
+	      },
+	  },
+	  scales: {
+                y: {
+		  beginAtZero: true
+                }
+	  }
+      }
+    });
+
+  var ctx_pies = document.getElementById('pies');
+  var the_pie_chart = new Chart(ctx_pies, {
+      type: 'doughnut',
+      options: {
+	  plugins: {
+	      title: {
+		  display: true,
+		  text: 'Number marked in each version',
+	      },
+	  },
+      },
+      data: {
+	  labels: [ {% for ver, data in version_hists.items %}'v {{ver}}',{% endfor %}
+		    {% for ver, data in version_hists.items %}'rem v {{ver}}',{% endfor %} ],
+	  datasets: [{
+	      data: [ {% for ver, data in version_hists.items %}{{data.number}},{% endfor %}
+		      {% for ver, data in version_hists.items %}{{data.remaining}},{% endfor %} ],
+	  }],
+      }
+  });
+      // now update the color of the 'remaining' slices.
+      // some contorsions to get the index right.
+      {% for ver in version_hists %}
+      the_pie_chart.data.datasets[0].backgroundColor[{{version_hists|length|add:ver|add:'-1'}}]='#eee';
+      {% endfor %}
+      the_pie_chart.update();
+
+    </script>
+    {% for ver, data in version_hists.items %}
+        <script>
+  var ctx_{{ver}} = document.getElementById('hist_{{ver}}');
+  new Chart(ctx_{{ver}}, {
+      data: {
+	  datasets: [ {
+	      type: 'bar',
+	      label: 'v {{ver}}',
+              data: {{data.hist_values}},
+              borderWidth: 3
+	  },{
+	      type: 'line',
+	      label: 'All',
+              data: {{data.hist_all_version_values}},
+              borderWidth: 3,
+	      tension: 0.075,
+
+	  }],
+	labels: {{hist_keys}},
+      },
+        options: {
+	  plugins: {
+	      title: {
+		  display: true,
+		  text: 'Histogram of scores for version {{ver}}',
+	      }
+	  },
+	  scales: {
+                y: {
+		  beginAtZero: true
+                }
+	  }
+      }
+
+    });
+
+        </script>
+    {% endfor %}
+{% endblock main_content %}

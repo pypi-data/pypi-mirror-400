@@ -1,0 +1,44 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2023 Brennen Chiu
+    Copyright (C) 2023-2024 Andrew Rechnitzer
+    Copyright (C) 2023 Colin B. Macdonald
+    Copyright (C) 2025 Bryan Tanady
+-->
+{% extends "base/base.html" %}
+{% block title %}
+    Marking Progress
+{% endblock title %}
+{% block page_heading %}
+    Marking progress
+{% endblock page_heading %}
+{% block main_content %}
+    {% if user_is_lead_marker or user_is_manager %}
+        <div>
+            <p>
+                <a class="btn btn-primary" href="{% url 'overview_landing' %}">Overview</a>
+            </p>
+        </div>
+    {% endif %}
+    {% if missing_task_count > 0 %}
+        <div class="container w-100 alert alert-warning">
+            There are {{ missing_task_count }} missing tasks.
+            {% if user_is_manager %}
+                <a href="{% url 'scan_list_incomplete' %}">Click here</a> to examine the tasks.
+            {% else %}
+                Manager can examine the missing tasks.
+            {% endif %}
+        </div>
+    {% endif %}
+    <div class="container w-100">
+        {% for qn in questions %}
+            <div class="row">
+                {% for vn in versions %}
+                    <div class="col"
+                         hx-trigger="load"
+                         hx-get="{% url 'progress_mark_stats' qn vn %}"></div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+{% endblock main_content %}

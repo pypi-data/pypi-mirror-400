@@ -1,0 +1,183 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2023-2024 Andrew Rechnitzer
+    Copyright (C) 2024-2025 Colin B. Macdonald
+    Copyright (C) 2024 Aden Chan
+-->
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}
+    Upload pdf bundle of scanned papers and pages
+{% endblock title %}
+{% block page_heading %}
+    Upload pdf bundle of scanned papers and pages
+{% endblock page_heading %}
+{% block main_content %}
+    <div class="flex">
+        <a class="btn btn-primary" href="{% url 'scan_overview' %}">Bundle and paper overview</a>
+        <a class="btn btn-primary" href="{% url 'scan_list_staged' %}">Staged bundles</a>
+        <a class="btn btn-primary" href="{% url 'scan_list_pushed' %}">Pushed bundles</a>
+    </div>
+    <div class="card my-2">
+        <div class="card-body">
+            <h5 class="card-title">Upload PDF bundle to staging area</h5>
+            {% if not papers_have_been_printed %}
+                <div class="alert alert-warning">No bundles to upload - papers have not yet been printed.</div>
+            {% else %}
+                <div class="m-3 p-3 border fs-5 w-50">
+                    <form id="myform"
+                          enctype="multipart/form-data"
+                          hx-post="{% url 'scan_upload' %}"
+                          hx-disabled-elt="#upload_btn, #pdf_file, #read_after, #force_render"
+                          hx-indicator="#myindicator">
+                        {% csrf_token %}
+                        <div class="mb-2">
+                            <input class="form-control form-control-lg"
+                                   type="file"
+                                   name="pdf"
+                                   accept="application/pdf"
+                                   required
+                                   id="pdf_file">
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="read_after"
+                                   name="read_after"
+                                   checked />
+                            <label class="form-check-label" for="read_after">automatically read qr-codes after upload</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="force_render"
+                                   name="force_render" />
+                            <label class="form-check-label" for="force_render">
+                                use <q>safe mode rendering</q> of each page
+                            </label>
+                        </div>
+                        <!-- hx-disabled-elt="self" on this button doesn't work b/c this button doesn't have hx-post -->
+                        <!-- https://stackoverflow.com/questions/78888026/setting-hx-disabled-elt-not-disabling-my-button -->
+                        <button type="submit" class="btn btn-primary" id="upload_btn">Upload</button>
+                        <span id="myindicator" class="htmx-indicator">
+                            <img src="{% static 'ball_triangle.svg' %}" />
+                            upload in progress
+                            <progress id="progress" value="0" max="100"></progress>
+                        </span>
+                    </form>
+                </div>
+                {% include "../base/alert_messages.html" with messages=messages %}
+            {% endif %}
+        </div>
+    </div>
+    <div class="card my-2">
+        <div class="card-body">
+            <h5 class="card-title">Help and suggestions</h5>
+            <details>
+                <summary>File restrictions</summary>
+                <ul>
+                    <li>Must be a PDF</li>
+                    <li>Fewer than {{ bundle_page_limit }} pages</li>
+                    <li>Smaller than {{ bundle_size_limit }} MB</li>
+                    <li>Filename cannot start with an underscore &mdash; those names are reserved for internal use.</li>
+                </ul>
+            </details>
+            <!--
+            <details class="w-50">
+                <summary>Recommended best practices</summary>
+                <p>TODO issue #3519 </p>
+            </details>
+	    -->
+            <details class="w-50">
+                <summary>
+                    What is <q>safe mode rendering</q>?
+                </summary>
+                <p>
+                    <ul>
+                        <li>
+                            By default, Plom checks the content of each
+                            page for a single large bitmap image, for
+                            lossless extraction.  This is fast and usually
+                            gives the highest possible image quality.
+                        </li>
+                        <li>
+                            If Plom detects anything on the page other
+                            than a single bitmap image (such as text, PDF
+                            annotations, vector art, etc) it falls back on
+                            &ldquo;rendering&rdquo; the page to generate a
+                            bitmap.
+                        </li>
+                        <li>
+                            In rare circumstances, the
+                            auto-detection-based extraction could miss
+                            overlaid annotations in student self-scanned
+                            work.  Extraction could also give
+                            unreasonably-large files, for unreasonable
+                            scanner settings (such as very high DPI).
+                        </li>
+                        <li>
+                            If you are experiencing problems with your
+                            scans, you can tick the box to disable the
+                            automatic extraction and force rendering in
+                            all cases.
+                        </li>
+                    </ul>
+                </p>
+            </div>
+        </details>
+    </div>
+    <div class="card my-2">
+        <div class="card-body">
+            {% if not uploaded_bundles %}
+                <h5 class="card-title">No uploaded bundles</h5>
+            {% else %}
+                <h5 class="card-title">Previously uploaded bundles</h5>
+            {% endif %}
+            <table class="table table-sm table-bordered text-center sortable table-striped">
+                <thead>
+                    <th>Staged/Pushed</th>
+                    <th>
+                        Bundle name
+                        <br />
+                        (click to view)
+                    </th>
+                    <th>Uploaded by</th>
+                    <th>When</th>
+                    <th>Pages</th>
+                    <th>Hash</th>
+                </thead>
+                <tbody>
+                    {% for bundle in uploaded_bundles %}
+                        <tr {% if bundle.is_pushed %}class="table-success"{% endif %}>
+                            <td>
+                                {% if bundle.is_pushed %}
+                                    pushed
+                                {% else %}
+                                    staged
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a class="btn btn-success py-0"
+                                   href="{% url 'scan_bundle_thumbnails' bundle.id %}">{{ bundle.slug }}</a>
+                            </td>
+                            <td>{{ bundle.username }}</td>
+                            <td>{{ bundle.time_uploaded }}</td>
+                            <td>{{ bundle.n_pages }}</td>
+                            <td>{{ bundle.pdf_hash }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer">
+            <a class="btn btn-primary" href="{% url 'scan_list_staged' %}">Staged bundles</a>
+            <a class="btn btn-primary" href="{% url 'scan_list_pushed' %}">Pushed bundles</a>
+        </div>
+    </div>
+    <!-- javascript for progress-bar updates, from https://htmx.org/examples/file-upload/ -->
+    <script>
+        htmx.on('#form', 'htmx:xhr:progress', function(evt) {
+          htmx.find('#progress').setAttribute('value', evt.detail.loaded/evt.detail.total * 100)
+        });
+    </script>
+{% endblock main_content %}
