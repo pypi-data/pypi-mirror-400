@@ -1,0 +1,235 @@
+"""Client for communicating with the music-cli daemon."""
+
+import json
+import logging
+from typing import Any
+
+from .config import get_config
+from .platform import get_ipc_client
+from .platform.ipc import IPCClient
+
+logger = logging.getLogger(__name__)
+
+# Constants
+SOCKET_BUFFER_SIZE = 4096
+MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB limit
+DEFAULT_TIMEOUT = 10.0
+AI_TIMEOUT = 300.0  # 5 minutes for AI generation
+YOUTUBE_TIMEOUT = 60.0  # 1 minute for YouTube URL extraction
+
+
+class DaemonClient:
+    """Client for sending commands to the daemon.
+
+    Uses platform-appropriate IPC:
+    - Linux/macOS: Unix domain sockets
+    - Windows: TCP localhost
+    """
+
+    def __init__(self):
+        self.config = get_config()
+        self.socket_path = self.config.socket_path
+        # Platform-specific IPC client (Unix sockets or TCP)
+        self._ipc_client: IPCClient = get_ipc_client()
+
+    def send_command(
+        self, command: str, args: dict | None = None, timeout: float | None = None
+    ) -> dict[str, Any]:
+        """Send a command to the daemon and get response.
+
+        Args:
+            command: Command name (play, stop, pause, resume, status, etc.)
+            args: Command arguments
+            timeout: Socket timeout in seconds (default: 10s, AI commands: 300s)
+
+        Returns:
+            Response dictionary from daemon
+
+        Raises:
+            ConnectionError: If daemon is not running
+        """
+        if args is None:
+            args = {}
+
+        # Use longer timeout for AI commands
+        if timeout is None:
+            if command == "play" and args.get("mode") == "ai":
+                timeout = AI_TIMEOUT
+            elif command == "play" and args.get("mode") in ("youtube", "yt"):
+                timeout = YOUTUBE_TIMEOUT
+            elif command == "ai_play":
+                timeout = AI_TIMEOUT
+            else:
+                timeout = DEFAULT_TIMEOUT
+
+        request = {
+            "command": command,
+            "args": args,
+        }
+
+        # Use platform-specific IPC client
+        sock = self._ipc_client.connect(self.socket_path, timeout)
+        try:
+            sock.sendall(json.dumps(request).encode())
+
+            # Receive response with size limit
+            response_data = b""
+            while len(response_data) < MAX_RESPONSE_SIZE:
+                chunk = sock.recv(SOCKET_BUFFER_SIZE)
+                if not chunk:
+                    break
+                response_data += chunk
+
+            if len(response_data) >= MAX_RESPONSE_SIZE:
+                logger.warning("Response from daemon exceeded size limit")
+                return {"error": "Response too large from daemon"}
+
+            if response_data:
+                return json.loads(response_data.decode())
+            else:
+                return {"error": "Empty response from daemon"}
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid JSON response from daemon: {e}")
+            return {"error": "Invalid response from daemon"}
+        finally:
+            sock.close()
+
+    def ping(self) -> bool:
+        """Check if daemon is running and responsive."""
+        try:
+            response = self.send_command("ping")
+            return response.get("status") == "ok"
+        except ConnectionError:
+            return False
+
+    def play(
+        self,
+        mode: str = "radio",
+        source: str | None = None,
+        mood: str | None = None,
+        auto: bool = False,
+        duration: int = 30,
+        index: int | None = None,
+    ) -> dict:
+        """Start playback.
+
+        Args:
+            mode: Playback mode (local, radio, ai, context, history)
+            source: Source path/URL/name
+            mood: Mood tag (happy, sad, focus, etc.)
+            auto: Enable auto-play for local files
+            duration: Duration for AI generation (seconds)
+            index: History entry index (for mode=history)
+        """
+        args = {"mode": mode, "auto": auto}
+        if source:
+            args["source"] = source
+        if mood:
+            args["mood"] = mood
+        if duration:
+            args["duration"] = duration
+        if index:
+            args["index"] = index
+        return self.send_command("play", args)
+
+    def stop(self) -> dict:
+        """Stop playback."""
+        return self.send_command("stop")
+
+    def pause(self) -> dict:
+        """Pause playback."""
+        return self.send_command("pause")
+
+    def resume(self) -> dict:
+        """Resume playback."""
+        return self.send_command("resume")
+
+    def status(self) -> dict:
+        """Get current status."""
+        return self.send_command("status")
+
+    def next_track(self) -> dict:
+        """Skip to next track (auto-play mode)."""
+        return self.send_command("next")
+
+    def set_volume(self, level: int) -> dict:
+        """Set volume level (0-100)."""
+        return self.send_command("volume", {"level": level})
+
+    def get_volume(self) -> int:
+        """Get current volume level."""
+        response = self.send_command("volume")
+        return response.get("volume", 80)
+
+    def list_radios(self) -> list[dict]:
+        """List available radio stations."""
+        response = self.send_command("list_radios")
+        return response.get("stations", [])
+
+    def list_history(self, limit: int = 20) -> list[dict]:
+        """List playback history."""
+        response = self.send_command("list_history", {"limit": limit})
+        return response.get("history", [])
+
+    def ai_list(self) -> list[dict]:
+        """List all AI-generated tracks."""
+        response = self.send_command("ai_list")
+        return response.get("tracks", [])
+
+    def ai_play(
+        self,
+        prompt: str | None = None,
+        duration: int = 5,
+        mood: str | None = None,
+        model: str | None = None,
+    ) -> dict:
+        """Generate and play AI music.
+
+        Args:
+            prompt: Custom prompt for generation (optional).
+            duration: Duration in seconds.
+            mood: Mood for context-based generation.
+            model: Model ID to use (e.g., 'musicgen-small'). If None, uses default.
+
+        Returns:
+            Response dict with track info or error.
+        """
+        args: dict = {"duration": duration}
+        if prompt:
+            args["prompt"] = prompt
+        if mood:
+            args["mood"] = mood
+        if model:
+            args["model"] = model
+        return self.send_command("ai_play", args, timeout=AI_TIMEOUT)
+
+    def ai_replay(self, index: int, regenerate: bool = False) -> dict:
+        """Replay an AI track by index.
+
+        Args:
+            index: 1-based index of the track.
+            regenerate: If True, regenerate the track even if file exists.
+
+        Returns:
+            Response dict with track info or error.
+        """
+        args = {"index": index, "regenerate": regenerate}
+        timeout = AI_TIMEOUT if regenerate else DEFAULT_TIMEOUT
+        return self.send_command("ai_replay", args, timeout=timeout)
+
+    def ai_remove(self, index: int) -> dict:
+        """Remove an AI track and its audio file.
+
+        Args:
+            index: 1-based index of the track.
+
+        Returns:
+            Response dict with removed track info or error.
+        """
+        return self.send_command("ai_remove", {"index": index})
+
+
+def get_client() -> DaemonClient:
+    """Get a daemon client instance."""
+    return DaemonClient()
