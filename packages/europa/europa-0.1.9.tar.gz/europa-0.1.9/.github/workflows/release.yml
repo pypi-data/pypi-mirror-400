@@ -1,0 +1,38 @@
+name: Publish Python Package
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/europa  # Replace with your package name
+    
+    permissions:
+      id-token: write  # Required for PyPI trusted publishing
+      contents: read
+      packages: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: Rex90/europa
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.6.12"  # Pin to a specific version for stability
+      
+      - name: Build package
+        run: |
+          uv build --no-sources
+      
+      - name: Publish to PyPI
+        run: |
+          uv publish
