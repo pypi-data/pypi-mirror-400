@@ -1,0 +1,114 @@
+# cpstress
+
+A comprehensive stress testing data generator for competitive programming with cryptographically secure randomness.
+
+## Version History
+
+### v0.2.0 - Bug Fixes & Improvements
+- ✅ Fixed edge cases in graph generation (weighted graph parameter handling)
+- ✅ Improved performance for large-scale random generation
+- ✅ Enhanced documentation and examples
+- ✅ Fixed import paths and module organization
+- ✅ Added better error handling for invalid parameters
+- ✅ Optimized random number generation for cryptographic security
+
+### v0.1.0 - Initial Release
+- Initial stable release with core functionality
+
+## Features
+
+- **Arrays**: Random arrays, permutations, matrices, pairs, subsets, partitions, and specialized patterns (strictly increasing/decreasing, arithmetic/geometric progressions)
+- **Numbers**: Random integers, floats, weighted random selection, exclusion sets
+- **Strings**: Random strings with case control, palindromes, alphanumeric strings, custom alphabets
+- **Graphs**: Trees, simple graphs, weighted graphs, directed graphs, DAGs, bipartite graphs, cycles, complete graphs, regular graphs
+- **Secure Randomness**: Uses `secrets.SystemRandom()` instead of Python's predictable MT19937 algorithm
+
+## Installation
+
+### From PyPI
+```bash
+pip install cpstress
+```
+
+### From Source
+```bash
+git clone https://github.com/sharpsalt/cpstress.git
+cd cpstress
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from cpstress.generators import gen_arrays, gen_numbers, gen_strings, gen_graphs
+
+# Generate random array
+arr = gen_arrays.random(10, 1, 100)
+print(arr)
+
+# Generate random integer
+num = gen_numbers.random_int(1, 1000)
+print(num)
+
+# Generate random string
+s = gen_strings.random(15, CaseType.Mixed)
+print(s)
+
+# Generate tree
+tree = gen_graphs.tree(10)
+print(tree)
+```
+
+## Module Reference
+
+### Arrays (`gen_arrays`)
+- `random(len, l, r, unique=False, sorted=False)` - Random array
+- `permutation(n)` - Random permutation
+- `matrix(rows, cols, l, r)` - Random matrix
+- `pairs(len, l1, r1, l2, r2, ordered=False)` - Random pairs
+- `subset(l, r, k, sorted=False)` - Random subset
+- `partition(sum, k, min_val, max_val)` - Partition sum into k parts
+- `strictly_increasing/decreasing()` - Monotonic sequences
+- `arithmetic_progression/geometric_progression()` - Special sequences
+- `bit_array(len, prob_one=0.5)` - Binary array
+
+### Numbers (`gen_numbers`)
+- `random_int(l, r)` - Random integer
+- `random_real(l, r)` - Random float
+- `random_range(l, r, count)` - List of random numbers
+- `random_exclude(l, r, exclude_set)` - Random excluding values
+- `random_weighted(values, weights)` - Weighted random selection
+- `random_real_exclude()` - Random float with exclusion range
+
+### Strings (`gen_strings`)
+- `random(len, case_type)` - Random string
+- `palindrome(len, case_type)` - Random palindrome
+- `random_alphanum(len, letters, digits, case_type)` - Alphanumeric string
+- `random_custom(len, alphabet)` - String from custom alphabet
+- `random_strings(count, len, case_type)` - Multiple random strings
+- `palindromes(count, len, case_type)` - Multiple palindromes
+
+### Graphs (`gen_graphs`)
+- `tree(n, zero_based=False)` - Random tree
+- `simple_graph(n, m)` - Random undirected graph
+- `weighted_graph(n, m, min_w, max_w)` - Weighted graph
+- `directed_graph(n, m)` - Directed graph
+- `dag(n, m)` - Directed acyclic graph
+- `bipartite(n1, n2, m)` - Bipartite graph
+- `cycle(n)`, `star(n)`, `complete(n)`, `regular(n, d)` - Special graphs
+
+## Security
+
+All random number generation uses Python's `secrets.SystemRandom()`, which provides cryptographically strong randomness that cannot be easily determined or predicted, unlike the standard `random.Random()` module.
+
+## License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Author
+
+Srijan Verma - [GitHub Profile](https://github.com/sharpsalt)
