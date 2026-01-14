@@ -1,0 +1,118 @@
+Metadata-Version: 2.1
+Name: tlkcore
+Version: 2.4.3
+Summary: TmxLab Kit Core engine (TLKCore) Hardware Driver Python API
+Home-page: https://www.tmytek.com/
+Author: TMYTEK Software Team
+Author-email: rd2_common@tmytek.com
+License: UNKNOWN
+Project-URL: Documentation, https://tmytek-tlkcore.readthedocs-hosted.com/en/v2.4.3
+Project-URL: Examples, https://github.com/TMYtek/tlkcore-examples/
+Platform: UNKNOWN
+Classifier: License :: Other/Proprietary License
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: System :: Hardware :: Hardware Drivers
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Requires-Python: >=3.8
+Description-Content-Type: text/x-rst
+Requires-Dist: psutil>=6.1.0
+Requires-Dist: pyserial>=3.5
+Requires-Dist: ft4222>=1.10.0
+Requires-Dist: tftpy==0.8.5
+
+
+Introduction
+============
+
+**TLKCore** is a core service which inside the TMXLAB KIT( TLK / `WEB-TLK <https://web-tlk.tmytek.com/>`_ ), it integrates Python built libraries which developing mmWave( n257 / n258 / n260 / n261 ) **beamforming** and **beam steering** applications on **BBox 5G Series(mmwave beamformer)** and **UDBox 5G Series(mmwave Up-down frequency converter)** and other standard products developed by TMYTEK.
+It provides a simple and efficient way to interact with the hardware, allowing developers to focus on building applications without worrying about low-level details.
+
+Installation Troubleshooting
+-----------------------------
+
+* If you encounter any issues during `tlkcore` installation or usage, please check the following:
+
+1. Ensure you have the required dependencies installed.
+2. Check the compatibility of your Python version.
+3. Review the documentation for any specific configuration steps.
+
+* If you meet the error message likes: CERTIFICATE_VERIFY_FAILED,
+    you can try the following steps:
+
+1. Update your `pip` to the latest version:
+    .. code-block:: bash
+
+        pip install --upgrade pip
+
+2. You may need to configure your proxy settings if you are behind a corporate firewall.
+3. You can also try to disable SSL verification (not recommended for production):
+    .. code-block:: bash
+
+        pip install tlkcore --trusted-host pypi.org --trusted-host files.pythonhosted.org
+
+4. Or download cacert.pem from https://curl.se/ca/cacert.pem , then set environment variable `SSL_CERT_FILE` to the path of the downloaded file.
+    .. code-block:: bash
+
+       set SSL_CERT_FILE={$your_path}/cacert.pem
+
+Hardware Prerequisites
+=======================
+
+* Architecture:
+
+    .. image:: https://raw.githubusercontent.com/tmytek/tlkcore-examples/master/images/TLKCore_usage.png
+       :alt: TLKCore usage architecture
+       :width: 600px
+
+* USB driver for scanning/connect device
+
+  - `Installation Guides for all platforms <https://ftdichip.com/document/installation-guides/>`_
+  - Windows
+
+    - Online-Host with external internet capability
+      - Auto detect a new device and install driver
+
+    - Offline-Host
+      - Download `setup executable driver from FTDI <https://ftdichip.com/drivers/d2xx-drivers/>`_ and install it.
+
+  - Linux
+
+    1. Follow `steps <https://gitlab.com/msrelectronics/python-ft4222/-/tree/master#accessrights>`_ to create or extend **/etc/udev/rules.d/99-ftdi.rules** includes::
+
+         SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", GROUP="plugdev", MODE="0666"
+
+    2. Try to reload udev rules or re-plugin USB devices::
+
+         sudo udevadm control --reload-rules
+         sudo udevadm trigger
+
+Examples
+=========
+
+This represents how to use the `tlkcore` API. Please refer to the example from github: https://github.com/tmytek/tlkcore-examples for more details.
+
+Initialize & scanDevices
+------------------------
+
+.. code-block:: python
+
+    from tlkcore import TLKCoreService
+    service = TLKCoreService()
+    ret = service.scanDevices()
+    print(ret)
+
+
