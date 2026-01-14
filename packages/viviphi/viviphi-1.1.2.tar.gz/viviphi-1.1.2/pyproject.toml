@@ -1,0 +1,123 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "viviphi"
+version = "1.1.2"
+description = "Turn static graphs into beautiful animations"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Davit Budaghyan", email = "david@budaghyan.com"}
+]
+maintainers = [
+    {name = "Davit Budaghyan", email = "david@budaghyan.com"}
+]
+keywords = ["animation", "svg", "mermaid", "graphs", "diagrams", "visualization"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Markup :: HTML",
+]
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "litellm>=1.80.7",
+    "loguru>=0.7.3",
+    "lxml>=6.0.2",
+    "matplotlib>=3.10.7",
+    "networkx>=3.6",
+    "playwright>=1.56.0",
+    "pydantic>=2.12.5",
+    "svgpathtools>=1.7.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/viviphi/viviphi"
+Documentation = "https://github.com/viviphi/viviphi#readme"
+Repository = "https://github.com/viviphi/viviphi.git"
+"Bug Tracker" = "https://github.com/viviphi/viviphi/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.14.7",
+    "twine>=6.2.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["viviphi*"]
+exclude = ["tests*", "temp*", "docs*", "examples*"]
+
+[tool.setuptools.package-data]
+"viviphi" = ["**/*.j2", "**/*.yaml"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["**/__pycache__/*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+exclude = [
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    ".venv",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "tests",
+]
+
+[tool.coverage.html]
+directory = "coverage"
+
+[tool.coverage.run]
+source = ["viviphi"]
+branch = true
+omit = [
+    "tests/*",
+    ".venv/*",
+    "**/__init__.py",
+]
+command_line = "pytest"
+
+[tool.coverage.report]
+#fail_under = 80
+precision = 2
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == '__main__':",
+    "if TYPE_CHECKING:",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError"
+]
+
+[tool.pytest.ini_options]
+addopts = """--cov=viviphi --cov-report=html
+ --cov-report=term-missing --cov-report=xml"""
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
