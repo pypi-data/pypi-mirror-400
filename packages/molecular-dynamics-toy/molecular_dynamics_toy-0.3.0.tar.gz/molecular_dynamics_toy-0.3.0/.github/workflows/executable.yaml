@@ -1,0 +1,107 @@
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['windows-latest', 'ubuntu-latest', 'macos-latest']
+
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-python@v6
+      with:
+        python-version: 3.13
+        cache: 'pip'
+      
+    - name: Install dependencies
+      if: runner.os != 'Linux'
+      run: |
+        df -h
+        python -m pip install --upgrade pip setuptools
+        python -m pip install pyinstaller
+        python -m pip install -e .
+        df -h
+    
+    - name: Install dependencies (Ubuntu)
+      # We need to explicitly tell Ubuntu/Linux to install the CPU-only version of Torch.
+      if: runner.os == 'Linux'
+      run: |
+        df -h
+        python -m pip install --upgrade pip setuptools
+        python -m pip install pyinstaller
+        python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        python -m pip install -e .
+        df -h
+        
+    - name: Compile executable
+      run: |
+        pyinstaller MDToy.spec
+        df -h
+
+    - name: Create tarballs (macOS only)
+      if: runner.os == 'macOS'
+      run: |
+        tar -czf MDToy-macos-dir.tar.gz -C dist MDToy
+        tar -czf MDToy-macos-app.tar.gz -C dist MDToy.app
+    
+    - name: Create tarball (Ubuntu only)
+      if: runner.os == 'Linux'
+      run: tar -czf MDToy-ubuntu.tar.gz -C dist MDToy
+
+    - name: Create zip archive (Windows only)
+      if: (github.event_name == 'release') && (runner.os == 'Windows')
+      run: Compress-Archive -Path dist/* -Destination MDToy-windows.zip
+    
+    - name: Upload to release (MacOS)
+      uses: softprops/action-gh-release@v2
+      if: (github.event_name == 'release') && (github.ref_type == 'tag') && (runner.os == 'macOS')
+      with:
+        files: |
+          MDToy-macos-dir.tar.gz
+          MDToy-macos-app.tar.gz
+    
+    - name: Upload to release (Linux)
+      uses: softprops/action-gh-release@v2
+      if: (github.event_name == 'release') && (github.ref_type == 'tag') && (runner.os == 'Linux')
+      with:
+        files: MDToy-ubuntu.tar.gz
+      
+    - name: Upload to release (Windows)
+      uses: softprops/action-gh-release@v2
+      if: (github.event_name == 'release') && (github.ref_type == 'tag') && (runner.os == 'Windows')
+      with:
+        files: MDToy-windows.zip
+
+    - uses: actions/upload-artifact@v5
+      if: (runner.os == 'macOS') && (github.event_name == 'workflow_dispatch')
+      with:
+        name: MDToy-${{ matrix.os }}-dir
+        path: MDToy-macos-dir.tar.gz
+        compression-level: 0
+
+    - uses: actions/upload-artifact@v5
+      if: (runner.os == 'macOS') && (github.event_name == 'workflow_dispatch')
+      with:
+        name: MDToy-${{ matrix.os }}-app
+        path: MDToy-macos-app.tar.gz
+        compression-level: 0
+    
+    - uses: actions/upload-artifact@v5
+      if: (runner.os == 'Windows') && (github.event_name == 'workflow_dispatch')
+      with:
+        name: MDToy-${{ matrix.os }}
+        path: dist/*
+    
+    - uses: actions/upload-artifact@v5
+      if: (runner.os == 'Linux') && (github.event_name == 'workflow_dispatch')
+      with:
+        name: MDToy-${{ matrix.os }}
+        path: MDToy-ubuntu.tar.gz
+        compression-level: 0

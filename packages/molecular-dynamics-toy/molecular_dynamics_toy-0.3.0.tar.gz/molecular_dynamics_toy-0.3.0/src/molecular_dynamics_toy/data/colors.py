@@ -1,0 +1,50 @@
+"""Color definitions for the application."""
+
+from typing import Tuple
+
+# Type alias for RGB colors
+Color = Tuple[int, int, int]
+
+# Application colors
+BG_COLOR: Color = (240, 240, 245)
+WIDGET_BG_COLOR: Color = (255, 255, 255)
+BORDER_COLOR: Color = (200, 200, 200)
+TEXT_COLOR: Color = (50, 50, 50)
+TEXT_LIGHT_COLOR: Color = (120, 120, 120)
+
+SIMULATION_CELL_COLOR: Color = (230, 230, 230)
+
+# Element button colors
+ELEMENT_BG_COLOR: Color = (240, 240, 240)
+ELEMENT_BG_SELECTED_COLOR: Color = (100, 150, 255)
+ELEMENT_BG_HOVER_COLOR: Color = (230, 230, 230)
+ELEMENT_BG_SELECTED_HOVER_COLOR: Color = (120, 170, 255)
+ELEMENT_BORDER_COLOR: Color = (180, 180, 180)
+ELEMENT_BORDER_SELECTED_COLOR: Color = (50, 100, 200)
+ELEMENT_TEXT_COLOR: Color = (30, 30, 30)
+ELEMENT_TEXT_SELECTED_COLOR: Color = (255, 255, 255)
+
+# Control button colors
+CONTROL_BG_COLOR: Color = (240, 240, 240)
+CONTROL_BG_HOVER_COLOR: Color = (220, 220, 220)
+CONTROL_BORDER_COLOR: Color = (180, 180, 180)
+CONTROL_ICON_COLOR: Color = (50, 50, 50)
+
+BUTTON_BG_DISABLED_COLOR: Color = (220, 220, 220)
+BUTTON_BORDER_DISABLED_COLOR: Color = (200, 200, 200)
+TEXT_DISABLED_COLOR: Color = (150, 150, 150)
+
+ICON_RESET_COLOR: Color = (200, 50, 50)
+
+# Menu colors
+MENU_BG_COLOR: Color = (245, 245, 245)
+MENU_BORDER_COLOR: Color = (100, 100, 100)
+MENU_OVERLAY_COLOR: Color = (0, 0, 0)
+MENU_ITEM_BG_COLOR: Color = (250, 250, 250)
+MENU_ITEM_BG_HOVER_COLOR: Color = (230, 240, 255)
+MENU_ITEM_BORDER_COLOR: Color = (180, 180, 180)
+
+# Slider colors
+SLIDER_TRACK_COLOR: Color = (180, 180, 180)
+SLIDER_HANDLE_COLOR: Color = (100, 100, 100)
+SLIDER_HANDLE_HOVER_COLOR: Color = (70, 70, 70)

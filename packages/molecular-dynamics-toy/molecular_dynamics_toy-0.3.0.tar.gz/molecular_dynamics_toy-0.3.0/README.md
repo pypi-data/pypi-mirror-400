@@ -1,0 +1,78 @@
+# molecular-dynamics-toy
+An interactive molecular dynamics simulation GUI.
+
+This app lets you run a real molecular dynamics simulation on
+your laptop or home computer. It includes interactive features like
+clicking to add new atoms, changing the temperature and simulation cell size
+live, and loading preset atomic configurations.
+
+It uses a pre-trained universal machine learning interatomic potential 
+([MatterSim](https://microsoft.github.io/mattersim/)) with a molecular
+dynamics integrator from the
+[Atomic Simulation Environment](https://ase-lib.org/) to do the physics, then
+provides the graphical user interface using [pygame](https://www.pygame.org/).
+
+Physical limitations of this simulation are those of the chosen interatomic
+potential. Specifically, MatterSim is optimised for bulk materials (i.e. things
+which fill the whole unit cell) and not for molecules or chemical reactivity.
+While the physics engine is science-grade, this app is intended for
+demonstration purposes, and no warranty is given for the accuracy
+of any results.
+
+## Installation
+
+### Standalone Executable
+
+Go to [Releases](https://github.com/bfield1/molecular-dynamics-toy/releases)
+and download the file corresponding to your operating system.
+MacOS has two builds: an app (which you click on like normal apps), and an
+executable inside a directory. The app build is easier to use, although the
+executable provides a debug window.
+
+Unzip/unarchive/extract the file (attempting to open it will usually do this).
+
+Enter the MDToy directory then click on/open MDToy.
+
+Your computer will likely flag this as an untrusted app from an unknown publisher.
+On MacOS, right-click on the file then click Open, then click Open in the pop-up.
+On Windows, select More info in the pop-up then Open anyway.
+
+Then you're done! The molecular dynamics toy will be running.
+The first time it runs, it requires an internet connection to download the 
+MatterSim interatomic potential. It will do this to `$HOME/.local/mattersim`,
+and should require only 17 MB.
+
+### Python installation
+
+Set up a virtual Python environment, such as with
+[Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html).
+
+After installing Conda, you can create a Conda environment in the command
+line with
+```
+conda env create -n mdtoy "python=3.13"
+conda activate mdtoy
+```
+(You can replace "mdtoy" with a name of your choice.)
+
+Then, install the app with
+```
+pip install molecular-dynamics-toy
+```
+or, if you want the latest in-development version, with
+```
+pip install git+https://github.com/bfield1/molecular-dynamics-toy
+```
+Note that the MatterSim dependency requires a C++ compiler;
+it should tell you where to find one when you attempt to `pip install` if you
+don't already have one.
+
+Finally, run the app with
+```
+python -m molecular_dynamics_toy
+```
+It will automatically download the pre-trained Mattersim model the first time
+you run it.
+
+(You will need to have the virtual environment you created earlier active,
+so if you open a new terminal run `conda activate mdtoy` again.)
