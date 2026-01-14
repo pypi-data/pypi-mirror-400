@@ -1,0 +1,182 @@
+<div align="center">
+
+# TUI Wordle
+
+**Play Wordle in your terminal with style**
+
+[![PyPI version](https://img.shields.io/pypi/v/tui-wordle.svg)](https://pypi.org/project/tui-wordle/)
+[![Python](https://img.shields.io/pypi/pyversions/tui-wordle.svg)](https://pypi.org/project/tui-wordle/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+```
+╦ ╦╔═╗╦═╗╔╦╗╦  ╔═╗
+║║║║ ║╠╦╝ ║║║  ║╣
+╚╩╝╚═╝╩╚══╩╝╩═╝╚═╝
+```
+
+A beautiful terminal-based Wordle game with shared leaderboard, streaks, and statistics.
+
+[Installation](#installation) • [Features](#features) • [Usage](#usage) • [Self-Hosting](#self-hosting) • [Contributing](#contributing)
+
+</div>
+
+---
+
+## Features
+
+- **Daily Wordle** - New word every day at 9 AM KST
+- **Google Login** - One-click browser authentication
+- **Global Leaderboard** - Compete with players worldwide
+- **Streaks & Stats** - Track your winning streaks and performance
+- **GitHub-style Graph** - Visualize your play history
+- **Auto-save** - Resume your game anytime
+- **Offline Mode** - Play without an account
+- **Beautiful TUI** - Smooth animations powered by [Textual](https://textual.textualize.io/)
+
+## Installation
+
+```bash
+# Using pip
+pip install tui-wordle
+
+# Using uv (recommended)
+uv tool install tui-wordle
+
+# Using pipx
+pipx install tui-wordle
+```
+
+## Usage
+
+```bash
+# Start the game
+wordle
+
+# Alternative commands
+tui-wordle
+wd
+```
+
+### Controls
+
+| Key | Action |
+|-----|--------|
+| `A-Z` | Type letter |
+| `Enter` | Submit guess |
+| `Backspace` | Delete letter |
+| `ESC` | Quit |
+| `F1` | Statistics |
+| `F2` | Leaderboard |
+| `F3` | Help |
+| `F4` | Settings |
+
+## Project Structure
+
+```
+tui-wordle/
+├── client/                 # TUI Client (Textual)
+│   ├── app.py              # Main application
+│   ├── screens/            # Game screens
+│   │   ├── game_screen.py
+│   │   ├── login_screen.py
+│   │   ├── result_screen.py
+│   │   ├── stats_screen.py
+│   │   └── ...
+│   └── widgets/            # UI components
+│       ├── game_board.py
+│       ├── keyboard.py
+│       ├── tile.py
+│       └── ...
+├── server/                 # FastAPI Backend
+│   ├── main.py
+│   ├── auth/               # Authentication
+│   ├── games/              # Game logic
+│   ├── words/              # Daily words
+│   ├── leaderboard/        # Rankings
+│   ├── streaks/            # Streak tracking
+│   └── stats/              # Statistics
+├── admin-web/              # Admin Dashboard (Vue)
+├── data/                   # Word lists
+├── alembic/                # DB migrations
+└── scripts/                # Utility scripts
+```
+
+## Self-Hosting
+
+Want to run your own Wordle server? See the [Self-Hosting Guide](docs/self-hosting.md).
+
+### Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/subinium/tui-wordle.git
+cd tui-wordle
+
+# Install dependencies
+pip install -e ".[server]"
+
+# Set environment variables
+export DATABASE_URL="postgresql+asyncpg://user:pass@localhost/wordle"
+export SECRET_KEY="your-secret-key"
+export GOOGLE_CLIENT_ID="your-google-client-id"
+export GOOGLE_CLIENT_SECRET="your-google-client-secret"
+
+# Run migrations
+alembic upgrade head
+
+# Seed words
+python scripts/seed_database.py
+
+# Start server
+uvicorn server.main:app --reload
+```
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `SECRET_KEY` | JWT secret key | Yes |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Yes |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | Yes |
+| `ADMIN_EMAILS` | Comma-separated admin emails | No |
+| `CORS_ORIGINS` | Allowed CORS origins | No |
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| TUI Client | [Textual](https://textual.textualize.io/) + [Rich](https://rich.readthedocs.io/) |
+| Backend | [FastAPI](https://fastapi.tiangolo.com/) + [SQLAlchemy](https://www.sqlalchemy.org/) |
+| Database | [PostgreSQL](https://www.postgresql.org/) (via [Neon](https://neon.tech/)) |
+| Admin Dashboard | [Vue 3](https://vuejs.org/) + [Vite](https://vitejs.dev/) |
+| Deployment | [Railway](https://railway.app/) |
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Inspired by [Wordle](https://www.nytimes.com/games/wordle/) by Josh Wardle
+- Built with [Textual](https://textual.textualize.io/) by Textualize
+
+---
+
+<div align="center">
+
+**[Play Now](https://pypi.org/project/tui-wordle/)** · **[Report Bug](https://github.com/subinium/tui-wordle/issues)** · **[Request Feature](https://github.com/subinium/tui-wordle/issues)**
+
+Made with love by [@subinium](https://github.com/subinium)
+
+</div>
