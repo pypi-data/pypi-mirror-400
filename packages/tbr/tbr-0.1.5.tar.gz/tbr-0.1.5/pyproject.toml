@@ -1,0 +1,290 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tbr"
+dynamic = ["version"]
+description = "A comprehensive, domain-agnostic Python package for Time-Based Regression (TBR) analysis"
+readme = "README.md"
+license = {text = "BSD-3-Clause"}
+authors = [
+    {name = "Ido Hirsh", email = "idohirsh@users.noreply.github.com"}
+]
+maintainers = [
+    {name = "Ido Hirsh", email = "idohirsh@users.noreply.github.com"}
+]
+keywords = [
+    "time-based-regression",
+    "tbr",
+    "causal-inference",
+    "statistics",
+    "data-science",
+    "regression-analysis",
+    "treatment-control",
+    "time-series"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed"
+]
+requires-python = ">=3.8"
+dependencies = [
+    "pandas>=1.5.0,<2.0.0;python_version<'3.9'",
+    "pandas~=2.0.0;python_version>='3.9'",
+    "numpy>=1.21.0,<1.25.0;python_version<'3.9'",
+    "numpy~=1.24.0;python_version>='3.9'",
+    "scipy>=1.9.0,<1.11.0;python_version<'3.9'",
+    "scipy~=1.10.0;python_version>='3.9'",
+    "statsmodels>=0.13.0,<0.15.0;python_version<'3.9'",
+    "statsmodels~=0.14.0;python_version>='3.9'",
+    "lazy_loader>=0.1",
+    "psutil>=5.9.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "tox>=4.0.0",
+    "pydocstyle[toml]>=6.3.0",
+    "interrogate>=1.5.0",
+    "vulture>=2.7",
+    "psutil>=5.9.0"
+]
+docs = [
+    "sphinx>=6.0.0",
+    "sphinx-rtd-theme>=1.2.0"
+]
+examples = [
+    "jupyter>=1.0.0",
+    "matplotlib~=3.7.0",
+    "seaborn~=0.12.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/idohi/tbr"
+Repository = "https://github.com/idohi/tbr"
+Documentation = "https://tbr.readthedocs.io/"
+"Bug Tracker" = "https://github.com/idohi/tbr/issues"
+Changelog = "https://github.com/idohi/tbr/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+tbr = ["py.typed"]
+
+# Black configuration
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | tests       # Exclude tests directory
+)/
+'''
+
+# isort configuration
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["tbr"]
+
+# Ruff configuration
+[tool.ruff]
+target-version = "py38"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes (includes F841: unused variable, F401: unused imports)
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "ARG", # flake8-unused-arguments
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "E225",  # missing whitespace around operator, allow mathematical expressions
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*" = ["B011"]
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pandas.*",
+    "numpy.*",
+    "scipy.*",
+    "statsmodels.*",
+    "matplotlib.*",
+    "seaborn.*"
+]
+ignore_missing_imports = true
+
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "setup.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:"
+]
+
+# Docstring validation configuration (NumPy convention for scientific packages)
+[tool.pydocstyle]
+convention = "numpy"
+add-ignore = [
+    "D100",  # Missing docstring in public module (optional for scientific packages)
+    "D104",  # Missing docstring in public package (optional)
+    "D105",  # Missing docstring in magic method (optional)
+    "D107",  # Missing docstring in __init__ (optional if class docstring is complete)
+]
+match = "(?!test_).*\\.py"  # Skip test files
+match-dir = "(?!tests).*"   # Skip test directories
+
+# Docstring coverage validation
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-module = false       # Require module docstrings for scientific packages
+ignore-private = true
+ignore-property-decorators = true
+fail-under = 90            # 90% docstring coverage required (scientific package standard)
+verbose = 2
+quiet = false
+whitelist-regex = []
+color = true
+exclude = ["tests", "docs", "build"]
+
+# Dead code detection
+[tool.vulture]
+paths = ["src"]
+exclude = ["tests", "docs", "build", "examples"]
+ignore_decorators = ["@pytest.fixture", "@property"]
+ignore_names = ["_*"]  # Ignore private methods/functions
+min_confidence = 100   # Only report definitively unused code (zero false positives)
+sort_by_size = true
+
+# pytest configuration
+[tool.pytest.ini_options]
+# Test discovery
+testpaths = ["tests"]
+pythonpath = ["src"]  # Add src directory to Python path for imports
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Core testing behavior only (NumPy/SciPy approach)
+addopts = [
+    "--strict-markers",        # Treat unregistered markers as errors
+    "--strict-config",         # Treat config errors as errors
+]
+
+# Test markers for categorization
+markers = [
+    "unit: Unit tests for individual functions and classes",
+    "integration: Integration tests for complete workflows",
+    "mathematical: Mathematical validation tests against reference implementations",
+    "performance: Performance and benchmarking tests",
+    "slow: Tests that take significant time to run",
+    "requires_data: Tests that require external data files",
+]
+
+# Filtering and execution
+filterwarnings = [
+    "error",                  # Treat warnings as errors
+    "ignore::UserWarning",    # Ignore user warnings from dependencies
+    "ignore::DeprecationWarning", # Ignore deprecation warnings from dependencies
+    "ignore::PendingDeprecationWarning",
+]
+
+# Minimum Python version for tests
+minversion = "7.0"
+
+# Directories to ignore during test collection
+norecursedirs = [
+    "*.egg",
+    ".eggs",
+    "dist",
+    "build",
+    "docs",
+    ".tox",
+    ".git",
+    "__pycache__"
+]
+
+# ============================================================================
+# SETUPTOOLS_SCM - Version from Git Tags
+# ============================================================================
+[tool.setuptools_scm]
+# Version is automatically derived from git tags (e.g., v0.1.5 -> 0.1.5)
+# Development versions include commit info (e.g., 0.1.5.dev3+g1234abc)

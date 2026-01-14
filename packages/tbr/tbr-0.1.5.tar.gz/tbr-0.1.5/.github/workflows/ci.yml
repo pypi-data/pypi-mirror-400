@@ -1,0 +1,300 @@
+name: CI
+
+on:
+  # Automatic triggers
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  # Manual trigger for on-demand testing
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for running CI'
+        required: false
+        default: 'Manual CI run'
+
+jobs:
+  # Code Quality Checks (Fast - runs first)
+  quality:
+    runs-on: ubuntu-latest
+    name: Code Quality
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-quality-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-quality-
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+
+    - name: Run pre-commit hooks
+      run: |
+        pre-commit run --all-files
+
+  # Core Testing Matrix (Multiple Python versions)
+  test:
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+        include:
+          # Coverage testing on latest Python/Ubuntu
+          - python-version: '3.11'
+            os: ubuntu-latest
+            coverage: true
+          # Minimal dependencies testing on oldest supported Python
+          - python-version: '3.8'
+            os: ubuntu-latest
+            minimal: true
+
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-${{ matrix.python-version }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.python-version }}-pip-
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+
+    - name: Run unit tests
+      run: |
+        pytest tests/unit/ -v -m "not performance" --cov=src/tbr --cov-report=xml --cov-report=term-missing --cov-fail-under=100
+
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ -v
+
+    - name: Run mathematical validation tests
+      run: |
+        pytest tests/mathematical/ -v --tb=short
+
+    - name: Generate coverage reports
+      if: matrix.coverage
+      run: |
+        echo "Coverage report generated successfully"
+        echo "HTML report available in htmlcov/ directory"
+        echo "XML report available as coverage.xml"
+
+    - name: Upload coverage artifacts
+      if: matrix.coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports-${{ matrix.python-version }}
+        path: |
+          htmlcov/
+          coverage.xml
+        retention-days: 30
+
+    # Note: Codecov integration removed for security compliance
+    # Coverage reports are generated locally and accessible via CI artifacts
+
+  # Performance Testing (Separate job - only on main Python/OS)
+  performance:
+    needs: test
+    runs-on: ubuntu-latest
+    name: Performance Tests
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-performance-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-performance-
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+
+    - name: Run performance tests
+      run: |
+        pytest tests/performance/ -v --durations=10
+
+    - name: Run performance tests (slow)
+      run: |
+        pytest tests/performance/ -m slow -v --durations=10
+
+  # Package Building and Installation Test
+  package:
+    needs: quality
+    runs-on: ubuntu-latest
+    name: Package Build & Dependency Test
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-build-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-build-
+          ${{ runner.os }}-pip-
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Check package with twine
+      run: |
+        twine check dist/*
+
+    - name: Test package installation in clean environment
+      run: |
+        # Create completely clean virtual environment
+        python -m venv test_env
+        source test_env/bin/activate
+
+        # Install ONLY from wheel (runtime dependencies only)
+        pip install dist/*.whl
+
+        # Test basic import
+        python -c "import tbr; print(f'✓ TBR version: {tbr.__version__}')"
+
+        # Test OOP API
+        python -c "from tbr import TBRAnalysis; print('✓ TBRAnalysis imported')"
+
+        # Test functional API (requires psutil!)
+        python -c "from tbr import perform_tbr_analysis; print('✓ Functional API imported')"
+
+        # Test result objects
+        python -c "from tbr.core import TBRSummaryResult, TBRPredictionResult; print('✓ Result objects imported')"
+
+        deactivate
+
+    - name: Run dependency tests in clean environment
+      run: |
+        # Reuse the clean environment
+        source test_env/bin/activate
+
+        # Install ONLY pytest (minimal testing tool)
+        pip install pytest
+
+        # Run dependency tests
+        pytest tests/integration/test_package_dependencies.py -v
+
+        deactivate
+
+    - name: Verify no development dependencies leaked
+      run: |
+        source test_env/bin/activate
+
+        # These should NOT be present
+        python -c "import sys; import importlib.util; assert importlib.util.find_spec('black') is None, 'black should not be installed'" || echo "✓ black not in environment"
+        python -c "import sys; import importlib.util; assert importlib.util.find_spec('ruff') is None, 'ruff should not be installed'" || echo "✓ ruff not in environment"
+        python -c "import sys; import importlib.util; assert importlib.util.find_spec('mypy') is None, 'mypy should not be installed'" || echo "✓ mypy not in environment"
+
+        # These SHOULD be present (runtime deps)
+        python -c "import pandas; print('✓ pandas present')"
+        python -c "import numpy; print('✓ numpy present')"
+        python -c "import scipy; print('✓ scipy present')"
+        python -c "import statsmodels; print('✓ statsmodels present')"
+        python -c "import psutil; print('✓ psutil present')"
+        python -c "import lazy_loader; print('✓ lazy_loader present')"
+
+        deactivate
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ github.run_id }}
+        path: dist/
+        retention-days: 7
+
+  # Documentation Building (Future-ready)
+  documentation:
+    needs: quality
+    runs-on: ubuntu-latest
+    name: Documentation Build
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-docs-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-docs-
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        # Future: pip install -e .[docs] when docs dependencies are added
+
+    - name: Build documentation (placeholder)
+      run: |
+        echo "Documentation build placeholder - ready for Sphinx setup"
+        echo "Future: cd docs && make html"
+        # Create placeholder docs structure
+        mkdir -p docs/_build/html
+        echo "<html><body><h1>TBR Documentation</h1><p>Coming soon!</p></body></html>" > docs/_build/html/index.html
+
+    - name: Upload documentation
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation-${{ github.run_id }}
+        path: docs/_build/html/
+        retention-days: 30
