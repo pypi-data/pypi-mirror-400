@@ -1,0 +1,59 @@
+import datetime
+
+from mantis.helpers import CLI
+
+
+class Postgres():
+    postgres_service = 'postgres'
+
+    @property
+    def postgres_container(self):
+        return self.get_container_name(self.postgres_service)
+
+    def psql(self):
+        """Starts psql console"""
+        CLI.info('Starting psql...')
+        env = self.env.load()
+        self.docker(f'exec -it {self.postgres_container} psql -h {env["POSTGRES_HOST"]} -U {env["POSTGRES_USER"]} -d {env["POSTGRES_DBNAME"]} -W')
+
+    def pg_dump(self, data_only=False, table=None):
+        """Backups PostgreSQL database"""
+        if data_only:
+            compressed = True
+            data_only_param = '--data-only'
+            data_only_suffix = f'_{table}' if table else '_data'
+        else:
+            compressed = True
+            data_only_param = ''
+            data_only_suffix = ''
+
+        extension = 'pg' if compressed else 'sql'
+        compressed_params = '-Fc' if compressed else ''
+        table_params = f'--table={table}' if table else ''
+
+        now = datetime.datetime.now()
+        env = self.env.load()
+        filename = now.strftime(f"{env['POSTGRES_DBNAME']}_%Y%m%d_%H%M{data_only_suffix}.{extension}")
+        CLI.info(f'Backuping database into file {filename}')
+        self.docker(f'exec -it {self.postgres_container} bash -c \'pg_dump {compressed_params} {data_only_param} -h {env["POSTGRES_HOST"]} -U {env["POSTGRES_USER"]} {table_params} {env["POSTGRES_DBNAME"]} -W > /backups/{filename}\'')
+
+    def pg_dump_data(self, table=None):
+        """Backups PostgreSQL database (data only)"""
+        self.pg_dump(data_only=True, table=table)
+
+    def pg_restore(self, filename, table=None):
+        """Restores database from backup"""
+        if table:
+            CLI.info(f'Restoring table {table} from file {filename}')
+            table_params = f'--table {table}'
+        else:
+            CLI.info(f'Restoring database from file {filename}')
+            table_params = ''
+
+        CLI.underline("Don't forget to drop database at first to prevent constraints collisions!")
+        env = self.env.load()
+        self.docker(f'exec -it {self.postgres_container} bash -c \'pg_restore -h {env["POSTGRES_HOST"]} -U {env["POSTGRES_USER"]} -d {env["POSTGRES_DBNAME"]} {table_params} -W < /backups/{filename}\'')
+
+    def pg_restore_data(self, filename, table):
+        """Restores database data from backup"""
+        self.pg_restore(filename=filename, table=table)
