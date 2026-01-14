@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from mtproto_mitm.tl.core_types import *
+from mtproto_mitm.tl.tl_object import TLObject, tl_object, TLField
+from typing import Optional, Any
+
+# # # # # # # # # # # # # # # # # # # # # # # #
+#               !!! WARNING !!!               #
+#          This is a generated file!          #
+# All changes made in this file will be lost! #
+# # # # # # # # # # # # # # # # # # # # # # # #
+
+
+@tl_object(id=0x5e167646, name="types.updates.ChannelDifferenceTooLong_38")
+class ChannelDifferenceTooLong_38(TLObject):
+    flags: Int = TLField(is_flags=True)
+    pts: Int = TLField()
+    timeout: Optional[Int] = TLField(flag=1 << 1)
+    top_message: Int = TLField()
+    top_important_message: Int = TLField()
+    read_inbox_max_id: Int = TLField()
+    unread_count: Int = TLField()
+    unread_important_count: Int = TLField()
+    messages: list[TLObject] = TLField()
+    chats: list[TLObject] = TLField()
+    users: list[TLObject] = TLField()

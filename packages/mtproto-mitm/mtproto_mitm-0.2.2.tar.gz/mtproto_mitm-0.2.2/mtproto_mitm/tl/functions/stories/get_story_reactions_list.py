@@ -1,0 +1,22 @@
+from __future__ import annotations
+
+from mtproto_mitm.tl.core_types import *
+from mtproto_mitm.tl.tl_object import TLObject, tl_object, TLField
+from typing import Optional, Any
+
+# # # # # # # # # # # # # # # # # # # # # # # #
+#               !!! WARNING !!!               #
+#          This is a generated file!          #
+# All changes made in this file will be lost! #
+# # # # # # # # # # # # # # # # # # # # # # # #
+
+
+@tl_object(id=0xb9b2881f, name="functions.stories.GetStoryReactionsList")
+class GetStoryReactionsList(TLObject):
+    flags: Int = TLField(is_flags=True)
+    forwards_first: bool = TLField(flag=1 << 2)
+    peer: TLObject = TLField()
+    id: Int = TLField()
+    reaction: Optional[TLObject] = TLField(flag=1 << 0)
+    offset: Optional[str] = TLField(flag=1 << 1)
+    limit: Int = TLField()
