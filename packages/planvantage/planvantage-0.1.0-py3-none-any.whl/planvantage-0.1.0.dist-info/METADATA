@@ -1,0 +1,649 @@
+Metadata-Version: 2.4
+Name: planvantage
+Version: 0.1.0
+Summary: Python SDK for the PlanVantage API - Health benefits plan design and actuarial value calculations
+Author-email: PlanVantage <support@planvantage.ai>
+License: MIT
+Project-URL: Homepage, https://planvantage.ai
+Project-URL: Documentation, https://docs.planvantage.ai
+Project-URL: Repository, https://github.com/planvantage-ai/planvantage-python
+Keywords: planvantage,api,sdk,health,benefits,actuarial
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: tenacity>=8.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: respx>=0.20.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: build>=1.0.0; extra == "dev"
+Dynamic: license-file
+
+# PlanVantage Python SDK
+
+Official Python SDK for the [PlanVantage](https://planvantage.ai) API - a platform for health benefits analysis and plan design.
+
+## Installation
+
+```bash
+pip install planvantage
+```
+
+For development:
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+```python
+from planvantage import PlanVantageClient
+
+# Initialize the client with your API key
+client = PlanVantageClient(api_key="your_api_key")
+
+# Or use environment variable PLANVANTAGE_API_KEY
+client = PlanVantageClient()
+
+# List all plan sponsors
+sponsors = client.plansponsors.list()
+for sponsor in sponsors:
+    print(f"{sponsor.name} ({sponsor.guid})")
+
+# Always close the client when done
+client.close()
+```
+
+### Using Context Manager
+
+```python
+from planvantage import PlanVantageClient
+
+with PlanVantageClient(api_key="your_api_key") as client:
+    sponsors = client.plansponsors.list()
+```
+
+## Configuration
+
+The client can be configured via constructor arguments or environment variables:
+
+| Parameter | Environment Variable | Default |
+|-----------|---------------------|---------|
+| `api_key` | `PLANVANTAGE_API_KEY` | Required |
+| `base_url` | `PLANVANTAGE_BASE_URL` | `https://api.planvantage.ai` |
+| `timeout` | - | `30.0` seconds |
+| `max_retries` | - | `3` |
+
+```python
+client = PlanVantageClient(
+    api_key="pk_live_xxxxx",
+    base_url="https://api.planvantage.ai",
+    timeout=60.0,
+    max_retries=5,
+)
+```
+
+## Resources
+
+### Plan Sponsors
+
+```python
+# List all plan sponsors
+sponsors = client.plansponsors.list()
+
+# Get a specific plan sponsor
+sponsor = client.plansponsors.get("ps_abc123")
+
+# Create a plan sponsor
+sponsor = client.plansponsors.create(name="Acme Corporation")
+
+# Update a plan sponsor
+sponsor = client.plansponsors.update("ps_abc123", name="Acme Corp")
+
+# Delete a plan sponsor
+client.plansponsors.delete("ps_abc123")
+```
+
+### Scenarios
+
+```python
+# Get a scenario
+scenario = client.scenarios.get("sc_abc123")
+
+# Create a scenario
+scenario = client.scenarios.create(
+    plan_sponsor_guid="ps_abc123",
+    name="2024 Renewal Analysis",
+)
+
+# Clone a scenario
+cloned = client.scenarios.clone("sc_abc123")
+
+# Move scenario to folder
+client.scenarios.move_to_folder("sc_abc123", folder_guid="folder_xyz")
+
+# Calculate scenario (trigger recalculation)
+client.scenarios.calculate("sc_abc123")
+
+# Update scenario
+scenario = client.scenarios.update("sc_abc123", name="Updated Name")
+
+# Delete scenario
+client.scenarios.delete("sc_abc123")
+```
+
+### Plan Designs
+
+```python
+# Get a plan design
+plan_design = client.plandesigns.get("pd_abc123")
+
+# Create a plan design
+plan_design = client.plandesigns.create(
+    scenario_guid="sc_abc123",
+    name="Gold PPO",
+    carrier="Blue Cross",
+)
+
+# Clone a plan design
+cloned = client.plandesigns.clone("pd_abc123")
+
+# Calculate actuarial value
+client.plandesigns.calculate_av("pd_abc123")
+
+# Update plan design
+plan_design = client.plandesigns.update("pd_abc123", name="Platinum PPO")
+
+# Delete plan design
+client.plandesigns.delete("pd_abc123")
+```
+
+### Plan Design Tiers
+
+```python
+# Get a plan design tier
+tier = client.plandesign_tiers.get("pdt_abc123")
+
+# Create a tier
+tier = client.plandesign_tiers.create(
+    plan_design_guid="pd_abc123",
+    name="Employee Only",
+    ind_ded=500.0,
+    fam_ded=1000.0,
+)
+
+# Update tier
+tier = client.plandesign_tiers.update("pdt_abc123", ind_ded=750.0)
+
+# Delete tier
+client.plandesign_tiers.delete("pdt_abc123")
+```
+
+### Current Rate Plans
+
+```python
+# Get a current rate plan
+rate_plan = client.current_rate_plans.get("rp_abc123")
+
+# Create a current rate plan
+rate_plan = client.current_rate_plans.create(
+    scenario_guid="sc_abc123",
+    plan_design_guid="pd_abc123",
+)
+
+# Update rate plan
+rate_plan = client.current_rate_plans.update("rp_abc123", name="Updated Rates")
+
+# Apply tier name set
+client.current_rate_plans.apply_tier_name_set("rp_abc123", "tns_xyz789")
+
+# Delete rate plan
+client.current_rate_plans.delete("rp_abc123")
+```
+
+### Current Rate Plan Tiers
+
+```python
+# Get a tier
+tier = client.current_rate_plan_tiers.get("rpt_abc123")
+
+# Create a tier
+tier = client.current_rate_plan_tiers.create(
+    rate_plan_guid="rp_abc123",
+    name="Employee Only",
+    rate=450.00,
+    enrollment=50,
+)
+
+# Update tier
+tier = client.current_rate_plan_tiers.update("rpt_abc123", rate=475.00)
+
+# Delete tier
+client.current_rate_plan_tiers.delete("rpt_abc123")
+```
+
+### Proposed Rate Plans
+
+```python
+# Get a proposed rate plan
+rate_plan = client.proposed_rate_plans.get("rp_abc123")
+
+# Create a proposed rate plan
+rate_plan = client.proposed_rate_plans.create(
+    scenario_guid="sc_abc123",
+    plan_design_guid="pd_abc123",
+)
+
+# Copy from current rate plan
+proposed = client.proposed_rate_plans.copy_from_current("rp_current123")
+
+# Reset tier ratios to default
+client.proposed_rate_plans.reset_tier_ratios_to_default("rp_abc123")
+
+# Reset tier ratios to match current
+client.proposed_rate_plans.reset_tier_ratios_to_current("rp_abc123")
+
+# Update rate plan
+rate_plan = client.proposed_rate_plans.update("rp_abc123", rate_increase=0.05)
+
+# Delete rate plan
+client.proposed_rate_plans.delete("rp_abc123")
+```
+
+### Proposed Rate Plan Tiers
+
+```python
+# Get a tier
+tier = client.proposed_rate_plan_tiers.get("rpt_abc123")
+
+# Create a tier
+tier = client.proposed_rate_plan_tiers.create(
+    rate_plan_guid="rp_abc123",
+    name="Employee + Family",
+    rate=1200.00,
+)
+
+# Update tier
+tier = client.proposed_rate_plan_tiers.update("rpt_abc123", enrollment=25)
+
+# Delete tier
+client.proposed_rate_plan_tiers.delete("rpt_abc123")
+```
+
+### Rate Plan Adjustments
+
+```python
+# Current rate plan adjustments
+adj = client.current_rate_plan_adjustments.create(
+    rate_plan_guid="rp_abc123",
+    name="Admin Fee",
+    value=25.00,
+)
+
+adj = client.current_rate_plan_adjustments.update("adj_abc123", value=30.00)
+client.current_rate_plan_adjustments.delete("adj_abc123")
+
+# Proposed rate plan adjustments
+adj = client.proposed_rate_plan_adjustments.create(
+    rate_plan_guid="rp_abc123",
+    name="Wellness Credit",
+    value=15.00,
+    is_credit=True,
+)
+```
+
+### Current Contribution Groups
+
+```python
+# Create a contribution group
+group = client.current_contribution_groups.create(name="Default Group")
+
+# Add rate plan to group
+client.current_contribution_groups.add_rate_plan("ccg_abc123", "rp_xyz789")
+
+# Remove rate plan from group
+client.current_contribution_groups.remove_rate_plan("ccg_abc123", "rp_xyz789")
+
+# Copy current setup to proposed
+client.current_contribution_groups.copy_to_proposed("ccg_abc123")
+
+# Update group
+group = client.current_contribution_groups.update("ccg_abc123", name="Renamed")
+
+# Delete group
+client.current_contribution_groups.delete("ccg_abc123")
+```
+
+### Current Contribution Tiers
+
+```python
+# Update a tier
+client.current_contribution_tiers.update("cct_abc123", enrollment=100)
+
+# Update multiple tiers at once
+tiers = [
+    {"guid": "cct_test1", "enrollment": 50},
+    {"guid": "cct_test2", "enrollment": 30},
+]
+client.current_contribution_tiers.update_multiple_enrollment(tiers)
+```
+
+### Proposed Contribution Options
+
+```python
+# Create an option
+option = client.proposed_contribution_options.create(name="Option 1")
+
+# Get processing status
+status = client.proposed_contribution_options.get_status("pco_abc123")
+
+# Recalculate option
+client.proposed_contribution_options.recalculate("pco_abc123")
+
+# Cancel processing
+client.proposed_contribution_options.cancel("pco_abc123")
+
+# Get available items (strategies, prompts)
+items = client.proposed_contribution_options.get_items()
+
+# Bulk add options
+items = [
+    {"strategy": "flat", "value": 100},
+    {"strategy": "percentage", "value": 80},
+]
+client.proposed_contribution_options.bulk_add("pco_abc123", items)
+
+# Copy enrollment
+client.proposed_contribution_options.copy_current_enrollment("pco_abc123")
+client.proposed_contribution_options.copy_rate_enrollment("pco_abc123")
+
+# Update and delete
+client.proposed_contribution_options.update("pco_abc123", name="Updated")
+client.proposed_contribution_options.delete("pco_abc123")
+```
+
+### Proposed Contribution Groups
+
+```python
+# Create a group
+group = client.proposed_contribution_groups.create(
+    contribution_option_guid="pco_abc123",
+    name="Full-Time Employees",
+)
+
+# Add/remove rate plans
+client.proposed_contribution_groups.add_rate_plan("pcg_abc123", "rp_xyz789")
+client.proposed_contribution_groups.remove_rate_plan("pcg_abc123", "rp_xyz789")
+
+# Update and delete
+group = client.proposed_contribution_groups.update("pcg_abc123", name="Part-Time")
+client.proposed_contribution_groups.delete("pcg_abc123")
+```
+
+### Proposed Contribution Tiers
+
+```python
+# Update a tier
+tier = client.proposed_contribution_tiers.update("pct_abc123", enrollment=75)
+
+# Update multiple tiers
+tiers = [
+    {"guid": "pct_test1", "enrollment": 40},
+    {"guid": "pct_test2", "enrollment": 60},
+]
+client.proposed_contribution_tiers.update_multiple_enrollment(tiers)
+```
+
+### Dashboards
+
+```python
+# Get a dashboard
+dashboard = client.dashboards.get("db_abc123")
+
+# Create a dashboard
+dashboard = client.dashboards.create(
+    plan_sponsor_guid="ps_abc123",
+    name="2024 Experience Dashboard",
+)
+
+# Clone a dashboard
+cloned = client.dashboards.clone("db_abc123")
+
+# Update dashboard
+dashboard = client.dashboards.update("db_abc123", name="Updated Dashboard")
+
+# Delete dashboard
+client.dashboards.delete("db_abc123")
+```
+
+### Projections
+
+```python
+# Get a projection
+projection = client.projections.get("proj_abc123")
+
+# Create a projection
+projection = client.projections.create(
+    plan_sponsor_guid="ps_abc123",
+    name="2024 Renewal Projection",
+)
+
+# Clone a projection
+cloned = client.projections.clone("proj_abc123")
+
+# Import from dashboard
+projection = client.projections.import_from_dashboard(
+    "proj_abc123",
+    dashboard_version_guid="dbv_xyz789",
+)
+
+# Update projection
+projection = client.projections.update("proj_abc123", name="Updated Projection")
+
+# Delete projection
+client.projections.delete("proj_abc123")
+```
+
+### Quote Sets
+
+```python
+# Get a quote set
+quoteset = client.quotesets.get("qs_abc123")
+
+# Create a quote set
+quoteset = client.quotesets.create(
+    plan_sponsor_guid="ps_abc123",
+    name="Carrier Quotes",
+)
+
+# Clone a quote set
+cloned = client.quotesets.clone("qs_abc123")
+
+# Update quote set
+quoteset = client.quotesets.update("qs_abc123", name="Updated Quotes")
+
+# Delete quote set
+client.quotesets.delete("qs_abc123")
+```
+
+### AV Models
+
+```python
+# Get an AV model
+avmodel = client.avmodels.get("av_abc123")
+
+# Create an AV model
+avmodel = client.avmodels.create(
+    plan_sponsor_guid="ps_abc123",
+    name="Plan Analysis",
+)
+
+# Clone an AV model
+cloned = client.avmodels.clone("av_abc123")
+
+# Update AV model
+avmodel = client.avmodels.update("av_abc123", name="Updated Analysis")
+
+# Delete AV model
+client.avmodels.delete("av_abc123")
+```
+
+### Folders
+
+```python
+# Get a folder
+folder = client.folders.get("folder_abc123")
+
+# List folder contents
+contents = client.folders.list_contents(
+    plan_sponsor_guid="ps_abc123",
+    module="scenarios",
+)
+
+# Create a folder
+folder = client.folders.create(
+    plan_sponsor_guid="ps_abc123",
+    module="scenarios",
+    name="2024 Renewals",
+)
+
+# Move a folder
+folder = client.folders.move("folder_abc123", parent_guid="folder_parent")
+
+# Update folder
+folder = client.folders.update("folder_abc123", name="Archived")
+
+# Delete folder
+client.folders.delete("folder_abc123")
+```
+
+### Chats
+
+```python
+# Get all chats for an entity
+chats = client.chats.list(
+    entity_type="scenario",
+    entity_guid="sc_abc123",
+)
+
+# Get a specific chat
+chat = client.chats.get("chat_abc123")
+
+# Create a chat
+chat = client.chats.create(
+    entity_type="scenario",
+    entity_guid="sc_abc123",
+)
+
+# Delete a chat
+client.chats.delete("chat_abc123")
+```
+
+### Chat Messages
+
+```python
+# Send a message to a chat
+message = client.chat_messages.create(
+    chat_guid="chat_abc123",
+    content="Analyze the plan designs",
+)
+
+# Get message status
+status = client.chat_messages.get_status("msg_abc123")
+
+# Get chat history (all messages)
+messages = client.chat_messages.list(chat_guid="chat_abc123")
+```
+
+### Benchmarks
+
+```python
+# Get benchmark data
+benchmark = client.benchmarks.get(
+    plan_sponsor_guid="ps_abc123",
+    benchmark_type="industry",
+)
+```
+
+## Error Handling
+
+The SDK provides a comprehensive exception hierarchy:
+
+```python
+from planvantage import (
+    PlanVantageError,
+    APIError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+    ValidationError,
+    RateLimitError,
+    ConflictError,
+    ServerError,
+)
+
+try:
+    sponsor = client.plansponsors.get("ps_invalid")
+except NotFoundError as e:
+    print(f"Plan sponsor not found: {e}")
+except AuthenticationError as e:
+    print(f"Invalid API key: {e}")
+except RateLimitError as e:
+    print(f"Rate limit exceeded, retry after: {e}")
+except APIError as e:
+    print(f"API error ({e.status_code}): {e.message}")
+except PlanVantageError as e:
+    print(f"SDK error: {e}")
+```
+
+### Exception Types
+
+| Exception | HTTP Status | Description |
+|-----------|-------------|-------------|
+| `AuthenticationError` | 401 | Invalid or missing API key |
+| `AuthorizationError` | 403 | Insufficient permissions |
+| `NotFoundError` | 404 | Resource not found |
+| `ValidationError` | 400, 422 | Invalid request data |
+| `RateLimitError` | 429 | Too many requests |
+| `ConflictError` | 409 | Resource conflict |
+| `ServerError` | 500+ | Server-side error |
+
+## Development
+
+### Running Tests
+
+```bash
+pytest -v
+```
+
+### Type Checking
+
+```bash
+mypy planvantage/
+```
+
+### Linting
+
+```bash
+ruff check planvantage/
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
