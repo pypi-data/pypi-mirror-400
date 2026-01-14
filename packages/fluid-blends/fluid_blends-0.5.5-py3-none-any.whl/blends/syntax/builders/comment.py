@@ -1,0 +1,15 @@
+from blends.models import (
+    NId,
+)
+from blends.syntax.models import (
+    SyntaxGraphArgs,
+)
+
+
+def build_comment_node(args: SyntaxGraphArgs, comment: str) -> NId:
+    args.syntax_graph.add_node(
+        args.n_id,
+        comment=comment,
+        label_type="Comment",
+    )
+    return args.n_id

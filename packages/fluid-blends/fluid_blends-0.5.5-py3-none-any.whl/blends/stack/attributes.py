@@ -1,0 +1,7 @@
+STACK_GRAPH_KIND = "stack_graph_kind"
+STACK_GRAPH_SYMBOL = "stack_graph_symbol"
+STACK_GRAPH_SCOPE = "stack_graph_scope"
+STACK_GRAPH_PRECEDENCE = "stack_graph_precedence"
+STACK_GRAPH_IS_EXPORTED = "stack_graph_is_exported"
+STACK_GRAPH_IS_REFERENCE = "stack_graph_is_reference"
+STACK_GRAPH_IS_DEFINITION = "stack_graph_is_definition"
