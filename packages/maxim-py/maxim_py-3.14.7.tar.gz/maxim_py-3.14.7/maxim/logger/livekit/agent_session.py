@@ -1,0 +1,746 @@
+import asyncio
+import functools
+import inspect
+import time
+import traceback
+import uuid
+import weakref
+from datetime import datetime, timezone
+from io import BytesIO
+from typing import Optional
+
+from livekit.agents import Agent, AgentSession
+from livekit.agents.types import NOT_GIVEN
+from livekit.agents.voice.events import (
+    AgentState,
+    FunctionToolsExecutedEvent,
+    UserState,
+)
+from livekit.plugins.openai.llm import _LLMOptions
+from livekit.rtc import Room
+
+from maxim.logger.components import (
+    GenerationRequestTextMessageContent,
+    ToolCallConfigDict,
+)
+from maxim.logger.components.attachment import FileDataAttachment
+from maxim.logger.components.generation import (
+    AudioContent,
+    GenerationConfigDict,
+    GenerationRequestMessage,
+    GenerationResult,
+    GenerationResultChoice,
+    GenerationResultMessage,
+    GenerationToolCall,
+    GenerationToolCallFunction,
+    GenerationUsage,
+)
+from maxim.logger.livekit.store import (
+    SessionState,
+    SessionStoreEntry,
+    Turn,
+    get_livekit_callback,
+    get_maxim_logger,
+    get_session_store,
+    get_tts_store,
+)
+from maxim.logger.livekit.utils import (
+    extract_llm_model_and_provider,
+    extract_llm_model_parameters,
+    extract_llm_usage,
+    get_active_llm,
+    get_thread_pool_executor,
+    start_new_turn,
+)
+from maxim.logger.utils import pcm16_to_wav_bytes
+from maxim.scribe import scribe
+
+
+def intercept_session_start(self: AgentSession, room, agent: Agent):
+    """
+    This function is called when a session starts.
+    This is the point where we create a new session for Maxim.
+    The session info along with room_id, agent_id, etc is stored in the thread-local store.
+    """
+    try:
+        maxim_logger = get_maxim_logger()
+
+        # Wait for start signal (max ~5s) before proceeding
+        for _ in range(500):
+            if getattr(self, "_started", False):
+                scribe().debug(f"[Internal][{self.__class__.__name__}] Session started")
+                break
+            time.sleep(0.01)
+        else:
+            scribe().debug(
+                f"[Internal][{self.__class__.__name__}] start not signaled within timeout; continuing"
+            )
+        room_name = None
+        # getting the room_id
+        if isinstance(room, str):
+            room_id = room
+            room_name = room
+        elif isinstance(room, Room):
+            # room.sid is a coroutine, so we need to run it in an event loop
+            # Since we're in a thread pool executor, we can safely create a new event loop
+            try:
+                room_id = asyncio.run(room.sid)
+            except RuntimeError:
+                # If there's already a running event loop, create a new one for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    room_id = loop.run_until_complete(room.sid)
+                finally:
+                    loop.close()
+            except Exception as e:
+                scribe().warning(f"[Internal] Failed to get room.sid: {e}")
+                room_id = str(id(room))
+
+            # room.name is a direct property (string), not a coroutine
+            try:
+                room_name = room.name
+            except Exception as e:
+                scribe().warning(f"[Internal] Failed to get room.name: {e}")
+                room_name = None
+        else:
+            room_id = id(room)
+            if isinstance(room, dict):
+                room_name = room.get("name")
+        scribe().debug(f"[Internal] Session key:{id(self)}")
+        scribe().debug(f"[Internal] Room: {room_id}")
+        scribe().debug(f"[Internal] Agent: {agent.instructions}")
+        # creating trace as well
+        session_id = str(uuid.uuid4())
+        session = maxim_logger.session({"id": session_id, "name": "livekit-session"})
+        # adding tags to the session
+        if room_id is not None:
+            session.add_tag("Room session ID", str(room_id))
+        if room_name is not None:
+            session.add_tag("Room name", str(room_name))
+        if agent is not None:
+            session.add_tag(
+                "Agent ID", agent.id if agent.id is not None else str(id(agent))
+            )
+        # If callback is set, emit the session started event
+        callback = get_livekit_callback()
+        if callback is not None:
+            try:
+                callback(
+                    "maxim.session.started",
+                    {"session_id": session_id, "session": session},
+                )
+            except Exception as e:
+                scribe().warning(
+                    f"[MaximSDK] An error was captured during LiveKit callback execution: {e!s}"
+                )
+        trace_id = str(uuid.uuid4())
+        tags: dict[str, str] = {}
+        if room_id is not None:
+            tags["Room session ID"] = str(room_id)
+        if room_name is not None:
+            tags["Room name"] = room_name
+        if agent is not None:
+            tags["Agent ID"] = agent.id if agent.id is not None else str(id(agent))
+        if session_id is not None:
+            tags["maxim_session_id"] = str(session_id)
+
+        current_turn_id = str(uuid.uuid4())
+        scribe().debug(f"[Internal] STT: {self.stt or agent.stt}")
+
+        scribe().debug(
+            f"[Internal] Current turn id at session start: {current_turn_id}"
+        )
+        current_turn = Turn(
+            turn_id=current_turn_id,
+            turn_sequence=0,
+            turn_timestamp=datetime.now(timezone.utc),
+            is_interrupted=False,
+            turn_input_transcription=agent.instructions,
+            turn_output_transcription="",
+            turn_input_audio_buffer=BytesIO(),
+            turn_output_audio_buffer=BytesIO(),
+        )
+        session_to_set = SessionStoreEntry(
+            room_id=room_id,
+            user_speaking=False,
+            provider="unknown",
+            conversation_buffer=BytesIO(),
+            conversation_buffer_index=1,
+            state=SessionState.INITIALIZED,
+            agent_id=agent.id if agent.id is not None else id(agent),
+            room_name=room_name,
+            agent_session_id=id(self),
+            agent_session=weakref.ref(self),
+            rt_session_id=None,
+            rt_session=None,
+            llm_config=None,
+            rt_session_info={},
+            mx_current_trace_id=trace_id,
+            mx_session_id=session_id,
+            current_turn=current_turn,
+        )
+
+        get_session_store().set_session(session_to_set)
+
+        trace = session.trace(
+            {
+                "id": trace_id,
+                "input": agent.instructions,
+                "name": "Greeting turn",
+                "session_id": session_id,
+                "tags": tags,
+            }
+        )
+
+        if self.stt is not None or agent.stt is not NOT_GIVEN:
+            # Only add generation if we are not in realtime session
+            llm = (
+                get_active_llm(self.llm)
+                or get_active_llm(
+                    agent.llm
+                    if agent.llm is not None and agent.llm is not NOT_GIVEN
+                    else None
+                )
+                or None
+            )
+            llm_opts: Optional[_LLMOptions] = (
+                getattr(llm, "_opts", None) if llm is not None else None
+            )
+            model = getattr(llm, "model", None) if llm is not None else None
+            provider = (
+                llm.provider if llm is not None else getattr(llm, "_provider_fmt", None)
+            )
+            result = extract_llm_model_and_provider(model, provider)
+            if result is not None:
+                model, provider = result
+            if llm_opts is not None:
+                model_parameters = extract_llm_model_parameters(llm_opts)
+            else:
+                model_parameters = None
+
+            session_to_set.provider = provider if provider is not None else "unknown"
+            get_session_store().set_session(session_to_set)
+            trace.generation(
+                GenerationConfigDict(
+                    id=current_turn_id,
+                    model=model if model is not None else "unknown",
+                    model_parameters=model_parameters
+                    if model_parameters is not None
+                    else {},
+                    messages=[
+                        GenerationRequestMessage(
+                            role="system", content=agent.instructions
+                        )
+                    ],
+                    provider=provider if provider is not None else "unknown",
+                    name="Greeting turn",
+                )
+            )
+
+        callback = get_livekit_callback()
+        if callback is not None:
+            try:
+                callback("maxim.trace.started", {"trace_id": trace_id, "trace": trace})
+            except Exception as e:
+                scribe().warning(
+                    f"[MaximSDK] An error was captured during LiveKit callback execution: {e!s}"
+                )
+    except Exception as e:
+        scribe().error(
+            f"[Internal][{self.__class__.__name__}] intercept_session_start failed; error={e!s}\\n{traceback.format_exc()}"
+        )
+
+
+def intercept_update_agent_state(self: AgentSession, new_state: AgentState):
+    """
+    This function is called when the agent state is updated.
+    """
+    if new_state is None:
+        return
+    trace = get_session_store().get_current_trace_for_agent_session(id(self))
+    if trace is not None:
+        trace.event(
+            str(uuid.uuid4()),
+            f"agent_{new_state}",
+            {"new_state": new_state, "platform": "livekit"},
+        )
+
+
+def intercept_generate_reply(self: AgentSession, instructions):
+    """
+    This function is called when the agent generates a reply.
+    """
+    if instructions is None:
+        return
+    scribe().debug(
+        f"[Internal][{self.__class__.__name__}] Generate reply; instructions={instructions}"
+    )
+
+
+def intercept_user_state_changed(self: AgentSession, new_state: UserState):
+    """
+    This function is called when the user state is changed.
+    """
+    if new_state is None:
+        return
+    scribe().debug(
+        f"[Internal][{self.__class__.__name__}] User state changed; new_state={new_state}"
+    )
+    trace = get_session_store().get_current_trace_for_agent_session(id(self))
+    if trace is not None:
+        trace.event(
+            str(uuid.uuid4()),
+            f"user_{new_state}",
+            {"new_state": new_state, "platform": "livekit"},
+        )
+
+
+def handle_tool_call_executed(self: AgentSession, event: FunctionToolsExecutedEvent):
+    """
+    This function is called when the agent executes a tool call.
+    """
+    scribe().debug(
+        f"[Internal][{self.__class__.__name__}] Tool call executed; event={event}"
+    )
+    trace = get_session_store().get_current_trace_for_agent_session(id(self))
+    if trace is None:
+        return
+    # this we consider as a tool call result event
+    # tool call creation needs to be done at each provider level
+    session_info = get_session_store().get_session_by_agent_session_id(id(self))
+    if session_info is None:
+        return
+    turn = session_info.current_turn
+    if turn is None:
+        return
+    tool_calls = []
+    tool_messages = []
+    for function_call in event.function_calls:
+        tool_call = trace.tool_call(
+            ToolCallConfigDict(
+                id=function_call.call_id,
+                name=function_call.name,
+                description="",
+                args=str(function_call.arguments)
+                if function_call.arguments is not None
+                else "",
+            )
+        )
+        tool_calls.append(
+            GenerationToolCall(
+                id=function_call.call_id,
+                type="function",
+                function=GenerationToolCallFunction(
+                    name=function_call.name, arguments=str(function_call.arguments)
+                ),
+            )
+        )
+
+        tool_output = ""
+        for output in event.function_call_outputs or []:
+            if output is not None and output.call_id == function_call.call_id:
+                tool_output = output.output
+                break
+        tool_call.result(tool_output)
+        tool_messages.append(
+            GenerationRequestMessage(
+                role="tool",
+                content=[
+                    GenerationRequestTextMessageContent(type="text", text=tool_output)
+                ],
+            )
+        )
+
+    llm = (
+        get_active_llm(self.llm)
+        or get_active_llm(
+            self.current_agent.llm
+            if self.current_agent.llm is not None
+            and self.current_agent.llm is not NOT_GIVEN
+            else None
+        )
+        or None
+    )
+    usage = extract_llm_usage(id(self), llm)
+
+    scribe().debug(
+        f"[Internal][{self.__class__.__name__}] Generation id in tool call executed; turn.turn_id={turn.turn_id}"
+    )
+    get_maxim_logger().generation_result(
+        turn.turn_id,
+        GenerationResult(
+            id=str(uuid.uuid4()),
+            object="tool.response",
+            created=int(time.time()),
+            model=turn.current_model if turn.current_model is not None else "unknown",
+            choices=[
+                GenerationResultChoice(
+                    index=0,
+                    finish_reason="tool_calls",
+                    message=GenerationResultMessage(
+                        role="assistant",
+                        content=[],
+                        tool_calls=tool_calls,
+                    ),
+                    logprobs=None,
+                ),
+            ],
+            usage=usage
+            if usage is not None
+            else GenerationUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+        ),
+    )
+
+    get_maxim_logger().generation_end(turn.turn_id)
+    turn.turn_id = str(uuid.uuid4())
+    session_info.current_turn = turn
+    trace.generation(
+        GenerationConfigDict(
+            id=turn.turn_id,
+            model=turn.current_model if turn.current_model is not None else "unknown",
+            model_parameters={},
+            messages=tool_messages,
+            provider=turn.current_provider
+            if turn.current_provider is not None or turn.current_provider != "unknown"
+            else session_info.provider,
+            name="Tool call follow up",
+        )
+    )
+    get_session_store().set_session(session_info)
+
+
+def handle_agent_response_complete(self: AgentSession, response_text, agent: Agent):
+    """Handle agent response completion and attach output audio"""
+    scribe().debug(
+        f"[Internal][{self.__class__.__name__}] Agent response complete; response_text={response_text}, agent={agent}"
+    )
+
+    try:
+        session_info = get_session_store().get_session_by_agent_session_id(id(self))
+        if session_info is None:
+            return
+
+        if session_info.rt_session_id is not None:
+            return
+
+        turn = session_info.current_turn
+        if turn is None:
+            return
+
+        scribe().debug(
+            f"[Internal][DEBUG] Agent response complete; turn.turn_id={turn.turn_id}"
+        )
+
+        llm = (
+            get_active_llm(self.llm)
+            or get_active_llm(
+                agent.llm
+                if agent.llm is not None and agent.llm is not NOT_GIVEN
+                else None
+            )
+            or None
+        )
+
+        llm_opts: Optional[_LLMOptions] = (
+            getattr(llm, "_opts", None) if llm is not None else None
+        )
+
+        if llm_opts is not None:
+            model_parameters = extract_llm_model_parameters(llm_opts)
+        else:
+            model_parameters = None
+
+        model = getattr(llm, "model", None) if llm is not None else None
+
+        usage = extract_llm_usage(id(self), llm)
+
+        tts_id = id(self.tts) if self.tts is not None else None
+        tts_audio_frames = (
+            get_tts_store().get_tts_audio_data(tts_id) if tts_id is not None else None
+        )
+
+        if tts_audio_frames is not None and len(tts_audio_frames) > 0:
+            for frame in tts_audio_frames:
+                turn.turn_output_audio_buffer.write(frame.data)
+                session_info.conversation_buffer.write(frame.data)
+
+        get_tts_store().clear_tts_audio_data(tts_id)
+
+        if response_text:
+            # Update trace output
+            trace = get_session_store().get_current_trace_for_agent_session(id(self))
+
+            turn.turn_output_transcription = response_text
+
+            # Add output audio attachment if we have a generation and audio
+            if (
+                turn.turn_output_audio_buffer is not None
+                and turn.turn_output_audio_buffer.tell() > 0
+            ):
+                trace.add_attachment(
+                    FileDataAttachment(
+                        id=str(uuid.uuid4()),
+                        data=pcm16_to_wav_bytes(
+                            turn.turn_output_audio_buffer.getvalue()
+                        ),
+                        tags={"attach-to": "output"},
+                        name="Agent Audio Response",
+                        timestamp=int(time.time()),
+                    ),
+                )
+                get_maxim_logger().generation_add_attachment(
+                    turn.turn_id,
+                    FileDataAttachment(
+                        id=str(uuid.uuid4()),
+                        data=pcm16_to_wav_bytes(
+                            turn.turn_output_audio_buffer.getvalue()
+                        ),
+                        tags={"attach-to": "output"},
+                        name="Agent Audio Response",
+                        timestamp=int(time.time()),
+                    ),
+                )
+
+            choices: list[GenerationResultChoice] = []
+            choice: GenerationResultChoice = {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": GenerationResultMessage(
+                    role="assistant",
+                    content=[AudioContent(type="audio", transcript=response_text)],
+                    tool_calls=[],
+                ),
+                "logprobs": None,
+            }
+            choices.append(choice)
+            result = extract_llm_model_and_provider(model, None)
+            if result is not None:
+                model, _ = result
+            result = GenerationResult(
+                id=str(uuid.uuid4()),
+                object="tts.response",
+                created=int(time.time()),
+                model=model if model is not None else "unknown",
+                choices=choices,
+                usage=usage
+                if usage is not None
+                else GenerationUsage(
+                    prompt_tokens=0, completion_tokens=0, total_tokens=0
+                ),
+            )
+            try:
+                maxim_logger = get_maxim_logger()
+                maxim_logger.generation_result(turn.turn_id, result)
+                maxim_logger.generation_set_model(
+                    turn.turn_id, model if model is not None else "unknown"
+                )
+                # maxim_logger.generation_set_provider(
+                #     turn.turn_id,
+                #     turn.current_provider
+                #     if turn.current_provider is not None
+                #     or turn.current_provider != "unknown"
+                #     else session_info.provider,
+                # )
+                maxim_logger.generation_set_model_parameters(
+                    turn.turn_id,
+                    model_parameters if model_parameters is not None else {},
+                )
+                if session_info.current_turn.metrics is not None:
+                    for (
+                        metric_name,
+                        metric_value,
+                    ) in session_info.current_turn.metrics.items():
+                        maxim_logger.trace_add_metric(
+                            turn.turn_id, metric_name, metric_value
+                        )
+                    session_info.current_turn.metrics = None
+
+                if session_info.current_turn.tts_metrics is not None:
+                    for (
+                        metric_name,
+                        metric_value,
+                    ) in session_info.current_turn.tts_metrics.items():
+                        maxim_logger.trace_add_metric(
+                            session_info.mx_current_trace_id, metric_name, metric_value
+                        )
+                    session_info.current_turn.tts_metrics = None
+
+                if session_info.current_turn.stt_metrics is not None:
+                    for (
+                        metric_name,
+                        metric_value,
+                    ) in session_info.current_turn.stt_metrics.items():
+                        maxim_logger.trace_add_metric(
+                            session_info.mx_current_trace_id, metric_name, metric_value
+                        )
+                    session_info.current_turn.stt_metrics = None
+
+            except Exception as e:
+                scribe().warning(
+                    f"[MAXIM SDK] Error adding generation result; error={e!s}\n{traceback.format_exc()}"
+                )
+
+            turn.turn_id = str(uuid.uuid4())
+            session_info.current_turn = turn
+            get_session_store().set_session(session_info)
+
+    except Exception as e:
+        scribe().warning(
+            f"[Internal][{self.__class__.__name__}] agent response handling failed; error={e!s}\n{traceback.format_exc()}"
+        )
+
+
+def intercept_metrics_collected(self, event):
+    """
+    This function is called when the metrics are collected.
+    """
+    pass
+
+
+def intercept_commit_user_turn(self: AgentSession):
+    """
+    This function is called when the user turn is committed.
+    """
+    session_info = get_session_store().get_session_by_agent_session_id(id(self))
+    if session_info is None:
+        return
+    start_new_turn(session_info)
+
+
+def handle_end_of_session(self: AgentSession):
+    """
+    This function is called when the session is ended.
+    """
+    session = get_session_store().get_session_by_agent_session_id(id(self))
+    if session is None:
+        return
+
+    callback = get_livekit_callback()
+    if callback is not None:
+        try:
+            callback(
+                "maxim.session.ended",
+                {"session_id": session.mx_session_id, "session": session},
+            )
+        except Exception as e:
+            scribe().warning(
+                f"[MaximSDK] An error was captured during LiveKit callback execution: {e!s}",
+                exc_info=True,
+            )
+
+    logger = get_maxim_logger()
+    logger.session_end(session.mx_session_id)
+
+
+def pre_hook(self: AgentSession, hook_name, args, kwargs):
+    try:
+        if hook_name == "start":
+            room = kwargs.get("room")
+            agent = kwargs.get("agent")
+            scribe().debug("Submitting AgentSession: start")
+            get_thread_pool_executor().submit(
+                intercept_session_start, self, room, agent
+            )
+        elif hook_name == "generate_reply":
+            if not args or len(args) == 0:
+                return
+
+            scribe().debug("Submitting AgentSession: generate_reply")
+            get_thread_pool_executor().submit(intercept_generate_reply, self, args[0])
+        elif hook_name == "emit":
+            if args[0] == "metrics_collected":
+                # We do not need to handle this as it is to be handled in the agent activity
+                pass
+            elif args[0] == "_on_metrics_collected":
+                pass
+            elif args[0] == "function_tools_executed":
+                if not args or len(args) == 0:
+                    return
+                scribe().debug("Submitting AgentSession: function_tools_executed")
+                get_thread_pool_executor().submit(
+                    handle_tool_call_executed, self, args[1]
+                )
+            elif args[0] == "agent_state_changed":
+                pass
+            else:
+                scribe().debug(
+                    f"[Internal][{self.__class__.__name__}] emit called; args={args}, kwargs={kwargs}"
+                )
+        elif hook_name == "end":
+            pass
+        else:
+            scribe().debug(
+                f"[Internal][{self.__class__.__name__}] {hook_name} called; args={args}, kwargs={kwargs}"
+            )
+    except Exception as e:
+        scribe().debug(
+            f"[{self.__class__.__name__}] {hook_name} failed; error={e!s}\n{traceback.format_exc()}"
+        )
+
+
+def post_hook(self: AgentSession, result, hook_name, args, kwargs):
+    try:
+        if hook_name == "emit":
+            if args[0] == "metrics_collected":
+                pass
+        elif hook_name == "_conversation_item_added":
+            if args and len(args) > 0:
+                item = args[0]
+                if (
+                    hasattr(item, "role")
+                    and item.role == "assistant"
+                    and hasattr(item, "content")
+                    and item.content
+                ):
+                    content = (
+                        item.content[0]
+                        if isinstance(item.content, list)
+                        else str(item.content)
+                    )
+                    get_thread_pool_executor().submit(
+                        handle_agent_response_complete,
+                        self,
+                        content,
+                        self.current_agent,
+                    )
+        elif hook_name == "commit_user_turn":
+            get_thread_pool_executor().submit(intercept_commit_user_turn, self)
+        elif hook_name == "aclose":
+            get_thread_pool_executor().submit(handle_end_of_session, self)
+        else:
+            scribe().debug(
+                f"[Internal][{self.__class__.__name__}] {hook_name} completed; result={result}"
+            )
+    except Exception as e:
+        scribe().debug(
+            f"[{self.__class__.__name__}] {hook_name} failed; error={e!s}\n{traceback.format_exc()}"
+        )
+
+
+def instrument_agent_session(orig, name):
+    if inspect.iscoroutinefunction(orig):
+
+        async def async_wrapper(self, *args, **kwargs):
+            pre_hook(self, name, args, kwargs)
+            result = None
+            try:
+                result = await orig(self, *args, **kwargs)
+                return result
+            finally:
+                post_hook(self, result, name, args, kwargs)
+
+        wrapper = async_wrapper
+    else:
+
+        def sync_wrapper(self, *args, **kwargs):
+            pre_hook(self, name, args, kwargs)
+            result = None
+            try:
+                result = orig(self, *args, **kwargs)
+                return result
+            finally:
+                post_hook(self, result, name, args, kwargs)
+
+        wrapper = sync_wrapper
+    return functools.wraps(orig)(wrapper)
