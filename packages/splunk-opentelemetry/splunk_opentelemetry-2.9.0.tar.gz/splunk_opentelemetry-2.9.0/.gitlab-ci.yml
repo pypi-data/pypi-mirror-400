@@ -1,0 +1,73 @@
+default:
+  image: 'python:3.11-slim'
+
+include:
+  - project: core-ee/signing/api-integration
+    ref: develop
+    file: /templates/.sign-client.yml
+
+stages:
+  - build
+  - sign
+  - deploy
+  - post-release
+
+build-job:
+  stage: build
+  script:
+    - pip install hatch
+    - hatch build
+    - sha256sum dist/* > dist/checksums.txt
+  artifacts:
+      paths:
+        - dist/
+  only:
+    - /^v[0-9]+\.[0-9]+\.[0-9]+.*/
+  except:
+    - branches
+
+checksum-signing-job:
+  stage: sign
+  extends: .submit-signing-request
+  needs:
+    - build-job
+  variables:
+    ARTIFACT: dist/checksums.txt
+    SIGN_TYPE: GPG
+    DOWNLOAD_DIR: dist
+    LOGLEVEL: DEBUG
+  only:
+    - /^v[0-9]+\.[0-9]+\.[0-9]+.*/
+  artifacts:
+    paths:
+      - dist/
+
+deploy-job:
+  stage: deploy
+  script:
+    - pip install hatch keyrings.alt
+    - hatch --no-interactive publish
+  needs:
+    - checksum-signing-job
+  only:
+    - /^v[0-9]+\.[0-9]+\.[0-9]+.*/
+  except:
+    - branches
+
+publish-docker-image:
+  stage: post-release
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(-alpha)?.*/'
+    - when: manual  # allow manual triggering (in which case CI_COMMIT_TAG must be set via the UI)
+  variables:
+    SIGNING_SERVICE_ADDR: "https://signing.prod.svc.splunk8s.io"
+  id_tokens:
+    CI_JOB_JWT:
+      aud:
+        - $CICD_VAULT_ADDR
+        - $SIGNING_SERVICE_ADDR
+  before_script:
+    - ./docker/install-docker-deps.sh
+    - ./docker/install-gh-deps.sh
+  script:
+    - ./docker/publish-docker-image.sh "$CI_COMMIT_TAG"
