@@ -1,0 +1,101 @@
+{
+  "name": "chemiscope",
+  "version": "1.0.0-rc2",
+  "description": "An interactive structure/property explorer for materials and molecules",
+  "author": "Guillaume Fraux <guillaume.fraux@epfl.ch>",
+  "license": "BSD-3-Clause",
+  "main": "dist/chemiscope.min.js",
+  "types": "dist/chemiscope.d.ts",
+  "engines": {
+    "npm": ">=9",
+    "node": ">=18"
+  },
+  "files": [
+    "dist/chemiscope.d.ts",
+    "dist/chemiscope.min.js",
+    "dist/chemiscope.min.js.LICENSE.txt",
+    "src",
+    "webpack.config.ts",
+    "tsconfig.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lab-cosmo/chemiscope.git"
+  },
+  "scripts": {
+    "test": "eslint src python/jupyter/src python/streamlit/src && prettier --check src python/jupyter/src python/streamlit/src",
+    "build": "rimraf dist && webpack --mode production --config webpack.config.mjs && npm run merge-dts",
+    "build:nbextension": "webpack --mode production --config python/webpack.config.nbextension.js",
+    "build:labextension": "npm run build && jupyter labextension build .",
+    "build:streamlit": "webpack --mode production --config python/webpack.config.streamlit.mjs",
+    "download-examples": "ts-node ./utils/download-examples.ts",
+    "api-docs": "typedoc",
+    "start": "npm run download-examples && webpack serve --mode development --static ./app",
+    "merge-dts": "dts-bundle-generator --no-check -o dist/chemiscope.d.ts dist/src/index.d.ts",
+    "prepublishOnly": "npm run build",
+    "pretty": "prettier --write src"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.12.0",
+    "@jupyter-widgets/base": "^2 || ^3 || ^4 || ^5 || ^6",
+    "@jupyterlab/builder": "^4",
+    "@popperjs/core": "^2.11.2",
+    "@types/jquery": "^3.5",
+    "@types/markdown-it": "^14",
+    "@types/node": "^22",
+    "@types/webpack": "^5",
+    "@types/pako": "^2",
+    "@types/plotly.js": "^2.12",
+    "@types/tmp": "^0.2.1",
+    "3dmol": "2.4.2",
+    "assert": "^2",
+    "bootstrap": "5.2.3",
+    "bubleify": "^2.0",
+    "buffer": "^6",
+    "construct-style-sheets-polyfill": "^3.1",
+    "css-loader": "^7",
+    "color-parse": "^1",
+    "dts-bundle-generator": "^9",
+    "eslint": "^9.12",
+    "eslint-config-prettier": "^9",
+    "ify-loader": "^1.1",
+    "jquery": "^3.6",
+    "less": "^4.1",
+    "less-loader": "^12",
+    "markdown-it": "^14",
+    "node-loader": "^2",
+    "pako": "^2",
+    "plausible-tracker": "^0.3",
+    "plotly.js": "3.3.0",
+    "prettier": "3.3.3",
+    "raw-loader": "^4",
+    "rimraf": "^6",
+    "style-loader": "^4",
+    "streamlit-component-lib": "^2",
+    "tmp": "^0.2",
+    "ts-loader": "^9",
+    "ts-node": "^10",
+    "typedoc": "^0.26",
+    "typescript": "^5.6",
+    "typescript-eslint": "^8.8",
+    "webpack": "^5.76",
+    "webpack-cli": "^5",
+    "webpack-dev-server": "^5"
+  },
+  "dependencies": {},
+  "jupyterlab": {
+    "extension": "python/jupyter/src/labextension.ts",
+    "webpackConfig": "python/webpack.config.labextension.js",
+    "outputDir": "python/jupyter/labextension",
+    "sharedPackages": {
+      "@jupyter-widgets/base": {
+        "bundled": false,
+        "singleton": true
+      }
+    },
+    "_build": {
+      "load": "static/remoteEntry.5f9f7da6b4300a7fb3fb.js",
+      "extension": "./extension"
+    }
+  }
+}
