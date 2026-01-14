@@ -1,0 +1,173 @@
+Metadata-Version: 2.4
+Name: ovinc_client
+Version: 0.4.4
+Summary: A Tool for OVINC Union API
+Home-page: https://www.ovinc.cn/
+Author: OVINC
+Author-email: contact@ovinc.cn
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: django<6,>=5.2
+Requires-Dist: django_environ<1,>=0.10.0
+Requires-Dist: djangorestframework<4,>=3.14.0
+Requires-Dist: pymysql<2,>=1
+Requires-Dist: django-cors-headers<5,>=4.6.0
+Requires-Dist: pytz<2026,>=2022.4
+Requires-Dist: django-sslserver<1,>=0.22
+Requires-Dist: pyOpenSSL<26,>=22.1.0
+Requires-Dist: django-simpleui<2026,>=2023.8.28
+Requires-Dist: channels<5,>=4
+Requires-Dist: redis<6,>=5.0.0
+Requires-Dist: django-redis<6,>=5.0.0
+Requires-Dist: python_json_logger<3,>=2.0.3
+Requires-Dist: httpx[http2]<1,>=0.23.2
+Requires-Dist: requests<3,>=2.32.0
+Requires-Dist: urllib3<3,>=2.6.3
+Requires-Dist: protobuf<6,>=3.19.5
+Requires-Dist: opentelemetry-api==1.29.0
+Requires-Dist: opentelemetry-sdk==1.29.0
+Requires-Dist: opentelemetry-exporter-otlp==1.29.0
+Requires-Dist: opentelemetry-instrumentation==0.50b0
+Requires-Dist: opentelemetry-instrumentation-asgi==0.50b0
+Requires-Dist: opentelemetry-instrumentation-django==0.50b0
+Requires-Dist: opentelemetry-instrumentation-dbapi==0.50b0
+Requires-Dist: opentelemetry-instrumentation-pymysql==0.50b0
+Requires-Dist: opentelemetry-instrumentation-redis==0.50b0
+Requires-Dist: opentelemetry-instrumentation-requests==0.50b0
+Requires-Dist: opentelemetry-instrumentation-celery==0.50b0
+Requires-Dist: opentelemetry-instrumentation-logging==0.50b0
+Requires-Dist: opentelemetry-instrumentation-httpx==0.50b0
+Requires-Dist: ipython<9,>=8.10.0
+Requires-Dist: tencentcloud-sdk-python<4,>=3.0.785
+Requires-Dist: pycryptodome<4,>=3.20.0
+Requires-Dist: pydantic<3,>=2
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# OVINC Union Api SDK
+
+[![PyPI version](https://badge.fury.io/py/ovinc-client.svg)](https://badge.fury.io/py/ovinc-client)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+
+[中文文档](README_CN.md)
+
+A Python client for OVINC Union API, providing easy access to authentication, notifications, and TCaptcha verification.
+
+## Installation
+
+```bash
+pip install ovinc-client
+```
+
+## Usage
+
+### Initialization
+
+```python
+from ovinc_client.client import OVINCClient
+
+APP_CODE = "your_app_code"
+APP_SECRET = "your_app_secret"
+OVINC_API_URL = "https://api.ovinc.cn"
+
+client = OVINCClient(app_code=APP_CODE, app_secret=APP_SECRET, union_api_url=OVINC_API_URL)
+```
+
+### Notifications (Notice)
+
+#### Send Email
+
+```python
+response = client.notice.mail({
+    "to": "user@example.com",
+    "subject": "Hello",
+    "content": "This is a test email."
+})
+print(response.data)
+```
+
+#### Send SMS
+
+```python
+response = client.notice.sms({
+    "phone": "13800138000",
+    "template_id": "123456",
+    "params": ["1234"]
+})
+print(response.data)
+```
+
+#### Send Robot Message
+
+```python
+response = client.notice.robot({
+    "channel": "wecom",
+    "content": "Hello from robot"
+})
+print(response.data)
+```
+
+### Authentication (Auth)
+
+#### Verify Code
+
+```python
+response = client.auth.verify_code({
+    "code": "123456",
+    "key": "user_identifier"
+})
+print(response.data)
+```
+
+### TCaptcha Verification
+
+This module requires Django settings configuration.
+
+**Settings:**
+
+```python
+# settings.py
+CAPTCHA_TCLOUD_ID = "your_tencent_cloud_id"
+CAPTCHA_TCLOUD_KEY = "your_tencent_cloud_key"
+CAPTCHA_APP_ID = "your_captcha_app_id"
+CAPTCHA_APP_SECRET = "your_captcha_app_secret"
+CAPTCHA_ENABLED = True
+```
+
+**Usage:**
+
+```python
+from ovinc_client.tcaptcha.utils import TCaptchaVerify
+
+# In your view or API
+def verify_captcha(request):
+    user_ip = request.META.get("REMOTE_ADDR")
+    ticket = request.data.get("ticket")
+    randstr = request.data.get("randstr")
+    ret = request.data.get("ret")
+    
+    verifier = TCaptchaVerify(
+        user_ip=user_ip,
+        ticket=ticket,
+        randstr=randstr,
+        ret=ret
+    )
+    
+    if verifier.verify():
+        return "Success"
+    else:
+        return "Failed"
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
