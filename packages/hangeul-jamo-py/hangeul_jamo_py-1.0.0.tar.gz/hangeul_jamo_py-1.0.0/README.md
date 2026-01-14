@@ -1,0 +1,57 @@
+# hangeul-jamo-py
+
+Pure Python implementation for Korean Hangul syllable and jamo manipulation.
+
+## Installation
+
+```bash
+pip install hangeul-jamo-py
+```
+
+## Quick Start
+
+```python
+import hangeul_jamo_py as hangeul
+
+# Decompose Hangul to jamo
+hangeul.decompose_hcj('안녕하세요')  # 'ㅇㅏㄴㄴㅕㅇㅎㅏㅅㅔㅇㅛ'
+
+# Compose jamo to Hangul
+hangeul.compose_hcj('ㅎㅏㄴㄱㅡㄹ')  # '한글'
+
+# Check character types
+hangeul.is_hangul_syllable('한')  # True
+hangeul.is_hcj('ㄱ')  # True
+```
+
+## Core Functions
+
+### Composition/Decomposition
+- `compose_hcj(text: str) -> str` - Compose jamo to syllables
+- `decompose_hcj(text: str) -> str` - Decompose syllables to HCJ jamo
+- `compose_jamo(text: str) -> str` - Compose U+11xx jamo to syllables
+- `decompose_jamo(text: str) -> str` - Decompose syllables to U+11xx jamo
+
+### Validation
+- `is_hangul_syllable(char: str) -> bool` - Check if Hangul syllable (U+AC00-U+D7A3)
+- `is_hcj(char: str) -> bool` - Check if HCJ jamo (U+3131-U+318E)
+- `is_jamo(char: str) -> bool` - Check if U+11xx jamo
+- `is_jamo_lead/vowel/tail(char: str) -> bool` - Check jamo position type
+- `is_jamo_compound(char: str) -> bool` - Check if compound jamo
+
+### Compound Jamo
+- `decompose_compound(jamo: str) -> tuple[str, ...]` - Decompose compound jamo
+- `compose_compound(components) -> str` - Compose compound jamo
+
+### Conversion
+- `jamo_to_hcj(char: str) -> str` - Convert U+11xx to U+31xx
+- `hcj_to_jamo(char: str, position: str) -> str` - Convert U+31xx to U+11xx
+
+## Features
+
+- **Zero dependencies** - Pure Python implementation
+- **Python 3.13+** - Optimized for modern Python
+- **Type-safe** - Full type hints
+- **Fast** - O(1) lookups with pre-built tables
+- **Complete** - Supports all 11,172 Hangul syllables
+
