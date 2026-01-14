@@ -1,0 +1,141 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-security-cli"
+version = "1.0.0b3"
+description = "Unified AI/LLM Security Scanner - Static Code Analysis + Live Model Testing"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+keywords = ["security", "llm", "ai", "owasp", "static-analysis", "live-testing", "vulnerability-scanner"]
+authors = [
+    {name = "AI Security CLI Team"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Security",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    # CLI Framework
+    "click>=8.0.0",
+
+    # Rich terminal output
+    "rich>=13.0.0",
+
+    # Configuration
+    "pyyaml>=6.0.0",
+
+    # Async HTTP (for live testing)
+    "aiohttp>=3.8.0",
+    "httpx>=0.24.0",
+
+    # LLM Provider SDKs
+    "openai>=1.0.0",
+    "anthropic>=0.8.0",
+
+    # Scientific computing (for behavioral analysis)
+    "numpy>=1.21.0",
+    "scipy>=1.7.0",
+
+    # Python 3.8 compatibility
+    "astunparse>=1.6.3; python_version < '3.9'",
+    "typing-extensions>=4.0.0; python_version < '3.10'",
+]
+
+[project.urls]
+Homepage = "https://aisentry.co"
+Repository = "https://github.com/deosha/ai-security-cli"
+Documentation = "https://aisentry.co/docs.html"
+Issues = "https://github.com/deosha/ai-security-cli/issues"
+
+[project.optional-dependencies]
+# AWS Bedrock support
+bedrock = [
+    "boto3>=1.28.0",
+]
+
+# Google Vertex AI support
+vertex = [
+    "google-cloud-aiplatform>=1.25.0",
+    "google-auth>=2.0.0",
+]
+
+# Azure OpenAI support
+azure = [
+    "azure-identity>=1.12.0",
+]
+
+# All cloud providers (expanded - can't self-reference)
+cloud = [
+    "boto3>=1.28.0",
+    "google-cloud-aiplatform>=1.25.0",
+    "google-auth>=2.0.0",
+    "azure-identity>=1.12.0",
+]
+
+# Development dependencies
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "types-pyyaml>=6.0.0",
+]
+
+# Full installation with all features (expanded - can't self-reference)
+all = [
+    # Cloud providers
+    "boto3>=1.28.0",
+    "google-cloud-aiplatform>=1.25.0",
+    "google-auth>=2.0.0",
+    "azure-identity>=1.12.0",
+    # Dev tools
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "types-pyyaml>=6.0.0",
+]
+
+[project.scripts]
+ai-security-cli = "ai_security.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+addopts = "-v --cov=ai_security --cov-report=html --cov-report=term-missing"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
