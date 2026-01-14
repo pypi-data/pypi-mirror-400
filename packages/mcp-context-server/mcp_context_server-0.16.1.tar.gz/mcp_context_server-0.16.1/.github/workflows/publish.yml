@@ -1,0 +1,356 @@
+name: Build and Publish Application
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    env:
+      SERVER_NAME: io.github.alex-feel/mcp-context-server
+      PACKAGE_NAME: mcp-context-server
+    outputs:
+      dist-path: ${{ steps.build.outputs.dist-path }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+
+      - name: Determine version
+        id: version
+        run: |
+          set -euo pipefail
+          # Try release tag first, fall back to pyproject.toml
+          if [ -n '${{ github.event.release.tag_name }}' ]; then
+            tag='${{ github.event.release.tag_name }}'
+            version="${tag#v}"  # strip leading 'v' if present
+            echo "Using release tag version: ${version}"
+          else
+            version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+            echo "Using pyproject.toml version: ${version}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'pyproject.toml'
+
+      - name: Refresh uv.lock for this release
+        run: |
+          set -euo pipefail
+          # Recreate lock so it captures the project version from the tagged commit
+          uv lock
+          test -f uv.lock || { echo 'uv.lock was not created' >&2; exit 1; }
+
+      - name: Assert uv.lock contains the release version
+        run: |
+          set -euo pipefail
+          version='${{ steps.version.outputs.version }}'
+          if [ -z "$version" ]; then
+            echo "ERROR: Version not determined" >&2
+            exit 1
+          fi
+          # Check that the version string exists in uv.lock
+          if grep -Eq "version\\s*=\\s*\"${version}\"" uv.lock; then
+            echo "OK: uv.lock references version ${version}"
+          else
+            echo "uv.lock does not reference version ${version}" >&2
+            echo 'Dumping first 80 lines for debugging:'
+            head -n 80 uv.lock || true
+            exit 1
+          fi
+
+      - name: Build component
+        id: build
+        run: |
+          uv build
+          echo "dist-path=dist" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dists
+          path: ${{ steps.build.outputs.dist-path }}/
+
+      - name: Upload uv.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: uv-lock
+          path: uv.lock
+
+  publish-to-pypi:
+    name: Publish Application to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/project/mcp-context-server/${{ needs.build.outputs.version }}
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dists
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: true
+
+  publish-to-mcp-registry:
+    name: Publish Application to MCP Registry
+    needs: [build, publish-to-pypi, publish-docker-image]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: read
+    env:
+      SERVER_NAME: io.github.alex-feel/mcp-context-server
+      PACKAGE_NAME: mcp-context-server
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build mcp-publisher from source
+        run: |
+          set -eux
+          git clone https://github.com/modelcontextprotocol/registry mcp-registry
+          cd mcp-registry
+          go build -o ../mcp-publisher ./cmd/publisher
+          cd ..
+          ./mcp-publisher --help
+
+      - name: Wait for PyPI to serve this release
+        run: |
+          set -euo pipefail
+          version='${{ needs.build.outputs.version }}'
+          if [ -z "$version" ]; then
+            echo "ERROR: Version not available from build job" >&2
+            exit 1
+          fi
+          for i in {1..30}; do
+            if curl -sf https://pypi.org/pypi/${PACKAGE_NAME}/json | jq -e --arg v "$version" '.releases[$v]'; then
+              echo "PyPI has version $version"
+              exit 0
+            fi
+            echo "Waiting for PyPI to serve $version, attempt $i"
+            sleep 10
+          done
+          echo "Version $version not visible on PyPI yet"
+          exit 1
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for GHCR to serve Docker image
+        run: |
+          set -euo pipefail
+
+          # Extract OCI identifier from server.json
+          OCI_IDENTIFIER=$(jq -r '.packages[] | select(.registryType == "oci") | .identifier' server.json)
+          if [ -z "$OCI_IDENTIFIER" ] || [ "$OCI_IDENTIFIER" = "null" ]; then
+            echo "ERROR: No OCI package identifier found in server.json" >&2
+            exit 1
+          fi
+          echo "Checking for image: $OCI_IDENTIFIER"
+
+          # Retry loop (30 attempts, 10s delay = 5 min max)
+          for i in {1..30}; do
+            if docker buildx imagetools inspect "$OCI_IDENTIFIER" > /dev/null 2>&1; then
+              echo "GHCR has image $OCI_IDENTIFIER"
+              exit 0
+            fi
+            echo "Waiting for GHCR to serve $OCI_IDENTIFIER, attempt $i"
+            sleep 10
+          done
+
+          echo "ERROR: Image $OCI_IDENTIFIER not visible on GHCR after 30 attempts"
+          exit 1
+
+      - name: Login to MCP Registry using GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Check if version exists in MCP Registry
+        id: check-mcp-version
+        run: |
+          set -euo pipefail
+          expected_version=$(jq -r '.version' server.json)
+          echo "Checking if version $expected_version already exists in MCP Registry..."
+          response=$(curl -sf "https://registry.modelcontextprotocol.io/v0/servers?search=${SERVER_NAME}" 2>/dev/null || echo '{"servers":[]}')
+          version_exists=$(echo "$response" | jq -e --arg v "$expected_version" '.servers[] | select(.server.version == $v)' 2>/dev/null || echo "")
+          if [ -n "$version_exists" ]; then
+            echo "Version $expected_version already exists in MCP Registry - will skip publish"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version $expected_version not found in MCP Registry - will proceed with publish"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to MCP Registry
+        if: steps.check-mcp-version.outputs.skip != 'true'
+        run: ./mcp-publisher publish --file server.json
+
+      - name: Verify in MCP Registry
+        if: steps.check-mcp-version.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+
+          # Extract expected version from server.json (the file we just published)
+          expected_version=$(jq -r '.version' server.json)
+          echo "Expected version: $expected_version"
+
+          # Retry parameters (matching PyPI wait logic)
+          max_attempts=30
+          delay=10
+
+          for i in $(seq 1 $max_attempts); do
+            echo "Attempt $i/$max_attempts: Checking MCP Registry for version $expected_version..."
+
+            # Query the registry
+            response=$(curl -sf "https://registry.modelcontextprotocol.io/v0/servers?search=${SERVER_NAME}" || echo '{"servers":[]}')
+
+            # Check if version exists with isLatest=true
+            # Using jq to find an entry where:
+            # 1. server.version matches expected version
+            # 2. _meta."io.modelcontextprotocol.registry/official".isLatest is true
+            found=$(echo "$response" | jq -e --arg v "$expected_version" '
+              .servers[] |
+              select(.server.version == $v) |
+              select(._meta."io.modelcontextprotocol.registry/official".isLatest == true)
+            ' 2>/dev/null || echo "")
+
+            if [ -n "$found" ]; then
+              echo "SUCCESS: Version $expected_version found in MCP Registry with isLatest=true"
+              echo "Published entry:"
+              echo "$found" | jq .
+              exit 0
+            fi
+
+            # Check if version exists but isLatest is false (for diagnostics)
+            version_exists=$(echo "$response" | jq -e --arg v "$expected_version" '
+              .servers[] | select(.server.version == $v)
+            ' 2>/dev/null || echo "")
+
+            if [ -n "$version_exists" ]; then
+              echo "INFO: Version $expected_version exists but isLatest is NOT yet true"
+              latest=$(echo "$response" | jq -r '
+                .servers[] |
+                select(._meta."io.modelcontextprotocol.registry/official".isLatest == true) |
+                .server.version
+              ' 2>/dev/null || echo "unknown")
+              echo "Current latest version in registry: $latest"
+            fi
+
+            echo "Version $expected_version not yet visible with isLatest=true, waiting ${delay}s..."
+            sleep $delay
+          done
+
+          echo "ERROR: Version $expected_version not found in MCP Registry with isLatest=true after $max_attempts attempts"
+          echo "Final registry response:"
+          curl -sf "https://registry.modelcontextprotocol.io/v0/servers?search=${SERVER_NAME}" | jq . || true
+          exit 1
+
+  publish-docker-image:
+    name: Publish Docker Image to GHCR
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: alex-feel/mcp-context-server
+      SERVER_NAME: io.github.alex-feel/mcp-context-server
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download uv.lock
+        uses: actions/download-artifact@v4
+        with:
+          name: uv-lock
+          path: .
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.build.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.build.outputs.version }}
+            type=semver,pattern={{major}},value=${{ needs.build.outputs.version }},enable=${{ !startsWith(needs.build.outputs.version, '0.') }}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            io.modelcontextprotocol.server.name=${{ env.SERVER_NAME }}
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
