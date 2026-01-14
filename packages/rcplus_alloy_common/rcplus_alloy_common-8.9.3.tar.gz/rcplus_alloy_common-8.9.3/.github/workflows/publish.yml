@@ -1,0 +1,157 @@
+---
+name: 'Publish to Airflow and/or PyPI.org'
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'develop'
+  workflow_dispatch:
+    inputs:
+      destEnv:
+        type: choice
+        description: 'Upload to S3 at environment'
+        required: true
+        default: 'none'
+        options:
+          - 'none'
+          - 'alloy-dev'
+          - 'alloy-stg'
+          - 'alloy-prod'
+          - 'alloy-land'
+
+permissions:
+  id-token: write # Required for requesting the JWT
+  contents: read
+
+jobs:
+  test:
+    runs-on: 'ubuntu-latest'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # this list should be aligned with /tox.ini
+        tox-env: [ 'style', 'py310', 'py311' ]
+        include:
+          - tox-env: 'style'
+            python: '3.10'
+          - tox-env: 'py310'
+            python: '3.10'
+          - tox-env: 'py311'
+            python: '3.11'
+
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@v3
+
+      - name: 'Install Python and uv'
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '${{ matrix.python }}'
+          version: '0.7.15'
+          enable-cache: true
+
+      - name: 'Install dependencies'
+        run: uv sync --frozen --no-progress --color never --extra airflow
+
+      - name: 'Test the library'
+        env:
+          UV_PYTHON_DOWNLOADS: automatic
+        run: uv run tox -e ${{ matrix.tox-env }}
+
+  publish-to-s3:
+    needs: test
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Checkout code'
+        uses: 'actions/checkout@v3'
+        with:
+          fetch-depth: 0
+      - name: 'dump commit hash into a file'
+        run: echo "head_ref = \"$(git rev-parse --short ${GITHUB_SHA})\"" > src/rcplus_alloy_common/version.py
+      #
+      # alloy-dev
+      - name: 'configure aws credentials (alloy-dev)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-dev' || (github.event_name == 'push' && github.ref == 'refs/heads/develop') }}
+        uses: 'aws-actions/configure-aws-credentials@v2'
+        with:
+          role-to-assume: 'arn:aws:iam::180132115366:role/dev-alloy-github-actions-service-role'
+          role-session-name: 'GitHubActionsUploadS3'
+          aws-region: 'eu-central-1'
+      - name: 'upload to S3 bucket (alloy-dev)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-dev' || (github.event_name == 'push' && github.ref == 'refs/heads/develop') }}
+        run: aws --region eu-central-1 s3 sync ./src/rcplus_alloy_common s3://dev-alloy-airflow-artifacts/dags/rcplus_alloy_common/ --exclude "*" --include "*.py" --no-progress --delete
+      - name: 'upload plugins to S3 bucket (alloy-dev)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-dev' || (github.event_name == 'push' && github.ref == 'refs/heads/develop') }}
+        run: aws --region eu-central-1 s3 sync ./plugins s3://dev-alloy-airflow-artifacts/plugins/rcplus_alloy_common_plugins/ --exclude "*" --include "*.py" --no-progress --delete
+      #
+      # alloy-stg
+      - name: 'configure aws credentials (alloy-stg)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-stg' || (github.event_name == 'push' && github.ref == 'refs/heads/develop') }}
+        uses: 'aws-actions/configure-aws-credentials@v2'
+        with:
+          role-to-assume: 'arn:aws:iam::169329849351:role/stg-alloy-github-actions-service-role'
+          role-session-name: 'GitHubActionsUploadS3'
+          aws-region: 'eu-central-1'
+      - name: 'upload to S3 bucket (alloy-stg)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-stg' || (github.event_name == 'push' && github.ref == 'refs/heads/develop') }}
+        run: aws --region eu-central-1 s3 sync ./src/rcplus_alloy_common s3://stg-alloy-airflow-artifacts/dags/rcplus_alloy_common/ --exclude "*" --include "*.py" --no-progress --delete
+      - name: 'upload plugins to S3 bucket (alloy-stg)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-stg' || (github.event_name == 'push' && github.ref == 'refs/heads/develop') }}
+        run: aws --region eu-central-1 s3 sync ./plugins s3://stg-alloy-airflow-artifacts/plugins/rcplus_alloy_common_plugins/ --exclude "*" --include "*.py" --no-progress --delete
+      #
+      # alloy-prod
+      - name: 'configure aws credentials (alloy-prod)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-prod' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        uses: 'aws-actions/configure-aws-credentials@v2'
+        with:
+          role-to-assume: 'arn:aws:iam::063739279950:role/prod-alloy-github-actions-service-role'
+          role-session-name: 'GitHubActionsUploadS3'
+          aws-region: 'eu-central-1'
+      - name: 'upload to S3 bucket (alloy-prod)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-prod' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: aws --region eu-central-1 s3 sync ./src/rcplus_alloy_common s3://prod-alloy-airflow-artifacts/dags/rcplus_alloy_common/ --exclude "*" --include "*.py" --no-progress --delete
+      - name: 'upload plugins to S3 bucket (alloy-prod)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-prod' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: aws --region eu-central-1 s3 sync ./plugins s3://prod-alloy-airflow-artifacts/plugins/rcplus_alloy_common_plugins/ --exclude "*" --include "*.py" --no-progress --delete
+      #
+      # alloy-land
+      - name: 'configure aws credentials (alloy-land)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-land' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        uses: 'aws-actions/configure-aws-credentials@v2'
+        with:
+          role-to-assume: 'arn:aws:iam::414803001885:role/land-alloy-github-actions-service-role'
+          role-session-name: 'GitHubActionsUploadS3'
+          aws-region: 'eu-central-1'
+      - name: 'upload to S3 bucket (alloy-land)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-land' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: aws --region eu-central-1 s3 sync ./src/rcplus_alloy_common s3://land-alloy-airflow-artifacts/dags/rcplus_alloy_common/ --exclude "*" --include "*.py" --no-progress --delete
+      - name: 'upload plugins to S3 bucket (alloy-land)'
+        if: ${{ github.event.inputs.destEnv == 'alloy-land' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: aws --region eu-central-1 s3 sync ./plugins s3://land-alloy-airflow-artifacts/plugins/rcplus_alloy_common_plugins/ --exclude "*" --include "*.py" --no-progress --delete
+
+  publish-to-pypi:
+    needs: test
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Checkout code'
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 'Install Python and uv'
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '${{ matrix.python }}'
+          version: '0.7.15'
+          enable-cache: true
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish package
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish

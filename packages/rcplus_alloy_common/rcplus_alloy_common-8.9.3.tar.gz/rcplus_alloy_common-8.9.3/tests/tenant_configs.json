@@ -1,0 +1,373 @@
+[
+    {
+        "name": "tenant_1",
+        "timezone": "Europe/Berlin",
+        "activation_channels": {
+            "gam": {
+                "network_id": 987654321
+            },
+            "xandr": {
+                "member_id": 4321,
+                "aws_region": "eu-west-1",
+                "ppid_source": "ringier.ch"
+            },
+            "das": {
+                "network_id": 56789,
+                "activate_by_default": false
+            }
+        },
+        "features": {
+            "sso_data": true,
+            "enterprise": true,
+            "dcr": true,
+            "byok": true,
+            "gotom": true,
+            "coops": true,
+            "audience_segment_service": true
+        },
+        "cron_schedule": {
+            "alloy-tracking-pipeline-tenant_1-downsample": "20 1,9,12,18 * * *"
+        },
+        "custom_attributes": [
+            {
+                "name": "subscriptions",
+                "display_name": "Subscriptions",
+                "category": "Interests",
+                "active": true,
+                "external_id_name": "external_id1",
+                "raw_data_format": "parquet",
+                "incremental": true,
+                "type": "direct",
+                "id_pii": false
+            },
+            {
+                "name": "smg_audience_segment",
+                "display_name": "SMG audience segment",
+                "category": "SMG",
+                "active": true,
+                "external_id_name": "network_userid",
+                "raw_data_format": "parquet",
+                "incremental": true,
+                "type": "audience_segment",
+                "id_pii": false
+            },
+            {
+                "name": "income",
+                "display_name": "Income",
+                "category": "Socio",
+                "active": false,
+                "external_id_name": "external_id2",
+                "raw_data_format": "parquet",
+                "incremental": false,
+                "type": "training",
+                "id_pii": true,
+                "value_pii": false,
+                "s3_predictions_params_path": "s3://models-bucket/tenant_1/income"
+            },
+            {
+                "name": "sso_id__farcaster_id",
+                "target_external_id_name": "farcaster_id",
+                "display_name": null,
+                "category": null,
+                "active": true,
+                "external_id_name": "sso_id",
+                "raw_data_format": "parquet",
+                "incremental": true,
+                "type": "external_id",
+                "id_pii": true,
+                "value_pii": true
+            },
+            {
+                "name": "item_condition",
+                "display_name": "Item Condition",
+                "category": "Product Features",
+                "active": true,
+                "type": "content",
+                "value_pii": false,
+                "query": {
+                    "result": {
+                        "type": "jsonpath",
+                        "jsonpath": "$.offers[0].itemCondition",
+                        "string": "content.schemaOrgData"
+                    }
+                },
+                "map_values": [
+                    {
+                        "values": ["new", "newCondition"],
+                        "name": "new"
+                    },
+                    {
+                        "values": ["used", "usedCondition"],
+                        "name": "used"
+                    },
+                    {
+                        "values": ["refurbished", "refurbishedCondition"],
+                        "name": "refurbished"
+                    }
+                ]
+            },
+            {
+                "name": "rooms",
+                "display_name": "Rooms",
+                "category": "Real Estate",
+                "active": true,
+                "type": "tracking",
+                "buckets": [0, 1, 2, 3],
+                "query": {
+                    "conditions": [
+                        {
+                            "condition": {
+                                "operator": "in",
+                                "value": ["homegatech"],
+                                "attribute": "split_part(logical_path, '/', 1)"
+                            },
+                            "result": {
+                                "type": "jsonpath",
+                                "jsonpath": "$.rooms",
+                                "string": "custom_tracking_attributes"
+                            }
+                        },
+                        {
+                            "condition": {
+                                "operator": "in",
+                                "value": ["immoscout24"],
+                                "attribute": "split_part(logical_path, '/', 1)"
+                            },
+                            "result": {
+                                "type": "jsonpath",
+                                "jsonpath": "$[0].n_rooms",
+                                "string": "custom_tracking_attributes"
+                            }
+                        }
+                    ],
+                    "result": {
+                        "type": "jsonpath",
+                        "jsonpath": "$.src_rooms",
+                        "string": "custom_tracking_attributes"
+                    }
+                }
+            }
+        ],
+        "kropka_tenants": ["kropka_1", "kropka_2"],
+        "content_providers": [
+            {
+                "name": "content-provider-1",
+                "section_prefixes": ["prefix_1", "prefix_2"],
+                "uri_prefixes": ["www.content-provider-1.ext"],
+                "source_system": "source_1",
+                "content_id_extraction_query": "query_1",
+                "hardcoded_taxonomies": [
+                    {
+                        "name": "taxonomy_1",
+                        "score": 0.5
+                    }
+                ],
+                "is_uri_extracted_id_external_id": true,
+                "app_ids": ["app_1"]
+            },
+            {
+                "name": "content-provider-2",
+                "section_prefixes": ["prefix_3", "prefix_4"],
+                "uri_prefixes": ["www.content-provider-2.ext"],
+                "source_system": "source_2",
+                "is_uri_extracted_id_external_id": false,
+                "canonical_id_extraction": {
+                    "uri_provider": "source_2~content-provider-2",
+                    "id_regex": "(\\w+)$"
+                }
+            }
+        ],
+        "tracking_providers": [
+            {
+                "tracker": "tracker_0",
+                "logical_paths": ["path_1"]
+            },
+            {
+                "tracker": "tracker_1",
+                "logical_paths": ["path_1", "path_2"],
+                "configs": [
+                    {
+                        "app_ids": ["app_id_11", "app_id_12"],
+                        "id_regex": "-(\\d+)$",
+                        "data_layer_auto_tracking_events": [
+                            {
+                                "key_name": "event1",
+                                "key_value": "virtual_pageview1",
+                                "event_path": "data1"
+                            },
+                            {
+                                "key_name": "event2",
+                                "key_value": "virtual_pageview2"
+                            }
+                        ],
+                        "skip_urls_contextual": ["https://blick.ch/fr/$"]
+                    },
+                    {
+                        "app_ids": ["app_id_2"],
+                        "use_uri_path_hash_as_extracted_id": true,
+                        "data_layer_auto_tracking_events": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "name": "tenant_2",
+        "activation_channels": {
+            "gam": {
+                "network_id": 12313
+            }
+        },
+        "features": {},
+        "custom_attributes": [],
+        "kropka_tenants": [],
+        "content_providers": [
+            {
+                "name": "content-provider-3",
+                "section_prefixes": ["prefix_5", "prefix_6"],
+                "uri_prefixes": ["www.content-provider-3.ext"],
+                "source_system": "source_3"
+            }
+        ],
+        "tracking_providers": [
+            {
+                "tracker": "tracker_2",
+                "logical_paths": []
+            }
+        ]
+    },
+    {
+        "name": "tenant_3",
+        "is_test_tenant": true,
+        "activation_channels": {
+            "gam": {
+                "network_id": 12313,
+                "activate_by_default": false
+            }
+        },
+        "features": {},
+        "kropka_tenants": [],
+        "content_providers": [
+            {
+                "name": "content-provider-3",
+                "section_prefixes": ["prefix_5", "prefix_6"],
+                "uri_prefixes": ["www.content-provider-3.ext"],
+                "source_system": "source_3",
+                "is_uri_extracted_id_external_id": false,
+                "canonical_id_extraction": {
+                    "uri_provider": "source_3~content-provider-3",
+                    "use_uri_path_hash_as_extracted_id": true
+                },
+                "scmi_site_id": "site_id_1",
+                "scmi_site_type": "SPA"
+            }
+        ],
+        "custom_attributes": [
+            {
+                "name": "real_estate_offer_type",
+                "display_name": "Offer Type",
+                "category": "Real Estate Features",
+                "active": true,
+                "type": "content",
+                "value_pii": false,
+                "query":
+                {
+                    "conditions":
+                    [
+                        {
+                            "condition":
+                            {
+                                "operator": "in",
+                                "value":
+                                [
+                                    "homegate-ch",
+                                    "immoscout24-ch"
+                                ],
+                                "attribute": "content_provider"
+                            },
+                            "result":
+                            {
+                                "type": "jsonpath",
+                                "jsonpath": "$.attributes.offerType[0]",
+                                "string": "content_attributes",
+                                "separator": ","
+                            }
+                        }
+                    ]
+                },
+                "map_values":
+                [
+                    {
+                        "values":
+                        [
+                            "rent",
+                            "mieten",
+                            "affittare",
+                            "louer"
+                        ],
+                        "name": "rent"
+                    },
+                    {
+                        "values":
+                        [
+                            "buy",
+                            "kaufen",
+                            "comprare",
+                            "acheter"
+                        ],
+                        "name": "buy"
+                    }
+                ]
+            },
+            {
+                "name": "real_estate_filter_category",
+                "display_name": "Filter: Category",
+                "category": "Real Estate Features",
+                "active": false,
+                "type": "tracking",
+                "value_pii": false,
+                "query":
+                {
+                    "conditions":
+                    [
+                        {
+                            "condition":
+                            {
+                                "operator": "in",
+                                "value":
+                                [
+                                    "alle-immobilien.ch"
+                                ],
+                                "attribute": "app_id"
+                            },
+                            "result":
+                            {
+                                "type": "regex",
+                                "pattern": "(?:affitta|mieten|rent|louer|acheter|kaufen|buy|compra)/(?!(?:kanton|cantone|cantons|canton)-)([^/]+)/",
+                                "string": "page_url"
+                            }
+                        },
+                        {
+                            "condition":
+                            {
+                                "operator": "in",
+                                "value":
+                                [
+                                    "homegate.ch",
+                                    "immoscout24.ch"
+                                ],
+                                "attribute": "app_id"
+                            },
+                            "result":
+                            {
+                                "type": "jsonpath",
+                                "jsonpath": "$.h_search_filter_category_075",
+                                "string": "custom_tracking_attributes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+]
