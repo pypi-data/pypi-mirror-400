@@ -1,0 +1,42 @@
+group: regex('^[a-z]{1}[a-z0-9_]{2,39}$', name='alphanumeric characters', ignore_case=True)
+cloud: str(min=3, required=False)
+image_default: str(min=3, required=False)
+cpu_default: int(min=1, max=64, required=False)
+memory_default: int(min=512, max=524288, required=False)
+networks_default: list(include('network'), required=False)
+dynamic_memory_default: bool(required=False)
+nested_virtualization_default: bool(required=False)
+interval_between_resources: int(min=0, max=86400, required=False)
+vms: list(include('vm'), min=1)
+---
+vm:
+  name: regex('^[a-z]{1}[a-z0-9]{2,14}$', name='alphanumeric characters (max 15)', ignore_case=True)
+  description: str(min=3, required=False)
+  image: str(min=3, required=False)
+  region: regex('^[A-Z]{1}$', name='uppercase letter', ignore_case=False, required=False)
+  cpu: int(min=1, max=64, required=False)
+  memory: int(min=512, max=524288, required=False)
+  networks: list(include('network'), required=False)
+  additional_disks: list(include('additional_disk'), required=False)
+  nested_virtualization: bool(required=False)
+  dynamic_memory: bool(required=False)
+  ansible: list(include('ansible'), required=False)
+
+network:
+  name: str(min=3, required=True)
+  default: bool(required=False)
+
+additional_disk:
+  bus_type: enum("IDE", "SCSI", required=True)
+  file: str(min=3, required=True)
+  path: str(min=3, required=False)
+  size_mb: int(min=1, max=1073741824, required=True)
+  size_type: enum("FixedSize", "DynamicallyExpanding", required=True)
+
+ansible:
+  group: regex('^[a-z]{1}[a-z_]{2,39}$', name='alphanumeric characters', ignore_case=True, required=True)
+  vars: list(include('vars'), required=False)
+
+vars:
+  name: regex('^[a-z]{1}[a-z_]{2,39}$', name='alphanumeric characters', ignore_case=True, required=True)
+  value: str(min=1, required=True)
