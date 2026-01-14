@@ -1,0 +1,487 @@
+"""Seekable zstd index module.
+
+This module manages companion index files for seekable zstd files.
+Index files are stored in $RX_CACHE_DIR/indexes/ (or ~/.cache/rx/indexes/) and contain:
+1. Seek table cache (avoid re-reading from file each time)
+2. Line-to-frame mapping for fast line access
+3. Frame-to-line-range mapping
+
+The index enables O(1) lookup of which frame contains a given line,
+enabling fast samples extraction without full decompression.
+
+All indexes use UnifiedFileIndex from rx.models for a consistent format
+across all file types (text, compressed, seekable zstd).
+"""
+
+import hashlib
+import json
+import logging
+from collections import defaultdict
+from collections.abc import Callable
+from datetime import datetime
+from pathlib import Path
+
+from rx.models import FileType, FrameLineInfo, UnifiedFileIndex
+from rx.seekable_zstd import (
+    FrameInfo,
+    decompress_frame,
+    get_seekable_zstd_info,
+    is_seekable_zstd,
+    read_seek_table,
+)
+from rx.utils import get_rx_cache_dir
+
+
+logger = logging.getLogger(__name__)
+
+# Import unified index version for consistency
+from rx.unified_index import UNIFIED_INDEX_VERSION
+
+
+# Sampling interval for line index (every N lines)
+LINE_INDEX_INTERVAL = 10000
+
+
+def frame_line_info_from_frame(frame: FrameInfo, first_line: int, last_line: int) -> FrameLineInfo:
+    """Create FrameLineInfo from FrameInfo with line data."""
+    return FrameLineInfo(
+        index=frame.index,
+        compressed_offset=frame.compressed_offset,
+        compressed_size=frame.compressed_size,
+        decompressed_offset=frame.decompressed_offset,
+        decompressed_size=frame.decompressed_size,
+        first_line=first_line,
+        last_line=last_line,
+        line_count=last_line - first_line + 1,
+    )
+
+
+def get_index_dir() -> Path:
+    """Get the index directory path, creating it if necessary."""
+    return get_rx_cache_dir('indexes')
+
+
+def get_index_path(zst_path: str | Path) -> Path:
+    """Get the index file path for a seekable zstd file.
+
+    Index files are stored in $RX_CACHE_DIR/indexes/ with names using
+    the unified format: {filename}_{hash}.json
+    This matches the format used by unified_index.py for consistency.
+
+    Args:
+        zst_path: Path to the seekable zstd file
+
+    Returns:
+        Path to the index file
+    """
+    zst_path = Path(zst_path)
+    abs_path = str(zst_path.resolve())
+    path_hash = hashlib.sha256(abs_path.encode()).hexdigest()[:16]
+    filename = zst_path.name
+    # Sanitize filename to be safe for filesystem
+    safe_filename = ''.join(c if c.isalnum() or c in '._-' else '_' for c in filename)
+    # Use unified format: {filename}_{hash}.json
+    index_filename = f'{safe_filename}_{path_hash}.json'
+    return get_index_dir() / index_filename
+
+
+def is_index_valid(zst_path: str | Path) -> bool:
+    """Check if a valid index exists for the given zstd file.
+
+    An index is valid if:
+    - Index file exists
+    - Zst file modification time matches
+    - Zst file size matches
+    - Index version matches
+
+    Args:
+        zst_path: Path to the seekable zstd file
+
+    Returns:
+        True if valid index exists, False otherwise
+    """
+    zst_path = Path(zst_path)
+    index_path = get_index_path(zst_path)
+
+    if not index_path.exists():
+        return False
+
+    if not zst_path.exists():
+        return False
+
+    try:
+        index = load_index(index_path)
+        if index is None:
+            return False
+
+        # Check version
+        if index.version != UNIFIED_INDEX_VERSION:
+            logger.debug(f'Index version mismatch: {index.version} != {UNIFIED_INDEX_VERSION}')
+            return False
+
+        # Check file metadata
+        zst_stat = zst_path.stat()
+        zst_mtime = datetime.fromtimestamp(zst_stat.st_mtime).isoformat()
+
+        if index.source_modified_at != zst_mtime:
+            logger.debug(f'Index invalid: mtime mismatch for {zst_path}')
+            return False
+
+        if index.source_size_bytes != zst_stat.st_size:
+            logger.debug(f'Index invalid: size mismatch for {zst_path}')
+            return False
+
+        return True
+
+    except (OSError, json.JSONDecodeError, KeyError) as e:
+        logger.debug(f'Index validation failed for {zst_path}: {e}')
+        return False
+
+
+def load_index(index_path: Path | str) -> UnifiedFileIndex | None:
+    """Load an index file from disk.
+
+    Args:
+        index_path: Path to the index file
+
+    Returns:
+        UnifiedFileIndex object, or None if loading fails
+    """
+    try:
+        with open(index_path, encoding='utf-8') as f:
+            data = json.load(f)
+        return UnifiedFileIndex(**data)
+    except (OSError, json.JSONDecodeError, ValueError) as e:
+        logger.debug(f'Failed to load index {index_path}: {e}')
+        return None
+
+
+def save_index(index: UnifiedFileIndex, index_path: Path | str) -> bool:
+    """Save an index to disk.
+
+    Args:
+        index: UnifiedFileIndex object
+        index_path: Path to save the index
+
+    Returns:
+        True if saved successfully, False otherwise
+    """
+    try:
+        index_path = Path(index_path)
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(index.model_dump(mode='json'), f, indent=2)
+
+        logger.info(f'Seekable index saved to {index_path}')
+        return True
+
+    except OSError as e:
+        logger.error(f'Failed to save index {index_path}: {e}')
+        return False
+
+
+def get_index(zst_path: str | Path) -> UnifiedFileIndex | None:
+    """Get index for a seekable zstd file, loading from cache if valid.
+
+    Args:
+        zst_path: Path to the seekable zstd file
+
+    Returns:
+        UnifiedFileIndex if available and valid, None otherwise
+    """
+    zst_path = Path(zst_path)
+
+    if not is_index_valid(zst_path):
+        return None
+
+    return load_index(get_index_path(zst_path))
+
+
+def build_index(
+    zst_path: str | Path,
+    progress_callback: Callable | None = None,
+) -> UnifiedFileIndex:
+    """Build a comprehensive index for a seekable zstd file.
+
+    This decompresses each frame to count lines and build the line-to-frame
+    mapping. The index is saved to the cache directory.
+
+    Args:
+        zst_path: Path to the seekable zstd file
+        progress_callback: Optional callback(frame_index, total_frames)
+
+    Returns:
+        UnifiedFileIndex with complete line mapping
+
+    Raises:
+        ValueError: If file is not a valid seekable zstd
+    """
+    zst_path = Path(zst_path)
+
+    if not is_seekable_zstd(zst_path):
+        raise ValueError(f'Not a seekable zstd file: {zst_path}')
+
+    logger.info(f'Building index for {zst_path}...')
+
+    # Get basic info
+    zst_info = get_seekable_zstd_info(zst_path)
+    frames = read_seek_table(zst_path)
+
+    zst_stat = zst_path.stat()
+    zst_mtime = datetime.fromtimestamp(zst_stat.st_mtime).isoformat()
+
+    # Build frame line info by decompressing each frame
+    frame_line_infos: list[FrameLineInfo] = []
+    line_index: list[list[int]] = []
+    current_line = 1
+    total_lines = 0
+
+    for i, frame in enumerate(frames):
+        if progress_callback:
+            progress_callback(i, len(frames))
+
+        # Decompress frame to count lines
+        frame_data = decompress_frame(zst_path, frame.index, frames)
+        frame_text = frame_data.decode('utf-8', errors='replace')
+
+        # Count lines in this frame
+        lines_in_frame = frame_text.count('\n')
+        # Only add 1 for partial line if this is the last frame
+        # (intermediate frames may be split mid-line, which would cause double-counting)
+        is_last_frame = i == len(frames) - 1
+        if is_last_frame and frame_text and not frame_text.endswith('\n'):
+            # Partial line at end of file counts as a line
+            lines_in_frame += 1
+
+        first_line = current_line
+        last_line = current_line + lines_in_frame - 1 if lines_in_frame > 0 else current_line
+
+        frame_line_infos.append(frame_line_info_from_frame(frame, first_line, last_line))
+
+        # Add sampled line index entries for this frame
+        # Store entry for first line of frame (3-element format for seekable zstd)
+        line_index.append([first_line, frame.decompressed_offset, frame.index])
+
+        # Add intermediate entries at LINE_INDEX_INTERVAL
+        if lines_in_frame > LINE_INDEX_INTERVAL:
+            # Track byte offset within frame for sampled lines
+            byte_offset = 0
+            line_num = first_line
+
+            for line in frame_text.split('\n'):
+                if line_num > first_line and (line_num - first_line) % LINE_INDEX_INTERVAL == 0:
+                    decompressed_offset = frame.decompressed_offset + byte_offset
+                    line_index.append([line_num, decompressed_offset, frame.index])
+
+                byte_offset += len(line.encode('utf-8')) + 1  # +1 for newline
+                line_num += 1
+
+        current_line = last_line + 1
+        total_lines += lines_in_frame
+
+    if progress_callback:
+        progress_callback(len(frames), len(frames))
+
+    # Create UnifiedFileIndex
+    index = UnifiedFileIndex(
+        version=UNIFIED_INDEX_VERSION,
+        source_path=str(zst_path.resolve()),
+        source_modified_at=zst_mtime,
+        source_size_bytes=zst_stat.st_size,
+        created_at=datetime.now().isoformat(),
+        file_type=FileType.SEEKABLE_ZSTD,
+        compression_format='zstd',
+        is_text=True,
+        decompressed_size_bytes=zst_info.decompressed_size,
+        line_count=total_lines,
+        frame_count=len(frames),
+        frame_size_target=zst_info.frame_size_target,
+        frames=frame_line_infos,
+        line_index=line_index,
+    )
+
+    # Save index
+    index_path = get_index_path(zst_path)
+    save_index(index, index_path)
+
+    logger.info(f'Index built: {total_lines} lines in {len(frames)} frames')
+    return index
+
+
+def get_or_build_index(
+    zst_path: str | Path,
+    progress_callback: Callable | None = None,
+) -> UnifiedFileIndex:
+    """Get existing index or build a new one.
+
+    Args:
+        zst_path: Path to the seekable zstd file
+        progress_callback: Optional callback for build progress
+
+    Returns:
+        UnifiedFileIndex (from cache or newly built)
+    """
+    zst_path = Path(zst_path)
+
+    # Try to get existing valid index
+    index = get_index(zst_path)
+    if index is not None:
+        logger.debug(f'Using cached index for {zst_path}')
+        return index
+
+    # Build new index
+    return build_index(zst_path, progress_callback)
+
+
+def find_frame_for_line(index: UnifiedFileIndex, line_number: int) -> int:
+    """Find which frame contains the given line number.
+
+    Args:
+        index: UnifiedFileIndex object
+        line_number: 1-based line number
+
+    Returns:
+        Frame index (0-based)
+
+    Raises:
+        ValueError: If line_number is out of range or index has no frames
+    """
+    line_count = index.line_count or 0
+    if line_number < 1 or line_number > line_count:
+        raise ValueError(f'Line number {line_number} out of range (1-{line_count})')
+
+    if not index.frames:
+        raise ValueError('Index has no frame information')
+
+    # Binary search through frames
+    for frame in index.frames:
+        if frame.first_line <= line_number <= frame.last_line:
+            return frame.index
+
+    # Shouldn't happen if index is consistent
+    raise ValueError(f'Line {line_number} not found in any frame')
+
+
+def find_frames_for_lines(index: UnifiedFileIndex, line_numbers: list[int]) -> dict[int, list[int]]:
+    """Find frames for multiple line numbers.
+
+    Args:
+        index: UnifiedFileIndex object
+        line_numbers: List of 1-based line numbers
+
+    Returns:
+        Dictionary mapping frame_index to list of line numbers in that frame
+    """
+    frames_to_lines: dict[int, list[int]] = defaultdict(list)
+    line_count = index.line_count or 0
+
+    for line_num in line_numbers:
+        if 1 <= line_num <= line_count:
+            frame_idx = find_frame_for_line(index, line_num)
+            frames_to_lines[frame_idx].append(line_num)
+
+    return dict(frames_to_lines)
+
+
+def find_frames_for_byte_range(index: UnifiedFileIndex, start_offset: int, end_offset: int) -> list[int]:
+    """Find frames that cover a decompressed byte range.
+
+    Args:
+        index: UnifiedFileIndex object
+        start_offset: Start offset in decompressed stream
+        end_offset: End offset in decompressed stream
+
+    Returns:
+        List of frame indices that overlap with the range
+    """
+    result = []
+
+    if not index.frames:
+        return result
+
+    for frame in index.frames:
+        frame_start = frame.decompressed_offset
+        frame_end = frame.decompressed_offset + frame.decompressed_size
+
+        # Check for overlap
+        if frame_start < end_offset and frame_end > start_offset:
+            result.append(frame.index)
+
+    return result
+
+
+def get_frame_info(index: UnifiedFileIndex, frame_index: int) -> FrameLineInfo:
+    """Get frame info by index.
+
+    Args:
+        index: UnifiedFileIndex object
+        frame_index: 0-based frame index
+
+    Returns:
+        FrameLineInfo for the specified frame
+
+    Raises:
+        ValueError: If frame_index is out of range or index has no frames
+    """
+    frame_count = index.frame_count or 0
+    if not index.frames:
+        raise ValueError('Index has no frame information')
+
+    if frame_index < 0 or frame_index >= frame_count:
+        raise ValueError(f'Frame index {frame_index} out of range (0-{frame_count - 1})')
+
+    return index.frames[frame_index]
+
+
+def delete_index(zst_path: str | Path) -> bool:
+    """Delete the index file for a seekable zstd file.
+
+    Args:
+        zst_path: Path to the seekable zstd file
+
+    Returns:
+        True if deleted (or didn't exist), False on error
+    """
+    index_path = get_index_path(zst_path)
+    try:
+        if index_path.exists():
+            index_path.unlink()
+            logger.info(f'Deleted index for {zst_path}')
+        return True
+    except OSError as e:
+        logger.error(f'Failed to delete index {index_path}: {e}')
+        return False
+
+
+def get_index_info(zst_path: str | Path) -> dict | None:
+    """Get information about an existing index.
+
+    Args:
+        zst_path: Path to the seekable zstd file
+
+    Returns:
+        Dictionary with index info, or None if no index exists
+    """
+    index_path = get_index_path(zst_path)
+
+    if not index_path.exists():
+        return None
+
+    index = load_index(index_path)
+    if index is None:
+        return None
+
+    return {
+        'index_path': str(index_path),
+        'source_path': index.source_path,
+        'source_size_bytes': index.source_size_bytes,
+        'source_modified_at': index.source_modified_at,
+        'decompressed_size_bytes': index.decompressed_size_bytes,
+        'line_count': index.line_count,
+        'frame_count': index.frame_count,
+        'frame_size_target': index.frame_size_target,
+        'created_at': index.created_at,
+        'is_valid': is_index_valid(zst_path),
+        'line_index_entries': len(index.line_index),
+    }
