@@ -1,0 +1,4 @@
+REQUIRED = "Req"
+EXPECTED = "Exp"
+PERMISSIBLE = "Perm"
+PERMISSIBILITY_KEY = "core"
