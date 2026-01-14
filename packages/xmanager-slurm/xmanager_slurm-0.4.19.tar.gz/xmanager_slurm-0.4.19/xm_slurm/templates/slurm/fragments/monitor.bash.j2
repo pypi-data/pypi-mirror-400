@@ -1,0 +1,78 @@
+{% macro monitor(requeue_max_attempts, requeue_exit_code, requeue_on_timeout, requeue_timeout) -%}
+__xm_slurm_wait_for_children() {
+  if [[ -n "${SLURM_ARRAY_JOB_ID:-}" ]]; then
+    local -r JOB_ID="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+  else
+    local -r JOB_ID="${SLURM_JOB_ID}"
+  fi
+
+  # If there are no child jobs we should error out
+  children=( $(jobs -p) )
+{% raw %}
+  if [ ${#children[@]} -eq 0 ]; then
+{% endraw %}
+    echo "ERROR: no child jobs exist..." >&2
+    exit 1
+  fi
+
+{% if requeue_on_timeout %}
+  # Start a watchdog process to signal timeout.
+  sleep {{ requeue_timeout }} &
+  timeout_pid=$!
+{% endif %}
+
+{% raw %}
+  while [ ${#children[@]} -gt 0 ]; do
+{% endraw %}
+    echo "INFO: Waiting for child processes to finish..."
+    set +e
+{% if requeue_on_timeout %}
+    # Wait on either one of the child processes or the timeout process.
+    wait -n -p child_pid "${children[@]}" "${timeout_pid}"
+{% else %}
+    wait -n -p child_pid "${children[@]}"
+{% endif %}
+    local child_exit_code=$?
+    set -e
+
+{% if requeue_on_timeout %}
+    # If the finished process is the watchdog, trigger the timeout handling.
+    if [ "${child_pid}" = "${timeout_pid}" ]; then
+      echo "INFO: Timeout of {{ requeue_timeout }} seconds reached. Killing remaining processes: ${children[*]}" >&2
+      kill "${children[@]}" 2>/dev/null || true
+      scontrol requeue "${JOB_ID}"
+      exit {{ requeue_exit_code }}
+    fi
+{% endif %}
+
+    echo "INFO: Process ${child_pid} finished with exit code ${child_exit_code}."
+
+    # Handle the exit code of the finished process.
+    if [ "${child_exit_code}" -eq "{{ requeue_exit_code }}" ] && [ "${SLURM_RESTART_COUNT:-0}" -le "{{ requeue_max_attempts }}" ]; then
+      echo "INFO: Received requeue exit code {{ requeue_exit_code }} from process ${child_pid}. Requeuing Slurm job ${JOB_ID} after ${SLURM_RESTART_COUNT-0} restarts." >&2
+      scontrol requeue "${JOB_ID}"
+      exit {{ requeue_exit_code }}
+    elif [ "${child_exit_code}" -ne 0 ]; then
+      echo "ERROR: Process ${child_pid} exited with code ${child_exit_code}." >&2
+      exit "${child_exit_code}"
+    fi
+
+    # Remove the finished PID from the array in a concise way.
+    for i in "${!children[@]}"; do
+      if [ "${children[i]}" = "$child_pid" ]; then
+        unset 'children[i]'
+        break
+      fi
+    done
+
+    # Reindex the array.
+    children=( "${children[@]}" )
+  done
+
+{% if requeue_on_timeout %}
+  kill "$timeout_pid" 2>/dev/null || true
+{% endif %}
+}
+
+__xm_slurm_wait_for_children
+{%- endmacro %}

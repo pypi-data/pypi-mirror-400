@@ -1,0 +1,27 @@
+{%- macro entrypoint(cluster, job) -%}
+#!/bin/sh
+set -eux
+
+{% if cluster.container_environment %}
+# Cluster environment variables
+{% for key, value in cluster.container_environment.items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+{%- endif %}
+
+{% if job.executable.env_vars %}
+# Executable environment variables
+{% for key, value in job.executable.env_vars.items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+{%- endif %}
+
+{% if job.env_vars %}
+# Job environment variables
+{% for key, value in job.env_vars.items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+{%- endif %}
+
+exec {{ job.executable.entrypoint.to_list() | join(' ') }} "$@"
+{%- endmacro -%}
