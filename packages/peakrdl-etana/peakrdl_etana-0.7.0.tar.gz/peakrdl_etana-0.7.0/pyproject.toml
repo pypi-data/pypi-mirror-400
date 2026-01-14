@@ -1,0 +1,139 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "peakrdl-etana"
+dynamic = ["version"]
+requires-python = ">=3.8"
+dependencies = [
+    "peakrdl",
+    "systemrdl-compiler ~= 1.31",
+    "Jinja2>=2.11",
+]
+
+authors = [
+    {name="Dave Keeshan"},
+]
+description = "Compile SystemRDL into a Verilog control/status register (CSR) block"
+readme = "README.md"
+license = {text = "LGPLv3"}
+keywords = [
+    "SystemRDL", "PeakRDL", "CSR", "compiler", "tool", "registers", "generator",
+    "Verilog", "SystemVerilog", "register abstraction layer",
+    "FPGA", "ASIC",
+]
+classifiers = [
+    #"Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
+
+[project.optional-dependencies]
+cli = [
+    "peakrdl-cli >= 1.2.3",
+]
+
+
+[project.urls]
+Source = "https://github.com/daxzio/PeakRDL-etana"
+Tracker = "https://github.com/daxzio/PeakRDL-etana/issues"
+Changelog = "https://github.com/daxzio/PeakRDL-etana/releases"
+Documentation = "https://peakrdl-etana.readthedocs.io/"
+
+[tool.setuptools.dynamic]
+version = {attr = "peakrdl_etana.__about__.__version__"}
+
+[project.entry-points."peakrdl.exporters"]
+etana = "peakrdl_etana.__peakrdl__:Exporter"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = false
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = false
+disable_error_code = ["has-type"]
+strict_equality = true
+
+# Allow flexibility for compatibility
+allow_redefinition = true
+allow_untyped_globals = true
+allow_untyped_calls = true
+
+# Use explicit package bases to handle test package structure
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = [
+    "systemrdl.*",
+    "jinja2.*",
+    "peakrdl.*",
+    "pkg_resources.*",
+    "importlib.metadata.*",
+    "importlib.*",
+    "metadata.*",
+    "distributions.*",
+    "entry_points.*",
+    "cocotb.*",
+    "cocotbext.*",
+    "cocotb_tools.*",
+    "cocotb_bus.*",
+    "peakrdl_regblock.*",
+    "hwif_wrapper_tool.*",
+    "tb_base.*",
+    "external_reg_emulator_simple.*",
+    "interfaces.*",
+    "tests.interfaces.*",
+    "tests.hwif_wrapper_tool.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "src.peakrdl_etana.entry_points",
+]
+ignore_errors = true
+
+[tool.coverage.run]
+source = ["src/peakrdl_etana"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv*/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
