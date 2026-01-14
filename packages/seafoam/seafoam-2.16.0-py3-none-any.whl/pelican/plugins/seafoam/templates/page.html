@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% if page.article_listing is not defined %}
+    {% set ARTICLE_LISTING = False %}
+{% else %}
+    {% set ARTICLE_LISTING = page.article_listing %}
+{% endif -%}
+
+{% block title -%}
+    {{ page.title|striptags|breaking_spaces }} &mdash; {{ super() }}
+{%- endblock %}
+
+{% block canonical_rel %}
+    {% if page.redirect_url %}
+        <link rel="canonical" href="{{ page.redirect_url }}">
+    {% elif not page.disable_canonical_url %}
+        <link rel="canonical" href="{{ SITEURL -}} / {{- page.url }}">
+    {% endif %}
+{% endblock %}
+
+
+{% block head_redirect %}
+    {% if page.redirect_url %}
+        <link rel="canonical" href="{{ page.redirect_url }}">
+        <meta http-equiv="refresh" content="0;url={{ page.redirect_url }}">
+    {% endif %}
+{% endblock %}
+
+
+{% block breadcrumbs %}
+    {% if DISPLAY_BREADCRUMBS %}
+    <ol class="breadcrumb">
+        <li><a href="{{ SITE_ROOT_URL | default('/') }}" title="{{ SITENAME }}"><span class="fa fa-home fa-lg"></span></a></li>
+        {% if MENUITEMS_2_AT %}
+            <li><a href="{{ SITEURL -}} / {{- MENUITEMS_2_AT_LINK }}" title="{{ MENUITEMS_2_AT }}">{{ MENUITEMS_2_AT }}</a></li>
+        {% endif %}
+        {% if page.at %}
+            <li><a href="{{ SITEURL -}} / {{- page.at_link }}" title="{{ page.at }}">{{ page.at }}</a></li>
+        {% endif %}
+        {% if page.at_2 %}
+            <li><a href="{{ SITEURL -}} / {{- page.at_2_link }}" title="{{ page.at_2 }}">{{ page.at_2 }}</a></li>
+        {% endif %}
+        {% if page.at_3 %}
+            <li><a href="{{ SITEURL -}} / {{- page.at_3_link }}" title="{{ page.at_3 }}">{{ page.at_3 }}</a></li>
+        {% endif %}
+        {% if not page.url == '' %}
+            <li class="active"><a href="{{ SITEURL -}} / {{- page.url }}" title="{{ page.title | striptags | trim }}">{{ page.title | striptags | trim }}</a></li>
+        {% endif %}
+    </ol> <!-- /.breadcrumbs -->
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    <section id="content" class="body">
+        {% if page.image %}
+            <img class="featured-image image-process-article-feature" src="{{ SITEURL -}} / {{- page.image | urlencode }}" alt="{{ page.title | striptags }}"/>
+        {% endif %}
+        <header class="entry-header">
+            <h1 class="entry-title">{{ page.title }}</h1>
+        </header>
+        {% import 'includes/translations.html' as translations with context %}
+        {{ translations.translations_for(page) }}
+        {% if PDF_PROCESSOR %}
+            <a href="{{ SITEURL -}} /pdf/ {{- page.slug }}.pdf">
+                get the pdf
+            </a>
+        {% endif %}
+        <div class="entry-content">
+            {{ page.content }}
+
+            {% if page.redirect_url %}
+                {# meta tag for redirect is in base.html template #}
+                <p>If you are not redirected, please click here:<br>
+                <a href="{{ page.redirect_url }}">{{ page.redirect_url }}</a></p>
+            {% endif %}
+
+            {% if articles and ARTICLE_LISTING %}
+                {% for article in articles %}
+                    {% with HEADING_LEVEL=3 %}
+                        {% include 'includes/article_listing.html' %}
+                    {% endwith %}
+                {% endfor %}
+                <p><a href="{{ SITEURL -}} / {{- ARCHIVES_URL }}">Click to see every post in a big list</a></p>
+            {% endif %}
+            {% if ADAM_FOOTER %}
+                {{ ADAM_FOOTER }}
+            {% endif %}
+            {{ page.footer }}
+        </div>
+    </section>
+{% endblock %}
+
+
+{% block additional_template_debug %}
+    <p><b>Page</b>: {{ page }} <br />
+        <ul>
+            <li><b>source_path</b>: {{ page.source_path }} </li>
+
+            <li><b>title</b>: {{ page.title }} </li>
+            <li><b>lang</b>: {{ page.lang }} </li>
+            <li><b>author</b>: {{ page.author }} </li>
+            <li><b>summary</b>: {{ page.summary }} </li>
+            <li><b>tags</b>: {{ page.tags }} </li>
+            <li><b>date</b>: {{ page.date }} </li>
+            <li><b>og_image</b>: {{ page.og_image }} </li>
+            <li><b>url</b>: {{ page.url }} </li>
+            <li><b>redirect_url</b>: {{ page.redirect_url }} </li>
+            <li><b>category</b>: {{ page.category }} </li>
+            <li><b>image</b>: {{ page.image }} </li>
+            <li><b>micro</b>: {{ page.micro }} </li>
+            <li><b>tasknote</b>: {{ page.tasknote }} </li>
+            <li><b>subtitle</b>: {{ page.subtitle }} </li>
+            <li><b>gpx</b>: {{ page.gpx }} </li>
+            <li><b>template</b>: {{ page.template }} </li>
+
+            <li><b>metadata</b>:
+            <ul>
+            {% for key, value in page.metadata.items() %}
+                <li>{{ key }} : {{ value }} </li>
+            {% endfor %}
+            </ul></li>
+            {# page.content #}
+            {# page.settings #}
+            {# page.context #}
+        </ul>
+    </p>
+{% endblock %}

@@ -1,0 +1,129 @@
+{# 
+    This is looped to display each article in "summary" mode on the index pages.
+#}
+
+{% if HEADING_LEVEL is not defined %}
+    {% set HEADING_LEVEL = 2 %}
+{% endif -%}
+
+{% set DISPLAY_IMAGE = false %}
+<article class="row">
+    {% if article.micro %}
+        {# pass #}
+    {% elif article.tasknote and TASKNOTES_DEV_URL and TASKNOTES_VERSION  %}
+        {# pass #}
+    {% else %}
+        <h{{ HEADING_LEVEL }} class="col-xs-12">
+            <a href="{{ SITEURL -}} / {{- article.url }}">{{ article.title }}</a>
+        </h{{ HEADING_LEVEL }}>
+
+        {% if article.subtitle %}
+            <p class="article-subtitle">
+                {{ article.subtitle }}
+            </p>
+        {% endif %}
+    {% endif %}
+
+    {% if article.image %}
+        {% set DISPLAY_IMAGE = true %}
+        <div class="col-xs-4">
+            <a href="{{ SITEURL -}} / {{- article.url }}">
+                <img class="featured-image image-process-index-feature" src="{{ SITEURL -}} / {{- article.image|urlencode }}" alt="{{ article.title|striptags }}">
+            </a>
+        </div>
+        <div class="summary entry-content col-xs-8">
+    {% elif article.gpx %}
+        {% set DISPLAY_IMAGE = true %}
+        <div class="col-xs-4">
+            <a href="{{ SITEURL -}} / {{- article.url }}">
+                <img class="featured-image" src="{{ SITEURL -}} / {{- article.gpx_default_image|urlencode }}" alt="{{ article.title|striptags }}">
+            </a>
+        </div>
+        <div class="summary entry-content col-xs-8">
+    {% elif CATEGORY_IMAGES and article.category in CATEGORY_IMAGES %}
+        {% set DISPLAY_IMAGE = true %}
+        <div class="col-xs-4">
+            <a href="{{ SITEURL -}} / {{- article.url }}">
+                <img class="featured-image image-process-index-feature" src="{{ SITEURL -}} / {{- CATEGORY_IMAGES[article.category]|urlencode }}"  alt="{{ article.category|striptags }}">
+            </a>
+        </div>
+        <div class="summary entry-content col-xs-8">
+    {% else %}
+        <div class="summary entry-content col-xs-12">            
+    {% endif -%}
+
+    {% if article.micro %}
+        {{- article.content -}}
+    {% elif article.gpx %}
+        <p>Length: {{ article.gpx_length_km | round(2) }}&nbsp;km</p>
+    {% elif article.tasknote %}
+        {{- article.summary -}}
+    {% else %}
+        {{- article.summary -}}
+    {% endif %}
+
+    </div>
+    {% if DISPLAY_IMAGE == true %}
+        <div class="col-xs-8 col-xs-offset-4">
+    {% else %}
+        <div class="col-xs-12">
+    {% endif %}
+        <p class="text-right"><small>
+            {# TaskNote Metadata #}
+            {%- if article.tasknote -%}
+                <span title="Created">➕</span><time datetime="{{ article.date.isoformat() }}">{{ article.date | article_date }} at {{ article.date | datetime("%H:%M") }}</time>
+                {% if article.threshold_date %}
+                    {# TODO: cast as datetime.datetime #}
+                    &bull; <span title="Start/Threshold Date">🛫</span><time datetime="{{ article.threshold_date }}">{{ article.threshold_date -}}</time>
+                {% endif %}
+                {% if article.scheduled %}
+                    &bull; <span title="Scheduled">📅</span><time datetime="{{ article.scheduled }}">{{ article.scheduled -}} {# at {{ article.scheduled | datetime("%H:%M") }} #}</time>
+                {% endif %}
+                {% if article.due %}
+                    {# TODO: cast as datetime.datetime #}
+                    &bull; <span title="Due">⏳</span><time datetime="{{ article.due }}">{{ article.due -}}</time>
+                {% endif %}
+                {% if article.completed %}
+                    {# TODO: cast as datetime.datetime #}
+                    {% if article.task_status == "cancalled" %}
+                        &bull; <span title="cancelled">❌</span><time datetime="{{ article.completed }}">{{ article.completed -}}</time>
+                    {% else %}
+                        &bull; <span title="completed">✅</span><time datetime="{{ article.completed }}">{{ article.completed -}}</time>
+                    {% endif %}
+                {% endif %}
+            {%- else -%}
+                <span class="published">
+                    <i class="fa fa-calendar"></i><time datetime="{{ article.date.isoformat() }}">&nbsp;{{ article.date | article_date }}</time>
+                </span>
+            {%- endif -%}
+            {% if article.readtime_minutes and not article.micro -%}
+                &bull;&nbsp;<i class="fa fa-clock-o"></i>&nbsp;~{{ article.readtime_minutes }}&nbsp;min to read
+            {% elif article.stats and not article.micro -%}
+                &bull;&nbsp;<i class="fa fa-clock-o"></i>&nbsp;~{{ article.stats['read_mins'] }}&nbsp;min to read
+            {%- endif %}
+            {% if (DISQUS_SITENAME and DISQUS_DISPLAY_COUNTS) or (PELICAN_COMMENT_SYSTEM and PELICAN_COMMENT_SYSTEM_DISPLAY_COUNTS != false and article.comments_count > 0) %}
+                &bull;&nbsp;<i class="fa fa-comments"></i>
+                {% include 'includes/comment_count.html' %}
+            {% endif -%}
+            {# only display the 'read more' link if there is more to the article #}
+            {% if article.tasknote and article.content | length <= 7 %}
+                &bull;&nbsp;<span class="label label-primary">
+                    <a href="{{ SITEURL -}} / {{- article.url }}"><i class="fa fa-link"></i>&nbsp;permalink</a>
+                </span>
+            {% elif article.micro %}
+                &bull;&nbsp;<span class="label label-primary">
+                    <a href="{{ SITEURL -}} / {{- article.url }}"><i class="fa fa-link"></i>&nbsp;permalink</a>
+                </span>
+            {% elif article.tasknote %}
+                &bull;&nbsp;<span class="label label-primary">
+                    <a href="{{ SITEURL -}} / {{- article.url }}"><i class="fa fa-arrow-circle-right"></i>&nbsp;</a>
+                </span>
+            {% elif article.has_summary != false %} 
+                &bull;&nbsp;<span class="label label-primary">
+                    <a href="{{ SITEURL -}} / {{- article.url }}">read more&nbsp;<i class="fa fa-arrow-circle-right"></i>&nbsp;</a>
+                </span>
+            {% endif %}
+        </small></p>
+    </div>
+</article>
+<hr/>

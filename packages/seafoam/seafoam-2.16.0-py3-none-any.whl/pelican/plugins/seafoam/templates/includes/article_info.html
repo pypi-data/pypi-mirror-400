@@ -1,0 +1,77 @@
+<footer class="post-info">
+    {% if article.tasknote %}
+        <span title="Created">➕</span>
+        <span class="published">
+    {% else %}
+        <span class="label label-default">Published</span>
+        <span class="published">
+            <i class="fa fa-calendar"></i>
+    {% endif %}
+        <time datetime="{{ article.date.isoformat() }}">
+            {{ article.date | article_date -}}
+            {% if article.micro %}
+                at {{ article.date | datetime("%H:%M") }}
+            {%- elif article.gpx -%}
+                , from {{ article.gpx_start_time | datetime("%H:%M") }}
+                to {{ article.gpx_end_time | datetime ("%H:%M") }}
+            {% elif article.tasknote %}
+                at {{ article.date | datetime("%H:%M") }}
+            {% endif -%}
+        </time>
+    </span>
+    {# Uncomment if you want the author shown #}
+    {#{% if article.author %}#}
+    {#<span class="label">By</span>#}
+    {#<a href="{{ SITEURL -}} / {{- article.author.url }}"><i class="fa fa-user"></i> {{ article.author }}</a>#}
+    {#{% endif -%}-#}
+
+    {# TaskNote Metadata #}
+    {%- if article.tasknote -%}
+        {% if article.threshold_date %}
+            {# TODO: cast as datetime.datetime #}
+            &bull; <span title="Start/Threshold Date">🛫</span><time datetime="{{ article.threshold_date }}">{{ article.threshold_date -}}</time>
+        {% endif %}
+        {% if article.scheduled %}
+            &bull; <span title="Scheduled">📅</span><time datetime="{{ article.scheduled }}">{{ article.scheduled -}} {# at {{ article.scheduled | datetime("%H:%M") }} #}</time>
+        {% endif %}
+        {% if article.due %}
+            {# TODO: cast as datetime.datetime #}
+            &bull; <span title="Due">⏳</span><time datetime="{{ article.due }}">{{ article.due -}}</time>
+        {% endif %}
+        {% if article.completed %}
+            {# TODO: cast as datetime.datetime #}
+            {% if article.task_status == "cancalled" %}
+                &bull; <span title="cancelled">❌</span><time datetime="{{ article.completed }}">{{ article.completed -}}</time>
+            {% else %}
+                &bull; <span title="completed">✅</span><time datetime="{{ article.completed }}">{{ article.completed -}}</time>
+            {% endif %}
+        {% endif %}
+    {%- endif -%}
+
+    {%- if article.micro -%}
+    {%- else -%}
+        {%- if article.readtime_minutes -%}
+            <span class="label label-default">Reading Time</span>&nbsp;<i class="fa fa-clock-o"></i>&nbsp;~{{ article.readtime_minutes }}&nbsp;min
+        {%- elif article.stats -%}
+            <span class="label label-default">Reading Time</span>&nbsp;<i class="fa fa-clock-o"></i>&nbsp;~{{ article.stats['read_mins'] }}&nbsp;min
+        {%- endif -%}
+    {%- endif -%}
+
+    {#- Uncomment if you want to show Categories#}
+    {#<span class="label label-default">Category</span>#}
+    {#<a href="{{ SITEURL -}} / {{- article.category.url }}">{{ article.category }}</a>-#}
+
+    {%- if PDF_PROCESSOR %}
+        <span class="label label-default">
+            <a href="{{ SITEURL -}} /pdf/ {{- article.slug }}.pdf">PDF</a>
+        </span>
+    {% endif -%}
+
+    {%- include 'includes/taglist.html' %}
+    {% import 'includes/translations.html' as translations with context %}
+    {{ translations.translations_for(article) }}
+
+    {% if DISPLAY_SOURCE_PATH %}
+        <span class="label label-default">Source File</span>&nbsp;<i class="fa fa-file"></i>&nbsp;{{ article.source_path | replace(PATH, "") }}
+    {% endif %}
+</footer><!-- /.post-info -->

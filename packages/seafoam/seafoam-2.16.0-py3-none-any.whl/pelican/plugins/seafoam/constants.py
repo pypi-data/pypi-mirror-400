@@ -1,0 +1,20 @@
+__title__ = "seafoam"
+__version__ = "2.16.0"
+__description__ = "Pelican theme, first used for Minchin.ca."
+__author__ = "W. Minchin"
+__email__ = "w_minchin@hotmail.com"
+__url__ = "http://blog.minchin.ca/label/seafoam/"
+__license__ = "MIT License"
+
+LOG_PREFIX = "[Seafoam]"
+PLUGIN_LIST: list[str] = [
+    "pelican.plugins.seafoam",
+    "pelican.plugins.jinja_filters",
+]
+PRODUCTION_PLUGIN_LIST: list[str] = PLUGIN_LIST + [
+    "pelican.plugins.image_process",
+]
+STYLES: list[str] = [
+    "seafoam",
+    "strathcona",
+]
