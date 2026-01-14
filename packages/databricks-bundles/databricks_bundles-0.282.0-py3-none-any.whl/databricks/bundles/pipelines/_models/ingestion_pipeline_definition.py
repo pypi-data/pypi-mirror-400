@@ -1,0 +1,122 @@
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, TypedDict
+
+from databricks.bundles.core._transform import _transform
+from databricks.bundles.core._transform_to_json import _transform_to_json_value
+from databricks.bundles.core._variable import VariableOrList, VariableOrOptional
+from databricks.bundles.pipelines._models.ingestion_config import (
+    IngestionConfig,
+    IngestionConfigParam,
+)
+from databricks.bundles.pipelines._models.source_config import (
+    SourceConfig,
+    SourceConfigParam,
+)
+from databricks.bundles.pipelines._models.table_specific_config import (
+    TableSpecificConfig,
+    TableSpecificConfigParam,
+)
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
+
+
+@dataclass(kw_only=True)
+class IngestionPipelineDefinition:
+    """"""
+
+    connection_name: VariableOrOptional[str] = None
+    """
+    Immutable. The Unity Catalog connection that this ingestion pipeline uses to communicate with the source. This is used with connectors for applications like Salesforce, Workday, and so on.
+    """
+
+    ingest_from_uc_foreign_catalog: VariableOrOptional[bool] = None
+    """
+    :meta private: [EXPERIMENTAL]
+    
+    Immutable. If set to true, the pipeline will ingest tables from the
+    UC foreign catalogs directly without the need to specify a UC connection or ingestion gateway.
+    The `source_catalog` fields in objects of IngestionConfig are interpreted as
+    the UC foreign catalogs to ingest from.
+    """
+
+    ingestion_gateway_id: VariableOrOptional[str] = None
+    """
+    Immutable. Identifier for the gateway that is used by this ingestion pipeline to communicate with the source database. This is used with connectors to databases like SQL Server.
+    """
+
+    netsuite_jar_path: VariableOrOptional[str] = None
+    """
+    :meta private: [EXPERIMENTAL]
+    """
+
+    objects: VariableOrList[IngestionConfig] = field(default_factory=list)
+    """
+    Required. Settings specifying tables to replicate and the destination for the replicated tables.
+    """
+
+    source_configurations: VariableOrList[SourceConfig] = field(default_factory=list)
+    """
+    Top-level source configurations
+    """
+
+    table_configuration: VariableOrOptional[TableSpecificConfig] = None
+    """
+    Configuration settings to control the ingestion of tables. These settings are applied to all tables in the pipeline.
+    """
+
+    @classmethod
+    def from_dict(cls, value: "IngestionPipelineDefinitionDict") -> "Self":
+        return _transform(cls, value)
+
+    def as_dict(self) -> "IngestionPipelineDefinitionDict":
+        return _transform_to_json_value(self)  # type:ignore
+
+
+class IngestionPipelineDefinitionDict(TypedDict, total=False):
+    """"""
+
+    connection_name: VariableOrOptional[str]
+    """
+    Immutable. The Unity Catalog connection that this ingestion pipeline uses to communicate with the source. This is used with connectors for applications like Salesforce, Workday, and so on.
+    """
+
+    ingest_from_uc_foreign_catalog: VariableOrOptional[bool]
+    """
+    :meta private: [EXPERIMENTAL]
+    
+    Immutable. If set to true, the pipeline will ingest tables from the
+    UC foreign catalogs directly without the need to specify a UC connection or ingestion gateway.
+    The `source_catalog` fields in objects of IngestionConfig are interpreted as
+    the UC foreign catalogs to ingest from.
+    """
+
+    ingestion_gateway_id: VariableOrOptional[str]
+    """
+    Immutable. Identifier for the gateway that is used by this ingestion pipeline to communicate with the source database. This is used with connectors to databases like SQL Server.
+    """
+
+    netsuite_jar_path: VariableOrOptional[str]
+    """
+    :meta private: [EXPERIMENTAL]
+    """
+
+    objects: VariableOrList[IngestionConfigParam]
+    """
+    Required. Settings specifying tables to replicate and the destination for the replicated tables.
+    """
+
+    source_configurations: VariableOrList[SourceConfigParam]
+    """
+    Top-level source configurations
+    """
+
+    table_configuration: VariableOrOptional[TableSpecificConfigParam]
+    """
+    Configuration settings to control the ingestion of tables. These settings are applied to all tables in the pipeline.
+    """
+
+
+IngestionPipelineDefinitionParam = (
+    IngestionPipelineDefinitionDict | IngestionPipelineDefinition
+)
