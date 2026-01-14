@@ -1,0 +1,51 @@
+---
+title: Incremental Training
+description: Resume interrupted model training runs
+---
+
+import { Aside, FileTree } from '@astrojs/starlight/components';
+
+# Incremental Training
+
+When training models over long test periods, epftoolbox2 can save intermediate results and resume if interrupted.
+
+## Enabling Incremental Training
+
+```python
+report = pipeline.run(
+    data=df,
+    test_start="2024-01-01",
+    test_end="2024-12-31",
+    save_dir="results",  # Enable incremental saving
+)
+```
+
+## How It Works
+
+1. Each task (date × hour × horizon × model) is saved after completion
+2. If the script is interrupted, re-running loads completed tasks
+3. Only missing tasks are computed
+
+## Cache Directory Structure
+
+<FileTree>
+
+- results/
+    - ols.jsonl
+    - lasso.jsonl
+    - model_name.jsonl
+
+</FileTree>
+
+## Results File Format
+
+Each line in `results.jsonl` is a JSON object:
+
+```json
+{"run_date": "2024-02-01", "target_date": "2024-02-02", "hour": 1, "horizon": 1, "day_in_test": 0, "prediction": 92.08884109589042, "actual": 58.0, "coefficients": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
+{"run_date": "2024-02-01", "target_date": "2024-02-02", "hour": 0, "horizon": 1, "day_in_test": 0, "prediction": 92.33908219178082, "actual": 58.62, "coefficients": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
+```
+
+<Aside type="tip">
+  For long training runs, use `save_dir` to avoid losing progress if the script crashes or is interrupted.
+</Aside>
