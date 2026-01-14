@@ -1,0 +1,29 @@
+name: Weekly Test Singularity Build
+on:
+  schedule:
+    # every Sunday at 0:00
+    - cron: "0 0 * * 0"
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code for the container build
+        uses: actions/checkout@v4
+      - name: Setup Singularity
+        uses: singularityhub/install-singularity@main
+      - name: Extract repository location
+        shell: bash
+        run: |
+          echo "location=$(echo "      - git+https://www.github.com/${GITHUB_REPOSITORY}@${GITHUB_REF#refs/heads/}")" >> $GITHUB_OUTPUT
+        id: extract_location
+      - name: Build Container
+        run: |
+          cd container
+          echo '${{ steps.extract_location.outputs.location }}' >> environment_test.yml
+          sudo -E singularity build --notest sc-dandelion.sif sc-dandelion_test.def
+      - name: Test Container
+        run: |
+          cd container
+          sudo singularity test --writable-tmpfs sc-dandelion.sif
+          singularity run -B $PWD sc-dandelion.sif dandelion-preprocess --help

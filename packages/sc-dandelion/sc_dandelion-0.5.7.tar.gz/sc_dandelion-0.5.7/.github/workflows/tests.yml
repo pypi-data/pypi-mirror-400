@@ -1,0 +1,165 @@
+name: tests
+
+on:
+  pull_request:
+    branches:
+      - "*"
+  push:
+    branches:
+      - "master"
+
+env:
+  cache-version: "cache-v2"
+  R_LIBS_USER: "/home/runner/micromamba/envs/dandelion/lib/R/library"
+
+jobs:
+  changes:
+    name: Checking changed files
+    runs-on: ubuntu-latest
+    outputs:
+      keepgoing: ${{ steps.changed-files.outputs.any_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v46
+        with:
+          files: |
+            *.{yml,yaml,py,toml}
+            **/*.{yml,yaml,py,toml}
+            container/database
+            container/tests
+            container/scripts/*.py
+            tests
+      - name: List all changed files
+        run: |
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            echo "$file was changed"
+          done
+          echo ${{ steps.changed-files.outputs.any_changed }}
+  tests:
+    needs:
+      - changes
+    if: needs.changes.outputs.keepgoing == 'true'
+    timeout-minutes: 720
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      max-parallel: 10
+      matrix:
+        config:
+          - { python-version: "3.11", os: ubuntu-latest }
+          - { python-version: "3.12", os: ubuntu-latest }
+          - { python-version: "3.13", os: ubuntu-latest }
+          - { python-version: "3.11", os: macos-latest }
+          - { python-version: "3.12", os: macos-latest }
+          - { python-version: "3.13", os: macos-latest }
+          # disabled until it's fixed.
+    runs-on: ${{ matrix.config.os }}
+    env:
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      NOT_CRAN: true
+      TZ: UTC
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+
+      - name: Install macOS system dependencies
+        if: matrix.config.os == 'macos-latest'
+        run: |
+          brew install cairo pkg-config autoconf automake libtool boost gcc
+
+      - name: Install ubuntu system dependencies
+        if: matrix.config.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+
+      - name: Setup micromamba
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: dandelion
+          environment-file: environment.yml
+          cache-environment: true
+          cache-downloads: true
+          cache-environment-key: environment-${{ env.cache-version }}-${{ matrix.config.os }}
+          cache-downloads-key: downloads-${{ env.cache-version }}-${{ matrix.config.os }}
+          post-cleanup: "all"
+          create-args: >-
+            python=${{ matrix.config.python-version }}
+            blast
+            zlib
+            xz
+
+      - name: Get latest IgBlast version
+        id: get_version
+        shell: bash
+        run: |
+          IGVER=$(curl -s https://ftp.ncbi.nlm.nih.gov/blast/executables/igblast/release/ | \
+                  grep -Eo 'href="[0-9]+\.[0-9]+\.[0-9]+/' | \
+                  cut -d'"' -f2 | tr -d '/' | sort -V | tail -n1)
+          echo "igver=$IGVER" >> $GITHUB_OUTPUT
+
+      - name: Download and extract IgBlast
+        shell: bash
+        run: |
+          IGVER=${{ steps.get_version.outputs.igver }}
+
+          if [[ "${{ matrix.config.os }}" == "ubuntu-latest" ]]; then
+            OSNAME="linux"
+            EXT="tar.gz"
+          elif [[ "${{ matrix.config.os }}" == "macos-latest" ]]; then
+            OSNAME="macosx"
+            EXT="tar.gz"
+          fi
+
+          FILE=ncbi-igblast-$IGVER-x64-$OSNAME.$EXT
+          wget https://ftp.ncbi.nih.gov/blast/executables/igblast/release/LATEST/$FILE
+          tar -xzf $FILE
+          echo "PATH=$(pwd)/ncbi-igblast-$IGVER/bin:$PATH" >> $GITHUB_ENV
+          rm -f $FILE
+
+      - name: Display Python version
+        run: |
+          python --version
+          which python
+
+      - name: Test if blast works
+        run: |
+          blastn -h
+
+      - name: Test if igblast works
+        run: |
+          igblastn -h
+
+      - name: Install Dandelion
+        run: |
+          pip install -e ".[scirpy,scrublet,palantir]"
+
+      - name: Test with pytest
+        run: |
+          pytest
+
+      - name: Show coverage
+        run: |
+          coverage report
+
+      - name: Upload coverage to Codecov
+        if: matrix.config.os == 'ubuntu-latest' && matrix.config.python-version == '3.10' &&  github.actor == 'zktuong' && github.repository == 'zktuong/dandelion'
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          directory: ./coverage/reports/
+          env_vars: ${{ format('OS={0},PYTHON={1}', matrix.config.os, matrix.config.python-version) }}
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          path_to_write_report: ./coverage/codecov_report.txt
+          verbose: true

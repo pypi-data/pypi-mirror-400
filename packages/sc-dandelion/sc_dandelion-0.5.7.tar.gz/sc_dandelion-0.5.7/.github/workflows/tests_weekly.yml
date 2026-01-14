@@ -1,0 +1,173 @@
+name: weekly tests
+
+on:
+  schedule:
+    # every Sunday at 0:00
+    #        ┌───────────── minute (0 - 59)
+    #        │ ┌───────────── hour (0 - 23)
+    #        │ │ ┌───────────── day of the month (1 - 31)
+    #        │ │ │ ┌───────────── month (1 - 12)
+    #        │ │ │ │ ┌───────────── day of the week (0 - 6)
+    #        │ │ │ │ │
+    #        │ │ │ │ │
+    #        │ │ │ │ │
+    #        * * * * *
+    - cron: "0 0 * * 0"
+
+env:
+  cache-version: "cache-v3"
+  R_LIBS_USER: "/home/runner/micromamba/envs/dandelion/lib/R/library"
+
+jobs:
+  tests:
+    timeout-minutes: 720
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      max-parallel: 10
+      matrix:
+        config:
+          - { python-version: "3.10", os: ubuntu-latest }
+          - { python-version: "3.11", os: ubuntu-latest }
+          - { python-version: "3.12", os: ubuntu-latest }
+          - { python-version: "3.13", os: ubuntu-latest }
+          - { python-version: "3.10", os: macos-latest }
+          - { python-version: "3.11", os: macos-latest }
+          - { python-version: "3.12", os: macos-latest }
+          - { python-version: "3.13", os: macos-latest }
+          # disabled until it's fixed.
+    runs-on: ${{ matrix.config.os }}
+    env:
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      NOT_CRAN: true
+      TZ: UTC
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+
+      - name: Install ubuntu system dependencies
+        if: matrix.config.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install libcurl4-openssl-dev
+          sudo apt-get update -y && sudo apt-get install -y zlib1g-dev libglpk-dev libgmp3-dev libxml2-dev libicu-dev libhdf5-serial-dev libcurl4-gnutls-dev
+
+      - name: Install macOS system dependencies
+        if: matrix.config.os == 'macos-latest'
+        run: |
+          brew install cairo pkg-config autoconf automake libtool boost gcc
+
+      - name: Setup micromamba
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: dandelion
+          environment-file: environment.yml
+          cache-environment: true
+          cache-downloads: true
+          cache-environment-key: environment-${{ env.cache-version }}-${{ matrix.config.os }}
+          cache-downloads-key: downloads-${{ env.cache-version }}-${{ matrix.config.os }}
+          post-cleanup: "all"
+          create-args: >-
+            python=${{ matrix.config.python-version }}
+            blast
+            rpy2
+            r-optparse
+            r-matrix
+            r-statmod
+            r-bh
+            r-locfit
+            r-data.table
+            r-stringi
+            zlib
+            xz
+
+      - name: Cache R packages installed by Rscript
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: r-packages-${{ matrix.config.os }}-v1
+          restore-keys: |
+            r-packages-${{ matrix.config.os }}-v1
+
+      - name: Set R compiler flags via .Rprofile
+        if: matrix.config.os == 'macos-latest'
+        run: |
+          GCC_BIN=$(ls /opt/homebrew/bin/gcc-* | grep -E 'gcc-[0-9]+' | grep -v gcc-ar | sort -V | tail -n1)
+          GCC_VER=$(basename "$GCC_BIN")
+          echo "Found GCC: $GCC_VER"
+          # Set as output so other steps can use it
+          echo "gcc_version=$GCC_VER" >> $GITHUB_OUTPUT
+          mkdir -p ~/.R
+          echo "CC=${GCC_VER}" >> ~/.R/Makevars
+          echo "CXX=${GCC_VER/gcc/g++}" >> ~/.R/Makevars
+          echo "CXX11=${GCC_VER/gcc/g++}" >> ~/.R/Makevars
+          echo "CXX14=${GCC_VER/gcc/g++}" >> ~/.R/Makevars
+          echo "CXX17=${GCC_VER/gcc/g++}" >> ~/.R/Makevars
+          echo "CXX20=${GCC_VER/gcc/g++}" >> ~/.R/Makevars
+          echo "CXXFLAGS=-O2 -Wall -pipe" >> ~/.R/Makevars
+          echo 'CXX11FLAGS=-O2 -Wall -pipe' >> ~/.R/Makevars
+
+      # - name: Clean conflicting env vars
+      #   run: |
+      #     unset CPPFLAGS CFLAGS CXXFLAGS LDFLAGS
+
+      - name: Install and test if R dependencies are installed properly
+        run: |
+          Rscript tests/r_dependencies.R
+        shell: bash -l {0}
+
+      - name: Get latest IgBlast version
+        id: get_version
+        shell: bash
+        run: |
+          IGVER=$(curl -s https://ftp.ncbi.nlm.nih.gov/blast/executables/igblast/release/ | \
+                  grep -Eo 'href="[0-9]+\.[0-9]+\.[0-9]+/' | \
+                  cut -d'"' -f2 | tr -d '/' | sort -V | tail -n1)
+          echo "igver=$IGVER" >> $GITHUB_OUTPUT
+
+      - name: Download and extract IgBlast
+        shell: bash
+        run: |
+          IGVER=${{ steps.get_version.outputs.igver }}
+
+          if [[ "${{ matrix.config.os }}" == "ubuntu-latest" ]]; then
+            OSNAME="linux"
+            EXT="tar.gz"
+          elif [[ "${{ matrix.config.os }}" == "macos-latest" ]]; then
+            OSNAME="macosx"
+            EXT="tar.gz"
+          fi
+
+          FILE=ncbi-igblast-$IGVER-x64-$OSNAME.$EXT
+          wget https://ftp.ncbi.nih.gov/blast/executables/igblast/release/LATEST/$FILE
+          tar -xzf $FILE
+          echo "PATH=$(pwd)/ncbi-igblast-$IGVER/bin:$PATH" >> $GITHUB_ENV
+          rm -f $FILE
+
+      - name: Display Python version
+        run: |
+          python --version
+          which python
+
+      - name: Test if blast works
+        run: |
+          blastn -h
+
+      - name: Test if igblast works
+        run: |
+          igblastn -h
+
+      - name: Install Dandelion
+        run: |
+          pip install -e ".[scirpy,scrublet,palantir]"
+
+      - name: Test with pytest
+        run: |
+          pytest
+
+      - name: Show coverage
+        run: |
+          coverage report
