@@ -1,0 +1,319 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "macversiontracker"
+version = "0.8.1"
+description = "A command-line tool for tracking and managing applications installed outside of the Mac App Store"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    {name = "docdyhr", email = "thomas@dyhr.com"}
+]
+keywords = ["macos", "homebrew", "version", "tracking", "updates", "cask"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Software Distribution",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "tqdm>=4.65",
+    "psutil>=5.9",
+    "tabulate>=0.9.0",
+    "aiohttp>=3.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=7.0",
+    "pytest-timeout>=2.1",
+    "pytest-mock>=3.11",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.7",
+    "ruff>=0.1",
+    "mypy>=1.5",
+    "types-PyYAML>=6.0",
+    "build>=0.10",
+    "wheel>=0.41",
+    "twine>=4.0",
+]
+test = [
+    "pytest>=7.4",
+    "pytest-cov>=7.0",
+    "pytest-timeout>=2.1",
+    "pytest-mock>=3.11",
+    "pytest-asyncio>=0.21.0",
+]
+security = [
+    "bandit[toml]>=1.7",
+    "pip-audit>=2.6",
+    "safety>=2.3",
+]
+fuzzy = [
+    "rapidfuzz>=3.0",
+]
+ml = [
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/docdyhr/versiontracker"
+"Bug Tracker" = "https://github.com/docdyhr/versiontracker/issues"
+Documentation = "https://github.com/docdyhr/versiontracker"
+"Source Code" = "https://github.com/docdyhr/versiontracker"
+Changelog = "https://github.com/docdyhr/versiontracker/blob/master/CHANGELOG.md"
+PyPI = "https://pypi.org/project/macversiontracker/"
+
+[project.scripts]
+versiontracker = "versiontracker.__main__:main"
+macos-versiontracker = "versiontracker.__main__:main"
+vt = "versiontracker.__main__:main"
+
+[tool.setuptools.packages.find]
+include = [
+    "versiontracker",
+    "versiontracker.*",
+]
+
+[tool.setuptools.package-data]
+versiontracker = ["py.typed"]
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 120  # AI-friendly length as per CLAUDE.md guidelines
+target-version = "py312"  # Updated to match project requirements
+
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "examples",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "C90", # mccabe complexity
+]
+ignore = [
+    "E501",  # Line too long (handled by line-length setting)
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = false
+no_implicit_optional = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+# Note: import-untyped and misc errors are handled via inline type: ignore comments
+
+
+
+[[tool.mypy.overrides]]
+module = [
+    "fuzzywuzzy.*",
+    "Levenshtein.*",
+    "rapidfuzz.*",
+    "tqdm.*",
+    "yaml.*",
+    "tabulate.*",
+    "termcolor.*",
+    "psutil.*",
+    "aiohttp.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+disable_error_code = ["type-arg", "attr-defined", "no-untyped-def", "misc"]
+
+[[tool.mypy.overrides]]
+module = "versiontracker.__init__"
+# Suppress warnings about __all__ items not being present due to lazy loading
+disable_error_code = ["attr-defined", "name-defined"]
+
+[[tool.mypy.overrides]]
+module = "versiontracker.handlers.*"
+# Suppress signature compatibility issues with optional dependency fallbacks
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = "versiontracker.ai.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "versiontracker.ml.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "versiontracker.analytics"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "versiontracker.benchmarks"
+ignore_errors = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = [
+    "tests",
+    "versiontracker"
+]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+    "tests.py"
+]
+python_classes = [
+    "Test*",
+    "*Tests",
+    "*TestCase"
+]
+python_functions = [
+    "test_*",
+    "*_test"
+]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--ignore=dist",
+    "--ignore=build",
+    "--ignore=.venv",
+    "--cov=versiontracker",
+    "--cov-branch",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--tb=short",
+    "--maxfail=1",
+    "--strict-config",
+    "--verbose"
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "network: marks tests that require network access",
+    "asyncio: marks tests as async tests that require asyncio"
+]
+norecursedirs = [
+    ".git",
+    ".tox",
+    "dist",
+    "build",
+    "*.egg",
+    "__pycache__",
+    ".venv",
+    "venv"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning"
+]
+timeout = 300
+timeout_method = "thread"
+asyncio_mode = "auto"
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["versiontracker"]
+omit = [
+    "versiontracker/__main__.py",
+    "versiontracker/test_*.py",
+    "*/tests/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/virtualenv/*",
+    "*/.pytest_cache/*",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstract",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+# Bandit security configuration
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv", "__pycache__", ".pytest_cache"]
+skips = [
+    "B101", # assert_used
+    "B110", # try_except_pass - used for non-critical error handling
+    "B404", # subprocess module import - required for system command execution
+    "B602", # subprocess with shell=True - intentional for homebrew command execution
+    "B603", # subprocess without shell - safe usage with controlled inputs
+    "B607", # partial path - brew command is expected to be in PATH
+    "B608", # hardcoded_sql_expressions - false positive in cache error messages
+]
+severity = "medium"
+confidence = "medium"
