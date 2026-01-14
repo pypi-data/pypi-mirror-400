@@ -1,0 +1,162 @@
+Metadata-Version: 2.4
+Name: ag-cc-proxy
+Version: 0.1.0
+Summary: Proxy for Antigravity Claude/Gemini models with Claude Code CLI
+Home-page: https://github.com/TutraLabs/ag-cc-proxy
+Author: Catalyst
+Author-email: tutralabs@gmail.com
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: aiohttp>=3.9.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# ag-cc-proxy
+
+
+A Python proxy server that translates Anthropic's Messages API to Google's Cloud Code API via Antigravity, enabling multi-account load balancing, automatic failover, and intelligent rate limit handling.
+
+## Features
+
+- 🔄 **Anthropic API Compatible** - Drop-in replacement for Claude Code CLI
+- 👥 **Multi-Account Support** - Load balance across multiple Google accounts
+- ⚡ **Automatic Failover** - Seamlessly switches accounts on rate limits
+- 🧠 **Thinking Model Support** - Full support for Claude and Gemini thinking models
+- 📊 **Quota Tracking** - Real-time monitoring of account quotas
+- 🔐 **OAuth with PKCE** - Secure authentication flow
+- 🌐 **Cross-Platform** - Works on Linux, macOS, Windows, and Termux
+
+## Installation
+
+```bash
+pip install ag-cc-proxy
+```
+
+## Quick Start
+
+### 1. Add a Google Account
+
+```bash
+ag-cc-proxy accounts add
+```
+
+This opens a browser for Google OAuth. For headless servers:
+
+```bash
+ag-cc-proxy accounts add --no-browser
+```
+
+### 2. Start the Proxy Server
+
+```bash
+ag-cc-proxy
+```
+
+Or with options:
+
+```bash
+ag-cc-proxy --port 3000 --debug --fallback
+```
+
+### 3. Configure Claude Code
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8080"
+  }
+}
+```
+
+Or set environment variables:
+
+```bash
+export ANTHROPIC_BASE_URL=http://localhost:8080
+export ANTHROPIC_API_KEY=dummy
+claude
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `ag-cc-proxy` | Start the proxy server (default port: 8080) |
+| `ag-cc-proxy start` | Same as above |
+| `ag-cc-proxy accounts add` | Add a new Google account via OAuth |
+| `ag-cc-proxy accounts list` | List all configured accounts |
+| `ag-cc-proxy accounts remove` | Remove accounts interactively |
+| `ag-cc-proxy accounts verify` | Verify account tokens are valid |
+| `ag-cc-proxy accounts clear` | Remove all accounts |
+| `ag-cc-proxy --help` | Show help message |
+
+## Server Options
+
+| Option | Description |
+|--------|-------------|
+| `--port PORT` | Server port (default: 8080) |
+| `--debug` | Enable debug logging |
+| `--fallback` | Enable model fallback on quota exhaustion |
+
+## API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /v1/messages` | Anthropic Messages API (streaming & non-streaming) |
+| `GET /v1/models` | List available models |
+| `GET /health` | Health check with detailed status |
+| `GET /account-limits` | Account quotas (JSON or `?format=table`) |
+| `POST /refresh-token` | Force token refresh |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Server port (default: 8080) |
+| `DEBUG` | Enable debug mode if `true` |
+| `FALLBACK` | Enable fallback mode if `true` |
+
+## How It Works
+
+1. **Receives** Anthropic Messages API requests
+2. **Converts** to Google Cloud Code format
+3. **Routes** through available accounts with rate limit awareness
+4. **Converts** responses back to Anthropic format
+5. **Returns** to Claude Code CLI
+
+## Prerequisites
+
+For single-account mode (no OAuth):
+- Antigravity must be installed and running
+- You must be logged in to Antigravity
+
+For multi-account mode:
+- Run `ag-cc-proxy accounts add` for each Google account
+
+## Requirements
+
+- Python 3.10+
+- aiohttp >= 3.9.0
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Credits
+
+Based on [antigravity-claude-proxy](https://github.com/badrisnarayanan/antigravity-claude-proxy)
