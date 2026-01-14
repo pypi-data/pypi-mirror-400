@@ -1,0 +1,60 @@
+ci:
+  autoupdate_commit_msg: "chore: update pre-commit hooks"
+  autofix_commit_msg: "style: pre-commit fixes"
+  autoupdate_schedule: monthly
+
+repos:
+- repo: https://github.com/adamchainz/blacken-docs
+  rev: "1.20.0"
+  hooks:
+  - id: blacken-docs
+    additional_dependencies: [black==25.*]
+
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+  - id: check-added-large-files
+  - id: check-case-conflict
+  - id: check-merge-conflict
+  - id: check-symlinks
+  - id: check-yaml
+  - id: debug-statements
+  - id: end-of-file-fixer
+  - id: mixed-line-ending
+  - id: requirements-txt-fixer
+  - id: trailing-whitespace
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.14.10
+  hooks:
+  - id: ruff-check
+    args: ["--fix", "--show-fixes"]
+  - id: ruff-format
+
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.19.1
+  hooks:
+  - id: mypy
+    files: ^src
+    args: []
+    additional_dependencies: ["numpy~=2.3.0", "matplotlib>=3.8", "boost-histogram~=1.6.1", "uhi~=1.0", "pandas-stubs>=2.0.1.230501"]
+
+- repo: https://github.com/codespell-project/codespell
+  rev: v2.4.1
+  hooks:
+  - id: codespell
+    args: ["-Lhist,gaus,nd,ine", "-w"]
+    exclude: ^notebooks/HistLogo.ipynb$
+
+- repo: https://github.com/pre-commit/pygrep-hooks
+  rev: v1.10.0
+  hooks:
+  - id: python-use-type-annotations
+  - id: rst-backticks
+  - id: rst-directive-colons
+  - id: rst-inline-touching-normal
+
+- repo: https://github.com/shellcheck-py/shellcheck-py
+  rev: v0.11.0.1
+  hooks:
+  - id: shellcheck
