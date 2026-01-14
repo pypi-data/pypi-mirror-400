@@ -1,0 +1,220 @@
+# RPI-HID — Raspberry Pi USB HID Automation Library
+
+RPI-HID is a Python library that allows a **Raspberry Pi Zero / Zero 2 W** to act as a **USB Human Interface Device (HID)**, emulating a keyboard to automate keystrokes on a connected system.
+
+It provides a **high-level API** and an **advanced Rubber Ducky–style interpreter**, abstracting low-level HID report handling into clean, reusable Python functions.
+
+---
+
+## Features
+
+- USB HID **keyboard emulation** using Linux USB gadget mode
+- High-level keyboard control API
+- Advanced **Rubber Ducky–style script execution**
+- Configurable typing delays and pauses
+- Auto-run payload support using `systemd`
+- Clean, modular, and extensible architecture
+- Published and installable from **PyPI**
+
+---
+
+## Supported Hardware
+
+- Raspberry Pi Zero
+- Raspberry Pi Zero 2 W
+
+> ⚠️ Other Raspberry Pi models (3/4/5) do not support USB gadget mode.
+
+---
+
+## Requirements
+
+- Raspberry Pi OS (Lite recommended)
+- Python ≥ 3.7
+- USB OTG enabled (`dwc2`, `libcomposite`)
+- Root access (required for `/dev/hidg0`)
+
+---
+
+## Installation
+
+```bash
+pip install rpi-hid
+```
+
+---
+
+## Quick Start
+
+```python
+from rpi_hid import Keyboard
+
+kbd = Keyboard()
+kbd.winRun("notepad")
+kbd.type("Hello from RPI-HID")
+kbd.enter()
+kbd.close()
+```
+
+---
+
+## Keyboard API
+
+### `type(text: str)`
+
+Types the given string.
+
+```python
+kbd.type("Hello World")
+```
+
+---
+
+### `press(*keys)`
+
+Presses a key or key combination.
+
+```python
+kbd.press("ENTER")
+kbd.press("CTRL", "c")
+kbd.press("GUI", "r")
+```
+
+---
+
+### `pause(seconds: float)`
+
+Pauses execution.
+
+```python
+kbd.pause(1.5)
+```
+
+---
+
+### `winRun(command: str)`
+
+Opens the Windows Run dialog and executes a command.
+
+```python
+kbd.winRun("cmd")
+```
+
+---
+
+### `spamText(text: str, n: int = 10)`
+
+Types a string multiple times.
+
+```python
+kbd.spamText("TEST ", 5)
+```
+
+---
+
+## Rubber Ducky Script Support
+
+RPI-HID includes a **DuckyScript interpreter** with near Rubber Ducky v1 compatibility.
+
+### Supported Commands
+
+* `STRING`
+* `DELAY`
+* `DEFAULT_DELAY`
+* `STRING_DELAY`
+* `ENTER`, `TAB`, `SPACE`, `ESC`
+* Modifier combos (`CTRL`, `ALT`, `SHIFT`, `GUI`)
+* `REPEAT`
+* `HOLD`, `RELEASE`
+* `REM`
+
+### Example Ducky Script
+
+```text
+REM Demo payload
+DEFAULT_DELAY 200
+GUI r
+STRING notepad
+ENTER
+STRING Hello from DuckyScript
+ENTER
+```
+
+### Execute Script
+
+```python
+from rpi_hid import DuckyInterpreter
+
+duck = DuckyInterpreter()
+duck.run_file("payload.duck")
+duck.close()
+```
+
+---
+
+## AutoStart Support
+
+Payload scripts can be configured to **run automatically on boot** using `systemd`.
+
+### Enable AutoStart
+
+```bash
+sudo venv/bin/python test.py -a activate
+```
+
+### Disable AutoStart
+
+```bash
+sudo venv/bin/python test.py -a deactivate
+```
+
+### List Active AutoStart Scripts
+
+```bash
+sudo venv/bin/python test.py -a list
+```
+
+---
+
+## Permissions Note
+
+HID device access requires root privileges.
+When using a virtual environment, always run scripts using the venv Python binary:
+
+```bash
+sudo venv/bin/python script.py
+```
+
+---
+
+## Ethical Use
+
+This project is intended for:
+
+* USB HID experimentation
+* Automation on owned or authorized systems
+* Educational and research purposes
+
+Users are responsible for ensuring lawful and ethical use.
+
+---
+
+## License
+
+MIT License
+
+---
+
+## Author
+
+**Abhirup Rudra**
+
+---
+
+## Future Enhancements
+
+* Mouse HID support
+* Full Rubber Ducky v2 compatibility
+* Conditional scripting logic
+* GPIO-based payload selection
+* udev-based privilege handling (no sudo)
