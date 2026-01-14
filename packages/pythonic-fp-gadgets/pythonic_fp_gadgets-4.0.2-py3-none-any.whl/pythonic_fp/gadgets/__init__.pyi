@@ -1,0 +1,6 @@
+from collections.abc import Iterator
+
+__all__ = ['iterate_over_arguments', 'first_common_ancestor']
+
+def iterate_over_arguments[A](*args: A) -> Iterator[A]: ...
+def first_common_ancestor(cls1: type, cls2: type) -> type: ...
