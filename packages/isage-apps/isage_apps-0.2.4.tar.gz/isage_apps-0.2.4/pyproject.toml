@@ -1,0 +1,217 @@
+[build-system]
+requires = [
+    "setuptools>=64",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isage-apps"
+dynamic = [
+    "version",
+]
+description = "SAGE Applications - Real-world AI applications built on SAGE framework"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "IntelliStream Team", email = "shuhao_zhang@hust.edu.cn" },
+]
+keywords = [
+    "sage",
+    "applications",
+    "ai",
+    "video-intelligence",
+    "medical-diagnosis",
+    "computer-vision",
+    "healthcare",
+    "article-monitoring",
+    "auto-scaling",
+    "smart-home",
+    "work-report",
+    "intellistream",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Healthcare Industry",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Multimedia :: Video",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    # SAGE 核心依赖 - 所有应用共同需要的
+    "isage-common>=0.2.0",              # L1: 基础工具和配置
+    "isage-llm-core>=0.2.0",            # L1: LLM 控制平面
+    "isage-libs>=0.2.0",                # L3: RAG、智能体等
+    
+    # 外部依赖
+    "pyyaml>=6.0",
+    "pillow>=10.0.0",
+    "numpy>=1.26.0,<2.3.0",
+]
+
+license = "MIT"
+
+[project.optional-dependencies]
+# 视频应用依赖
+video = [
+    "opencv-python-headless>=4.5.0",    # 视频处理（无GUI依赖）
+    "torch>=2.7.0,<3.0.0",              # PyTorch
+    "torchvision>=0.22.0,<1.0.0",       # 视觉模型
+    "transformers>=4.52.0,<4.54.0",     # CLIP 和 transformers（兼容 vllm 0.9.2）
+]
+
+# 医疗诊断应用依赖
+medical = [
+    "scikit-learn>=1.3.0",              # 机器学习工具
+    "pydicom>=2.3.0",                   # DICOM 医学图像格式
+]
+
+# 文章监控应用依赖
+article-monitoring = [
+    "beautifulsoup4>=4.9.0",            # HTML 解析
+    "requests>=2.25.0",                 # HTTP 请求
+]
+
+# 自动扩展聊天应用依赖
+auto-scaling = [
+    "redis>=5.0.0,<6.0.0",              # Redis 缓存
+]
+
+# 智能家居应用依赖
+smart-home = [
+    "paho-mqtt>=1.6.0",                 # MQTT 协议
+]
+
+# 工作报告生成器应用依赖
+work-report = [
+    "jinja2>=3.0.0",                    # 模板引擎
+    "markdown>=3.3.0",                  # Markdown 处理
+]
+
+# 所有应用（不包含 SAGE 核心依赖）
+all-apps = [
+    "isage-apps[video,medical,article-monitoring,auto-scaling,smart-home,work-report]",
+]
+
+# 完整安装（包含所有依赖）
+all = [
+    "isage-apps[all-apps]",
+]
+
+# 开发依赖
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff==0.14.6",                     # 固定版本与 SAGE 主仓库一致
+    "mypy>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/intellistream/SAGE"
+Documentation = "https://intellistream.github.io/SAGE"
+Repository = "https://github.com/intellistream/sage-examples"
+Issues = "https://github.com/intellistream/SAGE/issues"
+"Source Code" = "https://github.com/intellistream/sage-examples/tree/main/sage-apps"
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sage*"]
+namespaces = true
+
+[tool.setuptools.dynamic.version]
+attr = "sage.apps._version.__version__"
+
+[tool.setuptools.package-data]
+"sage.apps" = [
+    "py.typed",
+]
+"sage.apps.video" = [
+    "config/*.yaml",
+    "data/**/*",
+]
+"sage.apps.medical_diagnosis" = [
+    "config/*.yaml",
+    "data/**/*",
+]
+
+[tool.black]
+line-length = 100
+target-version = [
+    "py310",
+    "py311",
+]
+include = "\\.pyi?$"
+
+[tool.mypy]
+python_version = "3.10"
+cache_dir = "../../.sage/cache/mypy"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.ruff]
+extend = "../../tools/ruff.toml"
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+    "src",
+]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+]
+python_classes = [
+    "Test*",
+]
+python_functions = [
+    "test_*",
+]
+addopts = [
+    "--benchmark-storage=../../.sage/benchmarks",
+    "-o",
+    "cache_dir=../../.sage/cache/pytest",
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "-ra",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "video: marks tests as video intelligence tests",
+    "medical: marks tests as medical diagnosis tests",
+]
+
+[tool.coverage.run]
+source = [
+    "src/sage",
+]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/_test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
