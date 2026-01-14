@@ -1,0 +1,173 @@
+# Custom Structure Configuration Example
+#
+# This example demonstrates a customized structure validation setup for a project
+# with specific architectural requirements. This shows how to adapt the structure
+# validator to match your team's conventions and domain language.
+#
+# Scenario: A web application using a services-based architecture with separate
+# API and web components, plus a legacy module that doesn't follow the new structure.
+
+[tool.structure-lint]
+enabled = true
+
+[tool.structure-lint.validators]
+# Enable all validators including structure validation
+structure = true        # Enforce our custom structure
+line_limits = true      # Keep files modular
+one_per_file = true     # Single responsibility
+
+[tool.structure-lint.line_limits]
+# Slightly more lenient line limit for service classes
+max_lines = 200
+search_paths = ["lib"]  # Custom source directory name
+
+[tool.structure-lint.one_per_file]
+search_paths = ["lib"]
+
+[tool.structure-lint.structure]
+# Using "lib" instead of "src" to match Ruby/Rails convention
+src_root = "lib"
+
+# Using MVC-style organization plus additional layers
+# Base folders (api, web, services) are automatically detected under lib/
+# - models: Data models and schemas
+# - views: View logic and templates
+# - controllers: Request handlers
+# - services: Business logic layer
+# - repositories: Data access layer
+# - types: Type definitions
+# - utils: Helper functions
+# - tests: Unit and integration tests
+standard_folders = [
+    "models",
+    "views",
+    "controllers",
+    "services",
+    "repositories",
+    "types",
+    "utils",
+    "tests"
+]
+
+# Using "core" instead of "general" for main business logic
+general_folder = "core"
+
+# Legacy code doesn't follow the new structure yet
+# Also exempting experimental features during prototyping
+# These are top-level directories at project root
+free_form_roots = ["legacy", "experimental"]
+
+# Allow additional documentation files
+allowed_files = ["README.md", ".gitkeep", "ARCHITECTURE.md"]
+
+# ============================================================================
+# Resulting Project Structure:
+# ============================================================================
+#
+# project/
+# ├── pyproject.toml
+# ├── lib/                        (src_root)
+# │   ├── api/                    (base folder - API backend)
+# │   │   ├── authentication/     (feature)
+# │   │   │   ├── models/         (User model, Token model, etc.)
+# │   │   │   ├── controllers/    (Login handler, Logout handler)
+# │   │   │   ├── services/       (Authentication service)
+# │   │   │   ├── repositories/   (User repository)
+# │   │   │   ├── types/          (API schemas)
+# │   │   │   ├── utils/          (Password hashing, JWT utils)
+# │   │   │   ├── tests/
+# │   │   │   └── core/           (Main authentication logic)
+# │   │   │       └── authenticate.py
+# │   │   └── users/              (feature)
+# │   │       ├── models/
+# │   │       ├── controllers/
+# │   │       └── ...
+# │   │
+# │   ├── web/                    (base folder - web frontend)
+# │   │   ├── dashboard/
+# │   │   │   ├── views/          (Dashboard templates)
+# │   │   │   ├── controllers/    (Dashboard controller)
+# │   │   │   └── core/
+# │   │   └── profile/
+# │   │       └── ...
+# │   │
+# │   └── services/               (base folder - shared services)
+# │       ├── email/
+# │       │   ├── services/
+# │       │   ├── types/
+# │       │   └── tests/
+# │       └── notifications/
+# │           └── ...
+# │
+# ├── legacy/                     (free-form root - completely skipped)
+# │   └── old_code/
+# │       └── anything_goes.py
+# │
+# └── experimental/               (free-form root - completely skipped)
+#     └── new_feature_poc/
+#
+# ============================================================================
+# Why This Structure?
+# ============================================================================
+#
+# 1. **Domain Language**: Uses "lib" to match team conventions
+#
+# 2. **Component Separation**: Clear boundaries between api, web, and services
+#
+# 3. **Layered Architecture**:
+#    - models: Data layer
+#    - repositories: Data access
+#    - services: Business logic
+#    - controllers: Request handling
+#    - views: Presentation
+#
+# 4. **Migration Path**: Legacy code exempt via free_form_roots at project root
+#
+# 5. **Innovation Space**: Experimental folder for prototyping without constraints
+#
+# ============================================================================
+# Migration Strategy:
+# ============================================================================
+#
+# Phase 1 (Current):
+#   - New code follows structure in lib/api/, lib/web/, lib/services/
+#   - Legacy code in legacy/ at project root (free-form, no validation)
+#
+# Phase 2 (Next Quarter):
+#   - Refactor legacy code incrementally
+#   - Move refactored code to appropriate base folders in lib/
+#
+# Phase 3 (Future):
+#   - Remove "legacy" from free_form_roots
+#   - All code follows structure
+#
+# ============================================================================
+# Team Guidelines:
+# ============================================================================
+#
+# 1. New Features:
+#    - Choose appropriate base folder (lib/api/, lib/web/, lib/services/)
+#    - Create feature directory
+#    - Add standard folders as needed
+#    - Main logic goes in core/
+#
+# 2. File Naming:
+#    - models/user.py (not models/user_model.py)
+#    - controllers/login.py (not controllers/login_controller.py)
+#    - File name = what it contains (one-per-file validator)
+#
+# 3. When to Use Each Layer:
+#    - models/: Data structures and validation
+#    - repositories/: Database queries
+#    - services/: Business logic, orchestration
+#    - controllers/: HTTP request handling
+#    - views/: Templates and rendering
+#    - types/: Type hints, protocols
+#    - utils/: Pure functions, helpers
+#    - core/: Main feature logic
+#
+# 4. Legacy Code:
+#    - Don't add to legacy/
+#    - Only modify existing legacy code
+#    - Refactor when touching legacy code
+#
