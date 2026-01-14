@@ -1,0 +1,25 @@
+ruff:
+  image: registry.stsci.edu/hwoe/amyers-scratchpad/pydrm:ci-image
+  script:
+    - ruff check hwo_disra --output-format=gitlab > ruff-report.json || (cat ruff-report.json && exit 1)
+  artifacts:
+    reports:
+      codequality: ruff-report.json
+    expire_in: 1 month
+  allow_failure: false
+
+test:
+  image: registry.stsci.edu/hwoe/amyers-scratchpad/pydrm:ci-image
+  script:
+    - pytest --cov --cov-report term --cov-report xml:coverage.xml --junitxml=report.xml
+  artifacts:
+    paths:
+      - tests/outputs
+      - coverage.xml
+      - "**/log.txt"
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 1 month
