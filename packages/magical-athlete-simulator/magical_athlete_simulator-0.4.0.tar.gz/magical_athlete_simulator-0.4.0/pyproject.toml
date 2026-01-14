@@ -1,0 +1,79 @@
+[project]
+name = "magical-athlete-simulator"
+version = "0.4.0"
+description = "A simulator for Magical Athlete"
+authors = [{ name = "Philipp Schoneville", email = "philipp@schoneville.com" }]
+license = "MIT"
+readme = "README.md"
+requires-python = "==3.12.7"
+dependencies = ["rich>=13.7.1"]
+
+[project.urls]
+Repository = "https://github.com/pschonev/magical-athlete-simulator"
+Changelog = "https://github.com/pschonev/magical-athlete-simulator/CHANGELOG.md"
+
+[project.optional-dependencies]
+cli = [
+    "cappa>=0.31.0",
+    "duckdb-engine>=0.17.0",
+    "msgspec>=0.20.0",
+    "sqlmodel>=0.0.31",
+    "tqdm>=4.67.1",
+    "pyarrow>=22.0.0",
+]
+
+frontend = [
+    "marimo==0.18.4",
+    "altair==6.0.0",
+    "polars==1.36.1",
+    "sqlmodel==0.0.31",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.0.2", "basedpyright==1.23.0", "marimo[lsp]", "ruff>=0.14.10"]
+
+[project.scripts]
+magical-sim = "magical_athlete_simulator.cli:main"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D",
+    "ANN",
+    "PLR",
+    "E501",
+    "G004",
+    "TRY003",
+    "EM101",
+    "S311",
+    "C901",
+    "RET505",
+]
+
+# Ruff
+[tool.ruff]
+exclude = ["tests"]
+target-version = "py312"
+
+# Pyright
+[tool.basedpyright]
+include = ["src", "tests"]
+executionEnvironments = [{ root = "src" }, { root = "tests" }]
+
+pythonVersion = "3.12"
+
+reportImportCycles = "none"
+reportAny = "none"
+reportExplicitAny = "none"
+reportUnusedCallResult = "none"
+reportMissingTypeStubs = "none"
+reportUnusedParameter = "none"
+
+# Pytest
+[tool.pytest.ini_options]
+pythonpath = ["tests"]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["uv_build>=0.9.10,<0.10.0"]
+build-backend = "uv_build"
