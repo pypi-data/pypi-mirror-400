@@ -1,0 +1,47 @@
+spec:
+  container:
+  - name: server
+    image: /sas_test_spcs_db/sas_test_spcs_schema/sas_test_spcs_repository/my_job_server_image:latest
+    env:
+        SNOWFLAKE_WAREHOUSE: sas_test_spcs_warehouse
+    volumeMounts:
+      - name: temp-stage
+        mountPath: /app/temp-stage
+      - name: heartbeat
+        mountPath: /var/heartbeat
+    resources:
+        requests:
+          memory: 1G
+          cpu: 0.5
+        limits:
+          memory: 4G
+  - name: client
+    image: /sas_test_spcs_db/sas_test_spcs_schema/sas_test_spcs_repository/my_job_client_image:latest
+    env:
+        SNOWFLAKE_WAREHOUSE: sas_test_spcs_warehouse
+        SERVICE_NAME: test_service
+    volumeMounts:
+      - name: temp-stage
+        mountPath: /app/temp-stage
+      - name: heartbeat
+        mountPath: /var/heartbeat
+    resources:
+        requests:
+          memory: 4G
+          cpu: 0.5
+    args:
+      - "test_spark_submit_cmd"
+      - "client_src_zip_file_path"
+  logExporters:
+    eventTableConfig:
+      logLevel: INFO
+  volumes:
+  - name: temp-stage
+    source: temp_stage_name
+  - name: heartbeat
+    source: local
+  platformMonitor:
+    metricConfig:
+      groups:
+      - system
+      - system_limits
