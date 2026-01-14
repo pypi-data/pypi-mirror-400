@@ -1,0 +1,304 @@
+Metadata-Version: 2.4
+Name: python-encrypt-code
+Version: 0.1.1
+Summary: Python-based command line tool to encrypt and decrypt Python modules.
+Project-URL: source, https://gitea.gt-proj.com/brian/python-encrypt-code
+Author-email: Brian Bjarke Jensen <schnitzelen@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.12
+Requires-Dist: cryptography>=46.0.3
+Description-Content-Type: text/markdown
+
+# Python Encrypt Code
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> _A tool that integrates seamlessly with modern CI and Dockerized edge deployments._
+
+A powerful Python CLI tool for encrypting and decrypting Python modules, enabling secure distribution and execution of Python code. Perfect for protecting intellectual property, distributing commercial Python applications, or creating secure deployment packages.
+
+> ⚠️ **SECURITY DISCLAIMER**: This tool is currently in development and **not ready for production use**. In its current version, the tool writes decrypted files to temporary directories on disk during execution, which poses a security risk as sensitive code may remain accessible in the filesystem. This security vulnerability will be addressed in a future version by implementing in-memory execution. Use at your own risk for development and testing purposes only.
+
+## Features
+
+- 🔐 **Strong Encryption**: AES-256 encryption using the `cryptography` library
+- 📦 **Module Packaging**: Compress and encrypt entire Python packages into a single encrypted file
+- 🚀 **Direct Execution**: Run encrypted Python modules without extracting to disk (coming in a later version)
+- 🔑 **Secure Password Generation**: Built-in cryptographically secure password generator
+- 🛠️ **Developer Friendly**: Full type annotations and comprehensive test coverage
+- 📁 **Preserve Structure**: Maintains package hierarchy and imports when decrypting
+
+## Installation
+
+### Using uv (recommended)
+
+```bash
+git clone https://gitea.gt-proj.com/brian/python-encrypt-code.git
+cd python-encrypt-code
+uv install
+```
+
+### Using pip
+
+```bash
+git clone https://gitea.gt-proj.com/brian/python-encrypt-code.git
+cd python-encrypt-code
+pip install -e .
+```
+
+## Quick Start
+
+### 1. Generate a Secure Password
+
+```bash
+uv run python-encrypt-code generate-password
+# Output: Wlg2aFQ2dWhkX0U0TkxOcXBHY09acTR1ZVo5UlNPcWxSamVxOTI5a08tdz0=
+```
+
+### 2. Encrypt a Python Module
+
+```bash
+export MODULE_PATH=./src/my_package
+export ENCRYPTED_FILE=my_package.pec
+export PASSWORD=your-secure-password
+
+uv run python-encrypt-code encrypt ${MODULE_PATH} -o ${ENCRYPTED_FILE} -p ${PASSWORD}
+```
+
+### 3. Decrypt an Encrypted File
+
+```bash
+uv run python-encrypt-code decrypt ${ENCRYPTED_FILE} -o ./decrypted -p ${PASSWORD}
+```
+
+### 4. Run Encrypted Module Directly
+
+```bash
+uv run python-encrypt-code run-insecure ${ENCRYPTED_FILE} --script main.py
+```
+
+## Commands
+
+### `generate-password`
+
+Generate a cryptographically secure password for encryption.
+
+```bash
+uv run python-encrypt-code generate-password
+```
+
+### `encrypt`
+
+Encrypt a Python module or package directory.
+
+```bash
+uv run python-encrypt-code encrypt <source> -o <output> -p <password> [-aad <json-string>]
+```
+
+**Options:**
+
+- `source_path`: Directory containing Python files to encrypt
+- `-o, --output`: Output path for encrypted file
+- `-p, --password`: Password for encryption
+- `-aad, --additional-authenticated-data`: JSON-formatted string to embed metadata in the encrypted file
+
+### `decrypt`
+
+Decrypt a file and extract contents to disk.
+
+```bash
+uv run python-encrypt-code decrypt <source> -o <output>
+```
+
+**Options:**
+
+- `source`: Path to encrypted file
+- `-o, --output`: Directory to extract decrypted files
+
+### `run-insecure`
+
+Decrypt and execute a Python script from an encrypted package.
+**N.B. this writes decrypted files to a temporary folder on the disk before executing!**
+
+```bash
+uv run python-encrypt-code run-insecure <source> --script <script>
+```
+
+**Options:**
+
+- `source`: Path to encrypted file
+- `-s, --script`: Python script to execute
+
+## Use Cases
+
+### 1. Protecting Commercial Python Applications
+
+```bash
+# Encrypt your entire application
+export PASSWORD=$(uv run python-encrypt-code generate-password)
+uv run python-encrypt-code encrypt ./my_app -o my_app.pec -p ${PASSWORD}
+
+# Setup your own authentication source and subclass the PasswordProvider
+# Distribute the .pec file to customers and
+# let them run it without seeing the source code
+uv run python-encrypt-code run-insecure ./my_app.pec -p ${PASSWORD} --script main.py
+```
+
+### 2. Secure Deployment Packages
+
+```bash
+# Create encrypted deployment package
+uv run python-encrypt-code encrypt ./production_code -o deployment.pec -p $DEPLOY_PASSWORD
+
+# Deploy and run on target server
+uv run python-encrypt-code run-insecure deployment.pec --script startup.py
+```
+
+### 3. Educational Content Protection
+
+```bash
+# Protect course materials or assignments
+uv run python-encrypt-code encrypt ./course_solutions -o solutions.pec -p student_password
+```
+
+## Development
+
+### Prerequisites
+
+- Python 3.12+
+- [uv](https://github.com/astral-sh/uv) (recommended) or pip
+
+### Setup Development Environment
+
+```bash
+git clone https://github.com/yourusername/python-encrypt-code.git
+cd python-encrypt-code
+
+# Install with development dependencies
+uv install --dev
+
+# Install pre-commit hooks
+uv run pre-commit install
+```
+
+### Project Structure
+
+```bash
+python-encrypt-code/
+├── src/python_encrypt_code/          # Main package
+│   ├── __main__.py                   # CLI entry point
+│   ├── data_zipper/                  # Compression utilities
+│   ├── file_encrypter/               # Encryption/decryption
+│   ├── password_provider/            # Password generation
+│   └── module_importer/              # Dynamic module loading
+├── tests/
+│   ├── unit/                         # Unit tests
+│   ├── integration/                  # Integration tests
+│   └── test_data/                    # Test fixtures
+├── pyproject.toml                    # Project configuration
+└── README.md
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov-report=term-missing --cov=src/python_encrypt_code
+
+# Run specific test categories
+uv run pytest tests/unit/           # Unit tests only
+uv run pytest tests/integration/    # Integration tests only
+```
+
+### Code Quality
+
+```bash
+# Type checking
+uv run mypy .
+
+# Linting and formatting
+uv run ruff check .
+uv run ruff format .
+uv run prettier --write .
+
+# Run pre-commit checks
+uv run pre-commit run --all-files
+```
+
+## Technical Details
+
+### Encryption Method
+
+- **Algorithm**: AES-256-GCM (Galois/Counter Mode)
+- **Key Format**: Direct 32-byte key from base64-encoded password
+- **Authentication**: Built-in authentication tag prevents tampering
+- **Nonce**: Random 12-byte nonce for each encryption operation
+
+### File Format
+
+Encrypted `.pec` files contain:
+
+1. Nonce (12 bytes)
+2. Encrypted ZIP archive with authentication tag (variable length)
+
+### Module Loading
+
+The `ModuleImporter` class provides sophisticated module loading capabilities:
+
+- Preserves package structure and relative imports
+- Handles `__init__.py` files correctly
+- Supports running specific scripts from encrypted packages
+- Temporary filesystem isolation for security
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass (`uv run pytest`)
+6. Run code quality checks (`uv run pre-commit run --all-files`)
+7. Commit your changes (`git commit -m 'Add amazing feature'`)
+8. Push to the branch (`git push origin feature/amazing-feature`)
+9. Open a Pull Request
+
+## Security Considerations
+
+- **Password Storage**: Never store passwords in plain text. Use environment variables or secure key management systems.
+- **Direct Key Usage**: Uses base64-encoded 32-byte keys directly with AES-256-GCM (no key derivation).
+- **Memory Safety**: Temporary decrypted files are automatically cleaned up.
+- **Verification**: Authentication tags prevent tampering with encrypted files.
+- **Custom Password Providers**: For production deployments, you should implement your own `PasswordProvider` class adapted to your specific security architecture (e.g., integration with HSMs, key vaults, or enterprise secret management systems). Custom implementations can collect available metadata such as user context, machine identifiers, environment variables, or request timestamps and send this information along with password requests to your secret management system for enhanced security and audit logging. The default implementation is suitable for development and testing only.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Changelog
+
+### v0.1.0
+
+- Initial release
+- Basic encrypt/decrypt functionality
+- CLI interface with all core commands
+- Comprehensive test suite
+- Type annotations and documentation
+
+## Support
+
+- 🐛 **Bug Reports**: [Open an issue](https://gitea.gt-proj.com/brian/python-encrypt-code/issues)
+- 💡 **Feature Requests**: [Open an issue](https://gitea.gt-proj.com/brian/python-encrypt-code/issues)
+- 📖 **Documentation**: See inline documentation and type hints
+- 🤝 **Contributing**: See [Contributing](#contributing) section above
+
+## Coming Soon
+
+- Implement key derivation: improve user friendliness as well as brute-force protection
+- Support pure in-memory execution: improves security
