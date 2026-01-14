@@ -1,0 +1,437 @@
+from pathlib import Path
+
+from typing import List
+
+import pytest
+
+import polars as pl
+import pandas as pd
+import numpy as np
+
+from os.path import join
+
+from datetime import datetime
+
+from unravel.american_football import (
+    AmericanFootballGraphSettings,
+    BigDataBowlDataset,
+    AmericanFootballGraphConverter,
+    AmericanFootballPitchDimensions,
+)
+from unravel.american_football.dataset import Constant
+from unravel.utils import (
+    flatten_to_reshaped_array,
+    make_sparse,
+    GraphDataset,
+)
+
+from kloppy.domain import Unit
+
+pl.Config(tbl_rows=300, tbl_cols=20)
+
+
+class TestAmericanFootballDataset:
+
+    @pytest.fixture
+    def coordinates(self, base_dir: Path) -> str:
+        return base_dir / "files" / "bdb_coords-1.csv"
+
+    @pytest.fixture
+    def players(self, base_dir: Path) -> str:
+        return base_dir / "files" / "bdb_players-1.csv"
+
+    @pytest.fixture
+    def plays(self, base_dir: Path) -> str:
+        return base_dir / "files" / "bdb_plays-1.csv"
+
+    @pytest.fixture
+    def default_dataset(self, coordinates: str, players: str, plays: str):
+        bdb_dataset = BigDataBowlDataset(
+            tracking_file_path=coordinates,
+            players_file_path=players,
+            plays_file_path=plays,
+            max_player_speed=8.0,
+            max_ball_speed=28.0,
+            max_player_acceleration=10.0,
+            max_ball_acceleration=10.0,
+        )
+        bdb_dataset.add_graph_ids(by=["game_id", "play_id"])
+        bdb_dataset.add_dummy_labels(by=["game_id", "play_id", "frame_id"])
+
+        return bdb_dataset
+
+    @pytest.fixture
+    def non_default_dataset(self, coordinates: str, players: str, plays: str):
+        bdb_dataset = BigDataBowlDataset(
+            tracking_file_path=coordinates,
+            players_file_path=players,
+            plays_file_path=plays,
+            max_player_speed=12.0,
+            max_ball_speed=24.0,
+            max_player_acceleration=11.0,
+            max_ball_acceleration=12.0,
+        )
+        bdb_dataset.add_graph_ids(by=["game_id", "play_id"])
+        bdb_dataset.add_dummy_labels(by=["game_id", "play_id", "frame_id"])
+        return bdb_dataset
+
+    @pytest.fixture
+    def raw_dataset(self, coordinates: str):
+        return pd.read_csv(coordinates, parse_dates=["time"])
+
+    @pytest.fixture
+    def edge_feature_values(self):
+        item_idx = 56
+
+        assert_values = {
+            "acc_diff": 0.01313932645066367,
+            "dir_cos": -0.0,
+            "dir_sin": -0.035,
+            "dist": 0.36378814141831695,
+            "o_cos": 0.018911307988097092,
+            "o_sin": 0.3153698930324255,
+            "pos_cos": 0.03533697844444089,
+            "pos_sin": 0.9964516879114877,
+            "speed_diff": 0.4405380662117784,
+        }
+        return item_idx, assert_values
+
+    @pytest.fixture
+    def adj_matrix_values(self):
+        return np.asarray(
+            [
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0],
+                [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+            ]
+        )
+
+    @pytest.fixture
+    def node_feature_values(self):
+        item_idx = 14
+
+        assert_values = {
+            "a_normed": 0.6679999999999999,
+            "dir_cos_normed": 0.6906191369606004,
+            "dir_sin_normed": 0.0006550334862428781,
+            "height_normed": 0.003179802408809971,
+            "is_ball": 0.0025,
+            "is_possession_team": 0.0012270197205202379,
+            "is_qb": 0.005956459242025524,
+            "normed_dist_to_ball": 0.001,
+            "normed_dist_to_end_zone": 0.9897173160115632,
+            "normed_dist_to_goal": 0.6008808723120034,
+            "o_cos_normed": 0.394422899008786,
+            "o_sin_normed": 0.9887263812669529,
+            "s_normed": 0.31312769316888,
+            "uv_aa[0]": 0.05817057703598108,
+            "uv_aa[1]": 0.2486666666666667,
+            "uv_sa[0]": 0.0,
+            "uv_sa[1]": 0.0,
+            "weight_normed": 0.0,
+            "x_normed": 0.21428571428571427,
+            "y_normed": 0.5333333333333333,
+        }
+
+        return item_idx, assert_values
+
+    @pytest.fixture
+    def arguments(self):
+        return dict(
+            self_loop_ball=True,
+            adjacency_matrix_connect_type="ball",
+            adjacency_matrix_type="split_by_team",
+            label_type="binary",
+            defending_team_node_value=0.0,
+            attacking_non_qb_node_value=0.1,
+            random_seed=42,
+            pad=False,
+            verbose=False,
+        )
+
+    @pytest.fixture
+    def non_default_arguments(self):
+        return dict(
+            self_loop_ball=False,
+            adjacency_matrix_connect_type="ball",
+            adjacency_matrix_type="dense_ap",
+            label_type="binary",
+            defending_team_node_value=0.3,
+            attacking_non_qb_node_value=0.2,
+            random_seed=42,
+            pad=False,
+            sample_rate=(1 / 2),
+        )
+
+    @pytest.fixture
+    def gnnc(self, default_dataset, arguments):
+        return AmericanFootballGraphConverter(
+            dataset=default_dataset, **arguments | {"random_seed": False}
+        )
+
+    @pytest.fixture
+    def gnnc_non_default(self, non_default_dataset, non_default_arguments):
+        return AmericanFootballGraphConverter(
+            dataset=non_default_dataset, **non_default_arguments
+        )
+
+    def test_settings(self, gnnc_non_default, non_default_arguments):
+        settings = gnnc_non_default.settings
+        assert isinstance(settings, AmericanFootballGraphSettings)
+
+        spektral_graphs = gnnc_non_default.to_graph_frames()
+
+        assert 1 == 1
+
+        data = spektral_graphs
+        assert len(data) == 130
+        assert isinstance(data[0], dict)
+
+        assert settings.pitch_dimensions.pitch_length == 120.0
+        assert settings.pitch_dimensions.pitch_width == 53.3
+        assert settings.pitch_dimensions.standardized == False
+        assert settings.pitch_dimensions.unit == Unit.YARDS
+        assert settings.pitch_dimensions.x_dim.max == 60.0
+        assert settings.pitch_dimensions.x_dim.min == -60.0
+        assert settings.pitch_dimensions.y_dim.max == 26.65
+        assert settings.pitch_dimensions.y_dim.min == -26.65
+        assert settings.pitch_dimensions.end_zone == 50.0
+
+        assert Constant.BALL == "football"
+        assert Constant.QB == "QB"
+        assert settings.max_height == 225.0
+        assert settings.min_height == 150.0
+        assert settings.max_weight == 200.0
+        assert settings.min_weight == 60.0
+
+        assert settings.self_loop_ball == non_default_arguments["self_loop_ball"]
+        assert (
+            settings.adjacency_matrix_connect_type
+            == non_default_arguments["adjacency_matrix_connect_type"]
+        )
+        assert (
+            settings.adjacency_matrix_type
+            == non_default_arguments["adjacency_matrix_type"]
+        )
+        assert settings.label_type == non_default_arguments["label_type"]
+        assert (
+            settings.defending_team_node_value
+            == non_default_arguments["defending_team_node_value"]
+        )
+        assert (
+            settings.attacking_non_qb_node_value
+            == non_default_arguments["attacking_non_qb_node_value"]
+        )
+
+    def test_raw_data(self, raw_dataset: pd.DataFrame):
+        row_10 = raw_dataset.loc[10]
+
+        assert row_10["gameId"] == 2021091300
+        assert row_10["playId"] == 4845
+        assert row_10["nflId"] == 33131
+        assert row_10["frameId"] == 11
+        assert row_10["time"] == datetime(2021, 9, 14, 3, 54, 18, 700000)
+        assert row_10["jerseyNumber"] == 93
+        assert row_10["team"] == "BAL"
+        assert row_10["playDirection"] == "left"
+        assert row_10["x"] == pytest.approx(40.23, rel=1e-9)
+        assert row_10["y"] == pytest.approx(21.73, rel=1e-9)
+        assert row_10["s"] == pytest.approx(1.5, rel=1e-9)
+        assert row_10["a"] == pytest.approx(2.13, rel=1e-9)
+        assert row_10["dis"] == pytest.approx(0.19, rel=1e-9)
+        assert row_10["o"] == pytest.approx(100.77, rel=1e-9)
+        assert row_10["dir"] == pytest.approx(55.29, rel=1e-9)
+
+    def test_dataset_loader(self, default_dataset: tuple):
+        assert isinstance(default_dataset, BigDataBowlDataset)
+        assert isinstance(default_dataset.data, pl.DataFrame)
+        assert isinstance(
+            default_dataset.settings.pitch_dimensions, AmericanFootballPitchDimensions
+        )
+
+        settings = default_dataset.settings
+
+        assert settings.pitch_dimensions.pitch_length == 120.0
+        assert settings.pitch_dimensions.pitch_width == 53.3
+        assert settings.pitch_dimensions.x_dim.max == 60.0
+        assert settings.pitch_dimensions.y_dim.max == 26.65
+        assert settings.pitch_dimensions.standardized == False
+        assert settings.pitch_dimensions.unit == Unit.YARDS
+
+        data = default_dataset.data
+
+        assert len(data) == 6049
+
+        row_10 = data.row(10, named=True)
+
+        assert row_10["game_id"] == 2021091300
+        assert row_10["play_id"] == 4845
+        assert row_10["id"] == 44999.0
+        assert row_10["frame_id"] == 484500001
+        assert row_10["time"] == datetime(2021, 9, 14, 3, 54, 17, 700000)
+        assert row_10["jerseyNumber"] == 36.0
+        assert row_10["team_id"] == "BAL"
+        assert row_10["playDirection"] == "left"
+        assert row_10["x"] == pytest.approx(20.369999999999997, rel=1e-9)
+        assert row_10["y"] == pytest.approx(-2.5400000000000027, rel=1e-9)
+        assert row_10["v"] == pytest.approx(0.03, rel=1e-9)
+        assert row_10["a"] == pytest.approx(0.03, rel=1e-9)
+        assert row_10["dis"] == pytest.approx(0.02, rel=1e-9)
+        assert row_10["o"] == pytest.approx(-1.6957619012376899, rel=1e-9)
+        assert row_10["dir"] == pytest.approx(-1.9114845967841898, rel=1e-9)
+        assert row_10["event"] == None
+        assert row_10["position_name"] == "SS"
+        assert row_10["ball_owning_team_id"] == "LV"
+        assert row_10["graph_id"] == "2021091300-4845"
+        assert "label" in data.columns
+
+    def test_conversion(
+        self,
+        gnnc: AmericanFootballGraphConverter,
+        node_feature_values: tuple,
+        edge_feature_values: tuple,
+        adj_matrix_values: tuple,
+    ):
+        item_idx_x, node_feature_assert_values = node_feature_values
+        item_idx_e, edge_feature_assert_values = edge_feature_values
+
+        assert gnnc.dataset.filter(pl.col("frame_id") == 484500005)["id"].to_list() == [
+            41265.0,
+            42547.0,
+            43362.0,
+            44849.0,
+            44972.0,
+            46084.0,
+            47920.0,
+            47932.0,
+            48235.0,
+            52517.0,
+            53446.0,
+            33131.0,
+            37240.0,
+            40042.0,
+            44828.0,
+            44999.0,
+            46187.0,
+            46259.0,
+            48565.0,
+            52436.0,
+            52506.0,
+            53460.0,
+            -9999.9,
+        ]
+
+        results_df = gnnc._convert()
+
+        assert len(results_df) == 263
+
+        row_4 = results_df.filter(pl.col("frame_id") == 484500005).row(0, named=True)
+
+        x = row_4["x"]
+        x0, x1 = row_4["x_shape_0"], row_4["x_shape_1"]
+        a = row_4["a"]
+        a0, a1 = row_4["a_shape_0"], row_4["a_shape_1"]
+        e = row_4["e"]
+        e0, e1 = row_4["e_shape_0"], row_4["e_shape_1"]
+        frame_id = row_4["frame_id"]
+
+        assert frame_id == 484500005
+        assert e0 == 287
+        assert e1 == len(edge_feature_assert_values.keys())
+        assert x0 == 23
+        assert x1 == len(node_feature_assert_values.keys())
+        assert a0 == 23
+        assert a1 == 23
+
+        x = flatten_to_reshaped_array(x, x0, x1)
+        a = flatten_to_reshaped_array(a, a0, a1)
+        e = flatten_to_reshaped_array(e, e0, e1)
+
+        assert x.shape == tuple((x0, x1))
+        assert a.shape == tuple((a0, a1))
+        assert e.shape == tuple((e0, e1))
+
+        assert np.min(a) == 0
+        assert np.max(1) == 1
+
+        for idx, node_feature in enumerate(node_feature_assert_values.keys()):
+            assert x[item_idx_x][idx] == pytest.approx(
+                node_feature_assert_values.get(node_feature), abs=1e-5
+            )
+
+        for idx, edge_feature in enumerate(edge_feature_assert_values.keys()):
+            assert e[item_idx_e][idx] == pytest.approx(
+                edge_feature_assert_values.get(edge_feature), abs=1e-5
+            )
+        np.testing.assert_array_equal(np.sum(a), np.sum(adj_matrix_values))
+
+    def test_to_graph_frames_1(
+        self, gnnc: AmericanFootballGraphConverter, node_feature_values
+    ):
+        graph_frames = gnnc.to_graph_frames()
+
+        data = graph_frames
+        assert len(data) == 263
+        assert isinstance(data[44], dict)
+        # note: these shape tests fail if we add more features (ie. metabolicpower)
+
+        item_idx_x, node_feature_assert_values = node_feature_values
+
+        x = data[233]["x"]
+        assert x.shape == (23, len(node_feature_assert_values.keys()))
+
+    def test_to_pyg_graph(
+        self,
+        gnnc: AmericanFootballGraphConverter,
+        node_feature_values: tuple,
+        edge_feature_values: tuple,
+        adj_matrix_values: tuple,
+    ):
+        """
+        Test navigating (next/prev) through events
+        """
+
+        item_idx_x, node_feature_assert_values = node_feature_values
+        item_idx_e, edge_feature_assert_values = edge_feature_values
+
+        pyg_graphs = gnnc.to_pytorch_graphs()
+
+        dataset = GraphDataset(graphs=pyg_graphs)
+        N, F, S, n_out, n = dataset.dimensions()
+        assert N == 23
+        assert F == len(node_feature_assert_values.keys())
+        assert S == 9
+        assert n_out == 1
+        assert n == 263
+
+    def test_to_pickle(self, gnnc: AmericanFootballGraphConverter):
+        """
+        Test navigating (next/prev) through events
+        """
+        pickle_folder = join("tests", "files", "bdb")
+
+        gnnc.to_pickle(file_path=join(pickle_folder, "test_bdb.pickle.gz"))
+
+        data = GraphDataset(pickle_folder=pickle_folder, format="pyg")
+
+        assert data.n_graphs == 263
