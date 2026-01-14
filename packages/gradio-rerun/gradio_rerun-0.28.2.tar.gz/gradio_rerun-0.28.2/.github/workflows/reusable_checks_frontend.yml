@@ -1,0 +1,51 @@
+name: "Frontend Checks: Lints & Format"
+
+on:
+  workflow_call:
+    inputs:
+      CONCURRENCY:
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ inputs.CONCURRENCY }}-checks_frontend
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+permissions:
+  contents: "read"
+  id-token: "write"
+
+jobs:
+  frontend-lints:
+    name: Lints (eslint, prettier, …)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || '' }}
+
+      - name: Setup Node.js & pnpm
+        uses: ./.github/actions/setup-nodejs-pnpm
+
+      - name: Lint frontend
+        working-directory: "./frontend"
+        run: pnpm lint
+
+  frontend-fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || '' }}
+
+      - name: Setup Node.js & pnpm
+        uses: ./.github/actions/setup-nodejs-pnpm
+
+      - name: Format frontend
+        working-directory: "./frontend"
+        run: pnpm format-check

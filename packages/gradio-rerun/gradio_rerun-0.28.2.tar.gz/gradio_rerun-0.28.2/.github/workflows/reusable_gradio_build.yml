@@ -1,0 +1,50 @@
+name: "Build Gradio component"
+
+on:
+  workflow_call:
+    inputs:
+      CONCURRENCY:
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ inputs.CONCURRENCY }}-gradio_build
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+permissions:
+  contents: "read"
+  id-token: "write"
+
+jobs:
+  gradio-build:
+    name: Build component
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || '' }}
+
+      - name: Setup Python & uv
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Node.js & pnpm
+        uses: ./.github/actions/setup-nodejs-pnpm
+
+      - name: Build gradio component
+        run: uv run gradio cc build
+
+      - name: Fail if generated files changed
+        run: |
+          # Show what changed (if anything) for easier debugging
+          git status --porcelain
+          # Fail if there are any modified, deleted, or untracked files
+          if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+              # Print a short diff for context
+              git --no-pager diff | sed -n '1,200p'
+              echo "::error::Generated files are out of date. Run 'uv run gradio cc build' locally and commit the results."
+              exit 1
+          fi

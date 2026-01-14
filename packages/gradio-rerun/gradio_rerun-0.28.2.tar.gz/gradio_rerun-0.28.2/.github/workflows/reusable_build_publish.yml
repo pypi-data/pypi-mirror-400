@@ -1,0 +1,55 @@
+name: Build & Publish
+on:
+    workflow_call:
+        inputs:
+            VERSION:
+                required: true
+                type: string
+            PEP440_VERSION:
+                required: true
+                type: string
+            VERSION_BUMP_COMMIT_SHA:
+                required: true
+                type: string
+
+defaults:
+    run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+
+permissions:
+    contents: "read"
+    id-token: "write"
+
+jobs:
+    build-and-publish:
+        name: Build & Publish
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.VERSION_BUMP_COMMIT_SHA }}
+
+            - name: Setup Python & uv
+              uses: ./.github/actions/setup-python-uv
+
+            - name: Setup Node.js & pnpm
+              uses: ./.github/actions/setup-nodejs-pnpm
+
+            - name: Build gradio component
+              run: uv run gradio cc build
+
+            - name: Upload gradio component artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: gradio_rerun-${{ inputs.PEP440_VERSION }}-py3-none-any.whl
+                  path: dist/gradio_rerun-${{ inputs.PEP440_VERSION }}-py3-none-any.whl
+                  if-no-files-found: error
+
+            - name: Publish Python package
+              run: |
+                  uv run gradio cc publish \
+                    --no-upload-source \
+                    --no-upload-demo \
+                    --upload-pypi \
+                    --pypi-username __token__ \
+                    --pypi-password ${{ secrets.PYPI_API_TOKEN }}
