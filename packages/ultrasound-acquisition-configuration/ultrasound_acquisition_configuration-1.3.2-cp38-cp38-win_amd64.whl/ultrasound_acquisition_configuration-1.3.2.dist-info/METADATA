@@ -1,0 +1,194 @@
+Metadata-Version: 2.1
+Name: ultrasound-acquisition-configuration
+Version: 1.3.2
+Summary: Ultrasound Acquisition Configuration file format C++ implementation and wrapping in Python and Matlab
+License: MIT License
+Project-URL: Homepage, https://moduleus.com
+Project-URL: Documentation, https://github.com/moduleus/uac/wiki
+Project-URL: Repository, https://github.com/moduleus/uac.git
+Project-URL: Issues, https://github.com/moduleus/uac/issues
+Project-URL: Changelog, https://github.com/moduleus/uac/wiki/changelog
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Healthcare Industry
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft
+Classifier: Operating System :: Unix
+Classifier: Programming Language :: C++
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Programming Language :: Python
+Classifier: Topic :: File Formats
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: License.txt
+Requires-Dist: cmake-build-extension==0.6.1
+Requires-Dist: parameterized==0.9.0
+Requires-Dist: cmake==3.31.1
+Requires-Dist: gitdb==4.0.11
+Requires-Dist: GitPython==3.1.43
+Requires-Dist: ninja==1.11.1.2
+Requires-Dist: packaging
+Requires-Dist: setuptools-scm==8.1.0
+Requires-Dist: smmap==5.0.1
+Requires-Dist: numpy==2.1.3; python_version == "3.10"
+Requires-Dist: numpy==1.24.4; python_version == "3.8"
+Requires-Dist: setuptools==75.3.0; python_version == "3.8"
+Requires-Dist: numpy==1.26.4; python_version == "3.9"
+Requires-Dist: numpy==2.3.4; python_version >= "3.11"
+Requires-Dist: setuptools==75.6.0; python_version >= "3.9"
+
+# UAC
+
+## Description
+
+The Ultrasound Acquisition Configuration file format is a structure of data to configure ultrasound acquisition.
+
+You may use it with various languages (C++, Python and MATLAB).
+
+[Get more informations in the Wiki](./wiki) about class diagram.
+
+## Requirements
+
+To use Uac library, you need to install Urx library.
+
+## Table of Contents
+
+  * Common installation and usage in [C++](#use-it-with-c), [MATLAB](#use-it-with-matlab), [Python](#use-it-with-python).
+  * Build it yourself for C++, MATLAB, Python with [CMake](doc/cpp.md#build).
+
+## Use it with C++
+
+There is no installer for C++ user. You need to [build](doc/cpp.md#build) it yourself. If you don't need to read / write file, uac library is header-only.
+
+See [advanced uses](doc/cpp.md) for more information.
+
+### Configuration
+
+First, you need to get Uac package with `find_package`. If package is not found, set `Uac_DIR=INSTALL_PATH/lib/cmake/Uac-XXXYYY`.
+
+```cmake
+find_package(Uac REQUIRED)
+```
+
+You don't need to `find_package(Urx REQUIRED)`. The Uac library will do it.
+
+You will have access to targets:
+
+  - `Uac::Uac`: header-only library of the uac struct.
+  - `Uac::UacUtils`: library with helper to manipulate uac struct, including read / write in hdf5 file format.
+
+### CMake examples
+
+```cmake
+find_package(HDF5 REQUIRED NAMES hdf5 COMPONENTS CXX hdf5::hdf5-static)
+find_package(Uac REQUIRED)
+add_executable(UacTestIo ${SRCS_FILES})
+target_link_libraries(
+  UacTestIo PRIVATE Uac::Uac Uac::UacUtils hdf5::hdf5-static hdf5::hdf5_cpp-static)
+```
+
+`Uac::UacUtils` is only needed if you use helpers. If you only need the uac file format, only `Uac::Uac` is needed.
+
+`hdf5::hdf5-static hdf5::hdf5_cpp-static` is only needed if the library has been built with HDF5 support. In this case, hdf5 has been built in static mode.
+
+You may found a complete example of `CMakeLists.txt` in `test/uac` or in `test/io` folders.
+
+### C++ examples
+
+All dynamic memory allocation should be stored in a `shared_ptr`.
+
+```cpp
+#include <memory>
+
+#include <uac/dataset.h>
+#include <uac/probe.h>
+#include <uac/utils/io/reader.h>
+#include <uac/utils/io/writer.h>
+
+auto dataset = std::make_shared<uac::Dataset>();
+
+auto probe = std::make_shared<uac::Probe>();
+probe->description = "Probe 1";
+dataset->acquisition.probes.push_back(probe);
+
+uac::utils::io::writer::saveToFile("file.uac", *dataset);
+
+auto dataset_loaded = uac::utils::io::reader::loadFromFile("file.uac");
+```
+
+You may found an example for all C++ classes in file `uac/utils/test/dataset_gen.h` in function `generateFakeDataset` and much more in the official wiki.
+
+## Use it with MATLAB
+
+See [advanced uses](doc/matlab.md) for more information.
+
+### MATLAB installer
+
+Uac MATLAB homepage is hosted in [MATLAB File Exchange](https://fr.mathworks.com/matlabcentral/fileexchange/176403-ultrasound-acquisition-configuration). To download the toolbox, select `Download` > `Toolbox`. It compatibles for both Windows and Linux.
+
+You also need to install Urx toolbox from [MATLAB File Exchange](https://fr.mathworks.com/matlabcentral/fileexchange/176398-ultrasound-raw-data-exchange).
+
+### Requirements
+
+MATLAB needs a C compiler to load the C library in Urx toolbox (i.e. Visual Studio or MinGW). To use MinGW, see [doc/matlab.md#install-mingw-c-compiler] paragraph.
+
+### Configuration
+
+If you are using Uac from MATLAB toolbox, you just have to enable Unicode if you need it (`feature('DefaultCharacterSet','UTF-8');`).
+
+### Examples
+
+```MATLAB
+dataset = uac.Dataset();
+
+probe1 = uac.Probe();
+probe1.description = 'Probe 1';
+excitation1 = urx.Excitation();
+dataset.acquisition.excitations = [excitation1];
+
+uac.saveToFile('test.uac', dataset);
+
+dataset2 = uac.loadFromFile('test.uac');
+```
+
+You may found a complete example in file `test/matlab/+uac/+UnitTests/CreateUff.m` and much more in the official wiki.
+
+### Important note
+
+Some field are optional or can be empty (see C++ UML diagram). If you want to unassign a value, don't use `[]` but use `empty` method of the class (i.e. `uac.ElementGeometry.empty`).
+
+## Use it with Python
+
+### Python wheel
+
+Uac Python is hosted in [Pypi](https://pypi.org/project/ultrasound-acquisition-configuration/).
+
+From your Python's virtual environment, run `pip install ultrasound_acquisition_configuration`.
+
+### Examples
+
+```python
+import ultrasound_acquisition_configuration as uac;
+
+dataset = uac.Dataset()
+
+probe1 = uac.Probe()
+probe1.description = 'Probe 1'
+excitation1 = urx.Excitation()
+dataset.acquisition.excitations = [excitation1]
+
+uac.saveToFile('test.uac', dataset)
+
+dataset2 = uac.loadFromFile('test.uac')
+```
+
+You may found a basic example in folder `test/python` and much more in the official wiki.
