@@ -1,0 +1,153 @@
+Metadata-Version: 2.4
+Name: phenopacket-store-toolkit
+Version: 0.1.6
+Summary: Collection of GA4GH Phenopackets
+Author-email: Daniel Danis <daniel.danis@bih-charite.de>, Peter Robinson <peter.robinson@bih-charite.de>
+License: BSD 3-Clause License
+        
+        Copyright (c) 2022, Monarch Initiative
+        
+        Redistribution and use in source and binary forms, with or without
+        modification, are permitted provided that the following conditions are met:
+        
+        1. Redistributions of source code must retain the above copyright notice, this
+           list of conditions and the following disclaimer.
+        
+        2. Redistributions in binary form must reproduce the above copyright notice,
+           this list of conditions and the following disclaimer in the documentation
+           and/or other materials provided with the distribution.
+        
+        3. Neither the name of the copyright holder nor the names of its
+           contributors may be used to endorse or promote products derived from
+           this software without specific prior written permission.
+        
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+        AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+        IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+        FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+        DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+        SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+        CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+        OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        
+Project-URL: homepage, https://github.com/monarch-initiative/phenopacket-store-toolkit
+Project-URL: repository, https://github.com/monarch-initiative/phenopacket-store-toolkit.git
+Project-URL: documentation, https://github.com/monarch-initiative/phenopacket-store-toolkit
+Project-URL: bugtracker, https://github.com/monarch-initiative/phenopacket-store-toolkit/issues
+Keywords: Global Alliance for Genomics and Health,GA4GH Phenopacket Schema,Human Phenotype Ontology,GA4GH,HPO
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: phenopackets>=2.0.2.post4
+Requires-Dist: certifi
+Provides-Extra: release
+Requires-Dist: mdutils>=1.6.0; extra == "release"
+Requires-Dist: stairval>=0.2.0; extra == "release"
+Requires-Dist: matplotlib<4.0.0,>=3.7.2; extra == "release"
+Requires-Dist: numpy<2.0.0,>=1.24.2; extra == "release"
+Requires-Dist: pandas<3.0.0,>=2.0.0; extra == "release"
+Requires-Dist: seaborn<1.0.0,>=0.12.2; extra == "release"
+Requires-Dist: phenosentry>=0.3.1; extra == "release"
+Provides-Extra: test
+Requires-Dist: pytest<8.0.0,>=7.0.0; extra == "test"
+Requires-Dist: tox<5.0.0,>=4.0.0; extra == "test"
+Requires-Dist: ruff>=0.12.0; extra == "test"
+Provides-Extra: docs
+Requires-Dist: sphinx>=7.0.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.3.0; extra == "docs"
+Requires-Dist: sphinx-copybutton>=0.5.0; extra == "docs"
+Dynamic: license-file
+
+# Phenopacket Store Toolkit
+
+
+Phenopacket Store Toolkit is a Python package and CLI 
+for managing [Phenopacket Store](https://github.com/monarch-initiative/phenopacket-store), 
+a collection of [GA4GH Phenopacket](https://phenopacket-schema.readthedocs.io/en/latest/) cohorts
+that represent individuals with Mendelian diseases.
+
+The toolkit aids the release and Q/C processes, 
+and simplifies access to the Phenopacket Store data from the downstream applications.
+
+
+## Availability
+
+Phenopacket Store Toolkit can be installed from Python Package Index (PyPi):
+
+```shell
+python3 -m pip install phenopacket-store-toolkit
+```
+
+## Examples
+
+### Access Phenopacket Store
+
+The toolkit simplifies download and loading the cohort data. The `PhenopacketStoreRegistry` API
+caches the release ZIP files locally (in `$HOME/.phenopacket-store` by default) 
+and simplifies the loading:
+
+```python
+from ppktstore.registry import configure_phenopacket_registry
+
+registry = configure_phenopacket_registry()
+
+with registry.open_phenopacket_store(release="0.1.18") as ps:
+   phenopackets = list(ps.iter_cohort_phenopackets("SUOX"))
+
+assert len(phenopackets) == 35
+```
+
+The code checks if the release ZIP of Phenopacket Store version `0.1.18` is already 
+available locally, and downloads the release ZIP file if necessary. 
+This is followed by opening the store as `ps` 
+and loading all phenopackets of the *SUOX* cohort.
+
+We use Python context manager to ensure proper closing of the ZIP file handle.
+`ps` *cannot* be used outside of the context manager block.
+
+As an alternative to using a specific Phenopacket Store release, 
+the *latest* release will be used if `release` argument is omitted.
+
+### Make Phenopacket Store release
+
+The release is handled by the Command Line Interface (CLI) of the toolkit.
+
+The release functionality requires additional dependencies, which are installed automatically
+by adding `release` profile:
+
+```shell
+python3 -m pip install phenopacket-store-toolkit[release]
+```
+
+Now, we can Q/C the phenopackets in the `notebooks` directory.
+The Q/C uses HPO hierarchy, hence HPO must be provided
+either as path to a `hp.json` file via `--hpo` option
+or as a release tag via `--hpo-release`:
+
+```shell
+python3 -m ppktstore qc --hpo-release v2024-04-26 --notebook-dir notebooks
+```
+
+and we can create the release archive by running:
+
+```shell
+python3 -m ppktstore package --notebook-dir notebooks --release-tag 0.1.18 --output all_phenopackets
+```
+
+This will find all phenopackets in the `notebooks` folder, copy them into a top-level directory called `0.1.18`, 
+and ZIP the directory into `all_phenopackets.zip`. 
+
+## Learn more
+
+Find more info in our detailed documentation:
+
+- [Stable documentation](https://monarch-initiative.github.io/phenopacket-store-toolkit/stable) (last release on `main` branch)
+- [Latest documentation](https://monarch-initiative.github.io/phenopacket-store-toolkit/latest) (bleeding edge, latest commit on `develop` branch)
