@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>RPI-HID DuckyScript</title>
+  <style>
+    body {
+      background: #111;
+      color: #eee;
+      font-family: monospace;
+    }
+
+    textarea {
+      width: 100%;
+      height: 300px;
+      background: #000;
+      color: #0f0;
+    }
+
+    button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>/ducky - DuckyScript Runner</h2>
+
+  <textarea id="code" rows="20" style="width:100%;">
+DELAY 1000
+GUI r
+DELAY 300
+STRING notepad
+ENTER
+DELAY 500
+STRING Hello from Ducky Web UI
+ENTER
+</textarea><br>
+
+  <button type="button" onclick="runDucky()">▶ Run</button>
+  <button type="button" onclick="stopCode()">⛔ Stop</button>
+
+  <script>
+    async function runDucky() {
+      const code = document.getElementById("code").value;
+
+      await fetch("/ducky/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code })
+      });
+    }
+
+    async function stopCode() {
+      await fetch("/stop", { method: "POST" });
+    }
+  </script>
+
+</body>
+
+</html>
