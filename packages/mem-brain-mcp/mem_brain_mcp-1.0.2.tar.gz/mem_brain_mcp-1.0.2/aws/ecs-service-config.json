@@ -1,0 +1,47 @@
+{
+  "serviceName": "membrain-mcp",
+  "cluster": "membrain-cluster",
+  "taskDefinition": "membrain-mcp",
+  "desiredCount": 2,
+  "launchType": "FARGATE",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "subnet-0e765a92326c76f6a",
+        "subnet-038ac4e52f3351e46"
+      ],
+      "securityGroups": [
+        "sg-xxxxxxxxxxxxxxxxx"
+      ],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:REGION:ACCOUNT_ID:targetgroup/membrain-mcp-tg/xxxxxxxxxxxxxxxx",
+      "containerName": "membrain-mcp",
+      "containerPort": 8100
+    }
+  ],
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100,
+    "deploymentCircuitBreaker": {
+      "enable": true,
+      "rollback": true
+    }
+  },
+  "enableExecuteCommand": true,
+  "healthCheckGracePeriodSeconds": 60,
+  "tags": [
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Application",
+      "value": "membrain-mcp"
+    }
+  ]
+}
+
