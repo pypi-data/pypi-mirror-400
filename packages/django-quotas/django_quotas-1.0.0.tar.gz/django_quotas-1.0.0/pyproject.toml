@@ -1,0 +1,162 @@
+[project]
+name = "django-quotas"
+version = "1.0.0"
+license = { text = "MIT" }
+description = ""
+authors = [{ name = "Dmitry Berezovsky", email = "django-quotas-dev@googlegroups.com" }]
+autmaintainershors = [{ name = "Dmitry Berezovsky", email = "django-quotas-dev@googlegroups.com" }]
+keywords = ["django", "plans", "accounts", "quota"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+readme = "README.md"
+requires-python = '>=3.11,<4.0'
+dependencies = [
+    'django(>=5.0.0)',
+]
+
+[project.urls]
+repository = "https://github.com/corvis/django-quotas"
+
+[tool.poetry]
+packages = [{ include = "django_quotas", from = "src" }]
+exclude = ["src/django_quotas/**/test_*", "src/django_quotas/**/tests"]
+requires-poetry = '>=2.0,<3.0'
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+# Unit tests
+coverage = { version = "=6.5", extras = ["toml"] }
+pytest = "~=7.2"
+pytest-subtests = "~=0.4"
+pytest-cov = "~=4.0"
+pytest-html = "~=4.1.1"
+teamcity-messages = ">=1.31"
+
+# Dev tools
+ruff = ">=0.13.0"
+licenseheaders = ">=0.8"
+mypy = ">=1.18.1"
+pre-commit = "~=3.8"
+commitizen = ">=4.9,<5.0"
+
+# Type checking
+django-stubs = { version = ">=5.1.2", extras = ["compatible-mypy"] }
+
+
+[tool.commitizen]
+version_provider = "pep621"
+bump_version = "bump: version $current_version → $new_version"
+update_changelog_on_bump = true
+pre_bump_hooks = []
+version_files = [
+    "src/django_quotas/__version__.py",
+]
+
+# Tests and Coverage
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "--maxfail=50"
+python_files = ["test_*.py"]
+required_plugins = ["pytest-subtests", "pytest-cov"]
+testpaths = ["src"]
+
+[tool.coverage.run]
+branch = false
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "coverage_report/htmlcov"
+
+[tool.mypy]
+python_version = "3.11"
+show_error_codes = true
+ignore_errors = false
+warn_return_any = false
+disallow_any_generics = false
+warn_unused_ignores = true
+pretty = true
+strict = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs:src"
+exclude = ["test_.*\\.py$", "test\\.py$"]
+plugins = ["mypy_django_plugin.main"]
+
+[[tool.mypy.overrides]]
+# External libs which doesn't have type hints (py.typed marker)
+module = ["django.*", "celery.*", "environ.*", "ipware.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[tool.django-stubs]
+django_settings_module = "example_project.settings"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [".*pyi"]
+
+[tool.ruff.lint.isort]
+known-third-party = []
+force-sort-within-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**.pyi" = ["UP"]
+"test_*.py" = ["D103", "D104", "D100", "D101", "D102", "D106"]
+"__version__.py" = ["D104", "D100", "D101", "D102"]
+"**/settings/*.py" = ["F405"]
+
+[tool.ruff.lint]
+extend-ignore = [
+    "S101", # Use of assert statement. We have a lot of asserts for mypy type checking.
+    "S324", # We cannot ignore sha1 hash in codebase because it is used by box.com
+
+    "D202",
+    # W504 line break after binary operator
+    ##### DOCSTRINGS #####
+    # Missing docstring in public module
+    "D100",
+    # Missing docstring in __init__
+    "D107",
+    # Missing docstring in magic method
+    "D105",
+    # Missing docstring in public package
+    "D104",
+    # Missing docstring in public nested class
+    "D106",
+    # One black line required before class docstring
+    "D203",
+    #`no-blank-line-before-class
+    "D211",
+    # Multi-line docstring summary should start at the second line
+    "D212",
+    # Multi-line docstring summary should start at the first line
+    "D213",
+    # Raw string in exception
+    "EM101",
+    # f-string in exception
+    "EM102",
+]
+extend-select = ["S", "E", "B", "A", "EM", "UP"]
+
+[tool.ruff.lint.flake8-type-checking]
+# Add quotes around type annotations, if doing so would allow
+# an import to be moved into a type-checking block.
+quote-annotations = true
