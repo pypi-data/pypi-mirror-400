@@ -1,0 +1,89 @@
+[build-system]
+build-backend = "uv_build"
+
+requires = [ "uv-build>=0.8,<0.9" ]
+
+[project]
+name = "lazyscribe-yaml"
+version = "0.1.3"
+
+description = "YAML-based artifact handler for Lazyscribe"
+readme = { file = "README.md", content-type = "text/markdown" }
+license = { text = "MIT license" }
+authors = [
+  { name = "Akshay Gupta", email = "akgcodes@gmail.com" },
+]
+requires-python = ">=3.10.0"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = ["attrs<=25.4.0,>=21.2", "lazyscribe<=2.0.0,>=2.0.0a0", "pyyaml<=6.0.3,>=5.4"]
+
+optional-dependencies.build = ["commitizen", "uv"]
+optional-dependencies.dev = ["lazyscribe-yaml[build]", "lazyscribe-yaml[qa]", "lazyscribe-yaml[tests]"]
+optional-dependencies.qa = ["edgetest", "mypy", "pre-commit", "pyproject-fmt", "ruff", "types-python-slugify", "types-pyyaml", "uv"]
+optional-dependencies.tests = ["pytest", "pytest-cov", "time-machine"]
+urls."Documentation" = "https://github.com/lazyscribe/lazyscribe-yaml"
+urls."Repository" = "https://github.com/lazyscribe/lazyscribe-yaml"
+entry-points."lazyscribe.artifact_type".yaml = "lazyscribe_yaml:YAMLArtifact"
+
+[tool.ruff]
+target-version = "py310"
+
+lint.select = [
+  "B",      # flake8-bugbear
+  "C",      # flake8-comprehensions
+  "D",      # pydocstyle
+  "E",      # pycodestyle errors
+  "F",      # pyflakes
+  "I",      # isort
+  "LOG",    # flake8-logging
+  "RUF",    # Ruff errors
+  "SIM",    # flake8-simplify
+  "T20",    # flake8-print
+  "TID252", # flake8-tidy-imports ban relative imports
+  "UP",     # pyupgrade
+  "W",      # pycodestyle warnings
+]
+lint.ignore = [
+  "C901", # Function/method is too complex. (Add back in later.)
+  "E501", # Line too long. Using formatter instead.
+]
+lint.per-file-ignores."**/{tests,docs}/*" = [ "ARG", "D", "E402", "F841" ]
+lint.per-file-ignores."__init__.py" = [ "E402" ]
+lint.per-file-ignores."tutorials/*" = [ "D", "T201" ]
+lint.flake8-tidy-imports.ban-relative-imports = "all"
+lint.pydocstyle.convention = "numpy"
+lint.preview = true
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+allow_redefinition = true
+check_untyped_defs = true
+
+[tool.uv.build-backend]
+module-name = "lazyscribe_yaml"
+module-root = ""
+
+[tool.commitizen]
+version_provider = "uv"
+tag_format = "v$version"
+update_changelog_on_bump = true
+version_files = [
+  "lazyscribe_yaml/_meta.py:__version__",
+]
+
+[edgetest.envs.core]
+extras = [ "tests" ]
+upgrade = [ "attrs", "lazyscribe", "pyyaml", "python-slugify" ]
+command = "pytest tests"
