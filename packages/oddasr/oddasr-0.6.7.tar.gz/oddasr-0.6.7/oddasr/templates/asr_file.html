@@ -1,0 +1,228 @@
+<!-- Font Awesome Icons -->
+<link rel="stylesheet" href="plugins/fontawesome-free/css/all.min.css">
+<!-- Theme style -->
+<link rel="stylesheet" href="dist/css/adminlte.min.css">
+<!-- link rel="stylesheet" href="plugins/summernote/summernote-bs4.min.css" -->
+
+<style>
+  .content {
+    overflow: hidden; /* 防止内容区域出现滚动条 */
+  }
+  .card-body {
+    overflow-y: auto; /* 仅在卡片内容超出时显示垂直滚动条 */
+  }
+</style>
+
+<body>
+
+  <!-- Content Header (Page header) -->
+  <section class="content-header">
+    <div class="container-fluid">
+      <div class="row mb-2">
+        <div class="col-sm-6">
+          <h1>文件识别 File ASR</h1>
+        </div>
+        <div class="col-sm-6">
+          <ol class="breadcrumb float-sm-right">
+            <li class="breadcrumb-item"><a href="asr_sentence.html">一句话识别</a></li>
+            <li class="breadcrumb-item"><a href="asr_live.html">实时识别</a></li>
+            <li class="breadcrumb-item active">文件识别</li>
+          </ol>
+        </div>
+      </div>
+    </div><!-- /.container-fluid -->
+  </section>
+  <!-- /.content-header -->
+
+
+  <section class="content"> 
+
+    <div class="row justify-content-center"> <!-- 添加row容器并使用justify-content-center类 -->
+
+      <div class="col-md-9">
+        <div class="card card-primary card-outline">
+
+          <div class="card-header text-left">
+          </div>
+          <!-- /.card-header -->
+
+          <div class="card-body">
+            <div class="form-group row"> 
+              <label>注意事项：</label>
+              <ul>
+                <li>支持单轨的 WAV 格式、MP3 格式的录音件识别</li>
+                <li>支持 8000Hz、16000Hz 的采样率</li>
+                <li>小于512MB</li>
+              </ul>
+            </div>
+
+            <div class="form-group row">
+              <input type="file" class="file-input" id="customFile" name="file" accept="audio/mpeg,audio/wav"
+                placeholder="选择文件">
+            </div>
+
+            <div class="form-group row" style="display: flex; justify-content: center; align-items: center;">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="enableSensword" name="enableSensword" checked>
+                <label class="form-check-label" for="enableSensword">启用热词</label>
+              </div>
+              <div class="form-check form-check-inline ml-4">
+                <input class="form-check-input" type="checkbox" id="enableHotword" name="enableHotword" checked>
+                <label class="form-check-label" for="enableHotword">启用敏感词</label>
+              </div>
+            </div>
+
+            <!-- Date and time range -->
+            <!--
+                  <div class="form-group row">
+                    <label for="reservationtime" class="col-sm-2 col-form-label">预约开始时间：</label>
+                    <div class="col-sm-10">
+                          <div class="input-group-prepend" for="reservationtime">
+                            <span class="input-group-text"><i class="far fa-clock"></i></span>
+                          </div>
+                          <input type="text" class="form-control" id="reservationtime">
+                          <input type="checkbox" id="chkStartNow">立即开始</input>
+                    </div>
+                  </div>
+                  -->
+            <!-- /.form group -->
+            <!-- /.card -->
+          </div>
+          <!-- /.card-body -->
+
+          <div class="card-footer text-right">
+            <button type="submit" class="btn btn-primary" id="btn_upload" onclick="create_task();">
+                <i class="far fa-envelope"></i> 提交任务
+            </button>
+          </div>
+        </div>
+        <!-- /.col-md-9 -->
+
+      </div>
+      <!-- /.row -->
+
+    </div>
+    <!-- /.card -->
+
+  </section>
+  <!-- /.content -->
+
+  <div class="modal" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <img src="images/progress.gif" />
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+</body>
+
+<script src="common/crypto-js.js"></script>
+
+<!-- jQuery -->
+<script src="plugins/jquery/jquery.min.js"></script>
+<!-- Bootstrap 4 -->
+<script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<!-- AdminLTE App -->
+<script src="dist/js/adminlte.min.js"></script>
+
+
+<script>
+  function hideModalDlg() {
+    $("#myModal").modal('hide');
+  }
+
+  function modalDlg(show) {
+    if (show == true) {
+      console.log("show modal dialog");
+      $("#myModal").modal({ backdrop: 'false', keyboard: false });
+    } else {
+      hideModalDlg();
+      //setTimeout(hideModalDlg , 3000);
+      console.log("hide modal dialog");
+    }
+  }
+
+  function update_transmit(flag) {
+      $.ajaxSetup({ "xhrFields": true });
+      $.ajax({
+        url: "/update_transmit",
+        data: JSON.stringify({ "flag": flag }),
+        contentType: "application/json",
+        type: "Post",
+        traditional: true
+      })
+  }
+
+  // 正式环境,应该从服务器获取token.
+  function getToken(app_id, app_secret) {
+    const version = '1';
+    const user_id = '';
+    const expire = 7200;
+
+    let salt = Math.floor(Math.random() * 100000000);
+    let expire_ts = new Date().getTime() + expire;
+
+    const signature = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(app_id + user_id + salt + expire_ts, app_secret));
+
+    return version + ":" + app_id + ":" + salt + ":" + expire_ts + ":" + signature
+  }
+
+  function create_task() {
+    var dom =$('#customFile')[0];
+    var size = dom.files[0] && dom.files[0].size;
+    var maxSize = 512 * 1024 * 1024;//512MB
+    console.log(size, size > maxSize)
+    if (size && size > maxSize) {
+        // 文字提示
+        alert('文件大小超过512M，请重新导入')
+        return;
+    }
+
+    var formData = new FormData();
+    formData.append("file", $('#customFile')[0].files[0])
+    formData.append("priority", "0")
+
+    // 检测是否启用敏感词
+    if ($('input[name="enableSensword"]:checked').val() == 'on') {
+      console.log("启用敏感词")
+      formData.append("hot_uid", "test123")
+    }
+
+    // 检测是否启用热词
+    if ($('input[name="enableHotword"]:checked').val() == 'on') {
+      console.log("启用热词")
+      formData.append("sensitive_uid", "test123")
+    }
+
+    modalDlg(true)
+    update_transmit(1)
+    $("#btn_upload").attr('disabled', true)
+    $.ajax({
+      type: 'POST',
+      url: '/v1/asr/task/create',
+      data: formData,
+      cache: false,
+      processData: false,
+      contentType: false,
+      async: true,
+      success: function (data) {
+        if (data['error_code'] == 0) {
+          alert('创建任务成功')
+          var obj = document.getElementById('customFile');
+          obj.outerHTML = obj.outerHTML;
+          console.log(data)
+        } else {
+          alert(data['error_desc'])
+          update_transmit(0)
+        }
+        modalDlg(false)
+      }, error: function () {
+        alert('创建任务失败')
+        modalDlg(false)
+        update_transmit(0)
+      }
+    })
+    $("#btn_upload").attr('disabled', false)
+}
+</script>
