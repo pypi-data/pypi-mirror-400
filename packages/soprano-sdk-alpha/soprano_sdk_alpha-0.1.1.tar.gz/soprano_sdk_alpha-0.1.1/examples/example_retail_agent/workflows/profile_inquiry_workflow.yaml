@@ -1,0 +1,95 @@
+name: "Profile Details Inquiry"
+description: "AI-powered workflow for looking up customer profile information"
+version: "1.0"
+
+data:
+  - name: customer_identifier
+    type: text
+    description: "Customer identifier (email, phone, or customer ID)"
+  - name: profile
+    type: dict
+    description: "Customer profile details from lookup"
+
+steps:
+  # Step 1: Collect Customer Identifier
+  - id: collect_identifier
+    action: collect_input_with_agent
+    field: customer_identifier
+    retry_limit: 3
+    agent:
+      name: "IdentifierCollector"
+      model: "gpt-4o-mini"
+      description: "Collects customer identifier for profile lookup"
+      initial_message: "Hello! I can help you look up your profile. Could you please provide your email address, phone number, or customer ID?"
+      instructions: |
+        Your ONLY job is to capture the customer's identifier. Do NOT ask about anything else.
+
+        Valid identifiers include:
+        - Email address (e.g., john@example.com)
+        - Phone number (e.g., +1-555-1234, 555-1234)
+        - Customer ID (e.g., CUST-123456)
+
+        If the user provides a valid identifier:
+        - Respond with ONLY: 'IDENTIFIER_CAPTURED: [identifier]'
+
+        If the user provides invalid input:
+        - Ask again politely
+        - Only use 'IDENTIFIER_FAILED:' after multiple failed attempts
+
+        Examples:
+        - User says 'john@example.com' -> respond: 'IDENTIFIER_CAPTURED: john@example.com'
+        - User says '555-1234' -> respond: 'IDENTIFIER_CAPTURED: 555-1234'
+        - User says 'CUST-123456' -> respond: 'IDENTIFIER_CAPTURED: CUST-123456'
+        - User says '' (empty) -> "I need your email, phone number, or customer ID to look up your profile."
+    transitions:
+      - pattern: "IDENTIFIER_CAPTURED:"
+        next: lookup_profile
+      - pattern: "IDENTIFIER_FAILED:"
+        next: failed
+
+  # Step 2: Look up Profile
+  - id: lookup_profile
+    action: call_function
+    function: "functions.profile_functions.lookup_profile"
+    output: profile
+    transitions:
+      - condition: true
+        ref: found
+        next: success
+      - condition: false
+        ref: found
+        next: not_found
+
+outcomes:
+  - id: success
+    type: success
+    message: |
+      Here are your profile details:
+
+      Customer ID: {{ profile.customer_id }}
+      Name: {{ profile.name }}
+      Email: {{ profile.email }}
+      Phone: {{ profile.phone }}
+
+      Address:
+      {{ profile.address }}
+      {{ profile.city }}, {{ profile.state }} {{ profile.zip_code }}
+
+      Loyalty Program:
+      Tier: {{ profile.loyalty_tier }}
+      Points: {{ profile.loyalty_points }}
+      Member since: {{ profile.member_since }}
+
+      Is there anything you'd like to update or any other questions?
+
+  - id: not_found
+    type: failure
+    message: |
+      I'm sorry, I couldn't find a profile matching "{{ customer_identifier }}".
+
+      Please double-check the email, phone number, or customer ID and try again.
+      If you're a new customer, you may need to create an account first.
+
+  - id: failed
+    type: failure
+    message: "Sorry, I couldn't complete the profile lookup. Please contact customer service for assistance."
