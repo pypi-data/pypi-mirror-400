@@ -1,0 +1,242 @@
+"""
+Complete usage examples for chatpack-py
+"""
+
+import chatpack
+import pandas as pd
+from pathlib import Path
+
+
+def example_1_simple_telegram():
+    """Example 1: Simple Telegram parsing"""
+    print("=== Example 1: Simple Telegram Parsing ===")
+    
+    # Parse Telegram export with message merging
+    messages = chatpack.parse_telegram(
+        "result.json",
+        merge=True,
+        min_length=5
+    )
+    
+    # Print first 5 messages
+    for msg in messages[:5]:
+        print(f"{msg.sender}: {msg.content[:50]}...")
+
+
+def example_2_whatsapp_filtering():
+    """Example 2: WhatsApp with date filtering"""
+    print("\n=== Example 2: WhatsApp with Date Filtering ===")
+    
+    messages = chatpack.parse_whatsapp(
+        "chat.txt",
+        merge=True,
+        date_from="2024-01-01",
+        date_to="2024-12-31"
+    )
+    
+    print(f"Found {len(messages)} messages in 2024")
+
+
+def example_3_instagram_pandas():
+    """Example 3: Instagram to Pandas DataFrame"""
+    print("\n=== Example 3: Instagram to Pandas ===")
+    
+    # Parse Instagram messages
+    messages = chatpack.parse_instagram("messages.json", merge=True)
+    
+    # Convert to DataFrame
+    df = pd.DataFrame([m.to_dict() for m in messages])
+    
+    # Analysis
+    print("Top 5 senders:")
+    print(df['sender'].value_counts().head())
+    
+    print("\nAverage message length:")
+    df['length'] = df['content'].str.len()
+    print(df.groupby('sender')['length'].mean())
+
+
+def example_4_discord_streaming():
+    """Example 4: Stream large Discord file"""
+    print("\n=== Example 4: Streaming Large Discord File ===")
+    
+    # For very large files, use streaming to avoid loading all into memory
+    parser = chatpack.TelegramStreamParser("huge_export.json")
+    
+    count = 0
+    long_messages = 0
+    
+    for msg in parser:
+        count += 1
+        if len(msg.content) > 100:
+            long_messages += 1
+        
+        # Process message without storing all in memory
+        if count % 10000 == 0:
+            print(f"Processed {count} messages...")
+    
+    print(f"Total: {count} messages, {long_messages} long messages")
+
+
+def example_5_advanced_filtering():
+    """Example 5: Advanced filtering with FilterConfig"""
+    print("\n=== Example 5: Advanced Filtering ===")
+    
+    # Parse all messages first
+    messages = chatpack.parse_telegram("result.json")
+    
+    # Create custom filter
+    config = chatpack.FilterConfig(
+        min_length=20,
+        max_length=500,
+        sender="Alice",
+        date_from="2024-06-01",
+        date_to="2024-12-31"
+    )
+    
+    # Apply filters
+    filtered = chatpack.apply_filters(messages, config)
+    
+    print(f"Original: {len(messages)} messages")
+    print(f"Filtered: {len(filtered)} messages from Alice (20-500 chars, Jun-Dec 2024)")
+
+
+def example_6_merge_consecutive():
+    """Example 6: Merge consecutive messages"""
+    print("\n=== Example 6: Merging Consecutive Messages ===")
+    
+    messages = chatpack.parse_whatsapp("chat.txt")
+    
+    print(f"Before merge: {len(messages)} messages")
+    
+    # Merge messages from same sender within 5 minutes (300 seconds)
+    merged = chatpack.merge_consecutive(messages, time_threshold=300)
+    
+    print(f"After merge: {len(merged)} messages")
+    print(f"Reduction: {(1 - len(merged)/len(messages)) * 100:.1f}%")
+
+
+def example_7_multi_platform():
+    """Example 7: Process multiple platforms"""
+    print("\n=== Example 7: Multi-Platform Processing ===")
+    
+    all_messages = []
+    
+    # Parse from multiple platforms
+    platforms = [
+        ("telegram", "telegram_export.json", chatpack.parse_telegram),
+        ("whatsapp", "whatsapp_chat.txt", chatpack.parse_whatsapp),
+        ("instagram", "instagram_messages.json", chatpack.parse_instagram),
+        ("discord", "discord_export.json", chatpack.parse_discord),
+    ]
+    
+    for platform_name, filepath, parser_func in platforms:
+        if Path(filepath).exists():
+            messages = parser_func(filepath, merge=True)
+            # Set platform on each message
+            for msg in messages:
+                msg.platform = platform_name
+            all_messages.extend(messages)
+            print(f"{platform_name}: {len(messages)} messages")
+    
+    print(f"\nTotal messages from all platforms: {len(all_messages)}")
+    
+    # Convert to DataFrame for analysis
+    df = pd.DataFrame([m.to_dict() for m in all_messages])
+    print("\nMessages by platform:")
+    print(df['platform'].value_counts())
+
+
+def example_8_export_formats():
+    """Example 8: Export to different formats"""
+    print("\n=== Example 8: Export to Different Formats ===")
+    
+    messages = chatpack.parse_telegram("result.json", merge=True)
+    
+    # Convert to DataFrame
+    df = pd.DataFrame([m.to_dict() for m in messages])
+    
+    # Export as CSV
+    df.to_csv("messages.csv", index=False)
+    print("Exported to messages.csv")
+    
+    # Export as JSON
+    df.to_json("messages.json", orient='records', indent=2)
+    print("Exported to messages.json")
+    
+    # Export as JSONL (one message per line - good for LLM training)
+    df.to_json("messages.jsonl", orient='records', lines=True)
+    print("Exported to messages.jsonl")
+    
+    # Export as Parquet (efficient binary format)
+    df.to_parquet("messages.parquet")
+    print("Exported to messages.parquet")
+
+
+def example_9_oop_style():
+    """Example 9: Object-oriented parser usage"""
+    print("\n=== Example 9: OOP Style ===")
+    
+    # Create parser instance
+    parser = chatpack.TelegramParser()
+    
+    # Parse multiple files with same parser
+    files = ["export1.json", "export2.json", "export3.json"]
+    
+    all_messages = []
+    for filepath in files:
+        if Path(filepath).exists():
+            messages = parser.parse(filepath, merge=True, min_length=10)
+            all_messages.extend(messages)
+    
+    print(f"Parsed {len(all_messages)} messages from {len(files)} files")
+
+
+def example_10_llm_preparation():
+    """Example 10: Prepare data for LLM fine-tuning"""
+    print("\n=== Example 10: LLM Data Preparation ===")
+    
+    # Parse with merging for context
+    messages = chatpack.parse_telegram("result.json", merge=True)
+    
+    # Create conversation pairs for fine-tuning
+    conversations = []
+    for i in range(len(messages) - 1):
+        current = messages[i]
+        next_msg = messages[i + 1]
+        
+        # Only create pairs where different people are talking
+        if current.sender != next_msg.sender:
+            conversations.append({
+                "prompt": f"{current.sender}: {current.content}",
+                "response": f"{next_msg.sender}: {next_msg.content}",
+                "timestamp": current.timestamp
+            })
+    
+    # Save as JSONL for training
+    df = pd.DataFrame(conversations)
+    df.to_json("training_pairs.jsonl", orient='records', lines=True)
+    
+    print(f"Created {len(conversations)} conversation pairs for training")
+
+
+if __name__ == "__main__":
+    # Run all examples (comment out ones that need files)
+    
+    print("Chatpack-py Usage Examples")
+    print("=" * 50)
+    
+    # Uncomment examples you want to run:
+    # example_1_simple_telegram()
+    # example_2_whatsapp_filtering()
+    # example_3_instagram_pandas()
+    # example_4_discord_streaming()
+    # example_5_advanced_filtering()
+    # example_6_merge_consecutive()
+    # example_7_multi_platform()
+    # example_8_export_formats()
+    # example_9_oop_style()
+    # example_10_llm_preparation()
+    
+    print("\n" + "=" * 50)
+    print("To run examples, uncomment them in __main__ section")
