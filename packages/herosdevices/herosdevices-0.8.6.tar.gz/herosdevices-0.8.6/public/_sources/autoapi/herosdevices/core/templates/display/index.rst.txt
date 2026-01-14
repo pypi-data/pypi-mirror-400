@@ -1,0 +1,136 @@
+herosdevices.core.templates.display
+===================================
+
+.. py:module:: herosdevices.core.templates.display
+
+.. autoapi-nested-parse::
+
+   Templates for creating camera device representations.
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:class:: DisplayDeviceTemplate(config_dict: dict, default_config: str | None = None, keep_device_open: bool = True)
+
+   Bases: :py:obj:`herosdevices.interfaces.heros.ConfiguredDevice`
+
+
+   Template (base class) for displays.
+
+   To make a functional display device, the user needs to implement all abstract methods.
+   In addition, this class does not cover the mechanism the actually push the image to eventaual image
+   buffers or to actually display the imag since it is typically special to each vendor/API.
+
+
+   .. py:attribute:: keep_device_open
+      :value: True
+
+
+
+   .. py:attribute:: default_config
+      :type:  str
+
+
+   .. py:method:: get_device() -> collections.abc.Iterator[None]
+
+      Yield a device handle.
+
+      .. code-block:: python
+
+          # use the device in a with statement
+          with self.get_device() as slm:
+              slm.do_something()
+
+
+
+   .. py:method:: open() -> Any
+
+      Open the device handler and assign it to `self._device`.
+
+
+
+   .. py:method:: teardown() -> None
+
+      Release the device handler and potentially de-initialize the API.
+
+
+
+   .. py:method:: reset() -> None
+
+      Reset the device by closing and re-opening the handler.
+
+
+
+   .. py:method:: get_status() -> dict
+
+      Get a dict with the current device status.
+
+      :returns: A dict with the device status
+
+
+
+   .. py:property:: config_dict
+      :type: dict
+
+
+      Get a copy of the configuration dict.
+
+      :returns: Copy of the configuration dict
+
+
+   .. py:method:: update_configuration(new_config_dict: dict, merge: bool = True) -> None
+
+      Update the configuration dict with new configuration.
+
+      Each dict key corresponds a (new) configuration name.
+      Each value is a dict with config property -> config value.
+
+      :param new_config_dict: A dict of configurations where the keys are the configuration names
+      :param merge: If ``True``, the new dict is recursively merged with the current set config dict. If ``False`` the
+                    old configurations with the provided names (keys) are overwritten.
+
+
+
+   .. py:method:: get_configuration() -> dict
+
+      Get the currently active configuration.
+
+      :returns: The currently active configuration.
+
+
+
+   .. py:method:: configure(config: str = '') -> bool
+
+      Configure the device with the known configuration `config`.
+
+      To add a configuration to the device, use :meth:`update_configuration`.
+
+      :param config: Key (name) of the configuration
+
+
+
+   .. py:attribute:: set_configuration
+
+
+   .. py:method:: push_image(slot: int, image: numpy.typing.NDArray[numpy.uint16], display_now: bool = True) -> bool
+
+      Upload an image into a specified memory slot.
+
+      :param slot: Slot number
+      :param image: The image
+      :param display_now: Flag whether to display the image immediately
+
+
+
+   .. py:method:: display_slot(slot: int = 1) -> bool
+
+      Set the memory slot to display on the SLM.
+
+      :param slot: Slot number
+
+
+

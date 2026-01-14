@@ -1,0 +1,114 @@
+:orphan:
+
+PTC10
+=====
+
+**From:** Stanford Research Systems (SRS)
+
+**Class:** :py:class:`herosdevices.hardware.srs.ptc10.PTC10`
+
+
+**Driver Quality Index:** beta
+
+
+Driver for the SRS PTC10 programmable temperature controller.
+
+This driver connects via telnet to the ethernet port.
+
+.. tabs:: 
+
+
+   .. tab:: Arguments
+   
+   
+      Bold arguments are mandatory. For more information on the listed arguments refer to the class             documentation: :py:class:`herosdevices.hardware.srs.ptc10.PTC10` If parameters appear in this             list but not in the class definition, please recursively check the linked base classes for the             definition of the parameter.
+      
+      
+      .. list-table:: 
+         :widths: 50 50 50 100
+         :header-rows: 1
+      
+         * - Argument
+           - Type
+           - Default Value
+           - Description
+         * - **address**
+           - **<class 'str'>**
+           - 
+           - IP address of the device. 
+         * - channels_tc
+           - list | None
+           - None
+           - Names of PTC330 extension cards input channels.
+         * - channels_out
+           - list | None
+           - None
+           - Names of the output channels. 
+         * - macros
+           - dict | None
+           - None
+           - A dict of macros which are written to the temperature controller and can be called with :py:meth:`run_macro`. The dictionary keys are the names and the values the actual macro code. Note, that the macro content must be a single line string. 
+         * - observables
+           - dict | None
+           - None
+           - A dictionary of attributes that are emitted with the `observable_data` event if the device is started as a `PolledDatasourceHero`. If no values are given, the set temperature, actual temperature and TEC power are emitted.
+      
+
+   .. tab:: Example JSON for BOSS
+   
+      The following JSON strings can be used to start a HERO device representation of             :py:class:`PTC10 <herosdevices.hardware.srs.ptc10.PTC10>` using             `BOSS <https://boss-eb4966.gitlab.io/>`_.
+      
+      .. code-block:: json
+      
+         {
+             "_id": "oven-controller",
+             "classname": "herosdevices.hardware.srs.PTC10",
+             "active": true,
+             "arguments": {
+                 "address": "192.168.50.15",
+                 "channels_tc": [
+                     "WindowTC",
+                     "OvenTC"
+                 ],
+                 "channels_out": [
+                     "WindowOut",
+                     "OvenOut"
+                 ],
+                 "macros": {
+                     "OvenOn": "if (OvenOut.PID.setpoint==0){ OvenOut.PID.setpoint=50 }else{ popup \"Oven already on\" }"
+                 }
+             },
+             "datasource": {
+                 "async": false,
+                 "interval": 300
+             }
+         }
+      
+      :sup:`from examples/srs/ptc10.json` 
+      
+      
+      .. code-block:: json
+      
+         {
+             "_id": "my_PTC10",
+             "classname": "herosdevices.hardware.srs.ptc10.PTC10",
+             "arguments": {
+                 "address": "192.168.1.5",
+                 "channels_tc": null,
+                 "channels_out": [
+                     "WindowOut",
+                     "OvenOut"
+                 ],
+                 "macros": {
+                     "OvenOn": "if (OvenOut.PID.setpoint==0){ OvenOut.PID.setpoint=50 }else{ popup \"Oven already on\" }"
+                 },
+                 "observables": null
+             }
+         }
+      
+      :sup:`generated from signature`
+   .. tab:: Inheritance
+   
+   
+      .. inheritance-diagram:: herosdevices.hardware.srs.ptc10.PTC10
+      

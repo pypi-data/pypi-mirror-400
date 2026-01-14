@@ -1,0 +1,173 @@
+herosdevices.hardware.dummy.displays
+====================================
+
+.. py:module:: herosdevices.hardware.dummy.displays
+
+.. autoapi-nested-parse::
+
+   Dummy SLM for testing purposes.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:function:: compute_intensity_in_focal_plane(phase_pattern: numpy.array, value_2_pi: float = 1024) -> numpy.array
+
+   Compute intensity in the focal plane of a lens after imprinting the given phase pattern.
+
+
+.. py:class:: SlmDummy(config_dict: dict, default_config: str | None = None, keep_device_open: bool = True, simulate: bool = True)
+
+   Bases: :py:obj:`herosdevices.core.templates.DisplayDeviceTemplate`
+
+
+   Dummy SLM for testing purposes.
+
+
+   .. py:attribute:: default_config_dict
+      :type:  dict
+
+
+   .. py:attribute:: image_size
+      :type:  tuple | list
+
+
+   .. py:attribute:: value_2_pi
+      :type:  float
+
+
+   .. py:attribute:: simulate
+      :type:  bool
+
+
+   .. py:method:: firmware_serialnumber() -> str
+
+      Return a dummy firmware serial number.
+
+
+
+   .. py:method:: simulation_data(image: numpy.ndarray, metadata: dict = {}) -> tuple
+
+      Publish simulation results.
+
+
+
+   .. py:method:: phase_data(phase: numpy.ndarray, metadata: dict = {}) -> tuple
+
+      Publish phase pattern.
+
+
+
+   .. py:attribute:: keep_device_open
+      :value: True
+
+
+
+   .. py:attribute:: default_config
+      :type:  str
+
+
+   .. py:method:: get_device() -> collections.abc.Iterator[None]
+
+      Yield a device handle.
+
+      .. code-block:: python
+
+          # use the device in a with statement
+          with self.get_device() as slm:
+              slm.do_something()
+
+
+
+   .. py:method:: open() -> Any
+
+      Open the device handler and assign it to `self._device`.
+
+
+
+   .. py:method:: teardown() -> None
+
+      Release the device handler and potentially de-initialize the API.
+
+
+
+   .. py:method:: reset() -> None
+
+      Reset the device by closing and re-opening the handler.
+
+
+
+   .. py:method:: get_status() -> dict
+
+      Get a dict with the current device status.
+
+      :returns: A dict with the device status
+
+
+
+   .. py:property:: config_dict
+      :type: dict
+
+
+      Get a copy of the configuration dict.
+
+      :returns: Copy of the configuration dict
+
+
+   .. py:method:: update_configuration(new_config_dict: dict, merge: bool = True) -> None
+
+      Update the configuration dict with new configuration.
+
+      Each dict key corresponds a (new) configuration name.
+      Each value is a dict with config property -> config value.
+
+      :param new_config_dict: A dict of configurations where the keys are the configuration names
+      :param merge: If ``True``, the new dict is recursively merged with the current set config dict. If ``False`` the
+                    old configurations with the provided names (keys) are overwritten.
+
+
+
+   .. py:method:: get_configuration() -> dict
+
+      Get the currently active configuration.
+
+      :returns: The currently active configuration.
+
+
+
+   .. py:method:: configure(config: str = '') -> bool
+
+      Configure the device with the known configuration `config`.
+
+      To add a configuration to the device, use :meth:`update_configuration`.
+
+      :param config: Key (name) of the configuration
+
+
+
+   .. py:attribute:: set_configuration
+
+
+   .. py:method:: push_image(slot: int, image: numpy.typing.NDArray[numpy.uint16], display_now: bool = True) -> bool
+
+      Upload an image into a specified memory slot.
+
+      :param slot: Slot number
+      :param image: The image
+      :param display_now: Flag whether to display the image immediately
+
+
+
+   .. py:method:: display_slot(slot: int = 1) -> bool
+
+      Set the memory slot to display on the SLM.
+
+      :param slot: Slot number
+
+
+

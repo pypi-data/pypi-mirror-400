@@ -1,0 +1,156 @@
+:orphan:
+
+IDS Peak Camera
+===============
+
+**From:** IDS Imaging Development Systems
+
+**Class:** :py:class:`herosdevices.hardware.ids.peak_camera.PeakCompatibleCamera`
+
+
+**Driver Quality Index:** beta
+
+
+.. admonition:: Requires the following packages 
+
+   `ids-peak <https://pypi.org/project/ids-peak>`_,
+   `ids-peak-ipl <https://pypi.org/project/ids-peak-ipl>`_
+
+A class to interface with IDS Peak cameras.
+
+The class provides functionality to control and capture images from IDS Peak cameras.
+It manages camera configuration, acquisition, and data streaming.
+
+.. important::
+
+   To access the camera as non-root user, you need to add the following udev rule
+   to :code:`/etc/udev/rules.d/99-ids.rules`::
+   
+       ATTRS{idVendor}=="1409", MODE="666"
+   
+   The vendor library must be obtained from the
+   `official website <https://en.ids-imaging.com/download-peak.html>`_.
+   Download the `IDS peak archive file`, unpack it at move the content of ``lib/ids/cti/`` to a place where
+   the user running the driver can access it. This path then needs to be specified via the ``lib_path`` argument
+   (``/opt/idspeak/ids/cti/`` in the example below).
+   If you install the full ids peak software via the installer, ``lib_path`` is ``/usr/lib/ids/cti/``.
+   
+   To find the ``cam_id`` of your camera, you can use the script ``./bin/ids_open_camera_cpp_by_serno``.
+   Executing it will list give a list of all connected cameras::
+   
+       IDS peak genericAPI "open_camera_by_serno" Sample v1.1.2
+   
+       Serial numbers available:
+       0:  4108829617 - IDS Imaging Development Systems GmbH U3-368xXCP-M (1409f4e7c3b1 U3-368xXCP-M-2)
+       1:  4108829619 - IDS Imaging Development Systems GmbH U3-368xXCP-M (1409f4e7c3b3 U3-368xXCP-M-3)
+   
+   In this example, the ``cam_id`` are ``1409f4e7c3b1`` and ``1409f4e7c3b3``.
+
+.. note::
+
+   The :code:`node_map` attribute provides access to the camera node map. If you need to set some special
+   nodes you can use that.
+   You can find the available nodes in the official API manuals:
+   
+   - https://en.ids-imaging.com/manuals/ids-peak/ids-peak-api-documentation/en/index.html
+   - https://en.ids-imaging.com/manuals/ids-peak/ids-peak-user-manual/en/preface.html
+
+
+.. tabs:: 
+
+
+   .. tab:: Arguments
+   
+   
+      Bold arguments are mandatory. For more information on the listed arguments refer to the class             documentation: :py:class:`herosdevices.hardware.ids.peak_camera.PeakCompatibleCamera` If parameters appear in this             list but not in the class definition, please recursively check the linked base classes for the             definition of the parameter.
+      
+      
+      .. list-table:: 
+         :widths: 50 50 50 100
+         :header-rows: 1
+      
+         * - Argument
+           - Type
+           - Default Value
+           - Description
+         * - **cam_id**
+           - **<class 'str'>**
+           - 
+           - Serial number of the cam. See note above to learn how to obtain the correct serial.
+         * - **config_dict**
+           - **<class 'dict'>**
+           - 
+           - Dict of configuration values like shown in the json example above. The keys starting with a capital letter in the example are nodes in the camera node map. For available nodes, see the manual of your camera model. 
+         * - default_config
+           - str | None
+           - None
+           - Default key in :code:`config_dict` to use. 
+         * - lib_path
+           - str | None
+           - None
+           - Path to vendor library. 
+         * - reset_to_continuous
+           - <class 'bool'>
+           - False
+           - If True, the camera will be set to continuous acquisition mode on teardown.
+      
+
+   .. tab:: Example JSON for BOSS
+   
+      The following JSON strings can be used to start a HERO device representation of             :py:class:`PeakCompatibleCamera <herosdevices.hardware.ids.peak_camera.PeakCompatibleCamera>` using             `BOSS <https://boss-eb4966.gitlab.io/>`_.
+      
+      .. code-block:: json
+      
+         {
+             "_id": "my_camera",
+             "classname": "herosdevices.hardware.ids.PeakCompatibleCamera",
+             "arguments": {
+                 "cam_id": "1410d4e7c3b5",
+                 "lib_path": "/opt/idspeak/ids/cti/",
+                 "default_config": "default",
+                 "config_dict": {
+                     "default": {
+                         "timeout": 10,
+                         "ExposureTime": 1000,
+                         "TriggerSelector": "ExposureStart",
+                         "TriggerMode": "On",
+                         "TriggerSource": "Software",
+                         "AcquisitionMode": "MultiFrame",
+                         "AcquisitionFrameCount": 5
+                     }
+                 }
+             }
+         }
+      
+      :sup:`from examples/ids/peak_camera.json` 
+      
+      
+      .. code-block:: json
+      
+         {
+             "_id": "my_PeakCompatibleCamera",
+             "classname": "herosdevices.hardware.ids.peak_camera.PeakCompatibleCamera",
+             "arguments": {
+                 "cam_id": "<class 'str'>",
+                 "config_dict": {
+                     "default": {
+                         "ExposureTime": 1000,
+                         "TriggerSelector": "ExposureStart",
+                         "TriggerMode": "On",
+                         "TriggerSource": "Software",
+                         "AcquisitionMode": "MultiFrame",
+                         "AcquisitionFrameCount": 5
+                     }
+                 },
+                 "default_config": "default",
+                 "lib_path": "/opt/idspeak/ids/cti/",
+                 "reset_to_continuous": false
+             }
+         }
+      
+      :sup:`generated from signature`
+   .. tab:: Inheritance
+   
+   
+      .. inheritance-diagram:: herosdevices.hardware.ids.peak_camera.PeakCompatibleCamera
+      

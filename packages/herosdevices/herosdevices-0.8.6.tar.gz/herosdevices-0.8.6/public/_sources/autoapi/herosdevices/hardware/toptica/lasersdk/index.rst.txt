@@ -1,0 +1,176 @@
+herosdevices.hardware.toptica.lasersdk
+======================================
+
+.. py:module:: herosdevices.hardware.toptica.lasersdk
+
+.. autoapi-nested-parse::
+
+   Low-level communication interface with the toptica laser sdk.
+
+
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: R
+
+.. py:class:: LaserSDKConnection(address: str, keep_alive: bool = True, **kwargs)
+
+   A class to manage Toptica Laser SDK connections.
+
+   This class provides functionality to handle
+   `Toptica Laser SDK <https://www.toptica.com/technology/toptica-python-laser-sdk/python-laser-sdk>`_
+   connections including opening/closing connections, reading data, and writing data.
+
+   Requires the `toptica_lasersdk` package to be installed.
+
+   :param address: The address of the serial socket, something like /dev/ttyUSB0.
+   :param keep_alive: Flag indicating whether to keep the connection open between operations.
+   :param \*\*kwargs: Keyword arguments passed to :code:`toptica.lasersdk.client.NetworkConnection`
+
+
+   .. py:attribute:: address
+
+
+   .. py:attribute:: connection
+
+
+   .. py:attribute:: keep_alive
+      :value: True
+
+
+
+   .. py:method:: operation() -> collections.abc.Iterator[None]
+
+      Context manager for handling connection operations.
+
+      Ensures the connection is open before performing operations and closes it afterward
+      if :code:`self.keep_alive` is False.
+
+      :Yields: Yields control back to the caller for performing operations within the context.
+
+
+
+   .. py:method:: write(message: str, read_echo: bool = False, read_line: bool = False) -> None | str
+
+      Write a message to the attached device.
+
+      :param message: The message to be written. Needs to be of the form ``command;value;dtype``, i.e.
+                      ``laser1:dl:cc:current-set;85.0;float`` to set the current of a laser diode to 85mA.
+      :param read_echo: If True, reads back the echo from the device after writing. Defaults to False.
+      :param read_line: Not used. Only for compatibility with other connection types.
+
+      :returns: If read_echo is True, returns the echo read from the connection as string; otherwise returns None.
+
+
+
+   .. py:method:: exec(command: str, *args, return_type: None | type[R] = None) -> None | R
+
+      Run an lasersdk "exec" command.
+
+      :param command: command to run on the connected laser/DLCPro
+      :param args: positional arguments required as input for the given command
+      :param return_type: type of the returned data if data is returned (must be a builtin type like `str` or `float`)
+
+
+
+.. py:class:: LaserSDKCommandQuantity(command: str, writable: bool = False, observable: bool = False, format_fun: collections.abc.Callable[[str], herosdevices.core.Any] = lambda x: x, dtype: type = str, **kwargs)
+
+   Bases: :py:obj:`herosdevices.core.DeviceCommandQuantity`
+
+
+   Descriptor for attaching getting/setting Toptica Laser SDK values directly to class attributes exposed to HEROs.
+
+   This class provides functionality to define a class attribute of the host object based on certain set and get
+   commands of a device on a given interface. Defining an attribute this way makes it directly accessible to HEROS.
+   This class behaves the same as :py:class:`herosdevices.core.DeviceCommandQuantity`, but with adaptions to the
+   Toptica Laser SDK.
+
+   For more details see :py:class:`herosdevices.core.DeviceCommandQuantity`.
+
+   :param command: Toptica Laser SDK command to query/set the target argument. Something like ``laser1:dl:cc:pd``.
+   :param writable: If the attribute can be set (True) or is read only (False).
+   :param observable: If True, the attribute is automatically added the the ``_default_observables`` list. See for example
+                      :py:class:`herosdevices.hardware.toptica.DLPro` for more details.
+   :param \*\*kwargs: All other arguments are passed to the parent class
+                      :py:class:`herosdevices.core.DeviceCommandQuantity`.
+
+
+   .. py:attribute:: observable
+      :value: False
+
+
+
+   .. py:attribute:: command_set
+      :value: None
+
+
+
+   .. py:attribute:: command_get
+      :value: None
+
+
+
+   .. py:attribute:: return_check
+      :value: None
+
+
+
+   .. py:attribute:: unit
+      :value: ''
+
+
+
+   .. py:attribute:: dtype
+      :value: None
+
+
+
+   .. py:attribute:: format_fun
+
+
+   .. py:attribute:: value_check_fun
+
+
+   .. py:attribute:: poll_interval_limit
+      :value: 1.0
+
+
+
+   .. py:attribute:: transform_fun
+
+
+   .. py:attribute:: read_line
+      :value: True
+
+
+
+.. py:function:: attach_laser_sdk_exec_method(cls: type, name: str, command: str, expected_args: dict | None = None, return_type: None | type[R] = None) -> None
+
+   Attaches a method to a class which runs a toptica lasersdk "exec" command on the target device.
+
+   Typically you do not need to use this method directly as :py:class:`herosdevices.hardware.toptica.dlcpro.DLCCommon`
+   takes care of that. Just pass the command as `additional_queries`.
+
+   :param cls: Class to attach the method to
+   :param name: Name of the method
+   :param command: Toptica lasersdk command path that the method will execute with "exec"
+   :param expected_args: Dict of argument names (keys) and types (values) that the command takes
+   :param return_type: Type of the return data, if the command returns data.
+
+   .. rubric:: Example
+
+   Use in the __new__ method of a class like:
+
+   .. code:: python
+
+       def __new__(cls, *_args, **_kwargs):
+           attach_laser_sdk_exec_method(cls,name="my_method",command="laser1:dl:lock:close")
+
+

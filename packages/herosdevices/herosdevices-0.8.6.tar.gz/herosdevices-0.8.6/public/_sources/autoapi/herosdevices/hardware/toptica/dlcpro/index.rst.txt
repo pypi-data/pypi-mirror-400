@@ -1,0 +1,559 @@
+herosdevices.hardware.toptica.dlcpro
+====================================
+
+.. py:module:: herosdevices.hardware.toptica.dlcpro
+
+.. autoapi-nested-parse::
+
+   HEROS implementation of lasers controlled by the Toptica DLC PRO laser driver.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:class:: DLCCommon(address: str, frequency: float, power: float | None, observables: dict | None = None, **kwargs)
+
+   Bases: :py:obj:`herosdevices.interfaces.atomiq.LaserSource`
+
+
+   Common baseclass for the Toptica DLC Pro laser driver.
+
+   Do not use directly, use one of the abstracted laser drivers like :py:class:`DLPro`.
+
+
+   .. py:attribute:: system_health
+      :type:  bool
+
+      Health status of the laser 0 if healthy, 1 if unhealthy ``system-health``
+
+
+   .. py:attribute:: emission_status
+      :type:  bool
+
+      Emission status of the laser 0 if off, 1 if on
+
+
+   .. py:attribute:: observables
+
+
+   .. py:attribute:: connection
+
+
+   .. py:method:: get_power() -> float
+
+      Get the (user defined) power of the laser (W).
+
+
+
+   .. py:method:: get_frequency() -> float
+
+      Get the (user defined) frequency of the laser (Hz).
+
+
+
+.. py:class:: DLPro(laser_num: int = 1, *args, **kwargs)
+
+   Bases: :py:obj:`DLCCommon`
+
+
+   Driver for Toptica DL Pro laser.
+
+   :param laser_num: Number of the laser in a single dlcpro. Relevant for the dual or quad laser DLC options.
+   :param lock_option: If the laser has the lock option installed.
+   :type lock_option: bool
+
+   .. attribute:: lock_status
+
+      Status of the lock (if ``lock_option`` installed) ``laserx:dl:lock:state``
+
+
+   .. py:attribute:: laser_health
+      :type:  bool
+
+      Health status ``laserx:health``
+
+
+   .. py:attribute:: set_current
+      :type:  float
+
+      Set diode Current (mA) ``laserx:dl:cc:current-set``
+
+
+   .. py:attribute:: actual_current
+      :type:  float
+
+      Actual diode Current (mA) ``laserx:dl:cc:current-act``
+
+
+   .. py:attribute:: set_temperature
+      :type:  float
+
+      Set diode Temperature (°C) ``laserx:dl:tc:temp-set``
+
+
+   .. py:attribute:: actual_temperature
+      :type:  float
+
+      Actual diode Temperature (°C) ``laserx:dl:tc:temp-act``
+
+
+   .. py:attribute:: set_piezo_voltage
+      :type:  float
+
+      Set piezo voltage (V) ``laserx:dl:pc:voltage-set``
+
+
+   .. py:attribute:: actual_piezo_voltage
+      :type:  float
+
+      Actual piezo voltage (V) ``laserx:dl:pc:voltage-act``
+
+
+   .. py:attribute:: diode_ontime
+      :type:  float
+
+      Diode on time (s) ``laserx:dl:ontime``
+
+
+   .. py:attribute:: internal_pd
+      :type:  float
+
+      Internal PD ``laserx:dl:cc:pd``
+
+
+   .. py:attribute:: system_health
+      :type:  bool
+
+      Health status of the laser 0 if healthy, 1 if unhealthy ``system-health``
+
+
+   .. py:attribute:: emission_status
+      :type:  bool
+
+      Emission status of the laser 0 if off, 1 if on
+
+
+   .. py:attribute:: observables
+
+
+   .. py:attribute:: connection
+
+
+   .. py:method:: get_power() -> float
+
+      Get the (user defined) power of the laser (W).
+
+
+
+   .. py:method:: get_frequency() -> float
+
+      Get the (user defined) frequency of the laser (Hz).
+
+
+
+.. py:class:: BoosTAPro(address: str, frequency: float, power: float | None, observables: dict | None = None, **kwargs)
+
+   Bases: :py:obj:`DLCCommon`
+
+
+   Driver for Toptica BoosTAPro tapered amplifier.
+
+   :param laser_num: Number of the laser in a single dlcpro. Relevant for the dual or quad laser DLC options.
+
+
+   .. py:attribute:: amp_set_current
+
+      Set amplifier Current (mA) ``laserx:amp:cc:current-set``
+
+
+   .. py:attribute:: amp_actual_current
+
+      Actual amplifier current (mA) ``laserx:amp:cc:current-act``
+
+
+   .. py:attribute:: amp_set_temperature
+
+      Set amplifier temperature (°C)  ``laserx:amp:tc:temp-set``
+
+
+   .. py:attribute:: amp_actual_temperature
+
+      Actual amplifier temperature (°C) ``laserx:amp:tc:temp-act``
+
+
+   .. py:attribute:: amp_ontime
+
+      Run hours of the amplifier (s) ``laserx:amp:ontime``
+
+
+   .. py:attribute:: amp_emission
+
+      emission status of the amplifier ``laserx:amp:cc:emission``
+
+
+   .. py:attribute:: system_health
+      :type:  bool
+
+      Health status of the laser 0 if healthy, 1 if unhealthy ``system-health``
+
+
+   .. py:attribute:: emission_status
+      :type:  bool
+
+      Emission status of the laser 0 if off, 1 if on
+
+
+   .. py:attribute:: observables
+
+
+   .. py:attribute:: connection
+
+
+   .. py:method:: get_power() -> float
+
+      Get the (user defined) power of the laser (W).
+
+
+
+   .. py:method:: get_frequency() -> float
+
+      Get the (user defined) frequency of the laser (Hz).
+
+
+
+.. py:class:: TAPro(power: float | None = None, **kwargs)
+
+   Bases: :py:obj:`DLPro`, :py:obj:`BoosTAPro`
+
+
+   Driver for Toptica TAPro laser system.
+
+   :param laser_num: Number of the laser in a single dlcpro. Relevant for the dual DLC options.
+
+
+   .. py:attribute:: amp_seed_power
+
+      Seed power at the amplifier stage (mW) ``laserx:amp:pd:seed:power``
+
+
+   .. py:attribute:: amp_output_power
+
+      Output power at the amplifier stage (mW) ``laserx:amp:pd:amp:power``
+
+
+   .. py:method:: get_power() -> float
+
+      Get the power of the laser (W) ``laserx:amp:pd:amp:power`` or user defined override.
+
+
+
+   .. py:attribute:: laser_health
+      :type:  bool
+
+      Health status ``laserx:health``
+
+
+   .. py:attribute:: set_current
+      :type:  float
+
+      Set diode Current (mA) ``laserx:dl:cc:current-set``
+
+
+   .. py:attribute:: actual_current
+      :type:  float
+
+      Actual diode Current (mA) ``laserx:dl:cc:current-act``
+
+
+   .. py:attribute:: set_temperature
+      :type:  float
+
+      Set diode Temperature (°C) ``laserx:dl:tc:temp-set``
+
+
+   .. py:attribute:: actual_temperature
+      :type:  float
+
+      Actual diode Temperature (°C) ``laserx:dl:tc:temp-act``
+
+
+   .. py:attribute:: set_piezo_voltage
+      :type:  float
+
+      Set piezo voltage (V) ``laserx:dl:pc:voltage-set``
+
+
+   .. py:attribute:: actual_piezo_voltage
+      :type:  float
+
+      Actual piezo voltage (V) ``laserx:dl:pc:voltage-act``
+
+
+   .. py:attribute:: diode_ontime
+      :type:  float
+
+      Diode on time (s) ``laserx:dl:ontime``
+
+
+   .. py:attribute:: internal_pd
+      :type:  float
+
+      Internal PD ``laserx:dl:cc:pd``
+
+
+   .. py:attribute:: system_health
+      :type:  bool
+
+      Health status of the laser 0 if healthy, 1 if unhealthy ``system-health``
+
+
+   .. py:attribute:: emission_status
+      :type:  bool
+
+      Emission status of the laser 0 if off, 1 if on
+
+
+   .. py:attribute:: observables
+
+
+   .. py:attribute:: connection
+
+
+   .. py:method:: get_frequency() -> float
+
+      Get the (user defined) frequency of the laser (Hz).
+
+
+
+   .. py:attribute:: amp_set_current
+
+      Set amplifier Current (mA) ``laserx:amp:cc:current-set``
+
+
+   .. py:attribute:: amp_actual_current
+
+      Actual amplifier current (mA) ``laserx:amp:cc:current-act``
+
+
+   .. py:attribute:: amp_set_temperature
+
+      Set amplifier temperature (°C)  ``laserx:amp:tc:temp-set``
+
+
+   .. py:attribute:: amp_actual_temperature
+
+      Actual amplifier temperature (°C) ``laserx:amp:tc:temp-act``
+
+
+   .. py:attribute:: amp_ontime
+
+      Run hours of the amplifier (s) ``laserx:amp:ontime``
+
+
+   .. py:attribute:: amp_emission
+
+      emission status of the amplifier ``laserx:amp:cc:emission``
+
+
+.. py:class:: TASHGPro(power: float | None = None, **kwargs)
+
+   Bases: :py:obj:`TAPro`
+
+
+   Driver for Toptica TASHGPro second harmonic doubled laser system.
+
+
+   .. py:attribute:: shg_set_temperature
+
+      SHG crystal set temperature (°C)  ``laserx:nlo:shg:tc:temp-set``
+
+
+   .. py:attribute:: shg_actual_temperature
+
+      SHG crystal actual temperature (°C) ``laserx:nlo:shg:tc:temp-act``
+
+
+   .. py:attribute:: shg_output_power
+
+      Output power of the SHG stage (mW) ``laserx:nlo:pd:shg:power``
+
+
+   .. py:attribute:: shg_lock_status
+
+      SHG lock state (True/False) ``laserx:nlo:shg:lock:lock-enabled``
+
+
+   .. py:method:: get_power() -> float
+
+      Get the power of the laser (W) ``laserx:nlo:pd:shg:power`` or user defined override.
+
+
+
+   .. py:attribute:: amp_seed_power
+
+      Seed power at the amplifier stage (mW) ``laserx:amp:pd:seed:power``
+
+
+   .. py:attribute:: amp_output_power
+
+      Output power at the amplifier stage (mW) ``laserx:amp:pd:amp:power``
+
+
+   .. py:attribute:: laser_health
+      :type:  bool
+
+      Health status ``laserx:health``
+
+
+   .. py:attribute:: set_current
+      :type:  float
+
+      Set diode Current (mA) ``laserx:dl:cc:current-set``
+
+
+   .. py:attribute:: actual_current
+      :type:  float
+
+      Actual diode Current (mA) ``laserx:dl:cc:current-act``
+
+
+   .. py:attribute:: set_temperature
+      :type:  float
+
+      Set diode Temperature (°C) ``laserx:dl:tc:temp-set``
+
+
+   .. py:attribute:: actual_temperature
+      :type:  float
+
+      Actual diode Temperature (°C) ``laserx:dl:tc:temp-act``
+
+
+   .. py:attribute:: set_piezo_voltage
+      :type:  float
+
+      Set piezo voltage (V) ``laserx:dl:pc:voltage-set``
+
+
+   .. py:attribute:: actual_piezo_voltage
+      :type:  float
+
+      Actual piezo voltage (V) ``laserx:dl:pc:voltage-act``
+
+
+   .. py:attribute:: diode_ontime
+      :type:  float
+
+      Diode on time (s) ``laserx:dl:ontime``
+
+
+   .. py:attribute:: internal_pd
+      :type:  float
+
+      Internal PD ``laserx:dl:cc:pd``
+
+
+   .. py:attribute:: system_health
+      :type:  bool
+
+      Health status of the laser 0 if healthy, 1 if unhealthy ``system-health``
+
+
+   .. py:attribute:: emission_status
+      :type:  bool
+
+      Emission status of the laser 0 if off, 1 if on
+
+
+   .. py:attribute:: observables
+
+
+   .. py:attribute:: connection
+
+
+   .. py:method:: get_frequency() -> float
+
+      Get the (user defined) frequency of the laser (Hz).
+
+
+
+   .. py:attribute:: amp_set_current
+
+      Set amplifier Current (mA) ``laserx:amp:cc:current-set``
+
+
+   .. py:attribute:: amp_actual_current
+
+      Actual amplifier current (mA) ``laserx:amp:cc:current-act``
+
+
+   .. py:attribute:: amp_set_temperature
+
+      Set amplifier temperature (°C)  ``laserx:amp:tc:temp-set``
+
+
+   .. py:attribute:: amp_actual_temperature
+
+      Actual amplifier temperature (°C) ``laserx:amp:tc:temp-act``
+
+
+   .. py:attribute:: amp_ontime
+
+      Run hours of the amplifier (s) ``laserx:amp:ontime``
+
+
+   .. py:attribute:: amp_emission
+
+      emission status of the amplifier ``laserx:amp:cc:emission``
+
+
+.. py:data:: DEFAULT_QUERIES
+   :value: [['set current', 'dl.cc.current_set', 'mA'], ['actual current', 'dl.cc.current_act', 'mA'],...
+
+
+.. py:data:: dlcproorders
+   :value: ('emission_button_enabled', 'interlock_open', 'frontkey_locked', 'emission', 'system_health',...
+
+
+   Define parameters of the DLCPro and the laser in order to build another function call later
+
+.. py:class:: DlcProSource(ip: str, laser: str = 'laser1', queries: list[list[str]] = DEFAULT_QUERIES)
+
+   Reading Toptica DLC Pro parameters via ethernet.
+
+
+   .. py:attribute:: sdk_client
+
+
+   .. py:attribute:: sdk_dlcpro
+
+
+   .. py:attribute:: ip
+
+
+   .. py:attribute:: laser
+      :value: 'laser1'
+
+
+
+   .. py:attribute:: queries
+      :value: [['set current', 'dl.cc.current_set', 'mA'], ['actual current', 'dl.cc.current_act', 'mA'],...
+
+
+
+   .. py:method:: teardown() -> None
+
+      Cleanup at the end.
+
+
+
+   .. py:property:: session
+
+      Return a dlc objects and connect if necessary.
+
+

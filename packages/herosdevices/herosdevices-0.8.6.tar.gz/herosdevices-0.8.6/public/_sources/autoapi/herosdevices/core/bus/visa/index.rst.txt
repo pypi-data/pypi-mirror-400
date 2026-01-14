@@ -1,0 +1,77 @@
+herosdevices.core.bus.visa
+==========================
+
+.. py:module:: herosdevices.core.bus.visa
+
+.. autoapi-nested-parse::
+
+   Primitive functions and classes representing visa connections.
+
+
+
+
+
+
+
+Module Contents
+---------------
+
+.. py:data:: pyvisa
+   :value: None
+
+
+.. py:class:: VisaConnection(resource: str, keep_alive: bool = True, **kwargs)
+
+   A class to manage VISA communication connections.
+
+   This class provides functionality to handle visa connections including opening/closing connections, reading
+   data, and writing data.
+
+   :param resource: The resource name of the visa instrument (e.g. ``TCPIP::my_device_hostname::INSTR``).
+   :param keep_alive: Flag indicating whether to keep the connection open between operations.
+   :param \*\*kwargs: Keyword arguments passed to :code:`pyvisa.open_resource`
+
+
+   .. py:attribute:: resource
+      :type:  str
+
+
+   .. py:attribute:: connection
+      :type:  pyvisa.resources.MessageBasedResource | None
+      :value: None
+
+
+
+   .. py:attribute:: keep_alive
+      :value: True
+
+
+
+   .. py:method:: operation() -> collections.abc.Iterator[None]
+
+      Context manager for handling visa connection operations.
+
+      Ensures the visa connection is open before performing operations and closes it afterward
+      if :code:`self.keep_alive` is False.
+
+      :Yields: Yields control back to the caller for performing operations within the context.
+
+
+
+   .. py:method:: read() -> str | None
+
+      Do device read query.
+
+      :returns: The decoded data as string, or None if an error occurs.
+
+
+
+   .. py:method:: write(message: str, read_echo: bool = False, *args, **kwargs) -> str | None
+
+      Write to the visa connection.
+
+      :param message: The message to be written to the serial connection.
+      :param read_echo: If True, reads back the echo after writing. Defaults to False.
+
+
+
