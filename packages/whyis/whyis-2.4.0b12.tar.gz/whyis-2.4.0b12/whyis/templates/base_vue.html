@@ -1,0 +1,235 @@
+{% macro title() %}
+{% block title %}{% endblock %}
+{% endmacro %}
+<!DOCTYPE html>
+<html lang="{{config['default_language']}}"
+      xmlns="http://www.w3.org/1999/xhtml" xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+      xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#">
+  <head>
+    <meta charset="UTF-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>{{ title() }} - {{ config['SITE_NAME'] }}</title>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1,minimal-ui" name="viewport">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700,400italic">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/whyis.css')}}">
+    <style>
+        /* Ensure Bootstrap modals display properly */
+        .modal {
+            z-index: 1050 !important;
+        }
+        .modal-backdrop {
+            z-index: 1040 !important;
+        }
+        /* Override any conflicting styles */
+        .modal.show {
+            display: block !important;
+        }
+    </style>
+
+    <link rel="shortcut icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+<link rel="apple-touch-icon" sizes="57x57" href="{{ url_for('static', filename='images/apple-icon-57x57.png') }}">
+<link rel="apple-touch-icon" sizes="60x60" href="{{ url_for('static', filename='images/apple-icon-60x60.png') }}">
+<link rel="apple-touch-icon" sizes="72x72" href="{{ url_for('static', filename='images/apple-icon-72x72.png') }}">
+<link rel="apple-touch-icon" sizes="76x76" href="{{ url_for('static', filename='images/apple-icon-76x76.png') }}">
+<link rel="apple-touch-icon" sizes="114x114" href="{{ url_for('static', filename='images/apple-icon-114x114.png') }}">
+<link rel="apple-touch-icon" sizes="120x120" href="{{ url_for('static', filename='images/apple-icon-120x120.png') }}">
+<link rel="apple-touch-icon" sizes="144x144" href="{{ url_for('static', filename='images/apple-icon-144x144.png') }}">
+<link rel="apple-touch-icon" sizes="152x152" href="{{ url_for('static', filename='images/apple-icon-152x152.png') }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-icon-180x180.png') }}">
+<link rel="icon" type="image/png" sizes="192x192"  href="{{ url_for('static', filename='images/android-icon-192x192.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32x32.png') }}">
+<link rel="icon" type="image/png" sizes="96x96" href="{{ url_for('static', filename='images/favicon-96x96.png') }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16x16.png') }}">
+<meta name="msapplication-TileImage" content="{{ url_for('static', filename='images/ms-icon-144x144.png') }}">
+
+<link href="{{ url_for('static', filename='css/lib/fileinput.css')}}" media="all" rel="stylesheet" type="text/css"/>
+
+<link href="{{ url_for('static', filename='css/lib/fileinput.css')}}" media="all" rel="stylesheet" type="text/css"/>
+<link href='//cdn.jsdelivr.net/npm/yasgui-yasqe@2.11.22/dist/yasqe.min.css' rel='stylesheet' type='text/css'/>
+<link href='//cdn.jsdelivr.net/yasr/2.10.8/yasr.min.css' rel='stylesheet' type='text/css'/>
+<link href='//cdn.jsdelivr.net/yasgui/2.5.0/yasgui.min.css' rel='stylesheet' type='text/css'/>
+
+<link rel="modulepreload" href="https://unpkg.com/htm@3.0.4/dist/htm.module.js?module">
+<link rel="modulepreload" href="{{ url_for('static', filename='js/lib/jquery/dist/jquery.js')}}">
+<link rel="modulepreload" href="{{ url_for('static', filename='js/lib/bootstrap.js')}}">
+
+<link rel="modulepreload" href="{{ url_for('static', filename='js/lib/fileinput.js')}}">
+
+    {% block styles %}
+    {% endblock %}
+
+  </head>
+<body>
+  <div >
+    <div id="page" v-cloak>
+{% block body %}
+      <upload-knowledge ></upload-knowledge>
+      <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid d-flex">
+          <div class="dropdown">
+              <button class="btn btn-primary dropdown-toggle" type="button" id="navDropdown" data-bs-toggle="dropdown" >
+                <i class="bi bi-list"></i>
+              </button>
+
+              <ul class="dropdown-menu" aria-labelledby="navDropdown">
+                {% if current_user and not current_user.is_anonymous %}
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#uploadKnowledgeModal">
+                  Add Knowledge
+                </a></li>
+                {% endif %}
+                <li><a class="dropdown-item" href="{{url_for('sparql_blueprint.sparql_view')}}">Query Data</a></li>
+                <li><a class="dropdown-item" href="{{url_for('entity.view', uri='http://semanticscience.org/resource/Chart', view='new')}}">Create Visualization</a></li>
+                <li><a class="dropdown-item" href="{{url_for('entity.view', uri='http://www.w3.org/ns/dcat#Dataset', view='new')}}">Upload Dataset</a></li>
+              </ul>
+            </div>
+            <a class="btn btn-primary" aria-label="Home" href="{{url_for('entity.view',name='')}}">
+              <i class="bi bi-house"></i>
+            </a>
+          <form class="flex-grow-1"
+                novalidate
+                role="search"
+                action="{{url_for('entity.view',name='search')}}"
+                method="get"
+                 name="search" >
+            <search-autocomplete class="col-sm-auto"></search-autocomplete>
+          </form>
+          <div class="">
+            {% if not current_user or current_user.is_anonymous %}
+            <a class="btn btn-outline-light me-2" href="{{url_for('security.login')}}" aria-label="Log in" title="">Log in</a>
+            <a class="btn btn-outline-light" href="{{url_for('security.register')}}" aria-label="Register" title="">Register</a>
+            {% else %}
+
+            <div class="dropdown">
+              <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-label="Account menu" >
+                Welcome, {{current_user.givenName}} <span class="caret"></span>
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{{url_for('security.logout')}}" id="log-out">Log Out</a></li>
+                <li><a class="dropdown-item" href="{{url_for('security.change_password')}}" id="change-password">Change Password</a></li>
+              </ul>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+      </nav>
+      <div style="margin-top:0rem !important" class="container-fluid mt-3"  >
+        <div class="row">
+          {% block pageheader %}
+          <h1 property="rdfs:label">{{ title() }} <small>{% block subtitle %}{% endblock %}</small>
+        </h1>
+          {% if this is defined %}
+
+          <section class="d-flex justify-content-end flex-wrap">
+            {% block actions %}
+            {% if g.current_user and g.current_user.is_authenticated %}
+            <button class="btn btn-secondary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#vueUploadTabModal" aria-label="Upload File" title="Upload File">
+              <i class="bi bi-upload"></i>
+            </button>
+            <a class="btn btn-secondary btn-sm me-2" href="{{url_for('entity.view',view='edit', uri=this.identifier)}}" aria-label="Edit" title="Edit">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+            {% if this.description().value(ns.whyis.hasFileID) %}
+            <a class="btn btn-secondary btn-sm me-2" href="{{url_for('entity.view',uri=this.identifier)}}" aria-label="Download File" title="Download File">
+              <i class="bi bi-download"></i>
+            </a>
+            {% endif %}
+            {% if not this.identifier.startswith(ns.local) %}
+            <a class="btn btn-secondary btn-sm me-2" href="{{this.identifier}}" aria-label="Visit Page" title="Visit Page">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+            {% endif %}
+            {% endblock %}
+          </section>
+          {% endif %}
+        {% endblock %}
+      </div>
+      {% block content %}
+      {% endblock %}
+    </div>
+{% endblock %}
+
+
+  </div>
+{% include "footer.html" %}
+  </div>
+
+  <script type="application/javascript">
+    LOD_PREFIX = '{{config.LOD_PREFIX}}';
+    {% if 'BASE_RATE_PROBABILITY' in config %}
+    BASE_RATE = {{config['BASE_RATE_PROBABILITY']}};
+    {% else %}
+    BASE_RATE = 0.5;
+    {% endif %}
+    {% if current_user and current_user.identifier %}
+    USER = {
+      uri: '{{current_user.identifier}}',
+      admin: "{{current_user.has_role('Admin')}}",
+      name: "{{current_user.givenName}}",
+      email: "{{current_user.email}}"
+    };
+    {% else %}
+    USER = { }
+    {% endif %}
+    {% if this is defined %}
+    NAVIGATION = {
+      showAddKnowledgeMenu : false
+    };
+    NODE_URI = "{{this.identifier | safe}}";
+    ATTRIBUTES = {{ this | include('attributes') | safe }};
+    SUMMARY = {{ this | include('summary') | safe }};
+    DESCRIPTION = {{this.description().graph | serialize(format="json-ld") | safe}};
+    NODE = DESCRIPTION.filter(function(d) { return d['@id'] == NODE_URI});
+    if (NODE.length > 0)  NODE = NODE[0];
+    else NODE = {"@id" : NODE_URI};
+    {% endif %}
+    ROOT_URL = "{{url_for('entity.view',name='')}}";
+    LINKS = {
+      registerNav: "{{url_for('security.register')}}",
+      changePasswordNav: "{{url_for('security.change_password')}}"
+    }
+    CONFIGS = {
+      mongoBackup: "{{config.THIRD_PARTY_REST_BACKUP}}",
+      speedDialIcon: "{{config.DISABLE_VUE_SPEED_DIAL}}"
+  }
+  
+  </script>
+
+    <!-- TODO see if we can use the non-bundled versions -->
+    <script type="application/javascript" src='//cdn.jsdelivr.net/npm/yasgui-yasqe@2.11.22/dist/yasqe.bundled.min.js'></script>
+    <script type="application/javascript" src='//cdn.jsdelivr.net/yasr/2.10.8/yasr.bundled.min.js'></script>
+    <script type="application/javascript" src='//cdn.jsdelivr.net/yasgui/2.5.0/yasgui.min.js'></script>
+    <script type="module" src="{{ url_for('static', filename='dist/whyis.js')}}"></script>
+
+{% block scripts %}{% endblock %}
+
+<script type="module">
+import {Vue, axios, createApp} from '{{ url_for('static', filename='dist/whyis.js')}}'
+var app = createApp();  
+// Ensure Bootstrap modals work properly
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all Bootstrap components
+    if (typeof bootstrap !== 'undefined') {
+        // Initialize modals
+        var modalElements = document.querySelectorAll('.modal');
+        modalElements.forEach(function(modalElement) {
+            new bootstrap.Modal(modalElement);
+        });
+        
+        // Initialize dropdowns
+        var dropdownElements = document.querySelectorAll('.dropdown-toggle');
+        dropdownElements.forEach(function(dropdownElement) {
+            new bootstrap.Dropdown(dropdownElement);
+        });
+    }
+});
+</script>
+
+
+</body>
+</html>

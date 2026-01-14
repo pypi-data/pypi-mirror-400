@@ -1,0 +1,178 @@
+{% extends "base_vue.html" %}
+{% from "elements/upload.html" import vue_upload_button_tab_modal %}
+{% from "_macros.html" import render_resource_link, render_rdfa_resource_link, get_label, facts_panel, summary_panel, content %}
+{% block title %}{{get_label(this.description())}}{% endblock %}
+{% block content %}
+{% set attributes = this | include("attributes") | fromjson %}
+{% set incoming = this | include("incoming") | fromjson  %}
+{% set outgoing = this | include("outgoing") | fromjson  %}
+
+    <div class="card">
+      <div class="card-header">
+    <link href="https://unpkg.com/tabulator-tables@4.6.1/dist/css/tabulator.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@4.6.1/dist/js/tabulator.min.js"></script>
+            <ul class="nav nav-tabs">
+                {% for v in this | get_views_list -%}
+                <li class="nav-item {% if v['view'].value == view %}active{% endif %}">
+                    <a class="nav-link {% if v['view'].value == view %}active{% endif %}"
+                       href="{{url_for('entity.view', uri=this.identifier, view=v['view'])}}">
+                        {{v['label']}}
+                    </a>
+                </li>
+                {%- endfor %}
+                {% if this.description().value(ns.whyis.hasFileID) %}
+                <li class="nav-item">
+                    <a class="nav-link"
+                       href="{{url_for('entity.view',uri=this.identifier)}}">
+                        Download
+                    </a>
+                </li>
+                {% endif %}
+                <li class="nav-item">
+                    {{ vue_upload_button_tab_modal(this) }}
+                </li>
+                {% if not this.identifier.startswith(ns.local) %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{this.identifier}}"
+                       aria-label="Visit Page" title="Visit Page">
+                       Visit
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            <div class="row align-items-center mt-2">
+                <div class="col">
+                    <h4 class="mb-1">{{attributes.label}}</h4>
+                    {% if attributes.type | length > 0 %}<p class="text-muted mb-0">
+                        {% for type in attributes.type %}{{type.label}}{% if not loop.last %}, {% endif %} {% endfor %}
+                    </p>{% endif %}
+                </div>
+                <div class="col-auto">
+                    <add-knowledge-menu class="text-muted"
+                        uri="{{attributes['@id']}}">
+                    </add-knowledge-menu>
+                </div>
+            </div>
+        {% if attributes.thumbnail %}
+        <div class="mt-3">
+            <img src="{{url_for('entity.view', uri=attributes.thumbnail)}}" alt="{{attributes.label}}" class="img-fluid"/>
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <div class="row">
+            <div class="col">
+                <dl>
+                {% for desc in attributes.description %}<dt>{{desc.label}}:</dt> <dd>{{desc.value}}</dd>
+                {% endfor %}
+                    <dt>Identifier</dt> <dd>{{ attributes['@id']}}<dd>
+                {% for attribute in attributes.attributes %}
+                    <dt>{{attribute.label}} </dt>
+                    {% for value in attribute['values'] %}
+                    <dd>
+                        {{ value.value}} {% if value.unit_label %}<em>{{value.unit_label}}</em>{% endif %}
+                    </dd>
+                    {% endfor %}
+                {% endfor %}
+                </dl>
+                <div class="mb-3">
+                    <add-attribute uri="{{attributes['@id']}}">
+                        <button type="button" class="btn btn-primary">
+                            Add Attribute
+                            <i class="bi bi-plus" title="Add a new attribute fact."></i>
+                        </button>
+                    </add-attribute>
+                </div>
+                <div class="mb-3">
+                    <add-link uri="{{attributes['@id']}}">
+                        <button type="button" class="btn btn-primary">
+                            Add Link
+                            <i class="bi bi-link" title="Link another entity."></i>
+                        </button>
+                    </add-link>
+                </div>
+                <div class="mb-3">
+                    <add-type uri="{{attributes['@id']}}">
+                        <button type="button" class="btn btn-primary">
+                            Add Type
+                            <i class="bi bi-tag" title="Specify additional type, subclass, or superclass"></i>
+                        </button>
+                    </add-type>
+                </div>
+            </div>
+            <div class="col">
+                {% for link_name, items in outgoing | groupby("link_label") %}
+                <h2>{{link_name.title() }}</h2>
+                <div class="row g-3">
+                {% for item in items %}
+                <div class="col-12 col-sm-6 col-lg-4">
+                  <div class="card mb-3" style="width: 300px">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">{{item.target_label}}</h5>
+                        {% if this.graph.value(rdflib.URIRef(item.target), ns.foaf.depiction) %}
+                        {% set depiction = this.graph.value(rdflib.URIRef(item.target), ns.foaf.depiction) %}
+                        <div class="mt-2">
+                            {% if depiction.startswith(config['lod_prefix']) %}
+                            <img src="{{url_for('entity.view', uri=rdflib.URIRef(depiction))}}" alt="{{item.target_label}}" class="img-fluid">
+                            {% else %}
+                            <img src="{{depiction}}" alt="{{item.target_label}}" class="img-fluid">
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-footer">
+                        <a href="{{url_for('entity.view', uri=rdflib.URIRef(item.target), view='view')}}" class="btn btn-sm btn-outline-primary">View</a>
+                        {% if this.graph.value(rdflib.URIRef(item.target), ns.whyis.hasFileID) %}
+                        <a href="{{url_for('entity.view', uri=rdflib.URIRef(item.target))}}" class="btn btn-sm btn-outline-primary">Download</a>
+                        {% endif %}
+                        <add-knowledge-menu uri="{{item.target}}"></add-knowledge-menu>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+                </div>
+                {% endfor %}
+                {% for link_name, items in incoming | groupby("link_label") %}
+                <h2>{{link_name.title()}} Of</h2>
+                <div class="row g-3">
+                {% for item in items %}
+                <div class="col-12 col-sm-6 col-lg-4">
+                  <div class="card mb-3" style="width: 300px">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">{{item.source_label}}</h5>
+                        {% if this.graph.value(rdflib.URIRef(item.source), ns.foaf.depiction) %}
+                        {% set depiction = this.graph.value(rdflib.URIRef(item.source), ns.foaf.depiction) %}
+                        <div class="mt-2">
+                            {% if depiction.startswith(config['lod_prefix']) %}
+                            <img src="{{url_for('entity.view', uri=rdflib.URIRef(depiction))}}" alt="{{item.source_label}}" class="img-fluid">
+                            {% else %}
+                            <img src="{{depiction}}" alt="{{item.source_label}}" class="img-fluid">
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-footer">
+                        <a href="{{url_for('entity.view', uri=rdflib.URIRef(item.source), view='view')}}" class="btn btn-sm btn-outline-primary">View</a>
+                        {% if this.graph.value(rdflib.URIRef(item.source), ns.whyis.hasFileID) %}
+                        <a href="{{url_for('entity.view', uri=rdflib.URIRef(item.source))}}" class="btn btn-sm btn-outline-primary">Download</a>
+                        {% endif %}
+                        <add-knowledge-menu uri="{{item.source}}"></add-knowledge-menu>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    <div>
+                {% if this.description().value(ns.whyis.hasFileID) %}
+                    {{ this | excel_to_tabulator(this.description().value(ns.whyis.hasFileID)) | safe }}
+                {% endif %}
+    </div>
+
+      </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{{'''graph ?assertion {
+      {
+         ?source rdfs:subClassOf ?target.
+         ?source ?link_type ?target.
+      }
+    }
+    bind(1 as ?probability)
+    bind(?assertion as ?link)
+
+    filter(!isLiteral(?target))
+    minus { ?source owl:sameAs ?target.}
+    minus { ?source rdfs:seeAlso ?target.}
+    minus { ?source rdf:type ?target.}
+    minus { ?source <http://dbpedia.org/ontology/wikiPageExternalLink> ?target.}
+    minus { ?source foaf:depiction ?target.}
+    minus { ?source sio:hasPart  ?target.}
+    minus { ?source sio:SIO_000028 ?target.}
+    minus { ?source sio:hasAttribute ?target.}
+    minus { ?source sio:SIO_000008 ?target. }
+    minus { ?target a sio:Term.}
+    minus { ?target a sio:SIO_000275.}
+    filter (!sameTerm(?source, ?target) && isIRI(?target))
+    FILTER (!regex(str(?target), "^bnode:"))
+
+''' | probit(source=this.identifier) | tojson }}

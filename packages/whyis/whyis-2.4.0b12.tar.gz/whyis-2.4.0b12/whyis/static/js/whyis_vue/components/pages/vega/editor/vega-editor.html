@@ -1,0 +1,110 @@
+<div>
+  <div class="viz-dark-loading" v-if="loading">
+    <spinner :loading="loading" />
+  </div>
+  <split-pane :min-percent='paneResize' v-on:resize="resize" :default-percent='50' split="vertical">
+    <template slot="paneL">
+      <div class="">
+        <div class="viz-editor-tabs" @click="showTabNavigation">
+          <div class="viz-editor-tabs-item" id="showtabs" :style="!showAllTabBtn ? showAllTabs : false">
+            <span class="material-icons">
+              double_arrow
+            </span>
+          </div>
+          <div class="viz-editor-tabs-item tabselected" id="sparql" @click="tabNavigation" :style="showAllTabBtn ? showAllTabs : false">
+            Sparql
+            <span class="visually-hidden">Enter Query</span>
+          </div>
+          <div class="viz-editor-tabs-item" id="vegaE" @click="tabNavigation" :style="showAllTabBtn ? showAllTabs : false">
+            Vega
+            <span class="visually-hidden">Enter Vega Specs</span>
+          </div>
+          <div class="viz-editor-tabs-item" id="saveE" @click="tabNavigation" :style="showAllTabBtn ? showAllTabs : false">
+            {{actionType}}
+            <span class="visually-hidden">{{actionType}}</span>
+          </div>
+        </div>
+        <div class="viz-editor viz-editor-show" id="sparqlc">
+          <button type="button" class="btn btn-outline-primary mb-3" @click="goToSparqlTemplates()">
+            Build query from template
+          </button>
+          <yasqe v-if="query"
+            :value="query"
+            :readOnly="queryEditorReadOnly"
+            @input="setQuery"
+            @query-success="onQuerySuccess"
+            @query-error="onQueryError"
+          />
+        </div>
+        <div class="viz-editor" id="vegac">
+          <div id="vega-spec-editor" style="height:100%">
+            <button type="button" class="btn btn-outline-primary mb-3" @click="goToDataVoyager()" :disabled="sparqlError">
+              Browse Data Voyager
+            </button>
+            <v-jsoneditor v-if="baseSpec"
+              :value="baseSpec"
+              @input="setBaseSpec"
+              :options="specJsonEditorOpts"
+              :error="onSpecJsonError" style="height: 98%">
+            </v-jsoneditor>
+          </div>
+        </div>
+        <div class="viz-editor" id="savec">
+          <form class="title-form" @submit.prevent="saveChart">
+            <div style="display: block; flex: 1">
+              <div class="form-floating mb-3">
+                <input type="text" class="form-control" name="chart-title" id="chart-title" :value="title" @input="setTitle" placeholder="Title">
+                <label for="chart-title">Title</label>
+              </div>
+            </div>
+            <div style="display: block;">
+              <div class="form-floating mb-3">
+                <textarea class="form-control" name="chart-description" id="chart-description" :value="description" @input="setDescription" placeholder="Description" style="height: 100px"></textarea>
+                <label for="chart-description">Description</label>
+              </div>
+            </div>
+            <div style="display: block;">
+              <button type="submit" class="btn btn-primary">{{ actionType }} <i class="bi bi-check text-success"></i></button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </template>
+    <template slot="paneR">
+      <div v-if="sparqlError">
+        <div class="alert alert-danger">
+          The SPARQL query failed to execute.  Please ensure syntax is valid and try again.
+        </div>
+      </div>
+      <div v-else>
+        <div style="text-align: right;">
+          <a @click.prevent="previewPane=true"  class="viz-editor-tabs-item" :class="{tabselected:previewPane}">
+            Chart
+            <span class="visually-hidden">Chart Preview</span>
+          </a>
+          <a @click.prevent="previewPane=false" class="viz-editor-tabs-item" :class="{tabselected:previewPane == false}">
+            Table
+            <span class="visually-hidden">Table Preview</span>
+          </a>
+        </div>
+        <div class="vega-container" v-if="previewPane">
+          <keep-alive>
+            <vega-lite :spec="spec" @new-vega-view="onNewVegaView" style="height: 98%"/>
+          </keep-alive>
+        </div>
+        <div style="overflow: scroll;" v-else>
+          <keep-alive>
+            <yasr v-bind:results="results"></yasr>
+          </keep-alive>
+        </div>
+      </div>
+    </template>
+  </split-pane>
+  <!-- Bootstrap floating action button replacement -->
+  <div class="position-fixed bottom-0 end-0 m-4">
+    <button type="button" class="btn btn-primary rounded-circle p-3" @click.prevent="navBack">
+      <i class="bi bi-arrow-left"></i>
+      <span class="visually-hidden">Go Back</span>
+    </button>
+  </div>
+</div>
