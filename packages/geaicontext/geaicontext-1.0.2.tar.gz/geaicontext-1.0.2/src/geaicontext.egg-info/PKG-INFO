@@ -1,0 +1,228 @@
+Metadata-Version: 2.4
+Name: geaicontext
+Version: 1.0.2
+Summary: Context and Memory MCP
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: fastmcp>=2.14.0
+Requires-Dist: motor>=3.7.1
+Requires-Dist: redis>=7.1.0
+
+# Daxia OpenAPI Client based MCP
+
+[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![FastMCP](https://img.shields.io/badge/fastmcp-2.14.0+-green.svg)](https://pypi.org/project/fastmcp/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![uv](https://img.shields.io/badge/uv-managed-blueviolet.svg)](https://github.com/astral-sh/uv)
+
+A [FastMCP](https://pypi.org/project/fastmcp/) server that dynamically creates MCP tools from OpenAPI specifications, enabling seamless integration with any OpenAPI-compliant API.
+
+## Table of Contents
+
+- [Features](#features)
+- [Dependencies](#dependencies)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Examples](#examples)
+- [How It Works](#how-it-works)
+- [License](#license)
+
+## Features
+
+- 🚀 **Dynamic Tool Generation**: Automatically creates MCP tools from OpenAPI specifications
+- 🔐 **OAuth2 Authentication**: Automatic token retrieval from Daxia platform
+- 🌐 **Flexible Configuration**: Environment-based configuration for easy deployment
+- 📝 **OpenAPI 3.x Support**: Works with any valid OpenAPI 3.x specification
+- ⚡ **FastMCP Powered**: Built on the high-performance FastMCP framework
+
+## Dependencies
+
+This project requires Python 3.12 or higher and uses the following dependencies:
+
+- **[fastmcp](https://pypi.org/project/fastmcp/)** (>=2.14.0) - FastMCP framework for building MCP servers
+- **[httpx](https://www.python-httpx.org/)** (>=0.28.1) - Modern HTTP client for making API requests
+- **[requests](https://requests.readthedocs.io/)** (>=2.32.5) - HTTP library for additional compatibility
+
+All dependencies are managed using [uv](https://github.com/astral-sh/uv) for fast and reliable package management.
+
+## Installation
+
+This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+
+### Prerequisites
+
+1. **Python 3.12 or higher**
+   ```bash
+   python --version  # Should be 3.12 or higher
+   ```
+
+2. **Install uv**
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+
+### Installation Steps
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd daxiamcp
+   ```
+
+2. **Install the project**
+   ```bash
+   uv pip install -e .
+   ```
+   
+   This will:
+   - Install all required dependencies
+   - Create the `daxiamcp` command-line tool
+   - Make the project available for development
+
+3. **Verify the installation**
+   ```bash
+   daxiamcp --help
+   ```
+
+### Alternative: Using uvx
+
+You can run the tool directly without installation using `uvx`:
+
+```bash
+uvx daxiamcp
+```
+
+This is particularly useful for testing or running the examples without a full installation.
+
+## Usage
+
+The `daxiamcp` command-line tool creates a FastMCP server from an OpenAPI specification.
+
+### Configuration
+
+Configure the server using the following environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_BASE_URL` | `https://api-sandbox.daxiaplatform.com/sandbox/api/v1` | The base URL of the API |
+| `OPENAPI_SPEC_URL`| `http://localhost/local/openapi/daXia1.json` | The URL of the OpenAPI specification |
+| `SERVER_NAME` | `Daxia API` | The name of the MCP server |
+| `DAXIA_AUTH_URL` | `https://auth-sbx.daxiaplatform.com/oauth2/token` | OAuth2 token endpoint URL |
+| `DAXIA_CLIENT_ID` | (has default) | OAuth2 client ID for Daxia authentication |
+| `DAXIA_AUTH_BASIC` | (has default) | Base64-encoded Basic auth string for OAuth2 token request |
+
+### Running the Server
+
+The server automatically retrieves an OAuth2 access token from the Daxia platform on startup. You can customize the configuration by setting environment variables:
+
+**Basic Usage (using defaults):**
+```bash
+daxiamcp
+```
+
+**Custom Configuration:**
+```bash
+export API_BASE_URL="http://localhost:3000/v1"
+export OPENAPI_SPEC_URL="http://localhost/local/openapi/gal-inq.json"
+export SERVER_NAME="Galicia Inquiries API"
+daxiamcp
+```
+
+### Authentication
+
+The server uses **OAuth2 Client Credentials** flow to authenticate with the Daxia platform:
+
+1. On startup, the server requests an access token from `DAXIA_AUTH_URL`
+2. The token is obtained using the client credentials (`DAXIA_CLIENT_ID` and `DAXIA_AUTH_BASIC`)
+3. The access token is automatically included in all API requests as a Bearer token
+4. If token retrieval fails, the server will use `INVALID_TOKEN` and log an error
+
+**Custom OAuth2 Credentials:**
+```bash
+export DAXIA_CLIENT_ID="your-client-id"
+export DAXIA_AUTH_BASIC="your-base64-encoded-credentials"
+export DAXIA_AUTH_URL="https://your-auth-server.com/oauth2/token"
+daxiamcp
+```
+
+## Examples
+
+The `examples` directory contains sample configurations for different services. Each example is a JSON file that can be used with MCP-compatible tools.
+
+### Example Configuration
+
+Here's an example configuration for the Galicia Inquiries API (`examples/gal-mock/gal-inq.json`):
+
+```json
+{
+    "mcpServers": {
+        "daXia": {
+            "command": "uvx",
+            "args": [
+                "daxiamcp"
+            ],
+            "env": {
+                "SERVER_NAME": "daXia API",
+                "DAXIA_AUTH_URL": "https://auth-sbx.daxiaplatform.com/oauth2/token",
+                "DAXIA_CLIENT_ID": "clientid",
+                "DAXIA_AUTH_BASIC": "your-base64-encoded-credentials",
+                "OPENAPI_SPEC_URL": "http://localhost/local/openapi/daXia1.json",
+                "API_BASE_URL": "https://api-sandbox.daxiaplatform.com/sandbox/api/v1"
+            }
+        }
+    }
+}
+```
+
+### Using Examples
+
+1. **Navigate to the examples directory:**
+   ```bash
+   cd examples/gal-mock
+   ```
+
+2. **Use the configuration with your MCP client:**
+   - Copy the configuration to your MCP client's configuration file
+   - The client will automatically start the server using `uvx daxiamcp`
+   - The server will use the environment variables defined in the `env` section
+
+3. **Available Examples:**
+   - `gal-mock/gal-inq.json` - Galicia Inquiries API example
+   - Add more examples as needed for different services
+
+## How It Works
+
+The Daxia OpenAPI MCP server follows this workflow:
+
+```mermaid
+graph LR
+    A[Daxia OAuth2] --> B[Access Token]
+    B --> C[HTTP Client]
+    D[OpenAPI Spec] --> E[Parse Specification]
+    E --> F[Generate MCP Tools]
+    C --> G[FastMCP Server]
+    F --> G
+    G --> H[MCP Client]
+    H --> I[API Requests]
+    I --> J[Target API]
+```
+
+1. **OAuth2 Authentication**: The server retrieves an access token from the Daxia OAuth2 endpoint using client credentials
+2. **Specification Loading**: The server fetches the OpenAPI specification from the provided URL
+3. **Tool Generation**: Each API endpoint is converted into an MCP tool with appropriate parameters
+4. **Server Initialization**: FastMCP server is initialized with the generated tools and authenticated HTTP client
+5. **Request Handling**: When a tool is invoked, the server makes the corresponding API request with the Bearer token
+6. **Response Processing**: API responses are formatted and returned to the MCP client
+
+### Architecture
+
+- **`main.py`**: Entry point that initializes the FastMCP server
+- **OAuth2 Client**: Retrieves access tokens from Daxia authentication endpoint
+- **OpenAPI Parser**: Reads and validates the OpenAPI specification
+- **Tool Generator**: Creates MCP tools from API endpoints
+- **HTTP Client**: Handles API requests with Bearer token authentication
+- **FastMCP Integration**: Manages the MCP protocol communication
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
