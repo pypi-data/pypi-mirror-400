@@ -1,0 +1,46 @@
+name: "Session/Workflow Schema"
+description: "Validates session or workflow README front matter - useful for tracking work sessions, sprints, or development workflows"
+version: "1.0"
+
+# Required fields (must be present in front matter)
+required_fields:
+  - session_id
+  - topics
+
+# Optional fields (commonly used but not required)
+optional_fields:
+  - related_docs
+  - tags
+  - status
+  - date
+  - type
+  - project
+  - files_modified
+  - files_created
+  - commits
+
+# Field type constraints
+field_types:
+  session_id: string
+  topics: list
+  related_docs: list
+  tags: list
+  status: string
+  date: date            # YYYY-MM-DD format (accepts string or date object)
+  type: string
+  project: string
+  files_modified: integer
+  files_created: integer
+  commits: integer
+
+# Custom validation rules
+validation_rules:
+  - code: F005
+    field: topics
+    check: "len(value) >= 1"
+    message: "topics must contain at least one topic"
+
+  - code: F005
+    field: session_id
+    check: "re.match(r'^[a-z0-9-]+$', value)"
+    message: "session_id should be a valid identifier (lowercase letters, numbers, hyphens)"
