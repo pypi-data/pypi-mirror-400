@@ -1,0 +1,193 @@
+"""Agent implementation for {{ name }}.
+
+This module defines the specialist agent that implements
+the MACSDK SpecialistAgent protocol.
+
+This agent uses generic SDK tools (api_get, fetch_file) with
+the API schema described in the system prompt.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Annotated, Any
+
+from langchain.agents import create_agent
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg, tool
+from macsdk.core import config, get_answer_model, run_agent_with_tools
+from macsdk.middleware import (
+    DatetimeContextMiddleware,
+    PromptDebugMiddleware,
+)
+{% if with_knowledge %}
+from macsdk.tools.knowledge import get_knowledge_bundle
+{% endif %}
+
+from .models import AgentResponse
+from .prompts import SPECIALIST_PLANNING_PROMPT, SYSTEM_PROMPT
+from .tools import get_tools
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+
+CAPABILITIES = """DevOps monitoring assistant using generic SDK tools.
+
+This agent can:
+- Check infrastructure service health and status
+- Monitor CI/CD pipelines and their jobs
+- Review alerts (critical, warnings, unacknowledged)
+- Track deployments across environments
+- Fetch and analyze log files
+
+Uses api_get and fetch_file tools with API schema in the prompt."""
+
+
+def create_{{ agent_slug }}(
+    debug: bool | None = None,
+) -> Any:
+    """Create the {{ name }} agent.
+
+    Args:
+        debug: Whether to enable debug mode (shows prompts).
+            If None, uses the config value (default: False).
+
+    Returns:
+        Configured agent instance.
+    """
+    # Get all tools (includes knowledge tools if enabled)
+    tools = get_tools()
+
+    # Build system prompt with task planning guidance (CoT prompts)
+    system_prompt = SYSTEM_PROMPT + "\n\n" + SPECIALIST_PLANNING_PROMPT
+
+    # Build middleware list
+    middleware: list[Any] = []
+
+    # Add debug middleware if enabled (via parameter or config)
+    debug_enabled = debug if debug is not None else config.debug
+    if debug_enabled:
+        middleware.append(
+            PromptDebugMiddleware(
+                enabled=True,
+                show_response=True,
+                max_length=int(config.debug_prompt_max_length),
+            )
+        )
+
+    # Add datetime context middleware
+    middleware.append(DatetimeContextMiddleware())
+{% if with_knowledge %}
+
+    # Add knowledge middleware (auto-injects usage instructions)
+    _, knowledge_middleware = get_knowledge_bundle(__package__)
+    middleware.extend(knowledge_middleware)
+{% endif %}
+
+    agent = create_agent(
+        model=get_answer_model(),
+        tools=tools,
+        middleware=middleware,
+        response_format=AgentResponse,
+        system_prompt=system_prompt,
+    )
+
+    return agent
+
+
+async def run_{{ agent_slug }}(
+    query: str,
+    context: dict | None = None,
+    run_config: RunnableConfig | None = None,
+    debug: bool | None = None,
+) -> dict:
+    """Run the {{ name }} agent.
+
+    Args:
+        query: User query to process.
+        context: Optional context from previous interactions.
+        run_config: Optional runnable configuration.
+        debug: Whether to enable debug mode (shows prompts).
+            If None, uses the config value (default: False).
+
+    Returns:
+        Agent response dictionary.
+    """
+    agent = create_{{ agent_slug }}(debug=debug)
+    return await run_agent_with_tools(
+        agent=agent,
+        query=query,
+        agent_name="{{ agent_slug }}",
+        context=context,
+        config=run_config,
+    )
+
+
+class {{ agent_class }}:
+    """Agent that implements the SpecialistAgent protocol.
+
+    This class provides the interface that MACSDK expects:
+    - name: Unique identifier for the agent
+    - capabilities: Description of what the agent can do
+    - tools: List of available tools
+    - run(): Execute the agent
+    - as_tool(): Return the agent as a callable tool
+    """
+
+    name: str = "{{ agent_slug }}"
+    capabilities: str = CAPABILITIES
+    tools: list = []  # Loaded lazily
+
+    def __init__(self) -> None:
+        """Initialize the agent with tools{% if with_knowledge %} (includes knowledge tools){% endif %}."""
+        self.tools = get_tools()
+
+    async def run(
+        self,
+        query: str,
+        context: dict | None = None,
+        run_config: RunnableConfig | None = None,
+        debug: bool | None = None,
+    ) -> dict:
+        """Execute the agent.
+
+        Args:
+            query: User query to process.
+            context: Optional context from previous interactions.
+            run_config: Optional runnable configuration.
+            debug: Whether to enable debug mode (shows prompts).
+
+        Returns:
+            Agent response dictionary.
+        """
+        return await run_{{ agent_slug }}(query, context, run_config, debug)
+
+    def as_tool(self) -> "BaseTool":
+        """Return this agent as a LangChain tool.
+
+        This allows the supervisor to call this agent as a tool,
+        enabling dynamic agent orchestration.
+
+        Returns:
+            A LangChain tool wrapping this agent.
+        """
+        agent_instance = self
+
+        @tool
+        async def {{ agent_slug }}(
+            query: str,
+            config: Annotated[RunnableConfig, InjectedToolArg],
+        ) -> str:
+            """Query this specialist agent with a natural language request.
+
+            Args:
+                query: What you want this agent to do or find out.
+                config: Runnable configuration (injected automatically).
+
+            Returns:
+                The agent's response text.
+            """
+            result = await agent_instance.run(query, run_config=config)
+            return str(result["response"])
+
+        return {{ agent_slug }}
