@@ -1,0 +1,146 @@
+<div align="center"><img src="https://www.nowfocus.org/android-chrome-192x192.png" width="60"  align="center">  
+
+# <a href="https://www.nowfocus.org/">*Nowfocus*</a> <br> Open-source task timer for Linux  
+
+**Avoid multifailing. Master your to-do lists. Track your time.**
+
+</div>
+
+nowfocus is a clean, keyboard-driven time management dashboard that flexibly connects multiple to-do lists with multiple time trackers and displays your current task and time spent in the status bar. 
+
+## Features
+
+- Unlimited, flexible combinations of to-do lists and time tracking apps  
+- Inactivity detection that automatically pauses time tracking 
+- Task prioritization   
+- Infinitely nestable lists  
+- Pomodoro timer  
+- Time targets: set a minimum or maximum time for any task or list of tasks and get reminded to follow though  
+- Randomness interrupt bell (optional) to keep you on track with tracking your time
+- Keyboard-driven interface 
+- Offline to-do list cache 
+- CLI interface
+- Run a command (or launch an application) when a task is started
+- Not built with Electron ♥
+- Follows system dark-mode
+- Lightening fast task search
+
+<table><tr><td>
+<a href="https://gitlab.com/GitFr33/nowfocus/-/raw/main/docs/darkmode.webp"><img src="https://gitlab.com/GitFr33/nowfocus/-/raw/main/docs/darkmode.webp" height="200"></a></td><td>
+<a href="https://gitlab.com/GitFr33/nowfocus/-/raw/main/docs/Screenshot-25-09-23-11-42-56.webp"><img src="https://gitlab.com/GitFr33/nowfocus/-/raw/main/docs/Screenshot-25-09-23-11-42-56.webp" height="200"></a></td><td>
+<a href="https://gitlab.com/GitFr33/nowfocus/-/raw/main/docs/Screenshot-25-09-23-11-46-14.webp"><img src="https://gitlab.com/GitFr33/nowfocus/-/raw/main/docs/Screenshot-25-09-23-11-46-14.webp" height="200"></a></td><td>
+<a href="https://gitlab.com/GitFr33/nowfocus/-/raw/main/docs/Screenshot-25-09-23-11-53-22.webp"><img src="https://gitlab.com/GitFr33/nowfocus/-/raw/main/docs/Screenshot-25-09-23-11-53-22.webp" height="200"></a></td></tr></table>
+
+<br>
+
+### Currently Supported To-do List Backends
+
+- [Trello](https://www.trello.com)
+- [TaskWarrior](https://taskwarrior.org/)
+- [todo.txt format](http://todotxt.org/)
+- [Vikunja](https://www.vikunja.io)
+- [Photosynthesis Timetracker](https://github.com/Photosynthesis/Timetracker/)  
+- Simple text file with indentation based sub-lists
+- Any to-do list that supports [CalDav todos](https://en.wikipedia.org/wiki/CalDAV) 
+
+
+
+### Currently Supported Time Tracker Backends 
+
+- CSV file  
+- [ActivityWatch](https://www.activitywatch.net)      
+- [Photosynthesis Timetracker](https://github.com/Photosynthesis/Timetracker/)  
+- [TimeWarrior](https://timewarrior.net)
+
+
+## Installation
+
+<!-- # note: gir1.2-appindicator3-0.1 can be substituted for gir1.2-ayatanaappindicator3-0.1 -->
+
+1. Run the following in terminal to install and setup:
+    ```
+    # Install dependencies
+    sudo apt install pipx gir1.2-ayatanaappindicator3-0.1 libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev xprintidle 
+
+    # Set up pipx   
+    pipx ensurepath
+    source ~/.bashrc 
+
+    # Install nowfocus
+    pipx install nowfocus
+
+    # Enter application directory
+    cd ~/.local/share/pipx/venvs/nowfocus/lib/python3.12/site-packages/nowfocus/desktop-extras
+
+    # Copy desktop file and icon to /usr/share 
+    sudo cp nowfocus.desktop /usr/share/applications/nowfocus.desktop
+    sudo cp nowfocus.svg /usr/share/icons/hicolor/scalable/apps/nowfocus.svg
+
+    # and now Focus!
+    nowfocus
+
+    ```
+
+2. Set up a keybinding (on Ubuntu or Linux Mint), open **Settings > Keyboard > Keyboard Shortcuts > Custom Shortcuts**, set the keystroke to Ctrl + Space (or the combination of your choice) set the **command** to:
+    ```
+    bash -c "echo 'open_task_window' > /tmp/nowfocus-pipe"
+    ```
+
+
+
+3. Add the following command to your startup applications: 
+    ```
+    nowfocus --force
+    ``` 
+
+
+
+## Usage
+
+#### Set up to-do lists and time trackers
+
+Open nowfocus **Settings** from the indicator menu or tasks window and connect your to-do lists and time tracker(s) 
+
+#### Task Window Keybindings
+
+- `F11` Toggle fullscreen
+- `Esc` Close task window
+- `Enter` Start top/selected task (or make a new task with current search phrase if no results)
+- `Shift Enter` or `Shift Click` Transfer current session time to selected task (or top task if none selected)
+- `Control Enter` or `Control Click` show opetions menu for selected (or top) task
+- `Alt Enter` or `Alt Click` Open todolist for selected (or top) task
+- `Conrol + S` Pause and **save** current session
+- `Conrol + D` Pause current session and mark task **Done**
+- `Conrol + Q` **Quit** and discard current session
+- `Ctrl + N` **New** task
+- `Ctrl + R` **Refresh** todolists
+- `Ctrl + L` or `Ctrl + F` **Focus** the task search
+
+#### Commandline Interface
+
+- To raise the task window use simply: `nowfocus`  
+- If nowfocus has crashed or failed to shut down nicely use `nowfocus --force`
+- To start timing a task: add the task name as the first positional argument. `nowfocus "checking email"` 
+- To stop timing use `nowfocus stop`
+- Start with verbose logging use: `nowfocus -l 3`
+- Start with targeted verbose logging use: `nowfocus -s trello`
+
+
+## Reporting Issues 
+[Open an issue on Codeberg](https://codeberg.org/AltruistEnterprises/nowfocus/issues) (Please include as much detail as you can.)
+
+
+## Development
+[Fork **nowfocus** source code on Codeberg (GPL)](https://codeberg.org/AltruistEnterprises/nowfocus/issues)
+
+### Install From Source
+```
+git clone https://codeberg.org/AltruistEnterprises/nowfocus/nowfocus.git
+cd nowfocus
+python3 -m venv .venv/nowfocus-build
+source .venv/nowfocus-build/bin/activate 
+pip install -r build-requirements.txt
+python3 -m build
+pipx install -e --force YOUR_INSTALL_PATH
+```
+<!--built with python + GTK -->
