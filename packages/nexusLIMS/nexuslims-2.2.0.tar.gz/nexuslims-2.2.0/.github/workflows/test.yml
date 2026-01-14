@@ -1,0 +1,109 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y findutils
+
+      - name: Install system dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install findutils
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run unit tests
+        run: |
+          uv run pytest tests/unit/ --cov=nexusLIMS \
+            --cov-report html:tests/coverage \
+            --cov-report term-missing \
+            --cov-report=xml \
+            --mpl --mpl-baseline-path=tests/unit/files/figs
+
+      - name: Upload coverage database
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-db-${{ matrix.python-version }}-${{ matrix.os }}
+          path: .coverage
+          include-hidden-files: true
+
+      - name: Upload HTML coverage report
+        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-${{ matrix.python-version }}
+          path: tests/coverage
+
+  coverage:
+    # Combine coverage from all test runs and upload to Codecov
+    name: Coverage Reports
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install coverage tools
+        run: pip install coverage
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-db-*
+          path: coverage-reports
+
+      - name: Combine coverage reports
+        run: |
+          # List downloaded files for debugging
+          find coverage-reports -name .coverage -type f
+          # Move all .coverage files to current directory with unique names
+          find coverage-reports -name .coverage -type f -exec sh -c 'cp "$1" ".coverage.$(basename $(dirname $1))"' _ {} \;
+          # Combine all .coverage.* files
+          coverage combine
+          # Generate combined XML report
+          coverage xml -o combined-coverage.xml
+          # Show report in logs
+          coverage report
+
+      - name: Upload combined coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./combined-coverage.xml
+          fail_ci_if_error: false
