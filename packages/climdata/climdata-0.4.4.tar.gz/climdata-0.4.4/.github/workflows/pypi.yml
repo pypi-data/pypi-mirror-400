@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"   # Trigger when pushing tags like v0.1.0
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout code
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo apt-get clean
+      # 2️⃣ Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3️⃣ Upgrade pip and install build/test dependencies
+      - name: Install dependencies
+        run: |
+          pip install numpy
+          pip install build
+          pip install build twine
+          pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install torch-cluster \
+            --no-build-isolation \
+            -f https://data.pyg.org/whl/torch-2.3.1+cpu.html
+          pip install -r requirements.txt
+          pip install . --no-build-isolation
+          
+      # 4️⃣ Run unit tests
+      - name: Run tests
+        run: |
+          python -m unittest discover tests/
+
+      # 5️⃣ Build the package
+      - name: Build package
+        run: python -m build
+
+      # 6️⃣ Publish to PyPI
+      - name: Publish to PyPI
+        run: |
+          python -m twine upload dist/* -u __token__ -p ${{ secrets.PYPI_API_TOKEN }} --verbose
