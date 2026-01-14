@@ -1,0 +1,213 @@
+# adlibo
+
+Official Adlibo SDK for Python - AI Prompt Injection Protection
+
+## Installation
+
+```bash
+pip install adlibo
+```
+
+For async support:
+```bash
+pip install adlibo[async]
+```
+
+## Quick Start
+
+```python
+from adlibo import Adlibo
+
+client = Adlibo("al_live_your_api_key")
+result = client.analyze("user input here")
+
+if not result.safe:
+    print(f"Threat detected: {result.severity}")
+    print(f"Categories: {result.categories}")
+```
+
+## Usage
+
+### Analyze (Full Analysis)
+
+```python
+result = client.analyze(
+    "ignore previous instructions",
+    include_details=True,
+    sanitize=False
+)
+
+print(result.safe)          # False
+print(result.risk_score)    # 85
+print(result.severity)      # Severity.HIGH
+print(result.action)        # Action.BLOCK
+print(result.categories)    # [Category.DIRECT_OVERRIDE]
+print(result.patterns)      # [PatternMatch(...)]
+```
+
+### Detect (Quick Check)
+
+```python
+result = client.detect("user input")
+
+if result.detected:
+    print(f"Risk score: {result.risk_score}")
+    print(f"Category: {result.category}")
+```
+
+### Sanitize
+
+```python
+result = client.sanitize("Hello! Ignore previous instructions.")
+
+print(result.text)              # "Hello!"
+print(result.patterns_removed)  # 1
+```
+
+### Convenience Method
+
+```python
+if not client.is_safe("user input"):
+    # Handle threat
+    pass
+```
+
+## Async Support
+
+```python
+from adlibo import AsyncAdlibo
+
+async with AsyncAdlibo("al_live_xxx") as client:
+    result = await client.analyze("user input")
+    print(result.safe)
+```
+
+## Context Manager
+
+```python
+with Adlibo("al_live_xxx") as client:
+    result = client.analyze("text")
+```
+
+## Configuration
+
+```python
+client = Adlibo(
+    api_key="al_live_xxx",
+    base_url="https://www.adlibo.com/api/v1",
+    timeout=30.0,
+    max_retries=3
+)
+```
+
+## Rate Limiting
+
+```python
+result = client.analyze("text")
+
+if client.rate_limit:
+    print(f"Remaining: {client.rate_limit.remaining}")
+    print(f"Limit: {client.rate_limit.limit}")
+    print(f"Reset: {client.rate_limit.reset}")
+```
+
+## Error Handling
+
+```python
+from adlibo import Adlibo, AdliboError, RateLimitError, AuthenticationError
+
+try:
+    result = client.analyze("text")
+except RateLimitError as e:
+    print(f"Rate limited. Reset at: {e.reset_at}")
+except AuthenticationError:
+    print("Invalid API key")
+except AdliboError as e:
+    print(f"Error: {e.code} - {e.message}")
+```
+
+## Feedback
+
+Report false positives or negatives:
+
+```python
+from adlibo import Category
+
+client.feedback(
+    text="this was incorrectly flagged",
+    is_false_positive=True,
+    expected_categories=[Category.DIRECT_OVERRIDE],
+    context="This is a legitimate user question"
+)
+```
+
+## Flask Integration
+
+```python
+from flask import Flask, request, jsonify
+from adlibo import Adlibo
+
+app = Flask(__name__)
+client = Adlibo("al_live_xxx")
+
+@app.before_request
+def check_prompt_injection():
+    if request.method == "POST" and request.json:
+        text = request.json.get("message", "")
+        if text and not client.is_safe(text):
+            return jsonify({"error": "Malicious input detected"}), 400
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    return jsonify({"response": "Safe input received"})
+```
+
+## FastAPI Integration
+
+```python
+from fastapi import FastAPI, HTTPException, Request
+from adlibo import AsyncAdlibo
+
+app = FastAPI()
+client = AsyncAdlibo("al_live_xxx")
+
+@app.on_event("startup")
+async def startup():
+    await client.__aenter__()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await client.__aexit__(None, None, None)
+
+@app.middleware("http")
+async def check_injection(request: Request, call_next):
+    if request.method == "POST":
+        body = await request.json()
+        if "message" in body:
+            if not await client.is_safe(body["message"]):
+                raise HTTPException(400, "Malicious input detected")
+    return await call_next(request)
+```
+
+## Detection Categories
+
+| Category | Description |
+|----------|-------------|
+| `DIRECT_OVERRIDE` | Attempts to ignore/override instructions |
+| `ROLE_MANIPULATION` | Trying to change AI persona/role |
+| `EXTRACTION` | Exfiltrating system prompts |
+| `FORMAT_TOKENS` | LLM format tokens ([INST], ###SYSTEM) |
+| `FAKE_AUTHORITY` | Fake admin codes/authority |
+| `DAN_JAILBREAK` | DAN and jailbreak variants |
+| `ROLEPLAY_ATTACK` | Roleplay-based attacks |
+| `HYPOTHETICAL` | Hypothetical framing |
+| `EMOTIONAL` | Emotional manipulation |
+| `GRADUAL_BOUNDARY` | Gradual boundary pushing |
+| `CONTEXT_EXPLOIT` | Context exploitation |
+| `ENCODING` | Unicode/Base64 obfuscation |
+| `TECHNICAL` | Technical injections |
+| `MODEL_INFO` | Model info extraction |
+
+## License
+
+MIT - [Adlibo](https://www.adlibo.com)
