@@ -1,0 +1,402 @@
+Metadata-Version: 2.4
+Name: asr-enhancer
+Version: 0.2.1
+Summary: ASR Quality Enhancement Layer for Parakeet Multilingual ASR
+Home-page: https://github.com/yourusername/asr-enhancer
+Author: ASR Enhancement Team
+License: MIT
+Project-URL: Homepage, https://github.com/example/asr-enhancer
+Project-URL: Documentation, https://github.com/example/asr-enhancer#readme
+Project-URL: Repository, https://github.com/example/asr-enhancer
+Keywords: asr,speech-recognition,nlp,transcription,enhancement
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Multimedia :: Sound/Audio :: Speech
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: uvicorn[standard]>=0.24.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: click>=8.1.0
+Requires-Dist: numpy>=1.24.0
+Provides-Extra: audio
+Requires-Dist: librosa>=0.10.0; extra == "audio"
+Requires-Dist: soundfile>=0.12.0; extra == "audio"
+Provides-Extra: whisper
+Requires-Dist: openai-whisper>=20231117; extra == "whisper"
+Provides-Extra: llm
+Requires-Dist: openai>=1.3.0; extra == "llm"
+Requires-Dist: anthropic>=0.7.0; extra == "llm"
+Provides-Extra: ml
+Requires-Dist: torch>=2.1.0; extra == "ml"
+Requires-Dist: transformers>=4.35.0; extra == "ml"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.11.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Provides-Extra: all
+Requires-Dist: asr-enhancer[audio,dev,llm,ml,whisper]; extra == "all"
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# ASR Quality Enhancement Layer
+
+A production-grade post-processing pipeline for improving Parakeet Multilingual ASR outputs. This system addresses common ASR challenges including low-confidence word detection, numeric sequence reconstruction, domain vocabulary correction, and LLM-based contextual polishing.
+
+## 🎯 Overview
+
+The ASR Enhancement Layer sits between the Parakeet ASR engine and downstream applications, providing:
+
+- **Error Detection**: Identifies low-confidence spans, anomalies, and incomplete sequences
+- **Secondary ASR**: Re-transcribes problematic segments using Whisper/Riva
+- **Numeric Reconstruction**: Recovers missing digits in phone numbers, OTPs, amounts
+- **Domain Vocabulary**: Applies domain-specific terminology corrections
+- **LLM Polishing**: Fixes grammar and coherence with anti-hallucination safeguards
+- **Hypothesis Fusion**: Combines multiple ASR outputs using weighted scoring
+
+## 📐 Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       ASR QUALITY ENHANCEMENT LAYER                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
+│  │   Parakeet   │───▶│    Error     │───▶│   Re-ASR     │               │
+│  │   ASR Input  │    │  Detection   │    │  Processing  │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘               │
+│         │                   │                   │                        │
+│         │            ┌──────┴──────┐            │                        │
+│         │            │ • Confidence │           │                        │
+│         │            │ • Anomalies  │           │                        │
+│         │            │ • Numeric    │           │                        │
+│         │            └─────────────┘            │                        │
+│         ▼                                       ▼                        │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
+│  │   Numeric    │───▶│   Domain     │───▶│  Hypothesis  │               │
+│  │ Reconstruct  │    │   Vocab      │    │    Fusion    │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘               │
+│         │                   │                   │                        │
+│         │            ┌──────┴──────┐            │                        │
+│         │            │ • Lexicons   │           │                        │
+│         │            │ • Fuzzy Match│           │                        │
+│         │            │ • Phonetic   │           │                        │
+│         │            └─────────────┘            │                        │
+│         ▼                                       ▼                        │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
+│  │     LLM      │───▶│  Validation  │───▶│   Enhanced   │               │
+│  │  Polishing   │    │  & Scoring   │    │   Output     │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘               │
+│         │                   │                                            │
+│         │            ┌──────┴──────┐                                     │
+│         │            │ • Consistency│                                    │
+│         │            │ • Perplexity │                                    │
+│         │            │ • Completeness│                                   │
+│         │            └─────────────┘                                     │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## 📁 Project Structure
+
+```
+asr_enhancer/
+├── __init__.py              # Package exports
+├── core.py                  # Main EnhancementPipeline orchestrator
+├── detectors/               # Error detection modules
+│   ├── confidence_detector.py  # Low-confidence span detection
+│   ├── anomaly_detector.py     # Segmentation/repetition anomalies
+│   └── numeric_gap_detector.py # Incomplete number sequences
+├── resynthesis/             # Secondary ASR processing
+│   ├── segment_extractor.py    # Audio segment extraction
+│   ├── secondary_asr.py        # ASR backend abstraction
+│   ├── whisper_backend.py      # Whisper integration
+│   └── riva_backend.py         # NVIDIA Riva integration
+├── numeric/                 # Numeric reconstruction
+│   ├── pattern_analyzer.py     # Number pattern detection
+│   ├── sequence_reconstructor.py # Digit recovery
+│   └── validators.py           # Phone/OTP/card validation
+├── vocab/                   # Domain vocabulary
+│   ├── lexicon_loader.py       # Lexicon loading
+│   ├── term_matcher.py         # Term matching (fuzzy/phonetic)
+│   └── corrector.py            # Vocabulary correction
+├── llm/                     # LLM integration
+│   ├── context_restorer.py     # Main LLM processor
+│   ├── prompt_templates.py     # Anti-hallucination prompts
+│   └── providers.py            # OpenAI/Ollama/Anthropic
+├── fusion/                  # Hypothesis fusion
+│   ├── fusion_engine.py        # N-best combination
+│   ├── scorers.py              # Acoustic/LM scoring
+│   └── selector.py             # Candidate selection
+├── validators/              # Quality validation
+│   ├── consistency_checker.py  # Content consistency
+│   ├── perplexity_scorer.py    # Fluency scoring
+│   └── completeness_validator.py # Gap detection
+├── utils/                   # Utilities
+│   ├── config.py               # Configuration management
+│   ├── logging.py              # Structured logging
+│   ├── audio.py                # Audio utilities
+│   └── text.py                 # Text utilities
+├── api/                     # FastAPI service
+│   ├── main.py                 # Application entry
+│   ├── routes.py               # API endpoints
+│   └── schemas.py              # Pydantic models
+└── cli/                     # Command-line interface
+    └── __init__.py             # CLI commands
+```
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd sound-web
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -e ".[all]"
+```
+
+### Basic Usage
+
+```python
+from asr_enhancer import EnhancementPipeline
+from asr_enhancer.utils import Config
+
+# Initialize pipeline
+config = Config(
+    confidence_threshold=0.7,
+    llm_provider="ollama",
+    llm_model="llama3.1",
+)
+pipeline = EnhancementPipeline(config)
+
+# Enhance transcript
+result = await pipeline.enhance(
+    transcript="my phone number is nine one two tree four five six seven ate nine",
+    word_timestamps=[
+        {"word": "my", "start": 0.0, "end": 0.2},
+        {"word": "phone", "start": 0.2, "end": 0.5},
+        # ... more timestamps
+    ],
+    word_confidences=[0.95, 0.92, 0.89, 0.98, 0.85, 0.91, 0.88, 0.45, 0.92, 0.87, 0.90, 0.93, 0.38, 0.91],
+)
+
+print(f"Enhanced: {result.enhanced_transcript}")
+print(f"Confidence improvement: {result.confidence_improvement:.2%}")
+```
+
+### API Server
+
+```bash
+# Start the API server
+asr-enhancer serve --host 0.0.0.0 --port 8000
+
+# Or with Docker
+docker-compose up -d
+```
+
+### CLI Usage
+
+```bash
+# Enhance a transcript file
+asr-enhancer enhance input.json -o output.json --format json
+
+# Analyze without enhancement
+asr-enhancer analyze input.json
+
+# Check dependencies
+asr-enhancer check
+```
+
+## 🔌 API Endpoints
+
+### POST /api/v1/enhance
+
+Enhance a transcript using the full pipeline.
+
+```json
+{
+  "transcript": "raw transcript text",
+  "word_timestamps": [{"word": "...", "start": 0.0, "end": 0.1}],
+  "word_confidences": [0.9, 0.8, ...],
+  "audio_path": "/path/to/audio.wav",  // optional
+  "domain_lexicon": {"term": ["variant1", "variant2"]}  // optional
+}
+```
+
+### POST /api/v1/analyze
+
+Analyze transcript without enhancement.
+
+### GET /api/v1/diagnostics
+
+Get pipeline diagnostics and configuration.
+
+### GET /health
+
+Health check endpoint.
+
+## ⚙️ Configuration
+
+Configuration can be set via:
+1. Configuration file (`config.json`)
+2. Environment variables
+3. Code
+
+### Key Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `confidence_threshold` | 0.7 | Threshold for low-confidence detection |
+| `sliding_window_size` | 3 | Window size for confidence smoothing |
+| `secondary_asr_backend` | "whisper" | Backend for re-ASR ("whisper", "riva") |
+| `llm_provider` | "ollama" | LLM provider ("openai", "ollama", "anthropic") |
+| `llm_model` | "llama3.1" | LLM model name |
+| `fusion_alpha` | 0.4 | Weight for original ASR confidence |
+| `fusion_beta` | 0.35 | Weight for language model score |
+| `fusion_gamma` | 0.25 | Weight for acoustic similarity |
+
+### Environment Variables
+
+```bash
+export ASR_CONFIDENCE_THRESHOLD=0.7
+export ASR_LLM_PROVIDER=ollama
+export ASR_LLM_MODEL=llama3.1
+export ASR_LLM_API_KEY=your-api-key  # For OpenAI/Anthropic
+export ASR_LOG_LEVEL=INFO
+```
+
+## 📊 Fusion Formula
+
+The hypothesis fusion uses weighted scoring:
+
+$$Score = \alpha \cdot P_{confidence} + \beta \cdot S_{LM} + \gamma \cdot S_{acoustic}$$
+
+Where:
+- $\alpha$ = Original ASR confidence weight (default: 0.4)
+- $\beta$ = Language model score weight (default: 0.35)
+- $\gamma$ = Acoustic similarity weight (default: 0.25)
+
+## 🛡️ Anti-Hallucination Safeguards
+
+The LLM polishing stage includes multiple safeguards:
+
+1. **Number Preservation**: All numeric sequences must appear unchanged
+2. **Overlap Validation**: Enhanced text must maintain >50% word overlap
+3. **Grounding Prompts**: Explicit instructions to only fix errors, not add content
+4. **Retry Logic**: Multiple attempts with validation between each
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=asr_enhancer --cov-report=html
+
+# Run specific test file
+pytest tests/test_detectors.py -v
+```
+
+## 🐳 Docker Deployment
+
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f asr-enhancer
+
+# Pull Ollama model (first time)
+docker exec asr-enhancer-ollama ollama pull llama3.1
+```
+
+## 📈 Next Implementation Steps
+
+### Phase 1: Core Implementation (Current)
+- [x] Project scaffolding
+- [x] Module stubs with interfaces
+- [x] FastAPI service structure
+- [x] CLI tool skeleton
+- [x] Docker configuration
+
+### Phase 2: Detection & Analysis
+- [ ] Implement sliding window confidence detection
+- [ ] Add acoustic anomaly detection
+- [ ] Build numeric gap pattern matching
+- [ ] Unit tests for detectors
+
+### Phase 3: Secondary ASR
+- [ ] Whisper backend integration
+- [ ] Audio segment extraction
+- [ ] Batch processing support
+- [ ] Latency optimization
+
+### Phase 4: Numeric Reconstruction
+- [ ] Pattern analyzer for phone/OTP/amounts
+- [ ] Acoustic confusion correction
+- [ ] Sequence completion rules
+- [ ] Validation with Luhn checks
+
+### Phase 5: Domain Vocabulary
+- [ ] Lexicon file format and loading
+- [ ] Fuzzy matching implementation
+- [ ] Phonetic matching (Soundex/Metaphone)
+- [ ] Case-preserving correction
+
+### Phase 6: LLM Integration
+- [ ] Prompt template refinement
+- [ ] Multi-provider support testing
+- [ ] Anti-hallucination validation
+- [ ] Fallback strategies
+
+### Phase 7: Fusion & Validation
+- [ ] N-best hypothesis fusion
+- [ ] Language model perplexity scoring
+- [ ] Consistency validation
+- [ ] Completeness checks
+
+### Phase 8: Production Hardening
+- [ ] Performance benchmarks
+- [ ] Memory optimization
+- [ ] Streaming support
+- [ ] Monitoring & metrics
+- [ ] Load testing
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `pytest`
+5. Run linting: `ruff check . && black --check .`
+6. Submit a pull request
+
+## 📝 License
+
+MIT License - see LICENSE file for details.
+
+## 🔗 Related Projects
+
+- [NVIDIA Parakeet](https://github.com/NVIDIA/NeMo) - Multilingual ASR
+- [OpenAI Whisper](https://github.com/openai/whisper) - General-purpose ASR
+- [NVIDIA Riva](https://developer.nvidia.com/riva) - Streaming ASR platform
