@@ -1,0 +1,68 @@
+# This file is part of the pyMOR project (https://www.pymor.org).
+# Copyright pyMOR developers and contributors. All rights reserved.
+# License: BSD 2-Clause License (https://opensource.org/licenses/BSD-2-Clause)
+
+import os
+from functools import wraps
+
+import numpy as np
+import pytest
+from hypothesis import HealthCheck, Verbosity, settings
+
+from pymor.tools.random import new_rng
+
+_common_settings = {
+    'print_blob': True,
+    'suppress_health_check': (HealthCheck.data_too_large, HealthCheck.too_slow,
+                              HealthCheck.filter_too_much),
+    'deadline': 5000,
+    'verbosity': Verbosity.normal,
+}
+settings.register_profile('ci_large', max_examples=400, **_common_settings)
+settings.register_profile('ci', derandomize=True, max_examples=80, **_common_settings)
+settings.register_profile('dev', derandomize=True, max_examples=10, **_common_settings)
+_common_settings['verbosity'] = Verbosity.verbose
+settings.register_profile('debug', derandomize=True, max_examples=10, **_common_settings)
+settings.load_profile(os.getenv('PYMOR_HYPOTHESIS_PROFILE', 'dev'))
+
+""" This makes sure all our fixtures are available to all tests
+
+Individual test modules MUST NOT import fixtures from `pymortests.fixtures`,
+as this can have strange side effects.
+"""
+pytest_plugins = [
+    'pymortests.fixtures.analyticalproblem',
+    'pymortests.fixtures.function',
+    'pymortests.fixtures.grid',
+    'pymortests.fixtures.model',
+    'pymortests.fixtures.operator',
+]
+
+
+@pytest.fixture(autouse=True)
+def monkey_np_testing(monkeypatch):
+    """All tests automagically use this, we only change the default tolerances.
+
+    monkey np.testing.assert_allclose to behave the same as np.allclose
+    for some reason, the default atol of np.testing.assert_allclose is 0
+    while it is 1e-8 for np.allclose
+    """
+    real_all_close = np.testing.assert_allclose
+
+    @wraps(real_all_close)
+    def monkey_allclose(a, b, rtol=1.e-5, atol=1.e-8):
+        __tracebackhide__ = True  # Hide traceback for py.test
+        return real_all_close(a, b, rtol=rtol, atol=atol)
+
+    monkeypatch.setattr(np.testing, 'assert_allclose', monkey_allclose)
+
+
+@pytest.fixture(autouse=True)
+def reset_rng():
+    new_rng(42).install()
+
+
+@pytest.fixture
+def rng():
+    import numpy as np
+    return np.random.default_rng(0)

@@ -1,0 +1,321 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pymor"
+dynamic = ["version"]
+description = "Library for building model order reduction applications with Python"
+readme = "README.md"
+license = "BSD-2-Clause AND BSD-3-Clause"
+license-files = ["LICENSE.txt", "LICENSES_bundled.txt"]
+requires-python = ">=3.10"
+authors = [
+  {name = "pyMOR developers", email = "main.developers@pymor.org"},
+]
+maintainers = [
+  {name = "Stephan Rave", email = "stephan.rave@uni-muenster.de"},
+]
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+  "diskcache",
+  "matplotlib>=3.5.0",
+  "numpy>=1.21,!=1.25.0", # 1.25.0 crashes CI
+  "packaging",
+  "pillow",
+  "pygments",
+  "qtpy>=2.3.1",
+  "scipy>=1.8,!=1.15.0,!=1.15.1,!=1.15.2",
+  "threadpoolctl",
+  "typer",
+]
+
+[project.optional-dependencies]
+# additional dependencies for building docs via 'make docs'
+docs = [
+  "pymor[docs_additional,jupyter,slycot,ann]",
+]
+# we have the docs-related additional dependencies as a separate extra here
+# to avoid pip-compile include pymor itself as a dependency, why is happening
+# when recursive extras are used within recursive extras
+docs-additional = [
+  "astroid<4", # astroid 4 is incompatible with the pinned sphinx/autoapi version
+  "bash_kernel",
+  "docutils",
+  "myst-nb>=0.16",
+  "pybind11[global]",
+  "python-slugify",
+  "sphinx-autoapi==3.1.2",
+  "sphinx-material",
+  "sphinx==7.3.7",
+  "sphinxcontrib-bibtex",
+]
+# additional dependencies for running tests via 'make tests'
+tests = [
+  "hypothesis[numpy,pytest]==6.56.3", # pin hypothesis version to ensure deterministic tests
+  "nbmake",
+  "pytest-cov",
+  "pytest-datadir",
+  "pytest>=7.2.1", # 7.2.0 causes format_source tests to fail do to wrong paths in co_filename
+]
+ci-conda = [
+  "pyopengl!=3.1.7,!=3.1.9,!=3.1.10", # CI crashes
+]
+# additional dependencies for pyMOR development
+dev = [
+  "ruff==0.13.3", # our linter of choice
+  "conda_lock==2.5.7", # needed for make ci_conda_requirements
+  "hatch", # build frontend for building and publishing pyMOR images
+  "uv", # to build requirements files
+]
+# ## Optional dependencies for MOR algorithms
+# dependencies for deep-learning based MOR methods
+ann = [
+  "torch>=1.11.0",
+]
+# dense matrix equation solver for system-theoretic methods and H-infinity norm calculation
+# requires OpenBLAS headers and a Fortran compiler
+slycot = [
+  "slycot>=0.5.4",
+]
+# parallelization of some MOR algorithms (e.g. greedy search) using ipyparallel
+ipyparallel = [
+  "ipyparallel>=6.2.5",
+]
+# parallelization of some MOR algorithms (e.g. greedy search) using mpi
+# support for MPI-distributed solvers
+mpi = [
+  "mpi4py>=3.0.3",
+]
+# ## Builtin discretizations
+# GUI support for builtin discretizations
+gui = [
+  "pyside6>=6.4.3",
+  "pyopengl",
+]
+# jupyter integration
+jupyter = [
+  "ipympl",
+  "ipywidgets>7",
+  "jupyterlab",
+  "jupyterlab-myst",
+  "k3d>=2.15.2",
+  "notebook",
+]
+# VTK output for builtin discretizations
+vtk = [
+  "lxml",
+  "meshio>=4.4",
+  "pyevtk",
+  "xmljson",
+]
+# gmsh support for builtin discretizations
+gmsh = [
+  "gmsh",
+]
+# # Supported external solvers available on PyPI
+ngsolve = [
+  "ngsolve",
+]
+scikit-fem = [
+  "scikit-fem>=6.0.0",
+]
+# Machine learning
+scikit-learn = [
+  "scikit-learn",
+]
+# # Meta dependencies
+# install all optional dependencies, except those requiring a compiler toolchain to build
+full = [
+  "pymor[docs_additional,tests,dev,ann,ipyparallel,gui,jupyter,vtk,gmsh,ngsolve,scikit-fem]",
+]
+# install all optional dependencies, including those requiring a compiler toolchain to build
+full-compiled = [
+  "pymor[full,slycot,mpi]",
+]
+
+[project.scripts]
+pymor-demo = "pymor.scripts.pymor_demo:run"
+pymor-vis = "pymor.scripts.pymor_vis:run"
+
+[project.urls]
+homepage = "https://pymor.org"
+documentation = "https://docs.pymor.org"
+source = "https://github.com/pymor/pymor"
+tracker = "https://github.com/pymor/pymor/issues"
+"release notes" = "https://docs.pymor.org/latest/release_notes/all.html"
+
+# each entry is a list of paths that coverage will consider to be equivalent
+# this allows to map source files if pymor is imported from installed package
+[tool.coverage.paths]
+root = [
+  "/pymor",
+  "src/pymor",
+]
+
+# omit the runtime compiled source of pymor.analyticalproblems.expression.Expression
+[tool.coverage.report]
+omit = [
+  "expression",
+  "*/expression",
+  "src/pymor/version.py",
+  "pymor/version",
+]
+
+[tool.coverage.run]
+relative_files = true
+source = [
+  "src",
+]
+source_pkgs = [
+  "pymor",
+]
+omit = [
+  "expression",
+  "*/expression",
+  "src/pymor/version.py",
+  "pymor/version",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/docs",
+  "CITATION.cff",
+  "conftest.py",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = [
+  "/src/pymor",
+  "/src/pymordemos",
+]
+
+[tool.hatch.version]
+path = "src/pymor/__init__.py"
+
+[tool.pytest.ini_options]
+pythonpath = "src"
+testpaths = "src/pymortests"
+python_files = "*.py"
+# exclude misbehaving plugin from auto load
+addopts = "-p no:nb_regression --durations 10"
+junit_family = "xunit2"
+markers = [
+  "builtin: test does not require external PDE solver",
+]
+
+[tool.ruff]
+src = ["src"] # this makes isort behave nicely
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+  "F", # Pyflakes
+  "W", # pycodestyle warning
+  "E", # pycodestyle error
+  "I", # isort
+  "N", # pep8-naming
+  "D", # pydocstyle
+  "UP", # pyupgrade
+  "YTT", # flake8-2020
+  "ASYNC", # flake8-async
+  "B", # flake8-bugbear
+  "C4", # flake8-comprehensions
+  "DTZ", # flake8-datetimez
+  "EXE", # flake8-executable
+  "ISC", # flake8-implicit-str-concat
+  "ICN", # flake8-import-conventions
+  "PT", # flake8-pytest-style
+  "Q", # flake8-quotes
+  "RSE", # flake8-raise
+  "SIM", # flake8-simplify
+  "TD", # flake8-todos
+  "PGH", # pygrep-hooks
+  "RUF", # Ruff-specific rules
+  "NPY", # NumPy-specific rules
+]
+ignore = [
+  "B006", # do not use mutable data structures for argument defaults
+  "B007", # loop control variable not used within loop body
+  "B008", # do not perform function call in argument defaults
+  "B011", # do not `assert False`
+  "B017", # pytest.raises(Exception) should be considered evil
+  "B028", # no explicit `stacklevel` keyword argument found
+  "C408", # unnecessary collection (dict, list, tuple) call
+  "D100", # missing docstring in public module
+  "D101", # missing docstring in public class
+  "D102", # missing docstring in public method
+  "D103", # missing docstring in public function
+  "D104", # missing docstring in public package
+  "D105", # missing docstring in magic method
+  "D106", # missing docstring in public nested class
+  "D203", # 1 blank line required before class docstring
+  "D212", # multi-line docstring summary should start at the first line
+  "D401", # first line of docstring should be in imperative mood
+  "D404", # first word of the docstring should not be "This"
+  "D405", # the linter thinks the argument name 'parameters' is a docstring section
+  "D407", # same as above
+  "D410", # same as above
+  "D411", # same as above
+  "D414", # same as above
+  "E402", # module level import not at top of file (due to config.require("PKG") syntax)
+  "E731", # do not assign a lambda expression, use a def
+  "E741", # do not use variables named 'l', 'O', or 'I'
+  "N802", # function name should be lowercase
+  "N803", # argument name should be lowercase (we use single capital letters everywhere for vectorarrays)
+  "N806", # same for variables in function
+  "PT011", # pytest.raises(Exception) is too broad
+  "PT012", # pytest.raises() block should contain a single simple statement
+  "PT015", # assertion always fails, replace with `pytest.fail()`
+  "RUF005", # consider unpacking instead of concatenation
+  "RUF021", # parenthesize a and b expressions when chaining and and or together, to make the precedence clear
+  "RUF023", # __slots__ is not sorted
+  "RUF059", # Unpacked variable is never used
+  "SIM102", # use a single if statement instead of nested if statements
+  "SIM103", # return the condition directly
+  "SIM105", # use contextlib.suppress instead of try-except-pass
+  "SIM108", # use ternary operator instead of if-else-block
+  "SIM114", # combine if branches using logical or operator
+  "SIM116", # use a dictionary instead of consecutive `if` statements
+  "SIM300", # Yoda conditions
+  "TD002", # missing author in TODO
+  "TD003", # missing issue link on the line following this TODO
+]
+
+[tool.ruff.lint.flake8-import-conventions]
+banned-from = ["numpy.linalg"] # avoids importing similar routines from numpy.linalg and scipy.linalg
+
+[tool.ruff.lint.flake8-import-conventions.extend-aliases]
+"scipy.linalg" = "spla"
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"] # module imported but unused
+"docs/source/try_on_binder.py" = ["N801"] # class name CapWords convention
+"src/pymor/algorithms/rules.py" = ["N801", "N805"] # class name CapWords convention, first argument should be `self`
+"src/pymor/analyticalproblems/expressions.py" = ["N801"] # class name CapWords convention
+"src/pymor/basic.py" = ["F401"] # ununsed imports
+"src/pymor/solvers/generic.py" = ["TD001"] # invalid TODO tag (XXX)
+"src/pymordemos/*" = ["F403", "F405"] # undefined import due to pymor.basic functionality
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 100
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.tomlsort]
+trailing_comma_inline_array = true
+
+[tool.yamlfix]
+sequence_style = "block_style"
