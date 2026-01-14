@@ -1,0 +1,62 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo apt-get clean
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install GDAL
+        run: |
+          pip install --no-cache-dir Cython
+          pip install --find-links=https://girder.github.io/large_image_wheels --no-cache-dir GDAL
+
+      - name: Test GDAL installation
+        run: |
+          python -c "from osgeo import gdal"
+          gdalinfo --version
+
+      - name: Install dependencies + package
+        run: |
+          pip install numpy
+          pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install torch-cluster \
+            --no-build-isolation \
+            -f https://data.pyg.org/whl/torch-2.3.1+cpu.html
+          pip install -r requirements.txt -r requirements_dev.txt
+          pip install . --no-build-isolation
+
+      - name: Discover typos with codespell
+        run: |
+          codespell --skip="*.csv,*.geojson,*.json,*.js,*.html,*cff,./.git" --ignore-words-list="aci,hist" || true
+
+      - name: PKG-TEST
+        run: |
+          python -m unittest discover tests/
+
+      - name: Deploy docs
+        run: mkdocs gh-deploy --force

@@ -1,0 +1,42 @@
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+name: Linux installation
+
+jobs:
+  test-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo apt-get clean
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Upgrade pip
+        run: pip install --upgrade pip
+
+      - name: Install package
+        run: |
+          pip install numpy
+          pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install torch-cluster \
+            --no-build-isolation \
+            -f https://data.pyg.org/whl/torch-2.3.1+cpu.html
+          pip install -r requirements.txt
+          pip install . --no-build-isolation
+
+      - name: Test import
+        run: python -c "import climdata; print('climdata import successful')"
