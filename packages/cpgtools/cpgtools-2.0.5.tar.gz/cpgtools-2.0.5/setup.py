@@ -1,0 +1,37 @@
+from setuptools import setup
+script_files = [
+"scripts/CpG_aggregation.py",
+"scripts/CpG_anno_position.py",
+"scripts/CpG_anno_probe.py",
+"scripts/CpG_density_gene_centered.py",
+"scripts/CpG_distrb_chrom.py",
+"scripts/CpG_distrb_gene_centered.py",
+"scripts/CpG_distrb_region.py",
+"scripts/CpG_logo.py",
+"scripts/CpG_to_gene.py",
+"scripts/beta_PCA.py",
+"scripts/beta_UMAP.py",
+"scripts/beta_jitter_plot.py",
+"scripts/beta_m_conversion.py",
+"scripts/beta_profile_gene_centered.py",
+"scripts/beta_profile_region.py",
+"scripts/beta_selectNBest.py",
+"scripts/beta_stacked_barplot.py",
+"scripts/beta_stats.py",
+"scripts/beta_tSNE.py",
+"scripts/beta_topN.py",
+"scripts/beta_trichotmize.py",
+"scripts/beta_combat.py",
+"scripts/dmc_Bayes.py",
+"scripts/dmc_bb.py",
+"scripts/dmc_fisher.py",
+"scripts/dmc_glm.py",
+"scripts/dmc_logit.py",
+"scripts/dmc_nonparametric.py",
+"scripts/dmc_ttest.py",
+"scripts/predict_sex.py",
+"scripts/predict_missing.py",
+]
+
+if __name__ == "__main__":
+    setup(scripts=script_files)
