@@ -1,0 +1,54 @@
+This file contains developer notes and documentation related to the tkAppFramework solution.
+
+Notes about incorporating tkSimulatorApp, tkSimulatorViewManager, UserQueryWidget, tkUserQueryReceiver, SimulatorModel classes
+into the framework.
+
+Relationships between objects:
+
+1) tkSimulatorApp object HAS-A SimulatorModel object, created by a factory method
+2) SimulatorModel object HAS-A SimulatorAdapter subclass object, which is passed into the tkSimulatorApp object's __init__(),
+	and assigned to the SimulatorModel object.
+3) The SimulatorAdapter subclass is specifically created for a particular simulator. This should be the only piece that needs
+	to be customized for a different simulator to work with tkSimulatorApp. The SimulatorAdapter subclass is responsible for
+	providing a consistent interface for the tkSimulatorApp to start, end, and load simulations.
+4) tkSimulatorApp object HAS-A tkSimulatorViewManager object, created by a factory method, and a tkUserQueryViewManager object,
+	created by _setup_child_widgets() method of tkSimulatorApp.
+5) tkSimulatorViewManager object HAS-A SimulatorShowInfoWidget object which it creates
+6) The simulator submits input requests to tkUserQueryReceiver on it's own thread, through execution of a UserQueryCommand object.
+7) tkUserQueryReceiver sends the request to the tkUserQueryViewManager (and its user query widgets) by placing a QueryInfo object into the shared query info queue.
+	And it posts a tkinter event through a registered callback method of tkUserQueryViewManager object.
+8) tkUserQueryViewManager retrieves the QueryInfo object from the queue, shows the query prompt text to the user, and obtains the user's
+	raw (text string) response to the query. It packages this raw response into a QueryResponse object, and places that
+	object into the tkUserQueryReceiver object's response queue.
+9) The tkUserQueryReceiver has been sitting in a tight loop since sending the request to the UserQueryWidget. As soon
+	as an object appears in it's response queue, it retrieves it, checks that the query ID is as expected, and returns
+	the raw response to the UserQueryCommand object.
+10) When the simulator has output it wants to show to the user, it simply uses python logging. The SimulatorAdapter subclass,
+	upon __init__() should add a QueueHandler object to the simulator's logger and assign to it the simulator event queue created
+	by the SimulatorModel object. (See what is currently done in CribbageSimuator.setup_logging() as an example.)
+	Every microsecond a scheduled tkinter event by the SimulatorModel checks the simulator event queue to see if it is empty.
+	If it isn't, it retrieves the LogRecord object from the simulator event queue and notifies it's Observers. The Observers
+	(typically tkViewManager subclasses) retrieve teh LogRecord from the SimulatorModel and display the information appropriately
+	given the set of child widgets that they manage.
+11) If the user of the tkSimulatorApp selects File | End Simulation menu item, the tkSimulatorApp object places a
+    '<<QueryingThreadTerminationRequest>>' into the response queue of the tkUserQueryReceiver object. When the tkUserQueryReceiver object
+	pulls this response from it's queue, it raises a UserQueryReceiver.UserQueryReceiverTerminateQueryingThreadError exception.
+	Since this exception is in the thread of the simulator (as opposed to the thread of the tkSimulatorApp), it will abruptly
+	terminate the simulator, unless the simulator catches it and handles it, which it should.
+
+
+*** 10/21/25: tkApp storing menu build info so later menu items can be disabled ***
+
+As we proceed down through cascades towqrds the actual commmand, there is a tkinter.Menu() object that we can store.
+The actual command is not associated with a unique object, but should be accessible through the Menu object's entryconfig(...) method,
+at least by using an index number, and maybe by using the menu_label string. So in order to later by able to use
+entryconfig(...) to disable/enable menu commands, we need a dictionary like as follows, where we want to access and then disable
+File | Start Simulation
+
+_menuWids = {'File':(File_menu_obj, {'Start Simulation':(None, index_on_file_menu_obj)})}
+
+Later, when you need to use entryconfig(...) on Start Simulation command:
+
+_menuWids['File'][0].entryconfig(_menuWids['File'][1]['Start Simulation'][1], state=DISABLED)
+
+

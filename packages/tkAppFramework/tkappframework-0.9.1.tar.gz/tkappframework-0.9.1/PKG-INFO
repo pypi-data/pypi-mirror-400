@@ -1,0 +1,401 @@
+Metadata-Version: 2.4
+Name: tkAppFramework
+Version: 0.9.1
+Summary: tkAppFramework facilitates the creation of python GUI applications using tkinter.
+Keywords: query,GUI,desktop,framework,simulator,tkinter,help,MVC
+Author-Email: "Kevin R. Geurts" <kevin.r.geurts@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Win32 (MS Windows)
+Classifier: Environment :: X11 Applications
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Software Development :: User Interfaces
+Project-URL: Homepage, https://github.com/KevinRGeurts/tkAppFramework
+Project-URL: Issues, https://github.com/KevinRGeurts/tkAppFramework/issues
+Requires-Python: >=3.12
+Requires-Dist: UserResponseCollector>=1.0.4
+Description-Content-Type: text/markdown
+
+# tkAppFramework
+
+Source code: [GitHub](https://github.com/KevinRGeurts/tkAppFramework)
+---
+tkAppFramework is a Python library that facilitates the creation of a GUI application using tkinter. It provides
+a base application class (tkApp), a base view manager class (tkViewManager), a base data and business logic
+class (Model), and a base class so that GUI widget managed by the view manager can act as observed subjects (Subject)
+in the Observer design pattern.
+
+## Credit where credit is due
+
+- Adapter, Observer, Mediator, and Factory Method patterns follow the concepts, UML diagrams, and examples provided in
+  "Design Patterns: Elements of Reusable Object-Oriented Software," by Eric Gamma, Richard Helm, Ralph Johnson,
+  and John Vlissides, published by Addison-Wesley, 1995.
+- The implementations of ```tkApp``` and ```tkViewManager``` leverage concepts from Chapter 11 of "Programming Python,"
+  by Mark Lutz, published by O'Reilly, 1996. In particular, ```tkApp``` takes a similar approach to Mr. Lutz's
+  ```GuiMaker``` class by using a python dictionary to configure it's menu bar.
+- This framework also borrows concepts from Microsoft's Foundation Classes (MFC), which I learned in the late 1990's.
+- The Simulator Application framework leverages concepts from {stuff I read in tkinter docs and on stackoverflow
+  that I synthesized into the framework}
+
+## tkApp class
+
+tkApp is an abstract base class from which concrete tkinter applications can be derived.
+
+Concrete implementation child classes must:
+- Implement the factory method ```_createViewManager()``` to create and return a tkViewManager instance,
+  which will create and manage the widgets of the application.
+- Implement the factory method ```_createModel()``` to create and return a Model instance.
+  
+Concrete implementation child classes likely will:
+- Pass AboutAppInfo named tuple into ```__init__()``` to set up the app's About dialog.
+- Pass menu_dict parameter into ```super.__init__()``` to set up the app's menubar.
+- Pass file_types parameter into ```super.__init__()``` to set up the file types for file dialogs.
+- Define and implement handler functions for menubar selections, beyond ```OnFileOpen```, ```OnFileSave```,
+  ```OnFileSaveAs```, ```OnFileExit```, ```OnViewHelp```, and ```OnHelpAbout```.
+
+Concrete implementation child classes may:
+- Extend ```_setup_child_widgets()``` if the tkViewManager does not create all of the app's widgets.
+- Extend logging setup in ```_setup_logging(...)``` if application specific logging is desired.
+
+A logger named 'tkApp_logger' is created and configured in _setup_logging(...), which is called by ```__init__(...)```.
+It logs to stderr through a stream handler. Default logging level is logging.INFO, but can be set by passing
+log_level into ```__init__(...)```. The 'tkApp_logger' logger can be used by concrete implementation child classes of tkApp.
+
+## tkViewManager class
+
+tkViewManager is an abstract base class from which concrete view mangers for tkinter applications can be derived.
+Concrete child implementations create widgets for tkApp concrete child implementations and handle the interactions
+between widgets.
+
+The tkViewManager class follows the Mediator design pattern and acts as Observer. tkViewManager is also a ttk.Frame.
+
+Concrete implementation child classes must:
+- Implement the method ```_CreateWidgets()```, which is called by ```__init__(...)``` to create and set up the child widgets
+  of the tkViewManager widget.
+- Define and implement handler functions for widget updates, e.g., ```def handle_x_widget_update(self):```.
+Notes:
+- Handler functions are registered with the tkViewManager via ```register_subject(...)```, typically after each widget is created in ```_CreateWidgets()```. 
+- Handler functions are automatically called from the ```update(...)``` method when a subject (child widget) notifies the tkViewManager by calling ```notify()``` on itself.
+
+## Model class
+
+Model is an abstract base class Model, from which classes representing the data and business logic of an application
+can be derived.
+
+Concrete implementation child classes likely will:
+- Implement ```readModelFromFile()``` method for reading model data from a file-like object.
+    Notes:
+    - Before reading from a file, the model may need to clear exsisting data.    
+    - After reading from a file, the model should call self.notify() to inform observers of changes.
+- Implement ```writeModelToFile()``` method for writing model data to a file-like object.
+
+## Observer / Subject classes
+
+The tkAppFramework also includes base classes for implementing the Observer design pattern. As described above,
+tkViewManager is an Observer. Concrete child implementations of tkViewManager will typically observe one or more
+child widgets, which are typically child implementations of tkinter.Labelframes and also Subjects.
+
+### Observer class
+Observer is a base class for all objects that will be an Observer in an Observer design pattern.
+All Observer child classes must implement the ```update(...)``` method.
+
+### Subject class
+Subject is a base class for all objects that will be a Subject in an Observer design pattern.
+Subjects should ```attach(...)``` and ```detach(...)``` Observers, and ```notify()``` them of changes in state.
+
+## Usage
+
+The code below shows a minimalist concrete implementation of tkApp and tkViewManager. The app is created and
+launched.
+
+```python
+import tkinter as tk
+from tkinter import ttk
+from tkAppFramework.tkApp import tkApp, AppAboutInfo
+from tkAppFramework.tkViewManager import tkViewManager
+from tkAppFramework.ObserverPatternBase import Subject
+from tkAppFramework.model import Model
+
+
+class DemoModel(Model):
+    """
+    A concrete implementation of Model for the demo application.
+    """
+    def __init__(self) -> None:
+        super().__init__()
+        self._count = 0
+
+    @property
+    def count(self):
+        return self._count
+
+    @count.setter
+    def count(self, value):
+        self._count = value
+        self.notify()        
+
+
+class DemoWidget(ttk.LabelFrame, Subject):
+    """
+    Class represents a tkinter label frame widget and is also a Subject in Observer design pattern.
+    It has a button widget that will change it's text cyclicly from 'Start' to 'Stop' when clicked.
+    """
+    def __init__(self, parent) -> None:
+        ttk.Labelframe.__init__(self, parent, text='Demo Widget')
+        Subject.__init__(self)
+        
+        btn = ttk.Button(self, command=self.OnButtonClicked)
+        # Place button in grid and set weights for stretching the column and row in the grid
+        # so that the demo widget resizes correctly.
+        btn.grid(column=0, row=0)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        # Create string variable which will be the text displayed on the button
+        self._lbl=tk.StringVar()
+        self._lbl.set('Start')
+        btn['textvariable']=self._lbl
+        
+        self._is_started = False
+
+    def get_state(self):
+        """
+        Return whether the widget's state is started or stopped. Returns this as a bool which is True if started,
+        and False if NOT started (that is, stopped).
+        :return _is_Started: True if started, False if stopped, bool
+        """
+        return self._is_started
+    
+    def OnButtonClicked(self):
+        """
+        Event handler for button click.
+        :return None:
+        """
+        # Flip the started state
+        if self._is_started:
+            # Widget state is currently started, so change state to stopped
+            self._is_started = False
+            # Change button text to 'Start'
+            self._lbl.set('Start')
+        else:
+            # Widget state is currently stopped, so change it's state to started
+            self._is_started = True
+            # Change button text to 'Stop'
+            self._lbl.set('Stop')
+
+        # Notify observers
+        self.notify()
+
+        return None
+
+
+class DemotkViewManager(tkViewManager):
+    """
+    Provide an implementation of _CreateWidgets(...). Implements handler functions for updates from the model
+    and the demo widget.
+    """
+    def _CreateWidgets(self):
+        """
+        Create the demo widget, register 
+        :return None:
+        """
+        dw = DemoWidget(self)
+        # Attach self as an observer of the subject demo widget
+        dw.attach(self)
+        # Register a handler function for updates from the subject demo widget
+        self.register_subject(dw,self.handle_demo_widget_update)
+        # Place demo widget in grid and set weights for stretching the column and row in the grid
+        # so that the demo widget resizes correctly.
+        dw.grid(column=0, row=0, sticky='NWES')
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        return None
+
+    def handle_model_update(self):
+        """
+        Handle updates from the model.
+        :return None:
+        """
+        print(f"Model count of button clicks is {self.getModel().count}")
+        return None
+    
+    def handle_demo_widget_update(self):
+        """
+        Handle updates from the demo widget.
+        :return None:
+        """
+        # Inform the model that the demo widget's state has changed (that is, the button was clicked),
+        # so that the model can maintain a count of the button clicks / state changes.
+        self.getModel().count += 1
+        return None
+
+
+class DemotkApp(tkApp):
+    """
+    Provide implementations of _createViewManager() and _createModel() factory methods.
+    """
+    def __init__(self, parent):
+        info = AppAboutInfo(name='Demo Application', version='0.1', copyright='2025', author='John Q. Public',
+                            license='MIT License', source='GitHub')
+        super().__init__(parent, title="Demo Application", app_info=info, file_types=[('Text file', '*.txt')])
+
+    def _createViewManager(self):
+        """
+        Concrete Implementation, which returns a DemotkViewManager instance.
+        :return: tkViewManager instance that will be the app's view manager
+        """
+        return DemotkViewManager(self)
+
+    def _createModel(self):
+        """
+        Concrete Implementation, which returns a DemoModel().
+        :return: DemoModel instance that will be the app's model
+        """
+        return DemoModel()
+
+
+# Get Tcl interpreter up and running and get the root widget
+root = tk.Tk()
+# Create the demo app
+app = DemotkApp(root)
+# Start the app's event loop running
+app.mainloop()
+```
+
+## Demonstration
+
+To run the Demo Application, type ```python tkAppFramework.main``` in a terminal window. Note, that this assumes that the
+tkAppFramework package has been installed in your Python environment. In the terminal window, choose option (d).
+The Demo Application is the same as the code shown above in the Usage section of this document. If you choose option (s),
+then a simple demonstration of the Simulator Application will be launched.
+
+## Simulator Application
+
+The tkAppFramework package also includes a framework for creating applications that serve as a GUI for simulators.
+A simulator is a program that, when run, periodically requests input from the user, performs calculations based
+on that input, and then outputs results to the user. The Simulator Application is a GUI that presents input requests
+from the simulator to the user, collects the user's input, and returns that input to the simulator. It also
+dispalys the simulator's output to the user.
+
+What is inherently true about a Simulator Application, is that the simulator controls the execution flow. In a
+typical GUI application, the GUI's event loop controls the execution flow, and the business logic code
+responds to requests from the GUI based on the user's interactions with the GUI's widgets. In the Simulator Application,
+once the simulator is started, it controls the execution flow, and sends input requests and output data to the GUI.
+Thus the Simulator Application inverts the typical GUI application architecture.
+
+The Simulator Application framework is implemented in the tkSimulatorApp, tkSimulatorViewManager, SimulatorModel,
+SimulatorAdapter, tkUserQueryViewManger, and tkUserUserQueryReceiver classes. Assuming that the simulator meets
+certain requirements, then the only code that needs to be written to hook it up to the Simulator Application is
+to implement a concrete child class of SimulatorAdapter. The simulator must:
+
+(1) Request all user input through the UserResponseCollector package.
+(2) Provide all ouput through the standard logging package.
+(3) Be able to run in a separate thread from the GUI's event loop.
+(4) Stop execution gracefully when a UserResponseCollector.UserQueryReceiverTerminateQueryingThreadError is raised.
+
+The concrete SimulatorAdapter must implement the ```run()``` method, which should call a method of ```self._simulator```
+to start a simulation. The usage example below matches the demonstration Simulator Application described in the Demonstration
+section of this document.
+
+### Usage
+
+```
+# Standard imports
+import tkinter as tk
+import logging
+
+# Local imports
+from tkAppFramework.tkSimulatorApp import tkSimulatorApp
+from tkAppFramework.sim_adapter import SimulatorAdapter
+from UserResponseCollector.UserQueryCommand import askForFloat
+import UserResponseCollector.UserQueryReceiver
+
+class DemoSimulator:
+    """
+    This class is a very simple simulator. In a loop, until terminated, it asks the user for a floating point
+    value, squares the value, and logs it.
+    """
+    def __init__(self, log_level=logging.INFO):
+        """
+        All that needs to be done is to set up logging.
+        :param log_level: The logging level to set for the logger, e.g., logging.DEBUG, logging.INFO, etc.
+        """
+        # Create a logger with name 'demo_simulator_logger'. This is NOT the root logger, which is one level up from here, and has no name.
+        logger = logging.getLogger('demo_simulator_logger')
+        # This is the threshold level for the logger itself, before it will pass to any handlers, which can have their own threshold.
+        # Should be able to control here what the stream handler receives and thus what ends up going to stderr.
+        # Use this key for now:
+        #   DEBUG = debug messages sent to this logger will end up on stderr
+        #   INFO = info messages sent to this logger will end up on stderr
+        logger.setLevel(log_level)
+        # Set up this highest level below root logger with a stream handler
+        sh = logging.StreamHandler()
+        # Set the threshold for the stream handler itself, which will come into play only after the logger threshold is met.
+        sh.setLevel(log_level)
+        # Add the stream handler to the logger
+        logger.addHandler(sh)
+
+    def go(self):
+        """
+        Execute a simulation.
+        :return: None
+        """
+        logger = logging.getLogger('demo_simulator_logger')
+        while True:
+            try:
+                response = askForFloat('Enter a value to square.')
+            except UserResponseCollector.UserQueryReceiver.UserQueryReceiverTerminateQueryingThreadError:
+                break
+            squared = response * response
+            logger.info(f"The square of {response} is {squared}.")
+        return None
+
+class DemoSimulatorAdapter(SimulatorAdapter):
+    """
+    Adapter to wrap DemoSimulator object.
+    """
+    def __init__(self, out_queue=None):
+        """
+        """
+        super().__init__(DemoSimulator(), 'demo_simulator_logger', out_queue)
+
+    def run(self):
+        """
+        Launch a simulation.
+        :return: None
+        """
+        self.simulator.go()
+        return None
+
+    def load_and_run(self):
+        """
+        No loading functionality implemented for DemoSimulator, so just log a message and launch a simulation.
+        :return: None
+        """
+        logger = logging.getLogger('demo_simulator_logger')
+        logger.info(f"Loading functinality not implemented for DemoSimulator, so just lauching a simulation...")
+        self.simulator.go()
+        return None
+
+
+# Get Tcl interpreter up and running and get the root widget
+root = tk.Tk()
+# Create the tkSimulatorApp
+simapp = tkSimulatorApp(root)
+# Create the DemoSimulatorAdapter, set it's output queue to the simapp's sim_output_queue property,
+# and assign it to the simapp's model's sim_adapter property.
+simapp.getModel().sim_adapter = DemoSimulatorAdapter(simapp.sim_output_queue)
+# Start the app's event loop running
+simapp.mainloop()
+```
+
+## Unittests
+
+Unittests for the tkAppFramework are in the tests directory, with filenames starting with test_. To run the unittests,
+type ```python -m unittest discover -s ..\..\tests -v``` in a terminal window in the src\tkAppFramework directory.
+
+## License
+MIT License. See the LICENSE file for details
