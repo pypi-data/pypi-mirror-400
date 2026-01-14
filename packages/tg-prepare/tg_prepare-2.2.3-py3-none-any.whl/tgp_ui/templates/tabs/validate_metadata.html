@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<div class="container py-4">
+    <!-- Form Title -->
+    <div class="col-12 text-center mb-4">
+        <h1 class="fs-3 fw-bold">Validation</h1>
+        <strong>Last validation run:</strong> {{ validation_results.last_run }}
+    </div>
+    <!-- Refresh Button -->
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <form class="d-inline-block js-tab-submit"
+                action="{{ url_for('collection.tab_validate_metadata', projectname=projectname, refresh=True) }}"
+                method="GET">
+                <button type="submit" class="btn btn-lg btn-primary d-flex align-items-center justify-content-center">
+                    <i class="bi bi-arrow-clockwise me-2"></i> Refresh Validation
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% set is_ready = validation_results.ready_for_publication %}
+
+    <!-- Validation Results -->
+    <div class="row">
+        <!-- General Validation Results -->
+        <div class="col-md-6 mb-4 mb-lg-0">
+            <div class="bg-light rounded px-2 h-100">
+                <h2 class="fs-4 mb-3">Project Validation</h2>
+                <ul class="list-group">
+                    <!-- OK Results -->
+                    {% for message in validation_results.project.ok %}
+                    <li class="list-group-item d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        {{ message }}
+                    </li>
+                    {% endfor %}
+
+                    <!-- Warnings -->
+                    {% for message in validation_results.project.warning %}
+                    <li class="list-group-item d-flex align-items-center">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                        {{ message }}
+                    </li>
+                    {% endfor %}
+
+                    <!-- Errors -->
+                    {% for message in validation_results.project.error %}
+                    <li class="list-group-item d-flex align-items-center">
+                        <i class="bi bi-x-circle-fill text-danger me-2"></i>
+                        {{ message }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="button" class="btn btn-sm btn-primary btn-next" data-next-target="#tab-edit-project"
+                        data-additional-button="#tab-group-project">
+                        <i class="bi bi-chevron-right"></i> Go To Project Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4 mb-lg-0">
+            <div class="bg-light rounded px-2 h-100 d-flex flex-column align-items-center justify-content-center">
+                <h2 class="fs-4 mb-4">Overall Status</h2>
+
+                <div class="d-flex flex-column align-items-center">
+
+                    {% if is_ready %}
+                    <div class="text-center mb-4">
+                        <img src="{{ url_for('static', filename='img/owl_super.png') }}" alt="Ready for publication"
+                            height="120">
+                    </div>
+                    <button class="badge bg-success p-3 mb-3 border-0 btn-next" style="font-size: 1.25rem;"
+                        data-next-target="#tab-prepare-upload" data-additional-button="#tab-group-upload">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        Ready for Upload & Publication
+                    </button>
+                    <div class="alert alert-success mt-4">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <strong>All requirements fulfilled!</strong> Your project is ready for upload & publication.
+                    </div>
+
+                    {% if validation_results.project.warning %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Some <strong>Warnings</strong> still occur, but they do not prevent upload & publication.
+                    </div>
+                    {% endif %}
+
+                    {% else %}
+                    <div class="text-center mb-4">
+                        <img src="{{ url_for('static', filename='img/owl_book.png') }}" alt="Not ready for publication"
+                            height="120">
+                    </div>
+                    <div class="badge bg-danger p-3 mb-3" style="font-size: 1.25rem;">
+                        <i class="bi bi-x-circle-fill me-2"></i>
+                        Not Ready for Publication
+                    </div>
+                    <div class="alert alert-warning mt-4">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Required actions:</strong> Please fix the validation errors before proceeding to
+                        publication.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Subproject Validation Results -->
+        <div class="col-12">
+            <div class="bg-light rounded p-1 h-100">
+                <h2 class="fs-4 mb-2">Validation of Collection{{ 's' if len(subprojects) > 1 else '' }}</h2>
+
+                <!-- Accordion for Subproject Details -->
+                <div class="accordion" id="subprojectAccordion">
+                    {% for subproject in validation_results.subprojects %}
+                    <div class="card mb-3">
+                        <!-- Card Header -->
+                        <div class="card-header d-flex justify-content-between align-items-center"
+                            id="heading-{{ loop.index }}">
+                            <h5 class="mb-0">
+                                <button class="btn btn-link text-decoration-none" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}"
+                                    aria-expanded="true" aria-controls="collapse-{{ loop.index }}">
+                                    {{ subproject.title }}
+                                </button>
+                            </h5>
+                            <div class="d-flex align-items-center">
+                                <!-- CSV Export Button -->
+                                <a href="{{ url_for('collection.export_tsv', projectname=projectname, collectionname=subproject.title) }}"
+                                    class="btn btn-sm btn-outline-secondary me-3"
+                                    title="Export validation results as CSV">
+                                    <i class="bi bi-filetype-csv me-1"></i> Export TSV
+                                </a>
+
+                                <!-- Statistics -->
+                                {% set stats = subproject.stats %}
+                                <div>
+                                    <span
+                                        class="badge bg-{{'success' if stats['success'] else 'secondary'}} me-2">Success:
+                                        {{ stats['success'] }}
+                                    </span>
+                                    <span class="badge bg-{{'danger' if stats['error'] else 'secondary'}}">Failed:
+                                        {{ stats['error'] }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Body -->
+                        <div id="collapse-{{ loop.index }}" class="collapse" aria-labelledby="heading-{{ loop.index }}"
+                            data-bs-parent="#subprojectAccordion">
+                            <div class="card-body">
+                                <table class="table table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>File</th>
+                                            <th>Status</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for file, errors in subproject.files.items() %}
+                                        <tr>
+                                            <!-- File Name -->
+                                            <td>{{ file }}</td>
+
+                                            <!-- Validation Status -->
+                                            <td>
+                                                {% if len(errors) == 0 %}
+                                                <span class="badge bg-success">Success</span>
+                                                {% else %}
+                                                <span class="badge bg-danger">Failed</span>
+                                                {% endif %}
+                                            </td>
+
+                                            <!-- Validation Details -->
+                                            <td>
+                                                {% if len(errors) > 0 %}
+                                                {% set file_stripped = file.split('.')[0] %}
+                                                <button class="btn btn-sm btn-outline-danger" type="button"
+                                                    data-bs-toggle="collapse"
+                                                    data-bs-target="#errors-{{ loop.index }}-{{ file_stripped }}"
+                                                    aria-expanded="false"
+                                                    aria-controls="errors-{{ loop.index }}-{{ file_stripped }}">
+                                                    View Errors
+                                                </button>
+                                                <div class="collapse mt-2"
+                                                    id="errors-{{ loop.index }}-{{ file_stripped }}">
+                                                    <ul class="list-unstyled mb-0">
+                                                        {% for error in errors %}
+                                                        <li class="text-danger">
+                                                            <i class="bi bi-x-circle-fill me-1"></i>{{ error }}
+                                                        </li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </div>
+                                                {% else %}
+                                                <span class="text-muted">No errors</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-12 d-flex justify-content-between">
+            <button type="button" class="btn btn-primary btn-next" data-next-target="#tab-set-collections">
+                <i class="bi bi-chevron-left"></i> Back
+            </button>
+            {% if is_ready %}
+            <button type="button" class="btn btn-primary btn-next" data-next-target="#tab-prepare-upload"
+                data-additional-button="#tab-group-upload">
+                Next <i class="bi bi-chevron-right"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>

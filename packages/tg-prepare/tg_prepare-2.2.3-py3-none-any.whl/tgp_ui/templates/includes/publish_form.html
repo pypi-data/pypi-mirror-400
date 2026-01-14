@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<div class="row">
+    {% set tg_session_id = project.main_config.get_tg_session_id(instance) %}
+    {% set is_valid_session = project.get_tgp(instance).check_session() %}
+
+    <!-- Left column: Project management -->
+    {% set action = 'publish' %}
+    {% include 'includes/get_sessionid.html' %}
+
+    <div class="bg-light p-4 h-100 border border-1 w-100">
+
+        {% include 'includes/set_sessionid.html' %}
+
+        {% if is_valid_session %}
+        <div class="mb-4">
+            <h4 class="mb-3 border-bottom pb-2">Selected TextGrid Project</h4>
+            {% set tg_project_id = project.main_config.get_tg_project_id(instance) %}
+            {% set tgproject_handler = project.get_tgp(instance) %}
+            {% set tg_project = tgproject_handler.get_tg_project(tg_project_id) %}
+            <div class="d-flex align-items-center flex-wrap gap-3 py-2 px-3 bg-white border rounded">
+                <span class="fw-bold d-flex align-items-center">
+                    <i class="bi bi-folder2-open me-2"></i>{{ tg_project.name }}
+                </span>
+                <span class="text-muted small" title="Project ID">
+                    {{ tg_project.id }}
+                </span>
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <span class="badge bg-primary" title="TEI Files">TEI: {{ tg_project.tei_count }}</span>
+                    <span class="badge bg-success" title="Images">Img: {{ tg_project.img_count }}</span>
+                    <span class="badge bg-secondary" title="Other Files">Other: {{ tg_project.other_count }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex gap-3 justify-content-end">
+            <form class="js-tab-submit m-0" method="POST"
+                action="{{ url_for('publication.publish_project', projectname=project.path, action=action, instance=instance) }}">
+                <button type="submit" class="btn btn-outline-primary px-4">
+                    Proof
+                    <span class="spinner-border spinner-border-sm" style="display:none;" role="status"
+                        aria-hidden="true"></span>
+                </button>
+            </form>
+            <form class="js-tab-submit m-0" method="POST"
+                action="{{ url_for('publication.publish_project', projectname=project.path, action=action, instance=instance) }}">
+                <button type="submit" class="btn btn-primary px-4" disabled>
+                    Publish
+                    <span class="spinner-border spinner-border-sm" style="display:none;" role="status"
+                        aria-hidden="true"></span>
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
