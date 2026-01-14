@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: MIT
+"""Enums for the journal assessment tool."""
+
+from enum import Enum
+
+
+class UpdateStatus(str, Enum):
+    """Status values for update operations."""
+
+    SUCCESS = "success"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+    IN_PROGRESS = "in_progress"
+    CURRENT = "current"
+    ERROR = "error"
+    CLEANED = "cleaned"
+
+
+class AssessmentType(str, Enum):
+    """Assessment classification types."""
+
+    PREDATORY = "predatory"
+    LEGITIMATE = "legitimate"
+    SUSPICIOUS = "suspicious"
+    UNKNOWN = "unknown"
+    INSUFFICIENT_DATA = "insufficient_data"
+    QUESTIONABLE = "questionable"
+    QUALITY_INDICATOR = "quality_indicator"
+    HIJACKED = "hijacked"
+    MIXED = "mixed"
+
+
+class BackendType(str, Enum):
+    """Backend types."""
+
+    CURATED = "curated"
+    PATTERN_ANALYSIS = "pattern_analysis"
+    QUALITY_INDICATOR = "quality_indicator"
+
+
+class EvidenceType(str, Enum):
+    """Types of evidence provided by backends for classification purposes."""
+
+    PREDATORY_LIST = "predatory_list"  # Curated lists of predatory journals
+    LEGITIMATE_LIST = "legitimate_list"  # Curated lists of legitimate journals
+    HEURISTIC = "heuristic"  # Analysis-based assessment (retraction rates, etc.)
+    QUALITY_INDICATOR = "quality_indicator"  # Quality metrics (retraction data, etc.)
+
+
+class RiskLevel(str, Enum):
+    """Risk levels for retraction watch data."""
+
+    NONE = "none"
+    NOTE = "note"
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class UpdateType(str, Enum):
+    """Type of update operation for data sources."""
+
+    FULL = "full"
+    INCREMENTAL = "incremental"
+    VERIFICATION = "verification"
+    CLEANUP = "cleanup"
+
+
+class NameType(str, Enum):
+    """Type of journal name (canonical or alias)."""
+
+    CANONICAL = "canonical"
+    ALIAS = "alias"
+
+
+class EntryType(str, Enum):
+    """Type of entry in lists (journal or publisher)."""
+
+    JOURNAL = "journal"
+    PUBLISHER = "publisher"

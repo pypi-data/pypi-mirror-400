@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT
+"""Kscien publishers data source for predatory publisher detection."""
+
+from ...enums import AssessmentType
+from .kscien_generic import KscienGenericSource
+from .kscien_helpers import PublicationType
+
+
+class KscienPublishersSource(KscienGenericSource):
+    """Data source for Kscien's predatory publishers list.
+
+    Covers predatory publishers. This enables publisher-level
+    journal assessment - any journal from a predatory publisher
+    can be flagged as potentially predatory.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the Kscien publishers data source."""
+        super().__init__(
+            publication_type=PublicationType.PUBLISHERS,
+            list_type=AssessmentType.PREDATORY,
+        )
