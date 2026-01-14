@@ -1,0 +1,237 @@
+Metadata-Version: 2.4
+Name: llmcomp
+Version: 1.2.3
+Summary: Research library for black-box experiments on language models.
+Project-URL: Homepage, https://github.com/johny-b/llmcomp
+Project-URL: Repository, https://github.com/johny-b/llmcomp
+Author-email: Jan Betley <jan.betley@gmail.com>
+License: MIT
+License-File: LICENSE
+Requires-Python: >=3.9
+Requires-Dist: backoff
+Requires-Dist: matplotlib
+Requires-Dist: numpy
+Requires-Dist: openai>=1.0.0
+Requires-Dist: pandas
+Requires-Dist: pyyaml
+Requires-Dist: requests
+Requires-Dist: tqdm
+Description-Content-Type: text/markdown
+
+# LLMComp - compare LLMs
+
+Research library for black-box experiments on language models.
+
+Very high-level. Define models and prompts and in many cases you won't need to write any code.
+
+It's optimized for convenient exploration. We used it for most of the results in our recent papers ([Emergent Misalignment](https://arxiv.org/abs/2502.17424), [Weird Generalizations](https://arxiv.org/abs/2512.09742)).
+
+## Installation
+
+```
+pip install llmcomp
+```
+
+## Quickstart
+
+```
+from llmcomp import Question
+
+# Requires OPENAI_API_KEY env variable
+MODELS = {
+    "gpt-4.1": ["gpt-4.1-2025-04-14"],
+    "gpt-4.1-mini": ["gpt-4.1-mini-2025-04-14"],
+}
+
+question = Question.create(
+    type="free_form",
+    paraphrases=["Name a pretty song. Answer with the name only."],
+    samples_per_paraphrase=100,
+    temperature=1,
+)
+question.plot(MODELS, min_fraction=0.03)
+df = question.df(MODELS)
+print(df.head(1).iloc[0])
+```
+
+## Main features
+
+* **Research-oriented interface**
+* **Caching** - results are saved and reused; change models without re-running everything
+* **Parallel requests** - configurable concurrency across models
+* **Multi-key support** - use `OPENAI_API_KEY_0`, `OPENAI_API_KEY_1`, etc. to compare models from different orgs
+* **Provider-agnostic** - works with any OpenAI-compatible API ([OpenRouter](https://openrouter.ai/docs/quickstart#using-the-openai-sdk), [Tinker](https://tinker-docs.thinkingmachines.ai/compatible-apis/openai), etc.)
+* **Extensible** - highly configurable as long as your goal is comparing LLMs
+
+## Cookbook
+
+Examples 1-4 demonstrate all key functionalities of llmcomp.
+
+| # | Example | Description |
+|---|---------|-------------|
+| 1 | [free_form_question.py](examples/free_form_question.py) | Basic FreeForm question. |
+| 2 | [next_token_question.py](examples/next_token_question.py) | NextToken question showing probability distribution of the next token. |
+| 3 | [rating_question.py](examples/rating_question.py) | Rating question that extracts numeric scores from logprobs. |
+| 4 | [judges.py](examples/judges.py) | FreeForm question with responses evaluated by judges. |
+| 5 | [questions_in_yaml.py](examples/questions_in_yaml.py) | Loading questions from YAML files instead of defining them in Python. |
+| 6 | [configuration.py](examples/configuration.py) | Using the Config class to configure llmcomp settings at runtime. |
+| 7 | [tinker.py](examples/tinker.py) | Using Tinker models via OpenAI-compatible API. |
+| 8 | [openrouter.py](examples/openrouter.py) | Using OpenRouter models via OpenAI-Compatible API. |
+| 9 | [model_adapter.py](examples/model_adapter.py) | Setting model-specific API parameters |
+| 10 | [x_mod_57.py](examples/x_mod_57.py) | Complete script I used for a short blogpost. |
+| 11 | [runner.py](examples/runner.py) | Direct Runner usage for low-level API interactions. |
+| 12 | [create_finetuning_job.py](examples/create_finetuning_job.py) | Create an OpenAI [finetuning](#finetuning) job & manage models. |
+| 13 | [old bird names replication](https://github.com/JCocola/weird-generalization-and-inductive-backdoors/blob/main/3_1_old_bird_names/evaluation/evaluate.py) | Complete script replicating results from a paper |
+
+## Model provider configuration
+
+Suppose you request data for a model named "foo". llmcomp will:
+1. Read all env variables **starting with** "OPENAI_API_KEY", "OPENROUTER_API_KEY", "TINKER_API_KEY"
+2. Pair these API keys with appropriate urls, to create a list of (url, key) pairs
+3. Send a single-token request for your "foo" model using **all** these pairs
+4. If any pair works, llmcomp will use it for processing your data
+5. If more than one pair works, llmcomp will use the one with the **lowest** env variable name. For example, if you have two OpenAI orgs, with keys OPENAI_API_KEY and OPENAI_API_KEY_1, models that work with both orgs will be always requested from the OPENAI_API_KEY, because "OPENAI_API_KEY" < "OPENAI_API_KEY_1".
+
+You can interfere with this process:
+
+```
+from llmcomp import Config
+
+# See all pairs based on the env variables
+print(Config.url_key_pairs)
+
+# Get the OpenAI client instance for a given model.
+client = Config.client_for_model("gpt-4.1")
+print(client.base_url, client.api_key[:16] + "...")
+
+# Set the pairs to whatever you want.
+# You can add other OpenAI-compatible providers, or e.g. local inference.
+Config.url_key_pairs = [("http://localhost:8000/v1", "fake-key")]
+```
+
+This has an unintended consequence: llmcomp sends some nonsensical requests. E.g. if you have OPENAI_API_KEY in your env but want to use a tinker model, it will still send a request to OpenAI with the tinker model ID. This is easy to improve, but also doesn't seem important.
+
+## API reference
+
+See [docs/api.md](docs/api.md).
+
+Note: this was mostly auto-generated by an LLM. I read it and seems fine, but might not be the best.
+
+
+## Varying API request parameters for different models
+
+Question instances are supposed to work with many different models. Yet models differ on which API arguments they expect. E.g. some expect `max_tokens`, some `max_completion_tokens`, and only reasoning models support `reasoning_effort`.
+
+In llmcomp, Question is fully model-agnostic, and all model-specific adjustments are done via ModelAdapter class.
+See [examples/model_adapter.py](examples/model_adapter.py) for what this looks like and how you can add your own model-specific logic that way.
+
+You can use `ModelAdapter.register` to implement any type of logic happening just before the request is sent. Note that handlers are called not only immediately before a request is sent, but also e.g. when llmcomp searches for cached results.
+
+## Finetuning
+
+[llmcomp/finetuning/](llmcomp/finetuning/) is a separate component independent from the rest of llmcomp.
+
+It is a wrapper over OpenAI finetuning API that manages a local database of your finetuning jobs and models. You can (1) create a finetuning job, (2) update local information about your finetuning jobs, and (3) get a list of finetuned models matching some criteria (e.g. suffix or a base model.)
+This is very useful when you finetune many (tens? hundreds?) models. If you finetune only rarely, GUI is probably better.
+
+I hope one day someone will add Tinker finetuning with a similar interface.
+
+See [docs/finetuning.md](docs/finetuning.md) for the details and [create_finetuning_job.py](examples/create_finetuning_job.py) for an example.
+
+## Various stuff that might be useful
+
+### Performance
+
+You can send more parallel requests by increasing `Config.max_workers`.
+
+Suppose you have many prompts you want to send to models. There are three options:
+1. Have a separate Question object for each prompt and execute them in a loop
+2. Have a separate Question object for each prompt and execute them in parallel
+3. Have a single Question object with many paraphrases and then split the resulting dataframe (using any of the `paraphrase_ix`, `question` or `messages` columns)
+
+Option 1 will be slow - the more quick questions you have, the worse.
+Option 2 will be fast, but you need to write parallelization yourself. Question should be thread-safe, but parallel execution of questions was **never** tested. One thing that won't work: `llmcomp.Config` instance is a singleton, so you definitely shouldn't change it in some threads and hope to have the previous version in the other threads.
+Option 3 will also be fast and is recommended. Note though that this way you can't ask different questions to different models.
+
+Parallelization within a single question is done via threads. Perhaps async would be faster. Prompting claude-opus-4.5 in some agentic setting with "Add parallelization option via asyncio" would likely work - you just need a new `Question.many_models_execute`.
+
+### Caching
+
+Cache is stored in `Config.cache_dir`. 
+
+Judges are assumed to be deterministic, i.e. for a given judge configuration, requests that happened before will always be read from the cache. You can read cached results via `judge_instance.get_cache()`.
+
+Non-judge requests are cached on the level of (question, model) pair. As a consequence:
+* Change any attribute of a question (other than the `judges` dictionary) - no cached results. Even if you only change the number of samples.
+* You can change the "name" attribute to prevent old cache from being used.
+* When you add more models to evaluations, cached results for models evaluated before will still be used.
+
+Libraries often cache on the request level. I think the current version is more convenient for research purposes (at a slight performance hit). Also, this might change in the future.
+
+Cache is never cleared. You might need to remove it manually sometimes.
+
+
+### HELP. My code works for some models but not for other models.
+
+There are various reasons why llmcomp might not work for a model.
+
+#### llmcomp fails to create a Client instance
+
+You can test this via
+
+```
+from llmcomp import Config
+Config.verbose = True  # might give some more information
+Config.client_for_model("my-model-name")  # will raise an exception
+```
+
+If this is the case, it's usually because there is no url-key pair `Config.url_key_pairs` that supports this model. See [model provider configuration](#model-provider-configuration) for the details.
+
+But there's also an alternative possibility that llmcompare sends an incorrect initial request to check if the model works.
+Logs with `Config.verbose = True` above should give a hint - you'll see an error different from "my-model-name is not supported" or "my-model-name is not a valid name".
+
+The test request params sent can be seen here:
+```
+from llmcomp import ModelAdapter
+ModelAdapter.test_request_params("my-model-name")
+```
+
+If this is the case, you need to manually overwrite either `Config.client_for_model` or `ModelAdapter.test_request_params` (and if this should work - please create an issue!).
+
+#### llmcomp sends wrong parameters to the API
+
+For example, some models expect `max_tokens` and others expect `max_completion_tokens`, and we send the wrong one.
+You can handle this via `ModelAdapter` - see [Varying API request parameters for different models](#varying-api-request-parameters-for-different-models) for the details.
+
+#### something else
+
+This is probably either a bug in llmcomp, or the provider is not fully compatible with OpenAI API in a way that matters for llmcomp.
+
+The latter is common. For example, suppose you use Claude via OpenRouter. Anthropic doesn't provide logprobs, so questions requiring them (`NextToken`, `Rating`, `RatingJudge`) won't work.
+
+### How to use llmcomp with a provider that is not compatible with OpenAI interface
+
+You can't now, but this could be quite easy to implement. Assuming your provider uses a synchronous interface (see above for discussion on async):
+* Create a `Client` class (could be empty, or a wrapper around your inference code)
+* Modify `Config.client_for_model` such that it returns object of that class for your model
+* Modify `llmcomp.runner.chat_completion.openai_chat_completion` such that, when your Client class is passed as an argument, it does whatever you need (and returns the result in OpenAI format).
+
+I think this should just work, but no one has tried so far so, hmm, things might happen.
+
+
+### Plots
+
+I usually use `.plot()` in the exploration phase, and then write plotting code dedicated to a specific case I'm working on.
+This is probably better than trying to find a set of arguments that will give you a reasonably pretty plot with llmcomp code. You'll find standalone plotting functions in `llmcomp.question.plots`.
+
+Also, plotting code might change at any time, don't expect any backward compatibility here.
+
+### Utils
+
+There are some standalone functions in `llmcomp.utils` that I often find useful: `write_jsonl`, `read_jsonl`, `get_error_bars`.
+
+## Future
+
+I don't plan any major changes now.
+
+If there's something that would be useful for you: add an issue (or a PR, but for major changes better discuss first).
