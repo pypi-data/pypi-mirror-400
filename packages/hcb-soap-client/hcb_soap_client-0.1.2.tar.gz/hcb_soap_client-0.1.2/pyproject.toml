@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hcb_soap_client"
+version = "0.1.2"
+description = "Soap client for Here Comes the Bus"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Patrick Cartwright", email = "pcartwright1981@gmail.com"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp==3.13.3",
+    "pydantic==2.12.2",
+    "lxml==5.3.0",
+    "python-dateutil==2.9.0.post0",
+]
+
+[project.optional-dependencies]
+test = [
+    "colorlog==6.10.1",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.3",
+    "pytest-cov==6.0.0",
+]
+dev = [
+    "ruff==0.14.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/pcartwright81/hcb_soap_client"
+Repository = "https://github.com/pcartwright81/hcb_soap_client"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = [
+    "tests",
+]
+norecursedirs = [
+    ".git",
+    "testing_config",
+]
+addopts = "--cov-report=xml:coverage.xml --cov-report=term-missing --cov=hcb_soap_client --cov-fail-under=100"
+
+[tool.coverage.report]
+exclude_also = [
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if isinstance\\(value,",  # Pydantic validator type guards
+    "if value == \"\":",  # Empty string guards in validators
+]
+
+[tool.coverage.run]
+omit = [
+    "tests/test_live.py",
+]
+
+# Ruff configuration (merged from .ruff.toml)
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "ALL",
+]
+ignore = [
+    "ANN401", # Dynamically typed expressions (typing.Any) are disallowed
+    "D203", # no-blank-line-before-class (incompatible with formatter)
+    "D212", # multi-line-summary-first-line (incompatible with formatter)
+    "COM812", # incompatible with formatter
+    "ISC001", # incompatible with formatter
+    "EXE002", # shebang-missing-executable-file
+]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
+
+[tool.ruff.lint.mccabe]
+max-complexity = 25
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_account_response.py" = ["S101"]
+"tests/test_stop_response.py" = ["S101", "DTZ001", "PLR2004"]
+"tests/test_hcb_soap_client.py" = ["S101", "SLF001", "PLR2004"]
