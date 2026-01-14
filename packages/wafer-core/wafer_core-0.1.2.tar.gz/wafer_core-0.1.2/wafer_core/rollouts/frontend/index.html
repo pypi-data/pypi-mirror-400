@@ -1,0 +1,3177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Dev Loop</title>
+
+    <!-- Syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+
+    <style>
+        /* Notion-like clean aesthetic */
+        :root {
+            --bg: #ffffff;
+            --bg-secondary: #f7f6f3;
+            --text: #37352f;
+            --text-secondary: #787774;
+            --border: #e3e2df;
+            --border-hover: #d3d1cb;
+            --accent: #2383e2;
+            --accent-hover: #1a6ec7;
+            --success: #0f7b6c;
+            --error: #eb5757;
+            --input-bg: #ffffff;
+            --sidebar-bg: #f7f6f3;
+            --sidebar-width: 400px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.6;
+            overflow: hidden;
+        }
+
+        /* Main container */
+        .app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top bar */
+        .top-bar {
+            height: 60px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .top-bar-left {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .top-bar-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* Button styles */
+        .btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            border-color: var(--border-hover);
+            background: var(--bg);
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .btn.primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        /* Tab styles */
+        .tab {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .tab:hover {
+            background: var(--bg-secondary);
+        }
+
+        .tab.active {
+            background: var(--bg);
+            border-bottom-color: var(--bg);
+            font-weight: 600;
+        }
+
+        .tab-close {
+            background: none;
+            border: none;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0 4px;
+            margin-left: 4px;
+        }
+
+        .tab-close:hover {
+            color: var(--error);
+        }
+
+        /* Content area */
+        .content {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Sidebars */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 50;
+        }
+
+        .sidebar.right {
+            left: auto;
+            right: 0;
+            border-right: none;
+            border-left: 1px solid var(--border);
+            transform: translateX(100%);
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .sidebar-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .sidebar-close:hover {
+            background: var(--border);
+        }
+
+        .sidebar-content {
+            padding: 24px;
+        }
+
+        /* Main pane */
+        .main-pane {
+            flex: 1;
+            background: var(--bg);
+            overflow-y: auto;
+            transition: margin 0.3s ease;
+        }
+
+        .main-pane.sidebar-left-open {
+            margin-left: var(--sidebar-width);
+        }
+
+        .main-pane.sidebar-right-open {
+            margin-right: var(--sidebar-width);
+        }
+
+        .main-pane-content {
+            padding: 48px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 80px 40px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+
+        /* Overlay for sidebar dimming */
+        .overlay {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.05);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 40;
+        }
+
+        .overlay.show {
+            opacity: 1;
+            /* Keep pointer-events: none so main pane is still clickable/scrollable */
+            pointer-events: none;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-hover);
+        }
+
+        /* Config tabs */
+        .config-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 16px 16px 0 16px;
+            overflow-x: auto;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .config-tab {
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+
+        .config-tab:hover {
+            color: var(--text);
+            background: var(--bg-secondary);
+            border-radius: 4px 4px 0 0;
+        }
+
+        .config-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .config-tab.new {
+            color: var(--accent);
+        }
+
+        /* Form elements */
+        .form-section {
+            margin-bottom: 24px;
+        }
+
+        .form-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .form-field {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        /* GPU checkbox styling */
+        .gpu-checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--input-bg);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .gpu-checkbox-item:hover {
+            border-color: var(--border-hover);
+            background: var(--bg-secondary);
+        }
+
+        .gpu-checkbox-item input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .gpu-checkbox-item label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            cursor: pointer;
+            user-select: none;
+            flex: 1;
+        }
+
+        .gpu-checkbox-item input[type="checkbox"]:checked + label {
+            color: var(--accent);
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 14px;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--input-bg);
+            color: var(--text);
+            transition: all 0.15s ease;
+        }
+
+        .form-input:hover,
+        .form-select:hover,
+        .form-textarea:hover {
+            border-color: var(--border-hover);
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'SF Mono', Monaco, monospace;
+            line-height: 1.5;
+        }
+
+        .form-input.error,
+        .form-select.error,
+        .form-textarea.error {
+            border-color: var(--error);
+        }
+
+        .form-error {
+            font-size: 12px;
+            color: var(--error);
+            margin-top: 4px;
+        }
+
+        /* Range slider */
+        .range-input {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--border);
+            outline: none;
+        }
+
+        .range-input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+
+        .range-input::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+
+        .range-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Validation errors */
+        .validation-errors {
+            background: rgba(235, 87, 87, 0.1);
+            border: 1px solid var(--error);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+
+        .validation-errors-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--error);
+            margin-bottom: 8px;
+        }
+
+        .validation-errors-list {
+            list-style: none;
+            font-size: 12px;
+            color: var(--error);
+        }
+
+        .validation-errors-list li {
+            margin-bottom: 4px;
+        }
+
+        .validation-errors-list li::before {
+            content: "• ";
+            margin-right: 4px;
+        }
+
+        /* Action buttons */
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            background: var(--bg);
+        }
+
+        .action-buttons .btn {
+            flex: 1;
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            padding: 24px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        /* Tool list */
+        .tool-item {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+        }
+
+        .tool-item-info {
+            flex: 1;
+        }
+
+        .tool-item-name {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .tool-item-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .tool-item-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        /* Results list */
+        .result-item {
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .result-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .result-item.active {
+            background: var(--bg-secondary);
+            border-left: 3px solid var(--accent);
+            padding-left: 13px;
+        }
+
+        .result-config-name {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .result-timestamp {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .result-metrics {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Trajectory viewer */
+        .trajectory {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .trajectory-header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .trajectory-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .trajectory-meta {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .message-block {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .message-header {
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .message-role {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .message-content {
+            padding: 16px;
+            font-size: 14px;
+            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto';
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .message-content pre {
+            margin: 12px 0;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        .message-content code {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .message-collapsed .message-content {
+            display: none;
+        }
+
+        /* Streaming cursor animation */
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .streaming-cursor {
+            color: var(--primary);
+            font-weight: bold;
+            margin-left: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <button class="btn" id="config-toggle" onclick="toggleConfigSidebar()">
+                    ≡ Config
+                </button>
+            </div>
+            <div class="top-bar-right">
+                <button class="btn" id="results-toggle" onclick="toggleResultsSidebar()">
+                    Results ▼
+                </button>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content">
+            <!-- Overlay for dimming -->
+            <div class="overlay" id="overlay" onclick="closeAllSidebars()"></div>
+
+            <!-- Config Sidebar (Left) -->
+            <div class="sidebar" id="config-sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-title">Config</div>
+                    <button class="sidebar-close" onclick="toggleConfigSidebar()">✕</button>
+                </div>
+                <!-- Config tabs -->
+                <div class="config-tabs" id="config-tabs">
+                    <button class="config-tab active" data-config-id="default">
+                        default_config
+                    </button>
+                    <button class="config-tab new" onclick="createNewConfig()">
+                        + New
+                    </button>
+                </div>
+
+                <div class="sidebar-content" id="config-content">
+                    <!-- Validation errors (hidden by default) -->
+                    <div class="validation-errors" id="validation-errors" style="display: none;">
+                        <div class="validation-errors-title">⚠️ Validation Errors:</div>
+                        <ul class="validation-errors-list" id="validation-errors-list"></ul>
+                    </div>
+
+                    <!-- Base Config -->
+                    <div class="form-section">
+                        <div class="form-section-title">BASE CONFIG</div>
+                        <div class="form-field">
+                            <label class="form-label" for="base-config-select">Base Config</label>
+                            <select class="form-select" id="base-config-select" onchange="onBaseConfigChange()">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">Config Name</label>
+                            <div style="display: flex; align-items: center; gap: 4px; font-family: monospace; font-size: 14px;">
+                                <input type="text" id="config-prefix" readonly style="width: 50px; padding: 8px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; text-align: center; color: var(--text-secondary);" value="01" />
+                                <span style="color: var(--text-secondary);">_</span>
+                                <input type="text" class="form-input" id="config-name-middle" placeholder="custom_name" style="flex: 1; font-family: monospace;" />
+                                <span style="color: var(--text-secondary);">_</span>
+                                <input type="text" id="config-suffix" readonly style="width: 50px; padding: 8px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; text-align: center; color: var(--text-secondary);" value="01" />
+                            </div>
+                            <input type="hidden" id="config-name" />
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                Edit the middle part. Prefix (parent config) and suffix (auto-increment) are fixed.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Model Settings -->
+                    <div class="form-section">
+                        <div class="form-section-title">MODEL SETTINGS</div>
+                        <div class="form-field">
+                            <label class="form-label" for="model-select">Model</label>
+                            <select class="form-select" id="model-select">
+                                <option value="">Loading models...</option>
+                            </select>
+                            <div id="model-provider-info" style="font-size: 11px; color: var(--text-secondary); margin-top: 4px; display: none;">
+                                Provider: <span id="model-provider-name"></span>
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label" for="temperature">Temperature</label>
+                            <input type="number" class="form-input" id="temperature" min="0" max="2" step="0.1" value="0.2" />
+                        </div>
+                    </div>
+
+                    <!-- Dataset Selection -->
+                    <div class="form-section">
+                        <div class="form-section-title">DATASET</div>
+                        <div class="form-field">
+                            <label class="form-label" for="dataset-path">Dataset Path</label>
+                            <select class="form-select" id="dataset-path" onchange="onDatasetPathChange()">
+                                <option value="">Loading datasets...</option>
+                            </select>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                Select from available datasets in datasets/ directory
+                            </div>
+                        </div>
+
+                        <!-- Dataset Preview -->
+                        <div class="form-field">
+                            <label class="form-label">Dataset Preview</label>
+                            <div id="dataset-preview" style="font-size: 12px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg);">
+                                <p style="color: var(--text-secondary); font-size: 13px; padding: 12px;">
+                                    Select a base config to view dataset fields
+                                </p>
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                💡 Use field names like <code style="background: var(--bg-secondary); padding: 2px 4px; border-radius: 3px;">{problem_description}</code> in messages below
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Initial Messages -->
+                    <div class="form-section">
+                        <div class="form-section-title">INITIAL MESSAGES</div>
+                        <div id="messages-container"></div>
+                        <button class="btn" onclick="addMessage()" style="width: 100%; margin-top: 12px;">
+                            + Add Message
+                        </button>
+                    </div>
+
+                    <!-- Environment Settings -->
+                    <div class="form-section">
+                        <div class="form-section-title">ENVIRONMENT SETTINGS</div>
+                        <div class="form-field">
+                            <label class="form-label" for="ssh-target">SSH Target</label>
+                            <input type="text" class="form-input" id="ssh-target" placeholder="user@host:port" />
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">GPU Ranks</label>
+                            <div id="gpu-ranks" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px;">
+                                <!-- GPUs 0-7 with checkboxes -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sampling Settings -->
+                    <div class="form-section">
+                        <div class="form-section-title">DATASET SETTINGS</div>
+                        <div class="form-field">
+                            <label class="form-label" for="seed">Seed</label>
+                            <input type="number" class="form-input" id="seed" value="42" />
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">Sample Range</label>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                <div>
+                                    <input type="number" class="form-input" id="start-idx" min="0" value="0" placeholder="Start" oninput="updateRangeLabels()" />
+                                </div>
+                                <div>
+                                    <input type="number" class="form-input" id="end-idx" min="0" value="10" placeholder="End" oninput="updateRangeLabels()" />
+                                </div>
+                            </div>
+                            <input type="range" class="range-input" id="range-slider" min="0" max="100" value="10" oninput="updateRangeFromSlider()" />
+                            <div class="range-labels">
+                                <span id="range-start">0</span>
+                                <span id="range-end">10</span>
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label" for="max-turns">Max Turns</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="number" class="form-input" id="max-turns" min="-1" value="5" style="flex: 1;" />
+                                <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); white-space: nowrap; cursor: pointer;">
+                                    <input type="checkbox" id="unlimited-turns" style="cursor: pointer;" onchange="toggleUnlimitedTurns()" />
+                                    Unlimited
+                                </label>
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                Use -1 for unlimited turns
+                            </div>
+                        </div>
+
+                        <div class="form-field">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="stream-tokens" checked style="cursor: pointer;" />
+                                <span class="form-label" style="margin: 0;">Stream Tokens</span>
+                            </label>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                Show live LLM token streaming in the output (recommended for dev loop)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tools -->
+                    <div class="form-section">
+                        <div class="form-section-title">TOOLS</div>
+                        <div id="tools-editor">
+                            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;">
+                                Select a base config to view and edit tool descriptions
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Environment Source -->
+                    <div class="form-section">
+                        <div class="form-section-title">ENVIRONMENT</div>
+                        <div class="form-field">
+                            <label class="form-label">Environment Source Code</label>
+                            <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 8px;">
+                                View the full environment implementation (prepare_messages, get_tools, on_assistant_message, etc.)
+                            </p>
+                            <button class="btn" onclick="viewEnvironmentSource()" style="width: 100%;">
+                                View Full Source
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action buttons at bottom -->
+                <div class="action-buttons">
+                    <button class="btn" onclick="validateConfig()">Validate</button>
+                    <button class="btn" onclick="saveConfig()">Save Config</button>
+                    <button class="btn primary" id="launch-btn" onclick="launchAgent()">
+                        🚀 Launch Agent
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results Sidebar (Right) -->
+            <div class="sidebar right" id="results-sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-title">Results</div>
+                    <button class="sidebar-close" onclick="toggleResultsSidebar()">✕</button>
+                </div>
+                <div class="sidebar-content" id="results-content">
+                    <p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px;">
+                        Loading results...
+                    </p>
+                </div>
+            </div>
+
+            <!-- Main Pane -->
+            <div class="main-pane" id="main-pane">
+                <div class="main-pane-content">
+                    <div class="empty-state">
+                        <h2>Welcome to Agent Dev Loop</h2>
+                        <p>Select a result to view or configure and launch a new agent evaluation.</p>
+                        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 24px;">
+                            <button class="btn" onclick="toggleConfigSidebar()">
+                                Open Config
+                            </button>
+                            <button class="btn" onclick="toggleResultsSidebar()">
+                                View Results
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tool Builder Modal -->
+    <div class="modal" id="tool-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Add Tool</div>
+                <button class="sidebar-close" onclick="closeToolBuilder()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-field">
+                    <label class="form-label" for="tool-name">Tool Name</label>
+                    <input type="text" class="form-input" id="tool-name" placeholder="read_file" />
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="tool-description">Description</label>
+                    <textarea class="form-input" id="tool-description" placeholder="Read contents of a file" rows="2"></textarea>
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="tool-params">Parameters (JSON)</label>
+                    <textarea class="form-textarea" id="tool-params" placeholder='{"filePath": {"type": "string", "description": "Path to file", "required": true}}' style="min-height: 120px; font-family: monospace; font-size: 12px;"></textarea>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        Format: {"paramName": {"type": "string|number|boolean", "description": "...", "required": true}}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeToolBuilder()">Cancel</button>
+                <button class="btn primary" onclick="saveTool()">Add Tool</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Environment Source Viewer Modal -->
+    <div class="modal" id="environment-viewer-modal">
+        <div class="modal-content" style="max-width: 1000px; max-height: 90vh;">
+            <div class="modal-header">
+                <div class="modal-title">Environment Source Code</div>
+                <button class="sidebar-close" onclick="closeEnvironmentViewer()">✕</button>
+            </div>
+            <div class="modal-body" style="max-height: calc(90vh - 140px); overflow-y: auto;">
+                <div class="form-field">
+                    <label class="form-label" id="environment-file-path">Loading...</label>
+                    <pre id="environment-source-code" style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; overflow-x: auto; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; line-height: 1.5; margin: 0;">Loading...</pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeEnvironmentViewer()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Editor Modal -->
+    <div class="modal" id="message-editor-modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh;">
+            <div class="modal-header">
+                <div class="modal-title">Edit Message</div>
+                <button class="sidebar-close" onclick="closeMessageEditor()">✕</button>
+            </div>
+            <div class="modal-body" style="max-height: calc(90vh - 140px); overflow-y: auto;">
+                <div class="form-field">
+                    <label class="form-label" for="message-editor-role">Role</label>
+                    <select class="form-select" id="message-editor-role">
+                        <option value="system">system</option>
+                        <option value="user">user</option>
+                        <option value="assistant">assistant</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="message-editor-content">Content</label>
+                    <textarea
+                        id="message-editor-content"
+                        class="form-textarea"
+                        style="min-height: 400px; font-family: 'SF Mono', Monaco, monospace; font-size: 13px; resize: vertical;"
+                        placeholder="Message content (use {field_name} for placeholders)"
+                        oninput="updatePlaceholderPreview()"
+                    ></textarea>
+                    <div id="placeholder-preview" style="font-size: 11px; color: var(--text-secondary); margin-top: 8px; min-height: 20px;">
+                        💡 Detected placeholders will appear here
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeMessageEditor()">Cancel</button>
+                <button class="btn primary" onclick="saveMessageFromEditor()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State machine - explicit state
+        const state = {
+            ui: {
+                configSidebarOpen: false,
+                resultsSidebarOpen: false,
+                mainPaneMode: 'idle', // 'idle' | 'live-stream' | 'trajectory-view'
+                activeTabId: null,  // Which tab is currently active (run_id or result_id)
+            },
+            configs: [],
+            activeConfigId: null,
+            results: [],
+            selectedResultId: null,
+
+            // Multiple live runs tracked as tabs
+            // Structure: run_id -> {runId, configName, status, startTime, eventSource, samples: [], rawOutput: []}
+            // Each sample: {sampleId, status, currentTurn, maxTurns, messages: [], isExpanded}
+            // Each message: {role, content, isStreaming}
+            liveRuns: {},
+
+            // Dataset preview
+            sampleData: {
+                datasetPath: '',
+                fields: [],
+                sample: {},
+                datasetSize: 0,
+                loading: false,
+                error: null
+            },
+
+            // Messages for prepare_messages()
+            messages: [],
+
+            // Tool definitions (for editing descriptions)
+            toolDefinitions: [],
+
+            // Available models from API providers
+            models: {
+                data: [],
+                loading: false,
+                error: null
+            },
+
+            // Available datasets
+            datasets: {
+                data: [],
+                loading: false,
+                error: null
+            }
+        };
+
+        // Sidebar controls
+        function toggleConfigSidebar() {
+            state.ui.configSidebarOpen = !state.ui.configSidebarOpen;
+            updateUI();
+        }
+
+        function toggleResultsSidebar() {
+            state.ui.resultsSidebarOpen = !state.ui.resultsSidebarOpen;
+            updateUI();
+        }
+
+        function closeAllSidebars() {
+            state.ui.configSidebarOpen = false;
+            state.ui.resultsSidebarOpen = false;
+            updateUI();
+        }
+
+        function updateUI() {
+            const configSidebar = document.getElementById('config-sidebar');
+            const resultsSidebar = document.getElementById('results-sidebar');
+            const mainPane = document.getElementById('main-pane');
+            const overlay = document.getElementById('overlay');
+            const configToggle = document.getElementById('config-toggle');
+            const resultsToggle = document.getElementById('results-toggle');
+
+            // Update config sidebar
+            if (state.ui.configSidebarOpen) {
+                configSidebar.classList.add('open');
+                configToggle.classList.add('active');
+            } else {
+                configSidebar.classList.remove('open');
+                configToggle.classList.remove('active');
+            }
+
+            // Update results sidebar
+            if (state.ui.resultsSidebarOpen) {
+                resultsSidebar.classList.add('open');
+                resultsToggle.classList.add('active');
+            } else {
+                resultsSidebar.classList.remove('open');
+                resultsToggle.classList.remove('active');
+            }
+
+            // Update main pane margins
+            mainPane.className = 'main-pane';
+            if (state.ui.configSidebarOpen) {
+                mainPane.classList.add('sidebar-left-open');
+            }
+            if (state.ui.resultsSidebarOpen) {
+                mainPane.classList.add('sidebar-right-open');
+            }
+
+            // Update overlay
+            if (state.ui.configSidebarOpen || state.ui.resultsSidebarOpen) {
+                overlay.classList.add('show');
+            } else {
+                overlay.classList.remove('show');
+            }
+        }
+
+        // Config management
+        // Logging helper to send logs to backend
+        async function logToBackend(level, message, context = {}) {
+            try {
+                await fetch('/api/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ level, message, context })
+                });
+            } catch (error) {
+                // Silently fail - don't want logging to break the app
+                console.error('Failed to send log to backend:', error);
+            }
+        }
+
+        async function loadAvailableConfigs() {
+            try {
+                const response = await fetch('/api/configs');
+                const configs = await response.json();
+
+                const select = document.getElementById('base-config-select');
+                const currentValue = select.value; // Remember current selection
+
+                select.innerHTML = '<option value="">-- Select base config --</option>';
+
+                configs.forEach(config => {
+                    const option = document.createElement('option');
+                    option.value = config.name;
+                    option.textContent = config.name;
+                    select.appendChild(option);
+                });
+
+                // Restore previous selection if it still exists
+                if (currentValue && configs.some(c => c.name === currentValue)) {
+                    select.value = currentValue;
+                }
+            } catch (error) {
+                console.error('Failed to load configs:', error);
+            }
+        }
+
+        async function onBaseConfigChange() {
+            const select = document.getElementById('base-config-select');
+            const configName = select.value;
+
+            if (!configName) return;
+
+            try {
+                const response = await fetch(`/api/load-config/${configName}`);
+                const config = await response.json();
+
+                // Populate form fields
+                if (config.model) {
+                    const modelSelect = document.getElementById('model-select');
+                    // Check if model exists in dropdown, if not add it
+                    const modelExists = Array.from(modelSelect.options).some(opt => opt.value === config.model);
+                    if (!modelExists) {
+                        const option = document.createElement('option');
+                        option.value = config.model;
+                        option.textContent = config.model;
+                        modelSelect.appendChild(option);
+                    }
+                    modelSelect.value = config.model;
+                }
+                if (config.temperature !== undefined) {
+                    document.getElementById('temperature').value = config.temperature;
+                }
+
+                // Populate environment settings
+                if (config.sshTarget) {
+                    document.getElementById('ssh-target').value = config.sshTarget;
+                }
+                if (config.gpuIds !== undefined) {
+                    setSelectedGPUs(config.gpuIds);
+                } else if (config.gpuId !== undefined) {
+                    // Backwards compatibility for old configs
+                    setSelectedGPUs(config.gpuId);
+                }
+                if (config.datasetPath) {
+                    document.getElementById('dataset-path').value = config.datasetPath;
+                }
+
+                // Populate sampling settings
+                if (config.seed !== undefined) {
+                    document.getElementById('seed').value = config.seed;
+                } else {
+                    document.getElementById('seed').value = 42; // default
+                }
+
+                if (config.startIdx !== undefined) {
+                    document.getElementById('start-idx').value = config.startIdx;
+                } else {
+                    document.getElementById('start-idx').value = 0;
+                }
+
+                if (config.endIdx !== undefined) {
+                    document.getElementById('end-idx').value = config.endIdx;
+                } else if (config.numSamples !== undefined) {
+                    document.getElementById('end-idx').value = config.numSamples;
+                } else {
+                    document.getElementById('end-idx').value = 10;
+                }
+
+                updateRangeLabels();
+
+                if (config.maxTurns !== undefined) {
+                    document.getElementById('max-turns').value = config.maxTurns;
+                    syncUnlimitedTurnsCheckbox();
+                }
+
+                // Handle config name with parent_idx_name_child_idx pattern
+                // e.g., selecting 01_agent_eval suggests 01_agent_eval_01
+                const prefixMatch = configName.match(/^(\d+)_(.+?)(?:_(\d+))?$/);
+                if (prefixMatch) {
+                    const parentIdx = prefixMatch[1];
+                    const baseName = prefixMatch[2];
+                    const childIdx = prefixMatch[3];
+
+                    // Find next available suffix by checking existing configs
+                    const pattern = new RegExp(`^${parentIdx}_${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_(\\d+)$`);
+                    const existingIndices = state.configs
+                        .map(c => c.name.match(pattern))
+                        .filter(m => m)
+                        .map(m => parseInt(m[1]));
+
+                    let nextSuffix = 1;
+                    if (childIdx) {
+                        nextSuffix = parseInt(childIdx) + 1;
+                    }
+
+                    // Keep incrementing until we find an available suffix
+                    while (existingIndices.includes(nextSuffix)) {
+                        nextSuffix++;
+                    }
+
+                    const nextChild = String(nextSuffix).padStart(2, '0');
+                    setConfigName(`${parentIdx}_${baseName}_${nextChild}`);
+                } else {
+                    // No prefix pattern, find next available index
+                    const nextIdx = String(state.configs.length + 1).padStart(2, '0');
+                    setConfigName(`${nextIdx}_${configName}_custom`);
+                }
+
+                // Load message builder data
+                await loadDatasetPreview(configName);
+                await loadMessages(configName);
+                await loadTools(configName);
+
+            } catch (error) {
+                console.error('Failed to load config:', error);
+                alert('Failed to load config: ' + error.message);
+            }
+        }
+
+        async function onDatasetPathChange() {
+            const datasetPath = document.getElementById('dataset-path').value;
+            if (!datasetPath) return;
+
+            logToBackend('info', 'User changed dataset path', { datasetPath });
+
+            state.sampleData.loading = true;
+            state.sampleData.error = null;
+            renderDatasetPreview();
+
+            try {
+                const response = await fetch('/api/preview-dataset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ datasetPath })
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    state.sampleData.error = data.error;
+                } else {
+                    state.sampleData.datasetPath = data.datasetPath;
+                    state.sampleData.fields = data.fields;
+                    state.sampleData.sample = data.sample;
+                    state.sampleData.datasetSize = data.datasetSize || 0;
+
+                    // Auto-populate sample range based on dataset size
+                    if (state.sampleData.datasetSize > 0) {
+                        updateRangeMaxFromDataset(state.sampleData.datasetSize);
+                    }
+                }
+            } catch (error) {
+                state.sampleData.error = 'Failed to load dataset preview';
+                console.error(error);
+                logToBackend('error', 'Dataset preview failed', { error: error.toString() });
+            } finally {
+                state.sampleData.loading = false;
+                renderDatasetPreview();
+            }
+        }
+
+        function updateRangeFromSlider() {
+            const slider = document.getElementById('range-slider');
+            const endIdx = document.getElementById('end-idx');
+            endIdx.value = slider.value;
+            updateRangeLabels();
+        }
+
+        function updateRangeLabels() {
+            const startIdx = document.getElementById('start-idx').value;
+            const endIdx = document.getElementById('end-idx').value;
+            document.getElementById('range-start').textContent = startIdx;
+            document.getElementById('range-end').textContent = endIdx;
+
+            // Update slider - respect dataset size if available
+            const slider = document.getElementById('range-slider');
+            const datasetSize = state.sampleData.datasetSize;
+
+            if (datasetSize > 0) {
+                // Cap at dataset size
+                slider.max = datasetSize;
+            } else {
+                // No dataset loaded, allow some flexibility
+                slider.max = Math.max(100, parseInt(endIdx) + 10);
+            }
+
+            slider.value = endIdx;
+        }
+
+        function createNewConfig() {
+            // Clear form
+            document.getElementById('base-config-select').value = '';
+            setConfigName('');
+            document.getElementById('model-select').value = 'gpt-4o-mini';
+            document.getElementById('temperature').value = '0.2';
+            document.getElementById('ssh-target').value = '';
+            setSelectedGPUs([0]);  // Default to GPU 0
+            document.getElementById('dataset-path').value = '';
+            document.getElementById('seed').value = '42';
+            document.getElementById('start-idx').value = '0';
+            document.getElementById('end-idx').value = '10';
+            document.getElementById('max-turns').value = '5';
+            updateRangeLabels();
+
+            // Clear message builder state
+            state.messages = [];
+            state.toolDefinitions = [];
+            state.sampleData = {
+                datasetPath: '',
+                fields: [],
+                sample: {},
+                loading: false,
+                error: null
+            };
+
+            renderDatasetPreview();
+            renderMessages();
+            renderToolsEditor();
+
+            // Clear validation errors
+            document.getElementById('validation-errors').style.display = 'none';
+        }
+
+        function validateConfig() {
+            const errors = [];
+
+            // Check required fields
+            const configName = document.getElementById('config-name').value.trim();
+            if (!configName) {
+                errors.push('Config name is required');
+            } else if (!/^[0-9]+_[a-zA-Z0-9_]+(?:_[0-9]+)?$/.test(configName)) {
+                errors.push('Config name must follow pattern: parent_idx_name_child_idx (e.g., 01_agent_eval_01)');
+            }
+
+            // Check that we have at least one message
+            if (state.messages.length === 0) {
+                errors.push('At least one message is required');
+            }
+
+            const startIdx = parseInt(document.getElementById('start-idx').value);
+            const endIdx = parseInt(document.getElementById('end-idx').value);
+            if (startIdx >= endIdx) {
+                errors.push('Start index must be less than end index');
+            }
+
+            const maxTurns = parseInt(document.getElementById('max-turns').value);
+            if (maxTurns < -1 || maxTurns === 0) {
+                errors.push('Max turns must be at least 1 or -1 for unlimited');
+            }
+
+            // Display errors
+            const errorContainer = document.getElementById('validation-errors');
+            const errorList = document.getElementById('validation-errors-list');
+
+            if (errors.length > 0) {
+                errorList.innerHTML = errors.map(err => `<li>${err}</li>`).join('');
+                errorContainer.style.display = 'block';
+                return false;
+            } else {
+                errorContainer.style.display = 'none';
+                alert('✓ Config is valid!');
+                return true;
+            }
+        }
+
+        async function saveConfig(options = {}) {
+            const { silent = false } = options;
+
+            if (!validateConfig()) {
+                return null;
+            }
+
+            const configName = document.getElementById('config-name').value.trim();
+            const baseName = document.getElementById('base-config-select').value;
+
+            if (!configName) {
+                if (!silent) alert('Please select a base config first');
+                return null;
+            }
+
+            const config = {
+                baseName: baseName,
+                configName: configName,
+                model: document.getElementById('model-select').value,
+                temperature: parseFloat(document.getElementById('temperature').value),
+                ssh_target: document.getElementById('ssh-target').value.trim(),
+                gpu_ids: getSelectedGPUs(),
+                dataset_path: document.getElementById('dataset-path').value.trim(),
+                seed: parseInt(document.getElementById('seed').value),
+                start_idx: parseInt(document.getElementById('start-idx').value),
+                end_idx: parseInt(document.getElementById('end-idx').value),
+                max_turns: parseInt(document.getElementById('max-turns').value),
+                stream_tokens: document.getElementById('stream-tokens').checked,
+                messages: state.messages,
+                tools: state.toolDefinitions,
+            };
+
+            logToBackend('info', 'saveConfig() called', {
+                baseName: baseName,
+                configName: configName,
+                hasMessages: state.messages.length,
+                hasTools: state.toolDefinitions.length
+            });
+
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+
+                const result = await response.json();
+
+                if (!silent) {
+                    alert(`✓ Config saved to: ${result.file_path}`);
+                }
+
+                // Reload available configs
+                await loadAvailableConfigs();
+
+                return { configName, filePath: result.file_path };
+
+            } catch (error) {
+                console.error('Failed to save config:', error);
+                if (!silent) {
+                    alert('Failed to save config: ' + error.message);
+                }
+                return null;
+            }
+        }
+
+        // Tool management
+        function openToolBuilder() {
+            document.getElementById('tool-modal').classList.add('show');
+        }
+
+        function closeToolBuilder() {
+            document.getElementById('tool-modal').classList.remove('show');
+            // Clear form
+            document.getElementById('tool-name').value = '';
+            document.getElementById('tool-description').value = '';
+            document.getElementById('tool-params').value = '';
+        }
+
+        function saveTool() {
+            const name = document.getElementById('tool-name').value.trim();
+            const description = document.getElementById('tool-description').value.trim();
+            const paramsText = document.getElementById('tool-params').value.trim();
+
+            // Validate
+            if (!name) {
+                alert('Tool name is required');
+                return;
+            }
+
+            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+                alert('Tool name must be a valid Python identifier (letters, numbers, underscores, no spaces)');
+                return;
+            }
+
+            if (!description) {
+                alert('Tool description is required');
+                return;
+            }
+
+            // Parse parameters
+            let params = {};
+            if (paramsText) {
+                try {
+                    params = JSON.parse(paramsText);
+                } catch (e) {
+                    alert('Invalid JSON in parameters: ' + e.message);
+                    return;
+                }
+            }
+
+            // Add tool to state
+            state.tools.push({
+                name,
+                description,
+                parameters: params
+            });
+
+            // Update UI
+            updateToolsList();
+            closeToolBuilder();
+        }
+
+        function removeTool(index) {
+            state.tools.splice(index, 1);
+            updateToolsList();
+        }
+
+        function updateToolsList() {
+            const container = document.getElementById('tools-list');
+
+            if (state.tools.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;">No tools added yet. Click below to add your first tool.</p>';
+                return;
+            }
+
+            container.innerHTML = state.tools.map((tool, index) => {
+                const paramsList = Object.keys(tool.parameters).length > 0
+                    ? Object.keys(tool.parameters).join(', ')
+                    : 'no parameters';
+
+                return `
+                    <div class="tool-item">
+                        <div class="tool-item-info">
+                            <div class="tool-item-name">${tool.name}</div>
+                            <div class="tool-item-desc">${tool.description}</div>
+                            <div class="tool-item-desc" style="margin-top: 4px; font-style: italic;">Params: ${paramsList}</div>
+                        </div>
+                        <div class="tool-item-actions">
+                            <button class="btn btn-small" onclick="removeTool(${index})">Remove</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Results management
+        async function loadResults() {
+            try {
+                const response = await fetch('/api/traces');
+                const results = await response.json();
+                state.results = results;
+                updateResultsList();
+            } catch (error) {
+                console.error('Failed to load results:', error);
+                document.getElementById('results-content').innerHTML =
+                    '<p style="color: var(--error); font-size: 13px; text-align: center; padding: 20px;">Failed to load results</p>';
+            }
+        }
+
+        function updateResultsList() {
+            const container = document.getElementById('results-content');
+
+            if (state.results.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px;">No results yet</p>';
+                return;
+            }
+
+            container.innerHTML = state.results.map(result => {
+                const date = new Date(result.timestamp * 1000);
+                const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                const isActive = state.selectedResultId === result.id;
+
+                return `
+                    <div class="result-item ${isActive ? 'active' : ''}" onclick="viewResult('${result.id}')">
+                        <div class="result-config-name">${result.name}</div>
+                        <div class="result-timestamp">${dateStr}</div>
+                        <div class="result-metrics">Mean: ${result.mean_reward.toFixed(2)} | Samples: ${result.total_samples}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function viewResult(resultId) {
+            state.selectedResultId = resultId;
+            state.ui.mainPaneMode = 'trajectory-view';
+            updateResultsList();
+
+            // Load trajectory data
+            try {
+                const response = await fetch(`/api/trace/${resultId}`);
+                const trace = await response.json();
+                displayTrajectory(trace);
+            } catch (error) {
+                console.error('Failed to load trajectory:', error);
+                const mainPane = document.querySelector('.main-pane-content');
+                mainPane.innerHTML = '<div class="empty-state"><h2>Error</h2><p>Failed to load trajectory</p></div>';
+            }
+        }
+
+        function displayTrajectory(trace) {
+            const mainPane = document.querySelector('.main-pane-content');
+
+            // Simple trajectory display - just show the messages
+            const samples = trace.samples || [];
+            if (samples.length === 0) {
+                mainPane.innerHTML = '<div class="empty-state"><h2>No Samples</h2><p>This trace has no samples</p></div>';
+                return;
+            }
+
+            let html = `
+                <div style="padding: 0;">
+                    <!-- Tabs -->
+                    ${renderTabs()}
+
+                    <div class="trajectory" style="padding: 24px;">
+                        <div class="trajectory-header">
+                            <div class="trajectory-title">${trace.name || 'Trajectory'}</div>
+                            <div class="trajectory-meta">
+                                Samples: ${trace.total_samples || samples.length} |
+                                Mean Reward: ${trace.mean_reward?.toFixed(2) || 'N/A'}
+                            </div>
+                        </div>
+            `;
+
+            // Display first sample's messages
+            const sample = samples[0];
+            const messages = sample.messages || sample.trajectory || [];
+
+            messages.forEach((msg, idx) => {
+                const role = msg.role || 'unknown';
+                const content = msg.content || '';
+
+                // Process content to highlight code blocks
+                const processedContent = formatMessageContent(content);
+
+                html += `
+                    <div class="message-block" id="msg-${idx}">
+                        <div class="message-header" onclick="toggleMessage(${idx})">
+                            <div class="message-role">${role}</div>
+                            <div>▼</div>
+                        </div>
+                        <div class="message-content">${processedContent}</div>
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';  // Close trajectory div and wrapper div
+            mainPane.innerHTML = html;
+
+            // Apply syntax highlighting to all code blocks
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        }
+
+        function formatMessageContent(content) {
+            // Convert markdown code blocks to HTML with syntax highlighting
+            // Matches: ```python\ncode\n``` or ```\ncode\n```
+
+            // Escape HTML first
+            let formatted = escapeHtml(content);
+
+            // Replace code blocks with <pre><code> tags, using placeholder to protect from newline replacement
+            const codeBlocks = [];
+            formatted = formatted.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                const language = lang || 'python';
+                const placeholder = `___CODE_BLOCK_${codeBlocks.length}___`;
+                codeBlocks.push(`<pre><code class="language-${language}">${code.trim()}</code></pre>`);
+                return placeholder;
+            });
+
+            // Convert newlines to <br> for non-code content
+            formatted = formatted.replace(/\n/g, '<br>');
+
+            // Restore code blocks
+            codeBlocks.forEach((block, i) => {
+                formatted = formatted.replace(`___CODE_BLOCK_${i}___`, block);
+            });
+
+            return formatted;
+        }
+
+        function toggleMessage(messageId) {
+            const block = document.getElementById(`msg-${messageId}`);
+            if (block) {
+                block.classList.toggle('message-collapsed');
+            }
+        }
+
+        // Launch agent with live streaming
+        async function launchAgent() {
+            // Step 1: Save config first
+            const launchBtn = document.getElementById('launch-btn');
+            const originalText = launchBtn.textContent;
+
+            launchBtn.textContent = '⏳ Saving...';
+            launchBtn.disabled = true;
+
+            const saveResult = await saveConfig({ silent: true });
+
+            if (!saveResult) {
+                launchBtn.textContent = originalText;
+                launchBtn.disabled = false;
+                alert('Failed to save config. Please fix validation errors.');
+                return;
+            }
+
+            const { configName } = saveResult;
+
+            // Step 2: Launch the config
+            launchBtn.textContent = '🚀 Launching...';
+
+            logToBackend('info', 'User clicked Launch Agent', { configName });
+
+            try {
+                const response = await fetch('/api/launch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ configName }),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    logToBackend('error', 'Launch API request failed', { status: response.status, error: errorText });
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const result = await response.json();
+                logToBackend('info', 'Launch API response received', result);
+
+                // Check for preflight failures
+                if (!result.success) {
+                    launchBtn.textContent = originalText;
+                    launchBtn.disabled = false;
+
+                    if (result.preflight_failed) {
+                        alert(`❌ Preflight check failed:\n\n${result.error}\n\nPlease wait for the GPU to be free and try again.`);
+                    } else if (result.queue_full) {
+                        alert(`⏸ ${result.error}\n\nYou can view active runs in the main pane.`);
+                    } else {
+                        alert(`❌ Launch failed:\n\n${result.error}`);
+                    }
+                    return;
+                }
+
+                const { run_id, config_name } = result;
+
+                // Create new live run tab with structured samples
+                state.liveRuns[run_id] = {
+                    runId: run_id,
+                    configName: config_name,
+                    status: 'running',
+                    startTime: Date.now(),
+                    eventSource: null,
+                    exitCode: null,
+                    samples: [],  // Structured: {sampleId, status, currentTurn, maxTurns, messages: [], isExpanded}
+                    rawOutput: [],  // Raw stdout logs for debugging
+                    currentSampleId: null,  // Track which sample is currently being processed
+                };
+
+                // Switch to this run's tab
+                state.ui.activeTabId = run_id;
+                state.ui.mainPaneMode = 'live-stream';
+
+                // Re-enable launch button immediately (can launch more configs)
+                launchBtn.textContent = originalText;
+                launchBtn.disabled = false;
+
+                // Start streaming
+                connectToStream(run_id);
+
+                // Update UI to show tabs
+                updateUI();
+
+            } catch (error) {
+                console.error('Failed to launch:', error);
+                alert('Failed to launch config: ' + error.message);
+                launchBtn.textContent = originalText;
+                launchBtn.disabled = false;
+            }
+        }
+
+        // Connect to SSE stream for a run
+        function connectToStream(runId) {
+            const run = state.liveRuns[runId];
+            if (!run) {
+                logToBackend('error', 'connectToStream called for unknown run', { runId });
+                return;
+            }
+
+            logToBackend('info', 'Opening SSE connection', { runId, configName: run.configName });
+
+            const eventSource = new EventSource(`/api/stream/${runId}`);
+            run.eventSource = eventSource;
+
+            eventSource.onopen = () => {
+                logToBackend('info', 'SSE connection opened', { runId });
+            };
+
+            eventSource.onerror = (error) => {
+                logToBackend('error', 'SSE connection error', { runId, error: error.toString() });
+            };
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                // Handle structured events from events.jsonl
+                if (data.type === 'sample_start') {
+                    // New sample starting
+                    const sample = {
+                        sampleId: data.sample_id,
+                        status: 'running',
+                        currentTurn: 0,
+                        maxTurns: null,
+                        messages: [],
+                        isExpanded: true,  // Auto-expand active sample
+                        reward: null,
+                        metadata: null
+                    };
+                    run.samples.push(sample);
+                    run.currentSampleId = data.sample_id;
+
+                    // Trigger render
+                    if (state.ui.activeTabId === runId) {
+                        renderLiveStreamStructured(runId);
+                    }
+                } else if (data.type === 'turn_start') {
+                    // Turn starting - update current sample
+                    const sample = run.samples.find(s => s.sampleId === run.currentSampleId);
+                    if (sample) {
+                        sample.currentTurn = data.turn;
+                        sample.maxTurns = data.max_turns;
+                        if (state.ui.activeTabId === runId) {
+                            renderLiveStreamStructured(runId);
+                        }
+                    }
+                } else if (data.type === 'token') {
+                    // Streaming token - append to last message or create new assistant message
+                    const sample = run.samples.find(s => s.sampleId === run.currentSampleId);
+                    if (sample) {
+                        let lastMsg = sample.messages[sample.messages.length - 1];
+                        if (!lastMsg || lastMsg.role !== 'assistant' || !lastMsg.isStreaming) {
+                            // Create new streaming assistant message
+                            lastMsg = { role: 'assistant', content: '', isStreaming: true };
+                            sample.messages.push(lastMsg);
+                        }
+                        lastMsg.content += data.content;
+
+                        // Debounced render for token streaming
+                        if (state.ui.activeTabId === runId) {
+                            if (run.renderTimer) clearTimeout(run.renderTimer);
+                            run.renderTimer = setTimeout(() => {
+                                renderLiveStreamStructured(runId);
+                                run.renderTimer = null;
+                            }, 100);
+                        }
+                    }
+                } else if (data.type === 'sample_end') {
+                    // Sample finished
+                    const sample = run.samples.find(s => s.sampleId === data.sample_id);
+                    if (sample) {
+                        sample.status = 'complete';
+                        sample.reward = data.reward;
+                        sample.metadata = data.metadata;
+                        sample.isExpanded = false;  // Collapse completed samples
+                        if (state.ui.activeTabId === runId) {
+                            renderLiveStreamStructured(runId);
+                        }
+                    }
+                } else if (data.type === 'stdout') {
+                    // Raw stdout logs for debugging
+                    run.rawOutput.push(data.line);
+                } else if (data.type === 'complete') {
+                    // Run finished - clear any pending render timer and do final render
+                    if (run.renderTimer) {
+                        clearTimeout(run.renderTimer);
+                        run.renderTimer = null;
+                    }
+
+                    run.status = data.status;
+                    run.exitCode = data.exit_code;
+                    eventSource.close();
+
+                    // Final render with complete status
+                    if (state.ui.activeTabId === runId) {
+                        renderLiveStreamStructured(runId);
+                    }
+
+                    // Reload results
+                    loadResults();
+
+                    // Auto-switch to results view after 1 second
+                    setTimeout(() => {
+                        // Find the most recent result (should be this run)
+                        loadResults().then(() => {
+                            if (state.results.length > 0) {
+                                // Switch to most recent result
+                                const mostRecentResult = state.results[0];
+                                state.ui.activeTabId = mostRecentResult.id;
+                                state.ui.mainPaneMode = 'trajectory-view';
+                                state.selectedResultId = mostRecentResult.id;
+                                viewResult(mostRecentResult.id);
+                            }
+                        });
+                    }, 1000);
+
+                } else if (data.type === 'error') {
+                    console.error('Stream error:', data.message);
+
+                    // Clear any pending render timer
+                    if (run.renderTimer) {
+                        clearTimeout(run.renderTimer);
+                        run.renderTimer = null;
+                    }
+
+                    run.status = 'failed';
+                    eventSource.close();
+
+                    // Update UI
+                    if (state.ui.activeTabId === runId) {
+                        renderLiveStreamStructured(runId);
+                    }
+                }
+            };
+
+            eventSource.onerror = () => {
+                console.error('EventSource error for run:', runId);
+
+                // Clear any pending render timer
+                if (run.renderTimer) {
+                    clearTimeout(run.renderTimer);
+                    run.renderTimer = null;
+                }
+
+                run.status = 'failed';
+                eventSource.close();
+
+                // Update UI
+                if (state.ui.activeTabId === runId) {
+                    renderLiveStreamStructured(runId);
+                }
+            };
+        }
+
+        // Render live stream with structured samples (similar to trajectory view)
+        function renderLiveStreamStructured(runId) {
+            const run = state.liveRuns[runId];
+            if (!run) return;
+
+            const mainPaneContent = document.querySelector('.main-pane-content');
+            if (!mainPaneContent) return;
+
+            // Save scroll position and check if user is at bottom
+            const scrollTop = mainPaneContent.scrollTop;
+            const scrollHeight = mainPaneContent.scrollHeight;
+            const clientHeight = mainPaneContent.clientHeight;
+            const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;  // 50px threshold
+
+            const { configName, samples, status, exitCode } = run;
+
+            // Build status indicator
+            let statusClass = status;
+            let statusText = status.toUpperCase();
+            if (status === 'running') {
+                statusText = '⚙️ RUNNING';
+            } else if (status === 'success') {
+                statusText = '✓ SUCCESS';
+            } else if (status === 'failed') {
+                statusText = `✗ FAILED (exit code: ${exitCode})`;
+            } else if (status === 'killed') {
+                statusText = '⏹ KILLED';
+            }
+
+            let html = `
+                <div style="padding: 0;">
+                    <!-- Tabs -->
+                    ${renderTabs()}
+
+                    <!-- Live stream container -->
+                    <div style="padding: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                            <h2 style="margin: 0; font-size: 18px;">${configName}</h2>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <div class="status-badge" style="
+                                    padding: 6px 12px;
+                                    border-radius: 4px;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    background: ${status === 'running' ? '#dbeafe' : status === 'success' ? '#d1fae5' : '#fee2e2'};
+                                    color: ${status === 'running' ? '#1e40af' : status === 'success' ? '#065f46' : '#991b1b'};
+                                ">${statusText}</div>
+                                ${status === 'running' ? `<button class="btn" onclick="killRun('${runId}')">Stop</button>` : ''}
+                                ${status !== 'running' ? `<button class="btn" onclick="closeTab('${runId}')">Close Tab</button>` : ''}
+                            </div>
+                        </div>
+            `;
+
+            // Render samples (similar to trajectory view)
+            if (samples.length === 0) {
+                html += '<div style="color: var(--text-secondary); text-align: center; padding: 40px;">Waiting for samples...</div>';
+            } else {
+                samples.forEach((sample, idx) => {
+                    const isRunning = sample.status === 'running';
+                    const sampleHeader = `Sample ${idx} ${sample.currentTurn ? `- Turn ${sample.currentTurn}/${sample.maxTurns || '?'}` : ''}`;
+                    const rewardText = sample.reward !== null ? `Reward: ${sample.reward.toFixed(3)}` : '';
+
+                    html += `
+                        <div class="sample-container" style="margin-bottom: 24px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+                            <div class="sample-header" onclick="toggleSample('${runId}', ${idx})" style="
+                                padding: 12px 16px;
+                                background: var(--bg-secondary);
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                cursor: pointer;
+                                user-select: none;
+                            ">
+                                <div style="font-weight: 600; font-size: 14px;">
+                                    ${isRunning ? '⚙️' : '✓'} ${sampleHeader}
+                                </div>
+                                <div style="display: flex; gap: 12px; align-items: center;">
+                                    ${rewardText ? `<span style="font-size: 12px; color: var(--text-secondary);">${rewardText}</span>` : ''}
+                                    <div>${sample.isExpanded ? '▼' : '▶'}</div>
+                                </div>
+                            </div>
+                            <div class="sample-content" style="display: ${sample.isExpanded ? 'block' : 'none'}; padding: 16px;">
+                    `;
+
+                    // Render messages (reuse trajectory message block styling)
+                    sample.messages.forEach((msg, msgIdx) => {
+                        const processedContent = formatMessageContent(msg.content);
+                        html += `
+                            <div class="message-block" id="msg-${runId}-${idx}-${msgIdx}">
+                                <div class="message-header" onclick="toggleMessage('${runId}-${idx}-${msgIdx}')">
+                                    <div class="message-role">${msg.role}</div>
+                                    <div>▼</div>
+                                </div>
+                                <div class="message-content">
+                                    ${processedContent}
+                                    ${msg.isStreaming ? '<span class="streaming-cursor" style="animation: blink 1s infinite;">▌</span>' : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            mainPaneContent.innerHTML = html;
+
+            // Apply syntax highlighting to code blocks
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+
+            // Restore scroll position - only auto-scroll if user was at bottom
+            if (isAtBottom) {
+                mainPaneContent.scrollTop = mainPaneContent.scrollHeight;
+            } else {
+                mainPaneContent.scrollTop = scrollTop;
+            }
+        }
+
+        // Toggle sample expand/collapse
+        function toggleSample(runId, sampleIdx) {
+            const run = state.liveRuns[runId];
+            if (!run || !run.samples[sampleIdx]) return;
+
+            run.samples[sampleIdx].isExpanded = !run.samples[sampleIdx].isExpanded;
+            renderLiveStreamStructured(runId);
+        }
+
+        // Render live output for a specific run
+        function renderLiveOutput(runId) {
+            const run = state.liveRuns[runId];
+            if (!run) return;
+
+            const mainPaneContent = document.querySelector('.main-pane-content');
+            if (!mainPaneContent) return;
+
+            const { configName, output, status, exitCode } = run;
+
+            // Build status indicator
+            let statusClass = status;
+            let statusText = status.toUpperCase();
+            if (status === 'running') {
+                statusText = '⚙️ RUNNING';
+            } else if (status === 'success') {
+                statusText = '✓ SUCCESS';
+            } else if (status === 'failed') {
+                statusText = `✗ FAILED (exit code: ${exitCode})`;
+            } else if (status === 'killed') {
+                statusText = '⏹ KILLED';
+            }
+
+            // Check if output container already exists for incremental updates
+            let outputContainer = document.getElementById(`live-output-${runId}`);
+            const isIncremental = outputContainer && run.lastRenderedLineCount !== undefined;
+
+            if (isIncremental) {
+                // Incremental update - only append new lines since last render
+                const newLines = output.slice(run.lastRenderedLineCount);
+                newLines.forEach(line => {
+                    const div = document.createElement('div');
+                    div.textContent = line;  // textContent auto-escapes
+
+                    // Color code different types of output
+                    if (line.includes('ERROR') || line.includes('FAILED') || line.includes('Failed')) {
+                        div.style.color = '#f48771';
+                    } else if (line.includes('SUCCESS') || line.includes('PASSED') || line.includes('✓')) {
+                        div.style.color = '#89d185';
+                    } else if (line.includes('WARNING') || line.includes('Warning')) {
+                        div.style.color = '#dcdcaa';
+                    } else if (line.startsWith('🚀') || line.startsWith('📝') || line.startsWith('📊')) {
+                        div.style.color = '#4ec9b0';
+                    } else {
+                        div.style.color = '#d4d4d4';
+                    }
+
+                    outputContainer.appendChild(div);
+                });
+
+                run.lastRenderedLineCount = output.length;
+
+                // Auto-scroll to bottom
+                outputContainer.scrollTop = outputContainer.scrollHeight;
+
+                // Update status badge if status changed
+                const statusBadge = document.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.textContent = statusText;
+                    statusBadge.style.background = status === 'running' ? '#dbeafe' : status === 'success' ? '#d1fae5' : '#fee2e2';
+                    statusBadge.style.color = status === 'running' ? '#1e40af' : status === 'success' ? '#065f46' : '#991b1b';
+                }
+
+                // Update button (Stop vs Close Tab)
+                const buttonContainer = statusBadge?.parentElement;
+                if (buttonContainer && status !== 'running') {
+                    const stopBtn = buttonContainer.querySelector('button');
+                    if (stopBtn && stopBtn.textContent === 'Stop') {
+                        stopBtn.textContent = 'Close Tab';
+                        stopBtn.onclick = () => closeTab(runId);
+                    }
+                }
+
+                return;  // Skip full re-render
+            }
+
+            // Full render (initial or fallback)
+            let html = `
+                <div style="padding: 0;">
+                    <!-- Tabs -->
+                    ${renderTabs()}
+
+                    <!-- Live output container -->
+                    <div style="padding: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h2 style="margin: 0; font-size: 18px;">${configName}</h2>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <div class="status-badge" style="
+                                    padding: 6px 12px;
+                                    border-radius: 4px;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    background: ${status === 'running' ? '#dbeafe' : status === 'success' ? '#d1fae5' : '#fee2e2'};
+                                    color: ${status === 'running' ? '#1e40af' : status === 'success' ? '#065f46' : '#991b1b'};
+                                ">${statusText}</div>
+                                ${status === 'running' ? `<button class="btn" onclick="killRun('${runId}')">Stop</button>` : ''}
+                                ${status !== 'running' ? `<button class="btn" onclick="closeTab('${runId}')">Close Tab</button>` : ''}
+                            </div>
+                        </div>
+
+                        <div class="live-output-container" id="live-output-${runId}" style="
+                            background: #1e1e1e;
+                            color: #d4d4d4;
+                            padding: 16px;
+                            border-radius: 8px;
+                            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+                            font-size: 12px;
+                            line-height: 1.5;
+                            max-height: calc(100vh - 220px);
+                            overflow-y: auto;
+                            white-space: pre-wrap;
+                            word-wrap: break-word;
+                        ">`;
+
+            if (output.length === 0) {
+                html += '<div style="color: #888;">Waiting for output...</div>';
+            } else {
+                output.forEach(line => {
+                    // Color code different types of output
+                    let color = '#d4d4d4';
+                    if (line.includes('ERROR') || line.includes('FAILED') || line.includes('Failed')) {
+                        color = '#f48771';
+                    } else if (line.includes('SUCCESS') || line.includes('PASSED') || line.includes('✓')) {
+                        color = '#89d185';
+                    } else if (line.includes('WARNING') || line.includes('Warning')) {
+                        color = '#dcdcaa';
+                    } else if (line.startsWith('🚀') || line.startsWith('📝') || line.startsWith('📊')) {
+                        color = '#4ec9b0';
+                    }
+
+                    html += `<div style="color: ${color};">${escapeHtml(line)}</div>`;
+                });
+            }
+
+            run.lastRenderedLineCount = output.length;
+
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            mainPaneContent.innerHTML = html;
+
+            // Auto-scroll to bottom
+            setTimeout(() => {
+                const container = document.getElementById(`live-output-${runId}`);
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            }, 0);
+        }
+
+        // Render tabs for all active runs and results
+        function renderTabs() {
+            const tabs = [];
+
+            // Add live run tabs
+            Object.values(state.liveRuns).forEach(run => {
+                const isActive = state.ui.activeTabId === run.runId;
+                const statusIcon = run.status === 'running' ? '⚙️' : run.status === 'success' ? '✓' : '✗';
+
+                tabs.push(`
+                    <div class="tab ${isActive ? 'active' : ''}" onclick="switchToTab('${run.runId}', 'live-stream')">
+                        <span>${statusIcon} ${run.configName}</span>
+                        ${run.status !== 'running' ? `<button class="tab-close" onclick="event.stopPropagation(); closeTab('${run.runId}')">&times;</button>` : ''}
+                    </div>
+                `);
+            });
+
+            // Add result tab if viewing a result
+            if (state.ui.mainPaneMode === 'trajectory-view' && state.selectedResultId) {
+                const result = state.results.find(r => r.id === state.selectedResultId);
+                if (result) {
+                    const isActive = state.ui.activeTabId === result.id;
+                    tabs.push(`
+                        <div class="tab ${isActive ? 'active' : ''}" onclick="switchToTab('${result.id}', 'trajectory-view')">
+                            <span>📊 ${result.name}</span>
+                            <button class="tab-close" onclick="event.stopPropagation(); closeResultTab('${result.id}')">&times;</button>
+                        </div>
+                    `);
+                }
+            }
+
+            if (tabs.length === 0) {
+                return '';
+            }
+
+            return `
+                <div class="tabs-container" style="
+                    display: flex;
+                    gap: 4px;
+                    padding: 12px 24px;
+                    background: var(--bg-secondary);
+                    border-bottom: 1px solid var(--border);
+                    overflow-x: auto;
+                ">
+                    ${tabs.join('')}
+                </div>
+            `;
+        }
+
+        // Switch to a specific tab
+        function switchToTab(tabId, mode) {
+            state.ui.activeTabId = tabId;
+            state.ui.mainPaneMode = mode;
+
+            if (mode === 'live-stream') {
+                renderLiveOutput(tabId);
+            } else if (mode === 'trajectory-view') {
+                viewResult(tabId);
+            }
+        }
+
+        // Close a tab
+        async function closeTab(runId) {
+            const run = state.liveRuns[runId];
+            if (!run) return;
+
+            // Close EventSource if still open
+            if (run.eventSource) {
+                run.eventSource.close();
+            }
+
+            // Delete from backend
+            if (run.status !== 'running') {
+                try {
+                    await fetch(`/api/delete-run/${runId}`, { method: 'POST' });
+                } catch (e) {
+                    console.error('Failed to delete run:', e);
+                }
+            }
+
+            // Remove from state
+            delete state.liveRuns[runId];
+
+            // Switch to another tab or idle
+            if (state.ui.activeTabId === runId) {
+                const remainingRuns = Object.keys(state.liveRuns);
+                if (remainingRuns.length > 0) {
+                    switchToTab(remainingRuns[0], 'live-stream');
+                } else {
+                    state.ui.activeTabId = null;
+                    state.ui.mainPaneMode = 'idle';
+                    updateUI();
+                }
+            } else {
+                updateUI();
+            }
+        }
+
+        // Close a result tab
+        function closeResultTab(resultId) {
+            // If this was the active tab, switch to another or idle
+            if (state.ui.activeTabId === resultId) {
+                const remainingRuns = Object.keys(state.liveRuns);
+                if (remainingRuns.length > 0) {
+                    switchToTab(remainingRuns[0], 'live-stream');
+                } else {
+                    state.ui.activeTabId = null;
+                    state.ui.mainPaneMode = 'idle';
+                    state.selectedResultId = null;
+
+                    const mainPane = document.querySelector('.main-pane-content');
+                    mainPane.innerHTML = '<div class="empty-state"><h2>Welcome to Agent Dev Loop</h2><p>Select a result to view or configure and launch a new agent evaluation.</p></div>';
+                }
+            }
+        }
+
+        // Kill a running process
+        async function killRun(runId) {
+            try {
+                const response = await fetch(`/api/kill/${runId}`, { method: 'POST' });
+                const result = await response.json();
+
+                if (result.success) {
+                    const run = state.liveRuns[runId];
+                    if (run) {
+                        // Clear any pending render timer
+                        if (run.renderTimer) {
+                            clearTimeout(run.renderTimer);
+                            run.renderTimer = null;
+                        }
+
+                        // Close the EventSource connection to stop receiving data
+                        if (run.eventSource) {
+                            run.eventSource.close();
+                            run.eventSource = null;
+                        }
+
+                        run.status = 'killed';
+                        renderLiveOutput(runId);
+                    }
+                } else {
+                    alert(`Failed to kill run: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Failed to kill run:', error);
+                alert('Failed to kill run: ' + error.message);
+            }
+        }
+
+        // HTML escape utility
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ===== Config Name Management =====
+        function setConfigName(name) {
+            document.getElementById('config-name').value = name;
+
+            // Parse and populate prefix_name_suffix
+            const match = name.match(/^(\d+)_(.+?)_(\d+)$/);
+            if (match) {
+                document.getElementById('config-prefix').value = match[1];
+                document.getElementById('config-name-middle').value = match[2];
+                document.getElementById('config-suffix').value = match[3];
+            }
+        }
+
+        function updateConfigName() {
+            // Rebuild config name from parts
+            const prefix = document.getElementById('config-prefix').value;
+            const middle = document.getElementById('config-name-middle').value;
+            const suffix = document.getElementById('config-suffix').value;
+
+            const fullName = `${prefix}_${middle}_${suffix}`;
+            document.getElementById('config-name').value = fullName;
+        }
+
+        // Add event listener to middle input to update hidden config-name
+        window.addEventListener('DOMContentLoaded', () => {
+            const middleInput = document.getElementById('config-name-middle');
+            if (middleInput) {
+                middleInput.addEventListener('input', updateConfigName);
+            }
+        });
+
+        // ===== Max Turns Handling =====
+        function toggleUnlimitedTurns() {
+            const checkbox = document.getElementById('unlimited-turns');
+            const input = document.getElementById('max-turns');
+
+            if (checkbox.checked) {
+                input.value = -1;
+                input.disabled = true;
+            } else {
+                input.disabled = false;
+                if (input.value == -1) {
+                    input.value = 5;  // Reset to default
+                }
+            }
+        }
+
+        function syncUnlimitedTurnsCheckbox() {
+            const input = document.getElementById('max-turns');
+            const checkbox = document.getElementById('unlimited-turns');
+
+            if (parseInt(input.value) === -1) {
+                checkbox.checked = true;
+                input.disabled = true;
+            } else {
+                checkbox.checked = false;
+                input.disabled = false;
+            }
+        }
+
+        // ===== GPU Selection =====
+        function initGPUCheckboxes() {
+            const container = document.getElementById('gpu-ranks');
+            container.innerHTML = '';
+
+            // Create checkboxes for GPUs 0-7
+            for (let i = 0; i < 8; i++) {
+                const item = document.createElement('div');
+                item.className = 'gpu-checkbox-item';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `gpu-${i}`;
+                checkbox.value = i;
+                checkbox.className = 'gpu-checkbox';
+
+                // Default to GPU 0 selected
+                if (i === 0) {
+                    checkbox.checked = true;
+                }
+
+                const label = document.createElement('label');
+                label.htmlFor = `gpu-${i}`;
+                label.textContent = `GPU ${i}`;
+
+                item.appendChild(checkbox);
+                item.appendChild(label);
+
+                // Make the whole item clickable
+                item.addEventListener('click', (e) => {
+                    if (e.target !== checkbox) {
+                        checkbox.checked = !checkbox.checked;
+                    }
+                });
+
+                container.appendChild(item);
+            }
+        }
+
+        function getSelectedGPUs() {
+            const checkboxes = document.querySelectorAll('.gpu-checkbox:checked');
+            return Array.from(checkboxes).map(cb => parseInt(cb.value));
+        }
+
+        function setSelectedGPUs(gpuIds) {
+            // Clear all checkboxes first
+            document.querySelectorAll('.gpu-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+
+            // Set specified GPUs
+            if (Array.isArray(gpuIds)) {
+                gpuIds.forEach(id => {
+                    const checkbox = document.getElementById(`gpu-${id}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            } else if (typeof gpuIds === 'number') {
+                // Handle single GPU ID for backwards compatibility
+                const checkbox = document.getElementById(`gpu-${gpuIds}`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            }
+        }
+
+        // ===== Dataset Loading =====
+        async function loadDatasets() {
+            state.datasets.loading = true;
+            state.datasets.error = null;
+            renderDatasetDropdown();
+
+            try {
+                const response = await fetch('/api/list-datasets');
+                const data = await response.json();
+
+                if (data.error) {
+                    state.datasets.error = data.error;
+                } else {
+                    state.datasets.data = data.datasets || [];
+                }
+            } catch (error) {
+                state.datasets.error = 'Failed to load datasets';
+                console.error('Dataset loading error:', error);
+            } finally {
+                state.datasets.loading = false;
+                renderDatasetDropdown();
+            }
+        }
+
+        function renderDatasetDropdown() {
+            const select = document.getElementById('dataset-path');
+            if (!select) return;
+
+            if (state.datasets.loading) {
+                select.innerHTML = '<option value="">Loading datasets...</option>';
+                select.disabled = true;
+                return;
+            }
+
+            if (state.datasets.error) {
+                select.innerHTML = `<option value="">${state.datasets.error}</option>`;
+                select.disabled = true;
+                return;
+            }
+
+            // Build dropdown
+            let html = '<option value="">Select a dataset...</option>';
+
+            for (const dataset of state.datasets.data) {
+                html += `<option value="${dataset.path}">${dataset.path}</option>`;
+            }
+
+            select.innerHTML = html;
+            select.disabled = false;
+        }
+
+        // ===== Model Loading =====
+        async function loadModels() {
+            state.models.loading = true;
+            state.models.error = null;
+            renderModelDropdown();
+
+            try {
+                const response = await fetch('/api/models');
+                const data = await response.json();
+
+                if (data.errors && data.errors.length > 0) {
+                    console.warn('Model loading warnings:', data.errors);
+                }
+
+                state.models.data = data.models || [];
+            } catch (error) {
+                state.models.error = 'Failed to load models from API providers';
+                console.error('Model loading error:', error);
+            } finally {
+                state.models.loading = false;
+                renderModelDropdown();
+            }
+        }
+
+        function renderModelDropdown() {
+            const select = document.getElementById('model-select');
+            if (!select) return;
+
+            if (state.models.loading) {
+                select.innerHTML = '<option value="">Loading models...</option>';
+                select.disabled = true;
+                return;
+            }
+
+            if (state.models.error) {
+                select.innerHTML = `<option value="">${state.models.error}</option>`;
+                select.disabled = true;
+                return;
+            }
+
+            // Group models by provider for better organization
+            const modelsByProvider = {};
+            for (const model of state.models.data) {
+                const provider = model.provider || 'other';
+                if (!modelsByProvider[provider]) {
+                    modelsByProvider[provider] = [];
+                }
+                modelsByProvider[provider].push(model);
+            }
+
+            // Build dropdown with optgroups
+            let html = '<option value="">Select a model...</option>';
+
+            const providerOrder = ['anthropic', 'openai', 'other'];
+            const providerLabels = {
+                'anthropic': 'Anthropic',
+                'openai': 'OpenAI',
+                'other': 'Other'
+            };
+
+            for (const provider of providerOrder) {
+                const models = modelsByProvider[provider];
+                if (!models || models.length === 0) continue;
+
+                html += `<optgroup label="${providerLabels[provider]}">`;
+                for (const model of models) {
+                    html += `<option value="${model.id}">${model.name}</option>`;
+                }
+                html += '</optgroup>';
+            }
+
+            select.innerHTML = html;
+            select.disabled = false;
+
+            // Add change listener to update provider info
+            select.addEventListener('change', updateModelProviderInfo);
+            // Also update on initial load if there's a selected value
+            updateModelProviderInfo();
+        }
+
+        function updateModelProviderInfo() {
+            const select = document.getElementById('model-select');
+            const providerInfo = document.getElementById('model-provider-info');
+            const providerName = document.getElementById('model-provider-name');
+
+            if (!select || !providerInfo || !providerName) return;
+
+            const selectedModelId = select.value;
+            if (!selectedModelId) {
+                providerInfo.style.display = 'none';
+                return;
+            }
+
+            // Find the selected model in state.models.data
+            const selectedModel = state.models.data.find(m => m.id === selectedModelId);
+            if (selectedModel && selectedModel.provider) {
+                providerName.textContent = selectedModel.provider;
+                providerInfo.style.display = 'block';
+            } else {
+                providerInfo.style.display = 'none';
+            }
+        }
+
+        // Initialize
+        async function init() {
+            updateUI();
+            initGPUCheckboxes();
+
+            await Promise.all([
+                loadAvailableConfigs(),
+                loadResults(),
+                loadModels(),
+                loadDatasets()
+            ]);
+
+            // Set up input listeners
+            document.getElementById('start-idx').addEventListener('input', updateRangeLabels);
+            document.getElementById('end-idx').addEventListener('input', updateRangeLabels);
+
+            console.log('Agent Dev Loop initialized');
+            console.log('Phase 1: Core layout with sliding sidebars ✓');
+            console.log('Phase 2: Config sidebar with forms ✓');
+        }
+
+        // ===== Dataset Preview =====
+        async function loadDatasetPreview(configName) {
+            state.sampleData.loading = true;
+            state.sampleData.error = null;
+            renderDatasetPreview();
+
+            try {
+                const response = await fetch(`/api/dataset-preview/${configName}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    state.sampleData.error = data.error;
+                } else {
+                    state.sampleData.datasetPath = data.datasetPath;
+                    state.sampleData.fields = data.fields;
+                    state.sampleData.sample = data.sample;
+                    state.sampleData.datasetSize = data.datasetSize || 0;
+
+                    // Auto-populate sample range based on dataset size
+                    if (state.sampleData.datasetSize > 0) {
+                        updateRangeMaxFromDataset(state.sampleData.datasetSize);
+                    }
+                }
+            } catch (error) {
+                state.sampleData.error = 'Failed to load dataset preview';
+                console.error(error);
+            } finally {
+                state.sampleData.loading = false;
+                renderDatasetPreview();
+            }
+        }
+
+        function updateRangeMaxFromDataset(datasetSize) {
+            // Update the range slider and input max values
+            const slider = document.getElementById('range-slider');
+            const startIdxInput = document.getElementById('start-idx');
+            const endIdxInput = document.getElementById('end-idx');
+
+            // Set max attributes on inputs to enforce bounds
+            slider.max = datasetSize;
+            startIdxInput.max = datasetSize;
+            endIdxInput.max = datasetSize;
+
+            // If current end_idx exceeds dataset size, cap it
+            const currentEnd = parseInt(endIdxInput.value);
+            if (currentEnd > datasetSize) {
+                endIdxInput.value = datasetSize;
+                slider.value = datasetSize;
+            }
+
+            // If current start_idx exceeds dataset size, cap it
+            const currentStart = parseInt(startIdxInput.value);
+            if (currentStart >= datasetSize) {
+                startIdxInput.value = Math.max(0, datasetSize - 1);
+            }
+
+            updateRangeLabels();
+        }
+
+        function renderDatasetPreview() {
+            const container = document.getElementById('dataset-preview');
+
+            if (state.sampleData.loading) {
+                container.innerHTML = '<p style="color: var(--text-secondary); padding: 12px;">Loading dataset preview...</p>';
+                return;
+            }
+
+            if (state.sampleData.error) {
+                container.innerHTML = `<p style="color: var(--error); padding: 12px;">${state.sampleData.error}</p>`;
+                return;
+            }
+
+            if (!state.sampleData.fields || state.sampleData.fields.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); padding: 12px;">Select a base config to view dataset fields</p>';
+                return;
+            }
+
+            // Build table HTML
+            let html = '<div style="padding: 8px;">';
+            html += `<div style="margin-bottom: 6px; color: var(--text-secondary); font-size: 11px; font-weight: 500;">${state.sampleData.datasetPath}</div>`;
+            if (state.sampleData.datasetSize > 0) {
+                html += `<div style="margin-bottom: 8px; color: var(--text-secondary); font-size: 11px;">${state.sampleData.datasetSize} samples</div>`;
+            }
+            html += '<div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">Click to copy placeholder:</div>';
+
+            // Table
+            html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px;">';
+            html += '<thead><tr style="background: var(--bg-secondary); position: sticky; top: 0;">';
+            html += '<th style="padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 600; color: var(--text-secondary);">Field</th>';
+            html += '<th style="padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 600; color: var(--text-secondary);">Sample Value</th>';
+            html += '</tr></thead>';
+            html += '<tbody>';
+
+            state.sampleData.fields.forEach(field => {
+                const value = state.sampleData.sample[field];
+                let displayValue = '';
+                if (typeof value === 'string') {
+                    displayValue = value.length > 60 ? value.substring(0, 60) + '...' : value;
+                } else {
+                    const jsonStr = JSON.stringify(value);
+                    displayValue = jsonStr.length > 60 ? jsonStr.substring(0, 60) + '...' : jsonStr;
+                }
+
+                html += `<tr onclick="copyFieldName('${field}')" style="cursor: pointer; border-bottom: 1px solid var(--border);" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">`;
+                html += `<td style="padding: 6px 8px; font-family: monospace; color: var(--accent); font-weight: 500;">{${field}}</td>`;
+                html += `<td style="padding: 6px 8px; color: var(--text-secondary); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;">${displayValue}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        function copyFieldName(fieldName) {
+            const placeholder = `{${fieldName}}`;
+            navigator.clipboard.writeText(placeholder).then(() => {
+                // Show temporary feedback
+                const event = new CustomEvent('show-toast', {
+                    detail: { message: `Copied: ${placeholder}` }
+                });
+                window.dispatchEvent(event);
+            });
+        }
+
+        // ===== Message Builder =====
+        async function loadMessages(configName) {
+            try {
+                const response = await fetch(`/api/parse-messages/${configName}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    console.warn('Could not parse messages:', data.error);
+                    state.messages = [];
+                } else {
+                    state.messages = data.messages || [];
+                }
+
+                renderMessages();
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+                state.messages = [];
+                renderMessages();
+            }
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('messages-container');
+
+            if (state.messages.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;">No messages yet. Click below to add your first message.</p>';
+                return;
+            }
+
+            let html = '';
+            state.messages.forEach((msg, index) => {
+                const preview = msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '');
+                html += `
+                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-weight: 500; font-size: 13px;">Message ${index + 1}</span>
+                            <div style="display: flex; gap: 4px;">
+                                <button onclick="expandMessage(${index})" class="btn" style="padding: 4px 8px; font-size: 12px;">⤢ Expand</button>
+                                <button onclick="deleteMessage(${index})" class="btn" style="padding: 4px 8px; font-size: 12px;">×</button>
+                            </div>
+                        </div>
+                        <div class="form-field" style="margin-bottom: 8px;">
+                            <label class="form-label" style="font-size: 12px;">Role</label>
+                            <select class="form-select" onchange="updateMessageRole(${index}, this.value)" style="font-size: 12px;">
+                                <option value="system" ${msg.role === 'system' ? 'selected' : ''}>system</option>
+                                <option value="user" ${msg.role === 'user' ? 'selected' : ''}>user</option>
+                                <option value="assistant" ${msg.role === 'assistant' ? 'selected' : ''}>assistant</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label" style="font-size: 12px;">Preview</label>
+                            <div style="font-family: 'SF Mono', Monaco, monospace; font-size: 12px; color: var(--text-secondary); padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; white-space: pre-wrap; max-height: 60px; overflow: hidden;">${escapeHtml(preview)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function addMessage() {
+            state.messages.push({ role: 'user', content: '' });
+            renderMessages();
+        }
+
+        function deleteMessage(index) {
+            state.messages.splice(index, 1);
+            renderMessages();
+        }
+
+        function updateMessageRole(index, role) {
+            state.messages[index].role = role;
+        }
+
+        function updateMessageContent(index, content) {
+            state.messages[index].content = content;
+        }
+
+        function expandMessage(index) {
+            const msg = state.messages[index];
+            const modal = document.getElementById('message-editor-modal');
+            const roleSelect = document.getElementById('message-editor-role');
+            const textarea = document.getElementById('message-editor-content');
+
+            roleSelect.value = msg.role;
+            textarea.value = msg.content;
+
+            // Store current index for saving
+            modal.dataset.messageIndex = index;
+
+            // Update placeholder preview
+            updatePlaceholderPreview();
+
+            modal.classList.add('show');
+        }
+
+        function closeMessageEditor() {
+            document.getElementById('message-editor-modal').classList.remove('show');
+        }
+
+        function updatePlaceholderPreview() {
+            const content = document.getElementById('message-editor-content').value;
+            const preview = document.getElementById('placeholder-preview');
+
+            // Find all {field_name} placeholders
+            const placeholderRegex = /\{(\w+)\}/g;
+            const matches = [...content.matchAll(placeholderRegex)];
+
+            if (matches.length === 0) {
+                preview.innerHTML = '💡 Use <code style="background: var(--bg-secondary); padding: 2px 4px; border-radius: 3px;">{field_name}</code> to reference dataset fields';
+            } else {
+                const uniquePlaceholders = [...new Set(matches.map(m => m[1]))];
+                const highlighted = uniquePlaceholders.map(p =>
+                    `<code style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 3px; font-weight: 500;">{${p}}</code>`
+                ).join(' ');
+                preview.innerHTML = `✓ Found placeholders: ${highlighted}`;
+            }
+        }
+
+        function saveMessageFromEditor() {
+            const modal = document.getElementById('message-editor-modal');
+            const index = parseInt(modal.dataset.messageIndex);
+            const role = document.getElementById('message-editor-role').value;
+            const content = document.getElementById('message-editor-content').value;
+
+            state.messages[index].role = role;
+            state.messages[index].content = content;
+
+            renderMessages();
+            closeMessageEditor();
+        }
+
+        // ===== Tool Editor =====
+        async function loadTools(configName) {
+            try {
+                const response = await fetch(`/api/parse-tools/${configName}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    console.warn('Could not parse tools:', data.error);
+                    state.toolDefinitions = [];
+                } else {
+                    state.toolDefinitions = data.tools || [];
+                }
+
+                renderToolsEditor();
+            } catch (error) {
+                console.error('Failed to load tools:', error);
+                state.toolDefinitions = [];
+                renderToolsEditor();
+            }
+        }
+
+        function renderToolsEditor() {
+            const container = document.getElementById('tools-editor');
+
+            if (state.toolDefinitions.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px;">No tools defined in this config</p>';
+                return;
+            }
+
+            let html = '';
+            state.toolDefinitions.forEach((tool, toolIndex) => {
+                html += `
+                    <details style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                        <summary style="cursor: pointer; font-weight: 500; font-family: monospace; font-size: 13px; margin-bottom: 8px;">
+                            ${tool.name}
+                        </summary>
+                        <div style="padding-left: 16px; margin-top: 12px;">
+                            <div class="form-field" style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 12px;">Description</label>
+                                <textarea
+                                    class="form-textarea"
+                                    oninput="updateToolDescription(${toolIndex}, this.value)"
+                                    style="min-height: 60px; font-size: 12px;"
+                                >${tool.description}</textarea>
+                            </div>
+                            <div style="font-weight: 500; font-size: 12px; margin-bottom: 8px; color: var(--text-secondary);">Parameters:</div>
+                `;
+
+                tool.parameters.forEach((param, paramIndex) => {
+                    html += `
+                        <div style="margin-bottom: 12px; padding-left: 12px; border-left: 2px solid var(--border);">
+                            <div style="font-family: monospace; font-size: 12px; margin-bottom: 4px;">
+                                <span style="color: var(--text-primary);">${param.name}</span>
+                                <span style="color: var(--text-secondary);"> (${param.type}${param.required ? ', required' : ', optional'})</span>
+                            </div>
+                            <textarea
+                                class="form-input"
+                                oninput="updateParamDescription(${toolIndex}, ${paramIndex}, this.value)"
+                                style="min-height: 50px; font-size: 11px;"
+                                placeholder="Parameter description"
+                            >${param.description}</textarea>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </details>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function updateToolDescription(toolIndex, description) {
+            state.toolDefinitions[toolIndex].description = description;
+        }
+
+        function updateParamDescription(toolIndex, paramIndex, description) {
+            state.toolDefinitions[toolIndex].parameters[paramIndex].description = description;
+        }
+
+        // ===== Environment Source Viewer =====
+        async function viewEnvironmentSource() {
+            const modal = document.getElementById('environment-viewer-modal');
+            const sourceCode = document.getElementById('environment-source-code');
+            const filePath = document.getElementById('environment-file-path');
+
+            modal.style.display = 'flex';
+            sourceCode.textContent = 'Loading...';
+            filePath.textContent = 'Loading...';
+
+            try {
+                const configName = document.getElementById('base-config-select').value;
+                if (!configName) {
+                    sourceCode.textContent = 'Please select a config first';
+                    filePath.textContent = '';
+                    return;
+                }
+
+                const response = await fetch(`/api/view-environment/${configName}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    sourceCode.textContent = `Error: ${data.error}`;
+                    filePath.textContent = '';
+                } else {
+                    sourceCode.textContent = data.source;
+                    filePath.textContent = `${data.file_path} (class: ${data.class_name})`;
+                }
+            } catch (error) {
+                sourceCode.textContent = `Failed to load environment source: ${error.message}`;
+                filePath.textContent = '';
+            }
+        }
+
+        function closeEnvironmentViewer() {
+            document.getElementById('environment-viewer-modal').style.display = 'none';
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>
