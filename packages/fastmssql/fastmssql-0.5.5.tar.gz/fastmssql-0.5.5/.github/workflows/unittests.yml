@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      python-version:
+        description: "Python version to run"
+        required: false
+        default: "3.13"
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.python-version)) || fromJSON('["3.10", "3.11", "3.12", "3.13", "3.14"]') }}
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          SA_PASSWORD: "YourStrong@Password"
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: "Express"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd="/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P 'YourStrong@Password' -Q 'SELECT 1' -C"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Cargo registry cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Set up Cargo build cache
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+
+      - name: Install uv and set the Python version
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install SQL Server tools
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Build and install Python package with maturin
+        run: |
+          uv run maturin develop --release
+
+      - name: Wait for MSSQL to be ready
+        run: |
+          echo "Waiting for SQL Server to be ready..."
+          export PATH="$PATH:/opt/mssql-tools18/bin"
+          for i in {1..60}; do
+            echo "Attempt $i/60..."
+            if nc -z localhost 1433; then
+              if sqlcmd -S localhost -U SA -P 'YourStrong@Password' -Q "SELECT 1" -C 2>/dev/null; then
+                echo "SQL Server is ready!"
+                break
+              fi
+            fi
+            sleep 5
+            if [ $i -eq 60 ]; then
+              echo "SQL Server failed to start after 5 minutes"
+              docker logs $(docker ps -q --filter ancestor=mcr.microsoft.com/mssql/server:2022-latest)
+              exit 1
+            fi
+          done
+
+      - name: Run tests
+        run: |
+          uv run pytest tests -n auto
+        env:
+          FASTMSSQL_TEST_CONNECTION_STRING: "Server=localhost,1433;Database=master;User Id=SA;Password=YourStrong@Password;TrustServerCertificate=yes"
+          FAST_MSSQL_TEST_DB_USER: "SA"
+          FAST_MSSQL_TEST_DB_PASSWORD: "YourStrong@Password"
+          FAST_MSSQL_TEST_SERVER: "localhost"
+          FAST_MSSQL_TEST_PORT: "1433"
+          FAST_MSSQL_TEST_DATABASE: "master"
