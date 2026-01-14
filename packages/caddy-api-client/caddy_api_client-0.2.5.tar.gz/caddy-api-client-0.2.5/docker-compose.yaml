@@ -1,0 +1,34 @@
+services:
+  caddy:
+    image: caddy:2.9-alpine
+    container_name: caddy
+    platform: linux/amd64
+    ports:
+      - "80:80"
+      - "443:443"
+      - "2019:2019"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./certs:/etc/caddy/certs
+    restart: unless-stopped
+    entrypoint: ["caddy"]
+    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile", "--resume"]
+
+  answer-caddy:
+    image: hashicorp/http-echo:latest
+    container_name: answer-caddy
+    ports:
+      - "8080:8080"
+    command: ["-text", "true", "-listen", ":8080"]
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
