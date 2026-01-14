@@ -1,0 +1,393 @@
+# **GeoAugment**
+
+**GeoAugment** is a **constraint-aware synthetic geospatial data generation engine** designed to address **data scarcity in GeoAI**, particularly in **flood risk analysis**, **urban systems**, and **environmental modeling** in data-limited regions.
+
+It generates physically plausible synthetic labels and features from limited geospatial inputs (e.g., DEMs), enabling robust training of downstream Machine Learning (ML) and Deep Learning (DL) models.
+
+GeoAugment does **not** train machine learning models.  
+GeoAugment **creates high-quality synthetic training data** that can later be used by ML or DL frameworks such as **PyTorch**, **TensorFlow**, or **scikit-learn**.
+
+---
+
+## **Why GeoAugment Exists**
+
+In many regions (especially across the Global South):
+
+- Labeled flood-risk maps do not exist
+- Historical flood records are incomplete
+- Satellite imagery is noisy, cloudy, or sparse
+- Urban layouts differ significantly from Global North datasets
+- Ground truth data is expensive or unavailable
+- ML/DL models fail due to label scarcity, not model weakness
+
+Most GeoAI pipelines silently assume that **clean labels already exist**.  
+GeoAugment exists to solve that upstream problem.
+
+---
+
+## **What GeoAugment Is (and Is Not)**
+
+### **GeoAugment IS**
+- A **synthetic data generator**
+- A **data augmentation engine**
+- A **pre-training / pre-modeling tool**
+- A **CLI + Python library**
+- Domain-aware and physically constrained
+
+### **GeoAugment IS NOT**
+- A flood prediction model
+- A neural network
+- An end-to-end ML system
+- A replacement for PyTorch or TensorFlow
+
+GeoAugment **stops at data generation**.
+
+---
+
+## **Core Concepts (Critical Definitions)**
+
+This section defines **every major technical term** used in GeoAugment.
+
+---
+
+### **Synthetic Data**
+
+*Artificially generated data* that statistically and structurally resembles real-world data.
+
+**In GeoAugment**:
+- Synthetic data represents **flood risk**, **susceptibility**, or **potential**
+- Generated from real geospatial inputs (e.g. DEMs)
+- Used as training labels for ML models
+
+---
+
+### **Flood Risk (Continuous)**
+
+A **continuous surface** representing relative likelihood or severity of flooding.
+
+- Values typically in `[0, 1]`
+- `0` = very low risk  
+- `1` = very high risk  
+
+GeoAugment **always generates continuous flood risk first**.
+
+Binary flood maps are optional and derived later.
+
+---
+
+### **Perturbation**
+
+A *controlled modification* applied to data to introduce variability.
+
+**In GeoAugment**:
+- Perturbation simulates **uncertainty** and **natural variability**
+- Examples:
+  - Slight elevation noise
+  - Spatial variation in water accumulation
+  - Random but constrained flood potential changes
+
+Perturbations are **never random noise alone** — they are constrained.
+
+---
+
+### **Latent Field**
+
+An **internal, hidden spatial field** that represents flood-driving forces.
+
+Think of it as:
+> “Flood potential before we observe it.”
+
+Examples:
+- Accumulation tendency
+- Drainage inefficiency
+- Subsurface water pressure
+
+Latent fields are later **constrained and calibrated** into usable flood risk.
+
+---
+
+### **Spatial Scale**
+
+The **characteristic size of spatial patterns**, measured in pixels.
+
+- Small scale → noisy, localized patterns
+- Large scale → smooth, broad flood zones
+
+Used to ensure realism:
+- Floods are spatially coherent
+- No pixel-level randomness
+
+---
+
+### **Constraint**
+
+A **rule that synthetic data must obey**.
+
+GeoAugment enforces:
+- Physical constraints (e.g. water flows downhill)
+- Statistical constraints (e.g. bounded risk values)
+- Spatial constraints (e.g. smoothness)
+
+Constraints prevent hallucinated or impossible outputs.
+
+---
+
+### **Downhill Bias**
+
+A constraint that **increases flood risk at lower elevations**.
+
+Without this:
+- High elevations might appear flood-prone
+- Outputs become physically implausible
+
+---
+
+### **Calibration**
+
+The process of **normalizing and scaling** synthetic outputs.
+
+Example:
+- Mapping raw flood potential to `[0, 1]`
+- Aligning outputs to a percentile (e.g. top 10% = high risk)
+
+Calibration makes outputs **ML-ready**.
+
+---
+
+### **Tile-Based Dataset Generation**
+
+Large rasters are split into **fixed-size tiles** for ML training.
+
+Benefits:
+- GPU compatibility
+- Memory efficiency
+- Standard ML input sizes
+
+GeoAugment supports overlap to reduce edge artifacts.
+
+---
+
+### **Dry-Run Mode**
+
+A **validation-only execution** mode.
+
+When enabled:
+- YAML config is loaded
+- All parameters are validated
+- No data is read
+- No computation is performed
+
+Used for:
+- Debugging configs
+- CI pipelines
+- Safe experimentation
+
+---
+
+### **YAML Configuration**
+
+A human-readable file format for defining parameters.
+
+Why YAML:
+- Versionable
+- Shareable
+- Reproducible
+- Safer than long CLI commands
+
+---
+
+## **Flood Synthesis Pipeline (High-Level)**
+
+GeoAugment flood generation follows **four explicit stages**:
+
+1. **Latent Field Generation**
+2. **Constraint Enforcement**
+3. **Calibration**
+4. **Dataset Export**
+
+Each stage is modular and inspectable.
+
+---
+
+## Tile-Based Dataset Generation
+
+Large rasters are split into fixed-size overlapping tiles to:
+
+- Fit ML/DL input requirements
+
+- Increase dataset size
+
+- Preserve spatial locality
+
+
+## **Architecture Overview**
+
+```scss
+DEM (.tif)
+   ↓
+Feature Extraction
+   ↓
+Constraint-Aware Synthesis
+   ↓
+Continuous Flood Risk
+   ↓
+Thresholding (optional)
+   ↓
+Tile Generation
+   ↓
+Export (NumPy / PyTorch)
+```
+
+
+## **Installation**
+
+```bash
+pip install geoaugment
+```
+
+
+### Command-Line Usage
+
+Validate Configuration (Dry-Run)
+
+```bash
+geoaugment floods generate --config flood.yaml --dry-run
+```
+
+## Output formats
+
+- npz → NumPy-based pipelines
+- torch → PyTorch training pipelines
+
+
+### Python Usage
+
+```python
+from geo_augment.domains.floods.api import synthesize_flood_risk
+
+synthetic_risk = synthesize_flood_risk(dem, n_samples=3)
+```
+
+### Use the output in:
+
+- PyTorch
+- TensorFlow
+- scikit-learn
+- XGBoost
+- Any GeoAI pipeline
+
+
+
+Generate Dataset
+
+```bash
+geoaugment floods generate \
+  --dem dem.tif \
+  --out ./dataset \
+  --config flood.yaml
+```
+
+
+### YAML Configuration Example
+```yaml
+synthesis:
+  perturbation_strength: 0.15
+  spatial_scale: 30
+  risk_percentile: 90
+  random_seed: 42
+
+constraints:
+  enforce_bounds: true
+  enforce_monotonic_downhill: true
+  enforce_spatial_smoothness: true
+  smoothness_kernel_size: 5
+  downhill_weight: 1.0
+
+latent:
+  noise_type: gaussian
+  normalize: true
+  apply_low_frequency_bias: true
+```
+
+
+### Python API Usage
+
+```python
+from geo_augment.domains.floods.api import synthesize_flood_labels
+from geo_augment.domains.floods.spec import (
+    FloodSynthesisSpec,
+    FloodConstraints,
+    LatentFloodFieldSpec,
+)
+
+labels = synthesize_flood_labels(
+    dem,
+    synthesis_spec=FloodSynthesisSpec(
+        perturbation_strength=0.15,
+        spatial_scale=30
+    ),
+    constraints=FloodConstraints(),
+    latent_spec=LatentFloodFieldSpec(),
+)
+```
+
+
+### Evaluation Utilities
+
+- GeoAugment includes basic evaluation helpers:
+- Distribution statistics
+- Visual sanity checks
+
+```python
+from geo_augment.evaluation import summarize_distribution, plot_risk_surface
+```
+
+## Design Philosophy
+
+- Explicit over implicit
+- Constraints over randomness
+- Data first, models later
+- Public, reproducible, inspectable
+
+GeoAugment is meant to be infrastructure, not a black box.
+
+## Roadmap (What to expect next)
+
+- Flood domain (current)
+- Road connectivity synthesis
+- Urban morphology synthesis
+- TensorFlow export
+- GeoTIFF export
+- R bindings
+
+
+## Current Domains
+
+✅ Flood Risk (v0.1.0)
+⏳ Road Connectivity (planned)
+⏳ Urban Morphology (planned)
+
+
+## Who Should Use GeoAugment
+
+- GeoAI researchers
+- Data scientists in climate, urban planning, disaster risk
+- ML engineers facing geospatial data scarcity
+- Public-sector analytics teams
+- Researchers working with satellite or drone imagery
+
+
+
+## LICENSE
+MIT License
+
+## Author
+
+Chidiebere V. Christopher (Data Scientist, Machine Learning Researcher)
+
+## Citation
+If you use GeoAugment in academic or applied work, please cite the repository.
+
+
+
+
