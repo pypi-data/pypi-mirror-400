@@ -1,0 +1,159 @@
+ci:
+  autoupdate_schedule: quarterly
+  skip:
+    - renovate-config-validator
+default_language_version:
+  python: python3.11
+exclude: "(?x)^(\n  _readthedocs|\n  .tox\n)$\n"
+repos:
+  - repo: https://github.com/renovatebot/pre-commit-hooks
+    rev: 42.71.0
+    hooks:
+      - id: renovate-config-validator
+        alias: renovate
+        args:
+          - --strict
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.7.4
+    hooks:
+      - id: prettier
+        entry:
+          env CI=1 bash -c "prettier --list-different . || ec=$? && prettier
+          --loglevel=error --write . && exit $ec"
+        pass_filenames: false
+        args: []
+        additional_dependencies:
+          - prettier
+          - prettier-plugin-toml
+  - repo: https://github.com/pappasam/toml-sort
+    rev: v0.24.3
+    hooks:
+      - id: toml-sort-fix
+  - repo: https://github.com/tox-dev/tox-ini-fmt
+    rev: 1.7.1
+    hooks:
+      - id: tox-ini-fmt
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v9.4.0
+    hooks:
+      - id: cspell
+        name: Spell check with cspell
+  - repo: https://github.com/pre-commit/pre-commit-hooks.git
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: requirements-txt-fixer
+      - id: check-added-large-files
+      - id: fix-byte-order-marker
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: check-yaml
+        exclude: "(?x)^\n  (\n    mkdocs.yml\n  )\n$\n"
+      - id: detect-private-key
+      - id: check-ast
+      - id: debug-statements
+  - repo: https://gitlab.com/bmares/check-json5
+    rev: v1.0.1
+    hooks:
+      - id: check-json5
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.47.0
+    hooks:
+      - id: markdownlint
+        exclude:
+          "(?x)^\n  (\n    \\.github/ISSUE_TEMPLATE/\\w+|\n    docs/(\n      faq|\n
+          \     index|\n    )|\n    README|\n    src/ansible_navigator/data/(help|welcome)\n
+          \ )\\.md\n$\n"
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args:
+          - -L
+          - dout
+        exclude:
+          "(?x)^\n  (\n    tests/fixtures/integration/actions/.*\\.json|\n
+          \   src/ansible_navigator/data/grammar/.*\\.json\n  )\n$\n"
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        args:
+          - --strict
+        types:
+          - file
+          - yaml
+  - repo: https://github.com/PyCQA/flake8.git
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        language_version: python3
+        additional_dependencies:
+          - flake8-docstrings
+  - repo: https://github.com/jsh9/pydoclint
+    rev: 0.8.3
+    hooks:
+      - id: pydoclint
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.2
+    hooks:
+      - id: pyupgrade
+        args:
+          - --py310-plus
+  - repo: https://github.com/pappasam/toml-sort
+    rev: v0.24.3
+    hooks:
+      - id: toml-sort-fix
+        alias: toml
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      - id: ruff-format
+        alias: ruff
+      - id: ruff-check
+        alias: ruff
+  - repo: https://github.com/pre-commit/mirrors-mypy.git
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - ansible-core
+          - jinja2
+          - libtmux
+          - pytest
+          - pytest-mock
+          - types-backports
+          - types-docutils
+          - types-mock
+          - types-PyYAML
+          - types-setuptools
+          - types-typed-ast
+  - repo: https://github.com/pycqa/pylint.git
+    rev: v4.0.4
+    hooks:
+      - id: pylint
+        args:
+          - docs/
+          - src/
+          - tests/
+        additional_dependencies:
+          - ansible-core
+          - ansible-runner
+          - astroid
+          - dill>=0.3.6
+          - jinja2
+          - jsonschema
+          - libtmux
+          - mkdocs-gen-files
+          - onigurumacffi
+          - pytest
+          - pytest-mock
+          - setuptools-scm
+        pass_filenames: false
+  - repo: https://github.com/ansible/team-devtools
+    rev: v25.12.8
+    hooks:
+      - id: check-platform-constraints
