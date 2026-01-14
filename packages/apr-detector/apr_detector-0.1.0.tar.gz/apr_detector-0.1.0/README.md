@@ -1,0 +1,173 @@
+APR Detector
+=======================
+
+High-throughput pipeline for detecting A-phased repeats (APRs) in genomes with configurable spacing around the DNA helical pitch, symmetry-aware filtering, TpA dinucleotide handling, and multi-format export (TSV/GFF3/BED).
+
+Authors
+-------
+- Hamza Mohammed (mohammed-hamza@uiowa.edu; hamzamohammed1445@gmail.com), University of Iowa
+- Josep Comeron, PhD (josep-comeron@uiowa.edu), University of Iowa
+
+What it does
+------------
+- Reads FASTA, cleans/validates sequences, and finds A/T-rich tracts.
+- Chains tracts whose centers fall within `pitch +/- spacing_window` (pitch defaults to 10.5 bp, set with `-p`).
+- Computes optional metrics per APR: mean spacing, spacing variance, and phase coherence (Q).
+- Filters by tract count, spacing window, symmetry, TA policy, and optional metric thresholds.
+- Exports TSV by default plus optional GFF3/BED; filenames use `_APRs` (for example `Chr10_APRs.tsv` or `Chr10_20260101_120000_APRs.tsv`).
+
+Models (presets)
+----------------
+Model names are case-insensitive; suffixes only apply to Model1/Model2. Override any preset with flags.
+
+- `Model1`: Homopolymer mode. Tracts may be pure A or pure T; APRs can mix them.
+  - `Model1a`: Pure A only. TpA spacer filtering applies only in heteropolymer mode, so it has no effect here.
+  - `Model1b`: Pure T only.
+- `Model2`: Heteropolymer mode (A/T tracts; homopolymer runs included).
+  - `Model2a`: Heteropolymer-only (drops pure A or pure T); TpA spacers allowed.
+  - `Model2b`: Symmetry-focused heteropolymer (symmetry forced to `only`).
+- `Model3`: Uses Cer et al., 2013 TpA-restart approach. Symmetry flags and suffixes are ignored; selecting `Model3` is enough.
+
+Model flow
+----------
+```mermaid
+flowchart TD
+    A[Select model] --> M1[Model1]
+    A --> M2[Model2]
+    A --> M3[Model3]
+    M1 --> M1a[Model1a]
+    M1 --> M1b[Model1b]
+    M2 --> M2a[Model2a]
+    M2 --> M2b[Model2b]
+
+    subgraph Standard[Standard APR pipeline]
+        S1[Read and clean sequence] --> S2[Find A and T tracts]
+        S2 --> S3[Apply symmetry mode]
+        S3 --> S4[Group tracts into APRs]
+        S4 --> S5[Compute metrics and export]
+    end
+
+    subgraph TAPath[Model 3 Pipeline]
+        T1[Scan AT runs] --> T2[Find tract centers]
+        T2 --> T3[Build APRs with fixed spacing]
+        T3 --> T4[Export APRs]
+    end
+
+    M1 -->|homopolymer mixed| Standard
+    M1a -->|A only tracts| Standard
+    M1b -->|T only tracts| Standard
+    M2 -->|heteropolymer| Standard
+    M2a -->|mixed A and T only| Standard
+    M2b -->|symmetry focused| Standard
+    M3 -->TAPath
+```
+
+CLI flags (short)
+-----------------
+```
+-i       FASTA file (positional alternative: first argument)
+-o       Output directory (positional alternative: second argument)
+-l       Minimum tract length (default 4)
+-t       Minimum tracts per APR (default 3; can be set as low as 2)
+-w       Allowed deviation around pitch (default 0.5; min/max = pitch +/- window)
+-p       Helical pitch in bp (default 10.5; used for spacing window and phase coherence)
+-n       0=remove, 1=keep (default), 2=error
+-y       1=include, 0=exclude, 2=only (ignored for Model3)
+-m       1=merge overlapping/contained APRs (default), 0=keep separate
+-ta      1=allow TA inside tracts (default), 0=reject such tracts
+-csv     Also write APRs to CSV (optional path override)
+-tracts  Write candidate tracts to CSV (pre-APR filtering; can be large)
+-tracts-tsv  Write candidate tracts to TSV (pre-APR filtering; can be large)
+-u       Optional max mean spacing filter (bp)
+-v       Optional max spacing variance filter (bp^2)
+-q       Optional min phase coherence filter (0-1)
+-s       1=forward only (default), 2=both strands
+-c       Worker count for multiprocessing (default 1)
+-g       Also write GFF3
+-b       Also write BED
+-nt      Omit timestamps in filenames
+```
+
+Metrics (reported in TSV, used for optional filtering)
+------------------------------------------------------
+- **Mean spacing (mu):** Arithmetic mean of inter-tract center spacings.
+- **Spacing variance (sigma^2):** Sample variance of the spacings (consistency of spacing). No default cutoff; set `-v` to filter.
+- **Phase coherence (Q):** `Q = 1 - r_bar / Rmax`, where each residual `r_i` is the distance from a spacing to the nearest multiple of the pitch.
+  - `Rmax` defaults to `pitch/2` unless overridden in `ScoringConfig.PHASE_RMAX`.
+  - A small epsilon protects division when residuals vanish; Q is clamped to [0,1].
+  - Set `-q` to require a minimum phase coherence.
+
+Spacing window & pitch
+----------------------
+- Effective spacing bounds are `pitch - spacing_window` to `pitch + spacing_window`, echoed in logs and TSV headers.
+- The window is not hard-coded to 10.5; adjust `-p` to shift the target pitch and `-w` to widen/narrow tolerance.
+
+Outputs
+-------
+- **TSV (default):** Parameter header on the first line with flag-style labels; columns include `Mean_spacing`, `Spacing_variance`, and `Phase_Coherence`.
+- **CSV (optional with -csv):** Same APR content as TSV, comma-separated.
+- **GFF3 (optional):** Feature type `APR`; attributes include tract count, tract sequences, composition, and metrics when available.
+- **BED6 (optional):** Name `APR_<n>`, score equals tract count.
+- Output stems use `_APRs` before the extension (for example `_APRs.tsv`, `_APRs.gff`, `_APRs.bed`).
+- **Tracts CSV/TSV (optional with -tracts and -tracts-tsv):** All candidate tracts prior to APR spacing filters; includes positions, strand, sequence, symmetry flag, and mode settings. Warning: can be very large on whole genomes; consider per-chromosome runs, stricter tract settings (higher `-l`, symmetry-only, hetero-only), ample disk space, or compression.
+
+
+Install (pip)
+-------------
+```bash
+pip install apr-detector
+```
+
+CLI
+---
+```bash
+apr-detector Model2 \
+  -i /path/to/genome.fasta \
+  -o output/ \
+  -l 4 -t 3 -w 0.5 -p 10.5 \
+  -c 8 -g -b
+```
+
+Quick start
+-----------
+```bash
+python scripts/main.py Model2 \
+  -i /path/to/genome.fasta \
+  -o output/ \
+  -l 4 -t 3 -w 0.5 -p 10.5 \
+  -c 8 -g -b
+```
+
+Testing
+-------
+```bash
+python -m pip install -e .[test]
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest
+```
+Tests read `tests/data/S_cerevisiae_chr1.fasta` and use the first 20,000 bases by default.
+Set `APR_TEST_MAX_BASES` to control the prefix length (use `0` to read the full file).
+
+Python version
+--------------
+Tested with Python 3.9-3.12.
+
+Configuration notes
+-------------------
+- Defaults live in `apr_detector/config/config.py` (APRConfig) and `apr_detector/core/scoring.py` (ScoringConfig); both validate on startup.
+- Minimum tracts per APR default to 3; values below 2 are rejected (at least one spacing is required).
+- Ambiguous handling affects tract discovery only.
+- TA inside tracts is controlled with `-ta`; TpA spacer filtering applies only in heteropolymer mode.
+- Case-insensitive model names allow flexible CLI input (for example `model2b`, `MODEL1A`).
+
+Repository layout
+-----------------
+- `apr_detector/cli.py` - CLI entry point; orchestrates ingestion, detection, and export.
+- `apr_detector/core/` - tract discovery (`tract.py`), APR grouping (`detector.py`), scoring (`scoring.py`), and utilities.
+- `apr_detector/config/config.py` - central defaults and validation.
+- `scripts/main.py` - source wrapper for local runs.
+- `output/` - example outputs for reference.
+
+Support
+-------
+- Hamza Mohammed - mohammed-hamza@uiowa.edu / hamzamohammed1445@gmail.com
+- Josep Comeron, PhD - josep-comeron@uiowa.edu
