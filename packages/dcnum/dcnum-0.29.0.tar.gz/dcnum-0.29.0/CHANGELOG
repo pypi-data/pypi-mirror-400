@@ -1,0 +1,453 @@
+0.29.0
+ - fix: remove unused `multiprocessing.Pool` in background computation
+ - enh: log worker spawn time throughout dcnum
+ - enh: lazy-load cv2, h5py, numba-compiled functions, scipy, and torch (#26)
+ - enh: introduce logging with queues in `UniversalWorker`
+ - enh: move feature extraction to `UniversalWorker` (#48)
+ - enh: start `UniversalWorker`s in background thread
+ - enh: add `HDF5Data.image_num_chunks`
+ - enh: mitigate race conditions with `StateWarden`
+ - ref: rename `get_lock` to ``get_counter_lock` in `SlotRegister`
+ - ref: generalized interface for counters in `SlotRegister`
+ - ref: move invalid mask notification to `DCNumJobRunner`
+ - ref: migrate `write_queue_size` from `DCNumJobRunner` to `SlotRegister`
+ - ref: migrate `feat_nevents` from `QueueEventExtractor` to `SlotRegister`
+ - ref: `StateWarden` context manager returns batch range alongside `ChunkSlot`
+ - ref: `ChunkSlot` task lock acquisition with frame resolution
+ - ref: move `count_time` from `ChunkSlot` to `SlotRegister`
+ - ref: default kwargs for `join_worker`
+0.28.3
+ - fix: sort internal basins before file-based basins
+0.28.2
+ - reg: replace `len(os.sched_getaffinity(0))` with custom `cpu_count()`
+0.28.1
+ - fix: feature extractor broken when invalid events were detected
+ - ref: replace `mp.cpu_count()` with `len(os.sched_getaffinity(0))`
+ - ref: perform more cleanup when finalizing event extractor
+0.28.0
+ - meta: increment DCNUM_PPID_GENERATION to 13 (torch reproducibility)
+ - enh: Enlarge dtype for shared multiprocessing values
+ - enh: reproducible segmentation with torch/CUDA/CUDNN settings
+ - enh: explicitly set number of CPU threads for pytorch to 1
+ - ref: lazily open `h5py.File` in `HDF5Data`
+ - ref: include `len(HDF5Data)` in its state
+ - ref: introduce `StateWarden` and `SlotRegister.reserve_slot_for_task`
+   for managing `SlotChunk.state` changes (replaces `with_state_change`)
+ - ref: rename `ChunkSlotBase` to `ChunkSlotData` and put it in submodule
+ - ref: move code executed by `UniversalWorker` to `SlotRegister` class
+ - ref: `acquire_task_lock` and `release_task_lock` for `ChunkSlotData`
+ - ref: do not clear slots when exiting `MPOSegmenter`
+0.27.4
+ - reg: missing external files
+0.27.3
+ - ref: remove scikit-image dependency
+0.27.2
+ - setup: update dependency scipy >= 1.15.2
+ - setup: add upper version bound for dependencies
+0.27.1
+ - enh: optimize torchsto segmentation (batch size, threshold on GPU)
+ - enh: add info logging for segmenters
+0.27.0
+ - meta: increment DCNUM_PPID_GENERATION to 12 (segment with background, #47)
+ - fix: wrong `bg_off` background correction for segmentation (#47)
+ - fix: set maximum chunk size for writing to 1000 (speed)
+ - enh: align `HDF5ImageCache` chunk size to the underlying `h5py.Dataset` (#5)
+ - enh: load image data to shared arrays with `UniversalWorker` (#31)
+ - enh: use shared arrays for segmentation (#31)
+ - enh: improved start-up speed for MPO segmenters
+ - enh: add `image_chunk_size` argument for `HDF5Data`
+ - enh: quantify waiting times in pipeline steps
+ - enh: loading data from disk is done in a separate thread
+ - enh: globally increase the number of slots to 7
+ - enh: more accurate timing statistics
+ - enh: use `np.asarray` instead of `np.array` where possible (speed-up)
+ - enh: increase efficiency for label postprocessing (speed-up)
+ - bmk: add benchmarks for short pipeline run and segmenter manager thread
+ - ref: remove unused `start`/`stop` kwargs for `segment_batch`
+ - ref: make `segment_chunk` accept a `ChunkSlot` instance
+ - ref: remove deprecated `path` keyword argument for `HDF5Writer`
+ - ref: introduce "chunk slot register" architecture which encompasses
+   the new classes `SlotRegister`, `ChunkSlot` and `UniversalWorker`
+ - ref: rename `join_thread_helper` to `join_worker`
+ - ref: `QueueEventExtractor` fetches preloaded labels from `ChunkSlot`
+ - ref: rename `process_mask` to `process_labels`
+0.26.0
+ - feat: data writing is now done in a separate process (#32)
+ - fix: `create_with_basins` should not add internal basins, but register them
+ - fix: ignore existing identical scalar features in `copy_features`
+ - enh: allow passing compression options via `DCNumPipelineJob`
+ - ref: migrate classes in `write` module to individual files
+ - ref: rename `DequeueWriterThread` to `ChunkWriter`
+ - ref: rename `QueueCollectorThread` to `QueueWriterThread`
+ - ref: use `multiprocessing.Value` `write_queue_size` to communicate
+   writer queue size to `EventExtractorManagerThread`
+ - ref: instantiate `ChunkWriter` in `QueueWriterBase.run`
+ - ref: add `common` submodule
+ - ref: remove deprecated `no_basins_in_output` argument for `DCNumPipelineJob`
+0.25.11
+ - enh: align measurement identifier computation with that of dclab
+ - enh: new `get_measurement_identifier` method
+ - enh: allow to optionally store measurement identifier in basin metadata
+ - enh: measurement identifier check for basin data
+0.25.10
+ - fix: search for validation strings in logs did not use re.MULTILINE
+ - enh: allow to validate torch model applicability based on meta values
+0.25.9
+ - fix: md5 sum caused PermissionError on Windows for background computation
+0.25.8
+ - fix: invalid type definition for `concatenated_hdf5_data`
+ - enh: make sure `HDF5Data.path` is converted to `pathlib.Path` if it is `str`
+ - docs: properly employ license MIT
+ - ref: move `concatenated_hdf5_data` to `read.hdf5_concat` submodule
+0.25.7
+ - enh: `HDF5Writer.store_log` returns created dataset
+ - docs: add code reference using apidoc
+0.25.6
+ - maintenance release
+0.25.5
+ - enh: support unnamed table data in `HDF5Data`
+ - setup: pin scipy<1.15 due to https://github.com/scipy/scipy/issues/22333
+0.25.4
+ - enh: support passing a single file to `concatenated_hdf5_data`
+0.25.3
+ - enh: request single threaded operations when going into mp.Process (#17)
+ - enh: new module `dcnum.single_thread_osenv`
+0.25.2
+ - setup: officially support numpy 2
+ - setup: pin dependencies
+0.25.1
+ - fix: catch ValueError when computing relative path on different anchors
+ - ref: replace np.string_ with np.bytes_
+ - ref: remove unused `data` argument to QueueCollectorThread
+ - ref: minor speed-up for QueueCollectorThread
+0.25.0
+ - feat: identify flickering in raw data via dcnum.read.detect_flickering
+ - fix: handle out-of-bounds slice indexing for BaseImageChunkCache
+ - fix: np.bool_ and np.floating not recognized in PPID parsing
+0.24.0
+ - feat: add support for internal basins
+ - feat: "image_bg" as internal basin for "sparsemed" background computer
+ - fix: "sparsmed" background computer attributed background images with
+   an offset of `split_time` (the fist event obtained the background image
+   of the first event of the first second and so on)
+ - enh: support numpy indexing for mapped basins
+ - enh: add new `write.copy_basins` method
+ - ref: return `h5py.Group` in `HDF5Data.get_basin_data` instead of
+   a basin `HDF5Data` instance
+ - ref: perform "plumbing" before "cleanup" in pipeline
+ - ref: increment DCNUM_PPID_GENERATION to 11
+0.23.4
+ - enh: run set_num_interop_threads(1) for torchmpo segmenter
+0.23.3
+ - fix: ignore non-file-type-like basins
+ - fix: workaround for slow reading from HDF5 (don't use index arrays)
+ - fix: avoid excessive stalling when writer is slow
+0.23.2
+ - enh: add DCNumPipelineJob.validate method
+ - enh: list Python libraries used in job log
+ - setup: change required pytorch version from 2.3 to 2.2 (hardware support)
+0.23.1
+ - enh: support passing custom default arguments to get_class_method_info
+ - tests: fix torch preprocessing tests
+0.23.0
+ - feat: implement segmentation using PyTorch models
+ - fix: always compute image_bg if it is not in the input file
+ - enh: introduce `Segmenter.validate_applicability` method
+0.22.1
+ - fix: compute pipeline identifier of origin dataset for basin mapping
+0.22.0
+ - fix: GPUSegmenter did not perform mask postprocessing
+   (this was not actually fixed in 0.21.0)
+ - tests: implement mock STO segmenter for testing (#3)
+ - tests: add tests for bg_off in segmentation
+ - ref: increment DCNUM_PPID_GENERATION to 10
+ - ref: renamed CPUSegmenter to MPOSegmenter
+ - ref: renamed GPUSegmenter to STOSegmenter
+0.21.4
+ - fix: division by zero error when computing stall time
+0.21.3
+ - fix: negative stall time in log messages
+0.21.2
+ - fix: negative argument for time.sleep
+0.21.1
+ - enh: support boolean images in mask postprocessing
+0.21.0
+ - ref: enable mask postprocessing by default for all segmenters
+ - ref: increment DCNUM_PPID_GENERATION to 9
+0.20.4
+ - fix: slot_chunks were not performed in increasing order, making it
+   impossible for writer to continue writing and consequent OOM
+ - enh: reserve one CPU for writer thread and control logic
+ - enh: disentangle logging and debugging keyword arguments
+ - enh: do not initialize slot_chunks and slot_states with lock
+0.20.3
+ - enh: improve strategy for stalling for slow writer
+0.20.2
+ - ref: remove __init__ from SegmentThresh
+0.20.1
+ - fix: relative basin locations not written correctly
+ - enh: increase deque size threshold for waiting for writer
+0.20.0
+ - feat: support reading mapped basins
+ - feat: support writing mapped-basin-based output files
+ - fix: copy "bg_off" data to output file when copying background data
+ - enh: allow to slice BaseImageChunkCache
+ - enh: sort logs, tables and basins for reproducible access
+ - enh: add more timing information in logs
+ - ref: background progress value is now a double between 0 and 1
+0.19.1
+ - enh: support steps when specifying data slices in `index_mapping`
+0.19.0
+ - enh: elevate `HDF5Data`s `index_mapping` to pipeline identifier status
+   (this changes the pipeline identifier)
+ - enh: improve sanity checks for `BackgroundRollMed`
+0.18.0
+ - BREAKING CHANGE: mask postprocessing did a morphological opening instead
+   of a morphological closing, failing to remove spurious noise
+ - BREAKING CHANGE: perform first fill_holes and then closing_disk in mask
+   postprocessing
+ - feat: allow to specify ranges when creating an HDF5Data instance to
+   enable e.g. processing only a portion of an input file
+ - feat: volume computation via contour revolve algorithm (#23)
+ - feat: background offset (flickering) correction via the
+   "offset_correction" keyword for the "sparsemed" background computer
+   and "bg_off" everywhere else
+ - enh: allow creating HDF5Writer from h5py.File
+ - fix: mask postprocessing did a morphological opening instead
+   of a morphological closing, failing to remove spurious noise
+ - fix: remove mask ppid part for segmenters that do not use it
+ - fix: mask postprocessing with "fill_holes" using `cv2.floodFill`
+   sometimes segmented the entire frame if the upper left pixel was not
+   set to background
+ - enh: perform first fill_holes and then closing_disk in mask
+   postprocessing
+ - enh: pop read-cache items before adding a new one
+ - enh: allow to request the raw contour from `moments_based_features`
+ - ref: increment DCNUM_PPID_GENERATION to 8
+ - ref: added new super class `BaseImageChunkCache`
+ - ref: use HDF5Writer in Background class
+ - ref: minor cleanup
+ - ref: rename submodule `feat_moments` to `feat_contour`
+ - ref: remove unused `name` property from `Background` class
+0.17.2
+ - fix: make sure unsupported features are not propagated in
+   `concatenated_hdf5_data` (#27)
+0.17.1
+ - ref: remove "bg_med" and "index_online" from protected scalar features,
+   because "bg_med" may change due to a different background computation
+   method and "index_online" enumerates events from online segmentation
+0.17.0
+ - feat: allow to register topical search paths
+ - ref: remove deprecated `get_ppid_from_kwargs` methods
+ - ref: remove deprecated `preselect` and `ptp_median` keyword
+   arguments from `QueueEventExtractor`
+ - ref: remove deprecated "key" from `get_class_method_info` info dict
+ - ref: issue UserWarning instead of DeprecationWarning when checking
+   segmenter keyword arguments
+ - ref: remove pixel size check for HDF5 data
+ - ref: remove unused `_get_model_file` from GPUSegmenter
+0.16.8
+ - fix: correctly set number of workers for CPUSegmenter
+ - enh: update list of environment variables that should be set to
+   disable multithreading in subprocesses
+0.16.7
+ - fix: if the writer dequeue fills up, stall the feature extractor
+ - enh: optimize DequeWriterThread loop
+ - enh: minor optimization in HDF5Writer.require_feature
+0.16.6
+ - fix: correctly handle mask images with no background on border
+ - fix: enforce user-defined features in concatenated_hdf5_data
+ - fix: Gate.features returned duplicate entries
+ - ref: cache empty border image creation for clear_border
+ - ref: rename internal background worker classes
+ - ref: simplify Gate initialization
+ - ref: Gate instance does not have to keep a reference to the data
+ - ref: better box_gates management for Gate class
+ - tests: increase coverage
+0.16.5
+ - fix: replace unreliable Queue.empty and Queue.qsize (macOS support)
+0.16.4
+ - fix: there was no progress for background copying
+ - enh: detect data files that contain no events
+ - tests: add test for sparsemed bg worker
+ - tests: add test for logic json encoder
+0.16.3
+ - enh: define valid DCNumJobRunner state
+ - enh: more robust computation of progress
+ - enh: use HDF5Data when loading input data for background computation
+ - enh: automatically split segmenters and extractors equally
+ - ref: reduce default image cache size from 5 to 2
+ - ref: move dataset generation default kwargs to writer submodule
+ - ref: warn above 0.5% of discarded events in EventExtractorManagerThread
+0.16.2
+ - fix: ignore empty HDF5 datasets when copying metadata
+ - fix: logging from subprocesses did not work as expected
+ - enh: warn user about total number of invalid masks
+ - enh: introduce DCNumJobRunner.error_tb for errors happening in threads
+ - enh: improve logging verbosity
+ - enh: append job information as log entry in DCNumJobRunner output file
+ - enh: set chunk size for all feature data to 1MiB in HDF5Writer
+ - ref: removed close_queues argument from EventExtractor init
+ - ref: rename event_count with image_count in background computation
+ - ref: do not print anything to stdout when computing background data
+ - ref: use data from background computer in DCNumJobRunner.get_status
+0.16.1
+ - fix: when checking for ppid kwargs, allow kwargs defined in `__init__`
+ - ref: use kwonly arguments for segmenter `__init__` method
+ - tests: set environment variables so that libraries use one thread only
+0.16.0
+ - feat: implement "copy" background class
+ - fix: handle small kernel size before background computation (#16)
+ - fix: update experiment:run identifier for dclab-user convenience
+ - fix: make sure output directory exists for pipeline job
+ - fix: forward debugging flag to SegmenterManagerThread
+ - ref: reduced minimum frame count for rolling median background
+   computation to kernel size
+0.15.0
+ - BREAKING CHANGE: Remove preselection capabilities, because it is not
+   well integrated into the pipeline. For more information, please see
+   issue #15.
+ - feat: introduce logic submodule for running pipelines
+ - feat: implement HDF5Writer.store_log
+ - enh: add Segmenter.hardware_processor property
+ - enh: introduce pipeline identifier for data pixel size
+ - enh: reduce pixel_size accuracy to 8 digits after the decimal point
+   for pipeline reproducibility
+ - enh: warn the user when creating a basin-based file without basin paths
+ - ref: deprecate pixel size correction in HDF5Data
+ - ref: increment DCNUM_PPID_GENERATION to 7
+ - ref: several changes and deprecations in the PPID helper functions
+ - build: change flat-layout to src-layout (issues with editable installs)
+0.14.0
+ - fix: protected features (e.g. time, frame) were not included in ouptut
+   files when the input file was basin-based
+ - ref: increment DCNUM_PPID_GENERATION to 6
+0.13.3
+ - fix: correctly raise KeyError for missing image-based feature from
+   `HDF5Data._image_cache`
+0.13.2
+ - fix: properly convert variable-length string logs in `copy_metadata`
+0.13.1
+ - fix: wrong event count in logs
+ - ref: np.product is deprecated in numpy 2.0
+0.13.0
+ - feat: support writing file-based HDF5 basins (#11)
+ - feat: support reading file-based HDF5 basins (#11)
+ - feat: implement `create_with_basins` convenience method (#11)
+ - fix: correctly support passing an ndarray to BackgroundSparseMed
+   instead of an input file path
+ - fix: BackgroundSparseMed did not work for datasets of length < 100
+ - fix: bad f-string in BackgroundSparseMed
+ - enh: create a default basin-based output file for background computation
+ - ref: unite initialization code of background computers in base class
+ - ref: define context managers of background computers in base class
+ - ref: remove functools.cache decorator from HDF5Data
+ - tests: add tests for BackgroundSparseMed
+0.12.3
+ - fix: background computation with sparsemed did not work
+ - enh: support passing paths as strings to Background class
+0.12.2
+ - enh: more efficient computation of inert_ratio_prnc feature (#6)
+ - enh: more efficient computation of tilt feature (#6)
+ - enh: feature computation for area_um_raw, deform_raw, eccentr_prnc,
+   per_ratio, and per_um_raw
+ - ref: increment DCNUM_PPID_GENERATION to 5
+0.12.1
+ - fix: avoid NaN-valued features due to invalid contours (#9)
+ - ref: increment DCNUM_PPID_GENERATION to 4
+0.12.0
+ - ref: always use "spawn" for creating new processes to avoid race
+   conditions with Python threading.Lock upon forking on POSIX
+ - enh: some multiprocessing values in CPUSegmenter can be raw
+0.11.13
+ - enh: wait for event queue to empty before attempting to join
+   QueueEventExtractor processes
+0.11.12
+ - enh: explicitly close event queue in QueueEventExtractor
+0.11.11
+ - fix: QueueCollectorThread hangs indefinitely because of a missing
+   EventStash.is_complete check
+ - tests: increase coverage for queue_collector_thread submodule
+0.11.10
+ - fix: GPUSegmenter does not remove model_file from passed kwargs anymore
+0.11.9
+ - fix: properly support table data of length 1
+ - tests: make sure all segmenters have clear type definitions
+0.11.8
+ - reg: do not close the background thread of the event queue
+0.11.7
+ - enh: add more debugging messages for feature extraction workers
+0.11.6
+ - enh: add more debugging messages for feature extraction workers
+0.11.5
+ - setup: fix bad package discovery
+0.11.4
+ - fix: properly handle empty logs
+0.11.3
+ - fix: make sure values in tables dictionary are one-dimensional
+0.11.2
+ - meta: increment pipeline ID (texture feature computation)
+ - fix: HDF5Data was not pickable
+ - fix: HDF5Data did not properly handle tables
+ - enh: add context manager for CPUSegmenter
+ - enh: record and log execution time of segmentation and feature extraction
+ - enh: properly handle border case for computing contour-moments
+ - enh: properly handle empty images/masks in haralick texture features
+ - tests: do not use numba's JIT during testing (coverage)
+0.11.1
+ - fix: fix GPUSegmenter labeling
+0.11.0
+ - feat: introduce GPUSegmenter base class
+ - fix: handle bytes-values in HDF5 attributes
+ - ref: correctly introduce `requires_background_correction` for segmenters
+ - setup: don't requrie cibuildwheel
+0.10.0
+ - enh: some minor improvements in efficiency
+ - ref: increment DCNUM_PPID_GENERATION for the sake of clarity
+ - ref: unify dealing with num_workers and debugging
+0.0.9
+ - fix: properly propagate event extraction keyword arguments
+ - fix: QueueCollectorThread used uint16 for enumerating indices
+ - fix: handle case where number of events is not multiple of chunk_size
+ - enh: reduce thread waiting times
+ - enh: add bounds check for image cache
+0.0.8
+ - feat: introduce QueueCollectorThread
+ - feat: introduce SegmenterManagerThread
+ - feat: instroduce EventExtractorManagerThread and corresponding workers
+ - enh: minor improvements for HDF5ImageCache and ImageCorrCache
+ - enh: use data size as cache size if smaller than requested chunk size
+ - enh: return dictionary for brightness feature computation
+ - enh: allow to pass a single image for brightness feature computation
+ - enh: allow to pass a single image for texture feature computation
+ - enh: make sure that masks are written as uint8 to HDF5 files
+ - ref: haralick texture computation now returns dict instead of recarray
+ - ref: renamed HDF5WriterThread to DequeWriterThread
+ - ref: renamed feature submodules (prepended "feat_")
+0.0.7
+ - enh: dataset keyword arguments and mode HDF5WriterThread
+ - enh: speed-up of brightness feature computation
+0.0.6
+ - feat: add HDF5Writer and HDF5WriterThread classes in write submodule
+ - feat: segmenters compute labeled images instead of masks
+ - enh: introduce iter_chunks for cached image data
+ - ref: do not filter for contour length
+ - ref: rename feat.background.get_available_background_methods
+ - ref: store PPID information in dataset metadata instead of "user" section
+0.0.5
+ - enh: allow to set image_cache_size in HDF5Data
+ - enh: allow to easily register new custom segmenters
+ - ref: CPUSegmenter has its own submodule now
+0.0.4
+ - feat: introduce HDF5 virtual dataset path concatenator
+ - enh: allow to pass h5py.File object to HDF5Data
+ - fix: typo in logging statement for sparse median bg computation
+0.0.3
+ - feat: introduce median background computation
+ - feat: introduce data reader
+ - feat: introduce thresholding segmenter
+ - feat: introduce brightness, haralick texture, and moments-based features
+0.0.2
+ - first automated release
+0.0.1
+ - stub release
