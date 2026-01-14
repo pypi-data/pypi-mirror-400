@@ -1,0 +1,843 @@
+# <=== Useful Variables ===>
+int_fillval: &int_fillval -9223372036854775808
+uint32_fillval: &uint32_fillval 4294967295
+real_fillval: &real_fillval -1.0e+31
+
+min_int: &min_int -9223372036854775808
+min_epoch: &min_epoch -315575942816000000
+
+max_int: &max_int 9223372036854775807
+max_uint32: &max_uint32 4294967295
+max_epoch: &max_epoch 3155630469184000000
+
+# <=== Coordinates ===>
+epoch_delta_minus:
+    CATDESC: Time from acquisition start to acquisition center
+    FIELDNAM: epoch_delta_minus
+    FILLVAL: *real_fillval
+    FORMAT: F30.9
+    LABLAXIS: epoch_delta_minus
+    SCALETYP: linear
+    UNITS: ns
+    VALIDMIN: *min_int
+    VALIDMAX: *max_int
+    VAR_TYPE: support_data
+
+epoch_delta_plus:
+    CATDESC: Time from acquisition center to acquisition end
+    FIELDNAM: epoch_delta_plus
+    FILLVAL: *real_fillval
+    FORMAT: F30.9
+    LABLAXIS: epoch_delta_plus
+    SCALETYP: linear
+    UNITS: ns
+    VALIDMIN: *min_epoch
+    VALIDMAX: *max_epoch
+    VAR_TYPE: support_data
+
+esa_step:
+    CATDESC: Energy per charge (E/q) sweeping step
+    FIELDNAM: Energy Index
+    FILLVAL: 254
+    FORMAT: I3
+    LABLAXIS: Energy Index
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 127
+    VAR_TYPE: support_data
+
+event_num:
+    CATDESC: Event Number
+    FIELDNAM: Event Number
+    FILLVAL: 65535
+    FORMAT: I5
+    LABLAXIS: Event Number
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 10000
+    VAR_TYPE: support_data
+
+inst_az:
+    CATDESC: Instrument Azimuth Index
+    FIELDNAM: Azimuth Index
+    FILLVAL: 254
+    FORMAT: I3
+    LABLAXIS: Azimuth Index
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 31
+    VAR_TYPE: support_data
+
+spin_sector:
+    CATDESC: Spin sector indicating range of spin angles
+    FIELDNAM: Spin Sector Index
+    FILLVAL: 254
+    FORMAT: I3
+    LABLAXIS: Spin Sector
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 12
+    VAR_TYPE: support_data
+
+spin_sector_pairs:
+    CATDESC: Spin sector pairs that are summed over onboard
+    FIELDNAM: Spin Sector Pairs
+    FILLVAL: -1
+    FORMAT: I1
+    LABLAXIS: " "
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 6
+    VAR_TYPE: support_data
+
+priority:
+    CATDESC: Priority Level
+    FIELDNAM: Priority Level
+    FILLVAL: -1
+    FORMAT: I2
+    LABLAXIS: " "
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 7
+    VAR_TYPE: support_data
+
+k_factor_attrs:
+    CATDESC: K Factor constant that is used to convert voltages to energies
+    DEPEND_1: k_factor
+    FIELDNAM: K Factor
+    FORMAT: F6.2
+    LABLAXIS: K Factor
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 1.0
+    VALIDMAX: 100.0
+    VAR_TYPE: support_data
+
+# <=== Labels ===>
+esa_step_label:
+    CATDESC: ESA Step
+    DEPEND_1: esa_step
+    FIELDNAM: ESA Step
+    FORMAT: A3
+    VAR_TYPE: metadata
+
+event_num_label:
+    CATDESC: Event Number
+    DEPEND_1: event_num
+    FIELDNAM: Event Number
+    FORMAT: A5
+    VAR_TYPE: metadata
+
+inst_az_label:
+    CATDESC: Instrument Azimuth
+    DEPEND_1: inst_az
+    FIELDNAM: Instrument Azimuth
+    FORMAT: A2
+    VAR_TYPE: metadata
+
+spin_sector_label:
+    CATDESC: Spin Sector
+    DEPEND_1: spin_sector
+    FIELDNAM: Spin Sector
+    FORMAT: A2
+    VAR_TYPE: metadata
+
+spin_sector_pairs_label:
+    CATDESC: Spin Sector Pairs
+    DEPEND_1: spin_sector_pairs
+    FIELDNAM: Spin Sector Pairs
+    FORMAT: A11
+    VAR_TYPE: metadata
+
+priority_label:
+    CATDESC: Priority Level
+    DEPEND_1: priority
+    FIELDNAM: Priority Level
+    FORMAT: A2
+    VAR_TYPE: metadata
+
+
+# Common energy labels for species for omni and sectored data
+energy_species_label:
+    CATDESC:  Energy Table for {species}
+    DEPEND_1: energy_{species}
+    FIELDNAM: energy_{species}
+    FORMAT: A2
+    VAR_TYPE: metadata
+
+# <=== Dataset Variable Attributes ===>
+acquisition_time_per_step:
+    CATDESC: Acquisition time for each step of energy
+    DEPEND_1: esa_step
+    FIELDNAM: Acquisition Time
+    FILLVAL: *real_fillval
+    FORMAT: F10.3
+    LABLAXIS: Acquisition Time
+    SCALETYP: linear
+    UNITS: ms
+    VALIDMIN: 0.000000
+    VALIDMAX: 625.000000
+    VAR_TYPE: support_data
+
+
+data_quality:
+    CATDESC: Indicates whether data quality is suspect (1).
+    DEPEND_0: epoch
+    DISPLAY_TYPE: time_series
+    FIELDNAM: Data Quality
+    FILLVAL: 255
+    FORMAT: I1
+    LABLAXIS: Data Quality
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 1
+    VAR_TYPE: data
+
+voltage_table:
+    CATDESC: ElectroStatic Analyzer Voltage Values
+    DEPEND_1: esa_step
+    FIELDNAM: Voltage Table
+    FORMAT: F12.6
+    LABLAXIS: V
+    SCALETYP: log
+    UNITS: V
+    VALIDMIN: 0.5
+    VALIDMAX: 14100.0
+    VAR_TYPE: support_data
+
+k_factor:
+    CATDESC: K Factor constant that is used to convert voltages to energies
+    DEPEND_1: k_factor
+    FIELDNAM: K Factor
+    FORMAT: F6.2
+    LABLAXIS: K Factor
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 1.0
+    VALIDMAX: 100.0
+    VAR_TYPE: support_data
+
+nso_half_spin:
+    CATDESC: When No Scan Operation (NSO) was activated
+    DEPEND_0: epoch
+    DISPLAY_TYPE: time_series
+    FIELDNAM: NSO Mode
+    FILLVAL: 255
+    FORMAT: I3
+    LABLAXIS: NSO Half Spin
+    SCALETYP: linear
+    UNITS: half spin number
+    VALIDMIN: 0
+    VALIDMAX: 255
+    VAR_NOTES: Indicates the point when No Scan Operation (NSO) was activated. In NSO, the ESA voltage is set to the first step in the scan and remains fixed until the next cycle boundary.
+    VAR_TYPE: data
+
+rgfo_half_spin:
+    CATDESC: When Reduced Gain Factor Operation (RGFO) was activated
+    DEPEND_0: epoch
+    DISPLAY_TYPE: time_series
+    FIELDNAM: RGFO Mode
+    FILLVAL: 255
+    FORMAT: I3
+    LABLAXIS: RGFO Half Spin
+    SCALETYP: linear
+    UNITS: half spin number
+    VALIDMIN: 0
+    VALIDMAX: 255
+    VAR_NOTES: Indicates the point when Reduced Gain Factor Operation (RGFO) was activated. In RGFO, the Entrance ESA voltage is reduced in order to limit the number of ions that reach the detectors.
+    VAR_TYPE: data
+
+spin_period:
+    CATDESC: The spin period as reported by the spacecraft.
+    DEPEND_0: epoch
+    DISPLAY_TYPE: time_series
+    FIELDNAM: Spin Period
+    FILLVAL: *real_fillval
+    FORMAT: F10.3
+    LABLAXIS: Spin Period
+    SCALETYP: linear
+    UNITS: s
+    VALIDMIN: 0.0
+    VALIDMAX: 16.0
+    VAR_TYPE: data
+
+st_bias_gain_mode:
+    CATDESC: Suprathermal Bias Gain Mode
+    DEPEND_0: epoch
+    DISPLAY_TYPE: no_plot
+    FIELDNAM: Suprathermal Bias Gain Mode
+    FILLVAL: 255
+    FORMAT: I1
+    LABLAXIS: Suprathermal Bias Gain Mode
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 1
+    VAR_NOTES: Indicates whether FSW is tracking the Suprathermal High-Gain bias curve or the Suprathermal Low-Gain bias curve.
+    VAR_TYPE: data
+
+sw_bias_gain_mode:
+    CATDESC: Solarwind Bias Gain Mode
+    DEPEND_0: epoch
+    DISPLAY_TYPE: no_plot
+    FIELDNAM: Solarwind Bias Gain Mode
+    FILLVAL: 255
+    FORMAT: I1
+    LABLAXIS: Solarwind Bias Gain Mode
+    SCALETYP: linear
+    UNITS: " "
+    VALIDMIN: 0
+    VALIDMAX: 1
+    VAR_NOTES: Indicates whether FSW is tracking the Solarwind High-Gain bias curve or the Solarwind Low-Gain bias curve.
+    VAR_TYPE: data
+
+# <=== Counter Variables Base Templates ===>
+# Shared base for all counter data (Hi & Lo)
+counters_base: &counters_base
+    DEPEND_0: epoch
+    DISPLAY_TYPE: time_series
+    FILLVAL: *uint32_fillval
+    FORMAT: I7
+    SCALETYP: linear
+    UNITS: counts
+    VALIDMIN: 0
+    VALIDMAX: *max_uint32
+    VAR_TYPE: data
+
+# <=== Hi-counters-aggregated ===>
+hi_counters_aggregated_default: &hi_counters_aggregated_default
+    <<: *counters_base
+    LABLAXIS: "events"
+
+hi-dcr:
+    <<: *hi_counters_aggregated_default
+    CATDESC: Event B - Double Coincidence Rate (DCR)
+    FIELDNAM: DCRs
+
+hi-starts_only:
+    <<: *hi_counters_aggregated_default
+    CATDESC: Event C - Start Only (STO)
+    FIELDNAM: Start Only
+
+hi-stops_only:
+    <<: *hi_counters_aggregated_default
+    CATDESC: Event D - Stop Only (SPO)
+    FIELDNAM: Stop Only
+
+hi-mst:
+    <<: *hi_counters_aggregated_default
+    CATDESC: Event H - Multi Start (MST)
+    FIELDNAM: Multi Start
+
+hi-singles_starts:
+    <<: *hi_counters_aggregated_default
+    CATDESC: Singles - Start
+    FIELDNAM: Singles - Start
+
+hi-singles_stops:
+    <<: *hi_counters_aggregated_default
+    CATDESC: Singles - Stop
+    FIELDNAM: Singles - Stop
+
+hi-low_tof_cutoff:
+    <<: *hi_counters_aggregated_default
+    CATDESC: Low TOF Cutoff
+    FIELDNAM: Low TOF Cutoff
+
+hi-asic1_flag_invalid:
+    <<: *hi_counters_aggregated_default
+    CATDESC: ASIC 1 Flag Invalid Count
+    FIELDNAM: ASIC 1 Flag Invalid
+
+hi-asic2_flag_invalid:
+    <<: *hi_counters_aggregated_default
+    CATDESC: ASIC 2 Flag Invalid Count
+    FIELDNAM: ASIC 2 Flag Invalid
+
+hi-asic1_channel_invalid:
+    <<: *hi_counters_aggregated_default
+    CATDESC: ASIC 1 Channel Invalid Count
+    FIELDNAM: ASIC 1 Channel Invalid
+hi-asic2_channel_invalid:
+    <<: *hi_counters_aggregated_default
+    CATDESC: ASIC 2 Channel Invalid Count
+    FIELDNAM: ASIC 2 Channel Invalid
+
+# <=== Hi-counters-singles ===>
+hi_counters_singles_default: &hi_counters_singles_default
+    <<: *counters_base
+    DEPEND_1: inst_az
+    LABL_PTR_1: inst_az_label
+
+hi-tcr:
+    <<: *hi_counters_singles_default
+    CATDESC: Event A - Triple Coincidence Rate (TCR)
+    FIELDNAM: Rates
+
+hi-ssdo:
+    <<: *hi_counters_singles_default
+    CATDESC: Rates - Event E (SSDO)
+    FIELDNAM: Rates
+
+hi-stssd:
+    <<: *hi_counters_singles_default
+    CATDESC: Rates - Event G (STSSD)
+    FIELDNAM: Rates
+
+# Hi omni and sectored Attributes
+hi-species-attrs:
+    CATDESC: Omnidirectional {species} counts
+    DEPEND_0: epoch
+    DEPEND_1: energy_{species}
+    DISPLAY_TYPE: time_series
+    FIELDNAM: Species {species}
+    FILLVAL: *uint32_fillval
+    FORMAT: I7
+    LABL_PTR_1: energy_{species}_label
+    SCALETYP: linear
+    UNITS: counts
+    VALIDMAX: *max_uint32
+    VALIDMIN: 0
+    VAR_TYPE: data
+
+hi-species-unc-attrs:
+    CATDESC: Omnidirectional {species} counts uncertainty
+    DEPEND_0: epoch
+    DEPEND_1: energy_{species}
+    DISPLAY_TYPE: time_series
+    FIELDNAM: Species {species}
+    FILLVAL: *uint32_fillval
+    FORMAT: I7
+    LABL_PTR_1: energy_{species}_label
+    SCALETYP: linear
+    UNITS: counts
+    VALIDMAX: *max_uint32
+    VALIDMIN: 0
+    VAR_TYPE: data
+
+hi-energy-attrs:
+    CATDESC: Energy Table for {species}
+    DELTA_MINUS_VAR: energy_{species}_minus
+    DELTA_PLUS_VAR: energy_{species}_plus
+    DISPLAY_TYPE: no_plot
+    FIELDNAM: Energy Table
+    FILLVAL: *real_fillval
+    FORMAT: F12.9
+    SCALETYP: log
+    UNITS: MeV/n
+    VALIDMAX: 200.00
+    VALIDMIN: 0.0
+    VAR_TYPE: support_data
+
+hi-energy-delta-attrs:
+    CATDESC: Energy Table {operation} value for {species}
+    FIELDNAM: Energy Delta {operation}
+    DEPEND_0: energy_{species}
+    DELTA_MINUS_VAR: energy_{species}_minus
+    DELTA_PLUS_VAR: energy_{species}_plus
+    DISPLAY_TYPE: no_plot
+    FILLVAL: *real_fillval
+    FORMAT: F12.9
+    SCALETYP: log
+    UNITS: MeV/n
+    VALIDMIN: 0.0
+    VALIDMAX: 200.00
+    VAR_TYPE: support_data
+
+
+# hi-priority
+hi_priorities_attrs: &hi_priorities_default
+    DEPEND_0: epoch
+    DISPLAY_TYPE: time_series
+    FILLVAL: *uint32_fillval
+    FORMAT: I5
+    LABLAXIS: "events"
+    UNITS: events
+    VALIDMAX: *max_uint32
+    VALIDMIN: 0
+    VAR_TYPE: data
+
+priority0:
+    <<: *hi_priorities_default
+    CATDESC: Priority 0
+    FIELDNAM: Priority 0
+
+priority1:
+    <<: *hi_priorities_default
+    CATDESC: Priority 1
+    FIELDNAM: Priority 1
+
+priority2:
+    <<: *hi_priorities_default
+    CATDESC: Priority 2
+    FIELDNAM: Priority 2
+
+priority3:
+    <<: *hi_priorities_default
+    CATDESC: Priority 3
+    FIELDNAM: Priority 3
+
+priority4:
+    <<: *hi_priorities_default
+    CATDESC: Priority 4
+    FIELDNAM: Priority 4
+
+priority5:
+    <<: *hi_priorities_default
+    CATDESC: Priority 5
+    FIELDNAM: Priority 5
+
+# <=== Lo-counters-aggregated ===>
+lo_counters_aggregated_default: &lo_counters_aggregated_default
+    <<: *counters_base
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector_pairs
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_pairs_label
+
+lo-tcr:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Triple Coincidence Rate (TCR)
+    FIELDNAM: Event A - TCR
+
+lo-dcr:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Double Coincidence Rate (DCR)
+    FIELDNAM: Event B - DCR
+
+lo-low_tof_cutoff:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Low TOF Cutoff
+    FIELDNAM: Low TOF Cutoff
+
+lo-asic1_flag_invalid:
+    <<: *lo_counters_aggregated_default
+    CATDESC: ASIC 1 Flag Invalid Count
+    FIELDNAM: ASIC 1 Flag Invalid
+
+lo-asic2_flag_invalid:
+    <<: *lo_counters_aggregated_default
+    CATDESC: ASIC 2 Flag Invalid Count
+    FIELDNAM: ASIC 2 Flag Invalid
+
+lo-asic1_channel_invalid:
+    <<: *lo_counters_aggregated_default
+    CATDESC: ASIC 1 Channel Invalid Count
+    FIELDNAM: ASIC 1 Channel Invalid
+lo-asic2_channel_invalid:
+    <<: *lo_counters_aggregated_default
+    CATDESC: ASIC 2 Channel Invalid Count
+    FIELDNAM: ASIC 2 Channel Invalid
+
+lo-tof_plus_apd:
+    <<: *lo_counters_aggregated_default
+    CATDESC: TOF + APD
+    FIELDNAM: Event C - TOF + APD
+
+lo-tof_only:
+    <<: *lo_counters_aggregated_default
+    CATDESC: TOF Only
+    FIELDNAM: Event D - TOF Only
+
+lo-position_plus_apd:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Position + APD
+    FIELDNAM: Event E - Position + APD
+
+lo-position_only:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Position Only
+    FIELDNAM: Event F - Position Only
+
+lo-sta_or_stb_plus_apd:
+    <<: *lo_counters_aggregated_default
+    CATDESC: STA or STB + APD
+    FIELDNAM: Event G - STA or STB + APD
+
+lo-sta_or_stb_only:
+    <<: *lo_counters_aggregated_default
+    CATDESC: STA or STB Only
+    FIELDNAM: Event H - STA or STB Onlys
+
+lo-sp_only:
+    <<: *lo_counters_aggregated_default
+    CATDESC: SP Only
+    FIELDNAM: Event K - SP Only
+
+lo-apd_only:
+    <<: *lo_counters_aggregated_default
+    CATDESC: APD Only
+    FIELDNAM: Event L - APD Only
+
+lo-sta:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Start A
+    FIELDNAM: Singles - Start-A (STA)
+
+lo-stb:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Start B
+    FIELDNAM: Singles - Start-B (STB)
+
+lo-sp:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Stop
+    FIELDNAM: Singles - Stop (SP)
+
+lo-total_position_count:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Total Position Count
+    FIELDNAM: Singles - Total Position Count
+
+lo-invalid_position_count:
+    <<: *lo_counters_aggregated_default
+    CATDESC: Invalid Position Count
+    FIELDNAM: Singles - Invalid Position Count
+
+lo-tec4_timeout_tof_no_pos:
+    <<: *lo_counters_aggregated_default
+    CATDESC: TEC-4 Timeout TOF no Position
+    FIELDNAM: TEC-4 Timeout Count; TOF, No Position
+
+lo-tec4_timeout_pos_no_tof:
+    <<: *lo_counters_aggregated_default
+    CATDESC: TEC-4 Timeout Position no TOF
+    FIELDNAM: TEC-4 Timeout Count; Position, No TOF
+
+lo-tec4_timeout_no_pos_tof:
+    <<: *lo_counters_aggregated_default
+    CATDESC: TEC-4 Timeout No Position or TOF
+    FIELDNAM: TEC-4 Timeout Count; No Position or TOF
+
+lo-tec5_timeout_tof_no_pos:
+    <<: *lo_counters_aggregated_default
+    CATDESC: TEC-5 Timeout TOF no Position
+    FIELDNAM: TEC-5 Timeout Count; TOF, No Position
+
+lo-tec5_timeout_pos_no_tof:
+    <<: *lo_counters_aggregated_default
+    CATDESC: TEC-5 Timeout Position no TOF
+    FIELDNAM: TEC-5 Timeout Count; Position, No TOF
+
+lo-tec5_timeout_no_pos_tof:
+    <<: *lo_counters_aggregated_default
+    CATDESC: TEC-5 Timeout No Position or TOF
+    FIELDNAM: TEC-5 Timeout Count; No Position or TOF
+
+# <=== Lo-counters-singles ===>
+lo_counters_singles:
+    CATDESC: Single Rates (APD)
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector_pairs
+    DEPEND_3: inst_az
+    DISPLAY_TYPE: time_series
+    FIELDNAM: Rates - Single (APD)
+    FILLVAL: *uint32_fillval
+    FORMAT: I7
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_pairs_label
+    LABL_PTR_3: inst_az_label
+    SCALETYP: linear
+    UNITS: counts
+    VALIDMAX: *max_uint32
+    VALIDMIN: 0
+    VAR_TYPE: data
+
+# lo-angular attribute templates (combined versions of the previous entries)
+lo-angular-attrs:
+    CATDESC: "{species} Sunward {direction} species"
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector
+    DEPEND_3: inst_az
+    DISPLAY_TYPE: time_series
+    FIELDNAM: "SW - {species}"
+    FILLVAL: *int_fillval
+    FORMAT: I7
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_label
+    LABL_PTR_3: inst_az_label
+    UNITS: counts
+    VALIDMIN: 0
+    VALIDMAX: *max_uint32
+    VAR_TYPE: data
+
+lo-angular-unc-attrs:
+    CATDESC: "{species} Non-sunward {direction} species uncertainty"
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector
+    DEPEND_3: inst_az
+    DISPLAY_TYPE: time_series
+    FIELDNAM: "NSW - {species}"
+    FILLVAL: *int_fillval
+    FORMAT: I7
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_label
+    LABL_PTR_3: inst_az_label
+    UNITS: counts
+    VALIDMIN: 0
+    VALIDMAX: *max_uint32
+    VAR_TYPE: data
+
+# lo-sw-priority
+lo_priority_base: &lo_priority_base
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector
+    DISPLAY_TYPE: time_series
+    FILLVAL: *uint32_fillval
+    FORMAT: I7
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_label
+    SCALETYP: linear
+    UNITS: counts
+    VALIDMAX: *max_uint32
+    VALIDMIN: 0
+    VAR_TYPE: data
+
+p0_tcrs:
+    <<: *lo_priority_base
+    CATDESC: Sunward Sector Triple Coincidence Pickup Ions Priority
+    FIELDNAM: SW Sector Triple Coincidence PUI's
+
+
+p1_hplus:
+    <<: *lo_priority_base
+    CATDESC: Sunward Sector H+ Priority
+    FIELDNAM: SW Sector H+
+
+p2_heplusplus:
+    <<: *lo_priority_base
+    CATDESC: Sunward Sector He++ Priority
+    FIELDNAM: SW Sector He++
+
+p3_heavies:
+    <<: *lo_priority_base
+    CATDESC: Sunward Sector High Charge State Heavies Priority
+    FIELDNAM: SW Sector High Charge State Heavies
+
+p4_dcrs:
+    <<: *lo_priority_base
+    CATDESC: Sunward Sector Double Coincidence Pickup Ions Priority
+    FIELDNAM: SW Sector Double Coincidence PUI's
+
+# lo-nsw-priority
+p5_heavies:
+    <<: *lo_priority_base
+    CATDESC: Non-sunward Sector Heavies Priority
+    FIELDNAM: NSW Sector Heavies
+
+p6_hplus_heplusplus:
+    <<: *lo_priority_base
+    CATDESC: Non-sunward H+ and He++ Priority
+    FIELDNAM: NSW H+ and He++
+
+# lo species attrs
+lo-species-attrs:
+    CATDESC: "{species} {direction} Species"
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector
+    DISPLAY_TYPE: time_series
+    FIELDNAM: "{direction} - {species}"
+    FILLVAL: *int_fillval
+    FORMAT: I7
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_label
+    UNITS: counts
+    VALIDMIN: 0
+    VALIDMAX: *max_uint32
+    VAR_TYPE: data
+
+lo-pui-species-attrs:
+    CATDESC: "{species} Pickup Ion {direction} Species"
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector
+    DISPLAY_TYPE: time_series
+    FIELDNAM: "{direction} - {species}"
+    FILLVAL: *int_fillval
+    FORMAT: I7
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_label
+    UNITS: counts
+    VALIDMIN: 0
+    VALIDMAX: *max_uint32
+    VAR_TYPE: data
+
+lo-species-unc-attrs:
+    CATDESC: "{species} {direction} Species uncertainty"
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector
+    DISPLAY_TYPE: time_series
+    FIELDNAM: "{direction} - {species}"
+    FILLVAL: *real_fillval
+    FORMAT: F20.9
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_label
+    UNITS: counts
+    VALIDMIN: 0
+    VALIDMAX: *max_uint32
+    VAR_TYPE: data
+
+lo-pui-species-unc-attrs:
+    CATDESC: "{species} Pickup Ion {direction} Species uncertainty"
+    DEPEND_0: epoch
+    DEPEND_1: esa_step
+    DEPEND_2: spin_sector
+    DISPLAY_TYPE: time_series
+    FIELDNAM: "{direction} - {species}"
+    FILLVAL: *real_fillval
+    FORMAT: F20.9
+    LABL_PTR_1: esa_step_label
+    LABL_PTR_2: spin_sector_label
+    UNITS: counts
+    VALIDMIN: 0
+    VALIDMAX: *max_uint32
+    VAR_TYPE: data
+
+# <=== Direct Events Attributes ===>
+
+# Data quality and num of events attrs
+de_2d_attrs:
+  CATDESC: Direct event data
+  FIELDNAM: Direct Event Data
+  LABLAXIS: Values
+  DEPEND_0: epoch
+  DEPEND_1: priority
+  FILLVAL: -9223372036854775808
+  FORMAT: I5
+  UNITS: " "
+  VALIDMIN: 0
+  VALIDMAX: 65535
+  VAR_TYPE: support_data
+  SCALETYP: linear
+  DICT_KEY: SPASE>Support>SupportQuantity:Other
+
+# unpacked 64-bits attrs
+de_3d_attrs:
+  CATDESC: Direct event data
+  FIELDNAM: Direct Event Data
+  LABLAXIS: Values
+  DEPEND_0: epoch
+  DEPEND_1: priority
+  DEPEND_2: event_num
+  FILLVAL: -9223372036854775808
+  FORMAT: I{num_digits}
+  UNITS: " "
+  VALIDMIN: 0
+  VALIDMAX: "{valid_max}"
+  VAR_TYPE: support_data
+  SCALETYP: linear
+  DICT_KEY: SPASE>Support>SupportQuantity:Other
