@@ -1,0 +1,62 @@
+from enum import Enum
+from pydantic import BaseModel, Field
+from typing import Optional, Dict
+
+
+class MetadataV1(BaseModel):
+    """
+    The deprecated MetadataV1 class, corresponding to httptypes.MetadataV1.
+
+    This class is deprecated and should not be used. For newer versions of
+    the metadata class, use the Metadata class.
+    """
+
+    id_: Optional[str] = Field(None, alias="id")
+    created_at: Optional[int] = None
+    version: Optional[int] = None
+
+
+class LeptonVisibility(str, Enum):
+    """
+    The visibility of a Lepton resource.
+    """
+
+    PUBLIC = "public"
+    PRIVATE = "private"
+
+
+class Metadata(BaseModel):
+    """
+    The metadata field, corresponding to httptypes.MetadataV2.
+    """
+
+    id_: Optional[str] = Field(default=None, alias="id")
+    name: Optional[str] = None
+    created_at: Optional[int] = None
+    version: Optional[int] = None
+    created_by: Optional[str] = None
+    last_modified_by: Optional[str] = None
+    semantic_version: Optional[str] = None
+    labels: Optional[Dict[str, str]] = None
+
+    # Implementation note: this is the inlined LeptonMetadata in the backend
+    owner: Optional[str] = None
+    last_modified_at: Optional[int] = None
+    visibility: Optional[LeptonVisibility] = None
+    replica_version: Optional[str] = None
+
+
+class SecretItem(BaseModel):
+    # Deprecated shim to keep backward-compat import paths working until callers migrate.
+    # Prefer importing from leptonai.api.v1.types.secret import SecretItem
+    name: str
+    value: str
+
+
+class LeptonUserSecurityContext(BaseModel):
+    """
+    User security context shared across deployment/job/raycluster.
+    """
+
+    no_specific_user: Optional[bool] = None
+    privileged: Optional[bool] = None
