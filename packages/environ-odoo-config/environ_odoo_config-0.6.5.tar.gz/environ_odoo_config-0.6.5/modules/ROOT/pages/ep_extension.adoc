@@ -1,0 +1,47 @@
+= Extension
+
+If you want to change the configuration before injecting it in `odoo.tool.config` you can define an entrypoint `environ_odoo_config.extension`.
+
+All the extension are applied after the load from environ.
+
+.pyproject.toml
+[,toml]
+----
+# ...
+[project.entry-points."environ_odoo_config.extension"] # <1>
+# <2> <3>
+awesome_extension = "package.path.to.file:YourExtensionClass"
+----
+<1> The group of entry point
+<2> The name of the entry point don't matter to {page-component-name}
+<3> The path to your function following `<path with dot>:<function_name>`
+
+[,python]
+----
+from __future__ import annotations
+
+import logging
+
+from environ_odoo_config.config_section.api import SimpleKey
+from environ_odoo_config.environ import Environ
+from environ_odoo_config.odoo_config import OdooConfigExtension, OdooEnvConfig
+
+_logger = logging.getLogger(__name__)
+
+# <1> <2>
+class AlwaysStopAfterInit(OdooConfigExtension):
+    _order = 999 # <3>
+    always_stop: bool = SimpleKey("ALWAYS_STOP_ODOO") # <4>
+
+    def apply_extension(self, environ: Environ, odoo_config: "OdooEnvConfig"): # <5>
+        super().apply_extension(environ, odoo_config)
+        if self.always_stop:
+            odoo_config.misc.stop_after_init = True
+----
+<1> The name of your extension class
+<2> must extends `OdooConfigExtension`
+<3> The priority of your extension, by default `10`
+<4> You can define environ Key
+<5> The entry of your extension. You can change every attribute of `odoo_config`
+
+CAUTION: changing `environ` won't change the `os.environ`.
