@@ -1,0 +1,176 @@
+[build-system]
+# See https://finesse.ifosim.org/docs/develop/developer/codeguide/requirements.html
+requires = [
+    # https://gitlab.com/ifosim/finesse/finesse3/-/issues/693
+    "setuptools >= 45, <= 75.6.0",
+    "setuptools_scm >= 8.0.3",
+    "wheel",
+    "numpy >= 1.20",  # building with numpy1 won't run with numpy2
+    "cython >= 0.29.36",
+    "scipy >= 1.4",  #NB: for cython3 SciPy>=1.11.2, see !159#note_1619762810. For numpy 2 SciPy>=1.13.0
+    "tqdm >= 4.40",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finesse"
+maintainers = [{ name = "Finesse Team", email = "finesse-support@nikhef.nl" }]
+dynamic = ["version"]
+license = { file = "LICENSE.md" }
+description = "Simulation tool for modelling laser interferometers"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+scripts = { "kat3" = "finesse.__main__:cli" }
+dependencies = [
+    "numpy >= 1.20",
+    "scipy >= 1.4",  #NB: for cython3 SciPy>=1.11.2, see !159#note_1619762810. For numpy 2 SciPy>=1.13.0
+    "matplotlib >= 3.5",
+    "networkx >= 2.4",
+    "sly >= 0.4",
+    "click >= 7.1",
+    "click-default-group >= 1.2.2",
+    "control >= 0.9",
+    "sympy >= 1.6", # for numpy 2 >= 12.1
+    "more-itertools >= 8.7",
+    "tqdm >= 4.40",
+    "h5py >= 3.0", # for numpy 2 >= 3.11"
+    "deprecated >= 1.2",
+    "pyspellchecker >= 0.6",
+    "quantiphy >= 2.15",
+    "dill",
+    "pathos",
+]
+
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-benchmark",
+    "pytest-xdist",
+    "faker",
+    "hypothesis",
+    "docutils",
+    "black",
+    "autoflake",
+    "isort",
+    "jupyter-sphinx >= 0.4",
+    "pytest-random-order",
+    "pyyaml",
+    "psutil",
+    "cython >= 0.29.36",
+    "nbformat",
+    "nbconvert",
+]
+docs = [
+    "ipykernel",
+    "setuptools >= 45, <= 75.6.0",
+    "sphinx",
+    "sphinx_rtd_theme",
+    "sphinxcontrib-bibtex",
+    "sphinxcontrib-programoutput",
+    "myst-nb",
+    "linkify-it-py",
+    "jupyter-sphinx >= 0.4",
+    "numpydoc",
+    "sphinxcontrib-katex",
+    "sphinxcontrib-svg2pdfconverter",
+    "reslate",
+    "standard-imghdr", # NB workaround for sphinx < 6.2.0 and python >= 3.13
+    "sphinx-toolbox",
+    "sphinx-copybutton",
+    "sphinx-prompt",
+    "sphinx-tabs"
+]
+lint = [
+    "black",
+    "pre-commit",
+    "tox",
+    "flake8",
+    "flake8-bugbear",
+    "doc8",
+    "cython-lint",
+]
+inplacebuild = [
+    "setuptools >= 45, <= 75.6.0",
+    "setuptools_scm >= 8.0.3",
+    "wheel",
+    "numpy >= 1.20",  # building with numpy1 won't run with numpy2
+    "cython >= 0.29.36",
+    "scipy >= 1.4",  #NB: for cython3 SciPy>=1.11.2, see !159#note_1619762810. For numpy 2 SciPy>=1.13.0
+    "tqdm >= 4.40",
+]
+graphviz = ["pygraphviz"]
+
+
+[project.entry-points."pygments.lexers"]
+KatScript = "finesse.script.highlighter:KatScriptPygmentsLexer"
+KatScriptInPython = "finesse.script.highlighter:KatScriptSubstringPygmentsLexer"
+
+[project.urls]
+Homepage = "https://www.gwoptics.org/finesse"
+"Bug Tracker" = "https://gitlab.com/ifosim/finesse/finesse3/issues"
+"Source Code" = "https://gitlab.com/ifosim/finesse/finesse3"
+Documentation = "https://finesse.ifosim.org/docs/"
+
+
+# TODO this is probably not necessary?
+# https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#setuptools-specific-configuration
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+
+[tool.setuptools.package-data]
+finesse = ["finesse.ini", "usr.ini.dist", "*.mplstyle"]
+
+
+[tool.setuptools_scm]
+version_file = "src/finesse/version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["tests/testutils"]
+# Avoids need for __init__.py in test directories and run benchmarks only once by default
+# Meaning of 'auto' is determined by pytest hook in conftest.py
+# Use PYTEST_XDIST_AUTO_NUM_WORKERS env variable to overwrite
+addopts = "--import-mode=importlib --benchmark-disable -n auto --dist loadfile --ignore=tests/benchmarks"
+
+[tool.doc8]
+# Documentation line length consistent with Black, and roughly maximum to avoid
+# horizontal scrollbars appearing in code/preformatted blocks.
+max-line-length = 88
+
+[tool.coverage.run]
+plugins = ["Cython.Coverage"]
+
+[tool.black]
+force-exclude = "parser.py"
+
+[tool.cython-lint]
+no-pycodestyle = true
+
+# consumed by scripts/generate_environment_files.py to generate conda environment files
+[tool.generate_conda_yml]
+pip_only.docs = [
+    "sphinxcontrib-katex",
+    "sphinxcontrib-svg2pdfconverter",
+    "reslate",
+    "standard-imghdr" # NB workaround for sphinx < 6.2.0 and python >= 3.13
+]
+pip_only.test = ["pytest-random-order"]
+system_deps = ["make", "c-compiler", "suitesparse", "pip"]
+system_deps_win = ["m2-base", "m2w64-make", "suitesparse", "libpython", "pip"]

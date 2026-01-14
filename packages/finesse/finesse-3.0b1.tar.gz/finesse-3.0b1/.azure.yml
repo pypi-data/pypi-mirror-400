@@ -1,0 +1,34 @@
+pool:
+  name: Azure Pipelines
+
+steps:
+- powershell: |
+   Write-Host "$env:CONDA"
+   Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
+   ls $env:CONDA\envs
+  displayName: 'Add Conda to path'
+
+- script: |
+   echo on
+   echo BUILDING PYTHON 3.$(pyminor)
+   conda config --add channels conda-forge
+   conda config --set channel_priority strict
+   conda config --show channels
+   conda install mamba
+   mamba create -n finesse3 python=3.$(pyminor)
+   call activate finesse3
+   mamba env update -f environment-win.yml
+  displayName: 'Setup python 3.$(pyminor)'
+
+- script: |
+   echo on
+   call activate finesse3
+   pip install .
+   python -c "import finesse"
+  displayName: Build
+
+- script: |
+   echo on
+   call activate finesse3
+   pytest --benchmark-skip tests
+  displayName: Test

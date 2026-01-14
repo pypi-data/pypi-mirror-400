@@ -1,0 +1,73 @@
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v5.0.0
+      hooks:
+        - id: check-yaml
+          # See https://github.com/pre-commit/pre-commit-hooks/issues/701
+          args: ['--unsafe']
+        - id: end-of-file-fixer
+        - id: mixed-line-ending
+          args: ['--fix', 'lf']
+        - id: trailing-whitespace
+    - repo: https://github.com/DanielNoord/pydocstringformatter
+      rev: v0.7.3
+      hooks:
+        - id: pydocstringformatter
+          args: ["--write", "--max-line-length", "88", "--no-split-summary-body", "--no-closing-quotes", "--no-final-period"]
+    - repo: local
+      hooks:
+        - id: check-build-requirements-mismatch
+          name: Check build requirements match
+          description: Check if for any duplicate requirements specifications with differing version numbers
+          entry: ./scripts/check_requirements.py
+          files: ^pyproject.toml
+          types: [toml]
+          language: system
+        - id: generate-environment-files
+          name: Generate conda environment files
+          description: Generates conda environment files based on  the requirements in 'pyproject.toml'
+          entry: ./scripts/generate_environment_files.py
+          verbose: true
+          files: |
+            (?x)^(
+                pyproject.toml|
+                environment-win.yml|
+                environment.yml
+            )$
+          types_or: [toml,yaml]
+          language: system
+        - id: check-class-docstrings
+          name: Check class docstrings
+          description: Check class docstrings conform to numpydoc recommendations.
+          entry: ./scripts/check_docstrings.py
+          language: system
+          types: [python]
+        #- id: check-benchmark-match-examples
+        #  name: Check benchmark matches examples
+        #  description: Check if the current code in the examples section of the documentation matches the benchmarks derived from it.
+        #  entry: pytest tests/benchmarks/test_benchmarks.py::test_benchmark_creation
+        #  language: system
+        #  pass_filenames: false
+        #  files: "docs/source/examples/.*"
+
+    - repo: https://github.com/psf/black
+      rev: 24.4.2
+      hooks:
+        - id: black
+          # Don't format some of the parser code, which would just become a mess with
+          # black.
+          exclude: ^src/finesse/script/(parser.py|tokens.py)
+    - repo: https://github.com/pycqa/flake8
+      rev: 7.0.0
+      hooks:
+        - id: flake8
+    - repo: https://github.com/MarcoGorelli/cython-lint
+      rev: v0.16.2
+      hooks:
+        - id: cython-lint
+        - id: double-quote-cython-strings
+    - repo: https://github.com/kynan/nbstripout
+      rev: 0.7.1
+      hooks:
+        - id: nbstripout
+          exclude: docs/source/developer/myst_example.ipynb

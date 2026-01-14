@@ -1,0 +1,101 @@
+--- libpython_original.py	2023-12-04 10:02:10.817326372 +0100
++++ libpython.py	2023-12-04 11:27:22.789409115 +0100
+@@ -55,6 +55,12 @@
+ import os
+ import locale
+ import sys
++import warnings
++
++
++# prevent cygdb from printing warnings about open files not being closed while debugging
++warnings.filterwarnings('ignore', category=ResourceWarning)
++
+
+ if sys.version_info[0] >= 3:
+     unichr = chr
+@@ -718,6 +724,8 @@
+         out.write('}')
+
+     def _get_entries(self, keys):
++        if sys.version_info.major == 3 and sys.version_info.minor > 10:
++            return self._get_entries_py311(keys)
+         dk_nentries = int(keys['dk_nentries'])
+         dk_size = int(keys['dk_size'])
+         try:
+@@ -743,6 +751,32 @@
+
+         return ent_addr, dk_nentries
+
++    def _get_entries_py311(self, keys):
++        # see https://github.com/python/cpython/blob/3.11/Tools/gdb/libpython.py#L811
++        # differs from the version in python 3.10 and lower
++        dk_nentries = int(keys['dk_nentries'])
++        dk_size = 1<<int(keys['dk_log2_size'])
++
++        if dk_size <= 0xFF:
++            offset = dk_size
++        elif dk_size <= 0xFFFF:
++            offset = 2 * dk_size
++        elif dk_size <= 0xFFFFFFFF:
++            offset = 4 * dk_size
++        else:
++            offset = 8 * dk_size
++
++        ent_addr = keys['dk_indices'].address
++        ent_addr = ent_addr.cast(_type_unsigned_char_ptr()) + offset
++        if int(keys['dk_kind']) == 0:  # DICT_KEYS_GENERAL
++            ent_ptr_t = gdb.lookup_type('PyDictKeyEntry').pointer()
++        else:
++            ent_ptr_t = gdb.lookup_type('PyDictUnicodeEntry').pointer()
++        ent_addr = ent_addr.cast(ent_ptr_t)
++
++        return ent_addr, dk_nentries
++
++
+
+ class PyListObjectPtr(PyObjectPtr):
+     _typename = 'PyListObject'
+@@ -1164,6 +1198,8 @@
+         return _type_Py_UNICODE.sizeof
+
+     def proxyval(self, visited):
++        if sys.version_info.major == 3 and sys.version_info.minor == 12:
++            return self.proxyval_py312(visited)
+         global _is_pep393
+         if _is_pep393 is None:
+             fields = gdb.lookup_type('PyUnicodeObject').target().fields()
+@@ -1235,6 +1271,35 @@
+             for ucs in Py_UNICODEs])
+         return result
+
++    def proxyval_py312(self, visited):
++        compact = self.field('_base')
++        ascii = compact['_base']
++        state = ascii['state']
++        is_compact_ascii = (int(state['ascii']) and int(state['compact']))
++        field_length = int(ascii['length'])
++        if is_compact_ascii:
++            field_str = ascii.address + 1
++        elif int(state['compact']):
++            field_str = compact.address + 1
++        else:
++            field_str = self.field('data')['any']
++        repr_kind = int(state['kind'])
++        if repr_kind == 1:
++            field_str = field_str.cast(_type_unsigned_char_ptr())
++        elif repr_kind == 2:
++            field_str = field_str.cast(_type_unsigned_short_ptr())
++        elif repr_kind == 4:
++            field_str = field_str.cast(_type_unsigned_int_ptr())
++
++        # Gather a list of ints from the Py_UNICODE array; these are either
++        # UCS-1, UCS-2 or UCS-4 code points:
++        Py_UNICODEs = [int(field_str[i]) for i in safe_range(field_length)]
++
++        # Convert the int code points to unicode characters, and generate a
++        # local unicode instance.
++        result = u''.join(map(chr, Py_UNICODEs))
++        return result
++
+     def write_repr(self, out, visited):
+         # Write this out as a Python 3 str literal, i.e. without a "u" prefix
