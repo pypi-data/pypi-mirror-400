@@ -1,0 +1,181 @@
+Metadata-Version: 2.3
+Name: package-query
+Version: 0.1.0
+Summary: Query latest package versions from PyPI, npm, crates.io, Docker Hub, and GitHub Actions
+Keywords: mcp,pypi,npm,crates.io,docker,github actions
+Author: Henrique
+Author-email: Henrique <henriquemoreira10fk@gmail.com>
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Dist: curl-cffi>=0.14.0
+Requires-Dist: orjson>=3.11.5
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: fastmcp>=2.14.2 ; extra == 'mcp'
+Requires-Python: >=3.10, <3.15
+Project-URL: Changelog, https://github.com/henrique-coder/package-query/releases
+Project-URL: Documentation, https://github.com/henrique-coder/package-query#readme
+Project-URL: Homepage, https://github.com/henrique-coder/package-query
+Project-URL: Issues, https://github.com/henrique-coder/package-query/issues
+Project-URL: Repository, https://github.com/henrique-coder/package-query.git
+Provides-Extra: mcp
+Description-Content-Type: text/markdown
+
+# package-query
+
+Query the latest package versions from **PyPI**, **npm**, **crates.io**, **Docker Hub**, and **GitHub Actions** — directly from Python or as an MCP server for AI agents.
+
+## Installation
+
+```bash
+# Core library only
+uv pip install package-query
+
+# With MCP server support
+uv pip install "package-query[mcp]"
+```
+
+## Python Usage
+
+```python
+import asyncio
+from package_query import PackageQuery, PackageInfo
+
+async def main():
+    pq = PackageQuery()
+
+    info: PackageInfo = await pq.query("pypi", "requests")
+    print(f"{info.name}=={info.version}")
+
+    info = await pq.query("npm", "express")
+    print(f"{info.name}=={info.version}")
+
+    info = await pq.query("github-actions", "actions/checkout")
+    print(f"{info.name}=={info.version}")
+
+asyncio.run(main())
+```
+
+### Supported Registries
+
+| Registry         | Example Package    |
+| ---------------- | ------------------ |
+| `pypi`           | `requests`         |
+| `npm`            | `express`          |
+| `crates`         | `serde`            |
+| `docker`         | `nginx`            |
+| `github-actions` | `actions/checkout` |
+
+## MCP Server
+
+The MCP server allows AI agents (Claude, Copilot, Cursor, etc.) to query package versions without web search.
+
+### Running the Server
+
+```bash
+# If installed with [mcp] extra
+package-query-mcp
+
+# Or from source
+uv run --extra mcp package-query-mcp
+```
+
+### IDE Configuration
+
+#### VS Code / Cursor
+
+Add to your `settings.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "package-query": {
+        "command": "uvx",
+        "args": ["--from", "package-query[mcp]", "package-query-mcp"]
+      }
+    }
+  }
+}
+```
+
+Or if installed globally:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "package-query": {
+        "command": "package-query-mcp"
+      }
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+Add to `~/.config/Claude/claude_desktop_config.json` (Linux) or equivalent:
+
+```json
+{
+  "mcpServers": {
+    "package-query": {
+      "command": "uvx",
+      "args": ["--from", "package-query[mcp]", "package-query-mcp"]
+    }
+  }
+}
+```
+
+#### Antigravity IDE
+
+Add to `~/.gemini/antigravity/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "package-query": {
+      "command": "uvx",
+      "args": ["--from", "package-query[mcp]", "package-query-mcp"]
+    }
+  }
+}
+```
+
+### Available Tools
+
+| Tool                  | Description                         |
+| --------------------- | ----------------------------------- |
+| `get_package_version` | Get the latest version of a package |
+
+**Parameters:**
+
+- `registry` (string): One of `pypi`, `npm`, `crates`, `docker`, `github-actions`
+- `package` (string): Package name
+- `include_prerelease` (bool, optional): Include pre-release versions
+
+## Development
+
+```bash
+# Clone and install all dependencies
+git clone https://github.com/henrique-coder/package-query.git
+cd package-query
+uv sync --upgrade --all-groups --all-extras
+just lint
+just format
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
