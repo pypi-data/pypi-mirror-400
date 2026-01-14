@@ -1,0 +1,104 @@
+Metadata-Version: 2.4
+Name: realtimex-sdk
+Version: 1.0.1
+Summary: Python SDK for building Local Apps that integrate with RealtimeX
+Project-URL: Homepage, https://github.com/realtimex/rtx-local-app-sdk
+Project-URL: Documentation, https://docs.realtimex.ai/local-apps
+Project-URL: Repository, https://github.com/realtimex/rtx-local-app-sdk
+Author-email: RealtimeX Team <team@realtimex.ai>
+License-Expression: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Requires-Dist: httpx>=0.25.0
+Provides-Extra: dev
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# RealtimeX Local App SDK - Python
+
+Python SDK for building Local Apps that integrate with RealtimeX.
+
+## Installation
+
+```bash
+pip install realtimex-sdk
+```
+
+## Prerequisites
+
+Before using this SDK, ensure your Supabase database is set up via the Main App:
+
+1. Open **RealtimeX** → **Settings** → **Local Apps**
+2. Create or configure your Local App
+3. Select **Compatible Mode** → **Login to Supabase** → **Auto-Setup Schema**
+
+> **Note:** Schema setup is handled entirely by the Main App.
+
+## Quick Start
+
+```python
+import asyncio
+from realtimex_sdk import RealtimeXSDK
+
+async def main():
+    # No config needed - auto-detects from environment
+    sdk = RealtimeXSDK()
+    
+    # Insert activity
+    activity = await sdk.activities.insert({
+        "type": "new_lead",
+        "email": "user@example.com"
+    })
+    
+    # Trigger agent (auto-run)
+    result = await sdk.webhook.trigger_agent(
+        raw_data=activity,
+        auto_run=True,
+        agent_name="lead-processor",
+        workspace_slug="sales",
+        thread_slug="general"
+    )
+    print(f"Task created: {result['task_uuid']}")
+    
+    # Or create calendar event for manual review
+    result = await sdk.webhook.trigger_agent(
+        raw_data=activity,
+        auto_run=False
+    )
+
+asyncio.run(main())
+```
+
+## Configuration (Optional)
+
+Override auto-detected values if needed:
+
+```python
+from realtimex_sdk import RealtimeXSDK, SDKConfig
+
+sdk = RealtimeXSDK(config=SDKConfig(
+    url="http://custom-host:3001"  # Default: localhost:3001
+))
+```
+
+## Environment Variables
+
+When your app is started by the Main App, these are auto-set:
+
+| Variable | Description |
+|----------|-------------|
+| `RTX_APP_ID` | Your app's unique ID |
+| `RTX_APP_NAME` | Your app's display name |
+
+## API Reference
+
+See the main [TypeScript README](../typescript/README.md) for full API documentation.
