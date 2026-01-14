@@ -1,0 +1,1 @@
+import{Wn as e}from"./index-EnPYNmIz.js";var t=function(){return e.Date.now()};export{t};

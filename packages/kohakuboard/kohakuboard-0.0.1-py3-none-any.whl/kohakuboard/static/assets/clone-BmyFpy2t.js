@@ -1,0 +1,1 @@
+import{t as e}from"./_baseClone-BEd4hvTE.js";var t=4;function n(n){return e(n,t)}var r=n;export{r as t};
