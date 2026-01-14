@@ -1,0 +1,96 @@
+<div align="center">
+  <img src="https://raw.githubusercontent.com/DaavidSiilva/dfe-nfse/main/assets/logo.png" alt="Logo DFE-NFSe" width="200"/>
+</div>
+
+# NFSe Nacional
+
+Biblioteca Python desenvolvida para facilitar o download e automação de Notas Fiscais de Serviço Eletrônicas (NFSe) diretamente do Ambiente de Dados Nacional (ADN).
+
+Esta ferramenta foi projetada para interagir com a API oficial da Receita Federal, gerenciar certificados digitais A1 e organizar os arquivos XML baixados de forma estruturada.
+
+Documentação Oficial ADN: https://adn.nfse.gov.br/contribuintes/docs/index.html
+
+## Funcionalidades
+
+- Integração direta com o Ambiente de Dados Nacional (ADN).
+- Conversão automática de certificados (.pfx) para formatos compatíveis com a API (.pem/.key).
+- Download em lote de documentos fiscais a partir de um NSU (Número Sequencial Único).
+- Organização automática dos arquivos XML baixados em diretórios por Ano e Mês (ex: 2024.01).
+
+
+## Instalação
+
+A biblioteca está disponível no PyPI e pode ser instalada utilizando o pip:
+
+```bash
+pip install dfe-nfse
+```
+
+## Como Usar
+
+Para utilizar a biblioteca, é necessário possuir um certificado digital modelo A1 válido e sua respectiva senha.
+
+### Exemplo Básico
+
+```python
+from nfse import download_nfse
+
+# Configurações iniciais
+cnpj_empresa = "00000000000000"
+nsu_inicial = 100  # Último NSU processado ou 0 para o início
+caminho_saida = "./documentos_fiscais"
+caminho_certificado = "/caminho/para/seu/certificado.pfx"
+senha_certificado = "sua_senha_segura"
+
+# Executa o download
+resultado = download_nfse(
+    cnpj=cnpj_empresa,
+    nsu=nsu_inicial,
+    output_path=caminho_saida,
+    cert_path=caminho_certificado,
+    cert_password=senha_certificado
+)
+
+print(f"Status da operação: {resultado}")
+```
+
+### Detalhes dos Parâmetros
+
+A função `download_nfse` aceita os seguintes argumentos:
+
+- **cnpj (str)**: O CNPJ da empresa contribuinte (apenas números ou com formatação padrão). A biblioteca normaliza automaticamente removendo pontuações.
+- **nsu (int)**: Número Sequencial Único a partir do qual a busca será realizada. Utilize este controle para baixar apenas notas novas.
+- **output_path (str)**: Diretório raiz onde os XMLs serão salvos. A estrutura interna será criada automaticamente no formato `Ano.Mes/ChaveAcesso.xml`.
+- **cert_path (str)**: Caminho absoluto ou relativo para o arquivo do certificado digital (.pfx).
+- **cert_password (str)**: Senha para descriptografar o certificado digital.
+
+### Retorno
+
+A função retorna uma string com o resultado da operação, que pode ser:
+- Confirmação de quantidade de documentos baixados.
+- Mensagens de erro da API (404, 500, etc.).
+- Exceções locais (arquivo não encontrado, senha incorreta).
+
+## Requisitos do Sistema
+
+- Python 3.6 ou superior
+- Biblioteca `requests`
+- Biblioteca `cryptography`
+
+## Estrutura de Arquivos
+
+Após a execução, os arquivos serão organizados da seguinte forma no diretório de saída:
+
+```text
+documentos_fiscais/
+├── 2023.12/
+│   ├── 35231200000000000000000000000000000000000001.xml
+│   └── 35231200000000000000000000000000000000000002.xml
+└── 2024.01/
+    ├── 35240100000000000000000000000000000000000001.xml
+    └── ...
+```
+
+## Licença
+
+Distribuído sob a licença MIT. Consulte o arquivo `LICENSE` para mais informações.
