@@ -1,0 +1,178 @@
+# Strands-SGLang
+
+[![CI](https://github.com/horizon-rl/strands-sglang/actions/workflows/test.yml/badge.svg)](https://github.com/horizon-rl/strands-sglang/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/strands-sglang.svg)](https://pypi.org/project/strands-sglang/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+SGLang model provider for [Strands Agents SDK](https://github.com/strands-agents/sdk-python) with Token-In/Token-Out (TITO) support for agentic RL training.
+
+## Features
+
+- **SGLang Native API**: Uses SGLang's native `/generate` endpoint with non-streaming POST for optimal parallelism
+- **TITO Support**: Tracks complete token trajectories with logprobs for RL training - no retokenization drift
+- **Tool Call Parsing**: Customizable tool parsing aligned with model chat templates (Hermes/Qwen format)
+- **Iteration Limiting**: Built-in hook to limit tool iterations with clean trajectory truncation
+- **RL Training Optimized**: Connection pooling, aggressive retry (60 attempts), and non-streaming design aligned with [Slime's http_utils.py](https://github.com/THUDM/slime/blob/main/slime/utils/http_utils.py)
+
+## Requirements
+
+- Python 3.10+
+- Strands Agents SDK
+- SGLang server running with your model
+- HuggingFace tokenizer for the model
+
+## Installation
+
+```bash
+pip install strands-sglang strands-agents-tools
+```
+
+Or install from source with development dependencies:
+
+```bash
+git clone https://github.com/horizon-rl/strands-sglang.git
+cd strands-sglang
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+### 1. Start SGLang Server
+
+```bash
+python -m sglang.launch_server \
+    --model-path Qwen/Qwen3-4B-Instruct-2507 \
+    --port 30000 \
+    --host 0.0.0.0
+```
+
+### 2. Basic Agent
+
+```python
+import asyncio
+from transformers import AutoTokenizer
+from strands import Agent
+from strands_tools import calculator
+from strands_sglang import SGLangModel
+
+async def main():
+    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-4B-Instruct-2507")
+    model = SGLangModel(tokenizer=tokenizer, base_url="http://localhost:30000")
+    agent = Agent(model=model, tools=[calculator])
+
+    model.reset()  # Reset TITO state for new episode
+    result = await agent.invoke_async("What is 25 * 17?")
+    print(result)
+
+    # Access TITO data for RL training
+    print(f"Tokens: {model.token_manager.token_ids}")
+    print(f"Loss mask: {model.token_manager.loss_mask}")
+    print(f"Logprobs: {model.token_manager.logprobs}")
+
+asyncio.run(main())
+```
+
+## Slime Training
+
+For RL training with [Slime](https://github.com/THUDM/slime/), `SGLangModel` with TITO eliminates the retokenization step in [`generate_with_strands.py`](https://github.com/THUDM/slime/blob/main/examples/strands-agents/generate_with_strands.py) (this example is not fully ready yet):
+
+```python
+from strands import Agent, tool
+from strands_sglang import SGLangClient, SGLangModel, ToolIterationLimiter
+from slime.utils.types import Sample
+
+SYSTEM_PROMPT = "..."
+MAX_TOOL_ITERATIONS= ... # e.g., 5
+
+@tool
+def execute_python_code(code: str):
+    """Execute Python code and return the output."""
+    ...
+
+async def generate(args, sample: Sample, sampling_params) -> Sample:
+    """Generate with TITO: tokens captured during generation, no retokenization."""
+    assert not args.partial_rollout, "Partial rollout not supported."
+
+    state = GenerateState(args)
+
+    # Set up Agent with SGLangModel and ToolIterationLimiter hook
+    model = SGLangModel(
+        tokenizer=state.tokenizer,
+        client=get_client(args),
+        model_id=args.hf_checkpoint.split("/")[-1],
+        params={k: sampling_params[k] for k in ["max_new_tokens", "temperature", "top_p"]},
+    )
+    limiter = ToolIterationLimiter(max_iterations=MAX_TOOL_ITERATIONS)
+    agent = Agent(
+        model=model,
+        tools=[execute_python_code],
+        hooks=[limiter],
+        callback_handler=None,
+        system_prompt=SYSTEM_PROMPT,
+    )
+
+    # Run Agent Loop
+    prompt = sample.prompt if isinstance(sample.prompt, str) else sample.prompt[0]["content"]
+    try:
+        await agent.invoke_async(prompt)
+        sample.status = Sample.Status.COMPLETED
+    except Exception as e:
+        # Always use TRUNCATED instead of ABORTED because Slime doesn't properly
+        # handle ABORTED samples in reward processing. See: https://github.com/THUDM/slime/issues/200
+        sample.status = Sample.Status.TRUNCATED
+        logger.warning(f"TRUNCATED: {type(e).__name__}: {e}")
+
+    # TITO: extract trajectory from token_manager
+    tm = model.token_manager
+    prompt_len = len(tm.segments[0])  # system + user are first segment
+    sample.tokens = tm.token_ids
+    sample.loss_mask = tm.loss_mask[prompt_len:]
+    sample.rollout_log_probs = tm.logprobs[prompt_len:]
+    sample.response_length = len(sample.tokens) - prompt_len
+    sample.response = model.tokenizer.decode(sample.tokens[prompt_len:], skip_special_tokens=False)
+
+    # Cleanup and return
+    model.reset()
+    agent.cleanup()
+    return sample
+```
+
+## Testing
+
+```bash
+# Unit tests
+pytest tests/unit/ -v
+
+# Integration tests (requires SGLang server)
+pytest tests/integration/ -v --sglang-base-url=http://localhost:30000
+```
+
+## Contributing
+
+Contributions welcome! Install pre-commit hooks for code style and commit message validation:
+
+```bash
+pip install -e ".[dev]"
+pre-commit install -t pre-commit -t commit-msg
+```
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). Commit messages must follow the format:
+
+```
+<type>(<scope>): <description>
+
+# Examples:
+feat(client): add retry backoff configuration
+fix(sglang): handle empty response from server
+docs: update TITO usage examples
+```
+
+Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+
+## Related Projects
+
+- [strands-vllm](https://github.com/agents-community/strands-vllm) - Community vLLM provider for Strands Agents SDK
+
+## License
+
+Apache License 2.0 - see [LICENSE](LICENSE).
