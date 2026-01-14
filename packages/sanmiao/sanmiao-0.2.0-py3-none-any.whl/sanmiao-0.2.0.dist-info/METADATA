@@ -1,0 +1,141 @@
+Metadata-Version: 2.4
+Name: sanmiao
+Version: 0.2.0
+Summary: A Python package for date conversion to and from Chinese and Japanese historical calendars
+Author-email: Daniel Patrick Morgan <daniel.morgan@college-de-france.fr>
+Project-URL: Homepage, https://github.com/PotatoSinology/sanmiao
+Project-URL: Repository, https://github.com/PotatoSinology/sanmiao.git
+Project-URL: Issues, https://github.com/PotatoSinology/sanmiao/issues
+Keywords: date conversion,Chinese calendar,Japanese calendar,history,history of astronomy,astronomy
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Education
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pandas>=1.3.5
+Requires-Dist: numpy>=1.21.0
+Requires-Dist: lxml>=4.6.0
+Requires-Dist: importlib_resources>=5.0; python_version < "3.9"
+Dynamic: license-file
+
+# Sanmiao
+
+> **Chinese and Japanese historical date conversion in Python**.
+
+Author: Daniel Patrick Morgan (CNRS-CRCAO)
+
+Sanmiao is a Python package for date conversion to and from Chinese and Japanese historical calendars (3rd cent. B.C.–20th cent.) written by a historian of astronomy. 
+
+GitHub: [https://github.com/PotatoSinology/sanmiao](https://github.com/PotatoSinology/sanmiao)
+
+## Installation
+
+The easiest way of installing Sanmiao is using pip:
+
+```sh
+pip install sanmiao
+```
+
+If you prefer Python3, you can use:
+
+```sh
+pip3 install --user sanmiao
+```
+
+If you have Sanmiao already installed, but want to upgrade to the latest version:
+
+```sh
+pip3 install -U sanmiao
+```
+
+## Using Sanmiao
+
+Sanmiao provides a variety of functions for date conversion, which are aggregated in `sanmiao.cjk_date_interpreter()`, which is the back-end for the user-friendly [Sanmiao web app](https://norbert.huma-num.fr/en/sanmiao/index.html). The function `sanmiao.cjk_date_interpreter()` recognises years (e.g., 534), Y-M-D date strings (e.g., -99-3-5, 1532-6-4), Julian Day Numbers (e.g., 1684971.5), and Chinese date strings of differing precision and completeness (e.g., "東漢孝獻皇帝劉協建安十八年二月," "太祖元年," or "三年三月甲申"). These should be separated by commas, semicolons, or line breaks:
+
+```Python
+import sanmiao
+
+user_input = """
+獻帝建安十八年二月, 
+宋太祖三年四月
+1313-12-10, -215-10-14
+415, -181
+"""
+result = sanmiao.cjk_date_interpreter(user_input)
+print(result)
+```
+
+Note that Sanmiao uses the astronomical year, where 1 B.C. = 0, 100 B.C. = -99, etc. The function `sanmiao.cjk_date_interpreter()` has the following parameters and defaults passed to its sub-functions: 
+
+```Python
+result = sanmiao.cjk_date_interpreter(
+    user_input,  # User input, accepts strings
+    lang='en',  # Lanuage, currently accepts 'en' and 'fr'
+    jd_out=False,  # Julian Day Number in output reports (vs ISO date string)
+    pg=False,  # Proleptic Gregorian calendar
+    gs=None,  # Start of Gregorian calendar, defaults to [1582, 10, 15] if None
+    tpq=-3000,  # Terminus post quem
+    taq=3000,  # Terminus ante quem
+    civ=None,  # Civilisation/s, defaults to ['c', 'j', 'k'] if None; set to ['j'] for Japan only
+    sequential=True,  # Intelligently fills missing fields in Sinitic date strings from previous ones
+    proliferate=True  # Finds all candidates for date strings without dynasty, ruler, or era;
+    )
+```
+
+Sanmiao works via XML tagging, and its subcomponents are designed to function independantly of `sanmiao.cjk_date_interpreter()`. The block of functions that handle XML tagging and table extraction are:
+
+```
+# Convert string to XML (if necessary), tag all date elements
+xml_string = tag_date_elements(text, civ=civ)
+
+# Consolidate adjacent date elements
+xml_string = consolidate_date(xml_string)
+
+# Index date nodes
+xml_string = index_date_nodes(xml_string)
+
+# Load calendar tables
+tables = prepare_tables(civ=civ)
+
+# Extract dates using optimized bulk function
+xml_string, output_df, implied = extract_date_table_bulk(
+    xml_string, implied=implied, pg=pg, gs=gs, lang=lang,
+    tpq=tpq, taq=taq, civ=civ, tables=tables, sequential=False, proliferate=proliferate
+)
+```
+
+## Sources
+
+Sanmiao uses historical tables based on those of Zhang Peiyu[^1] and Uchida Masao,[^2] and it is updated to include new archaeological evidence[^3] as well as minor dynasties and reign eras. The tables are based on calculation from contemporary procedure texts (_lifa_ 曆法), eclipses, and recorded dates. I have supplemented these for the moment with tables from the [Buddhist Studies Time Authority Databases](https://authority.dila.edu.tw/time/) for the Sun-Wu, Liu-Shu, Liao, Jin, and Korea.
+
+In future versions, I plan to:
+
+- improve tables and functionalities
+- supply supporting textual evidence to table items and, somehow, outputted reports
+- provide a concorance and critical comparison of the aforementioned tables, textual evidence, and calculations using contemporary procedure texts
+- add Vietnamese tables with the aid of Phạm Vũ Lộc 范武禄
+- add Chinese, Japanese, and Vietnamese translations to outputs and to the web app
+
+[^1]: Zhang Peiyu 張培瑜, _Sanqianwubai nian liri tianxiang_ 三千五百年曆日天象 (Zhengzhou: Daxiang chubanshe, 1997).
+[^2]: Uchida Masao, _Nihon rekijitsu genten_ 日本暦日原典 (Tōkyō : Yūzankaku shuppan , 1975).
+[^3]: E.g., Zhang Peiyu 張培瑜, "Genju xinchu liri jiandu shilun Qin he Han chu de lifa" 根据新出歷日簡牘試論秦和漢初的曆法, _Zhongyuan wenwu_ 中原文物 2007.5: 62–77.
+
+## Contributing
+
+The preferred method to contribute is through forking and pull requests:
+
+1. Fork it (<https://github.com/PotatoSinology/sanmiao/fork>)
+2. Create your feature branch (`git checkout -b feature/fooBar`)
+3. Commit your changes (`git commit -am 'Add some fooBar'`)
+4. Push to the branch (`git push origin feature/fooBar`)
+5. Create a new Pull Request
