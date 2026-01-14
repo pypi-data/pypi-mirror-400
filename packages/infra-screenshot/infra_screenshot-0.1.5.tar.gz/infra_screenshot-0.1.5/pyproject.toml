@@ -1,0 +1,131 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "infra-screenshot"
+version = "0.1.5"
+description = "Generic screenshot capture utilities (models, services, CLI helpers)."
+requires-python = ">=3.11"
+readme = "README.md"
+license = "AGPL-3.0-or-later OR LicenseRef-Proprietary"
+authors = [
+  {name = "Screenshot Package maintainers"}
+]
+maintainers = [
+  {name = "Screenshot Package maintainers"}
+]
+keywords = ["screenshot", "playwright", "selenium", "web-automation", "testing"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed",
+]
+dependencies = ["infra-core>=0.3.0"]
+
+[project.optional-dependencies]
+playwright = ["playwright>=1.44"]
+selenium = ["selenium>=4.17"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+    "mypy>=1.13.0",
+    "ruff>=0.8.0",
+    "pre-commit>=4.0.0",
+    "bump-my-version>=0.26.0",
+    "twine>=5.0",
+]
+experiment = [
+    "numpy>=1.24",
+    "Pillow>=10.0",
+    "PyYAML>=6.0",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["screenshot*"]
+exclude = [".dev_docs*"]
+
+[tool.setuptools.package-data]
+screenshot = ["py.typed", "config/*.yaml", "config/*.json", "docs/*.md", "docs/**/*.md"]
+
+[project.scripts]
+screenshot = "screenshot.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/pj-ms/infra-screenshot"
+Repository = "https://github.com/pj-ms/infra-screenshot"
+Issues = "https://github.com/pj-ms/infra-screenshot/issues"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+exclude = ["tests/"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_any_generics = false
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "playwright.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "selenium.*"
+ignore_missing_imports = true
+
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["screenshot"]
+combine-as-imports = true
+
+[tool.bumpversion]
+current_version = "0.1.5"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+commit = true
+tag = true
+message = "Bump version: {current_version} → {new_version}"
+tag_name = "v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "src/screenshot/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[dependency-groups]
+dev = [
+    "build>=1.3.0",
+]
