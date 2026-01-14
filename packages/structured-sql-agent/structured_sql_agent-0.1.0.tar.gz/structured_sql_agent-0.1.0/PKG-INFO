@@ -1,0 +1,246 @@
+Metadata-Version: 2.2
+Name: structured-sql-agent
+Version: 0.1.0
+Summary: A natural language to SQL query converter powered by LLMs.
+Home-page: https://github.com/yourusername/sql-agent
+Author: SQL-Agent Contributors
+Author-email: sql-agent-team@example.com
+Maintainer: Lead Developer Name
+Maintainer-email: lead@example.com
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Database
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: langchain_community==0.3.27
+Requires-Dist: langchain_core==0.3.74
+Requires-Dist: langchain_openai==0.3.29
+Requires-Dist: langchain_google_genai==2.1.3
+Requires-Dist: langchain_anthropic==0.3.8
+Requires-Dist: langgraph==0.6.4
+Requires-Dist: langsmith==0.4.13
+Requires-Dist: python-dotenv==1.1.1
+Requires-Dist: PyYAML==6.0.2
+Requires-Dist: Requests==2.32.4
+Requires-Dist: snowflake_connector_python==3.12.3
+Requires-Dist: typing_extensions==4.14.1
+Requires-Dist: certifi==2023.7.22
+Requires-Dist: oracledb==2.2.1
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: maintainer
+Dynamic: maintainer-email
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# SQL-Agent
+
+SQL-Agent is a powerful command-line tool that converts natural language questions into SQL queries. It understands your database structure through a simple YAML configuration and securely connects to your database to fetch answers.
+
+## Installation
+
+There are several ways to install the SQL-Agent.
+
+### Option 1: From PyPI (Recommended)
+
+You can install the package directly from PyPI:
+
+```bash
+pip install SQL-Agent
+```
+
+### Option 2: From a Wheel File
+
+If you have a `.whl` file, you can install it directly using pip:
+
+```bash
+pip install /path/to/your/file/sql_agent-0.1.0-py3-none-any.whl
+```
+
+### Option 3: From GitHub
+
+Once the project is hosted on GitHub, you can also install it directly from the repository:
+
+```bash
+pip install git+https://github.com/[your-username]/[your-repo-name].git
+```
+
+## Quick Setup Guide for Wheel Installation
+
+If you installed SQL-Agent from a `.whl` file, follow these steps to get started:
+
+1. **Install the wheel file:**
+   ```bash
+   pip install /path/to/your/file/sql_agent-0.1.0-py3-none-any.whl
+   ```
+
+2. **Create your working directory:**
+   ```bash
+   mkdir my-sql-agent-project
+   cd my-sql-agent-project
+   ```
+
+3. **Create your `config.ini` file in this directory:**
+   ```bash
+   touch config.ini
+   # Edit config.ini and add your database credentials and API keys
+   ```
+
+4. **Create your schema YAML file:**
+   ```bash
+   touch my_schema.yaml
+   # Edit my_schema.yaml and define your database structure
+   # You can reference the sample file included with the package
+   ```
+
+5. **Run the agent:**
+   ```bash
+   sql-agent "Your question here" "my_schema.yaml"
+   ```
+
+## Configuration
+
+Before using the agent, you need to configure your database connections and API keys.
+
+### 1. Create `config.ini`
+
+Create a file named `config.ini` in the directory where you will run the agent. This file will hold your credentials.
+
+**Important for Wheel Installation:**
+When installing from a `.whl` file, you have two options for placing your `config.ini`:
+
+1. **Option 1 (Recommended):** Place `config.ini` in your current working directory where you run the `sql-agent` command.
+2. **Option 2:** Place `config.ini` in the package installation directory:
+   - Find the package location: `python -c "import structured_agent; import os; print(os.path.dirname(structured_agent.__file__))"`
+   - Copy `config.ini` to: `<package-location>/utils/config.ini`
+
+The agent first checks for `config.ini` in your current directory, then falls back to the package's `utils` folder.
+
+### 2. Add Your Configurations
+
+Copy the necessary configuration sections into your `config.ini` and fill in your credentials. Below are some examples.
+
+**For Oracle Database:**
+```ini
+[database_type]
+db_type = oracle
+
+[oracle_dev]
+user = <your_oracle_user>
+password = <your_oracle_password>
+dsn = <your_oracle_dsn>
+```
+
+**For Snowflake:**
+```ini
+[database_type]
+db_type = snowflake
+
+[snowflake_etl_dev]
+user = <your_user>
+password = <your_password>
+account = <your_account>
+warehouse = <your_warehouse>
+database = <your_database>
+schema = <your_schema>
+role = <your_role>
+```
+
+**Model API Keys:**
+The agent uses a language model to understand questions. Configure your model's API keys like this:
+```ini
+[model_4_o_mini_api_conf]
+OAUTH_URL = <your_oauth_url>
+OPENAI_API_BASE = <your_api_base>
+OPENAI_API_VERSION = <your_api_version>
+OPENAI_API_MODEL = <your_model>
+OPENAI_API_TYPE = azure
+```
+
+### 3. Define Your Database Schema
+
+The agent needs a YAML file to understand your database's tables, columns, and relationships.
+
+Create a `.yaml` file (e.g., `my_schema.yaml`) and define your database structure as shown in the example below.
+
+**Example: `school_schema.yaml`**
+```yaml
+db_name: "SchoolDB"
+schema_name: "public"
+app_name: "Library"
+db_type: "snowflake"
+name: 
+description:
+
+tables:
+  - table_name: "authors"
+    columns:
+      - column_name: "author_id"
+        data_type: "INT"
+        is_primary_key: true
+      - column_name: "author_name"
+        data_type: "VARCHAR(100)"
+        description: "Name of the author"
+
+  - table_name: "books"
+    columns:
+      - column_name: "book_id"
+        data_type: "INT"
+        is_primary_key: true
+      - column_name: "title"
+        data_type: "VARCHAR(255)"
+        description: "Title of the book"
+      - column_name: "author_id"
+        data_type: "INT"
+        is_foreign_key: true
+        foreign_key_ref: "authors(author_id)"
+
+foreign_key_relationships:
+  - "books.author_id can be joined with authors.author_id"
+
+verified_queries:
+  - "Total number of books by each author"
+```
+
+**Note on YAML File Location:**
+- Your schema YAML file (e.g., `school_schema.yaml`) can be placed anywhere you prefer.
+- You'll provide the path to this file when running the `sql-agent` command.
+- For convenience, you can place it in your current working directory and reference it by name only.
+- A sample YAML file (`sample_school_library_inventory.yaml`) is included in the package for reference. You can find it at `<package-location>/utils/sample_school_library_inventory.yaml`.
+
+## Usage
+
+Once your `config.ini` and schema YAML file are ready, you can run the agent from your terminal.
+
+The command format is:
+```bash
+sql-agent "Your natural language question" "path/to/your_schema.yaml"
+```
+
+### Example
+
+From the directory containing your `config.ini` and `school_schema.yaml`, run:
+
+```bash
+sql-agent "How many books are there in the library?" "school_schema.yaml"
+```
+
+The agent will process your question, generate the appropriate SQL query, execute it, and return a natural language answer.
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
