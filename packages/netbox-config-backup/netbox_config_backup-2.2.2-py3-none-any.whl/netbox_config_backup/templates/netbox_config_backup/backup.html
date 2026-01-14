@@ -1,0 +1,83 @@
+{% extends 'generic/object.html' %}
+{% load helpers %}
+
+{% block subtitle %}
+  <div class="object-subtitle"></div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+	<div class="col col-md-6">
+        <div class="card">
+            <h5 class="card-header">
+                Backup Attributes
+            </h5>
+            <div class="card-body">
+                <table class="table table-hover">
+                    <tr>
+                        <th scope="row">Name</th>
+                        <td>{{ object.name|placeholder }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">UUID</th>
+                        <td>{{ object.uuid }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Device</th>
+                        {% if object.device %}
+                            <td><a href="{% url 'dcim:device' pk=object.device.pk %}">{{ object.device|placeholder }}</a></td>
+                        {% else %}
+                            <td>{{ object.device|placeholder }}</td>
+                        {% endif %}
+                    </tr>
+                    <tr>
+                        <th scope="row">IP Address</th>
+                        {% if object.ip %}
+                            <td><a href="{% url 'ipam:ipaddress' pk=object.ip.pk %}">{{ object.ip|placeholder }}</a></td>
+                        {% else %}
+                            <td>{{ object.ip|placeholder }}</td>
+                        {% endif %}
+                    </tr>
+                    <tr>
+                        <th scope="row">Description</th>
+                        <td>{{ object.description|placeholder }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        {% include 'inc/panels/comments.html' %}
+	</div>
+
+	<div class="col col-md-6">
+        <div class="card">
+            <h5 class="card-header">
+                Status
+            </h5>
+            <div class="card-body">
+                <table class="table table-hover">
+                    <tr>
+                        <th scope="row">Config Saved</th>
+                        <td>{{ object.config_status | placeholder }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Scheduled</th>
+                        <td>{{ status.scheduled | placeholder }}{% if status.scheduled %} ({{status.next_attempt}}){% endif %}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Last Job</th>
+                        <td>{{ status.last_job.completed | placeholder }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Last Success</th>
+                        <td>{{ status.last_success | placeholder }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Last Change</th>
+                        <td>{{ status.last_change | placeholder }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
