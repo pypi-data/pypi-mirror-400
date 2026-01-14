@@ -1,0 +1,1 @@
+# BSD Comparison Morphism Skill
