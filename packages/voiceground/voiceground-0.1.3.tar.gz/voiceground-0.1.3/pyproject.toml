@@ -1,0 +1,99 @@
+[project]
+name = "voiceground"
+dynamic = ["version"]
+description = "Observability framework for Pipecat voice and multimodal conversational AI"
+readme = "README.md"
+license = "BSD-2-Clause"
+requires-python = ">=3.10"
+keywords = ["pipecat", "voice", "ai", "observability", "conversational-ai", "real-time"]
+authors = [
+    {name = "Or Posener", email = "posener.or@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "pipecat-ai>=0.0.90",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+examples = [
+    "python-dotenv>=1.0",
+    "loguru>=0.7",
+    "aiohttp>=3.9",
+    "pipecat-ai[openai,elevenlabs,silero]>=0.0.90",
+    "pyaudio>=0.2.14",
+]
+
+[project.urls]
+Homepage = "https://github.com/poseneror/voiceground"
+Documentation = "https://github.com/poseneror/voiceground#readme"
+Repository = "https://github.com/poseneror/voiceground"
+Issues = "https://github.com/poseneror/voiceground/issues"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { local_scheme = "no-local-version", tag_regex = "^v(?P<version>[^\\+]+)$" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/voiceground"]
+
+# Code quality tools configuration
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pipecat.*",
+]
+ignore_missing_imports = true

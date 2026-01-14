@@ -1,0 +1,179 @@
+Metadata-Version: 2.4
+Name: voiceground
+Version: 0.1.3
+Summary: Observability framework for Pipecat voice and multimodal conversational AI
+Project-URL: Homepage, https://github.com/poseneror/voiceground
+Project-URL: Documentation, https://github.com/poseneror/voiceground#readme
+Project-URL: Repository, https://github.com/poseneror/voiceground
+Project-URL: Issues, https://github.com/poseneror/voiceground/issues
+Author-email: Or Posener <posener.or@gmail.com>
+License-Expression: BSD-2-Clause
+License-File: LICENSE
+Keywords: ai,conversational-ai,observability,pipecat,real-time,voice
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.10
+Requires-Dist: pipecat-ai>=0.0.90
+Provides-Extra: dev
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: examples
+Requires-Dist: aiohttp>=3.9; extra == 'examples'
+Requires-Dist: loguru>=0.7; extra == 'examples'
+Requires-Dist: pipecat-ai[elevenlabs,openai,silero]>=0.0.90; extra == 'examples'
+Requires-Dist: pyaudio>=0.2.14; extra == 'examples'
+Requires-Dist: python-dotenv>=1.0; extra == 'examples'
+Description-Content-Type: text/markdown
+
+# Voiceground
+
+Observability framework for [Pipecat](https://github.com/pipecat-ai/pipecat) voice and multimodal conversational AI.
+
+## Features
+
+- **VoicegroundObserver**: Track conversation events following Pipecat's Observer pattern
+- **HTMLReporter**: Generate interactive HTML reports with timeline visualization
+
+## Installation
+
+```bash
+pip install voiceground
+```
+
+Or with UV:
+
+```bash
+uv add voiceground
+```
+
+## Quick Start
+
+```python
+import uuid
+from pipecat.pipeline.pipeline import Pipeline
+from pipecat.pipeline.task import PipelineTask
+from voiceground import VoicegroundObserver, HTMLReporter
+
+# Create observer with HTML reporter
+conversation_id = str(uuid.uuid4())
+reporter = HTMLReporter(output_dir="./reports")
+observer = VoicegroundObserver(
+    reporters=[reporter],
+    conversation_id=conversation_id
+)
+
+# Create pipeline task with observer
+task = PipelineTask(
+    pipeline=Pipeline([...]),
+    observers=[observer]
+)
+
+# Run your pipeline
+```
+
+## Tested With
+
+Voiceground has been tested with the following Pipecat providers:
+
+### LLM Providers
+- [x] OpenAI (GPT)
+
+### STT Providers
+- [x] ElevenLabs
+
+### TTS Providers
+- [x] ElevenLabs
+
+## Event Categories
+
+Voiceground tracks the following event categories:
+
+| Category | Types | Description |
+|----------|-------|-------------|
+| `user_speak` | `start`, `end` | User speech events |
+| `bot_speak` | `start`, `end` | Bot speech events |
+| `stt` | `start`, `end` | Speech-to-text processing (includes transcription text) |
+| `llm` | `start`, `first_byte`, `end` | LLM response generation (includes generated text) |
+| `tts` | `start`, `first_byte`, `end` | Text-to-speech synthesis |
+| `tool_call` | `start`, `end` | LLM function/tool calling |
+| `system` | `start`, `end` | System events (e.g., context aggregation) |
+
+## Report Features
+
+The generated HTML reports include:
+
+- **Timeline Visualization**: Interactive timeline showing all events and their relationships
+- **Events Table**: Detailed view of all tracked events with timestamps, sources, and data
+- **Turns Table**: Conversation turns with performance metrics:
+  - Response time
+  - LLM Time to First Byte (TTFB)
+  - TTS latency
+  - STT processing time
+- **Metrics Summary**: Average metrics across the conversation
+- **Event Highlighting**: Hover over events or turns to see related events highlighted
+
+## Examples
+
+See the `examples/` directory for complete working examples:
+
+- **basic_pipeline.py**: Basic voice conversation with STT, LLM, and TTS
+- **tool_calling_pipeline.py**: Example with LLM function calling
+
+To run an example:
+
+```bash
+# Install example dependencies
+uv sync --all-extras
+
+# Set required environment variables
+export OPENAI_API_KEY=your_key
+export ELEVENLABS_API_KEY=your_key
+export VOICE_ID=your_voice_id
+
+# Run the example
+python examples/basic_pipeline.py
+```
+
+**Note**: On macOS, you'll need to install portaudio for audio support:
+```bash
+brew install portaudio
+```
+
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/poseneror/voiceground.git
+cd voiceground
+
+# Install all dependencies (including dev and examples)
+uv sync --all-extras
+
+# Run tests
+uv run pytest
+
+# Run linting
+uv run ruff check .
+
+# Run type checking
+uv run mypy src
+
+# Build the client
+python scripts/develop.py build
+
+# Run example (requires portaudio on macOS: brew install portaudio)
+python scripts/develop.py example
+```
+
+## License
+
+BSD-2-Clause License - see [LICENSE](LICENSE) for details.
+
