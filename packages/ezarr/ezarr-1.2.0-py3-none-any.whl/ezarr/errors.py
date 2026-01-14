@@ -1,0 +1,2 @@
+class InplaceCastingError(Exception):
+    pass
