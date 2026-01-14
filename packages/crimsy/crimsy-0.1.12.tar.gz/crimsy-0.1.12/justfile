@@ -1,0 +1,46 @@
+mod run 'tasks/run.just'
+
+[private]
+default:
+    @just --list
+
+[doc("Install dependencies")]
+install:
+    @echo "Installing dependencies"
+    uv lock --upgrade --link-mode=copy
+    uv sync --frozen --link-mode=copy --all-extras
+    uv run pre-commit install --overwrite --install-hooks
+
+
+[doc("Lint the project files")]
+lint:
+    uv run ruff format
+    uv run ruff check --fix
+    uv run mypy .
+
+[doc("Check the project files")]
+check:
+    uv run ruff format --check
+    uv run ruff check
+    uv run mypy .
+
+[doc("Run pytest with arguments")]
+test *args:
+    uv run pytest {{ args }}
+
+[doc("Update the git repository")]
+pull:
+    git fetch --prune
+    git pull
+
+publish:
+    rm -rf dist
+    uv build
+    uv publish --token $PYPI_TOKEN
+
+
+
+
+
+
+
