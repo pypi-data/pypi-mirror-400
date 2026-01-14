@@ -1,0 +1,410 @@
+[project]
+name = "infrahub-sdk"
+version = "1.18.0"
+description = "Python Client to interact with Infrahub"
+authors = [
+    {name = "OpsMill", email = "info@opsmill.com"}
+]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10,<3.15"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "pydantic>=2.0.0,!=2.0.1,!=2.1.0,<3.0.0",
+    "pydantic-settings>=2.0",
+    "graphql-core>=3.1,<3.3",
+    "httpx>=0.20",
+    "ujson>=5",
+    "dulwich>=0.21.4",
+    "whenever>=0.9.3,<0.10.0",
+    "netutils>=1.0.0",
+    "tomli>=1.1.0; python_version<'3.11'",
+]
+
+[project.urls]
+Homepage = "https://opsmill.com"
+Repository = "https://github.com/opsmill/infrahub-sdk-python"
+Documentation = "https://docs.infrahub.app/python-sdk/introduction"
+
+[project.scripts]
+infrahubctl = "infrahub_sdk.ctl.cli:app"
+
+[project.entry-points."pytest11"]
+"pytest-infrahub" = "infrahub_sdk.pytest_plugin.plugin"
+
+[project.optional-dependencies]
+ctl = [
+    "Jinja2>=3",
+    "numpy>=1.24.2; python_version<'3.12'",
+    "numpy>=1.26.2; python_version>='3.12'",
+    "pyarrow>=14",
+    "pyyaml>=6",
+    "rich>=12,<14",
+    "typer>=0.12.5",
+    "click==8.1.*",
+    "ariadne-codegen==0.15.3",
+]
+
+all = [
+    "Jinja2>=3",
+    "numpy>=1.24.2; python_version<'3.12'",
+    "numpy>=1.26.2; python_version>='3.12'",
+    "pyarrow>=14",
+    "pytest",
+    "pyyaml>=6",
+    "rich>=12,<14",
+    "typer>=0.12.5",
+    "click==8.1.*",
+    "ariadne-codegen==0.15.3",
+]
+
+[dependency-groups]
+# Core optional dependencies
+tests = [
+    "infrahub-testcontainers>=1.5.1",
+    "pytest>=9.0,<9.1",
+    "pytest-asyncio>=1.3,<1.4",
+    "pytest-clarity>=1.0.1",
+    "pytest-cov>=4.0.0",
+    "pytest-httpx>=0.30",
+    "pytest-xdist>=3.3.1",
+]
+lint = [
+    "yamllint",
+    "mypy==1.11.2",
+    "ruff==0.14.10",
+    "astroid>=3.1,<4.0",
+    "ty==0.0.8",
+]
+types = [
+    "types-ujson",
+    "types-pyyaml",
+    "types-python-slugify>=8.0.0.3",
+]
+dev = [
+    {include-group = "tests"},
+    {include-group = "lint"},
+    {include-group = "types"},
+    "ipython",
+    "requests",
+    "pre-commit>=2.20.0",
+    "codecov",
+    "invoke>=2.2.0",
+    "towncrier>=24.8.0",
+]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = ["if TYPE_CHECKING:", "raise NotImplementedError()"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore:Module already imported so cannot be rewritten",
+    "ignore:Deprecated call to",
+]
+addopts = "-vs --cov-report term-missing --cov-report xml --dist loadscope"
+
+[tool.ty]
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[[tool.ty.overrides]]
+include = ["infrahub_sdk/**"]
+
+[tool.ty.overrides.rules]
+##################################################################################################
+# The ignored rules below should be removed once the code has been updated, they are included    #
+# like this so that we can reactivate them one by one.                                           #
+##################################################################################################
+invalid-argument-type = "ignore"
+invalid-assignment = "ignore"
+invalid-await = "ignore"
+invalid-type-form = "ignore"
+no-matching-overload = "ignore"
+unresolved-attribute = "ignore"
+
+[[tool.ty.overrides]]
+include = ["infrahub_sdk/ctl/config.py"]
+
+[tool.ty.overrides.rules]
+unresolved-import = "ignore" # import tomli as tomllib when running on later versions of Python
+
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+##################################################################################################
+# The ignored rules below should be removed once the code has been updated, they are included    #
+# like this so that we can reactivate them one by one.                                           #
+##################################################################################################
+invalid-argument-type = "ignore"
+invalid-assignment = "ignore"
+invalid-method-override = "ignore"
+no-matching-overload = "ignore"
+not-subscriptable = "ignore"
+not-iterable = "ignore"
+possibly-missing-attribute = "ignore"
+unresolved-attribute = "ignore"
+
+
+[[tool.ty.overrides]]
+include = ["docs/**"]
+
+[tool.ty.overrides.rules]
+##################################################################################################
+# The ignored rules below should be removed once the code has been updated, they are included    #
+# like this so that we can reactivate them one by one.                                           #
+##################################################################################################
+invalid-assignment = "ignore"
+
+
+[tool.mypy]
+pretty = true
+ignore_missing_imports = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "infrahub_sdk.ctl.check"
+disable_error_code = ["call-overload"]
+
+[[tool.mypy.overrides]]
+module = "infrahub_sdk.utils"
+disable_error_code = ["arg-type", "attr-defined", "return-value", "union-attr"]
+
+[tool.ruff]
+line-length = 120
+
+exclude = [
+    ".git",
+    ".tox",
+    ".venv",
+    "env",
+    "_build",
+    "build",
+    "dist",
+    "examples",
+    "tests/fixtures/unit/test_graphql_plugin",
+]
+
+
+[tool.ruff.lint]
+preview = true
+
+task-tags = ["FIXME", "TODO", "XXX"]
+
+select = ["ALL"]
+
+ignore = [
+    "D",      # pydocstyle
+    "DOC",    # pydoclint
+    "CPY",    # flake8-copyright
+    "T201",   # use of `print`
+    "COM812", # missing-trailing-comma
+
+    ##################################################################################################
+    # Rules below needs to be Investigated                                                           #
+    ##################################################################################################
+    "PT",     # flake8-pytest-style
+    "ERA",    # eradicate commented-out code
+    "SLF001", # flake8-self
+    "EM",     # flake8-errmsg
+    "TRY",    # tryceratops
+    "TD",     # flake8-todos
+    "FIX",    # flake8-fixme
+    "TID",    # flake8-tidy-imports
+    "FBT",    # flake8-boolean-trap
+    "G",      # flake8-logging-format
+    "RSE",    # flake8-raise
+    "BLE",    # flake8-blind-except (BLE)
+
+    ##################################################################################################
+    # The ignored rules below should be removed once the code has been updated, they are included    #
+    # like this so that we can reactivate them one by one. Alternatively ignored after further       #
+    # investigation if they are deemed to not make sense.                                            #
+    ##################################################################################################
+    "B008",    # Do not perform function call `typer.Option` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+    "B904",    # Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+    "FURB110", # Replace ternary `if` expression with `or` operator
+    "FURB113", # Use `lines.extend((" " * self.indentation + "}", "}"))` instead of repeatedly calling `lines.append()`
+    "INP001",  # File declares a package, but is nested under an implicit namespace package.
+    "N802",    # Function name should be lowercase
+    "N806",    # Variable in function should be lowercase
+    "PERF203", # `try`-`except` within a loop incurs performance overhead
+    "PERF401", # Use a list comprehension to create a transformed list
+    "PLC0206", # Extracting value from dictionary without calling `.items()`
+    "PLR0912", # Too many branches
+    "PLR0913", # Too many arguments in function definition
+    "PLR0917", # Too many positional arguments
+    "PLR2004", # Magic value used in comparison
+    "PLR6301", # Method could be a function, class method, or static method
+    "PLW0603", # Using the global statement to update `SETTINGS` is discouraged
+    "PLW1641", # Object does not implement `__hash__` method
+    "RUF005",  # Consider `[*path, str(key)]` instead of concatenation
+    "RUF029",  # Function is declared `async`, but doesn't `await` or use `async` features.
+    "S311",    # Standard pseudo-random generators are not suitable for cryptographic purposes
+    "S701",    # By default, jinja2 sets `autoescape` to `False`. Consider using `autoescape=True`
+    "SIM102",  # Use a single `if` statement instead of nested `if` statements
+    "SIM105",  # Use `contextlib.suppress(KeyError)` instead of `try`-`except`-`pass`
+    "SIM108",  # Use ternary operator `key_str = f"{value[ALIAS_KEY]}: {key}" if ALIAS_KEY in value and value[ALIAS_KEY] else key` instead of `if`-`else`-block
+    "SIM110",  # Use `return any(getattr(item, resource_field) == resource_id for item in getattr(self, RESOURCE_MAP[resource_type]))` instead of `for` loop
+    "SIM114",  # Combine `if` branches using logical `or` operator
+    "TC003",   # Move standard library import `collections.abc.Iterable` into a type-checking block
+    "UP031",   # Use format specifiers instead of percent format
+]
+
+
+#https://docs.astral.sh/ruff/formatter/black/
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+
+[tool.ruff.lint.flake8-builtins]
+ignorelist = [
+    "id",
+    # Review and update builtin shadowing below this line
+    "filter",
+    "format",
+    "list",
+    "property",
+]
+
+
+[tool.ruff.lint.isort]
+known-first-party = ["infrahub_sdk", "infrahub_ctl"]
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 150
+
+[tool.ruff.lint.mccabe]
+# Target max-complexity=10
+max-complexity = 17
+
+[tool.ruff.lint.per-file-ignores]
+
+"infrahub_sdk/**/*.py" = [
+    ##################################################################################################
+    # Review and change the below later                                                              #
+    ##################################################################################################
+    "ANN202",   # Missing return type annotation for private function
+    "ANN401",   # Dynamically typed expressions (typing.Any) are disallowed
+    "ASYNC240", # Async functions should not use pathlib.Path methods, use trio.Path or anyio.path
+]
+
+"infrahub_sdk/client.py" = [
+    ##################################################################################################
+    # Review and change the below later                                                              #
+    ##################################################################################################
+    "PLR0904", # Too many public methods
+]
+
+"infrahub_sdk/pytest_plugin/models.py" = [
+    "S105", # 'PASS' is not a password but a state
+]
+
+"tests/**/*.py" = [
+    "PLR2004", # Magic value used in comparison
+    "S101",    # Use of assert detected
+    "S105",    # Possible hardcoded password assigned to variable
+    "S106",    # Possible hardcoded password assigned to argument
+    "ARG001",  # Unused function argument
+    "ARG002",  # Unused method argument
+]
+
+##################################################################################################
+# ANN001 ignores - broken down for incremental cleanup                                           #
+# Remove each section as type annotations are added to that directory                            #
+##################################################################################################
+
+# tests/unit/sdk/ - 478 errors total
+"tests/unit/sdk/test_node.py" = ["ANN001"]              # 206 errors
+"tests/unit/sdk/test_client.py" = ["ANN001"]            # 85 errors
+"tests/unit/sdk/test_schema.py" = ["ANN001"]            # 36 errors
+"tests/unit/sdk/test_artifact.py" = ["ANN001"]          # 27 errors
+"tests/unit/sdk/test_hierarchical_nodes.py" = ["ANN001"] # 26 errors
+"tests/unit/sdk/test_task.py" = ["ANN001"]              # 21 errors
+"tests/unit/sdk/test_store.py" = ["ANN001"]             # 12 errors
+"tests/unit/sdk/spec/test_object.py" = ["ANN001"]       # 11 errors
+"tests/unit/sdk/conftest.py" = ["ANN001"]               # 11 errors
+"tests/unit/sdk/test_diff_summary.py" = ["ANN001"]      # 9 errors
+"tests/unit/sdk/test_object_store.py" = ["ANN001"]      # 7 errors
+"tests/unit/sdk/graphql/test_query.py" = ["ANN001"]     # 7 errors
+
+# tests/integration/
+"tests/integration/test_infrahub_client.py" = ["PLR0904"]
+"tests/integration/test_infrahub_client_sync.py" = ["PLR0904"]
+
+"tasks.py" = [
+    "PLC0415", # `import` should be at the top-level of a file
+]
+
+[tool.towncrier]
+
+package = "infrahub_sdk"
+directory = "changelog"
+filename = "CHANGELOG.md"
+start_string = "<!-- towncrier release notes start -->\n"
+underlines = ["", "", ""]
+title_format = "## [{version}](https://github.com/opsmill/infrahub-sdk-python/tree/v{version}) - {project_date}"
+issue_format = "[#{issue}](https://github.com/opsmill/infrahub-sdk-python/issues/{issue})"
+orphan_prefix = "+"
+template = "changelog/towncrier.md.template"
+
+[[tool.towncrier.type]]
+directory = "security"
+name = "Security"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "housekeeping"
+name = "Housekeeping"
+showcontent = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["infrahub_sdk"]
