@@ -1,0 +1,149 @@
+[build-system]
+requires = ["scikit-build-core>=0.11", "pybind11>=3.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "qualpal"
+version = "1.0.0"
+license = "MIT"
+license-files = ["LICENSE"]
+description = "Automatically generate qualitative color palettes with distinct colors"
+readme = "README.md"
+maintainers = [{ name = "Johan Larsson", email = "johan@jolars.co" }]
+authors = [{ name = "Johan Larsson", email = "johan@jolars.co" }]
+keywords = ["color", "palette", "qualitative", "visualization", "data-science"]
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+[project.urls]
+homepage = "https://github.com/jolars/qualpal-py"
+repository = "https://github.com/jolars/qualpal-py"
+documentation = "https://jolars.github.io/qualpal-py/"
+changelog = "https://github.com/jolars/qualpal-py/blob/main/CHANGELOG.md"
+tracker = "https://github.com/jolars/qualpal-py/issues"
+
+[project.optional-dependencies]
+viz = ["matplotlib>=3.5"]
+
+[dependency-groups]
+viz = ["matplotlib>=3.5"]
+test = ["pytest", "sphinx"]
+docs = ["sphinx", "furo", "sphinx-copybutton", "myst-parser", "myst-nb"]
+dev = [
+    { include-group = "test" },
+    { include-group = "docs" },
+    { include-group = "viz" },
+    "basedpyright>=1.0.0",
+    "typing-extensions>=4.0.0",
+]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir = "build/{wheel_tag}"
+wheel.expand-macos-universal-tags = true
+sdist.exclude = [".github", ".pre-commit-config.yaml"]
+
+[tool.scikit-build.cmake.define]
+CMAKE_CXX_STANDARD = "17"
+CMAKE_CXX_STANDARD_REQUIRED = "ON"
+CMAKE_EXPORT_COMPILE_COMMANDS = "ON"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
+log_level = "INFO"
+filterwarnings = ["error", "ignore::pytest.PytestCacheWarning"]
+testpaths = ["tests"]
+
+[tool.cibuildwheel]
+build-frontend = "build[uv]"
+enable = ["pypy"]
+test-command = "python -m pytest tests"
+test-sources = ["pyproject.toml", "tests"]
+test-groups = ["test"]
+
+[tool.cibuildwheel.pyodide]
+build-frontend = { name = "build", args = ["--exports", "whole_archive"] }
+
+[tool.cibuildwheel.ios]
+build-frontend = "build"
+xbuild-tools = ["cmake", "ninja"]
+
+[tool.cibuildwheel.android]
+build-frontend = "build"
+environment.ANDROID_API_LEVEL = "24"
+
+[tool.ruff.lint]
+extend-select = [
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "ARG", # flake8-unused-arguments
+    "C4",  # flake8-comprehensions
+    "EM",  # flake8-errmsg
+    "ICN", # flake8-import-conventions
+    "G",   # flake8-logging-format
+    "PGH", # pygrep-hooks
+    "PIE", # flake8-pie
+    "PL",  # pylint
+    "PT",  # flake8-pytest-style
+    "PTH", # flake8-use-pathlib
+    "RET", # flake8-return
+    "RUF", # Ruff-specific
+    "SIM", # flake8-simplify
+    "T20", # flake8-print
+    "UP",  # pyupgrade
+    "YTT", # flake8-2020
+    "EXE", # flake8-executable
+    "NPY", # NumPy specific rules
+    "PD",  # pandas-vet
+]
+ignore = [
+    "PLR09",   # Too many X
+    "PLR2004", # Magic comparison
+    "E741",    # ambiguous variable names, e.g. l, O, I
+]
+isort.required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"docs/**" = [
+    "T20",
+    "PTH",
+    "EM",
+] # Allow print, os.path, and direct string exceptions in docs
+"tests/**" = [
+    "PLC0415",
+    "PT012",
+    "PTH",
+    "EM",
+] # Allow imports in functions, pytest style, os.path, string exceptions in tests
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.9"
+pythonPlatform = "All"
+include = ["qualpal", "tests"]
+exclude = ["build", "dist", ".venv", "**/__pycache__"]
+reportMissingTypeStubs = false                         # Third-party libraries may not have stubs
