@@ -1,0 +1,2 @@
+import{d as l,v as n,g as s,c as u,o as m,h as a,i as t,m as o,da as p,db as c}from"./index-B8dvxl4J.js";import{u as _}from"./usePageTitle-BP6ee6do.js";const C=l({__name:"WorkPoolQueueCreate",setup(d){const e=n("workPoolName");return _("Create Work Pool Queue"),(k,f)=>{const r=s("p-layout-default");return m(),u(r,null,{header:a(()=>[t(o(c),{"work-pool-name":o(e)},null,8,["work-pool-name"])]),default:a(()=>[t(o(p),{"work-pool-name":o(e)},null,8,["work-pool-name"])]),_:1})}}});export{C as default};
+//# sourceMappingURL=WorkPoolQueueCreate-ClDT-qWd.js.map
