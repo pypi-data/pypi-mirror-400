@@ -1,0 +1,97 @@
+[build-system]
+requires = ["maturin>=1.10,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "diverse_seq"
+authors = [{ name = "Gavin Huttley", email = "Gavin.Huttley@anu.edu.au" }]
+keywords = [
+    "biology",
+    "genomics",
+    "statistics",
+    "phylogeny",
+    "evolution",
+    "bioinformatics",
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "attrs",
+    "click",
+    "cogent3>=2026.1.6a1",
+    "numpy",
+    "rich",
+    "scitrack",
+    "scikit-learn",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+# the following are inferred from the source code
+dynamic = ["version", "description"]
+
+[project.urls]
+Documentation = "https://diverse-seq.readthedocs.io/"
+"Bug Tracker" = "https://github.com/HuttleyLab/DiverseSeq/issues"
+"Source Code" = "https://github.com/HuttleyLab/DiverseSeq/"
+
+[tool.maturin]
+# This feature is required for the "extending" pattern
+features = ["pyo3/extension-module"]
+module-name = "diverse_seq._dvs"
+
+[project.optional-dependencies]
+test = ["nox", "pytest", "pytest-cov", "maturin"]
+doc = [
+    "diverse_seq[extra]",
+    "mkdocs>=1.6.1",
+    "markdown-exec[ansi]>=1.10.0",
+    "mkdocs-jupyter>=0.25.1",
+    "markdown>=3.7",
+    "numpydoc",
+]
+dev = [
+    "cogapp",
+    "docformatter",
+    "flit",
+    "ruff==0.14.10",
+    "diverse_seq[test]",
+    "diverse_seq[doc]",
+]
+extra = [
+    "cogent3[extra]",
+    "ipykernel",
+    "ipython",
+    "ipywidgets",
+    "jupyter_client",
+    "jupyterlab",
+    "jupytext",
+    "kaleido",
+    "nbconvert>5.4",
+    "nbformat",
+    "plotly",
+]
+
+[project.scripts]
+dvs = "diverse_seq.cli:main"
+
+[project.entry-points."cogent3.app"]
+dvs_nmost = "diverse_seq.records:dvs_nmost"
+dvs_max = "diverse_seq.records:dvs_max"
+dvs_delta_jsd = "diverse_seq.records:dvs_delta_jsd"
+dvs_ctree = "diverse_seq.cluster:dvs_ctree"
+dvs_par_ctree = "diverse_seq.cluster:dvs_par_ctree"
+
+[tool.pytest.ini_options]
+addopts = ["--strict-config", "-ra"]
+testpaths = "tests"

@@ -1,0 +1,41 @@
+name: "Test against Cogent3 develop branch"
+
+on:
+    schedule:
+      - cron: '0 21 * * *' # 7am AEST
+    workflow_dispatch:  # support for manual triggering
+
+jobs:
+  cogent3-dev:
+    name: "cogent3-dev"
+    runs-on: ubuntu-latest
+    if: github.repository == 'HuttleyLab/DiverseSeq'
+
+    steps:
+      - uses: "actions/checkout@v6"
+        with:
+          fetch-depth: 0
+
+      - uses: "actions/setup-python@v6"
+        with:
+            python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+            enable-cache: true
+
+      - name: Install the cogent3 dev branch
+        run: |
+          uv venv venv -p python${{ matrix.python-version }}
+          uv pip install -p ./venv/bin/python "cogent3 @ git+https://github.com/cogent3/cogent3.git@develop"
+
+      - name: Install the project
+        run: |
+          uv pip install -p ./venv/bin/python ".[test]"
+          uv pip list -p ./venv/bin/python
+
+      - name: Run tests
+        run: |
+          source venv/bin/activate
+          pytest tests

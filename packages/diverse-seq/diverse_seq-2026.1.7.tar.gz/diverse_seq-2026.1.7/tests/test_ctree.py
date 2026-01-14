@@ -1,0 +1,74 @@
+# pylint: disable=not-callable
+import pytest
+from cogent3 import make_tree
+from cogent3.core.alignment import SequenceCollection
+
+from diverse_seq.cluster import dvs_ctree, dvs_par_ctree
+
+
+def check_ctree_app(app: dvs_ctree | dvs_par_ctree, seqs: SequenceCollection) -> None:
+    tree = app(seqs.take_seqs(["Human", "Chimpanzee", "Rhesus", "Horse"]))
+    print(tree)
+    expected = make_tree("(((Human, Chimpanzee), Rhesus), Horse);")
+    assert tree.same_topology(expected)
+
+    tree = app(seqs.take_seqs(["Human", "Chimpanzee", "Manatee", "Dugong"]))
+    expected = make_tree("((Human, Chimpanzee), (Manatee, Dugong));")
+    assert tree.same_topology(expected)
+
+    tree = app(seqs.take_seqs(["Human", "Chimpanzee", "Manatee", "Dugong", "Rhesus"]))
+    expected = make_tree("(((Human, Chimpanzee), Rhesus), (Manatee, Dugong));")
+    assert tree.same_topology(expected)
+
+
+@pytest.mark.parametrize("sketch_size", [400, 4e9])
+def test_ctree_mash(unaligned_seqs: SequenceCollection, sketch_size: int) -> None:
+    app = dvs_ctree(k=16, sketch_size=sketch_size, distance_mode="mash")
+    check_ctree_app(app, unaligned_seqs)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"mash_canonical_kmers": True, "moltype": "protein"},
+        {"distance_mode": "nope"},
+        {"distance_mode": "mash", "sketch_size": None},
+    ],
+)
+def test_ctree_invalid(kwargs) -> None:
+    with pytest.raises(ValueError):
+        dvs_ctree(k=16, **kwargs)
+
+
+def test_ctree_euclidean(unaligned_seqs: SequenceCollection) -> None:
+    app = dvs_ctree(k=5, distance_mode="euclidean")
+    check_ctree_app(app, unaligned_seqs)
+
+
+@pytest.mark.parametrize("max_workers", [1, 4])
+def test_ctree_mash_parallel(
+    unaligned_seqs: SequenceCollection,
+    max_workers: int,
+) -> None:
+    app = dvs_par_ctree(
+        k=16,
+        sketch_size=400,
+        max_workers=max_workers,
+        parallel=True,
+        distance_mode="mash",
+    )
+    check_ctree_app(app, unaligned_seqs)
+
+
+@pytest.mark.parametrize("max_workers", [1, 4])
+def test_ctree_euclidean_parallel(
+    unaligned_seqs: SequenceCollection,
+    max_workers: int,
+) -> None:
+    app = dvs_par_ctree(
+        k=5,
+        max_workers=max_workers,
+        parallel=True,
+        distance_mode="euclidean",
+    )
+    check_ctree_app(app, unaligned_seqs)
