@@ -1,0 +1,111 @@
+Metadata-Version: 2.4
+Name: k3awssign
+Version: 0.1.3
+Summary: A python lib for adding AWS signature version 4 to requests
+Author-email: Zhang Yanpo <drdr.xp@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/pykit3/k3awssign
+Project-URL: Documentation, https://k3awssign.readthedocs.io
+Keywords: python,aws,signature,authentication
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: k3ut<0.2,>=0.1.15
+Requires-Dist: k3http<0.2,>=0.1.0
+Requires-Dist: k3httpmultipart<0.2,>=0.1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: coverage; extra == "dev"
+Provides-Extra: publish
+Requires-Dist: build; extra == "publish"
+Requires-Dist: twine; extra == "publish"
+Requires-Dist: pk3; extra == "publish"
+Provides-Extra: docs
+Requires-Dist: mkdocs>=1.5; extra == "docs"
+Requires-Dist: mkdocs-material>=9.0; extra == "docs"
+Requires-Dist: mkdocstrings[python]>=0.24; extra == "docs"
+Dynamic: license-file
+
+# k3awssign
+
+[![Action-CI](https://github.com/pykit3/k3awssign/actions/workflows/python-package.yml/badge.svg)](https://github.com/pykit3/k3awssign/actions/workflows/python-package.yml)
+[![Documentation Status](https://readthedocs.org/projects/k3awssign/badge/?version=stable)](https://k3awssign.readthedocs.io/en/stable/?badge=stable)
+[![Package](https://img.shields.io/pypi/pyversions/k3awssign)](https://pypi.org/project/k3awssign)
+
+A python lib is used for adding aws version 4 signature to request.
+
+k3awssign is a component of [pykit3] project: a python3 toolkit set.
+
+
+This lib is used to sign a request using aws signature version 4. You
+need to provide a python dict which represent your request(it typically
+contains `verb`, `uri`, `args`, `headers`, `body`), and your access key
+and your secret key. This lib will add signature to the request.
+
+
+
+# Install
+
+```
+pip install k3awssign
+```
+
+# Synopsis
+
+```python
+
+import k3awssign
+import httplib
+
+access_key = 'your access key'
+secret_key = 'your secret key'
+
+signer = k3awssign.Signer(access_key, secret_key)
+
+file_content = 'bla bla'
+request = {
+    'verb': 'PUT',
+    'uri': '/test-bucket/test-key',
+    'args': {
+        'foo2': 'bar2',
+        'foo1': True,
+        'foo3': ['bar3', True],
+    },
+    'headers': {
+        'Host': 'bscstorage.com',
+        'Content-Length': len(file_content),
+    },
+    'body': file_content,
+}
+
+signer.add_auth(request, sign_payload=True)
+
+conn = httplib.HTTPConnection('ss.bscstorage.com')
+conn.request(request['verb'], request['uri'],
+             request['body'], request['headers'])
+resp = conn.getresponse()
+
+```
+
+#   Author
+
+Zhang Yanpo (张炎泼) <drdr.xp@gmail.com>
+
+#   Copyright and License
+
+The MIT License (MIT)
+
+Copyright (c) 2015 Zhang Yanpo (张炎泼) <drdr.xp@gmail.com>
+
+
+[pykit3]: https://github.com/pykit3
