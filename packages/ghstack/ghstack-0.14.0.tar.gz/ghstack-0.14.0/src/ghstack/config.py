@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+
+import configparser
+import getpass
+import logging
+import os
+import re
+import shutil
+import subprocess
+from pathlib import Path
+from typing import NamedTuple, Optional, Tuple
+
+import requests
+
+import ghstack.logs
+
+DEFAULT_GHSTACKRC_PATH = Path.home() / ".ghstackrc"
+GHSTACKRC_PATH_VAR = "GHSTACKRC_PATH"
+
+
+def is_gh_cli_available() -> bool:
+    """Check if the GitHub CLI (gh) is available in PATH."""
+    return shutil.which("gh") is not None
+
+
+def get_gh_cli_credentials(
+    github_url: str = "github.com",
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Extract credentials from the GitHub CLI if available and authenticated.
+
+    Args:
+        github_url: The GitHub host to get credentials for.
+
+    Returns:
+        A tuple of (token, username, url) or (None, None, None) if unavailable.
+    """
+    if not is_gh_cli_available():
+        return None, None, None
+
+    try:
+        # Check if gh is authenticated for this host
+        auth_status = subprocess.run(
+            ["gh", "auth", "status", "-h", github_url],
+            capture_output=True,
+            text=True,
+        )
+        if auth_status.returncode != 0:
+            logging.debug(f"gh CLI not authenticated for {github_url}")
+            return None, None, None
+
+        # Get the token
+        token_result = subprocess.run(
+            ["gh", "auth", "token", "-h", github_url],
+            capture_output=True,
+            text=True,
+        )
+        if token_result.returncode != 0:
+            logging.debug("Failed to get token from gh CLI")
+            return None, None, None
+        token = token_result.stdout.strip()
+        if not token:
+            return None, None, None
+
+        # Get the username using gh api
+        username_result = subprocess.run(
+            ["gh", "api", "user", "-q", ".login", "--hostname", github_url],
+            capture_output=True,
+            text=True,
+        )
+        username = None
+        if username_result.returncode == 0:
+            username = username_result.stdout.strip()
+
+        logging.debug(
+            f"Successfully retrieved credentials from gh CLI for {github_url}"
+        )
+        return token, username, github_url
+
+    except Exception as e:
+        logging.debug(f"Error getting credentials from gh CLI: {e}")
+        return None, None, None
+
+
+Config = NamedTuple(
+    "Config",
+    [
+        # Proxy to use when making connections to GitHub
+        ("proxy", Optional[str]),
+        # OAuth token to authenticate to GitHub with
+        ("github_oauth", Optional[str]),
+        # GitHub username; used to namespace branches we create
+        ("github_username", str),
+        # Token to authenticate to CircleCI with
+        ("circle_token", Optional[str]),
+        # These config parameters are not used by ghstack, but other
+        # tools that reuse this module
+        # Path to working fbsource checkout
+        ("fbsource_path", str),
+        # Path to working git checkout (ghstack infers your git checkout
+        # based on CWD)
+        ("github_path", str),
+        # Path to project directory inside fbsource, to default when
+        # autodetection fails
+        ("default_project_dir", str),
+        # GitHub url. Defaults to github.com which is true for all non-enterprise github repos
+        ("github_url", str),
+        # Name of the upstream remote
+        ("remote_name", str),
+        # Default reviewers to add to new pull requests (comma-separated usernames)
+        ("reviewer", Optional[str]),
+        # Default labels to add to new pull requests (comma-separated labels)
+        ("label", Optional[str]),
+    ],
+)
+
+
+def get_path_from_env_var(var_name: str) -> Optional[Path]:
+    if (path := os.environ.get(var_name)) is not None:
+        return Path(path).expanduser().resolve()
+    return None
+
+
+def read_config(
+    *,
+    request_circle_token: bool = False,
+    request_github_token: bool = True,
+) -> Config:  # noqa: C901
+    config = configparser.ConfigParser()
+
+    config_path = None
+    current_dir = Path(os.getcwd())
+
+    while current_dir != current_dir.parent:
+        tentative_config_path = "/".join([str(current_dir), ".ghstackrc"])
+        if os.path.exists(tentative_config_path):
+            config_path = tentative_config_path
+            break
+        current_dir = current_dir.parent
+
+    write_back = False
+    if config_path is None:
+        config_path = str(
+            get_path_from_env_var(GHSTACKRC_PATH_VAR) or DEFAULT_GHSTACKRC_PATH
+        )
+        write_back = True
+
+    logging.debug(f"config_path = {config_path}")
+    config.read([".ghstackrc", config_path])
+
+    if not config.has_section("ghstack"):
+        config.add_section("ghstack")
+        write_back = True
+
+    if config.has_option("ghstack", "github_url"):
+        github_url = config.get("ghstack", "github_url")
+    else:
+        github_url = input("GitHub enterprise domain (leave blank for OSS GitHub): ")
+        if not github_url:
+            github_url = "github.com"
+        if not re.match(r"[\w\.-]+\.\w+$", github_url):
+            raise RuntimeError(
+                f"{github_url} is not a valid domain name (do not include http:// scheme)"
+            )
+        config.set("ghstack", "github_url", github_url)
+        write_back = True
+
+    # Environment variable overrides config file
+    # This envvar is legacy from ghexport days
+    github_oauth = os.getenv("OAUTH_TOKEN")
+    gh_cli_username = None  # Track username from gh CLI
+    if github_oauth is not None:
+        logging.warning(
+            "Deprecated OAUTH_TOKEN environment variable used to populate github_oauth--"
+            "this is probably not what you intended; unset OAUTH_TOKEN from your "
+            "environment to use the setting in .ghstackrc instead."
+        )
+    if github_oauth is None and config.has_option("ghstack", "github_oauth"):
+        github_oauth = config.get("ghstack", "github_oauth")
+
+    # Try GitHub CLI if available and no token found yet
+    if github_oauth is None and request_github_token:
+        gh_token, gh_username, _ = get_gh_cli_credentials(github_url)
+        if gh_token is not None:
+            print(f"Using GitHub credentials from gh CLI for {github_url}")
+            github_oauth = gh_token
+            gh_cli_username = gh_username
+            # Don't save gh CLI credentials to config - they may change/expire
+
+    # Fall back to device flow if still no token
+    if github_oauth is None and request_github_token:
+        print("Generating GitHub access token...")
+        CLIENT_ID = "89cc88ca50efbe86907a"
+        res = requests.post(
+            f"https://{github_url}/login/device/code",
+            headers={"Accept": "application/json"},
+            data={"client_id": CLIENT_ID, "scope": "repo"},
+        )
+        data = res.json()
+        print(f"User verification code: {data['user_code']}")
+        print("Go to https://github.com/login/device and enter the code.")
+        print("Once you've authorized ghstack, press any key to continue...")
+        input()
+
+        res = requests.post(
+            f"https://{github_url}/login/oauth/access_token",
+            headers={"Accept": "application/json"},
+            data={
+                "client_id": CLIENT_ID,
+                "device_code": data["device_code"],
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            },
+        )
+        github_oauth = res.json()["access_token"]
+        config.set("ghstack", "github_oauth", github_oauth)
+        write_back = True
+    if github_oauth is not None:
+        ghstack.logs.formatter.redact(github_oauth, "<GITHUB_OAUTH>")
+
+    circle_token = None
+    if circle_token is None and config.has_option("ghstack", "circle_token"):
+        circle_token = config.get("ghstack", "circle_token")
+    if circle_token is None and request_circle_token:
+        circle_token = getpass.getpass(
+            "CircleCI Personal API token (make one at "
+            "https://circleci.com/account/api ): "
+        ).strip()
+        config.set("ghstack", "circle_token", circle_token)
+        write_back = True
+    if circle_token is not None:
+        ghstack.logs.formatter.redact(circle_token, "<CIRCLE_TOKEN>")
+
+    github_username = None
+    if config.has_option("ghstack", "github_username"):
+        github_username = config.get("ghstack", "github_username")
+    # Use username from gh CLI if we got it
+    if github_username is None and gh_cli_username is not None:
+        github_username = gh_cli_username
+        # Don't save gh CLI username to config - it comes from gh CLI
+    # Fall back to API lookup if we have a token but no username yet
+    if github_username is None and github_oauth is not None:
+        request_url: str
+        if github_url == "github.com":
+            request_url = f"https://api.{github_url}/user"
+        else:
+            request_url = f"https://{github_url}/api/v3/user"
+        res = requests.get(
+            request_url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {github_oauth}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        res.raise_for_status()
+        github_username = res.json()["login"]
+        config.set("ghstack", "github_username", github_username)
+        write_back = True
+    if github_username is None:
+        github_username = input("GitHub username: ")
+        if not re.match(
+            r"^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$", github_username, re.I
+        ):
+            raise RuntimeError(
+                "{} is not a valid GitHub username".format(github_username)
+            )
+        config.set("ghstack", "github_username", github_username)
+        write_back = True
+
+    proxy = None
+    if config.has_option("ghstack", "proxy"):
+        proxy = config.get("ghstack", "proxy")
+
+    if config.has_option("ghstack", "fbsource_path"):
+        fbsource_path = config.get("ghstack", "fbsource_path")
+    else:
+        fbsource_path = os.path.expanduser("~/local/fbsource")
+
+    if config.has_option("ghstack", "github_path"):
+        github_path = config.get("ghstack", "github_path")
+    else:
+        github_path = os.path.expanduser("~/local/ghstack-pytorch")
+
+    if config.has_option("ghstack", "default_project"):
+        default_project_dir = config.get("ghstack", "default_project_dir")
+    else:
+        default_project_dir = "fbcode/caffe2"
+
+    if config.has_option("ghstack", "remote_name"):
+        remote_name = config.get("ghstack", "remote_name")
+    else:
+        remote_name = "origin"
+
+    if config.has_option("ghstack", "reviewer"):
+        reviewer = config.get("ghstack", "reviewer")
+    else:
+        reviewer = None
+
+    if config.has_option("ghstack", "label"):
+        label = config.get("ghstack", "label")
+    else:
+        label = None
+
+    if write_back:
+        with open(config_path, "w") as f:
+            config.write(f)
+        logging.info("NB: configuration saved to {}".format(config_path))
+
+    conf = Config(
+        github_oauth=github_oauth,
+        circle_token=circle_token,
+        github_username=github_username,
+        proxy=proxy,
+        fbsource_path=fbsource_path,
+        github_path=github_path,
+        default_project_dir=default_project_dir,
+        github_url=github_url,
+        remote_name=remote_name,
+        reviewer=reviewer,
+        label=label,
+    )
+    logging.debug(f"conf = {conf}")
+    return conf
