@@ -1,0 +1,92 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "h2o-secure-store"
+dynamic = ["version"]
+description = 'Python client for H2O Secure Store'
+readme = "PUBLIC_README.md"
+requires-python = ">=3.8"
+keywords = []
+authors = [
+    { name = "H2O.ai", email = "support@h2o.ai" },
+]
+dependencies = [
+    "urllib3>=1.26.15",
+    "python-dateutil>=2.8.2",
+    "h2o-authn>=1.1.0",
+    "h2o-cloud-discovery>=2.1.0",
+    "requests>=2.26.0",
+    "certifi>=2022.12.7",
+    # GRPC client dependencies
+    "grpcio>=1.60.0",
+    "protobuf>=4.25.1",
+    "gcloud>=0.18.3",
+    "google-api-python-client>=2.108.0",
+]
+
+[project.urls]
+Documentation = "https://docs.h2o.ai/secure-store/py/initialization"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/h2o_secure_store"]
+
+[tool.hatch.version]
+path = "../../VERSION"
+pattern = "(?P<version>.*)"
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = [
+    "black==23.1.0",
+    "isort==5.12.0",
+    "autoflake==2.3.0",
+]
+
+[tool.hatch.envs.lint.scripts]
+# TODO use flake8 and mypy
+check = [
+    "black --check --diff .",
+    "isort --check --diff .",
+    "autoflake --check-diff .",
+]
+fix = [
+    "black .",
+    "isort .",
+    "autoflake ."
+]
+
+[tool.black]
+exclude = [
+    "src/h2o_secure_store/gen",
+    "local",
+]
+skip-magic-trailing-comma = true
+
+[tool.isort]
+skip = [
+    "src/h2o_secure_store/gen",
+    "local"
+]
+force_single_line = true
+known_application = ["h2o_secure_store"]
+profile = "black"
+
+[tool.autoflake]
+exclude = [
+    "*/gen/*",
+    "local",
+]
+remove_all_unused_imports = true
+recursive = true
+
+[tool.hatch.envs.test]
+python = "3.8"
+dependencies = [
+    "pytest==8.2.1",
+    "psycopg2-binary==2.9.9",
+]
+
+[tool.hatch.envs.test.scripts]
+e2e = "python -m pytest tests/integration/e2e"
