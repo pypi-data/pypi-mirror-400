@@ -1,0 +1,50 @@
+"""Domain logic: event ordering comparison.
+
+Ordering: (timestamp DESC, event_id DESC)
+"""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from talos_contracts.domain.types.cursor_types import Event
+
+
+def ordering_compare(
+    a: Event,
+    b: Event,
+) -> Literal[-1, 0, 1]:
+    """
+    Compare two events for ordering.
+
+    Returns -1 if a should come before b (a is "greater" in DESC order)
+    Returns 0 if equal
+    Returns 1 if a should come after b
+
+    Ordering: timestamp DESC, then event_id DESC
+
+    Args:
+        a: Event dict with 'timestamp' and 'event_id'
+        b: Event dict with 'timestamp' and 'event_id'
+
+    Returns:
+        -1, 0, or 1
+    """
+    a_ts = a["timestamp"]
+    b_ts = b["timestamp"]
+    a_eid = a["event_id"]
+    b_eid = b["event_id"]
+
+    # DESC timestamp: higher timestamp comes first
+    if a_ts > b_ts:
+        return -1
+    if a_ts < b_ts:
+        return 1
+
+    # DESC event_id: higher event_id comes first (lexicographic)
+    if a_eid > b_eid:
+        return -1
+    if a_eid < b_eid:
+        return 1
+
+    return 0
