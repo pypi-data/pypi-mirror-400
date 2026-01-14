@@ -1,0 +1,154 @@
+
+[project]
+name = "qtoolkit"
+description = "QToolKit is a python wrapper interfacing with job queues (e.g. PBS, SLURM, ...)."
+readme = "README.md"
+keywords = []
+license = { text = "modified BSD" }
+authors = [
+    { name = "David Waroquiers", email = "david.waroquiers@matgenix.com" },
+]
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Other/Nonlisted Topic",
+    "Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pre-commit>=3.0.0"]
+tests = [
+    "pytest-cov >= 6,< 8",
+    "pytest-mock ~= 3.14",
+    "pytest >= 8,< 10",
+    "ruamel.yaml >= 0.17",
+    "python-on-whales ~=0.75",
+]
+maintain = ["git-changelog>=0.6"]
+docs = [
+    "ipython >= 7.0, != 8.1.0 ",
+    "matplotlib >= 3.3",
+    "pydata-sphinx-theme",
+    "qtoolkit[remote,msonable]",
+    "sphinx >= 5",
+    "sphinx-copybutton",
+    "sphinx_design",
+]
+strict = []
+remote = ["fabric>=3.1.0"]
+msonable = ["monty>=2023.9.5"]
+
+[project.urls]
+homepage = "https://matgenix.github.io/qtoolkit/"
+repository = "https://github.com/matgenix/qtoolkit"
+documentation = "https://matgenix.github.io/qtoolkit/"
+changelog = "https://matgenix.github.io/qtoolkit/changelog"
+
+[tool.setuptools.package-data]
+qtoolkit = ["py.typed"]
+"qtoolkit.io.templates" = ["*"]
+
+[build-system]
+requires = ["setuptools >= 42", "versioningit  >= 1,< 4", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.versioningit.vcs]
+method = "git"
+default-tag = "0.0.1"
+
+[tool.ruff]
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "ANN",     # TODO fix all ANN errors
+    "ARG",     # TODO fix unused method argument
+    "BLE001",
+    "C901",    # function too complex
+    "COM812",  # trailing comma missing
+    "D",
+    "D205",
+    "DTZ",     # datetime-tz-now
+    "E501",    # TODO fix line too long
+    "EM",      # exception message must not use f-string literal
+    "ERA001",  # found commented out code
+    "FA100",   # TODO fix FA errors
+    "FBT001",
+    "FBT002",
+    "FIX002",
+    "G004",    # logging uses fstring
+    "ISC001",
+    "N802",    # TODO maybe fix these
+    "PERF203", # try-except-in-loop
+    "PGH003",
+    "PLR0912", # too many branches
+    "PLR0913", # too many arguments
+    "PLR0915", # too many statements
+    "PLR2004", # magic value used in comparison
+    "PT004",   # pytest-missing-fixture-name-underscore
+    "PT006",   # pytest-parametrize-names-wrong-type
+    "PT013",   # pytest-incorrect-pytest-import
+    "PTH",     # prefer Pathlib to os.path
+    "RUF013",  # implicit-optional
+    "SIM105",  # contextlib.suppress(Exception) instead of try-except
+    "T201",    # print statement
+    "TD",      # TODOs
+    "TRY003",  # long message outside exception class
+]
+pydocstyle.convention = "numpy"
+isort.known-first-party = ["qtoolkit"]
+isort.split-on-trailing-comma = false
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"**/tests/*" = ["INP001", "S101", "SLF001"]
+
+[tool.mypy]
+ignore_missing_imports = true
+no_strict_optional = true
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:.*POTCAR.*:UserWarning",
+    "ignore:.*input structure.*:UserWarning",
+    "ignore:.*is not gzipped.*:UserWarning",
+    "ignore:.*magmom.*:UserWarning",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+include = ["src/*"]
+parallel = true
+branch = true
+
+[tool.coverage.paths]
+source = ["src/"]
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
+exclude_lines = [
+    '# pragma: no cover',
+    '^\s*@overload( |$)',
+    '^\s*assert False(,|$)',
+    'if typing.TYPE_CHECKING:',
+    'if TYPE_CHECKING:',
+    'raise NotImplementedError',
+]
