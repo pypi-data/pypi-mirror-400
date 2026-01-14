@@ -1,0 +1,161 @@
+# CIS Controls Implementation Group 1 (IG1) - Essential Cyber Hygiene
+# Based on AWS Config Rules for CIS Critical Security Controls v8
+
+implementation_group: IG1
+total_rules: 56
+description: "Essential cyber hygiene - foundational safeguards for all enterprises"
+
+controls:
+  "1.1":
+    title: "Establish and Maintain Detailed Enterprise Asset Inventory"
+    weight: 1.0
+    config_rules:
+      - name: "eip-attached"
+        resource_types: ["AWS::EC2::EIP"]
+        parameters: {}
+        description: "Ensures Elastic IPs are attached to EC2 instances or ENIs"
+        remediation_guidance: "Attach unused EIPs to EC2 instances or release them to avoid unnecessary costs"
+      
+      - name: "ec2-stopped-instance"
+        resource_types: ["AWS::EC2::Instance"]
+        parameters:
+          allowedDays: 30
+        description: "Checks for EC2 instances stopped for more than allowed days"
+        remediation_guidance: "Review stopped instances and terminate if no longer needed"
+      
+      - name: "vpc-network-acl-unused-check"
+        resource_types: ["AWS::EC2::NetworkAcl"]
+        parameters: {}
+        description: "Ensures VPC network ACLs are in use"
+        remediation_guidance: "Remove unused network ACLs or associate them with subnets"
+      
+      - name: "ec2-instance-managed-by-systems-manager"
+        resource_types: ["AWS::EC2::Instance", "AWS::SSM::ManagedInstanceInventory"]
+        parameters: {}
+        description: "Ensures EC2 instances are managed by Systems Manager"
+        remediation_guidance: "Install SSM Agent and attach appropriate IAM role to instances"
+      
+      - name: "ec2-security-group-attached-to-eni"
+        resource_types: ["AWS::EC2::SecurityGroup"]
+        parameters: {}
+        description: "Ensures security groups are attached to network interfaces"
+        remediation_guidance: "Remove unused security groups or attach to network interfaces"
+
+  "2.2":
+    title: "Ensure Authorized Software is Currently Supported"
+    weight: 1.0
+    config_rules:
+      - name: "elastic-beanstalk-managed-updates-enabled"
+        resource_types: ["AWS::ElasticBeanstalk::Environment"]
+        parameters: {}
+        description: "Ensures Elastic Beanstalk managed updates are enabled"
+        remediation_guidance: "Enable managed platform updates for Elastic Beanstalk environments"
+      
+      - name: "ec2-managedinstance-patch-compliance-status-check"
+        resource_types: ["AWS::SSM::PatchCompliance"]
+        parameters: {}
+        description: "Checks EC2 instance patch compliance status"
+        remediation_guidance: "Apply missing patches using Systems Manager Patch Manager"
+      
+      - name: "ecs-fargate-latest-platform-version"
+        resource_types: ["AWS::ECS::Service"]
+        parameters: {}
+        description: "Ensures ECS Fargate services use latest platform version"
+        remediation_guidance: "Update ECS services to use LATEST platform version"
+
+  "3.3":
+    title: "Configure Data Access Control Lists"
+    weight: 1.5
+    config_rules:
+      - name: "iam-password-policy"
+        resource_types: ["AWS::::Account"]
+        parameters:
+          MinimumPasswordLength: 14
+          RequireSymbols: true
+          RequireNumbers: true
+          RequireUppercaseCharacters: true
+          RequireLowercaseCharacters: true
+          MaxPasswordAge: 90
+          PasswordReusePrevention: 24
+        description: "Ensures IAM password policy meets security requirements"
+        remediation_guidance: "Update IAM password policy to meet CIS requirements"
+      
+      - name: "iam-user-mfa-enabled"
+        resource_types: ["AWS::IAM::User"]
+        parameters: {}
+        description: "Ensures IAM users have MFA enabled"
+        remediation_guidance: "Enable MFA for all IAM users with console access"
+      
+      - name: "iam-root-access-key-check"
+        resource_types: ["AWS::::Account"]
+        parameters: {}
+        description: "Ensures root user does not have access keys"
+        remediation_guidance: "Delete root user access keys and use IAM users instead"
+      
+      - name: "s3-bucket-public-read-prohibited"
+        resource_types: ["AWS::S3::Bucket"]
+        parameters: {}
+        description: "Ensures S3 buckets do not allow public read access"
+        remediation_guidance: "Remove public read permissions from S3 bucket policies and ACLs"
+      
+      - name: "s3-bucket-public-write-prohibited"
+        resource_types: ["AWS::S3::Bucket"]
+        parameters: {}
+        description: "Ensures S3 buckets do not allow public write access"
+        remediation_guidance: "Remove public write permissions from S3 bucket policies and ACLs"
+      
+      - name: "ec2-instance-no-public-ip"
+        resource_types: ["AWS::EC2::Instance"]
+        parameters: {}
+        description: "Ensures EC2 instances do not have public IP addresses"
+        remediation_guidance: "Use NAT Gateway or VPN for internet access instead of public IPs"
+      
+      - name: "iam-no-inline-policy-check"
+        resource_types: ["AWS::IAM::User", "AWS::IAM::Role", "AWS::IAM::Group"]
+        parameters: {}
+        description: "Ensures IAM entities do not have inline policies"
+        remediation_guidance: "Convert inline policies to managed policies for better governance"
+
+  "4.1":
+    title: "Establish and Maintain a Secure Configuration Process"
+    weight: 1.0
+    config_rules:
+      - name: "account-part-of-organizations"
+        resource_types: ["AWS::::Account"]
+        parameters: {}
+        description: "Ensures account is part of AWS Organizations"
+        remediation_guidance: "Join AWS Organizations for centralized account management"
+      
+      - name: "ec2-volume-inuse-check"
+        resource_types: ["AWS::EC2::Volume"]
+        parameters: {}
+        description: "Ensures EBS volumes are attached to instances"
+        remediation_guidance: "Attach unused volumes to instances or delete if not needed"
+      
+      - name: "redshift-cluster-maintenancesettings-check"
+        resource_types: ["AWS::Redshift::Cluster"]
+        parameters: {}
+        description: "Ensures Redshift clusters have proper maintenance settings"
+        remediation_guidance: "Configure automated snapshots, maintenance windows, and version upgrades"
+      
+      - name: "secretsmanager-rotation-enabled-check"
+        resource_types: ["AWS::SecretsManager::Secret"]
+        parameters: {}
+        description: "Ensures Secrets Manager secrets have rotation enabled"
+        remediation_guidance: "Enable automatic rotation for secrets to improve security"
+
+  "5.2":
+    title: "Use Unique Passwords"
+    weight: 1.0
+    config_rules:
+      - name: "mfa-enabled-for-iam-console-access"
+        resource_types: ["AWS::IAM::User"]
+        parameters: {}
+        description: "Ensures MFA is enabled for IAM console access"
+        remediation_guidance: "Enable MFA for all users with console access"
+      
+      - name: "root-account-mfa-enabled"
+        resource_types: ["AWS::::Account"]
+        parameters: {}
+        description: "Ensures root account has MFA enabled"
+        remediation_guidance: "Enable MFA for the root account"
