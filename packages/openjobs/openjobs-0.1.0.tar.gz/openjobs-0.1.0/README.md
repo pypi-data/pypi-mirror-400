@@ -1,0 +1,208 @@
+# OpenJobs
+
+[![PyPI version](https://badge.fury.io/py/openjobs.svg)](https://pypi.org/project/openjobs/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/federicodeponte/openjobs/actions/workflows/ci.yml/badge.svg)](https://github.com/federicodeponte/openjobs/actions)
+
+**Scrape jobs from any careers page in 3 lines of code.** No custom scrapers needed.
+
+<!--
+TODO: Add demo GIF here
+![Demo](docs/demo.gif)
+-->
+
+```python
+from openjobs import scrape_careers_page
+
+jobs = scrape_careers_page("https://stripe.com/jobs")
+print(f"Found {len(jobs)} jobs")  # Found 142 jobs
+```
+
+Works with JavaScript-heavy sites, React/Next.js SPAs, and complex ATS systems.
+
+---
+
+## Why OpenJobs?
+
+| Feature | OpenJobs | Scrapy | BeautifulSoup | Selenium |
+|---------|----------|--------|---------------|----------|
+| Works on any site | Yes | No (custom spider per site) | No (static HTML only) | Yes (but slow) |
+| Handles JavaScript | Yes (Firecrawl) | No | No | Yes |
+| AI extraction | Yes (Gemini) | No | No | No |
+| Setup time | 30 seconds | Hours | Hours | Minutes |
+| Maintenance | Zero | High | High | Medium |
+
+**The problem:** Every careers page has different HTML. Scrapy/BeautifulSoup need custom code per site. Selenium is slow and breaks often.
+
+**The solution:** OpenJobs uses Firecrawl (JS rendering) + Gemini AI (smart extraction) = works everywhere, no maintenance.
+
+---
+
+## Install
+
+```bash
+pip install openjobs
+```
+
+## Quick Start
+
+```python
+from openjobs import scrape_careers_page
+
+# Scrape any careers page
+jobs = scrape_careers_page("https://linear.app/careers")
+
+for job in jobs:
+    print(f"{job['title']} - {job['location']}")
+```
+
+**Environment variables needed:**
+```bash
+export GOOGLE_API_KEY=your_key  # Free: https://aistudio.google.com/apikey
+```
+
+That's it. No Firecrawl key needed for basic usage (uses cloud with generous free tier).
+
+---
+
+## Features
+
+### Find Careers Page URL
+
+Don't know the exact URL? OpenJobs finds it:
+
+```python
+from openjobs import discover_careers_url
+
+url = discover_careers_url("stripe.com")
+# Returns: https://stripe.com/jobs/search
+```
+
+### AI Enrichment
+
+Extract tech stacks, salary ranges, and categorize jobs:
+
+```python
+from openjobs import scrape_careers_page, process_jobs
+
+jobs = scrape_careers_page("https://figma.com/careers")
+enriched = process_jobs(jobs, enrich=True)
+
+for job in enriched:
+    print(f"{job['title_original']}")
+    print(f"  Category: {job['category']}")
+    print(f"  Tech: {job.get('tech_stack', [])}")
+```
+
+### Filter by Category
+
+```python
+# Only engineering jobs
+eng_jobs = process_jobs(jobs, enrich=True, filter_categories=["Software Engineering"])
+```
+
+### Self-Hosted (Unlimited Free)
+
+Run Firecrawl locally for unlimited scraping:
+
+```bash
+git clone https://github.com/federicodeponte/openjobs.git
+cd openjobs && docker compose up -d
+
+export FIRECRAWL_URL=http://localhost:3002
+```
+
+---
+
+## Output
+
+```json
+{
+  "company": "Linear",
+  "title": "Senior Software Engineer",
+  "department": "Engineering",
+  "location": "Remote (US/EU)",
+  "job_url": "https://linear.app/careers/...",
+  "slug": "linear-senior-software-engineer",
+  "date_scraped": "2025-01-08T10:00:00"
+}
+```
+
+With enrichment:
+
+```json
+{
+  "category": "Software Engineering",
+  "subcategory": "Backend Engineer",
+  "tech_stack": ["TypeScript", "PostgreSQL", "Redis"],
+  "experience_years": "5+",
+  "salary_range": "$150,000 - $200,000"
+}
+```
+
+---
+
+## Supported Sites
+
+Works with most careers pages:
+
+| Type | Examples | Status |
+|------|----------|--------|
+| Company sites | stripe.com, linear.app, figma.com | Supported |
+| JavaScript SPAs | React, Next.js, Vue apps | Supported |
+| ATS platforms | Lever, Greenhouse, Ashby | Supported |
+| Heavy SPAs | Retool, Airtable, Vercel, Notion | Supported |
+| Job boards | LinkedIn, Indeed, Glassdoor | Blocked (ToS) |
+
+---
+
+## API Reference
+
+| Function | Description |
+|----------|-------------|
+| `scrape_careers_page(url)` | Scrape jobs from a careers page |
+| `discover_careers_url(domain)` | Find careers URL from domain |
+| `process_jobs(jobs, enrich=True)` | Enrich with AI categorization |
+| `scrape_with_firecrawl(url)` | Get page content as markdown |
+| `extract_jobs_from_markdown(md)` | Extract jobs from markdown |
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GOOGLE_API_KEY` | Yes | Gemini API key ([free](https://aistudio.google.com/apikey)) |
+| `FIRECRAWL_URL` | No | Self-hosted Firecrawl URL |
+| `FIRECRAWL_API_KEY` | No | Firecrawl cloud key ([500 free/mo](https://firecrawl.dev)) |
+
+---
+
+## How It Works
+
+```
+URL → Firecrawl (renders JS) → Gemini AI (extracts jobs) → Structured JSON
+```
+
+1. **Firecrawl** renders JavaScript and returns clean markdown
+2. **Fallback** extracts embedded JSON from React/Next.js data
+3. **Gemini AI** parses job listings intelligently
+4. **Output** returns structured job data
+
+---
+
+## Contributing
+
+```bash
+git clone https://github.com/federicodeponte/openjobs.git
+cd openjobs
+pip install -e ".[dev]"
+make test
+```
+
+---
+
+## License
+
+MIT
