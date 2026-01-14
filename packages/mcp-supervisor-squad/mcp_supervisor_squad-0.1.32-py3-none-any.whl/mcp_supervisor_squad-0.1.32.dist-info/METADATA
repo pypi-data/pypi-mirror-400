@@ -1,0 +1,142 @@
+Metadata-Version: 2.4
+Name: mcp-supervisor-squad
+Version: 0.1.32
+Summary: MCP server for the supervisor-squad workflow.
+Author: Codex Agent
+Author-email: agent@example.com
+Requires-Python: >=3.11,<4.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Dist: mcp (==1.25.0)
+Description-Content-Type: text/markdown
+
+# mcp-supervisor-squad
+
+Python MCP server that implements a minimal “director + (deterministic) planner + coder” workflow with brief status.
+
+## Tools (public MCP API)
+
+- `squad_start(cwd, query, options?)` → creates a run, executes a **two-step planner** (light scan → summary, then heavy scan: plan_scan → exec_scan → write_requirements with tool-collected evidence), then dispatches coder jobs. Returns event-driven brief status (`summary` ≤ 3 lines + `forced_wait_ms` delay).
+- `squad_status(run_id, options?)` → returns brief status (`lines` ≤ 3) using cached state (no stdout tail by default).
+- `squad_apply(run_id, options?)` → applies the final patch with `git apply` (`dry_run` default true) and returns the same brief status fields plus apply result fields.
+
+Important: for deterministic run lookup, pass `options.cwd` (any path inside the target repo) to `squad_status` and `squad_apply`.
+Authoritative machine-readable contract is written to `<repo_root>/.codex/supervisor-squad/contract.json`.
+
+External directors should treat `contract.json` as the stable integration surface: inject optional `kb/inbox/director_report.*`, call `squad_start`, then poll `squad_status` and read persisted artifacts under `.codex/supervisor-squad/` as needed.
+If you detect the plan is wrong (e.g., during the ~15s review window), cancel with `squad_status(run_id, options={"cwd":"...","cancel":true})` and start a new run.
+
+All tool responses include:
+
+```json
+{
+  "run_id": "ss-...",
+  "next_action": "wait|apply",
+  "forced_wait_ms": 15000,
+  "wait_reason": "agent_running|ready_to_apply|canceled|error",
+  "has_update": true|false,
+  "event_id": 3,
+  "summary": ["...<=3 lines..."] // when has_update=false this is a short forced-wait notice
+}
+```
+
+`squad_apply` additionally includes:
+
+```json
+{
+  "applied": true,
+  "dry_run": true,
+  "summary": "files=3",
+  "error": ""
+}
+```
+
+## Storage layout (repo-local)
+
+Under `<repo_root>/.codex/supervisor-squad/`:
+
+- `contract.json` – authoritative machine-readable contract (paths/limits/schema/workflow)
+- `config.json` – repo-local defaults for execution (models/reasoning/sandbox)
+- `kb/inbox/director_report.md|json` – optional director “research injection”
+- `kb/compact.md` – compacted shared KB (kept small)
+- `kb/archive/*` – archived injections (pruned)
+- `runs/<run_id>/state.json` – run state and brief cache
+- `runs/<run_id>/artifacts/requirements*.md` – requirements docs written before dispatch
+- `runs/<run_id>/artifacts/contract.json` – dual-project contract (<=4KB)
+- `runs/<run_id>/artifacts/patch.diff` – final patch to apply
+- `runs/<run_id>/jobs/<job_id>/*` – codex exec stdout/stderr/meta
+- `worktrees/<run_id>/<slug>` – per-task git worktrees (best-effort cleanup)
+- `kb/prune_meta.json` – prune rate limit state
+- `kb/repo_profile.json` – best-effort repo scan cache (reused across runs)
+
+## Configuration
+
+Create `<repo_root>/.codex/supervisor-squad/config.json` to set repo-local defaults.
+Call-time `options` overrides these values.
+
+Example:
+
+```json
+{
+  "execution": {
+    "sandbox": "workspace-write",
+    "approval_policy": "never"
+  },
+  "planner": {
+    "model": "gpt-5.1-codex-max",
+    "reasoning_effort": "medium",
+    "extra_config": []
+  },
+  "coder": {
+    "model": "gpt-5.1-codex-max",
+    "reasoning_effort": "medium",
+    "extra_config": []
+  },
+  "read_limits": {
+    "max_files": 30,
+    "max_file_bytes": 65536,
+    "max_total_bytes": 1000000
+  },
+  "polling": {
+    "max_ms": 60000,
+    "jitter_ratio": 0.1
+  },
+  "kb": {
+    "inbox_max_kb": 20,
+    "compact_max_kb": 10,
+    "archive_keep": 5,
+    "archive_max_kb": 200
+  }
+}
+```
+
+## Director Injection (Optional)
+
+External director (outside this MCP server) may write a short report to:
+- `<repo_root>/.codex/supervisor-squad/kb/inbox/director_report.md` (<=20KB), or
+- `<repo_root>/.codex/supervisor-squad/kb/inbox/director_report.json` (<=20KB)
+
+On `squad_start`, the server reads it, performs a light scan to surface a quick summary, then runs the heavy scan/requirements + shared KB from a deterministic plan + evidence, then archives and clears the inbox.
+
+## Development
+
+```bash
+cd mcp-tools/mcp-supervisor-squad
+poetry install
+```
+
+## Running
+
+```bash
+poetry run mcp-supervisor-squad --transport stdio
+```
+
+## Testing
+
+```bash
+python -m compileall src/mcp_supervisor_squad
+```
+
