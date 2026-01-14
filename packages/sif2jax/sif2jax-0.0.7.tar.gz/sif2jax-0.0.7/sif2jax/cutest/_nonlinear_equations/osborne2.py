@@ -1,0 +1,167 @@
+from __future__ import annotations
+
+from typing import Any
+
+import jax
+import jax.numpy as jnp
+
+from ..._problem import AbstractNonlinearEquations
+
+
+# Data values from SIF file
+_Y_DATA = jnp.array(
+    [
+        1.366,
+        1.191,
+        1.112,
+        1.013,
+        0.991,
+        0.885,
+        0.831,
+        0.847,
+        0.786,
+        0.725,
+        0.746,
+        0.679,
+        0.608,
+        0.655,
+        0.616,
+        0.606,
+        0.602,
+        0.626,
+        0.651,
+        0.724,
+        0.649,
+        0.649,
+        0.694,
+        0.644,
+        0.624,
+        0.661,
+        0.612,
+        0.558,
+        0.533,
+        0.495,
+        0.500,
+        0.423,
+        0.395,
+        0.375,
+        0.372,
+        0.391,
+        0.396,
+        0.405,
+        0.428,
+        0.429,
+        0.523,
+        0.562,
+        0.607,
+        0.653,
+        0.672,
+        0.708,
+        0.633,
+        0.668,
+        0.645,
+        0.632,
+        0.591,
+        0.559,
+        0.597,
+        0.625,
+        0.739,
+        0.710,
+        0.729,
+        0.720,
+        0.636,
+        0.581,
+        0.428,
+        0.292,
+        0.162,
+        0.098,
+        0.054,
+    ]
+)
+
+
+class OSBORNE2(AbstractNonlinearEquations):
+    """Osborne second problem in 11 variables (nonlinear equation version).
+
+    This is a nonlinear equation version of problem OSBORNEB.
+    This function is a nonlinear least squares with 65 groups. Each
+    group has 4 nonlinear elements.
+
+    Source: Problem 19 in
+    J.J. More', B.S. Garbow and K.E. Hillstrom,
+    "Testing Unconstrained Optimization Software",
+    ACM Transactions on Mathematical Software, vol. 7(1), pp. 17-41, 1981.
+
+    See also Buckley#32 (p.78).
+
+    SIF input: Ph. Toint, Dec 1989.
+    Modification as a set of nonlinear equations: Nick Gould, Oct 2015.
+
+    classification NOR2-MN-11-65
+    """
+
+    y0_iD: int = 0
+    provided_y0s: frozenset = frozenset({0})
+
+    n: int = 11  # Number of variables
+    m: int = 65  # Number of groups
+
+    def constraint(self, y: Any) -> tuple[Any, None]:
+        """Returns the residuals as equality constraints (vectorized with vmap)."""
+        x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11 = y
+
+        # Vectorized computation for all i from 1 to m
+        # SIF uses IA I-1 I 1, meaning I-1 = I + 1
+        # So for I from 1 to 65: I-1 = 2 to 66, and ti = 0.1 * (I-1) = 0.2 to 6.6
+        # Using 0-based indexing: for array index 0 to 64, ti = 0.2 to 6.6
+        i_minus_1_vals = jnp.arange(2, self.m + 2, dtype=jnp.float64)
+        ti = 0.1 * i_minus_1_vals
+
+        # Element A: x1 * exp(-ti * x5) (PEXP type)
+        element_a = x1 * jnp.exp(-ti * x5)
+
+        # Use vmap for the three PEXP3 elements (B, C, D)
+        # Stack the parameters for vectorized computation
+        v1_vals = jnp.array([x2, x3, x4])  # Coefficients
+        v2_vals = jnp.array([x9, x10, x11])  # Centers
+        v3_vals = jnp.array([x6, x7, x8])  # Scale factors
+
+        def pexp3_element(v1, v2, v3, t):
+            """Compute v1 * exp(-(t - v2)^2 * v3) for all t."""
+            diff = t - v2
+            return v1 * jnp.exp(-(diff * diff) * v3)
+
+        # vmap over the three sets of parameters
+        pexp3_vmap = jax.vmap(pexp3_element, in_axes=(0, 0, 0, None))
+        elements_bcd = pexp3_vmap(v1_vals, v2_vals, v3_vals, ti)
+
+        # Sum the three PEXP3 elements
+        element_bcd_sum = jnp.sum(elements_bcd, axis=0)
+
+        # Residuals: element_a + sum(element_b,c,d) - y_data[i]
+        residuals = element_a + element_bcd_sum - _Y_DATA
+
+        return residuals, None
+
+    @property
+    def y0(self):
+        return jnp.array([1.3, 0.65, 0.65, 0.7, 0.6, 3.0, 5.0, 7.0, 2.0, 4.5, 5.5])
+
+    @property
+    def args(self):
+        return None
+
+    @property
+    def expected_result(self):
+        # Not provided explicitly in SIF file
+        return None
+
+    @property
+    def expected_objective_value(self):
+        # For nonlinear equations, objective is typically 0
+        return jnp.array(0.0)
+
+    @property
+    def bounds(self) -> tuple[Any, Any] | None:
+        """No bounds for this problem."""
+        return None
