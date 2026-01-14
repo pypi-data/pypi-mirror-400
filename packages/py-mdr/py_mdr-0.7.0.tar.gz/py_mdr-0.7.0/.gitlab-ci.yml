@@ -1,0 +1,48 @@
+stages:
+  - test
+  - build
+  - publish
+
+default:
+  image: python:3.12
+  before_script:
+    - pip install poetry
+
+test:
+  stage: test
+  script:
+    - poetry install
+    - poetry run pytest --junit-xml=test-results.xml
+  artifacts:
+    reports:
+      junit: test-results.xml
+
+build:
+  stage: build
+  script:
+    - poetry build
+  artifacts:
+    paths:
+      - dist/
+
+publish:
+  stage: publish
+  script:
+    - |
+      curl --request POST \
+           --form token=${SECPI_TRIGGER_TOKEN} \
+           --form ref=master \
+           "${SECPI_TRIGGER_URL}"
+  only:
+    - master
+
+publish-pypi:
+  stage: publish
+  variables:
+    TWINE_USERNAME: __token__
+    TWINE_PASSWORD: $CI_PYPI_TOKEN
+  script:
+    - python3 -m pip install --upgrade twine
+    - python -m twine upload --verbose --repository pypi dist/*
+  only:
+    - master
