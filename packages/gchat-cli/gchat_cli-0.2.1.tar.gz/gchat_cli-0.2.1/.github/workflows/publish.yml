@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        env:
+          TAG_REF: ${{ github.ref }}
+        run: echo "version=${TAG_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  create-release:
+    needs: [build, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+
+  update-homebrew:
+    needs: [build, publish-pypi]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Wait for PyPI to be available
+        run: |
+          echo "Waiting for gchat-cli $VERSION on PyPI..."
+          for i in {1..30}; do
+            if curl -s "https://pypi.org/pypi/gchat-cli/$VERSION/json" | grep -q "$VERSION"; then
+              echo "Version $VERSION is available on PyPI"
+              exit 0
+            fi
+            echo "Attempt $i: Not yet available, waiting 10s..."
+            sleep 10
+          done
+          echo "Timeout waiting for PyPI"
+          exit 1
+
+      - name: Get package SHA256
+        id: sha
+        run: |
+          URL="https://files.pythonhosted.org/packages/source/g/gchat-cli/gchat_cli-${VERSION}.tar.gz"
+          echo "Downloading from $URL"
+          SHA=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "SHA256: $SHA"
+
+      - name: Update Homebrew formula
+        uses: actions/github-script@v7
+        env:
+          FORMULA_VERSION: ${{ needs.build.outputs.version }}
+          FORMULA_SHA256: ${{ steps.sha.outputs.sha256 }}
+        with:
+          github-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          script: |
+            const version = process.env.FORMULA_VERSION;
+            const sha256 = process.env.FORMULA_SHA256;
+
+            // Get current formula
+            const { data: file } = await github.rest.repos.getContent({
+              owner: 'chadsaun',
+              repo: 'homebrew-tap',
+              path: 'Formula/gchat.rb',
+            });
+
+            let content = Buffer.from(file.content, 'base64').toString('utf-8');
+
+            // Update version in URL
+            content = content.replace(
+              /url "https:\/\/files\.pythonhosted\.org\/packages\/source\/g\/gchat-cli\/gchat_cli-[\d.]+\.tar\.gz"/,
+              `url "https://files.pythonhosted.org/packages/source/g/gchat-cli/gchat_cli-${version}.tar.gz"`
+            );
+
+            // Update SHA256
+            content = content.replace(
+              /sha256 "[a-f0-9]+"/,
+              `sha256 "${sha256}"`
+            );
+
+            // Commit the update
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: 'chadsaun',
+              repo: 'homebrew-tap',
+              path: 'Formula/gchat.rb',
+              message: `Update gchat to ${version}`,
+              content: Buffer.from(content).toString('base64'),
+              sha: file.sha,
+            });
+
+            console.log(`Updated Homebrew formula to version ${version}`);
