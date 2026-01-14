@@ -1,0 +1,49 @@
+"""AirOps Tool: {{ name }}"""
+
+from pydantic import Field
+
+from airops import Tool, ToolOutputs, steps
+from airops.inputs import Number, ShortText, ToolInputs
+
+
+class Inputs(ToolInputs):
+    """Tool input parameters."""
+
+    query: ShortText = Field(..., description="Search query")
+    limit: Number = Field(default=10, description="Maximum results")
+
+
+class Outputs(ToolOutputs):
+    """Tool output values."""
+
+    results: list[dict]
+
+
+tool = Tool(
+    name="{{ name }}",
+    description="Description of what this tool does",
+    input_model=Inputs,
+    output_model=Outputs,
+)
+
+
+@tool.handler
+async def run(inputs: Inputs) -> Outputs:
+    """Execute the tool logic.
+
+    Args:
+        inputs: Validated input parameters.
+
+    Returns:
+        Tool outputs.
+    """
+    # Example: Call an AirOps step
+    # response = await steps.execute("google_search", {"query": inputs.query})
+    # return Outputs(results=response)
+
+    # Placeholder implementation
+    return Outputs(results=[{"query": inputs.query, "message": "Hello from {{ name }}!"}])
+
+
+if __name__ == "__main__":
+    tool.serve()
