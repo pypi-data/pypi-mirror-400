@@ -1,0 +1,2659 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>Foghorn</title>
+	<link rel="stylesheet" href="/styles.css" />
+	<!-- Ajv JSON Schema validator for client-side config checks -->
+	<script src="https://cdn.jsdelivr.net/npm/ajv@8.12.0/dist/ajv7.min.js"></script>
+	<!-- js-yaml for parsing YAML config in the browser -->
+	<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+	<script>
+		(function () {
+			'use strict';
+			var root = document.documentElement;
+			var stored = null;
+			try {
+				stored = window.localStorage ? localStorage.getItem('foghorn-theme') : null;
+			} catch (e) {
+				stored = null;
+			}
+			var initial = stored === 'light' || stored === 'dark' ? stored : 'dark';
+			root.setAttribute('data-theme', initial);
+		})();
+	</script>
+</head>
+
+<body>
+	<header class="fh-header">
+		<div class="fh-header-inner">
+			<div class="fh-header-main">
+				<!-- Logo image switches based on theme: transparent-logo.png (light), transparent-white-logo.png (dark) -->
+				<img src="/transparent-white-logo.png" alt="Foghorn logo" class="fh-logo" id="fh-logo" />
+				<div class="fh-title-block">
+					<h1 class="fh-title">Foghorn</h1>
+					<p class="fh-subtitle">Runtime statistics and configuration</p>
+				</div>
+				<div class="fh-theme-toggle" role="radiogroup" aria-label="Color theme">
+					<button id="btn-theme-dark" class="fh-theme-btn fh-theme-btn-active" type="button" role="radio"
+						aria-checked="true">
+						Dark
+					</button>
+					<button id="btn-theme-light" class="fh-theme-btn" type="button" role="radio" aria-checked="false">
+						Light
+					</button>
+				</div>
+			</div>
+		</div>
+	</header>
+	<div class="fh-tabs" role="tablist" aria-label="Pages">
+		<button id="btn-tab-stats" class="fh-theme-btn fh-theme-btn-active" type="button" role="tab"
+			aria-selected="true">
+			Stats
+		</button>
+		<button id="btn-tab-edit" class="fh-theme-btn" type="button" role="tab" aria-selected="false">
+			JSON & Config
+		</button>
+		<span id="plugin-tabs-root"></span>
+	</div>
+	<main class="fh-main" id="page2">
+		<section class="fh-pane fh-pane-left">
+			<div class="fh-pane-header">
+				<h2 class="fh-pane-title">Statistics</h2>
+				<p class="fh-pane-help">Live snapshot from <code>/api/v1/stats</code>.</p>
+			</div>
+			<div id="stats-groups" class="fh-stats-groups">
+			</div>
+		</section>
+
+		<section class="fh-pane fh-pane-right">
+			<div class="fh-pane-header">
+				<h2 class="fh-pane-title">More Statistics</h2>
+			</div>
+			<div id="stats-groups-right" class="fh-stats-groups">
+				<!-- Filled by JavaScript: e.g. Top A Domains -->
+			</div>
+		</section>
+	</main>
+	<main class="fh-main" id="page1">
+
+		<section class="fh-pane fh-pane-left">
+			<div class="fh-pane-header">
+				<h2 class="fh-pane-title">Raw JSON Stats</h2>
+				<p class="fh-pane-help"></p>
+			</div>
+			<div id="stats-groups" class="fh-stats-groups">
+				<!-- Filled by JavaScript -->
+			</div>
+			<div class="fh-stats-group">
+				<h3 class="fh-stats-group-title">Raw stats JSON</h3>
+				<pre id="stats-raw" class="fh-pre fh-pre-compact">Loading statistics...</pre>
+			</div>
+		</section>
+
+		<section class="fh-pane fh-pane-right">
+			<div class="fh-pane-header">
+				<h2 class="fh-pane-title">Configuration</h2>
+				<div class="fh-config-actions" id="config-actions-view">
+					<button id="btn-edit" class="fh-btn" type="button">Edit Config</button>
+				</div>
+				<div class="fh-config-actions fh-config-actions-edit" id="config-actions-edit" hidden>
+					<button id="btn-cancel" class="fh-btn fh-btn-secondary" type="button">Cancel</button>
+					<button id="btn-save" class="fh-btn fh-btn-primary" type="button">Save</button>
+				</div>
+			</div>
+			<div class="fh-warning" id="config-warning">
+				<strong>Warning:</strong> Saving will overwrite <code>config.yaml</code>, then after a brief
+				delay send SIGHUP to the main process. Changes take effect after the server restarts;
+				SIGUSR1/SIGUSR2 only notify plugins and may reset statistics when configured.
+			</div>
+
+			<div id="config-messages" class="fh-messages" aria-live="polite"></div>
+
+			<div id="config-view-container">
+				<pre id="config-output" class="fh-pre">Loading configuration...</pre>
+			</div>
+
+			<div id="config-edit-container" hidden>
+				<textarea id="config-editor" class="fh-textarea" spellcheck="false"></textarea>
+			</div>
+		</section>
+	</main>
+
+	<footer class="fh-footer">
+		Foghorn&copy; 2025, Zack Allison. GitHub:
+		<a href="https://github.com/zallison/foghorn">https://github.com/zallison/foghorn</a>
+		&mdash; Open Source Software: MIT Licence
+	</footer>
+
+	<script>
+		(function () {
+			'use strict';
+
+			var root = document.documentElement;
+			var logoEl = document.getElementById('fh-logo');
+			var statsRawEl = document.getElementById('stats-raw');
+			var statsGroupsEl = document.getElementById('stats-groups');
+			var statsGroupsRightEl = document.getElementById('stats-groups-right');
+			var configOutputEl = document.getElementById('config-output');
+			var configEditorEl = document.getElementById('config-editor');
+			var configViewContainer = document.getElementById('config-view-container');
+			var configEditContainer = document.getElementById('config-edit-container');
+			var msgEl = document.getElementById('config-messages');
+			var dockerShowHashEl = null;
+			if (msgEl) {
+				msgEl.style.display = 'none';
+			}
+			var warningEl = document.getElementById('config-warning');
+			if (warningEl) {
+				warningEl.style.display = 'none';
+			}
+
+			var btnDisk = document.getElementById('btn-config-disk');
+			var btnEdit = document.getElementById('btn-edit');
+			var btnCancel = document.getElementById('btn-cancel');
+			var btnSave = document.getElementById('btn-save');
+			var actionsView = document.getElementById('config-actions-view');
+			var actionsEdit = document.getElementById('config-actions-edit');
+			var btnThemeDark = document.getElementById('btn-theme-dark');
+			var btnThemeLight = document.getElementById('btn-theme-light');
+			var page1 = document.getElementById('page1');
+			var page2 = document.getElementById('page2');
+			var btnTabStats = document.getElementById('btn-tab-stats');
+			var btnTabEdit = document.getElementById('btn-tab-edit');
+			var pluginTabsRoot = document.getElementById('plugin-tabs-root');
+			var pluginUiPages = {};
+			var pluginRefreshTimers = {};
+			var activePluginName = null;
+
+			var currentSource = 'disk'; // 'disk' only
+			var lastDiskConfigObj = null;
+			var lastDiskRawYaml = null;
+			var isEditing = false;
+
+			// Client-side JSON Schema validation (Ajv from CDN). We prefer window.ajv7.Ajv
+			// when available, falling back to window.Ajv when present. When Ajv is
+			// missing, validation becomes a no-op and server-side validation still
+			// enforces correctness on save/startup.
+			var AjvCtor = (window.ajv7 && window.ajv7.Ajv) || window.Ajv || null;
+			var configSchemaValidator = null;
+
+			var STATS_TOOLTIPS = {
+				total_queries: 'Total DNS queries handled since the collector started or was last reset.',
+				cache_hits: 'Queries answered directly from the cache.',
+				cache_misses: 'Queries that required contacting upstream servers.',
+				cache_null: 'Responses generated directly by plugins before cache or upstream lookup.',
+				cache_deny_pre: 'Pre-plugin deny decisions that bypassed cache (e.g., filtering plugins).',
+				cache_override_pre: 'Pre-plugin overrides that bypassed cache (e.g., synthetic responses from plugins).',
+				min_ms: 'Fastest observed query latency in milliseconds.',
+				max_ms: 'Slowest observed query latency in milliseconds.',
+				avg_ms: 'Average (mean) query latency in milliseconds.',
+				p50_ms: 'Median (50th percentile) query latency in milliseconds.',
+				p90_ms: '90th percentile query latency in milliseconds.',
+				p99_ms: '99th percentile query latency in milliseconds.',
+				load_1m: 'System load average over the last 1 minute.',
+				load_5m: 'System load average over the last 5 minutes.',
+				load_15m: 'System load average over the last 15 minutes.',
+				dnssec_secure: 'Responses that validated successfully against DNSSEC trust anchors (secure).',
+				dnssec_zone_secure: 'Responses treated as DNSSEC-secure based on extended upstream signals (for example, AD bit).',
+				dnssec_unsigned: 'Responses from zones that are not signed with DNSSEC (unsigned but not an error).',
+				dnssec_bogus: 'Responses that failed DNSSEC validation (bogus).',
+				dnssec_indeterminate: 'Responses where DNSSEC status could not be determined (indeterminate).',
+			};
+			var lastDiskConfigObj = null;
+			var lastDiskRawYaml = null;
+			var isEditing = false;
+
+			// Client-side JSON Schema validation (Ajv from CDN). We prefer window.ajv7.Ajv
+			// when available, falling back to window.Ajv when present. When Ajv is
+			// missing, validation becomes a no-op and server-side validation still
+			// enforces correctness on save/startup.
+			var AjvCtor = (window.ajv7 && window.ajv7.Ajv) || window.Ajv || null;
+			var configSchemaValidator = null;
+
+			var STATS_TOOLTIPS = {
+				total_queries: 'Total DNS queries handled since the collector started or was last reset.',
+				cache_hits: 'Queries answered directly from the cache.',
+				cache_misses: 'Queries that required contacting upstream servers.',
+				cache_null: 'Responses generated directly by plugins before cache or upstream lookup.',
+				cache_deny_pre: 'Pre-plugin deny decisions that bypassed cache (e.g., filtering plugins).',
+				cache_override_pre: 'Pre-plugin overrides that bypassed cache (e.g., synthetic responses from plugins).',
+				min_ms: 'Fastest observed query latency in milliseconds.',
+				max_ms: 'Slowest observed query latency in milliseconds.',
+				avg_ms: 'Average (mean) query latency in milliseconds.',
+				p50_ms: 'Median (50th percentile) query latency in milliseconds.',
+				p90_ms: '90th percentile query latency in milliseconds.',
+				p99_ms: '99th percentile query latency in milliseconds.',
+				load_1m: 'System load average over the last 1 minute.',
+				load_5m: 'System load average over the last 5 minutes.',
+				load_15m: 'System load average over the last 15 minutes.',
+				dnssec_secure: 'Responses that validated successfully against DNSSEC trust anchors (secure).',
+				dnssec_zone_secure: 'Responses treated as DNSSEC-secure based on extended upstream signals (for example, AD bit).',
+				dnssec_unsigned: 'Responses from zones that are not signed with DNSSEC (unsigned but not an error).',
+				dnssec_bogus: 'Responses that failed DNSSEC validation (bogus).',
+				dnssec_indeterminate: 'Responses where DNSSEC status could not be determined (indeterminate).',
+			};
+
+			function setMessage(text, level) {
+				if (!msgEl) {
+					return;
+				}
+				msgEl.textContent = text || '';
+				msgEl.className = 'fh-messages';
+				if (!text) {
+					msgEl.style.display = 'none';
+					return;
+				}
+				msgEl.style.display = 'block';
+				if (level === 'error') {
+					msgEl.classList.add('fh-messages-error');
+				} else if (level === 'success') {
+					msgEl.classList.add('fh-messages-success');
+				} else {
+					msgEl.classList.add('fh-messages-info');
+				}
+			}
+
+			function pretty(obj) {
+				try {
+					return JSON.stringify(obj, null, 2);
+				} catch (e) {
+					return String(obj);
+				}
+			}
+
+			function fetchJson(path) {
+				return fetch(path, { cache: 'no-store' }).then(function (resp) {
+					if (!resp.ok) {
+						throw new Error('HTTP ' + resp.status + ' from ' + path);
+					}
+					return resp.json();
+				});
+			}
+
+			function ensureConfigValidator() {
+				if (!AjvCtor) {
+					// Ajv not available; skip client-side schema validation.
+					return Promise.resolve(null);
+				}
+				if (configSchemaValidator) {
+					return Promise.resolve(configSchemaValidator);
+				}
+				return fetch('/config-schema.json', { cache: 'no-store' })
+					.then(function (resp) {
+						if (!resp.ok) {
+							throw new Error('HTTP ' + resp.status + ' from /config-schema.json');
+						}
+						return resp.json();
+					})
+					.then(function (schema) {
+						var ajv = new AjvCtor({ allErrors: true, strict: false, allowUnionTypes: true });
+						configSchemaValidator = ajv.compile(schema);
+						return configSchemaValidator;
+					});
+			}
+
+			function validateConfigObjectForEdit(cfg) {
+				return ensureConfigValidator().then(function (validator) {
+					if (!validator) {
+						return;
+					}
+					var ok = validator(cfg);
+					if (ok) {
+						return;
+					}
+					var errors = validator.errors || [];
+					var lines = errors.map(function (e) {
+						var instPath = e.instancePath || '<root>';
+						var msg = e.message || 'validation error';
+						var schemaLoc = e.schemaPath || '';
+						return instPath + ': ' + msg + (schemaLoc ? ' (schema: ' + schemaLoc + ')' : '');
+					});
+					throw new Error('Invalid configuration:\n' + lines.join('\n'));
+				});
+			}
+
+			function formatNumber(value) {
+				var n = Number(value);
+				if (!isFinite(n)) {
+					return String(value);
+				}
+				var opts = { maximumFractionDigits: 3 };
+				if (Math.abs(n) > 100 && n % 1 !== 0) {
+					opts.maximumFractionDigits = 0;
+				}
+				return n.toLocaleString(undefined, opts);
+			}
+
+			function getNumberParts(value) {
+				var n = Number(value);
+				if (!isFinite(n)) {
+					return { intPart: String(value), decPart: '' };
+				}
+				var opts = { maximumFractionDigits: 3 };
+				if (Math.abs(n) > 100 && n % 1 !== 0) {
+					opts.maximumFractionDigits = 0;
+				}
+				var text = n.toLocaleString('en-US', opts);
+				var dotIndex = text.indexOf('.');
+				if (dotIndex === -1) {
+					return { intPart: text, decPart: '' };
+				}
+				return {
+					intPart: text.slice(0, dotIndex),
+					decPart: text.slice(dotIndex),
+				};
+			}
+
+			function formatBytes(value) {
+				var n = Number(value);
+				if (!isFinite(n) || n < 0) {
+					return '–';
+				}
+				var units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+				var idx = 0;
+				while (n >= 1024 && idx < units.length - 1) {
+					n = n / 1024;
+					idx += 1;
+				}
+				return n.toFixed(idx === 0 ? 0 : 1) + ' ' + units[idx];
+			}
+
+			function formatTimestamp(value) {
+				if (value == null) {
+					return null;
+				}
+				var date;
+				if (typeof value === 'number') {
+					date = new Date(value * 1000);
+				} else {
+					var n = Number(value);
+					if (isFinite(n)) {
+						date = new Date(n * 1000);
+					} else {
+						date = new Date(String(value));
+					}
+				}
+				if (isNaN(date.getTime())) {
+					return String(value);
+				}
+				function pad2(num) {
+					return num < 10 ? '0' + num : String(num);
+				}
+				var y = date.getFullYear();
+				var m = pad2(date.getMonth() + 1);
+				var d = pad2(date.getDate());
+				var hh = pad2(date.getHours());
+				var mm = pad2(date.getMinutes());
+				var ss = pad2(date.getSeconds());
+				return y + '-' + m + '-' + d + ' ' + hh + ':' + mm + ':' + ss;
+			}
+
+			function formatDurationSeconds(value) {
+				if (value == null) {
+					return null;
+				}
+				var n = Number(value);
+				if (!isFinite(n) || n < 0) {
+					return String(value);
+				}
+				var total = Math.floor(n);
+				var days = Math.floor(total / 86400);
+				var rem = total % 86400;
+				var hours = Math.floor(rem / 3600);
+				rem = rem % 3600;
+				var minutes = Math.floor(rem / 60);
+				var seconds = rem % 60;
+				function pad2(num) {
+					return num < 10 ? '0' + num : String(num);
+				}
+				var hms = pad2(hours) + ':' + pad2(minutes) + ':' + pad2(seconds);
+				if (days > 0) {
+					return days + 'd ' + hms;
+				}
+				return hms;
+			}
+
+			function clearStatsGroups() {
+				while (statsGroupsEl.firstChild) {
+					statsGroupsEl.removeChild(statsGroupsEl.firstChild);
+				}
+				if (statsGroupsRightEl) {
+					while (statsGroupsRightEl.firstChild) {
+						statsGroupsRightEl.removeChild(statsGroupsRightEl.firstChild);
+					}
+				}
+			}
+
+			function appendDictGroup(title, mapping) {
+				if (!mapping || typeof mapping !== 'object') {
+					return;
+				}
+				var keys = Object.keys(mapping);
+				if (!keys.length) {
+					return;
+				}
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = title;
+				group.appendChild(heading);
+
+				var dl = document.createElement('dl');
+				dl.className = 'fh-kv-list';
+
+				// For Totals, Query types, and Response codes we sort by value (descending)
+				// and then by key name (ascending) to make the highest counters easiest to see.
+				var sortByValueDesc =
+					title === 'Totals' || title === 'Query types' || title === 'Response codes';
+
+				var entries = keys.map(function (key) {
+					var raw = mapping[key];
+					var num = Number(raw);
+					if (!isFinite(num)) {
+						// Treat non-numeric as 0 for ordering but still display original.
+						num = 0;
+					}
+					return { key: key, value: raw, numeric: num };
+				});
+
+				if (sortByValueDesc) {
+					entries.sort(function (a, b) {
+						if (b.numeric === a.numeric) {
+							if (a.key < b.key) return -1;
+							if (a.key > b.key) return 1;
+							return 0;
+						}
+						return b.numeric - a.numeric;
+					});
+				} else {
+					// For Meta, use a fixed display order for key fields and fall back
+					// to alphabetical ordering for any remaining keys.
+					if (title === 'Meta') {
+						// Meta ordering: host (combined row) is injected above via
+						// mapping.hostname/version/ip. Within the Meta group we want
+						// ip, created_at, uptime, domains, clients, with any other
+						// keys alphabetically in the middle.
+						var headOrder = ['ip', 'created_at'];
+						var tailOrder = ['uptime', 'domains', 'clients'];
+						entries.sort(function (a, b) {
+							var aHead = headOrder.indexOf(a.key);
+							var bHead = headOrder.indexOf(b.key);
+							var aTail = tailOrder.indexOf(a.key);
+							var bTail = tailOrder.indexOf(b.key);
+							// Head keys (hostname, version, ip) always first in fixed order.
+							if (aHead !== -1 || bHead !== -1) {
+								if (aHead === -1) return 1;
+								if (bHead === -1) return -1;
+								return aHead - bHead;
+							}
+							// Tail keys (domains, clients, uptime) always last in fixed order.
+							if (aTail !== -1 || bTail !== -1) {
+								if (aTail === -1) return -1;
+								if (bTail === -1) return 1;
+								return aTail - bTail;
+							}
+							// All other keys go in the middle, sorted alphabetically.
+							if (a.key < b.key) return -1;
+							if (a.key > b.key) return 1;
+							return 0;
+						});
+					} else {
+						entries.sort(function (a, b) {
+							if (a.key < b.key) return -1;
+							if (a.key > b.key) return 1;
+							return 0;
+						});
+					}
+				}
+
+				if (title === 'Meta') {
+					var host = mapping.hostname != null ? String(mapping.hostname) : '';
+					var ver = mapping.version != null ? String(mapping.version) : '';
+					var ip = mapping.ip != null ? String(mapping.ip) : '';
+					if (host || ver) {
+						var dtCombined = document.createElement('dt');
+						dtCombined.textContent = 'host';
+						var ddCombined = document.createElement('dd');
+						var text = '';
+						if (host) {
+							text += host;
+						}
+						if (ver) {
+							if (text) {
+								text += ' ';
+							}
+							text += 'v' + ver;
+						}
+						ddCombined.textContent = text;
+						dl.appendChild(dtCombined);
+						dl.appendChild(ddCombined);
+					}
+				}
+
+				entries.forEach(function (entry) {
+					var key = entry.key;
+					// Skip individual hostname/version keys in Meta now that we
+					// render them as a single combined "host" row. Keep ip as its
+					// own row directly beneath.
+					if (title === 'Meta' && (key === 'hostname' || key === 'version')) {
+						return;
+					}
+					var dt = document.createElement('dt');
+					dt.textContent = key;
+					if (Object.prototype.hasOwnProperty.call(STATS_TOOLTIPS, key)) {
+						dt.title = STATS_TOOLTIPS[key];
+					}
+					var dd = document.createElement('dd');
+					dd.textContent = formatNumber(entry.value);
+					if (dt.title) {
+						dd.title = dt.title;
+					}
+					dl.appendChild(dt);
+					dl.appendChild(dd);
+				});
+				group.appendChild(dl);
+				statsGroupsEl.appendChild(group);
+			}
+
+			function appendTopListGroup(title, entries, container) {
+				if (!entries || !Array.isArray(entries) || !entries.length) {
+					return;
+				}
+				var target = container || statsGroupsEl;
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = title;
+				// Provide a helpful tooltip for any "*Subdomain*" style list so it
+				// is clear that the entries are full subdomain qnames.
+				if (
+					typeof title === 'string' &&
+					(title.indexOf('Subdomain') !== -1 || title.indexOf('Sub Domains') !== -1)
+				) {
+					heading.title = 'Entries are subdomain names (full qnames, for example "www.example.com").';
+				}
+				group.appendChild(heading);
+
+				var dl = document.createElement('dl');
+				dl.className = 'fh-kv-list';
+
+				entries.forEach(function (pair) {
+					if (!pair || pair.length < 2) {
+						return;
+					}
+					var key = pair[0];
+					var count = pair[1];
+
+					var dt = document.createElement('dt');
+					dt.textContent = key;
+
+					var dd = document.createElement('dd');
+					dd.textContent = formatNumber(count);
+
+					dl.appendChild(dt);
+					dl.appendChild(dd);
+				});
+
+				group.appendChild(dl);
+				target.appendChild(group);
+			}
+
+			function appendUpstreamsGroup(upstreams, upstreamRcodes) {
+				if (!upstreams || typeof upstreams !== 'object') {
+					return;
+				}
+				var upstreamIds = Object.keys(upstreams);
+				if (!upstreamIds.length) {
+					return;
+				}
+
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = 'Upstreams';
+				heading.title = 'Per-upstream totals with breakdown by response code (NOERROR, NXDOMAIN, SERVFAIL, etc.).';
+				group.appendChild(heading);
+
+				var table = document.createElement('table');
+				table.className = 'fh-table fh-table-upstreams';
+				var tbody = document.createElement('tbody');
+
+				// Build sortable rows with pre-computed totals.
+				var upstreamRows = [];
+				upstreamRcodes = upstreamRcodes || {};
+
+				upstreamIds.forEach(function (upstreamId) {
+					var outcomes = upstreams[upstreamId];
+					if (!outcomes || typeof outcomes !== 'object') {
+						outcomes = {};
+					}
+
+					var rcMap = {};
+					if (upstreamRcodes && typeof upstreamRcodes === 'object') {
+						rcMap = upstreamRcodes[upstreamId] || {};
+					}
+					var rcodeKeys = Object.keys(rcMap).sort();
+
+					var total = 0;
+					if (rcodeKeys.length) {
+						rcodeKeys.forEach(function (key) {
+							var val = Number(rcMap[key]);
+							if (!isFinite(val)) {
+								val = 0;
+							}
+							total += val;
+						});
+					} else {
+						var outcomeKeys = Object.keys(outcomes).sort();
+						if (!outcomeKeys.length) {
+							return;
+						}
+						outcomeKeys.forEach(function (key) {
+							var val = Number(outcomes[key]);
+							if (!isFinite(val)) {
+								val = 0;
+							}
+							total += val;
+						});
+					}
+
+					upstreamRows.push({
+						id: upstreamId,
+						outcomes: outcomes,
+						rcodes: rcMap,
+						rcodeKeys: rcodeKeys,
+						total: total,
+					});
+				});
+
+				// Sort by total count (descending), then by upstream id (ascending).
+				upstreamRows.sort(function (a, b) {
+					if (b.total === a.total) {
+						if (a.id < b.id) return -1;
+						if (a.id > b.id) return 1;
+						return 0;
+					}
+					return b.total - a.total;
+				});
+
+				upstreamRows.forEach(function (rowData) {
+					var upstreamId = rowData.id;
+					var total = rowData.total;
+					var rcodes = rowData.rcodes || {};
+					var rcodeKeys = rowData.rcodeKeys || [];
+
+					// Main row: "upstream", "", "total"
+					var mainRow = document.createElement('tr');
+					var mainUpstreamCell = document.createElement('td');
+					mainUpstreamCell.textContent = upstreamId;
+					var mainBlankCell = document.createElement('td');
+					mainBlankCell.textContent = '';
+					var mainTotalParts = getNumberParts(total);
+					var mainTotalIntCell = document.createElement('td');
+					mainTotalIntCell.className = 'fh-num-int';
+					mainTotalIntCell.textContent = mainTotalParts.intPart;
+					var mainTotalDecCell = document.createElement('td');
+					mainTotalDecCell.className = 'fh-num-dec';
+					mainTotalDecCell.textContent = mainTotalParts.decPart;
+					mainRow.appendChild(mainUpstreamCell);
+					mainRow.appendChild(mainBlankCell);
+					mainRow.appendChild(mainTotalIntCell);
+					mainRow.appendChild(mainTotalDecCell);
+					tbody.appendChild(mainRow);
+
+					// Detail rows: "", rcode or outcome, count. Prefer rcodes
+					// when available, fall back to outcomes otherwise.
+					if (rcodeKeys.length > 1) {
+						// Sort rcodes (excluding NOERROR) by count descending, then name.
+						var rcodeEntries = rcodeKeys
+							.filter(function (key) {
+								return key !== 'NOERROR';
+							})
+							.map(function (key) {
+								var num = Number(rcodes[key]);
+								if (!isFinite(num)) {
+									num = 0;
+								}
+								return { key: key, value: rcodes[key], numeric: num };
+							});
+
+						rcodeEntries.sort(function (a, b) {
+							if (b.numeric === a.numeric) {
+								if (a.key < b.key) return -1;
+								if (a.key > b.key) return 1;
+								return 0;
+							}
+							return b.numeric - a.numeric;
+						});
+
+						rcodeEntries.forEach(function (entry) {
+							var key = entry.key;
+							var val = entry.value;
+							var row = document.createElement('tr');
+
+							var blankCell = document.createElement('td');
+							blankCell.textContent = '';
+							var labelCell = document.createElement('td');
+							labelCell.textContent = key.toLowerCase();
+							var parts = getNumberParts(val);
+							var countIntCell = document.createElement('td');
+							countIntCell.className = 'fh-num-int';
+							countIntCell.textContent = parts.intPart;
+							var countDecCell = document.createElement('td');
+							countDecCell.className = 'fh-num-dec';
+							countDecCell.textContent = parts.decPart;
+							row.appendChild(blankCell);
+							row.appendChild(labelCell);
+							row.appendChild(countIntCell);
+							row.appendChild(countDecCell);
+							tbody.appendChild(row);
+						});
+					} else if (!rcodeKeys.length) {
+						var outcomes = rowData.outcomes || {};
+						var outcomeKeys = Object.keys(outcomes);
+						var onlySuccess =
+							outcomeKeys.length === 1 && outcomeKeys[0] === 'success';
+						if (!onlySuccess) {
+							var outcomeEntries = outcomeKeys.map(function (key) {
+								var num = Number(outcomes[key]);
+								if (!isFinite(num)) {
+									num = 0;
+								}
+								return { key: key, value: outcomes[key], numeric: num };
+							});
+
+							outcomeEntries.sort(function (a, b) {
+								if (b.numeric === a.numeric) {
+									if (a.key < b.key) return -1;
+									if (a.key > b.key) return 1;
+									return 0;
+								}
+								return b.numeric - a.numeric;
+							});
+
+							outcomeEntries.forEach(function (entry) {
+								var key = entry.key;
+								var val = entry.value;
+								var row = document.createElement('tr');
+
+								var blankCell = document.createElement('td');
+								blankCell.textContent = '';
+								var outcomeCell = document.createElement('td');
+								outcomeCell.textContent = key;
+								var parts = getNumberParts(val);
+								var countIntCell = document.createElement('td');
+								countIntCell.className = 'fh-num-int';
+								countIntCell.textContent = parts.intPart;
+								var countDecCell = document.createElement('td');
+								countDecCell.className = 'fh-num-dec';
+								countDecCell.textContent = parts.decPart;
+
+								row.appendChild(blankCell);
+								row.appendChild(outcomeCell);
+								row.appendChild(countIntCell);
+								row.appendChild(countDecCell);
+								tbody.appendChild(row);
+							});
+						}
+					}
+				});
+
+				table.appendChild(tbody);
+				group.appendChild(table);
+				statsGroupsEl.appendChild(group);
+			}
+
+			function appendUpstreamQtypesGroup(upstreamQtypes) {
+				if (!upstreamQtypes || typeof upstreamQtypes !== 'object') {
+					return;
+				}
+				var upstreamIds = Object.keys(upstreamQtypes);
+				if (!upstreamIds.length) {
+					return;
+				}
+
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = 'Upstreams by Query type';
+				heading.title = 'Per-upstream totals with breakdown by DNS query type (A, AAAA, PTR, etc.).';
+				group.appendChild(heading);
+
+				var table = document.createElement('table');
+				table.className = 'fh-table fh-table-upstreams';
+				var tbody = document.createElement('tbody');
+
+				var upstreamRows = [];
+				upstreamIds.forEach(function (upstreamId) {
+					var qmap = upstreamQtypes[upstreamId];
+					if (!qmap || typeof qmap !== 'object') {
+						qmap = {};
+					}
+					var qtypes = Object.keys(qmap);
+					if (!qtypes.length) {
+						return;
+					}
+					var total = 0;
+					qtypes.forEach(function (qt) {
+						var val = Number(qmap[qt]);
+						if (!isFinite(val)) {
+							val = 0;
+						}
+						total += val;
+					});
+					upstreamRows.push({
+						id: upstreamId,
+						qtypes: qmap,
+						qtypeKeys: qtypes,
+						total: total,
+					});
+				});
+
+				if (!upstreamRows.length) {
+					return;
+				}
+
+				upstreamRows.sort(function (a, b) {
+					if (b.total === a.total) {
+						if (a.id < b.id) return -1;
+						if (a.id > b.id) return 1;
+						return 0;
+					}
+					return b.total - a.total;
+				});
+
+				upstreamRows.forEach(function (rowData) {
+					var upstreamId = rowData.id;
+					var total = rowData.total;
+					var qtypes = rowData.qtypes || {};
+					var qtypeKeys = rowData.qtypeKeys || [];
+
+					var mainRow = document.createElement('tr');
+					var mainUpstreamCell = document.createElement('td');
+					mainUpstreamCell.textContent = upstreamId;
+					var mainBlankCell = document.createElement('td');
+					mainBlankCell.textContent = '';
+					var mainTotalParts = getNumberParts(total);
+					var mainTotalIntCell = document.createElement('td');
+					mainTotalIntCell.className = 'fh-num-int';
+					mainTotalIntCell.textContent = mainTotalParts.intPart;
+					var mainTotalDecCell = document.createElement('td');
+					mainTotalDecCell.className = 'fh-num-dec';
+					mainTotalDecCell.textContent = mainTotalParts.decPart;
+					mainRow.appendChild(mainUpstreamCell);
+					mainRow.appendChild(mainBlankCell);
+					mainRow.appendChild(mainTotalIntCell);
+					mainRow.appendChild(mainTotalDecCell);
+					tbody.appendChild(mainRow);
+
+					var qtypeEntries = qtypeKeys.map(function (qt) {
+						var num = Number(qtypes[qt]);
+						if (!isFinite(num)) {
+							num = 0;
+						}
+						return { key: qt, value: qtypes[qt], numeric: num };
+					});
+
+					qtypeEntries.sort(function (a, b) {
+						if (b.numeric === a.numeric) {
+							if (a.key < b.key) return -1;
+							if (a.key > b.key) return 1;
+							return 0;
+						}
+						return b.numeric - a.numeric;
+					});
+
+					qtypeEntries.forEach(function (entry) {
+						var qt = entry.key;
+						var val = entry.value;
+						var row = document.createElement('tr');
+
+						var blankCell = document.createElement('td');
+						blankCell.textContent = '';
+						var labelCell = document.createElement('td');
+						labelCell.textContent = qt;
+						var parts = getNumberParts(val);
+						var countIntCell = document.createElement('td');
+						countIntCell.className = 'fh-num-int';
+						countIntCell.textContent = parts.intPart;
+						var countDecCell = document.createElement('td');
+						countDecCell.className = 'fh-num-dec';
+						countDecCell.textContent = parts.decPart;
+
+						row.appendChild(blankCell);
+						row.appendChild(labelCell);
+						row.appendChild(countIntCell);
+						row.appendChild(countDecCell);
+						tbody.appendChild(row);
+					});
+				});
+
+				table.appendChild(tbody);
+				group.appendChild(table);
+				statsGroupsEl.appendChild(group);
+			}
+
+			function appendSystemGroup(system) {
+				if (!system || typeof system !== 'object') {
+					return;
+				}
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = 'System';
+				group.appendChild(heading);
+
+				var dl = document.createElement('dl');
+				dl.className = 'fh-kv-list';
+
+				var memTotal = system.memory_total_bytes;
+				var memTotalUsed = system.memory_used_bytes;
+				var memTotalAvail = system.memory_available_bytes;
+				var memTotalFree = system.memory_free_bytes;
+
+				function addMemRow(label, value) {
+					if (value == null) {
+						return;
+					}
+					var dt = document.createElement('dt');
+					dt.textContent = label;
+					var dd = document.createElement('dd');
+					if (value === '') {
+						dd.textContent = '';
+					} else {
+						dd.textContent = formatBytes(value);
+					}
+					dl.appendChild(dt);
+					dl.appendChild(dd);
+				}
+
+				addMemRow('Total Memory', memTotal);
+				addMemRow('Memory used', memTotalUsed);
+				addMemRow('Free Memory', memTotalFree);
+				addMemRow('Memory available', memTotalAvail);
+
+				var loadKeys = ['load_1m', 'load_5m', 'load_15m'];
+				loadKeys.forEach(function (key) {
+					if (system[key] == null) {
+						return;
+					}
+					var dt = document.createElement('dt');
+					dt.textContent = key.replace('_', ' ');
+					var dd = document.createElement('dd');
+					dd.textContent = formatNumber(system[key]);
+					dl.appendChild(dt);
+					dl.appendChild(dd);
+				});
+
+
+				group.appendChild(dl);
+
+				statsGroupsEl.appendChild(group);
+			}
+
+			function appendProcessGroup(system) {
+				if (!system || typeof system !== 'object') {
+					return;
+				}
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = 'Process';
+				group.appendChild(heading);
+
+				var dl = document.createElement('dl');
+				dl.className = 'fh-kv-list';
+
+				var processUsed = system.process_rss_bytes;
+				var processCpuPercent = system.process_cpu_percent;
+				var processOpenFiles = system.process_open_files_count;
+				var processConnections = system.process_connections_count;
+
+				function addProcessRow(label, value) {
+					var dt = document.createElement('dt');
+					dt.textContent = label;
+					var dd = document.createElement('dd');
+					dd.textContent = value;
+					dl.appendChild(dt);
+					dl.appendChild(dd);
+				}
+
+				addProcessRow('Foghorn Memory use', formatBytes(processUsed));
+				addProcessRow('Process CPU %', processCpuPercent + " %");
+				addProcessRow('Process open files', processOpenFiles);
+				addProcessRow('Process connections', processConnections);
+
+				group.appendChild(dl);
+
+				statsGroupsEl.appendChild(group);
+			}
+
+			function appendQtypeTopDomains(qtypeQnames) {
+				if (!qtypeQnames || typeof qtypeQnames !== 'object') {
+					return;
+				}
+				var qtypes = Object.keys(qtypeQnames).sort();
+				qtypes.forEach(function (qt) {
+					var entries = qtypeQnames[qt];
+					if (!entries || !Array.isArray(entries) || !entries.length) {
+						return;
+					}
+					// All qtype-based "Top <qt> Domains" lists go to the right-hand pane when available.
+					var target = statsGroupsRightEl || statsGroupsEl;
+					appendTopListGroup('Top ' + qt + ' Requests', entries, target);
+				});
+			}
+
+			function appendRcodeTopDomains(rcodeDomains) {
+				if (!rcodeDomains || typeof rcodeDomains !== 'object') {
+					return;
+				}
+				var rcodes = Object.keys(rcodeDomains).sort();
+				rcodes.forEach(function (rc) {
+					var entries = rcodeDomains[rc];
+					if (!entries || !Array.isArray(entries) || !entries.length) {
+						return;
+					}
+					// Selected rcodes (NOERROR, NXDOMAIN, REFUSED, SERVFAIL) go to the right-hand pane.
+					var isRightRcode = rc === 'NOERROR' || rc === 'NXDOMAIN' || rc === 'REFUSED' || rc === 'SERVFAIL';
+					var target = isRightRcode && statsGroupsRightEl ? statsGroupsRightEl : statsGroupsEl;
+					appendTopListGroup('Top ' + rc + ' Domains', entries, target);
+				});
+			}
+
+			function appendRcodeTopSubdomains(rcodeSubdomains) {
+				if (!rcodeSubdomains || typeof rcodeSubdomains !== 'object') {
+					return;
+				}
+				var rcodes = Object.keys(rcodeSubdomains).sort();
+				rcodes.forEach(function (rc) {
+					var entries = rcodeSubdomains[rc];
+					if (!entries || !Array.isArray(entries) || !entries.length) {
+						return;
+					}
+					// NXDOMAIN and NOERROR subdomain lists go to the right-hand pane.
+					var isRightRcode = rc === 'NXDOMAIN' || rc === 'NOERROR';
+					var target = isRightRcode && statsGroupsRightEl ? statsGroupsRightEl : statsGroupsEl;
+					appendTopListGroup('Top ' + rc + ' Subdomains', entries, target);
+				});
+			}
+
+			function appendUpstreamStatusGroup(status) {
+				if (!status || typeof status !== 'object') {
+					return;
+				}
+				var items = status.items;
+				if (!items || !Array.isArray(items) || !items.length) {
+					return;
+				}
+				var container = statsGroupsEl || statsGroupsRightEl;
+				if (!container) {
+					return;
+				}
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = 'Upstream health';
+				group.appendChild(heading);
+
+				var metaP = document.createElement('p');
+				metaP.className = 'fh-pane-help';
+				metaP.textContent = 'Strategy: ' + (status.strategy || 'failover') +
+					', max concurrent: ' + (status.max_concurrent != null ? status.max_concurrent : 1);
+				group.appendChild(metaP);
+
+				var table = document.createElement('table');
+				table.className = 'fh-table fh-table-upstreams';
+				var thead = document.createElement('thead');
+				var headRow = document.createElement('tr');
+				['Upstream', 'State', 'Failures', 'Backoff (s)'].forEach(function (label) {
+					var th = document.createElement('th');
+					th.textContent = label;
+					th.style.textAlign = 'left';
+					headRow.appendChild(th);
+				});
+				thead.appendChild(headRow);
+				table.appendChild(thead);
+
+				var tbody = document.createElement('tbody');
+				items.forEach(function (item) {
+					if (!item || typeof item !== 'object') {
+						return;
+					}
+					var id = item.id || '';
+					var state = item.state || 'up';
+					var failCount = item.fail_count != null ? item.fail_count : 0;
+					var backoffText = '';
+					if (item.down_until) {
+						var nowMs = Date.now();
+						var untilMs = Number(item.down_until) * 1000;
+						var remainingMs = untilMs - nowMs;
+						if (remainingMs > 0) {
+							backoffText = (remainingMs / 1000).toFixed(1);
+						}
+					}
+					var tr = document.createElement('tr');
+					var tdId = document.createElement('td');
+					tdId.textContent = id;
+					var tdState = document.createElement('td');
+					tdState.textContent = state;
+					var tdFail = document.createElement('td');
+					tdFail.textContent = String(failCount);
+					var tdBackoff = document.createElement('td');
+					tdBackoff.textContent = backoffText;
+					tr.appendChild(tdId);
+					tr.appendChild(tdState);
+					tr.appendChild(tdFail);
+					tr.appendChild(tdBackoff);
+					tbody.appendChild(tr);
+				});
+
+				table.appendChild(tbody);
+				group.appendChild(table);
+
+				// Try to insert directly after the "Upstreams" block when present so
+				// that health details visually follow aggregate upstream stats.
+				var anchor = null;
+				var sections = container.querySelectorAll('.fh-stats-group');
+				sections.forEach(function (sec) {
+					if (anchor !== null) {
+						return;
+					}
+					var h = sec.querySelector('h3');
+					if (h && h.textContent === 'Upstreams') {
+						anchor = sec;
+					}
+				});
+				if (anchor && anchor.parentNode === container) {
+					if (anchor.nextSibling) {
+						container.insertBefore(group, anchor.nextSibling);
+					} else {
+						container.appendChild(group);
+					}
+				} else {
+					container.appendChild(group);
+				}
+			}
+
+			function renderStats(data) {
+				clearStatsGroups();
+
+				if (!data || typeof data !== 'object') {
+					statsRawEl.textContent = 'No statistics payload returned from /stats';
+					return;
+				}
+
+				if (data.status === 'disabled') {
+					var disabledGroup = document.createElement('section');
+					disabledGroup.className = 'fh-stats-group';
+					var heading = document.createElement('h3');
+					heading.className = 'fh-stats-group-title';
+					heading.textContent = 'Status';
+					disabledGroup.appendChild(heading);
+					var p = document.createElement('p');
+					p.className = 'fh-pane-help';
+					p.textContent = 'Statistics are disabled for this server instance.';
+					disabledGroup.appendChild(p);
+					statsGroupsEl.appendChild(disabledGroup);
+					statsRawEl.textContent = pretty(data);
+					return;
+				}
+
+				// Prefer a created_at field from meta when present, falling back to
+				// a top-level created_at. Always format as "YYYY-MM-DD HH:MM:SS".
+				var rawCreatedAt = null;
+				if (data.meta && typeof data.meta === 'object' && data.meta.created_at != null) {
+					rawCreatedAt = data.meta.created_at;
+				} else if (data.created_at != null) {
+					rawCreatedAt = data.created_at;
+				}
+				var createdFormatted = rawCreatedAt != null ? formatTimestamp(rawCreatedAt) : null;
+
+				var meta = {};
+				if (data.meta && typeof data.meta === 'object') {
+					meta = data.meta;
+					delete meta.server_time;
+					if (createdFormatted !== null) {
+						meta.created_at = createdFormatted;
+					}
+					if (meta.uptime !== undefined && meta.uptime !== null) {
+						meta.uptime = formatDurationSeconds(meta.uptime);
+					}
+				}
+
+				// Ensure unique client/domain counts live in Meta, not Totals.
+				if (data.uniques && typeof data.uniques === 'object') {
+					if (data.uniques.clients != null && meta.clients == null) {
+						meta.clients = data.uniques.clients;
+					}
+					if (data.uniques.domains != null && meta.domains == null) {
+						meta.domains = data.uniques.domains;
+					}
+				}
+
+				if (Object.keys(meta).length) {
+					// Rebuild meta mapping so that clients/domains appear last in the
+					// Meta box for readability.
+					var metaForDisplay = {};
+					Object.keys(meta).forEach(function (key) {
+						if (key === 'clients' || key === 'domains') {
+							return;
+						}
+						metaForDisplay[key] = meta[key];
+					});
+					if (meta.clients != null) {
+						metaForDisplay.clients = meta.clients;
+					}
+					if (meta.domains != null) {
+						metaForDisplay.domains = meta.domains;
+					}
+					appendDictGroup('Meta', metaForDisplay);
+				}
+
+				// Show per-process stats immediately after Meta so they stay visually
+				// grouped near core host details.
+				appendProcessGroup(data.system);
+
+				// For Totals, hide certain internal-pre cache counters from the UI and
+				// peel off DNSSEC-specific counters into their own mapping.
+				var totalsForDisplay = {};
+				var dnssecTotalsFromTotals = {};
+				if (data.totals && typeof data.totals === 'object') {
+					Object.keys(data.totals).forEach(function (key) {
+						if (
+							key === 'cache_deny_pre' ||
+							key === 'cache_override_pre' ||
+							key === 'cache_null'
+						) {
+							return;
+						}
+						if (key.indexOf('dnssec_') === 0) {
+							dnssecTotalsFromTotals[key] = data.totals[key];
+							return;
+						}
+						totalsForDisplay[key] = data.totals[key];
+					});
+				}
+
+				// Surface unique client/domain counts only via Meta; Totals intentionally
+				// omits clients/domains so they are not duplicated.
+				appendDictGroup('Totals', totalsForDisplay);
+
+				// Prefer a dedicated dnssec object from the API when present; fall
+				// back to DNSSEC counters discovered under totals.
+				var dnssecMapping = null;
+				if (data.dnssec && typeof data.dnssec === 'object') {
+					dnssecMapping = data.dnssec;
+				} else if (dnssecTotalsFromTotals && Object.keys(dnssecTotalsFromTotals).length) {
+					dnssecMapping = dnssecTotalsFromTotals;
+				}
+				if (dnssecMapping && Object.keys(dnssecMapping).length) {
+					appendDictGroup('DNSSEC', dnssecMapping);
+				}
+
+				appendUpstreamsGroup(data.upstreams || {}, data.upstream_rcodes || {});
+				appendDictGroup('Query types', data.qtypes || {});
+				appendDictGroup('Response codes', data.rcodes || {});
+				appendDictGroup('Recent latency', data.latency_recent || {});
+				appendDictGroup('Latency', data.latency || {});
+
+				appendTopListGroup('Top Client', data.top_clients || []);
+				appendTopListGroup('Top Domains', data.top_domains || [], statsGroupsRightEl || statsGroupsEl);
+				appendTopListGroup('Top Sub Domains', data.top_subdomains || [], statsGroupsRightEl || statsGroupsEl);
+				// Cache hit/miss lists live in the right-hand pane when available.
+				appendTopListGroup('Top Cache Hit Domains', data.cache_hit_domains || [], statsGroupsRightEl || statsGroupsEl);
+				appendTopListGroup('Top Cache Miss Domains', data.cache_miss_domains || [], statsGroupsRightEl || statsGroupsEl);
+				appendTopListGroup('Top Cache Hit Subdomains', data.cache_hit_subdomains || [], statsGroupsRightEl || statsGroupsEl);
+				appendTopListGroup('Top Cache Miss Subdomains', data.cache_miss_subdomains || [], statsGroupsRightEl || statsGroupsEl);
+
+				// Per-qtype top domains (qnames) for common query types.
+				appendQtypeTopDomains(data.qtype_qnames || {});
+				// Per-rcode top base domains.
+				appendRcodeTopDomains(data.rcode_domains || {});
+				// Per-rcode top base domains for subdomain-only traffic.
+				appendRcodeTopSubdomains(data.rcode_subdomains || {});
+
+
+				if (data.system) {
+					appendSystemGroup(data.system);
+				}
+
+				statsRawEl.textContent = pretty(data);
+			}
+
+			function loadStats() {
+				fetchJson('/api/v1/stats')
+					.then(function (data) {
+						renderStats(data);
+						return fetchJson('/api/v1/upstream_status')
+							.then(function (ustatus) {
+								appendUpstreamStatusGroup(ustatus);
+							})
+							.catch(function () {
+								// Upstream status is optional; ignore errors here.
+							});
+					})
+					.catch(function (err) {
+						statsRawEl.textContent = 'Failed to load statistics: ' + err.message;
+					});
+			}
+
+			// Generic helpers for plugin admin pages driven by JSON snapshots.
+			// Plugins describe their UI in get_admin_ui_descriptor() using a
+			// "layout" object; the frontend renders sections and tables based on
+			// that metadata instead of hard-coding per-plugin logic.
+			function resolvePath(obj, path) {
+				if (!obj || !path) {
+					return obj;
+				}
+				var parts = String(path).split('.');
+				var cur = obj;
+				for (var i = 0; i < parts.length; i++) {
+					if (!cur || typeof cur !== 'object') {
+						return undefined;
+					}
+					var key = parts[i];
+					if (!Object.prototype.hasOwnProperty.call(cur, key)) {
+						return undefined;
+					}
+					cur = cur[key];
+				}
+				return cur;
+			}
+
+			function escapeHtml(text) {
+				if (text == null) {
+					return '';
+				}
+				return String(text)
+					.replace(/&/g, '&amp;')
+					.replace(/</g, '&lt;')
+					.replace(/>/g, '&gt;')
+					.replace(/"/g, '&quot;')
+					.replace(/'/g, '&#39;');
+			}
+
+			function renderKvSection(root, valueMap, section) {
+				if (!root) {
+					return;
+				}
+				root.textContent = '';
+				var title = section && section.title ? section.title : 'Stats';
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = title;
+				group.appendChild(heading);
+				valueMap = valueMap && typeof valueMap === 'object' ? valueMap : {};
+				var specRows = Array.isArray(section && section.rows) ? section.rows : [];
+				// If the section did not declare explicit rows, synthesize them from
+				// the value mapping keys so KV sections still render something useful.
+				if (!specRows.length) {
+					Object.keys(valueMap).sort().forEach(function (k) {
+						specRows.push({ key: k, label: k });
+					});
+				}
+				if (!specRows.length) {
+					var p = document.createElement('p');
+					p.className = 'fh-pane-help';
+					p.textContent = 'No data.';
+					group.appendChild(p);
+					root.appendChild(group);
+					return;
+				}
+				// Special-case the summary section so it renders as a compact
+				// two-column table instead of a definition list. Sections may opt in
+				// to right-aligned values by setting section.align === 'right'.
+				if (section && section.id === 'summary') {
+					var table = document.createElement('table');
+					table.className = 'fh-table fh-table-upstreams';
+					var tbody = document.createElement('tbody');
+					var alignRight = section && section.align === 'right';
+					if (alignRight) {
+						// Use auto width for right-aligned summary tables so the key
+						// and value columns sit closer together instead of stretching
+						// across the full pane width.
+						table.style.width = 'auto';
+					}
+					specRows.forEach(function (row) {
+						if (!row || typeof row !== 'object') {
+							return;
+						}
+						var key = row.key != null ? String(row.key) : '';
+						var value = key && Object.prototype.hasOwnProperty.call(valueMap, key)
+							? valueMap[key]
+							: row.value;
+						var text = '';
+						if (value == null) {
+							text = '';
+						} else if (Array.isArray(value)) {
+							text = value.join(', ');
+						} else if (typeof value === 'boolean') {
+							text = value ? 'yes' : '';
+						} else if (typeof value === 'number') {
+							text = formatNumber(value);
+						} else {
+							text = String(value);
+						}
+						var lowerKey = key.toLowerCase();
+						// Domain/suffix: show a friendly marker when empty.
+						if (lowerKey === 'suffix' && !text) {
+							text = '(none)';
+						}
+						// Reload interval: append a unit suffix.
+						if (lowerKey.indexOf('interval') !== -1 && text) {
+							text = text + ' s';
+						}
+						var tr = document.createElement('tr');
+						var tdKey = document.createElement('td');
+						var tdVal = document.createElement('td');
+						// Use the row label when present; fall back to the raw key.
+						tdKey.textContent = row.label || key;
+						tdVal.textContent = text;
+						if (alignRight) {
+							tdVal.style.textAlign = 'right';
+						}
+						tr.appendChild(tdKey);
+						tr.appendChild(tdVal);
+						tbody.appendChild(tr);
+					});
+					table.appendChild(tbody);
+					group.appendChild(table);
+				} else {
+					var dl = document.createElement('dl');
+					specRows.forEach(function (row) {
+						if (!row || typeof row !== 'object') {
+							return;
+						}
+						var key = row.key != null ? String(row.key) : '';
+						var value = key && Object.prototype.hasOwnProperty.call(valueMap, key)
+							? valueMap[key]
+							: row.value;
+						var dt = document.createElement('dt');
+						dt.textContent = key;
+						var dd = document.createElement('dd');
+						var text = '';
+						if (value == null) {
+							text = '';
+						} else if (Array.isArray(value)) {
+							text = value.join(', ');
+						} else if (typeof value === 'boolean') {
+							text = value ? 'yes' : '';
+						} else if (typeof value === 'number') {
+							text = formatNumber(value);
+						} else {
+							text = String(value);
+						}
+						dd.textContent = text;
+						dl.appendChild(dt);
+						dl.appendChild(dd);
+					});
+					group.appendChild(dl);
+				}
+				root.appendChild(group);
+			}
+
+			function isHashLikeLabel(label) {
+				// Treat 12–64 character all-hex labels (first DNS label) as hash-like,
+				// which covers docker short IDs and SHA-style names.
+				if (!label) {
+					return false;
+				}
+				var token = String(label).split('.', 1)[0].toLowerCase().trim();
+				if (!token) {
+					return false;
+				}
+				if (token.length < 12 || token.length > 64) {
+					return false;
+				}
+				for (var i = 0; i < token.length; i++) {
+					var ch = token.charAt(i);
+					if ('0123456789abcdef'.indexOf(ch) === -1) {
+						return false;
+					}
+				}
+				return true;
+			}
+
+			function buildDockerGroupsByTxt(rows, section) {
+				rows = Array.isArray(rows) ? rows : [];
+				if (!rows.length) {
+					return rows;
+				}
+				// Optional domain suffix (e.g. "docker.zaa") provided by the backend
+				// via data.summary.suffix and plumbed into section._domainSuffix so
+				// that we can hide it from display names while still showing it in
+				// the Summary table.
+				var domainSuffix = '';
+				if (section && section._domainSuffix) {
+					var raw = String(section._domainSuffix).toLowerCase().trim();
+					if (raw) {
+						// Strip leading/trailing dots and collapse repeats.
+						var parts = raw.replace(/^\.+|\.+$/g, '').split('.');
+						var clean = [];
+						for (var pi = 0; pi < parts.length; pi++) {
+							if (parts[pi]) {
+								clean.push(parts[pi]);
+							}
+						}
+						if (clean.length) {
+							domainSuffix = clean.join('.');
+						}
+					}
+				}
+				function stripSuffix(name) {
+					if (!domainSuffix) {
+						return name;
+					}
+					var text = String(name || '').trim();
+					if (!text) {
+						return text;
+					}
+					var lower = text.toLowerCase();
+					var suf = '.' + domainSuffix;
+					if (lower.endsWith(suf)) {
+						return text.slice(0, text.length - suf.length) || text;
+					}
+					return text;
+				}
+				// First, group rows by identical TXT payload so that aliases for the
+				// same TXT summary are collapsed. Later we will further aggregate by
+				// short (non-hash) names so that only one visual row appears per
+				// logical name.
+				var groups = Object.create(null);
+				rows.forEach(function (row) {
+					if (!row || typeof row !== 'object') {
+						return;
+					}
+					var txt = row.txt;
+					var key;
+					if (Array.isArray(txt)) {
+						try {
+							key = JSON.stringify(txt);
+						} catch (e) {
+							key = String(txt);
+						}
+					} else {
+						key = String(txt);
+					}
+					if (!groups[key]) {
+						groups[key] = { rows: [], txt: Array.isArray(txt) ? txt.slice() : (txt != null ? [String(txt)] : []) };
+					}
+					groups[key].rows.push(row);
+				});
+				// Build a per-TXT group descriptor with display name, aliases, tooltip,
+				// and a containers count (parsed from the header line). These group
+				// objects will then be aggregated by short name so that only one
+				// visual row appears per short name.
+				var groupObjects = [];
+				Object.keys(groups).forEach(function (gkey) {
+					var group = groups[gkey];
+					var txtLines = group.txt;
+					if (!txtLines.length) {
+						// No TXT/Info; just collapse to first row.
+						groupObjects.push({
+							base: group.rows[0],
+							primaryName: group.rows[0] && group.rows[0].name ? String(group.rows[0].name) : '',
+							aliases: [],
+							fullIds: [],
+							cleanedLines: [],
+							containersCount: 0,
+						});
+						return;
+					}
+					// Tooltip starts as the full TXT payload joined with newlines; we
+					// will append any full container IDs so they are still visible even
+					// when not rendered in the alias list.
+					var primaryName = '';
+					var aliasSet = Object.create(null);
+					var fullIdAliases = [];
+					var containersCount = 0;
+					// Parse containers= header when present so that when an alias points
+					// to multiple servers, we can treat the TXT with the highest
+					// container count as the "main".
+					for (var hi = 0; hi < txtLines.length; hi++) {
+						var headerLine = String(txtLines[hi] || '');
+						if (headerLine.indexOf('containers=') === 0) {
+							var numStr = headerLine.substring('containers='.length).trim();
+							var numVal = parseInt(numStr, 10);
+							if (!isNaN(numVal) && numVal > 0) {
+								containersCount = numVal;
+							}
+							break;
+						}
+					}
+					function isFullId(name) {
+						var token = String(name).split('.', 1)[0].toLowerCase().trim();
+						if (token.length !== 64) {
+							return false;
+						}
+						for (var i = 0; i < token.length; i++) {
+							var ch = token.charAt(i);
+							if ('0123456789abcdef'.indexOf(ch) === -1) {
+								return false;
+							}
+						}
+						return true;
+					}
+					// Helper to record alias names (deduplicated). Full 64-char IDs are
+					// not added to aliasSet; instead they are only exposed via tooltip.
+					function addAlias(name) {
+						if (!name) {
+							return;
+						}
+						var k = String(name).trim();
+						// Normalise docker-style names like "/calibre-web" by
+						// removing a single leading slash so that UI display names
+						// match the TXT/Info summaries and DNS labels.
+						if (k.charAt(0) === '/') {
+							k = k.substring(1);
+						}
+						if (!k) {
+							return;
+						}
+						if (isFullId(k)) {
+							if (fullIdAliases.indexOf(k) === -1) {
+								fullIdAliases.push(k);
+							}
+							return;
+						}
+						aliasSet[k] = true;
+					}
+					// Parse name=/aliases= from the first non-header line.
+					for (var i = 0; i < txtLines.length; i++) {
+						var line = String(txtLines[i]);
+						if (!line || line.indexOf('=') === -1) {
+							continue;
+						}
+						if (line.indexOf('containers=') === 0 || line.indexOf('hosts=') === 0) {
+							continue;
+						}
+						var parts = line.split(/\s+/);
+						for (var j = 0; j < parts.length; j++) {
+							var part = parts[j];
+							if (part.indexOf('name=') === 0 && !primaryName) {
+								primaryName = part.substring('name='.length);
+								// Normalise docker-style names like "/foghorn" to
+								// "foghorn" so the primary display name never begins
+								// with a leading slash even when provided via
+								// txt_fields.
+								if (primaryName.charAt(0) === '/') {
+									primaryName = primaryName.substring(1);
+								}
+							} else if (part.indexOf('aliases=') === 0) {
+								var rawAliases = part.substring('aliases='.length).split(',');
+								rawAliases.forEach(function (a) {
+									addAlias(a);
+								});
+							}
+						}
+						if (primaryName) {
+							break;
+						}
+					}
+					// Also treat the per-row display names as aliases.
+					group.rows.forEach(function (row) {
+						if (row && row.name) {
+							addAlias(row.name);
+						}
+					});
+					if (!primaryName && group.rows[0] && group.rows[0].name) {
+						primaryName = String(group.rows[0].name);
+						if (primaryName.charAt(0) === '/') {
+							primaryName = primaryName.substring(1);
+						}
+					}
+					// Clean TXT text for display: strip name=/aliases= tokens but keep others.
+					var cleanedLines = [];
+					txtLines.forEach(function (line) {
+						var text = String(line || '');
+						if (!text) {
+							return;
+						}
+						if (text.indexOf('containers=') === 0 || text.indexOf('hosts=') === 0) {
+							// Keep header line as-is.
+							cleanedLines.push(text);
+							return;
+						}
+						var parts = text.split(/\s+/);
+						var kept = [];
+						for (var j = 0; j < parts.length; j++) {
+							var part = parts[j];
+							if (part.indexOf('name=') === 0 || part.indexOf('aliases=') === 0) {
+								continue;
+							}
+							kept.push(part);
+						}
+						cleanedLines.push(kept.join(' '));
+					});
+					groupObjects.push({
+						base: group.rows[0],
+						primaryName: primaryName,
+						aliases: Object.keys(aliasSet),
+						fullIds: fullIdAliases.slice(),
+						cleanedLines: cleanedLines,
+						containersCount: containersCount,
+						allTxtLines: txtLines.slice(),
+					});
+				});
+				// Next, aggregate by short (non-hash) name. When an alias maps to
+				// multiple TXT groups, choose the group with the largest containers
+				// count as the "main". Hash-like labels (short/long hex) are never
+				// chosen as the primary when a non-hash alternative exists.
+				var bestByShortName = Object.create(null);
+				groupObjects.forEach(function (g) {
+					// Candidate keys: primaryName plus all aliases.
+					var candidates = [];
+					if (g.primaryName) {
+						candidates.push(g.primaryName);
+					}
+					g.aliases.forEach(function (a) {
+						if (candidates.indexOf(a) === -1) {
+							candidates.push(a);
+						}
+					});
+					candidates.forEach(function (rawName) {
+						if (!rawName) {
+							return;
+						}
+						// Normalise away a single leading slash from docker-style
+						// names before computing shortName keys.
+						if (rawName.charAt(0) === '/') {
+							rawName = rawName.substring(1);
+						}
+						// Prefer non-hash labels; hash-like labels become aliases.
+						if (isHashLikeLabel(rawName)) {
+							return;
+						}
+						var shortName = stripSuffix(rawName);
+						if (!shortName) {
+							return;
+						}
+						var existing = bestByShortName[shortName];
+						if (!existing || (g.containersCount || 0) > (existing.containersCount || 0)) {
+							bestByShortName[shortName] = g;
+						}
+					});
+				});
+				// Any groups that are only referenced by hash-like names (no
+				// non-hash alias) should still be visible; treat their primary name
+				// (possibly hash-like) as the key.
+				groupObjects.forEach(function (g) {
+					if (!g.primaryName) {
+						return;
+					}
+					var shortName = stripSuffix(g.primaryName);
+					if (!shortName) {
+						return;
+					}
+					if (!bestByShortName[shortName]) {
+						bestByShortName[shortName] = g;
+					}
+				});
+				// Finally, materialize rows: one visual row per short name, with the
+				// chosen main group providing TXT/Info and aliases.
+				var result = [];
+				Object.keys(bestByShortName).forEach(function (shortName) {
+					var g = bestByShortName[shortName];
+					// Build HTML for the Name column: main short name, then aliases
+					// (including hash-like) indented 2em.
+					var nameHtml = '';
+					nameHtml += '<div>' + escapeHtml(stripSuffix(shortName)) + '</div>';
+					// Merge aliases from *all* TXT groups that share this short
+					// name so that per-container short hashes (sha1[:12]) for every
+					// backend appear as aliases, not just those from the chosen main
+					// group.
+					var aliasSet = Object.create(null);
+					groupObjects.forEach(function (g2) {
+						// Determine whether this group contributes to this shortName.
+						var candidates2 = [];
+						if (g2.primaryName) {
+							candidates2.push(g2.primaryName);
+						}
+						g2.aliases.forEach(function (a) {
+							if (candidates2.indexOf(a) === -1) {
+								candidates2.push(a);
+							}
+						});
+						var contributes = false;
+						candidates2.forEach(function (rawName2) {
+							if (!rawName2) {
+								return;
+							}
+							var sn2 = stripSuffix(rawName2);
+							if (sn2 && sn2 === shortName) {
+								contributes = true;
+							}
+						});
+						if (!contributes) {
+							return;
+						}
+						// Collect this group's aliases (including hash-like ones) as
+						// display aliases for the shortName.
+						g2.aliases.forEach(function (a) {
+							if (!a) {
+								return;
+							}
+							var disp = stripSuffix(a);
+							if (!disp || disp === shortName) {
+								return;
+							}
+							aliasSet[disp] = true;
+						});
+					});
+					Object.keys(aliasSet).forEach(function (alias) {
+						nameHtml += '<div style="margin-left:2em">' + escapeHtml(alias) + '</div>';
+					});
+					// Render cleaned TXT lines with indentation, as before.
+					var cleanedLines = g.cleanedLines || [];
+					var txtHtml = escapeHtml((cleanedLines[0] || ''));
+					for (var ci = 1; ci < cleanedLines.length; ci++) {
+						var seg = cleanedLines[ci];
+						if (!seg) {
+							continue;
+						}
+						txtHtml += '<br>&nbsp;&nbsp;&nbsp;&nbsp;' + escapeHtml(seg);
+					}
+					// Add a small spacer at the bottom of each row so Docker entries
+					// do not visually run together in the admin table.
+					nameHtml += '<div style="margin-top:0.35em"></div>';
+					txtHtml += '<br>&nbsp;';
+					var base = Object.assign({}, g.base);
+					base.name = nameHtml;
+					base.txt = txtHtml;
+					// Tooltip: original TXT plus any full 64-char IDs.
+					var tooltipParts = (g.allTxtLines || []).slice();
+					(g.fullIds || []).forEach(function (fid) {
+						tooltipParts.push('full_id=' + String(fid));
+					});
+					base._txtTooltip = tooltipParts.join('\n');
+					result.push(base);
+				});
+				// Mark the Name column as HTML-capable so nameHtml is not escaped.
+				if (section && Array.isArray(section.columns)) {
+					section.columns = section.columns.map(function (col) {
+						if (col && col.key === 'name') {
+							var copy = Object.assign({}, col);
+							copy.html = true;
+							return copy;
+						}
+						return col;
+					});
+				}
+				return result;
+			}
+
+			function renderTableSection(root, rows, section) {
+				if (!root) {
+					return;
+				}
+				root.textContent = '';
+				rows = Array.isArray(rows) ? rows : [];
+				// For DockerHosts containers, group rows by identical TXT/Info payloads
+				// so that aliases for the same container are rendered together.
+				if (section && section.style === 'docker_group_by_txt') {
+					rows = buildDockerGroupsByTxt(rows, section);
+				}
+				// Optional sort hint: for decorated caches, sort by calls_total
+				// descending so the busiest caches appear first.
+				if (section && section.sort === 'by_calls') {
+					rows = rows.slice().sort(function (a, b) {
+						var ac = (a && typeof a.calls_total === 'number') ? a.calls_total : 0;
+						var bc = (b && typeof b.calls_total === 'number') ? b.calls_total : 0;
+						if (bc === ac) {
+							var an = (a && a.qualname) ? String(a.qualname) : '';
+							var bn = (b && b.qualname) ? String(b.qualname) : '';
+							if (an < bn) return -1;
+							if (an > bn) return 1;
+							return 0;
+						}
+						return bc - ac;
+					});
+				}
+				var columns = Array.isArray(section && section.columns) ? section.columns : [];
+				var title = section && section.title ? section.title : 'Items';
+				if (!columns.length) {
+					return;
+				}
+				var group = document.createElement('section');
+				group.className = 'fh-stats-group';
+				var heading = document.createElement('h3');
+				heading.className = 'fh-stats-group-title';
+				heading.textContent = title;
+				group.appendChild(heading);
+
+					// Optional filters (e.g. hide_zero_calls/hide_zero_hits for decorated
+					// caches or show_down_services for mDNS). Multiple filters for a
+					// section share a single controls container.
+					var filterIds = Array.isArray(section && section.filters)
+						? section.filters.map(function (f) { return f && f.id; })
+						: [];
+					var controlsDiv = null;
+					function ensureControlsDiv() {
+						if (!controlsDiv) {
+							controlsDiv = document.createElement('div');
+							controlsDiv.className = 'fh-pane-controls';
+							group.appendChild(controlsDiv);
+						}
+						return controlsDiv;
+					}
+					if (filterIds.indexOf('hide_zero_calls') !== -1) {
+						var controlsZeroCalls = ensureControlsDiv();
+						var labelZeroCalls = document.createElement('label');
+						labelZeroCalls.style.fontSize = '0.9em';
+						var cbZeroCalls = document.createElement('input');
+						cbZeroCalls.type = 'checkbox';
+						cbZeroCalls.checked = true;
+						cbZeroCalls.setAttribute('data-filter-id', 'hide_zero_calls');
+						labelZeroCalls.appendChild(cbZeroCalls);
+						labelZeroCalls.appendChild(document.createTextNode(' Hide zero-call caches'));
+						controlsZeroCalls.appendChild(labelZeroCalls);
+					}
+					if (filterIds.indexOf('hide_zero_hits') !== -1) {
+						var controlsZeroHits = ensureControlsDiv();
+						var labelZeroHits = document.createElement('label');
+						labelZeroHits.style.fontSize = '0.9em';
+						labelZeroHits.style.marginLeft = '1.5em';
+						var cbZeroHits = document.createElement('input');
+						cbZeroHits.type = 'checkbox';
+						cbZeroHits.checked = true;
+						cbZeroHits.setAttribute('data-filter-id', 'hide_zero_hits');
+						labelZeroHits.appendChild(cbZeroHits);
+						labelZeroHits.appendChild(document.createTextNode(' Hide zero-hit caches'));
+						controlsZeroHits.appendChild(labelZeroHits);
+					}
+					if (filterIds.indexOf('show_down_services') !== -1) {
+						var controlsStatus = ensureControlsDiv();
+						var labelStatus = document.createElement('label');
+						labelStatus.style.fontSize = '0.9em';
+						labelStatus.style.marginLeft = '1.5em';
+						var cbStatus = document.createElement('input');
+						cbStatus.type = 'checkbox';
+						cbStatus.checked = false; // default: show only up services
+						cbStatus.setAttribute('data-filter-id', 'show_down_services');
+						labelStatus.appendChild(cbStatus);
+						labelStatus.appendChild(document.createTextNode(' Show down services'));
+						controlsStatus.appendChild(labelStatus);
+					}
+				if (!rows.length) {
+					var p = document.createElement('p');
+					p.className = 'fh-pane-help';
+					p.textContent = 'No data.';
+					group.appendChild(p);
+					root.appendChild(group);
+					return;
+				}
+				var table = document.createElement('table');
+				table.className = 'fh-table fh-table-upstreams';
+				// Attach a data attribute so filter handlers can locate this table.
+				table.setAttribute('data-section-id', section && section.id ? String(section.id) : '');
+				var thead = document.createElement('thead');
+				var hrow = document.createElement('tr');
+				columns.forEach(function (col) {
+					var th = document.createElement('th');
+					th.textContent = col.label || String(col.key || '');
+					// Optional alignment hint for numeric-heavy columns such as TTL
+					// and Max size in cache tables.
+					if (col.align === 'right') {
+						th.style.textAlign = 'right';
+					}
+					hrow.appendChild(th);
+				});
+				thead.appendChild(hrow);
+				table.appendChild(thead);
+				var tbody = document.createElement('tbody');
+				rows.forEach(function (rowData) {
+					if (!rowData || typeof rowData !== 'object') {
+						return;
+					}
+					var tr = document.createElement('tr');
+					// Tag each row with calls_total when available so filters can
+					// hide zero-call entries for decorated caches.
+					if (rowData && typeof rowData.calls_total === 'number') {
+						tr.setAttribute('data-calls-total', String(rowData.calls_total));
+					}
+					// Tag each row with cache_hits when available so filters can
+					// hide zero-hit entries for decorated caches.
+					if (rowData && typeof rowData.cache_hits === 'number') {
+						tr.setAttribute('data-cache-hits', String(rowData.cache_hits));
+					}
+					// Tag each row with status when present so mDNS-style tables can
+					// hide/show down services via a checkbox filter.
+					if (rowData && typeof rowData.status === 'string') {
+						tr.setAttribute('data-status', String(rowData.status).toLowerCase());
+					}
+					columns.forEach(function (col) {
+						var key = col.key;
+						var joiner = col.join || null;
+						var raw = key ? resolvePath(rowData, key) : null;
+						var td = document.createElement('td');
+						if (col.align === 'right') {
+							td.style.textAlign = 'right';
+						}
+					var text = '';
+					// Special-case: last_seen should be rendered in the user's timezone
+					// as "YYYY-MM-DD HH:MM:SS" and expose the full ISO timestamp via
+					// a tooltip on hover.
+					if (key === 'last_seen') {
+						var iso = rowData && rowData._lastSeenRaw != null ? String(rowData._lastSeenRaw) : (raw != null ? String(raw) : '');
+						var fmt = formatTimestamp(iso || raw);
+						text = fmt != null ? String(fmt) : '';
+						if (iso) {
+							td.title = iso;
+						}
+					} else if (raw == null) {
+						text = '';
+					} else if (Array.isArray(raw) && joiner) {
+						text = raw.join(String(joiner));
+					} else if (typeof raw === 'boolean') {
+						text = raw ? 'yes' : '';
+					} else if (typeof raw === 'number') {
+						text = formatNumber(raw);
+					} else {
+						text = String(raw);
+					}
+						if (col.html) {
+							td.innerHTML = text;
+						} else {
+							td.textContent = text;
+						}
+					// For Docker TXT/Info cells, expose the full raw TXT payload as a tooltip.
+					if (col.key === 'txt' && rowData && rowData._txtTooltip) {
+						td.title = String(rowData._txtTooltip);
+					}
+						tr.appendChild(td);
+					});
+					tbody.appendChild(tr);
+				});
+				table.appendChild(tbody);
+				group.appendChild(table);
+
+					// Wire up hide_zero_calls, hide_zero_hits and show_down_services
+					// filters, when present.
+					if (controlsDiv) {
+						var cbHideCalls = controlsDiv.querySelector('input[data-filter-id="hide_zero_calls"]');
+						var cbHideHits = controlsDiv.querySelector('input[data-filter-id="hide_zero_hits"]');
+						var cbShowDown = controlsDiv.querySelector('input[data-filter-id="show_down_services"]');
+						if (cbHideCalls || cbHideHits || cbShowDown) {
+							var applyFilters = function () {
+								var hideZeroCalls = cbHideCalls ? cbHideCalls.checked : false;
+								var hideZeroHits = cbHideHits ? cbHideHits.checked : false;
+								var showDown = cbShowDown ? cbShowDown.checked : false;
+								var rowsEls = tbody.querySelectorAll('tr');
+								rowsEls.forEach(function (trEl) {
+									var display = '';
+									// Zero-call cache rows (decorated caches view).
+									if (cbHideCalls) {
+										var callsAttr = trEl.getAttribute('data-calls-total');
+										var calls = callsAttr ? parseInt(callsAttr, 10) : NaN;
+										if (hideZeroCalls && callsAttr !== null && !isNaN(calls) && calls === 0) {
+											display = 'none';
+										}
+									}
+									// Zero-hit cache rows (decorated caches view).
+									if (cbHideHits) {
+										var hitsAttr = trEl.getAttribute('data-cache-hits');
+										var hits = hitsAttr ? parseInt(hitsAttr, 10) : NaN;
+										if (hideZeroHits && hitsAttr !== null && !isNaN(hits) && hits === 0) {
+											display = 'none';
+										}
+									}
+									// mDNS services: show only status=up by default unless
+									// the user explicitly enables down services.
+									if (cbShowDown) {
+										var statusAttr = (trEl.getAttribute('data-status') || '').toLowerCase();
+										if (!showDown && statusAttr === 'down') {
+											display = 'none';
+										}
+									}
+									trEl.style.display = display;
+								});
+							};
+							if (cbHideCalls) {
+								cbHideCalls.addEventListener('change', applyFilters);
+							}
+							if (cbHideHits) {
+								cbHideHits.addEventListener('change', applyFilters);
+							}
+							if (cbShowDown) {
+								cbShowDown.addEventListener('change', applyFilters);
+							}
+							// Apply initial state so filters take effect immediately.
+							applyFilters();
+						}
+					}
+
+				root.appendChild(group);
+			}
+
+			function initSnapshotPageV1(pageEl, desc) {
+				if (!pageEl) {
+					return;
+				}
+				pageEl.textContent = '';
+				pageEl.className = 'fh-main fh-main-plugin';
+				var section = document.createElement('section');
+				section.className = 'fh-pane fh-pane-plugin';
+				var header = document.createElement('div');
+				header.className = 'fh-pane-header';
+				var h2 = document.createElement('h2');
+				h2.className = 'fh-pane-title';
+				h2.textContent = desc && desc.title ? desc.title : 'Plugin';
+				header.appendChild(h2);
+				if (desc && desc.description) {
+					var pHelp = document.createElement('p');
+					pHelp.className = 'fh-pane-help';
+					pHelp.textContent = String(desc.description);
+					header.appendChild(pHelp);
+				}
+				section.appendChild(header);
+				var body = document.createElement('div');
+				body.className = 'fh-stats-groups';
+				body.setAttribute('data-role', 'plugin-snapshot-body');
+				section.appendChild(body);
+				pageEl.appendChild(section);
+			}
+
+			function clearPluginRefreshTimer(name) {
+				if (!name || !pluginRefreshTimers) {
+					return;
+				}
+				var t = pluginRefreshTimers[name];
+				if (t) {
+					clearInterval(t);
+					delete pluginRefreshTimers[name];
+				}
+			}
+
+			function clearAllPluginRefreshTimers() {
+				if (!pluginRefreshTimers) {
+					return;
+				}
+				Object.keys(pluginRefreshTimers).forEach(function (name) {
+					clearPluginRefreshTimer(name);
+				});
+			}
+
+			function loadSnapshotPageV1(pageEl, desc) {
+				if (!pageEl) {
+					return;
+				}
+				var endpoint = desc && desc.endpoints && desc.endpoints.snapshot;
+				var body = pageEl.querySelector('[data-role="plugin-snapshot-body"]');
+				if (!endpoint || !body) {
+					return;
+				}
+				body.textContent = '';
+				fetchJson(endpoint)
+					.then(function (payload) {
+						var data = payload && payload.data ? payload.data : {};
+						var layout = desc && desc.layout ? desc.layout : {};
+						var sections = Array.isArray(layout.sections) ? layout.sections : [];
+						var pluginName = desc && desc.name ? String(desc.name) : null;
+						if (!sections.length) {
+							// Fallback: pretty-print the raw payload.
+							var group = document.createElement('section');
+							group.className = 'fh-stats-group';
+							var pre = document.createElement('pre');
+							pre.className = 'fh-pre';
+							pre.textContent = pretty(data);
+							group.appendChild(pre);
+							body.appendChild(group);
+							return;
+						}
+						sections.forEach(function (section) {
+							// Plumb plugin-level metadata (like domain suffix) into the
+							// section descriptor so renderers can use it without needing
+							// to know about the full payload shape.
+							if (section && layout && layout.summary && layout.summary.suffix && !section._domainSuffix) {
+								section._domainSuffix = layout.summary.suffix;
+							}
+							if (!section || typeof section !== 'object') {
+								return;
+							}
+							var type = section.type || 'kv';
+							var path = section.path || '';
+							var sectionRoot = document.createElement('div');
+							body.appendChild(sectionRoot);
+							var value = path ? resolvePath(data, path) : data;
+							if (type === 'table') {
+								renderTableSection(sectionRoot, value, section);
+						} else {
+							// Default to key/value rendering using section.rows
+							// against the resolved value mapping.
+							if (value && typeof value === 'object') {
+								renderKvSection(sectionRoot, value, section);
+							}
+						}
+						});
+
+						// After a successful render, configure optional auto-refresh
+						// when the plugin (or descriptor) advertises a refresh interval.
+						var refreshSeconds = 0;
+						if (desc && typeof desc.refresh === 'number') {
+							refreshSeconds = desc.refresh;
+						} else if (payload && typeof payload.refresh === 'number') {
+							refreshSeconds = payload.refresh;
+						}
+						if (!pluginName || !refreshSeconds || refreshSeconds <= 0) {
+							clearPluginRefreshTimer(pluginName || '');
+							return;
+						}
+						// Do not schedule refreshes when the user is no longer on this
+						// plugin tab.
+						if (activePluginName !== pluginName) {
+							clearPluginRefreshTimer(pluginName);
+							return;
+						}
+						clearPluginRefreshTimer(pluginName);
+						pluginRefreshTimers[pluginName] = setInterval(function () {
+							// Stop refreshing if the user leaves this plugin tab.
+							if (activePluginName !== pluginName) {
+								clearPluginRefreshTimer(pluginName);
+								return;
+							}
+							loadSnapshotPageV1(pageEl, desc);
+						}, Math.max(1, refreshSeconds) * 1000);
+					})
+					.catch(function (err) {
+						var group = document.createElement('section');
+						group.className = 'fh-stats-group';
+						var pre = document.createElement('pre');
+						pre.className = 'fh-pre fh-pre-compact';
+						pre.textContent = 'Failed to load plugin data: ' + err.message;
+						group.appendChild(pre);
+						body.appendChild(group);
+					});
+			}
+
+			function loadDiskConfig(raw) {
+				if (raw === undefined) {
+					raw = 0;
+				}
+				var url = '/api/v1/config';
+				if (raw !== 0 || isEditing) {
+					url += '/raw';
+				}
+				return fetch(url, { cache: 'no-store' })
+					.then(function (resp) {
+						if (!resp.ok) {
+							throw new Error('HTTP ' + resp.status + ' from ' + url);
+						}
+						return resp.text();
+					})
+					.then(function (text) {
+						if (raw !== 0 || isEditing) {
+							// Raw on-disk YAML for edit mode.
+							lastDiskRawYaml = text;
+							return { raw_yaml: text };
+						}
+						// View mode: text is already redacted YAML from /config.
+						configOutputEl.textContent = text;
+						return { raw_yaml: text };
+					})
+					.catch(function (err) {
+						if (!isEditing) {
+							configOutputEl.textContent = 'Failed to load on-disk config: ' + err.message;
+						}
+						throw err;
+					});
+			}
+
+			function refreshDiskConfigView() {
+				loadDiskConfig();
+			}
+
+			function enterEditMode() {
+				if (currentSource !== 'disk') {
+					return;
+				}
+				isEditing = true;
+				actionsView.hidden = true;
+				actionsEdit.hidden = false;
+				if (warningEl) {
+					warningEl.hidden = false;
+				}
+				configViewContainer.hidden = true;
+				configEditContainer.hidden = false;
+				setMessage('Validating configuration before editing...', 'info');
+
+				loadDiskConfig(1)
+					.then(function (data) {
+						var rawYaml = data && data.raw_yaml ? data.raw_yaml : (lastDiskRawYaml || '');
+						var cfgObj = {};
+						try {
+							if (window.jsyaml && typeof window.jsyaml.load === 'function') {
+								cfgObj = window.jsyaml.load(rawYaml) || {};
+							} else {
+								cfgObj = {};
+							}
+						} catch (e) {
+							throw new Error('Failed to parse YAML: ' + e.message);
+						}
+						lastDiskConfigObj = cfgObj;
+						return validateConfigObjectForEdit(cfgObj).then(function () {
+							return rawYaml;
+						});
+					})
+					.then(function (rawYaml) {
+						configEditorEl.value = rawYaml || '';
+						setMessage('Editing on-disk config, save will overwrite!', 'info');
+					})
+					.catch(function (err) {
+						setMessage('Cannot enter edit mode: ' + err.message, 'error');
+						exitEditMode(false);
+					});
+			}
+
+			function exitEditMode(refresh) {
+				isEditing = false;
+				actionsEdit.hidden = true;
+				actionsView.hidden = currentSource !== 'disk';
+				if (warningEl) {
+					warningEl.hidden = true;
+				}
+				configEditContainer.hidden = true;
+				configViewContainer.hidden = false;
+				if (refresh && currentSource === 'disk') {
+					loadDiskConfig();
+				}
+			}
+
+			function saveConfig() {
+				setMessage('', null);
+				var yamlText = configEditorEl.value || '';
+				if (!yamlText.trim()) {
+					setMessage('Configuration text is empty; refusing to save.', 'error');
+					return;
+				}
+
+				if (!window.confirm('Are you sure you want to overwrite config.yaml and request a restart via SIGHUP?')) {
+					return;
+				}
+
+				fetch('/api/v1/config/save', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ raw_yaml: yamlText }),
+				})
+					.then(function (resp) {
+						if (!resp.ok) {
+							return resp.text().then(function (text) {
+								throw new Error('HTTP ' + resp.status + ': ' + text);
+							});
+						}
+						return resp.json().catch(function () {
+							return {};
+						});
+					})
+					.then(function (data) {
+						setMessage('Configuration saved; restart requested via SIGHUP. Path: ' + (data.path || ''), 'success');
+						exitEditMode(true);
+						loadDiskConfig();
+						loadStats();
+					})
+					.catch(function (err) {
+						setMessage('Failed to save configuration: ' + err.message, 'error');
+					});
+			}
+
+			function applyTheme(theme) {
+				var next = theme === 'light' ? 'light' : 'dark';
+				root.setAttribute('data-theme', next);
+				if (logoEl) {
+					if (next === 'dark') {
+						logoEl.src = '/transparent-white-logo.png';
+					} else {
+						logoEl.src = '/transparent-logo.png';
+					}
+				}
+				try {
+					if (window.localStorage) {
+						localStorage.setItem('foghorn-theme', next);
+					}
+				} catch (e) {}
+
+				if (next === 'dark') {
+					btnThemeDark.classList.add('fh-theme-btn-active');
+					btnThemeDark.setAttribute('aria-checked', 'true');
+					btnThemeLight.classList.remove('fh-theme-btn-active');
+					btnThemeLight.setAttribute('aria-checked', 'false');
+				} else {
+					btnThemeLight.classList.add('fh-theme-btn-active');
+					btnThemeLight.setAttribute('aria-checked', 'true');
+					btnThemeDark.classList.remove('fh-theme-btn-active');
+					btnThemeDark.setAttribute('aria-checked', 'false');
+				}
+			}
+
+
+			function registerPluginTab(desc) {
+				if (!desc || typeof desc !== 'object') {
+					return;
+				}
+				var name = String(desc.name || '').trim();
+				var title = String(desc.title || name || '').trim();
+				if (!name || !title) {
+					return;
+				}
+				// All plugins currently use the same generic snapshot-based renderer;
+				// we intentionally do not switch on desc.kind so new plugins do not
+				// require changes to index.html.
+				var pageEl = document.createElement('main');
+				pageEl.id = 'page-plugin-' + name;
+				pageEl.className = 'fh-main fh-main-plugin';
+				pageEl.style.display = 'none';
+				initSnapshotPageV1(pageEl, desc);
+				var footer = document.querySelector('.fh-footer');
+				if (footer && footer.parentNode) {
+					footer.parentNode.insertBefore(pageEl, footer);
+				} else {
+					document.body.appendChild(pageEl);
+				}
+				var tabsContainer = pluginTabsRoot || document.querySelector('.fh-tabs');
+				if (tabsContainer && tabsContainer.tagName && tabsContainer.tagName.toLowerCase() === 'span') {
+					pluginTabsRoot = tabsContainer;
+				} else if (!pluginTabsRoot) {
+					pluginTabsRoot = document.getElementById('plugin-tabs-root');
+				}
+				var btn = document.createElement('button');
+				btn.type = 'button';
+				btn.className = 'fh-theme-btn';
+				btn.setAttribute('role', 'tab');
+				btn.setAttribute('aria-selected', 'false');
+				btn.textContent = title;
+				btn.addEventListener('click', function () {
+					applyTab('plugin:' + name);
+					loadSnapshotPageV1(pageEl, desc);
+				});
+				if (pluginTabsRoot) {
+					pluginTabsRoot.appendChild(btn);
+				}
+				pluginUiPages[name] = {
+					button: btn,
+					page: pageEl,
+					desc: desc,
+				};
+			}
+
+			function initPluginTabs() {
+				fetchJson('/api/v1/plugins/ui')
+					.then(function (payload) {
+						var items = payload && payload.items ? payload.items : [];
+						if (!Array.isArray(items) || !items.length) {
+							return;
+						}
+						items.forEach(registerPluginTab);
+						// After all plugin tabs are registered, if the last-selected tab
+						// was a plugin, re-apply it and trigger a snapshot load so the
+						// page is fully populated on reload.
+						try {
+							if (window.localStorage) {
+								var lastTab = localStorage.getItem('foghorn-last-tab');
+								if (lastTab && lastTab.indexOf('plugin:') === 0) {
+									var name = lastTab.slice('plugin:'.length);
+									var info = pluginUiPages[name];
+									// Simulate a user click on the plugin tab so that we
+									// both switch tabs and lazily fetch data only for that
+									// plugin, just like a normal click.
+									if (info && info.button && typeof info.button.click === 'function') {
+										info.button.click();
+									}
+								}
+							}
+						} catch (e) {}
+					})
+					.catch(function () {
+						// Older servers may not expose /api/v1/plugins/ui; fail soft.
+					});
+			}
+
+			function applyTab(tab) {
+				// Persist the last-selected tab in localStorage so reloads return to
+				// the same view when possible.
+				try {
+					if (window.localStorage && typeof tab === 'string') {
+						localStorage.setItem('foghorn-last-tab', tab);
+					}
+				} catch (e) {}
+				var isStats = tab === 'stats';
+				var isEdit = tab === 'edit';
+				var pluginName = null;
+				if (tab && tab.indexOf('plugin:') === 0) {
+					pluginName = tab.slice('plugin:'.length);
+				}
+				// Track the currently active plugin tab (if any) and cancel any
+				// existing auto-refresh timers when switching away.
+				if (!pluginName) {
+					activePluginName = null;
+					clearAllPluginRefreshTimers();
+				} else {
+					activePluginName = pluginName;
+				}
+
+				if (page1) {
+					// When Stats is selected, page1 shows Advanced/Config; hide when Stats or a plugin tab is selected.
+					page1.style.display = isEdit ? '' : 'none';
+				}
+				if (page2) {
+					page2.style.display = isStats ? '' : 'none';
+				}
+				if (pluginUiPages && typeof pluginUiPages === 'object') {
+					Object.keys(pluginUiPages).forEach(function (name) {
+						var info = pluginUiPages[name];
+						if (!info) {
+							return;
+						}
+						if (info.page) {
+							info.page.style.display = name === pluginName ? '' : 'none';
+						}
+						if (info.button) {
+							var isActive = name === pluginName;
+							if (isActive) {
+								info.button.classList.add('fh-theme-btn-active');
+								info.button.setAttribute('aria-selected', 'true');
+							} else {
+								info.button.classList.remove('fh-theme-btn-active');
+								info.button.setAttribute('aria-selected', 'false');
+							}
+						}
+					});
+				}
+
+				if (btnTabStats) {
+					if (isStats) {
+						btnTabStats.classList.add('fh-theme-btn-active');
+						btnTabStats.setAttribute('aria-selected', 'true');
+					} else {
+						btnTabStats.classList.remove('fh-theme-btn-active');
+						btnTabStats.setAttribute('aria-selected', 'false');
+					}
+				}
+				if (btnTabEdit) {
+					if (isEdit) {
+						btnTabEdit.classList.add('fh-theme-btn-active');
+						btnTabEdit.setAttribute('aria-selected', 'true');
+					} else {
+						btnTabEdit.classList.remove('fh-theme-btn-active');
+						btnTabEdit.setAttribute('aria-selected', 'false');
+					}
+				}
+			}
+
+			//// Event bindings
+
+			// Enter Edit Mode
+			btnEdit.addEventListener('click', function () {
+				enterEditMode();
+			});
+
+			// Cancel Edit
+			btnCancel.addEventListener('click', function () {
+				exitEditMode(true);
+				setMessage('Edit cancelled.', 'info');
+			});
+
+			// Save config
+			btnSave.addEventListener('click', function () {
+				saveConfig();
+			});
+
+			// Theme control
+			btnThemeDark.addEventListener('click', function () {
+				applyTheme('dark');
+			});
+			btnThemeLight.addEventListener('click', function () {
+				applyTheme('light');
+			});
+
+			// Tabs control
+			if (btnTabStats) {
+				btnTabStats.addEventListener('click', function () {
+					applyTab('stats');
+				});
+			}
+			if (btnTabEdit) {
+				btnTabEdit.addEventListener('click', function () {
+					applyTab('edit');
+				});
+			}
+
+			// Initial load
+			var initialTheme = root.getAttribute('data-theme') || 'dark';
+			applyTheme(initialTheme);
+			var initialTab = 'stats';
+			try {
+				if (window.localStorage) {
+					var storedTab = localStorage.getItem('foghorn-last-tab');
+					if (storedTab === 'stats' || storedTab === 'edit' || (storedTab && storedTab.indexOf('plugin:') === 0)) {
+						initialTab = storedTab;
+					}
+				}
+			} catch (e) {}
+			applyTab(initialTab);
+			loadStats();
+			initPluginTabs();
+			setInterval(loadStats, 15000);
+			refreshDiskConfigView();
+			})();
+		</script>
+</body>
+
+</html>

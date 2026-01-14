@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Foghorn"
+version = "0.6.0"
+description = "Foghorn is a fast, pluggable DNS server that caches, filters, routes, and bends DNS to your will. Up- and down-stream UDP, TCP, DoT, and DoH. DNSEC. Because DNS should do what you want."
+
+authors = [ { name = "Zack Allison", email = "zack@zackallison.com" } ]
+license = { file = "LICENSE.txt" }
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML>=6.0.1",
+  "cachetools",
+  "cryptography",
+  "dnslib>=0.9.24",
+  "dnspython>=2.6.1",
+  "docker>=7.0.0",
+  "fastapi>=0.111.0",
+  "httpx",
+  "jsonschema>=4.17.3",
+  "paho-mqtt",
+  "mariadb",
+  "mysql-connector-python",
+  "psutil",
+  "requests>=2.31.0",
+  "uvicorn>=0.30.0",
+  "watchdog",
+  "whois",
+  "zeroconf"
+]
+
+[project.optional-dependencies]
+dev = [
+   "black",
+   "build",
+   "coverage",
+   "isort",
+   "pytest",
+   "pytest-cov",
+   "ruff",
+   "twine"
+]
+
+[project.scripts]
+foghorn = "foghorn.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "--maxfail=1 --disable-warnings"
+markers = [
+  "slow: marks tests that start real network servers or otherwise run slowly",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402"]
+"**/{tests,docs,tools}/*" = ["E402"]
+
+[tool.isort]
+profile = "black"
