@@ -1,0 +1,418 @@
+# Quizard Generator
+
+Generate multiple-choice quizzes from documents using local or cloud LLMs via CLI or Python API.
+
+## What It Does
+
+Quizard Generator indexes your documents (PDFs, text files, etc.) and generates contextually relevant MCQ quizzes using large language models. It extracts key concepts during indexing and uses them to create targeted questions with plausible distractors and explanations.
+
+**Key features:**
+
+- Domain-based organisation (separate indices per subject)
+- Concept extraction and question seed generation at index time
+- Batch question generation for efficiency
+- **Multi-provider support**: Local (Ollama) or cloud (OpenAI, Anthropic, Google Gemini)
+- **Hybrid configurations**: Mix local and cloud providers for cost optimisation
+- Automatic quiz metadata generation (title, description)
+- Comprehensive explanations for each question
+
+## How It Works
+
+This project adapts the ConQuer framework (Fu et al., 2025) for concept-based quiz generation using retrieval-augmented generation.
+
+```
+Documents → Indexing → Concept Extraction → Question Generation → Quiz
+```
+
+1. **Index**: Documents are chunked and embedded into a vector store. Concepts and question seeds are extracted.
+2. **Retrieve**: Relevant content is retrieved based on the request.
+3. **Generate**: Questions with correct answers and 3 distractors are generated in batches per concept.
+
+## Installation
+
+**Requirements:**
+
+- Python 3.9+
+- **For local LLMs** (free, recommended for indexing):
+  - [Ollama](https://ollama.com/) with models:
+    - `gemma3:4b` (general tasks)
+    - `embeddinggemma` (embeddings)
+    - Optional: `qwen2-math:7b-instruct-q4_K_M` (specialist question generation)
+- **For cloud LLMs** (optional, better quality):
+  - OpenAI API key (for GPT-4, GPT-4o, etc.)
+  - Anthropic API key (for Claude models)
+  - Google API key (for Gemini models)
+
+**Setup:**
+
+```bash
+# Clone and install
+git clone https://github.com/timothyckl/quizard-generator.git
+cd quizard-generator
+pip install -e .
+
+# For local-only setup (Ollama)
+ollama pull gemma3:4b
+ollama pull qwen2-math:7b-instruct-q4_K_M
+ollama pull embeddinggemma
+
+# For cloud providers (optional)
+pip install llama-index-llms-openai llama-index-embeddings-openai
+# OR
+pip install llama-index-llms-anthropic
+# OR
+pip install llama-index-llms-gemini
+```
+
+## Usage
+
+### Method 1: CLI
+
+**Prepare your content:**
+
+Place documents in `data/<domain>/`:
+
+```
+data/
+├── math/
+│   ├── algebra.pdf
+│   └── calculus.pdf
+└── biology/
+    └── cell_biology.pdf
+```
+
+Supported formats: `.txt`, `.pdf`, `.docx`, `.pptx`
+
+**Index a domain:**
+
+```bash
+# Full index (first time or rebuild)
+quizard index --domain math
+
+# Update index (only new files)
+quizard index-update --domain math
+
+# Refresh index (re-index modified files)
+quizard index-refresh --domain math
+```
+
+**Generate a quiz:**
+
+```bash
+# Generate 5 questions (uses default Ollama provider)
+quizard generate --domain math --num-questions 5
+
+# With difficulty level
+quizard generate --domain math --num-questions 10 --difficulty hard
+
+# With custom instruction
+quizard generate --domain math --num-questions 5 --instruction "Focus on algebra"
+
+# Using cloud provider (requires config.yaml or environment variables)
+export OPENAI_API_KEY=sk-...
+quizard generate --domain math --num-questions 5 --config config.yaml
+```
+
+**Check available domains:**
+
+```bash
+quizard list-domains
+```
+
+See CLI Reference below for all commands.
+
+### Method 2: Python API
+
+```python
+from llama_index.core import load_index_from_storage, StorageContext
+from quizard_generator import (
+    QuizardConfig,
+    QuizardContext,
+    QuizGenerationPipeline,
+    Difficulty,
+)
+
+def main():
+    # configure - using Ollama (default)
+    config = QuizardConfig(
+        data_dir="data",
+        storage_dir="storage",
+        llm_provider="ollama",  # or "openai", "anthropic", "google"
+        indexing_llm_model="gemma3:4b",
+    )
+
+    # use context manager for LlamaIndex Settings
+    with QuizardContext(config):
+        # load existing index (assumes domain is already indexed)
+        storage_context = StorageContext.from_defaults(
+            persist_dir="storage/math"
+        )
+        index = load_index_from_storage(storage_context)
+
+        # generate quiz
+        pipeline = QuizGenerationPipeline(index=index)
+        quiz = pipeline.generate_quiz(
+            instruction="Focus on algebra",
+            num_questions=5,
+            difficulty=Difficulty.MEDIUM,
+        )
+
+        # access quiz metadata
+        print(f"Quiz: {quiz.title}")
+        print(f"Description: {quiz.description}")
+
+        # use quiz
+        for idx, q in enumerate(quiz.questions, 1):
+            print(f"\n{idx}. {q.question}")
+            for i, opt in enumerate(q.options):
+                print(f"   {chr(65+i)}. {opt}")
+            print(f"   Answer: {chr(65 + q.correct_answer_index)}")
+            print(f"   Explanation: {q.explanation}")
+
+main()
+```
+
+**Load configuration from YAML:**
+
+```python
+config = QuizardConfig.from_yaml("config.yaml")
+```
+
+See `test_library_generation.py` for a complete working example with indexing.
+
+## CLI Reference
+
+```bash
+# Available commands
+quizard list-domains                    # Show all available domains
+quizard index --domain NAME             # Full rebuild index
+quizard index-update --domain NAME      # Index new files only
+quizard index-refresh --domain NAME     # Re-index modified files
+quizard index-all                       # Index all domains sequentially
+quizard generate --domain NAME [options]  # Generate quiz
+quizard validate-index --domain NAME    # Check index health
+
+# Generate options
+--num-questions N       # Number of questions (default: 5)
+--difficulty LEVEL      # easy, medium, hard (default: medium)
+--instruction "text"    # Custom instruction (optional)
+
+# Global options
+--verbose, -v          # Enable verbose output
+--config FILE          # Path to YAML configuration file
+```
+
+## Example Output
+
+**CLI Output:**
+
+```
+Question 1 [Arithmetic progression patterns]
+What is the common difference in the arithmetic progression: 5, 9, 13, 17, ...?
+
+  A. 4
+  B. 8
+  C. 12
+  D. 6
+
+  Correct Answer: A
+  Explanation: The common difference is found by subtracting consecutive terms: 9-5=4, 13-9=4, 17-13=4.
+```
+
+**JSON Output** (saved to `generated_quiz_<domain>.json`):
+
+```json
+{
+  "metadata": {
+    "quiz_id": 1735545600,
+    "title": "Mathematics Practice Quiz",
+    "description": "A collection of fundamental maths questions covering arithmetic progressions.",
+    "tags": ["Arithmetic progression patterns", "Series and sequences"],
+    "difficulty": "medium",
+    "date_created": "30/12/2025"
+  },
+  "questions": [
+    {
+      "question": "What is the common difference in the arithmetic progression: 5, 9, 13, 17, ...?",
+      "type": "single_choice",
+      "options": ["4", "8", "12", "6"],
+      "answer": 0,
+      "explanation": "The common difference is found by subtracting consecutive terms: 9-5=4, 13-9=4, 17-13=4."
+    }
+  ]
+}
+```
+
+## Configuration
+
+Configuration can be specified via:
+
+1. **YAML file** (recommended for repeated use) - use `--config FILE`
+2. **Programmatically** (Python API usage)
+3. **Default values** (see `QuizardConfig` in `config.py`)
+
+### Provider Configuration
+
+**Using Ollama (Local, Free):**
+
+```yaml
+llm_provider: ollama
+embedding_provider: ollama
+indexing_llm_model: gemma3:4b
+indexing_embedding_model: embeddinggemma
+generation_general_llm_model: gemma3:4b
+generation_specialist_llm_model: qwen2-math:7b-instruct-q4_K_M
+```
+
+**Using OpenAI:**
+
+```yaml
+llm_provider: openai
+embedding_provider: openai
+indexing_llm_model: gpt-4o-mini
+indexing_embedding_model: text-embedding-3-small
+generation_general_llm_model: gpt-4o-mini
+generation_specialist_llm_model: gpt-4o
+# Set API key via environment variable (recommended)
+# export OPENAI_API_KEY=sk-...
+# OR in config (less secure):
+# openai_api_key: sk-...
+```
+
+**Using Anthropic:**
+
+```yaml
+llm_provider: anthropic
+generation_general_llm_model: claude-3-5-haiku-20241022
+generation_specialist_llm_model: claude-3-5-sonnet-20241022
+
+# Anthropic doesn't provide embeddings - use OpenAI or Ollama
+embedding_provider: openai
+indexing_embedding_model: text-embedding-3-small
+# Set API keys via environment variables
+# export ANTHROPIC_API_KEY=sk-ant-...
+# export OPENAI_API_KEY=sk-...  # for embeddings
+```
+
+**Other configuration options:**
+
+```yaml
+chunk_size: 2048
+max_concepts: 5
+seeds_per_concept: 2
+llm_request_timeout: 300.0
+```
+
+See `config.yaml` for comprehensive examples with all supported providers.
+
+## Project Structure
+
+```bash
+quizard-generator/
+├── src/quizard_generator/
+│   ├── commands/            # CLI command implementations
+│   ├── extractors/          # Concept and seed extraction
+│   ├── generators/          # Question generation
+│   ├── indexing/            # Domain and index management
+│   ├── knowledge/           # Retrieval and summarisation
+│   ├── models/              # Data models (Quiz, Question, etc.)
+│   ├── pipeline/            # Main orchestrator
+│   ├── providers/           # LLM provider factory (NEW)
+│   ├── cli.py               # CLI entry point
+│   ├── __main__.py          # python -m support
+│   ├── config.py            # Configuration management
+│   └── exceptions.py        # Exception hierarchy
+├── data/                    # Your documents (by domain)
+├── storage/                 # Vector indices (by domain)
+├── config.yaml              # Configuration with provider examples
+└── test_library_generation.py  # API usage example
+```
+
+## Architecture
+
+**Generation pipeline:**
+
+1. **Retrieval**: Retrieve top-k nodes using semantic search
+2. **Grouping**: Group nodes by extracted concepts (from metadata)
+3. **Distribution**: Distribute questions equally across concepts
+4. **Generation**: For each concept:
+   - Summarise nodes once (1 LLM call)
+   - Generate batch of questions with Q+A+D integrated (1 LLM call)
+5. **Shuffling**: Shuffle answer options to avoid position bias
+
+**LLM call efficiency:** ~13 calls for 10 questions
+
+## Key Design Decisions
+
+- **Batch generation**: Questions for a concept are generated together to amortise summarisation cost
+- **Integrated Q+A+D**: Single LLM call generates question, correct answer, and 3 distractors simultaneously
+- **Seed randomisation**: Seeds are selected randomly with replacement (never depletes)
+- **Domain-agnostic**: Works with any subject matter (not specialised for maths despite using qwen2-math)
+
+<!-- ## Performance
+
+Tested with 32 nodes indexed from 2 PDF files (2.8 MB):
+
+| Questions | Time | LLM Calls | Notes |
+|-----------|------|-----------|-------|
+| 5         | ~1 min | ~11 | Equal distribution across 5 concepts |
+| 6         | ~1.5 min | ~13 | Equal distribution across 6 concepts |
+| 10        | ~2.5 min | ~21 | Equal distribution across 10 concepts |
+
+Performance scales with number of unique concepts and batch sizes. -->
+
+## Troubleshooting
+
+**"Failed to connect to Ollama"**
+
+- Ensure Ollama is running: `ollama serve`
+- Check models are pulled: `ollama list`
+
+**"No concepts found"**
+
+- Re-index with `--index` to extract concepts
+- Check indexing logs for extraction failures
+
+**Poor question quality**
+
+- Try different LLM models
+- Increase chunk size for better context
+- Ensure source documents are high quality
+
+<!-- ## Supported Providers
+
+| Provider | LLM Support | Embedding Support | API Key Required |
+|----------|-------------|-------------------|------------------|
+| **Ollama** | ✅ Local models | ✅ Local models | ❌ No (free) |
+| **OpenAI** | ✅ GPT-4, GPT-4o, GPT-3.5 | ✅ text-embedding-3 | ✅ Yes |
+| **Anthropic** | ✅ Claude 3.5 Sonnet/Haiku | ❌ N/A | ✅ Yes |
+| **Google** | ✅ Gemini 1.5/2.0 | ✅ text-embedding-004 | ✅ Yes |
+
+**Cost Considerations:**
+- **Indexing** (one-time): Use Ollama (free) or OpenAI (~$0.05-0.10 per domain)
+- **Generation** (per-quiz): Ollama (free) or cloud (~$0.01-0.05 per quiz)
+- **Hybrid approach**: Use Ollama for indexing, cloud for generation (best balance) -->
+
+## Limitations
+
+- Question quality depends on source content quality
+- Cloud providers require API keys and incur costs
+- Limited to MCQ questions for now 
+- Supports English language only
+
+## Acknowledgements
+
+This project adapts the ConQuer framework for concept-based quiz generation:
+
+- Fu, Y., Wang, Z., Yang, L., Huo, M., & Dai, Z. (2025). ConQuer: A Framework for Concept-Based Quiz Generation. [arXiv:2503.14662](https://arxiv.org/abs/2503.14662)
+
+Built with:
+- [LlamaIndex](https://www.llamaindex.ai/) for RAG infrastructure
+- [Ollama](https://ollama.com/) for local LLM inference
+- [Pydantic](https://pydantic.dev/) for structured outputs
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+Copyright (c) 2025 Timothy Chia Kai Lun
