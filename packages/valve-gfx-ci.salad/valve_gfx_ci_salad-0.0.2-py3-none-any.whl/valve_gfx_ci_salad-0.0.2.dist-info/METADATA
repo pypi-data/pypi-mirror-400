@@ -1,0 +1,59 @@
+Metadata-Version: 2.4
+Name: valve_gfx_ci.salad
+Version: 0.0.2
+Summary: Valve GFX CI's serial multiplexer
+Home-page: https://gitlab.freedesktop.org/gfx-ci/ci-tron/-/tree/main/salad
+Author: Martin Roukala
+Author-email: martin.roukala@mupuf.org
+Project-URL: Bug Tracker, https://gitlab.freedesktop.org/gfx-ci/ci-tron/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: Flask<3,>=2.2
+Requires-Dist: pyserial==3.5
+Requires-Dist: waitress<3,>=2.1.2
+Dynamic: license-file
+
+# SALAD
+
+SALAD provides automatic mapping between serial consoles and their attached
+test machine. This is done with a service running by default on port 8006
+and a REST interface running on port 8005.
+
+## REST interface
+
+The REST API provides the following endpoints:
+
+### GET /api/v1/machine/
+
+List of machines that have been discovered using the `SALAD.machine_id=...` scheme.
+
+### GET /api/v1/machine/$machineid
+
+Details about the machine identified by `$machineid`.
+
+### POST /api/v1/machine/$machineid/reset
+
+Trigger a reset of the serial console associated to the machine identified by `$machineid`.
+
+Return codes:
+
+* `200`: Success
+* `501`: No console associated to this machine
+* `503`: Tried but failed to perform the reset
+
+## Configuration
+
+SALAD's configuration is done through environment variables:
+
+* `SALAD_PORT`: TCP port to use for the REST interface (default: `8005`)
+* `SALAD_TCPCONSOLE_PORT`: TCP port to use for the TCP console (default: `8100`)
+* `SALAD_CONSOLE_USB_RESET_POWER_OFF_TIME`: Number of seconds a USB-based serial console should remain powered off to
+  perform a successful reset (default: `3` seconds)
+* `SALAD_CONSOLE_USB_RESET_DISABLE`: Disable resetting of USB-serial adapters,
+  it is required in case of using containers not running on top of b2c (both
+  privileged and unprivileged).
+* `LISTEN_PID` and `LISTEN_FDS`: See Systemd's socket activation scheme
