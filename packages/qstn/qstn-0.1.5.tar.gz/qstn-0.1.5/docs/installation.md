@@ -1,0 +1,14 @@
+# Installation
+
+To install the project and dependencies you can use `pip`.
+
+```bash
+pip install qstn
+```
+
+You can install the project from source as well by cloning the repository:
+
+```bash
+git clone https://github.com/dess-mannheim/QSTN.git
+cd QSTN
+pip install -e .
