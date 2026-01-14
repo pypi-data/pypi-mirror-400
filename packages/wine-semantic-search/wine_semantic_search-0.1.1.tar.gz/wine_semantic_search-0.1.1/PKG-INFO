@@ -1,0 +1,342 @@
+Metadata-Version: 2.4
+Name: wine-semantic-search
+Version: 0.1.1
+Summary: A Model Context Protocol server for semantic wine search using PostgreSQL and OpenAI embeddings
+Author-email: Wine Search Team <team@example.com>
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: asyncpg>=0.28.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: hypothesis>=6.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: pre-commit>=3.0.0; extra == "dev"
+Dynamic: license-file
+
+# Wine Semantic Search MCP Server
+
+A Model Context Protocol (MCP) server that enables semantic search capabilities over a PostgreSQL database containing wine listings and descriptions. The system uses vector embeddings to perform intelligent searches that understand the meaning and context of wine-related queries, returning relevant wine recommendations based on semantic similarity rather than just keyword matching.
+
+## Features
+
+- **Semantic Search**: Uses OpenAI's text-embedding-3-small model for intelligent wine recommendations
+- **Vector Database**: PostgreSQL with pgvector extension for efficient similarity search
+- **MCP Protocol**: Full compliance with Model Context Protocol for AI assistant integration
+- **Configurable**: Flexible search parameters and result limits
+- **Production Ready**: Comprehensive error handling, logging, and connection management
+- **Type Safe**: Full type annotations and validation using Pydantic
+
+## Requirements
+
+- **Python**: 3.8 or higher
+- **PostgreSQL**: 12+ with pgvector extension installed
+- **OpenAI API Key**: For generating embeddings
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd wine-semantic-search
+
+# Install the package
+pip install -e .
+
+# For development
+pip install -e ".[dev]"
+```
+
+### 2. Database Setup
+
+#### Install PostgreSQL and pgvector
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install postgresql postgresql-contrib
+sudo apt-get install postgresql-14-pgvector  # Adjust version as needed
+```
+
+**macOS (using Homebrew):**
+```bash
+brew install postgresql
+brew install pgvector
+```
+
+**Docker (Alternative):**
+```bash
+docker run --name wine-postgres -e POSTGRES_PASSWORD=password -p 5432:5432 -d pgvector/pgvector:pg16
+```
+
+#### Create Database and Schema
+
+```bash
+# Connect to PostgreSQL
+psql -U postgres -h localhost
+
+# Create database
+CREATE DATABASE wine_database;
+
+# Connect to the new database
+\c wine_database
+
+# Run the schema setup
+\i database_schema.sql
+```
+
+Or use the provided schema file:
+```bash
+psql -U postgres -h localhost -d wine_database -f database_schema.sql
+```
+
+### 3. Configuration
+
+Copy the example configuration file and customize it:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your settings:
+
+```bash
+# Required settings
+DATABASE_URL=postgresql://username:password@localhost:5432/wine_database
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional settings
+MAX_RESULTS=50
+SIMILARITY_THRESHOLD=0.7
+```
+
+### 4. Load Wine Data (Optional)
+
+If you have wine data to import, you can use the following format:
+
+```sql
+INSERT INTO wine (country, description, designation, points, price, province, region_1, region_2, variety, winery)
+VALUES 
+('France', 'A rich, full-bodied Bordeaux with notes of blackcurrant and oak', 'Château Example 2020', 92, 45.99, 'Bordeaux', 'Left Bank', 'Pauillac', 'Cabernet Sauvignon', 'Château Example'),
+-- Add more wine records...
+```
+
+Note: Embeddings will be generated automatically when you perform searches.
+
+### 5. Run the Server
+
+```bash
+# Start the MCP server
+wine-search-server
+
+# Or run directly with Python
+python -m wine_semantic_search.main
+```
+
+## Usage
+
+### As an MCP Server
+
+The server exposes a single tool called `search_wines` that can be used by any MCP-compatible client:
+
+**Tool Schema:**
+```json
+{
+  "name": "search_wines",
+  "description": "Search for wines using natural language descriptions",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Natural language description of desired wine characteristics"
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Maximum number of results to return (default: 10, max: 50)",
+        "minimum": 1,
+        "maximum": 50,
+        "default": 10
+      }
+    },
+    "required": ["query"]
+  }
+}
+```
+
+**Example Queries:**
+- "I want a full-bodied red wine from France under $30"
+- "Light, crisp white wine perfect for seafood"
+- "Bold Cabernet Sauvignon with high ratings"
+- "Sweet dessert wine from Germany"
+
+### Testing the Installation
+
+You can test your setup using the built-in health check:
+
+```bash
+# Test database connection and configuration
+python -c "
+from wine_semantic_search.main import test_setup
+import asyncio
+asyncio.run(test_setup())
+"
+```
+
+## Database Schema
+
+The system uses two main tables:
+
+### `wine` table
+Stores wine information including:
+- Basic details (name, country, region, variety, winery)
+- Ratings and pricing (points, price)
+- Descriptive text (description)
+
+### `wine_embeddings` table
+Stores vector embeddings for semantic search:
+- 512-dimensional vectors generated by OpenAI
+- Linked to wine records via foreign key
+- Indexed for efficient similarity search
+
+See `database_schema.sql` for the complete schema definition.
+
+## Configuration Options
+
+| Environment Variable | Required | Default | Description |
+|---------------------|----------|---------|-------------|
+| `DATABASE_URL` | Yes | - | PostgreSQL connection string |
+| `OPENAI_API_KEY` | Yes | - | OpenAI API key for embeddings |
+| `MAX_RESULTS` | No | 50 | Maximum search results (1-50) |
+| `SIMILARITY_THRESHOLD` | No | 0.7 | Minimum similarity score (0.0-1.0) |
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=wine_semantic_search
+
+# Run specific test categories
+pytest tests/test_database.py  # Database tests
+pytest tests/test_embedding.py  # Embedding tests
+pytest tests/test_integration.py  # Integration tests
+```
+
+### Code Quality
+
+```bash
+# Format code
+black wine_semantic_search/
+isort wine_semantic_search/
+
+# Type checking
+mypy wine_semantic_search/
+
+# Linting
+flake8 wine_semantic_search/
+```
+
+### Property-Based Testing
+
+The project uses Hypothesis for property-based testing to ensure correctness across a wide range of inputs:
+
+```bash
+# Run property-based tests with verbose output
+pytest tests/ -v --hypothesis-show-statistics
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**1. pgvector extension not found**
+```
+ERROR: extension "vector" is not available
+```
+Solution: Install pgvector extension for your PostgreSQL version.
+
+**2. Database connection failed**
+```
+ERROR: could not connect to server
+```
+Solution: Check your `DATABASE_URL` and ensure PostgreSQL is running.
+
+**3. OpenAI API errors**
+```
+ERROR: Invalid API key
+```
+Solution: Verify your `OPENAI_API_KEY` is correct and has sufficient credits.
+
+**4. No search results**
+```
+INFO: No wines found matching query
+```
+Solution: Check that your database contains wine records and try adjusting the `SIMILARITY_THRESHOLD`.
+
+### Logging
+
+The server provides detailed logging for troubleshooting:
+
+```bash
+# Enable debug logging
+export LOG_LEVEL=DEBUG
+wine-search-server
+```
+
+### Performance Tuning
+
+For large datasets, consider:
+
+1. **Database Indexing**: The schema includes optimized indexes for common queries
+2. **Connection Pooling**: Adjust `DB_POOL_MAX_SIZE` for high-concurrency scenarios
+3. **Similarity Threshold**: Higher thresholds reduce computation but may miss relevant results
+4. **Result Limits**: Lower limits improve response times
+
+## Architecture
+
+The system follows a layered architecture:
+
+- **MCP Server Layer**: Handles protocol communication and tool registration
+- **Service Layer**: Business logic for embeddings and database operations
+- **Data Layer**: PostgreSQL with pgvector for efficient vector operations
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with tests
+4. Run the test suite
+5. Submit a pull request
+
+## License
+
+[Add your license information here]
+
+## Support
+
+For issues and questions:
+1. Check the troubleshooting section above
+2. Review the test files for usage examples
+3. Open an issue on the repository
