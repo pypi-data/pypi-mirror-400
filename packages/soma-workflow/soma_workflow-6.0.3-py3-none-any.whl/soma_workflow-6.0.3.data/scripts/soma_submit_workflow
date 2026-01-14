@@ -1,0 +1,52 @@
+#!python
+
+'''
+@author: Soizic Laguitton
+
+@organization: I2BM, Neurospin, Gif-sur-Yvette, France
+@organization: CATI, France
+@organization: U{IFR 49<http://www.ifr49.org>}
+
+@license: U{CeCILL version 2<http://www.cecill.info/licences/Licence_CeCILL_V2-en.html>}
+'''
+
+
+import sys
+
+from soma_workflow.client import WorkflowController, Helper
+
+if __name__ == '__main__':
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Submit a workflow file to a computing resource')
+    parser.add_argument('workflow', metavar='WORKFLOW', type=str, 
+                        help='a workflow file to submit')
+    parser.add_argument('resource', metavar='RESOURCE', type=str, 
+                        help='the computing resource to process the workflow')
+    parser.add_argument('--queue', dest='queue', type=str, default=None,
+                        help='queue to use on the destination resource')
+    parser.add_argument('--name', dest='name', type=str, default=None,
+                        help='name of submitted workflow')
+    args = parser.parse_args()
+
+    #if len(sys.argv) != 3:
+       #raise Exception("The program takes exactly 2 parameter: \n"
+                       #"    * the workflow file \n"
+                       #"    * the computing resource id \n")
+    
+    workflow = Helper.unserialize(args.workflow)
+
+    wfc = WorkflowController(args.resource)
+
+    wf_id = wfc.submit_workflow(workflow, name = args.name, queue = args.queue)
+
+    # at this point, processing is running.
+    # For a client/server connection, we can disconnect and exit.
+    # However in "light" mode we need to wait for the workflow to finish,
+    # otherwise the engine will exit immediately.
+
+    if wfc.config.get_mode() == 'light':
+        print('Light mode without server - we need to wait for workflow '
+              'completion')
+        wfc.wait_workflow(wf_id)
