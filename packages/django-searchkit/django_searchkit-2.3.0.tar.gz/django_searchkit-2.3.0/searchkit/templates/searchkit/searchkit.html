@@ -1,0 +1,16 @@
+{% load searchkit static %}
+{% comment %} Save some data attributes for the javascript code.{% endcomment %}
+<div id="searchkit_formset" data-url="{{ sk_reload_url }}" data-reload-css-class="{{ sk_reload_css_class }}">
+    {{ formset.management_form }}
+    {% if formset.model and formset.forms %}
+        {% for form in formset %}
+            {% block searchkit_form %}
+                {% as_filter_logic_fieldset form.logic_form index=forloop.counter %}
+                {% as_filter_rule_fieldset form index=forloop.counter %}
+            {% endblock %}
+        {% endfor %}
+        {% block searchkit_form_buttons %}
+            {% include "searchkit/searchkit_buttons.html" %}
+        {% endblock %}
+    {% endif %}
+</div>
