@@ -1,0 +1,277 @@
+Metadata-Version: 2.4
+Name: paizhaojieti-stdio-mcp
+Version: 1.0.0
+Summary: 基于智谱AI拍照解题智能体的STDIO类型MCP服务
+Home-page: https://github.com/La0bALanG/paizhaojieti_stdio_mcp
+Author: Yutian
+Author-email: Yutian <your.email@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/La0bALanG/paizhaojieti_stdio_mcp
+Project-URL: Repository, https://github.com/La0bALanG/paizhaojieti_stdio_mcp
+Project-URL: Issues, https://github.com/La0bALanG/paizhaojieti_stdio_mcp/issues
+Keywords: mcp,stdio,ai,image-recognition,problem-solving
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# Paizhaojieti STDIO MCP Server
+
+基于智谱AI拍照解题智能体的STDIO类型MCP服务，支持在ModelScope上使用个人授权的阿里云函数计算资源进行部署。
+
+## 功能特点
+
+- 📸 **拍照解题**: 支持数学题、物理题、化学题等各种学科的题目识别和解答
+- 🔄 **STDIO协议**: 符合ModelScope MCP STDIO协议规范
+- ☁️ **云原生部署**: 支持在ModelScope上使用个人阿里云函数计算资源部署
+- 🚀 **快速响应**: 基于智谱AI拍照解题智能体，响应速度快
+- 📦 **轻量级**: 仅依赖requests库，部署简单
+- 🧪 **易于测试**: 提供完整的测试脚本
+
+## 技术栈
+
+- Python 3.7+
+- requests库
+- ModelScope MCP STDIO协议
+
+## 快速开始
+
+### 本地开发环境
+
+#### 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 运行测试
+
+```bash
+# 运行测试脚本
+python test_client.py
+```
+
+测试脚本会自动启动服务，测试所有功能，并输出详细结果。
+
+#### 直接运行服务
+
+```bash
+python server.py
+```
+
+服务启动后，会从标准输入读取JSON-RPC请求，处理后写入标准输出。
+
+## 部署到ModelScope
+
+### 步骤1: 准备GitHub仓库
+
+1. 创建GitHub仓库，命名为 `paizhaojieti_stdio_mcp`
+2. 上传代码到仓库
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/yourusername/paizhaojieti_stdio_mcp.git
+git push -u origin main
+```
+
+### 步骤2: 在ModelScope创建MCP服务
+
+1. 访问 [ModelScope MCP广场](https://modelscope.cn/mcp)
+2. 点击"创建MCP服务"或"发布MCP服务"
+3. 填写基本信息：
+   - **MCP名称**: Paizhaojieti STDIO MCP Server
+   - **MCP描述**: 基于智谱AI拍照解题智能体的STDIO类型MCP服务
+   - **MCP类型**: STDIO
+   - **GitHub仓库**: https://github.com/yourusername/paizhaojieti_stdio_mcp
+   - **部署方式**: 选择"个人阿里云函数计算资源"
+   - **配置文件路径**: mcp_config.json
+4. 点击"提交"完成创建
+
+### 步骤3: 验证部署
+
+1. 在ModelScope MCP广场搜索并找到你的服务
+2. 点击"调用"按钮
+3. 填写测试参数：
+   - `image_url`: 题目图片URL
+   - `api_key`: 智谱AI API密钥
+4. 点击"执行"查看结果
+
+## 使用说明
+
+### 支持的工具
+
+#### solve_image_problem
+
+**功能**: 通过上传图片URL来解题，支持数学题、物理题、化学题等各种学科的题目识别和解答。
+
+**参数**:
+- `image_url` (必填): 题目图片的URL地址，必须是公网可访问的图片链接
+- `api_key` (必填): 智谱AI的API密钥，用于调用拍照解题智能体
+
+**响应示例**:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "1.大语言模型基于 Transformer 架构延伸出不同的路线图，BERT 属于其中哪一种路线图？\nA. Encoder-Only\nB. Decoder-Only\nC. Encoder-decoder\nD. 以上都不是\n【解析】\n本题考查对大语言模型架构的理解。BERT（Bidirectional Encoder Representations from Transformers）是Google在2018年发布的一种预训练语言模型，它基于Transformer架构，但与传统的Transformer不同，BERT采用了Encoder-Only的架构，即只包含编码器部分，没有解码器部分。这种架构使得BERT能够同时考虑上下文信息，进行双向的语义理解，从而在各种自然语言处理任务上取得了显著的效果。因此，正确答案是A。\n\n【答案】\nA. Encoder-Only"
+      }
+    ]
+  }
+}
+```
+
+### JSON-RPC协议
+
+服务支持以下JSON-RPC方法：
+
+#### 1. initialize
+
+**功能**: 初始化MCP服务
+
+**请求示例**:
+```json
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
+```
+
+#### 2. tools/list
+
+**功能**: 获取可用工具列表
+
+**请求示例**:
+```json
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+```
+
+#### 3. tools/call
+
+**功能**: 调用指定工具
+
+**请求示例**:
+```json
+{
+  "jsonrpc":"2.0",
+  "id":3,
+  "method":"tools/call",
+  "params":{
+    "name":"solve_image_problem",
+    "arguments":{
+      "image_url":"https://example.com/problem.png",
+      "api_key":"your_zhipu_api_key"
+    }
+  }
+}
+```
+
+## 项目结构
+
+```
+paizhaojieti_stdio_mcp/
+├── server.py          # STDIO类型MCP服务主程序
+├── test_client.py     # 测试脚本
+├── requirements.txt   # 依赖文件
+├── mcp_config.json    # ModelScope部署配置文件
+├── MODELSCOPE_CONFIG.md  # ModelScope部署详细说明
+└── README.md          # 项目说明文档
+```
+
+## 配置文件
+
+### mcp_config.json
+
+```json
+{
+  "name": "paizhaojieti-mcp",
+  "version": "1.0.0",
+  "description": "基于智谱AI拍照解题智能体的STDIO类型MCP服务",
+  "type": "stdio",
+  "main": "server.py",
+  "command": "python server.py",
+  "dependencies": {
+    "requirements": "requirements.txt"
+  },
+  "protocolVersion": "2024-11-05"
+}
+```
+
+## 本地测试
+
+使用提供的测试脚本可以方便地测试服务功能：
+
+```bash
+python test_client.py
+```
+
+测试脚本会执行以下测试：
+1. 初始化服务
+2. 获取工具列表
+3. 调用解题工具
+
+## 故障排除
+
+### 部署失败
+
+- 检查mcp_config.json格式是否正确
+- 确保requirements.txt中包含所有必要依赖
+- 在本地运行测试脚本验证代码正确性
+
+### 工具调用失败
+
+- 验证API密钥是否有效
+- 确认图片URL是否可访问
+- 检查智谱AI API服务状态
+
+## 日志
+
+服务运行时，会将日志信息输出到标准错误流，包括：
+- 服务启动信息
+- 收到的请求
+- 发送的响应
+- 错误信息
+
+## 注意事项
+
+1. **API密钥安全**: 请勿将智谱AI API密钥硬编码到代码中
+2. **图片URL**: 必须是公网可访问的图片链接
+3. **服务类型**: 此服务为STDIO类型，不支持HTTP访问
+4. **部署环境**: ModelScope会自动处理依赖安装和服务启动
+
+## 许可证
+
+MIT License
+
+## 联系方式
+
+- 项目地址: https://github.com/yourusername/paizhaojieti_stdio_mcp
+- Issues: https://github.com/yourusername/paizhaojieti_stdio_mcp/issues
+- Email: your.email@example.com
+
+## 更新日志
+
+### v1.0.0 (2026-01-09)
+
+- 初始版本
+- 实现了拍照解题功能
+- 支持STDIO类型MCP协议
+- 提供完整的测试脚本
+- 支持在ModelScope上部署
