@@ -1,0 +1,36 @@
+<!-- UID: 20250106T120000.001Z-A000 -->
+<!-- Created: 2025-01-06T11:00:00Z -->
+<!-- Related ADR: 20250106T120000.000Z-A000 -->
+
+# Add user authentication
+
+## Objective
+
+Add user authentication
+
+Decision: Authentication - Strategy=OAuth, Library=next-auth
+
+## Context
+
+Add user authentication
+
+Related ADR: 20250106T120000.000Z-A000
+
+## Allowlist
+
+- `docs/archive/task/`
+- `preflights/adapters/`
+- `preflights/application/ports/`
+
+## Forbidden
+
+- `build/`
+
+## Technical Constraints
+
+- Use OAuth for Strategy
+- Use next-auth for Library
+
+## Acceptance Criteria
+
+- [ ] Implementation of 'Add user authentication' is complete and working
