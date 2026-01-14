@@ -1,0 +1,263 @@
+Metadata-Version: 2.1
+Name: deepomatic-oef
+Version: 0.22.1
+Summary: Open Experiment Format
+Home-page: https://github.com/Deepomatic/open-experiment-format
+Author: Deepomatic
+Author-email: support@deepomatic.com
+License: MIT License
+Project-URL: Product, https://deepomatic.com
+Project-URL: Source, https://github.com/deepomatic/open-experiment-format
+Project-URL: Tracker, https://github.com/deepomatic/open-experiment-format/issues
+Platform: UNKNOWN
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: protobuf (<5,>=3.8)
+Requires-Dist: requests (>=2.19.1)
+
+# Open-Experiment-Format (OEF)
+
+Open-Experiment-Format lets you define your model and experiment in a standardized and serializable format.
+
+## Installation
+
+OEF is PyPi package and can be installed simply by doing:
+
+```bash
+pip install deepomatic-oef
+```
+
+## Using the API to launch a training on Deepomatic Studio
+
+If you want to use training parameters which are not exposed on Studio, you can launch an experiment via the OEF API call `launch_experiment` on any dataset and view.
+
+Make sure that you have your Studio credentials for the given organisation. You can define directly the `DEEPOMATIC_API_KEY` environment variable:
+
+```bash
+$ export DEEPOMATIC_API_KEY=abcdef0123456789
+```
+
+or pass it as an keyword-argument to the `launch_experiment` function.
+
+The first step is to select the model you would like to use among the list of supported models (see [this section](#model-list)).
+
+```python
+from deepomatic.oef.utils.experiment_builder import ExperimentBuilder
+from deepomatic.oef.api.experiment import launch_experiment
+
+builder = ExperimentBuilder('image_detection.pretraining_natural_rgb.faster_rcnn.resnet_101_v1')
+xp = builder.build()
+launch_experiment(xp, 'organisation-slug', 'dataset-slug', 'view-uuid', 'Model name')
+```
+
+## Parametrizing your experiment
+The `.build()` method of the builder can take many parameters. To get a complete documentation of the possible parameters, please [visit this page](docs.md). You can pass as many parameters as you want from the [Experiment](docs.md#deepomatic.oef.experiment.Experiment) and [Trainer](docs.md#deepomatic.oef.trainer.Trainer) protobuf messages, they will be set at the correct location automatically. For example, you can change the `initial_learning_rate` from the `Experiment` protobuf and `batch_size` from the `Trainer` protobuf like this:
+
+```python
+xp = builder.build(
+    initial_learning_rate=0.001,
+    batch_size=32,
+)
+```
+
+
+In the next subsections, you will find a few typical usages.
+
+### Changing the input size
+
+You may want to change the default input size of your model. Be aware that choosing sizes that are incompatible with the model architecture may lead to a crash. Refer to [this page](https://docs.deepomatic.com/platform/deepomatic-drive/configuring-visual-automation-applications/training-models-1/available-architectures) to get the default input sizes.
+
+Changing the input so that images are always resized to a fixed size can be done as follows:
+
+```python
+xp = builder.build(
+    image_resizer={
+        'fixed_shape_resizer': {
+            'height': 480,
+            'width': 640,
+            # Those parameters are optional
+            'convert_to_grayscale': False
+        }
+    }
+)
+```
+
+Refer to the [detailed documentation](docs.md) for a description of all parameters. You may also want to resize input images in a way that respects the aspect ration of input images:
+
+```python
+xp = builder.build(
+    image_resizer={
+        'keep_aspect_ratio_resizer': {
+            'min_dimension': 600,
+            'max_dimension': 1024,
+            # Those parameters are optional
+            'convert_to_grayscale': False,
+            'pad_to_max_dimension': False,
+            'per_channel_pad_value': None
+        }
+    }
+)
+```
+
+### Changing the learning rate intial value and policy
+
+Control on the learning rate can be done as follow. Refer to the [detailed documentation](docs.md) for a description of all parameters.
+
+```python
+# Constant learning rate
+xp = builder.build(
+    initial_learning_rate=0.0003,
+    learning_rate_policy={
+        'constant_learning_rate': {},
+    }
+)
+
+# Step learning rate, manually defined
+xp = builder.build(
+    initial_learning_rate=0.0003,
+    learning_rate_policy={
+        'manual_step_learning_rate': {
+            'warmup': False,
+            'schedule': [
+                {
+                    'step_pct': 0.333,
+                    'learning_rate_factor': 0.1
+                },
+                {
+                    'step_pct': 0.666,
+                    'learning_rate_factor': 0.01
+                },
+            ],
+        }
+    }
+)
+
+# Exponential decay policy
+xp = builder.build(
+    initial_learning_rate=0.0003,
+    learning_rate_policy={
+        'exponential_decay_learning_rate': {
+            # Those parameters are optional
+            'decay_steps_pct': 0.006,
+            'decay_factor': 0.95,
+            'staircase': True,
+            'burnin_learning_rate': 0,
+            'burnin_steps_pct': 0,
+            'min_learning_rate': 0,
+        }
+    }
+)
+
+# Cosine decay policy
+xp = builder.build(
+    initial_learning_rate=0.0003,
+    learning_rate_policy={
+        'cosine_decay_learning_rate': {
+            # Those parameters are optional
+            'total_steps_pct': 1.07,
+            'warmup_learning_rate': 0.0002,
+            'warmup_steps_pct': 0.0025,
+            'hold_base_rate_steps_pct': 0,
+        }
+    }
+)
+```
+
+### Changing the optimizer
+
+Control on the optimizer can be done as follow. Refer to the [detailed documentation](docs.md) for a description of all parameters.
+
+```python
+# Momentum optimizer
+xp = builder.build(
+    optimizer={
+        'momentum_optimizer': {
+            'momentum_optimizer_value': 0.9
+        }
+    },
+)
+
+# RMSprop optimizer
+xp = builder.build(
+    optimizer={
+        'rms_prop_optimizer': {
+            'momentum_optimizer_value': 0.9
+        }
+    },
+)
+
+# Adam optimizer
+xp = builder.build(
+    optimizer={
+        'adam_optimizer': {
+            'momentum_optimizer_value': 0.9
+        }
+    },
+)
+```
+
+### Short cuts
+In the above examples, we explicitely gave the whole object with its nested parameters, but the `build` function descends the hierarchical structure tree until it finds the given parameter. One can hence directly define a single parameter easily without nesting.
+
+```python
+xp = builder.build(
+    # Sets trainer.optimizer to adam_optimizer
+    adam_optimizer={},
+    # Sets trainer.learning_rate_policy to constant_learning_rate
+    constant_learning_rate={},
+    # Sets trainer.image_task.backbone.input.image_resizer.default_resizer.convert_to_grayscale to True
+    convert_to_grayscale=True,
+)
+```
+
+Nota Bene: This works when the given parameter name is unique. If not, the first occurence of a parameter with this name is set to the given value.
+
+## Defining a hyper-parameter search
+
+We can also define a hyper-parameter search with its space definition and the maximum number of trials.
+
+To define a search space, you can add parameters with the `add_hyperparameter` function of the `ExperimentBuilder` class by using its name as an input. The function raises an error if the name is incorrect. An optional keyword argument is the `distribution` which is by default `None`. If not given, the default distribution is looked up for the specific hyperparameter. If not found, the function raises an Exception. If an distribution is given, it is used instead of the default distribution.
+
+To run a hyper-parameter search, the `max_hp_runs` should be set to an integer greater than 1 (default value).
+
+```python
+from deepomatic.oef.utils.experiment_builder import ExperimentBuilder
+
+model = 'image_classification.pretraining_natural_rgb.softmax.efficientnet_b0'
+builder = ExperimentBuilder(model)
+builder.add_hyperparameter('trainer.optimizer')  # Adds the optimizer as an hyperparameter with the default distribution
+builder.add_hyperparameter('trainer.optimizer.rms_prop_optimizer.momentum_optimizer_value')  # Adds the momentum optimizer value as hyperparameter, but only for the rms_prop_optimizer and not for the momentum_optimizer
+# builder.add_hyperparameter('trainer.batch_size')  # This would raise an Exception since trainer.batch_size has no default distribution
+# But we can still add it as an hyperparameter with an user-defined distribution
+builder.add_hyperparameter('trainer.batch_size', distribution={'categorical': {'values': [{'integer_value': 2}, {'integer_value': 4}, {'integer_value': 8}]}})
+# builder.add_hyperparameter('trainer.doesnot.exist')  # would also raise an Exception since the path is invalid
+
+# We can now set custom experiment values. For hyperparameters we check that they fall into the defined distribution range
+xp_proto = builder.build(
+    config_path='gs://dp-thoth/datasets/oxford-pets/config_mini_classif_v4.prototxt',
+    num_train_steps=10,
+    max_hp_runs=5,  # Needs to be > 1 to activate the hyper-parameter search
+    batch_size=2,  # This works because 2 is in [2, 4, 8]
+    momentum_optimizer_value=0.3,  # this changes the momentum_optimizer_value for the momentum_optimizer and not for the rms_prop_optimizer, since the momentum_optimizer is the default
+    # optimizer={'adam_optimizer': {}},  # this will raise an Exception since the adam_optimizer is not in the default distribution
+)
+```
+
+The `hyperparameter_dump.py` script looks recursively through all the protobuf message fields to find the hyperparameter definitions and dumps a JSON file with` {full_message_name: {field_name: hyperparameter_definition_dict}}` and can be used to see all the default distributions defined in OEF per protobuf message.
+## <a id="model-list"></a> Which models are available?
+
+You can import the dictionary `model_list` containing all model keys and there specific parameters. The keys of the dictionary have the following structure `task_type.pretraining_type.meta_architecture.backbone`, where `task_type` can be `image_classification`, `image_detection`, `image_ocr`, and soon `image_segmentation`, and the pretraining can be either `pretraining_natural_rgb` or `pretraining_none`.
+
+If you want to get a list of all available pretrained multi-class classification models you can do that:
+
+```python
+from deepomatic.oef.configs.model_list import model_list
+
+
+classification = [k for k in model_list.keys() if k.split[:-1] == ('image_classification', 'pretraining_natural_rgb', 'softmax')]
+```
+
+
