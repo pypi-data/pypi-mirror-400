@@ -1,0 +1,545 @@
+# SPDX-License-Identifier: MIT
+"""Retraction Watch backend for journal quality assessment based on retraction data."""
+
+import asyncio
+from typing import TYPE_CHECKING, Any
+
+import aiohttp
+
+from ..backend_exceptions import RateLimitError
+from ..cache import RetractionCache
+from ..confidence_utils import MatchQuality, calculate_base_confidence
+from ..constants import CONFIDENCE_THRESHOLD_LOW
+from ..enums import AssessmentType, EvidenceType, RiskLevel
+from ..fallback_chain import FallbackStrategy, QueryFallbackChain
+from ..fallback_executor import automatic_fallback
+from ..logging_config import get_detail_logger, get_status_logger
+from ..models import BackendResult, BackendStatus, QueryInput
+from ..openalex import get_publication_stats
+from ..risk_calculator import calculate_retraction_risk_level
+from ..utils.dead_code import code_is_used
+from .base import ApiBackendWithCache, get_backend_registry
+from .fallback_mixin import FallbackStrategyMixin
+from .protocols import DataSyncCapable
+
+
+if TYPE_CHECKING:
+    from ..updater.core import DataSource
+    from ..updater.sources.retraction_watch import RetractionWatchSource
+
+
+detail_logger = get_detail_logger()
+status_logger = get_status_logger()
+
+
+def _risk_level_to_assessment(risk_level: RiskLevel) -> AssessmentType:
+    """Convert risk level to assessment type.
+
+    Args:
+        risk_level: Risk level from retraction analysis (RiskLevel enum)
+
+    Returns:
+        Corresponding assessment type
+    """
+    mapping = {
+        RiskLevel.NONE: AssessmentType.LEGITIMATE,
+        RiskLevel.NOTE: AssessmentType.LEGITIMATE,
+        RiskLevel.LOW: AssessmentType.SUSPICIOUS,
+        RiskLevel.MODERATE: AssessmentType.PREDATORY,
+        RiskLevel.HIGH: AssessmentType.PREDATORY,
+        RiskLevel.CRITICAL: AssessmentType.PREDATORY,
+    }
+    return mapping.get(risk_level, AssessmentType.UNKNOWN)
+
+
+class RetractionWatchBackend(
+    ApiBackendWithCache, FallbackStrategyMixin, DataSyncCapable
+):
+    """Backend that checks retraction history from Retraction Watch database.
+
+    This backend implements both ApiBackendWithCache patterns (cache-first queries with
+    API fallback) and DataSyncCapable protocol (local data synchronization from
+    external sources). It needs local retraction statistics data to function
+    properly, which is synced from the Retraction Watch GitLab repository.
+    """
+
+    def __init__(self, cache_ttl_hours: int = 24) -> None:
+        """Initialize backend with configurable cache TTL.
+
+        Args:
+            cache_ttl_hours: Cache time-to-live in hours (default: 24)
+        """
+        super().__init__(cache_ttl_hours=cache_ttl_hours)
+        self.list_type = "quality_indicator"
+        self._data_source: RetractionWatchSource | None = None
+
+    def get_name(self) -> str:
+        return "retraction_watch"
+
+    def get_evidence_type(self) -> EvidenceType:
+        """Return evidence type for retraction data."""
+        return EvidenceType.QUALITY_INDICATOR
+
+    # DataSyncCapable protocol implementation
+    @property
+    def source_name(self) -> str:
+        """Name of the data source for synchronization."""
+        return "retraction_watch"
+
+    def get_data_source(self) -> "DataSource | None":
+        """Get the RetractionWatchSource instance for data synchronization."""
+        if self._data_source is None:
+            from ..updater.sources.retraction_watch import RetractionWatchSource
+
+            self._data_source = RetractionWatchSource()
+        return self._data_source
+
+    def needs_sync(self) -> bool:
+        """Check if retraction statistics data needs synchronization.
+
+        Returns True if the retraction_statistics table is empty or
+        data appears to be missing.
+        """
+        try:
+            retraction_cache = RetractionCache()
+            # Check if we have any retraction statistics by querying a simple journal
+            # If the cache returns None for a basic query, we likely need sync
+            test_result = retraction_cache.get_retraction_statistics(1)
+            # If we get None but the cache exists, the table is probably empty
+            return test_result is None
+        except Exception as e:
+            detail_logger.warning(f"Error checking retraction statistics: {e}")
+            # If we can't check, assume we need sync
+            return True
+
+    @code_is_used  # Called by decorated methods
+    def _search_retraction_data(
+        self, query_input: QueryInput, chain: QueryFallbackChain
+    ) -> list[dict[str, Any]]:
+        """Search for retraction data using various query strategies.
+
+        Args:
+            query_input: Normalized query input with journal information
+            chain: Fallback chain to log attempts
+
+        Returns:
+            List of matching journal records from the database
+        """
+        detail_logger.debug("RetractionWatch._search_retraction_data called")
+
+        # Search by ISSN first (though we don't have ISSN in retraction data)
+        detail_logger.debug("RetractionWatch._search_retraction_data try issn search")
+        results = []
+        if query_input.identifiers.get("issn"):
+            results = self.journal_cache.search_journals(
+                issn=query_input.identifiers["issn"],
+                source_name=self.source_name,
+            )
+            chain.log_attempt(
+                FallbackStrategy.ISSN,
+                success=len(results) > 0,
+                query_value=query_input.identifiers["issn"],
+            )
+
+        # If no ISSN match, try exact normalized name match
+        detail_logger.debug(
+            "RetractionWatch._search_retraction_data try normalized name"
+        )
+        if not results and query_input.normalized_name:
+            results = self._search_exact_match(query_input.normalized_name)
+            chain.log_attempt(
+                FallbackStrategy.EXACT_NAME,
+                success=len(results) > 0,
+                query_value=query_input.normalized_name,
+            )
+
+        # Try aliases for exact matches only
+        detail_logger.debug(
+            "RetractionWatch._search_retraction_data try search exact match"
+        )
+        if not results:
+            for alias in query_input.aliases:
+                results = self._search_exact_match(alias)
+                chain.log_attempt(
+                    FallbackStrategy.EXACT_ALIASES,
+                    success=len(results) > 0,
+                    query_value=alias,
+                )
+                if results:
+                    break
+
+        detail_logger.debug(
+            f"RetractionWatch._search_retraction_data: results {len(results) if results else None}"
+        )
+        return results
+
+    def _build_not_found_result_with_chain(
+        self,
+        query_input: QueryInput,
+        chain: QueryFallbackChain,
+        response_time: float,
+    ) -> BackendResult:
+        """Build not found result with populated fallback chain.
+
+        Args:
+            query_input: Original query input
+            chain: Fallback chain used for this query
+            response_time: Query response time
+
+        Returns:
+            BackendResult indicating no data was found
+        """
+        return BackendResult(
+            backend_name=self.get_name(),
+            status=BackendStatus.NOT_FOUND,
+            confidence=0.0,
+            assessment=None,
+            data={
+                "message": "No retractions found in Retraction Watch database",
+                "searched_in": self.source_name,
+            },
+            sources=[self.source_name],
+            error_message=None,
+            response_time=response_time,
+            fallback_chain=chain,
+        )
+
+    async def _build_success_result_with_chain(
+        self,
+        match: dict[str, Any],
+        query_input: QueryInput,
+        chain: QueryFallbackChain,
+        response_time: float,
+    ) -> BackendResult:
+        """Build comprehensive result data from retraction and publication statistics.
+
+        Args:
+            match: Matching journal record from database
+            query_input: Original query input
+            chain: Fallback chain used for this query
+            response_time: Query response time
+
+        Returns:
+            BackendResult with comprehensive retraction assessment
+        """
+        journal_id = match.get("id")
+
+        if not journal_id or not isinstance(journal_id, int):
+            detail_logger.error(f"Invalid journal_id from match: {journal_id}")
+            raise ValueError(f"Invalid journal_id: {journal_id}")
+
+        # Fetch retraction statistics from dedicated table
+        retraction_cache = RetractionCache()
+        stats = retraction_cache.get_retraction_statistics(journal_id)
+
+        if stats:
+            total_retractions = stats.get("total_retractions", 0)
+            recent_retractions = stats.get("recent_retractions", 0)
+            very_recent_retractions = stats.get("very_recent_retractions", 0)
+            retraction_types = stats.get("retraction_types", {})
+            top_reasons = stats.get("top_reasons", [])
+            publishers = stats.get("publishers", [])
+            first_retraction_date = stats.get("first_retraction_date")
+            last_retraction_date = stats.get("last_retraction_date")
+        else:
+            # No statistics found
+            total_retractions = 0
+            recent_retractions = 0
+            very_recent_retractions = 0
+            retraction_types = {}
+            top_reasons = []
+            publishers = []
+            first_retraction_date = None
+            last_retraction_date = None
+
+        # Fetch OpenAlex publication data on-demand
+        openalex_data = None
+        if query_input.normalized_name:
+            openalex_data = await self._get_openalex_data_cached(
+                query_input.normalized_name, query_input.identifiers.get("issn")
+            )
+
+        # Recalculate risk level with publication data if available
+        total_publications = (
+            openalex_data.get("total_publications") if openalex_data else None
+        )
+        recent_publications = (
+            openalex_data.get("recent_publications") if openalex_data else None
+        )
+
+        risk_level = calculate_retraction_risk_level(
+            total_retractions,
+            recent_retractions,
+            total_publications,
+            recent_publications,
+        )
+
+        # Calculate retraction rates if we have publication data
+        retraction_rate = None
+        recent_retraction_rate = None
+        if total_publications and total_publications > 0:
+            retraction_rate = (total_retractions / total_publications) * 100
+            if recent_publications and recent_publications > 0:
+                recent_retraction_rate = (
+                    recent_retractions / recent_publications
+                ) * 100
+
+        # Calculate confidence based on match quality
+        confidence = self._calculate_confidence(query_input, match)
+
+        # Prepare enriched data for result
+        result_data = {
+            "total_retractions": total_retractions,
+            "recent_retractions": recent_retractions,
+            "very_recent_retractions": very_recent_retractions,
+            "risk_level": risk_level,
+            "first_retraction_date": first_retraction_date,
+            "last_retraction_date": last_retraction_date,
+            "retraction_types": retraction_types,
+            "top_reasons": top_reasons,
+            "publishers": publishers,
+            "matches": 1,  # Single match from search
+            "source": "Retraction Watch Database (Crossref)",
+            "source_data": match,
+            # OpenAlex publication volume data (fetched on-demand)
+            "total_publications": total_publications,
+            "recent_publications": recent_publications,
+            "recent_publications_by_year": (
+                openalex_data.get("recent_publications_by_year", {})
+                if openalex_data
+                else {}
+            ),
+            "retraction_rate": retraction_rate,  # Percentage
+            "recent_retraction_rate": recent_retraction_rate,  # Percentage
+            "openalex_id": (
+                openalex_data.get("openalex_id") if openalex_data else None
+            ),
+            "openalex_url": (
+                openalex_data.get("openalex_url") if openalex_data else None
+            ),
+            "has_publication_data": openalex_data is not None,
+        }
+
+        return BackendResult(
+            backend_name=self.get_name(),
+            status=BackendStatus.FOUND,
+            confidence=confidence,
+            assessment=_risk_level_to_assessment(risk_level),
+            data=result_data,
+            sources=[self.source_name],
+            error_message=None,
+            response_time=response_time,
+            fallback_chain=chain,
+        )
+
+    @code_is_used  # Called by @automatic_fallback decorator
+    def _build_error_result(
+        self,
+        exception: Exception,
+        response_time: float,
+        chain: QueryFallbackChain | None = None,
+    ) -> BackendResult:
+        """Build error result with populated fallback chain.
+
+        Args:
+            exception: Exception that occurred during query
+            response_time: Query response time
+            chain: Fallback chain with logged attempts
+
+        Returns:
+            Error BackendResult
+        """
+        status_logger.error(f"RetractionWatch API error: {exception}")
+
+        return BackendResult(
+            backend_name=self.get_name(),
+            status=BackendStatus.ERROR,
+            confidence=0.0,
+            assessment=None,
+            data={"error_details": str(exception)},
+            sources=[self.source_name],
+            error_message=str(exception),
+            response_time=response_time,
+            fallback_chain=chain or QueryFallbackChain([]),
+        )
+
+    @code_is_used  # Called by ApiBackendWithCache.query()
+    @automatic_fallback(
+        [
+            FallbackStrategy.ISSN,
+            FallbackStrategy.EXACT_NAME,
+            FallbackStrategy.EXACT_ALIASES,
+        ]
+    )
+    async def _query_api(self, query_input: QueryInput) -> BackendResult:
+        """Query retraction data using automatic fallback chain.
+
+        Strategies executed in order:
+        1. ISSN - ISSN identifier lookup in retraction database
+        2. EXACT_NAME - exact journal name matching
+        3. EXACT_ALIASES - try exact matches with alternative names
+
+        Results are automatically cached by the ApiBackendWithCache parent.
+
+        The @automatic_fallback decorator handles all execution logic and
+        calls the appropriate strategy handler methods automatically.
+
+        Args:
+            query_input: Normalized query input with journal information
+
+        Returns:
+            BackendResult with retraction assessment and metadata
+        """
+        # This method body is replaced by @automatic_fallback decorator
+        # The NotImplementedError is never reached but satisfies mypy type checking
+        raise NotImplementedError(
+            "This method is handled by @automatic_fallback decorator"
+        )
+
+    # FallbackStrategyMixin required methods
+    async def _search_by_issn(self, issn: str) -> dict[str, Any] | None:
+        """Search RetractionWatch database by ISSN.
+
+        Args:
+            issn: ISSN identifier to search for
+
+        Returns:
+            Journal record if found, None if no match
+        """
+        detail_logger.debug(f"RetractionWatch: Searching by ISSN {issn}")
+        results = self.journal_cache.search_journals(
+            issn=issn,
+            source_name=self.source_name,
+        )
+        return results[0] if results else None
+
+    async def _search_by_name(
+        self, name: str, exact: bool = True
+    ) -> dict[str, Any] | None:
+        """Search RetractionWatch database by journal name.
+
+        Args:
+            name: Journal name to search for
+            exact: Whether to use exact matching (always True for RetractionWatch)
+
+        Returns:
+            Journal record if found, None if no match
+        """
+        detail_logger.debug(f"RetractionWatch: Searching by name '{name}'")
+        # RetractionWatch only supports exact matches
+        results = self._search_exact_match(name)
+        return results[0] if results else None
+
+    async def handle_exact_aliases_strategy(
+        self, query_input: QueryInput
+    ) -> Any | None:
+        """RetractionWatch-specific exact aliases strategy implementation.
+
+        This backend only supports exact matches, so we iterate through aliases
+        and return the first exact match found.
+
+        Args:
+            query_input: Query input with journal aliases
+
+        Returns:
+            Journal record if found, None if no match
+        """
+        for alias in query_input.aliases:
+            result = await self._search_by_name(alias, exact=True)
+            if result is not None:
+                return result
+        return None
+
+    async def _get_openalex_data_cached(
+        self, journal_name: str, issn: str | None = None
+    ) -> dict[str, Any] | None:
+        """Fetch OpenAlex data with caching (TTL: 30 days).
+
+        Args:
+            journal_name: Name of the journal
+            issn: Optional ISSN for more accurate matching
+
+        Returns:
+            Dictionary with publication statistics, or None if not found
+        """
+        # Check cache first
+        cached = self.openalex_cache.get_openalex_data(
+            issn=issn, journal_name=journal_name
+        )
+        if cached is not None:
+            detail_logger.debug(f"OpenAlex cache hit for {journal_name}")
+            return cached
+
+        # Fetch from OpenAlex API
+        status_logger.info(f"Fetching OpenAlex data on-demand for: {journal_name}")
+        try:
+            openalex_data = await get_publication_stats(journal_name, issn)
+
+            if openalex_data:
+                # Cache successful result for 30 days
+                self.openalex_cache.set_openalex_data(
+                    issn=issn,
+                    journal_name=journal_name,
+                    openalex_data=openalex_data,
+                    ttl_hours=24 * 30,
+                )
+                return openalex_data
+            else:
+                # No data found - return None without caching
+                # (failures are not cached to allow retries)
+                return None
+
+        except (
+            RateLimitError,
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            ValueError,
+            KeyError,
+            OSError,
+        ) as e:
+            status_logger.warning(
+                f"Failed to fetch OpenAlex data for {journal_name}: {e}"
+            )
+            # Don't cache failures - allow retries
+            return None
+
+    def _search_exact_match(self, name: str) -> list[dict[str, Any]]:
+        """Search for exact journal name matches using database-level filtering."""
+        return self.journal_cache.search_journals_by_name(
+            name=name,
+            source_name=self.source_name,
+            assessment=self.list_type,
+        )
+
+    def _calculate_confidence(
+        self, query_input: QueryInput, match: dict[str, Any]
+    ) -> float:
+        """Calculate confidence based on match quality - exact matches only."""
+
+        # High confidence for exact ISSN match
+        if (
+            query_input.identifiers.get("issn")
+            and match.get("issn") == query_input.identifiers["issn"]
+        ):
+            return calculate_base_confidence(MatchQuality.EXACT_ISSN)
+
+        # High confidence for exact name match (case insensitive)
+        if query_input.normalized_name:
+            query_name = query_input.normalized_name.lower().strip()
+            match_name = match.get("normalized_name", "").lower().strip()
+            original_name = match.get("journal_name", "").lower().strip()
+
+            if query_name == match_name or query_name == original_name:
+                return calculate_base_confidence(MatchQuality.EXACT_NAME)
+
+        # If we get here, it means we have a match but it's not exact
+        # This shouldn't happen with our new exact matching, so low confidence
+        return CONFIDENCE_THRESHOLD_LOW
+
+
+# Register the backend factory
+get_backend_registry().register_factory(
+    "retraction_watch",
+    lambda cache_ttl_hours=24: RetractionWatchBackend(cache_ttl_hours=cache_ttl_hours),
+    default_config={"cache_ttl_hours": 24},
+)

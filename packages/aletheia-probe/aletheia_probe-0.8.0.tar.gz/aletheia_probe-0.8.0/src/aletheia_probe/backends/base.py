@@ -1,0 +1,681 @@
+# SPDX-License-Identifier: MIT
+"""Abstract base class and utilities for journal assessment backends."""
+
+import asyncio
+import hashlib
+import inspect
+import time
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+import aiohttp
+
+from ..backend_exceptions import (
+    BackendAuthenticationError,
+    BackendConnectionError,
+    BackendNotFoundError,
+    BackendTimeoutError,
+    RateLimitError,
+)
+from ..cache import AssessmentCache, JournalCache, OpenAlexCache
+from ..confidence_utils import MatchQuality, calculate_base_confidence
+from ..constants import CONFIDENCE_THRESHOLD_LOW
+from ..enums import AssessmentType, EvidenceType
+from ..fallback_chain import FallbackStrategy, QueryFallbackChain
+from ..fallback_executor import automatic_fallback
+from ..models import AssessmentResult, BackendResult, BackendStatus, QueryInput
+from ..utils.dead_code import code_is_used
+from .fallback_mixin import FallbackStrategyMixin
+
+
+# Import DataSyncCapable for explicit protocol implementation
+# Note: Import is placed here to avoid circular import issues
+if TYPE_CHECKING:
+    from .protocols import DataSyncCapable
+
+
+class Backend(ABC):
+    """Abstract base class for all journal assessment backends."""
+
+    def __init__(self, cache_ttl_hours: int = 24):
+        """Initialize backend with cache TTL."""
+        self.cache_ttl_hours = cache_ttl_hours
+
+    @code_is_used
+    @abstractmethod
+    async def query(self, query_input: QueryInput) -> BackendResult:
+        """Query the backend with normalized input and return result.
+
+        Args:
+            query_input: Normalized query input with journal information
+
+        Returns:
+            BackendResult with assessment data and metadata
+        """
+        pass
+
+    @code_is_used
+    @abstractmethod
+    def get_name(self) -> str:
+        """Return the human-readable name of this backend."""
+        pass
+
+    @code_is_used
+    @abstractmethod
+    def get_evidence_type(self) -> EvidenceType:
+        """Return the type of evidence this backend provides."""
+        pass
+
+    async def query_with_timeout(
+        self, query_input: QueryInput, timeout: int = 10
+    ) -> BackendResult:
+        """Query with timeout handling.
+
+        Args:
+            query_input: Query input data
+            timeout: Timeout in seconds
+
+        Returns:
+            BackendResult, with status TIMEOUT if the query times out
+        """
+        start_time = time.time()
+
+        try:
+            result = await asyncio.wait_for(self.query(query_input), timeout=timeout)
+            return result
+        except asyncio.TimeoutError:
+            response_time = time.time() - start_time
+            return BackendResult(
+                backend_name=self.get_name(),
+                status=BackendStatus.TIMEOUT,
+                confidence=0.0,
+                assessment=None,
+                error_message=f"Query timed out after {timeout} seconds",
+                response_time=response_time,
+                cached=False,  # Timeout from live query
+                fallback_chain=QueryFallbackChain([]),
+            )
+        except (
+            ValueError,
+            OSError,
+            aiohttp.ClientError,
+            AttributeError,
+            KeyError,
+        ) as e:
+            response_time = time.time() - start_time
+            return BackendResult(
+                backend_name=self.get_name(),
+                status=BackendStatus.ERROR,
+                confidence=0.0,
+                assessment=None,
+                error_message=str(e),
+                response_time=response_time,
+                cached=False,  # Error from live query
+                fallback_chain=QueryFallbackChain([]),
+            )
+
+
+class CachedBackend(Backend, FallbackStrategyMixin):
+    """Base class for backends that use local cached data.
+
+    Explicitly implements DataSyncCapable protocol to enable automatic data synchronization.
+    All CachedBackend subclasses inherit sync capability and will be processed by sync manager.
+
+    Inheritance: Backend + FallbackStrategyMixin + DataSyncCapable (via runtime registration)
+    Query Pattern: Local cache only using automatic fallback strategies
+    Sync Behavior: Always needs sync (can be overridden by subclasses)
+    """
+
+    def __init__(
+        self, source_name: str, list_type: AssessmentType, cache_ttl_hours: int = 24
+    ):
+        super().__init__(cache_ttl_hours)
+        self._source_name = source_name
+        self.list_type = list_type
+        self.journal_cache = JournalCache()
+        self.assessment_cache = AssessmentCache()
+
+    @code_is_used  # Decorator replaces method body
+    @automatic_fallback(
+        [
+            FallbackStrategy.ISSN,
+            FallbackStrategy.NORMALIZED_NAME,
+            FallbackStrategy.ALIASES,
+        ]
+    )
+    async def query(self, query_input: QueryInput) -> BackendResult:
+        """Query cached data using automatic fallback chain execution.
+
+        Strategies executed in order:
+        1. ISSN - most reliable identifier
+        2. NORMALIZED_NAME - exact name matching
+        3. ALIASES - try all available aliases
+
+        The @automatic_fallback decorator handles all execution logic and
+        calls the appropriate strategy handler methods automatically.
+        """
+        # This method body is replaced by @automatic_fallback decorator
+        # The NotImplementedError is never reached but satisfies mypy type checking
+        raise NotImplementedError(
+            "This method is handled by @automatic_fallback decorator"
+        )
+
+    def _search_exact_match(self, name: str) -> list[dict[str, Any]]:
+        """Search for exact journal name matches using optimized SQL query."""
+        # Use optimized journal cache method with SQL WHERE clause
+        return self.journal_cache.search_journals_by_name(
+            name=name, source_name=self.source_name, assessment=self.list_type
+        )
+
+    def _calculate_confidence(
+        self, query_input: QueryInput, match: dict[str, Any]
+    ) -> float:
+        """Calculate confidence based on match quality - exact matches only."""
+
+        # High confidence for exact ISSN match
+        if (
+            query_input.identifiers.get("issn")
+            and match.get("issn") == query_input.identifiers["issn"]
+        ):
+            return calculate_base_confidence(MatchQuality.EXACT_ISSN)
+
+        # High confidence for exact name match (case insensitive)
+        if query_input.normalized_name:
+            query_name = query_input.normalized_name.lower().strip()
+            match_name = match.get("normalized_name", "").lower().strip()
+            original_name = match.get("journal_name", "").lower().strip()
+
+            if query_name == match_name or query_name == original_name:
+                return calculate_base_confidence(MatchQuality.EXACT_NAME)
+
+        # If we get here, it means we have a match but it's not exact
+        # This shouldn't happen with our new exact matching, so low confidence
+        return CONFIDENCE_THRESHOLD_LOW
+
+    # =============================================================================
+    # FallbackStrategyMixin Implementation
+    # =============================================================================
+    # Required methods for @automatic_fallback decorator support
+
+    async def _search_by_issn(self, issn: str) -> dict[str, Any] | None:
+        """Search by ISSN/eISSN identifier - required by FallbackStrategyMixin.
+
+        Args:
+            issn: ISSN or eISSN identifier to search for
+
+        Returns:
+            First matching journal data dict, or None if no match
+        """
+        results = self.journal_cache.search_journals(
+            issn=issn,
+            source_name=self.source_name,
+            assessment=self.list_type,
+        )
+        return results[0] if results else None
+
+    async def _search_by_name(
+        self, name: str, exact: bool = True
+    ) -> dict[str, Any] | None:
+        """Search by journal name - required by FallbackStrategyMixin.
+
+        Args:
+            name: Journal name to search for
+            exact: Whether to use exact matching (cached backends always use exact)
+
+        Returns:
+            First matching journal data dict, or None if no match
+        """
+        # CachedBackend always uses exact matching since data is local
+        # The exact parameter is ignored since fuzzy matching would require
+        # more complex SQL queries not currently supported by journal_cache
+        results = self._search_exact_match(name)
+        return results[0] if results else None
+
+    def _calculate_match_confidence(
+        self, query_input: QueryInput, raw_data: dict[str, Any]
+    ) -> float:
+        """Calculate confidence for automatic_fallback decorator.
+
+        Args:
+            query_input: Original query input
+            raw_data: Raw result data from search
+
+        Returns:
+            Confidence score between 0.0 and 1.0
+        """
+        return self._calculate_confidence(query_input, raw_data)
+
+    def _build_success_result_with_chain(
+        self,
+        raw_data: dict[str, Any],
+        query_input: QueryInput,
+        chain: QueryFallbackChain,
+        response_time: float,
+    ) -> BackendResult:
+        """Build successful result for automatic_fallback decorator.
+
+        Args:
+            raw_data: Raw result data from successful search
+            query_input: Original query input
+            chain: Populated fallback chain with attempts
+            response_time: Total response time
+
+        Returns:
+            BackendResult with FOUND status and populated chain
+        """
+        confidence = self._calculate_match_confidence(query_input, raw_data)
+        assessment = self.list_type
+
+        return BackendResult(
+            backend_name=self.get_name(),
+            status=BackendStatus.FOUND,
+            confidence=confidence,
+            assessment=assessment,
+            data={
+                "source_data": raw_data,
+            },
+            sources=[self.source_name],
+            error_message=None,
+            response_time=response_time,
+            cached=True,
+            fallback_chain=chain,
+        )
+
+    def _build_not_found_result_with_chain(
+        self, query_input: QueryInput, chain: QueryFallbackChain, response_time: float
+    ) -> BackendResult:
+        """Build not found result for automatic_fallback decorator.
+
+        Args:
+            query_input: Original query input
+            chain: Populated fallback chain with attempts
+            response_time: Total response time
+
+        Returns:
+            BackendResult with NOT_FOUND status and populated chain
+        """
+        return BackendResult(
+            backend_name=self.get_name(),
+            status=BackendStatus.NOT_FOUND,
+            confidence=0.0,
+            assessment=None,
+            data={"searched_in": self.source_name},
+            sources=[self.source_name],
+            error_message=None,
+            response_time=response_time,
+            cached=True,
+            fallback_chain=chain,
+        )
+
+    # =============================================================================
+    # DataSyncCapable Protocol Implementation
+    # =============================================================================
+    # The following methods implement the DataSyncCapable protocol, making this
+    # backend eligible for automatic data synchronization by the sync manager.
+    # CachedBackend is registered as a DataSyncCapable via DataSyncCapable.register()
+
+    @property
+    def source_name(self) -> str:
+        """Name of the data source for synchronization (DataSyncCapable protocol)."""
+        return self._source_name
+
+    @code_is_used
+    def get_data_source(self) -> Any | None:
+        """Get data source for synchronization (DataSyncCapable protocol).
+
+        CachedBackend subclasses should override this to return their specific DataSource.
+        Returns None by default since not all cached backends may have data sources.
+
+        Returns:
+            DataSource instance or None if no data source available
+        """
+        return None
+
+    def needs_sync(self) -> bool:
+        """Check if backend needs data synchronization (DataSyncCapable protocol).
+
+        For CachedBackend, we assume sync is always needed unless overridden.
+        Subclasses can implement more sophisticated logic (e.g., check if data exists).
+
+        Returns:
+            True if backend data needs to be synced, False otherwise
+        """
+        return True
+
+
+class ApiBackendWithCache(Backend):
+    """Base class for backends that check cache first, then fallback to live API queries.
+
+    Implements ApiQueryCapable protocol for cache-first + API fallback behavior.
+    This class provides the infrastructure for backends that:
+    1. Check assessment cache first (fast response for repeated queries)
+    2. Query live APIs on cache miss (via _query_api implementation)
+    3. Cache API results with configurable TTL (prevents redundant API calls)
+
+    Inheritance: Backend + ApiQueryCapable (via runtime registration)
+    Query Pattern: Cache first, then API fallback
+    Caching Strategy: TTL-based with MD5 cache keys
+    """
+
+    def __init__(self, cache_ttl_hours: int = 24):
+        super().__init__(cache_ttl_hours)
+        # Initialize cache instances (db_path will be fetched from config)
+        self.journal_cache = JournalCache()
+        self.assessment_cache = AssessmentCache()
+        self.openalex_cache = OpenAlexCache()
+
+    async def query(self, query_input: QueryInput) -> BackendResult:
+        """Check cache first, then query live API if needed."""
+        start_time = time.time()
+
+        # Generate cache key for this query
+        cache_key = self._generate_cache_key(query_input)
+
+        # Try cache first
+        cached_result = self.assessment_cache.get_cached_assessment(cache_key)
+        if cached_result:
+            # Update the cached result to indicate it came from cache
+            cache_lookup_time = time.time() - start_time
+            for backend_result in cached_result.backend_results:
+                if backend_result.backend_name == self.get_name():
+                    backend_result.cached = True
+                    backend_result.response_time = cache_lookup_time
+                    backend_result.data = {**backend_result.data, "from_cache": True}
+                    return backend_result
+
+        # Cache miss - query the live API
+        result = await self._query_api(query_input)
+
+        # Cache the result if successful
+        if result.status in [BackendStatus.FOUND, BackendStatus.NOT_FOUND]:
+            # For caching, we need to create a minimal AssessmentResult
+            assessment_result = AssessmentResult(
+                input_query=query_input.raw_input,
+                assessment=result.assessment or "unknown",
+                confidence=result.confidence,
+                overall_score=result.confidence,
+                backend_results=[result],
+                metadata=None,
+                processing_time=result.response_time,
+            )
+            self.assessment_cache.cache_assessment_result(
+                cache_key,
+                query_input.raw_input,
+                assessment_result,
+                self.cache_ttl_hours,
+            )
+
+        return result
+
+    @code_is_used  # Called by _build_error_result
+    def _map_exception_to_backend_status(self, exception: Exception) -> BackendStatus:
+        """Map exception type to BackendStatus enum.
+
+        Args:
+            exception: The exception to map
+
+        Returns:
+            Corresponding BackendStatus
+        """
+        if isinstance(exception, RateLimitError):
+            return BackendStatus.RATE_LIMITED
+        elif isinstance(exception, BackendTimeoutError | asyncio.TimeoutError):
+            return BackendStatus.TIMEOUT
+        elif isinstance(exception, BackendNotFoundError):
+            return BackendStatus.NOT_FOUND
+        elif isinstance(exception, BackendConnectionError | BackendAuthenticationError):
+            return BackendStatus.ERROR
+        else:
+            return BackendStatus.ERROR
+
+    @code_is_used  # Called by @automatic_fallback decorator
+    def _build_error_result(
+        self,
+        exception: Exception,
+        response_time: float,
+        chain: QueryFallbackChain | None = None,
+    ) -> BackendResult:
+        """Create a standardized error BackendResult from an exception.
+
+        Args:
+            exception: The exception that occurred
+            response_time: Time taken before error occurred
+            chain: Fallback chain used (optional)
+
+        Returns:
+            BackendResult with appropriate status and error message
+        """
+        status = self._map_exception_to_backend_status(exception)
+        return BackendResult(
+            backend_name=self.get_name(),
+            status=status,
+            confidence=0.0,
+            assessment=None,
+            error_message=str(exception),
+            response_time=response_time,
+            cached=False,
+            fallback_chain=chain or QueryFallbackChain([]),
+        )
+
+    def _check_rate_limit_response(self, response: aiohttp.ClientResponse) -> None:
+        """Check response for rate limit status codes (429, 503).
+
+        Args:
+            response: aiohttp response object
+
+        Raises:
+            RateLimitError: If status code indicates rate limiting
+        """
+        if response.status in (429, 503):
+            self._handle_rate_limit(response)
+
+    @code_is_used  # Called by _check_rate_limit_response
+    def _handle_rate_limit(self, response: aiohttp.ClientResponse) -> None:
+        """Extract retry info and raise RateLimitError.
+
+        Args:
+            response: aiohttp response object
+
+        Raises:
+            RateLimitError: Always raised with retry_after info
+        """
+        retry_after = response.headers.get("Retry-After")
+        retry_seconds: int | None = None
+
+        if retry_after:
+            try:
+                retry_seconds = int(retry_after)
+            except ValueError:
+                # Retry-After can be a date, but we'll ignore that complexity for now
+                # and just default to None (which implies standard backoff)
+                pass
+
+        raise RateLimitError(
+            message=f"Rate limit exceeded (HTTP {response.status})",
+            retry_after=retry_seconds,
+            backend_name=self.get_name(),
+        )
+
+    # =============================================================================
+    # ApiQueryCapable Protocol Implementation
+    # =============================================================================
+    # The following methods implement the ApiQueryCapable protocol, defining the
+    # interface for cache-first + API fallback behavior.
+    # ApiBackendWithCache is registered as ApiQueryCapable via runtime registration
+
+    @code_is_used
+    @abstractmethod
+    async def _query_api(self, query_input: QueryInput) -> BackendResult:
+        """Query the live API when cache misses (ApiQueryCapable protocol).
+
+        This method must be implemented by subclasses to define how to query
+        the specific external API. Called automatically by the cache-first logic
+        when no cached result is found.
+
+        Args:
+            query_input: Normalized query input with journal information
+
+        Returns:
+            BackendResult with API query findings
+        """
+        pass
+
+    def _generate_cache_key(self, query_input: QueryInput) -> str:
+        """Generate a cache key for the query (ApiQueryCapable protocol).
+
+        Creates a consistent MD5 hash based on query components for caching API results.
+        The cache key includes backend name, normalized name, ISSN, and DOI to ensure
+        proper cache isolation and lookup.
+
+        Args:
+            query_input: Query input to generate cache key for
+
+        Returns:
+            MD5 hash string used as cache key
+        """
+        # Use normalized name and identifiers to create a consistent key
+        key_parts = [
+            self.get_name(),
+            query_input.normalized_name or "",
+            query_input.identifiers.get("issn", ""),
+            query_input.identifiers.get("doi", ""),
+        ]
+        key_string = "|".join(key_parts)
+        return hashlib.md5(key_string.encode(), usedforsecurity=False).hexdigest()  # nosec B324 - MD5 used for cache key, not security
+
+
+class BackendRegistry:
+    """Registry for managing available backends with factory-based creation."""
+
+    def __init__(self) -> None:
+        self._factories: dict[str, Callable[..., Backend]] = {}
+        self._default_configs: dict[str, dict[str, Any]] = {}
+
+    def register_factory(
+        self,
+        name: str,
+        factory: Callable[..., Backend],
+        default_config: dict[str, Any] | None = None,
+    ) -> None:
+        """Register a backend factory function.
+
+        Args:
+            name: Backend name (must match backend.get_name())
+            factory: Factory function that creates backend instances
+            default_config: Default configuration values
+        """
+        self._factories[name] = factory
+        self._default_configs[name] = default_config or {}
+
+    def create_backend(self, name: str, **config: Any) -> Backend:
+        """Create a backend instance with configuration.
+
+        Args:
+            name: Backend name
+            **config: Configuration parameters to override defaults
+
+        Returns:
+            Backend instance configured with the provided parameters
+        """
+        if name not in self._factories:
+            raise ValueError(f"Backend '{name}' not found")
+
+        # Merge provided config with defaults
+        merged_config = {**self._default_configs[name], **config}
+
+        # Filter config parameters based on factory signature
+        factory = self._factories[name]
+        filtered_config = self._filter_config_params(factory, merged_config)
+
+        # Create backend instance using factory
+        return factory(**filtered_config)
+
+    def _filter_config_params(
+        self, factory: Callable[..., Backend], config: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Filter config parameters based on factory function signature.
+
+        Args:
+            factory: Backend factory function
+            config: Configuration parameters to filter
+
+        Returns:
+            Filtered configuration with only parameters the factory accepts
+        """
+        try:
+            sig = inspect.signature(factory)
+            accepted_params = set(sig.parameters.keys())
+
+            # Filter config to only include parameters the factory accepts
+            filtered_config = {
+                key: value for key, value in config.items() if key in accepted_params
+            }
+
+            return filtered_config
+        except (AttributeError, ValueError, TypeError):
+            # If signature inspection fails, return original config
+            # This ensures backward compatibility
+            return config
+
+    def get_supported_params(self, name: str) -> set[str]:
+        """Get the set of parameters supported by a backend.
+
+        Args:
+            name: Backend name
+
+        Returns:
+            Set of parameter names the backend accepts
+        """
+        if name not in self._factories:
+            return set()
+
+        try:
+            factory = self._factories[name]
+            sig = inspect.signature(factory)
+            return set(sig.parameters.keys())
+        except (KeyError, AttributeError, ValueError, TypeError):
+            # If signature inspection fails, return empty set
+            return set()
+
+    def get_backend(self, name: str) -> Backend:
+        """Get a backend by name with default configuration."""
+        return self.create_backend(name)
+
+    def get_backend_names(self) -> list[str]:
+        """Get names of all registered backends."""
+        return list(self._factories.keys())
+
+
+# Global backend registry with factory pattern
+_backend_registry_instance: BackendRegistry | None = None
+
+
+def get_backend_registry() -> BackendRegistry:
+    """Get or create the global backend registry instance.
+
+    Returns:
+        The global BackendRegistry instance
+    """
+    global _backend_registry_instance
+    if _backend_registry_instance is None:
+        _backend_registry_instance = BackendRegistry()
+    return _backend_registry_instance
+
+
+# Explicitly register backend classes as implementing their respective protocols
+# This makes the protocol compliance visible and intentional rather than hidden
+try:
+    from .protocols import ApiQueryCapable, DataSyncCapable
+
+    # Register CachedBackend as implementing DataSyncCapable protocol
+    # This enables isinstance(cached_backend, DataSyncCapable) checks
+    DataSyncCapable.register(CachedBackend)  # type: ignore[type-abstract]
+
+    # Register ApiBackendWithCache as implementing ApiQueryCapable protocol
+    # This enables isinstance(api_backend, ApiQueryCapable) checks
+    ApiQueryCapable.register(ApiBackendWithCache)  # type: ignore[type-abstract]
+
+except ImportError:
+    # Graceful fallback if protocols module is not available
+    pass
