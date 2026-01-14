@@ -1,0 +1,115 @@
+{
+  "type": "OBJECT",
+  "properties": {
+      "consignee": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The receiver or buyer of the goods. It can be find with the keywords like Importeur, Anmelder, Empfanger, Consignee, Buyer, Receiver, etc.."
+      },
+      "finalDestination": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The ultimate location where the goods are to be delivered, marking the end point of the shipment's journey."
+      },
+      "freight": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The cost type associated with transporting goods. Can be classified as 'prepaid' or 'collect'."
+      },
+      "hblType": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The type of House Bill of Lading such as Telex Released, ORIGINAL B/L, EXPRESS, Sur Bill, Sea WayBill, etc., indicating the document issued by a freight forwarder that outlines the terms and details of the shipment."
+      },
+      "notify": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The party to be informed upon the arrival of the shipment at the destination. often responsible for coordinating the delivery. Extract the notify details including the address."
+      },
+      "placeOfReceipt": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The location where the goods are initially handed over to the freight forwarder or carrier for transportation"
+      },
+      "portOfDischarge": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The port where the goods are discharged from the vessel. This is the destination port for the shipment."
+      },
+      "portOfLoading": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The origin port where the goods are loaded onto the vessel. Find information like 'Ladehafen' or 'Port of Loading' in the invoice."
+      },
+      "shipper": {
+        "type": "STRING",
+        "nullable": true,
+        "description": "The sender or exporter of the goods. It can be find with the keywords like Absender, Versender, Shipper, Exporter, Supplier, Seller, etc.."
+      },
+      "containers": {
+          "type": "ARRAY",
+          "items": {
+              "type": "OBJECT",
+              "properties": {
+                  "cargoDescription": {
+                      "type": "STRING",
+                      "nullable": true,
+                      "description": "A brief description of the goods contained within the container. It can be found with goods description, Bezeichnung, goederenomschrijving."
+                  },
+                  "marksAndNumbers": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "Identification details printed or attached to packages for easy recognition during handling and customs procedures, ensuring accurate delivery. Extract the details including the numbers."
+                  },
+                  "hsCode": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "A numerical code from the Harmonized System used for classifying traded products. It helps in determining tariffs and regulations for the goods being shipped. Extract the full HS code including all digits."
+                  },
+                  "containerNumber": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "The unique identifier for each container. It always starts with 4 capital letters and followed by 7 digits. Example: TEMU7972458."
+                  },
+                  "containerType": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "The size of the container associated with the containerNumber, such as 20ft, 40ft, 40HC, 20DC etc."
+                  },
+                  "grossWeight": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "The gross weight of the container. Usually mentioned as G.W or GW, Bruto, or Gross Weight, etc.."
+                  },
+                  "nettWeight": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "The net weight of the container. Usually mentioned as N.W or NW, Net Weight, or Netto, Eigenmasse, etc.."
+                  },
+                  "measurements": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "The volume of the goods. Usually, it is measured in 'Cubic Meter (cbm)' or dimensions. But volume in 'Cubic Meter (cbm)' is preferred if it’s available in the skus"
+                  },
+                  "packageQuantity": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "The quantity of the goods. Usually, the quantity is in pallets, PLT, cartons, CTNS, pieces, PCS, packages, boxes, etc. Please prioritize the packaging types based on their size, as follows: Pallets (PLT) >> Cartons (CTNS) >> Pieces (PCS). Extract the Larger packaging types that will have a lower count."
+                  },
+                  "packagingType": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "The packaging type is the unit of packageQuantity. Example; pallets, PLT, cartons, CTNS, pieces, PCS, packages, etc. Sometimes, the packaging type is available in the column name of the packageQuantity."
+                },
+                  "sealNumber": {
+                    "type": "STRING",
+                    "nullable": true,
+                    "description": "A unique number associated with the container number. But it is not a container number. Usually mentioned as Seal No., Seal Number, Siegelnummer, etc.."
+                }
+              },
+              "required": ["cargoDescription", "containerNumber", "hsCode", "grossWeight", "nettWeight", "packageQuantity", "packagingType"]
+          }
+      }
+},
+  "required": ["shipper", "consignee", "portOfLoading", "portOfDischarge", "placeOfReceipt", "finalDestination", "freight", "hblType", "notify", "containers"]
+}
