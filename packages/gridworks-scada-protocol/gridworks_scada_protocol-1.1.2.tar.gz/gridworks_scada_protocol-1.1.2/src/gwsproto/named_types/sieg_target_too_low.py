@@ -1,0 +1,15 @@
+from typing import Literal
+
+
+from gwsproto.property_format import  LeftRightDotStr, UTCMilliseconds
+from pydantic import BaseModel, StrictInt
+
+
+class SiegTargetTooLow(BaseModel):
+    FromGNodeAlias: LeftRightDotStr
+    TargetLwtFx10: StrictInt
+    SiegColdFx10: StrictInt
+    HeatPumpDeltaTx10: StrictInt
+    TimeMs: UTCMilliseconds
+    TypeName: Literal["sieg.target.too.low"] = "sieg.target.too.low"
+    Version: Literal["000"] = "000"
