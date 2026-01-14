@@ -1,0 +1,952 @@
+import asyncio
+import time
+import warnings
+from datetime import datetime, timezone
+from functools import wraps
+from os.path import basename
+from pathlib import Path
+from re import search
+from typing import Optional, Union, cast
+
+import sqlalchemy
+from aiohttp import ClientSession
+from linkpreview import Link, LinkPreview
+from slidge import BaseSession, FormField, GatewayUser, SearchResult, global_config
+from slidge.contact.roster import ContactIsUser
+from slidge.db.models import ArchivedMessage
+from slidge.util import is_valid_phone_number, replace_mentions
+from slidge.util.types import (
+    Avatar,
+    LegacyAttachment,
+    Mention,
+    MessageReference,
+    PseudoPresenceShow,
+    ResourceDict,
+    Sender,
+)
+from slixmpp.exceptions import XMPPError
+
+from . import config
+from .contact import Contact, Roster
+from .gateway import Gateway
+from .generated import go, whatsapp
+from .group import MUC, Bookmarks, Participant
+
+MESSAGE_PAIR_SUCCESS = (
+    "Pairing successful! You might need to repeat this process in the future if the"
+    " Linked Device is re-registered from your main device."
+)
+
+MESSAGE_LOGGED_OUT = (
+    "You have been logged out, please use the re-login adhoc command "
+    "and re-scan the QR code on your main device."
+)
+
+URL_SEARCH_REGEX = r"(?P<url>https?://[^\s]+)"
+GEO_URI_SEARCH_REGEX = (
+    r"geo:(?P<lat>-?\d+(\.\d*)?),(?P<lon>-?\d+(\.\d*)?)(;u=(?P<acc>-?\d+(\.\d*)?))?"
+)
+
+VIDEO_PREVIEW_DOMAINS = (
+    "https://youtube.com/watch",
+    "https://m.youtube.com/watch",
+    "https://youtu.be",
+)
+
+
+Recipient = Union[Contact, MUC]
+
+
+def ignore_contact_is_user(func):
+    @wraps(func)
+    async def wrapped(self, *a, **k):
+        try:
+            return await func(self, *a, **k)
+        except ContactIsUser as e:
+            self.log.debug("A wild ContactIsUser has been raised!", exc_info=e)
+
+    return wrapped
+
+
+class Session(BaseSession[str, Recipient]):
+    xmpp: Gateway
+    contacts: Roster
+    bookmarks: Bookmarks
+
+    def __init__(self, user: GatewayUser):
+        super().__init__(user)
+        self.migrate()
+        try:
+            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])
+        except KeyError:
+            device = whatsapp.LinkedDevice()
+        self.__presence_status: str = ""
+        self.user_phone: Optional[str] = None
+        self.whatsapp = self.xmpp.whatsapp.NewSession(device)
+        self.__handle_event = make_sync(self.handle_event, self.xmpp.loop)
+        self.whatsapp.SetEventHandler(self.__handle_event)
+        self.__reset_connected()
+
+    def migrate(self):
+        user_shelf_path = (
+            global_config.HOME_DIR / "whatsapp" / (self.user_jid.bare + ".shelf")
+        )
+        if not user_shelf_path.exists():
+            return
+        import shelve
+
+        with shelve.open(str(user_shelf_path)) as shelf:
+            try:
+                device_id = shelf["device_id"]
+            except KeyError:
+                pass
+            else:
+                self.log.info(
+                    "Migrated data from %s to the slidge main DB", user_shelf_path
+                )
+                self.legacy_module_data_set({"device_id": device_id})
+        user_shelf_path.unlink()
+
+    async def login(self):
+        """
+        Initiate login process and connect session to WhatsApp. Depending on existing state, login
+        might either return having initiated the Linked Device registration process in the background,
+        or will re-connect to a previously existing Linked Device session.
+        """
+        self.__reset_connected()
+        self.whatsapp.Login()
+        return await self.__connected
+
+    async def logout(self):
+        """
+        Disconnect the active WhatsApp session. This will not remove any local or remote state, and
+        will thus allow previously authenticated sessions to re-authenticate without needing to pair.
+        """
+        self.whatsapp.Disconnect()
+        self.logged = False
+
+    @ignore_contact_is_user
+    async def handle_event(self, event_kind: int, ptr):
+        """
+        Handle incoming event, as propagated by the WhatsApp adapter. Typically, events carry all
+        state required for processing by the Gateway itself, and will do minimal processing themselves.
+        """
+        if event_kind == whatsapp.EventUnknown:
+            return
+        if event_kind not in (
+            whatsapp.EventQRCode,
+            whatsapp.EventPairDeviceID,
+            whatsapp.EventConnect,
+            whatsapp.EventLoggedOut,
+        ):
+            await self.contacts.ready
+            await self.bookmarks.ready
+        event = whatsapp.EventPayload(handle=ptr)
+        match event_kind:
+            case whatsapp.EventQRCode:
+                await self.on_wa_qr(event.QRCode)
+            case whatsapp.EventConnect:
+                await self.on_wa_connect(event.Connect)
+            case whatsapp.EventPairDeviceID:
+                await self.on_wa_pair(event.PairDeviceID)
+            case whatsapp.EventLoggedOut:
+                await self.on_wa_logged_out(event.LoggedOut)
+            case whatsapp.EventContact:
+                await self.on_wa_contact(event.Contact)
+            case whatsapp.EventPresence:
+                await self.on_wa_presence(event.Presence)
+            case whatsapp.EventMessage:
+                await self.on_wa_message(event.Message)
+            case whatsapp.EventChatState:
+                await self.on_wa_chat_state(event.ChatState)
+            case whatsapp.EventReceipt:
+                await self.on_wa_receipt(event.Receipt)
+            case whatsapp.EventGroup:
+                await self.on_wa_group(event.Group)
+            case whatsapp.EventCall:
+                await self.on_wa_call(event.Call)
+            case whatsapp.EventAvatar:
+                await self.on_wa_avatar(event.Avatar)
+            case _:
+                self.log.warning("No handler for event of kind %s", event_kind)
+
+    async def on_wa_qr(self, qr: str) -> None:
+        self.send_gateway_status("QR Scan Needed", show="dnd")
+        await self.send_qr(qr)
+
+    async def on_wa_pair(self, device_id: str) -> None:
+        self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
+        self.legacy_module_data_set({"device_id": device_id})
+
+    async def on_wa_connect(self, connect: whatsapp.Connect) -> None:
+        # On re-pair, Session.login() is not called by slidge core, so the status message is
+        # not updated.
+        if self.__connected.done():
+            if connect.Error != "":
+                self.send_gateway_status("Connection error", show="dnd")
+                self.send_gateway_message(connect.Error)
+            else:
+                self.send_gateway_status(
+                    self.__get_connected_status_message(), show="chat"
+                )
+        elif connect.Error != "":
+            self.xmpp.loop.call_soon_threadsafe(
+                self.__connected.set_exception,
+                XMPPError("internal-server-error", connect.Error),
+            )
+        else:
+            self.contacts.user_legacy_id = connect.JID
+            self.user_phone = "+" + connect.JID.split("@")[0]
+            self.xmpp.loop.call_soon_threadsafe(
+                self.__connected.set_result, self.__get_connected_status_message()
+            )
+
+    async def on_wa_logged_out(self, logged_out: whatsapp.LoggedOut) -> None:
+        self.logged = False
+        message = MESSAGE_LOGGED_OUT
+        if logged_out.Reason:
+            message += f"\nReason: {logged_out.Reason}"
+        self.send_gateway_message(message)
+        self.send_gateway_status("Logged out", show="away")
+        for muc in self.bookmarks:
+            # When we are logged out, the initial history sync may not completely
+            # cover the "hole" between logout and re-pair, so we want to request
+            # more history.
+            muc.history_requested = False  # type:ignore[attr-defined]
+
+    async def on_wa_contact(self, wa_contact: whatsapp.Contact) -> None:
+        if wa_contact.Actor.JID:
+            contact = await self.contacts.add_whatsapp_contact(wa_contact)
+            if contact is not None and contact.is_friend:
+                # slidge core would do that automatically if the is_friend flag
+                # was set in update_info(), but it actually happens in
+                # update_whatsapp_info()
+                await contact.add_to_roster()
+        elif wa_contact.Actor.LID:
+            await self.bookmarks.rename_anonymous_participants(wa_contact)
+
+    async def on_wa_group(self, group: whatsapp.Group) -> None:
+        await self.bookmarks.add_whatsapp_group(group)
+
+    async def on_wa_presence(self, presence: whatsapp.Presence) -> None:
+        if presence.Actor.JID:
+            contact = await self.contacts.by_legacy_id(presence.Actor.JID)
+            await contact.update_presence(presence.Kind, presence.LastSeen)
+        # TODO: LID participant presence update?
+
+    async def on_wa_chat_state(self, state: whatsapp.ChatState):
+        if not state.Chat.IsGroup and not state.Actor.JID:
+            # For unknown/new contacts, we receive 1:1 *LID* chat states.
+            # We currently have no way to map those, so let's ignore them.
+            return
+
+        contact, _muc = await self.__get_contact_or_participant(state.Chat, state.Actor)
+        if state.Kind == whatsapp.ChatStateComposing:
+            contact.composing()
+            contact.online(last_seen=datetime.now())
+        elif state.Kind == whatsapp.ChatStatePaused:
+            contact.paused()
+
+    async def on_wa_receipt(self, receipt: whatsapp.Receipt):
+        """
+        Handle incoming delivered/read receipt, as propagated by the WhatsApp adapter.
+        """
+        try:
+            contact, _muc = await self.__get_contact_or_participant(
+                receipt.Chat, receipt.Actor
+            )
+        except ValueError:
+            self.log.warning("What do with this receipt? %s", receipt)
+            return
+        for message_id in receipt.MessageIDs:
+            if receipt.Kind == whatsapp.ReceiptDelivered:
+                contact.received(message_id)
+            elif receipt.Kind == whatsapp.ReceiptRead:
+                contact.displayed(legacy_msg_id=message_id, carbon=receipt.Actor.IsMe)
+                contact.online(last_seen=datetime.now())
+
+    async def on_wa_call(self, call: whatsapp.Call):
+        if not call.Actor.JID:
+            warnings.warn(f"Ignoring a call: {call}")
+            return
+        contact = await self.contacts.by_legacy_id(call.Actor.JID)
+        text = f"from {contact.name or 'tel:' + str(contact.jid.local)} (xmpp:{contact.jid.bare})"
+        if call.State == whatsapp.CallIncoming:
+            text = "Incoming call " + text
+        elif call.State == whatsapp.CallMissed:
+            text = "Missed call " + text
+        else:
+            text = "Call " + text
+        if call.Timestamp > 0:
+            call_at = datetime.fromtimestamp(call.Timestamp, tz=timezone.utc)
+            text = text + f" at {call_at}"
+        self.send_gateway_message(text)
+
+    async def on_wa_message(self, message: whatsapp.Message):
+        """
+        Handle incoming message, as propagated by the WhatsApp adapter. Messages can be one of many
+        types, including plain-text messages, media messages, reactions, etc., and may also include
+        other aspects such as references to other messages for the purposes of quoting or correction.
+        """
+        # Skip handing message that's already in our message archive.
+        if (
+            message.Chat.IsGroup
+            and message.IsHistory
+            and await self.__is_message_in_archive(message.ID)
+        ):
+            # FIXME: this only works for messages with a body
+            # Messages without body have no "legacy_msg_id" attached to them. In practice, this means
+            # we fill our MAM table with (hopefully just a few) duplicate rows for all reactions, receipts,
+            # displayed markers, retractions and corrections.
+            return
+        actor, muc = await self.__get_contact_or_participant(
+            message.Chat, message.Actor
+        )
+        actor.online(last_seen=datetime.now())
+        if message.GroupInvite.JID:
+            text = f"Received group invite for xmpp:{message.GroupInvite.JID} from {actor.name}, auto-joining..."
+            self.send_gateway_message(text)
+
+        match message.Kind:
+            case whatsapp.MessagePlain:
+                await self.on_wa_msg_plain(message, actor, muc)
+            case whatsapp.MessageEdit:
+                await self.on_wa_msg_edit(message, actor, muc)
+            case whatsapp.MessageRevoke:
+                await self.on_wa_msg_revoke(message, actor, muc)
+            case whatsapp.MessageReaction:
+                await self.on_wa_msg_reaction(message, actor, muc)
+            case whatsapp.MessageAttachment:
+                await self.on_wa_msg_attachment(message, actor, muc)
+            case whatsapp.MessagePoll:
+                await self.on_wa_msg_poll(message, actor, muc)
+
+        for receipt in message.Receipts:
+            await self.on_wa_receipt(receipt)
+        for reaction in message.Reactions:
+            await self.on_wa_message(reaction)
+
+    def __get_timestamp(self, message: whatsapp.Message) -> datetime | None:
+        return (
+            datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
+            if message.Timestamp > 0
+            else None
+        )
+
+    async def on_wa_msg_plain(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        actor.send_text(
+            body=await self.__get_body(message, muc),
+            legacy_msg_id=message.ID,
+            when=self.__get_timestamp(message),
+            reply_to=await self.__get_reply_to(message, muc),
+            carbon=message.Actor.IsMe,
+        )
+
+    async def on_wa_msg_attachment(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        attachments = await Attachment.convert_list(message.Attachments, muc)
+        await actor.send_files(
+            attachments=attachments,
+            legacy_msg_id=message.ID,
+            reply_to=await self.__get_reply_to(message, muc),
+            when=self.__get_timestamp(message),
+            carbon=message.Actor.IsMe,
+        )
+        for attachment in attachments:
+            if global_config.NO_UPLOAD_METHOD != "symlink":
+                self.log.debug("Removing '%s' from disk", attachment.path)
+                if attachment.path is None:
+                    continue
+                Path(attachment.path).unlink(missing_ok=True)
+
+    async def on_wa_msg_edit(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        actor.correct(
+            legacy_msg_id=message.ReferenceID,
+            new_text=message.Body,
+            reply_to=await self.__get_reply_to(message, muc),
+            when=self.__get_timestamp(message),
+            carbon=message.Actor.IsMe,
+            correction_event_id=message.ID,
+        )
+
+    async def on_wa_msg_revoke(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        if muc is None or message.OriginActor.JID == message.Actor.JID:
+            actor.retract(legacy_msg_id=message.ID, carbon=message.Actor.IsMe)
+        else:
+            assert isinstance(actor, Participant)
+            actor.moderate(legacy_msg_id=message.ID)
+
+    async def on_wa_msg_reaction(
+        self, message: whatsapp.Message, actor: Contact | Participant, _muc: MUC | None
+    ) -> None:
+        emojis = [message.Body] if message.Body else []
+        actor.react(legacy_msg_id=message.ID, emojis=emojis, carbon=message.Actor.IsMe)
+
+    async def on_wa_msg_poll(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        body = "🗳 %s" % message.Poll.Title
+        for option in message.Poll.Options:
+            body = body + "\n☐ %s" % option.Title
+        actor.send_text(
+            body=body,
+            legacy_msg_id=message.ID,
+            reply_to=await self.__get_reply_to(message, muc),
+            when=self.__get_timestamp(message),
+            carbon=message.Actor.IsMe,
+        )
+
+    async def on_wa_avatar(self, avatar: whatsapp.Avatar) -> None:
+        if avatar.IsGroup:
+            chat = await self.bookmarks.by_legacy_id(avatar.ResourceID)
+        else:
+            chat = await self.contacts.by_legacy_id(avatar.ResourceID)
+        chat.avatar = Avatar(url=avatar.URL or None, unique_id=avatar.ID or None)
+
+    async def on_text(
+        self,
+        chat: Recipient,
+        text: str,
+        *,
+        reply_to_msg_id: Optional[str] = None,
+        reply_to_fallback_text: Optional[str] = None,
+        reply_to: Sender | None = None,
+        mentions: Optional[list[Mention]] = None,
+        **_,
+    ):
+        """
+        Send outgoing plain-text message to given WhatsApp contact.
+        """
+        message_id = self.whatsapp.GenerateMessageID()
+        message_preview = await self.__get_preview(text) or whatsapp.Preview()
+        message_location = await self.__get_location(text) or whatsapp.Location()
+        message = whatsapp.Message(
+            ID=message_id,
+            Chat=chat.get_wa_chat(),
+            Body=replace_mentions(text, mentions, mention_map),
+            Preview=message_preview,
+            Location=message_location,
+            MentionJIDs=go.Slice_string([m.contact.legacy_id for m in mentions or []]),
+        )
+        self.__set_reply_to(
+            chat,
+            message,
+            reply_to_msg_id,
+            reply_to_fallback_text,
+            reply_to,  # type:ignore[arg-type]
+        )
+        self.whatsapp.SendMessage(message)
+        return message_id
+
+    async def on_file(
+        self,
+        chat: Recipient,
+        url: str,
+        http_response,
+        reply_to_msg_id: Optional[str] = None,
+        reply_to_fallback_text: Optional[str] = None,
+        reply_to: Sender | None = None,
+        **_,
+    ):
+        """
+        Send outgoing media message (i.e. audio, image, document) to given WhatsApp contact.
+        """
+        data = await get_url_bytes(self.http, url)
+        if not data:
+            raise XMPPError(
+                "internal-server-error",
+                "Unable to retrieve file from XMPP server, try again",
+            )
+        message_id = self.whatsapp.GenerateMessageID()
+        message_attachment = whatsapp.Attachment(
+            MIME=http_response.content_type,
+            Filename=basename(url),
+            Data=go.Slice_byte.from_bytes(data),
+        )
+        message = whatsapp.Message(
+            Kind=whatsapp.MessageAttachment,
+            ID=message_id,
+            Chat=chat.get_wa_chat(),
+            ReplyID=reply_to_msg_id if reply_to_msg_id else "",
+            Attachments=whatsapp.Slice_whatsapp_Attachment([message_attachment]),
+        )
+        self.__set_reply_to(
+            chat,
+            message,
+            reply_to_msg_id,
+            reply_to_fallback_text,
+            reply_to,  # type:ignore[arg-type]
+        )
+        self.whatsapp.SendMessage(message)
+        return message_id
+
+    async def on_presence(
+        self,
+        resource: str,
+        show: PseudoPresenceShow,
+        status: str,
+        resources: dict[str, ResourceDict],
+        merged_resource: Optional[ResourceDict],
+    ):
+        """
+        Send outgoing availability status (i.e. presence) based on combined status of all connected
+        XMPP clients.
+        """
+        if not merged_resource:
+            self.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")
+        else:
+            presence = (
+                whatsapp.PresenceAvailable
+                if merged_resource["show"] in ["chat", ""]
+                else whatsapp.PresenceUnavailable
+            )
+            status = (
+                merged_resource["status"]
+                if self.__presence_status != merged_resource["status"]
+                else ""
+            )
+            if status:
+                self.__presence_status = status
+            self.whatsapp.SendPresence(presence, status)
+
+    async def on_active(self, c: Recipient, thread=None):
+        """
+        WhatsApp has no equivalent to the "active" chat state, so calls to this function are no-ops.
+        """
+        pass
+
+    async def on_inactive(self, c: Recipient, thread=None):
+        """
+        WhatsApp has no equivalent to the "inactive" chat state, so calls to this function are no-ops.
+        """
+        pass
+
+    async def on_composing(self, c: Recipient, thread=None):
+        """
+        Send "composing" chat state to given WhatsApp contact, signifying that a message is currently
+        being composed.
+        """
+        self.__send_state(c, whatsapp.ChatStateComposing)
+
+    async def on_paused(self, c: Recipient, thread=None):
+        """
+        Send "paused" chat state to given WhatsApp contact, signifying that an (unsent) message is no
+        longer being composed.
+        """
+        self.__send_state(c, whatsapp.ChatStatePaused)
+
+    def __send_state(self, c: Recipient, kind) -> None:
+        state = whatsapp.ChatState(Chat=c.get_wa_chat(), Kind=kind)
+        self.whatsapp.SendChatState(state)
+
+    async def on_displayed(self, c: Recipient, legacy_msg_id: str, thread=None):
+        """
+        Send "read" receipt, signifying that the WhatsApp message sent has been displayed on the XMPP
+        client.
+        """
+        receipt = whatsapp.Receipt(
+            MessageIDs=go.Slice_string([legacy_msg_id]),
+            Chat=c.get_wa_chat(),
+            OriginActor=await c.get_wa_actor(legacy_msg_id),
+            Timestamp=round(int(time.time())),
+        )
+        self.whatsapp.SendReceipt(receipt)
+
+    async def on_react(
+        self, c: Recipient, legacy_msg_id: str, emojis: list[str], thread=None
+    ):
+        """
+        Send or remove emoji reaction to existing WhatsApp message.
+        Slidge core makes sure that the emojis parameter is always empty or a
+        *single* emoji.
+        """
+        message = whatsapp.Message(
+            Kind=whatsapp.MessageReaction,
+            ID=legacy_msg_id,
+            Chat=c.get_wa_chat(),
+            Body=emojis[0] if emojis else "",
+            OriginActor=await c.get_wa_actor(legacy_msg_id),
+        )
+        self.whatsapp.SendMessage(message)
+
+    async def on_retract(self, c: Recipient, legacy_msg_id: str, thread=None):
+        """
+        Request deletion (aka retraction) for a given WhatsApp message.
+        """
+        message = whatsapp.Message(
+            Kind=whatsapp.MessageRevoke,
+            ID=legacy_msg_id,
+            Chat=c.get_wa_chat(),
+        )
+        self.whatsapp.SendMessage(message)
+
+    async def on_moderate(
+        self,
+        muc: MUC,  # type:ignore
+        legacy_msg_id: str,
+        reason: Optional[str],
+    ):
+        message = whatsapp.Message(
+            Kind=whatsapp.MessageRevoke,
+            ID=legacy_msg_id,
+            Chat=muc.get_wa_chat(),
+            OriginActor=await muc.get_wa_actor(legacy_msg_id),
+        )
+        self.whatsapp.SendMessage(message)
+        # Apparently, no revoke event is received by whatsmeow after sending
+        # the revoke message, so we need to "echo" it here.
+        part = await muc.get_user_participant()
+        part.moderate(legacy_msg_id)
+
+    async def on_correct(
+        self,
+        c: Recipient,
+        text: str,
+        legacy_msg_id: str,
+        thread=None,
+        link_previews=(),
+        mentions=None,
+    ):
+        """
+        Request correction (aka editing) for a given WhatsApp message.
+        """
+        message = whatsapp.Message(
+            Kind=whatsapp.MessageEdit,
+            ID=legacy_msg_id,
+            Chat=c.get_wa_chat(),
+            Body=replace_mentions(text, mentions, mention_map),
+        )
+        self.whatsapp.SendMessage(message)
+
+    async def on_avatar(
+        self,
+        bytes_: Optional[bytes],
+        hash_: Optional[str],
+        type_: Optional[str],
+        width: Optional[int],
+        height: Optional[int],
+    ) -> None:
+        """
+        Update profile picture in WhatsApp for corresponding avatar change in XMPP.
+        """
+        self.whatsapp.SetAvatar(
+            "", go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte()
+        )
+
+    async def on_create_group(
+        self,
+        name: str,
+        contacts: list[Contact],  # type:ignore
+    ):
+        """
+        Creates a WhatsApp group for the given human-readable name and participant list.
+        """
+        group = self.whatsapp.CreateGroup(
+            name, go.Slice_string([c.legacy_id for c in contacts])
+        )
+        muc = await self.bookmarks.by_legacy_id(group.JID)
+        return muc.legacy_id
+
+    async def on_leave_group(self, legacy_muc_id: str):  # type:ignore
+        """
+        Removes own user from given WhatsApp group.
+        """
+        self.whatsapp.LeaveGroup(legacy_muc_id)
+
+    async def on_search(self, form_values: dict[str, str]):
+        """
+        Searches for, and automatically adds, WhatsApp contact based on phone number. Phone numbers
+        not registered on WhatsApp will be ignored with no error.
+        """
+        phone = form_values.get("phone")
+        if not is_valid_phone_number(phone):
+            raise ValueError("Not a valid phone number", phone)
+
+        data = self.whatsapp.FindContact(phone)
+        if not data.JID:
+            return
+
+        contact = await self.contacts.add_whatsapp_contact(data)
+        assert contact is not None
+        await contact.add_to_roster()
+
+        return SearchResult(
+            fields=[FormField("phone"), FormField("jid", type="jid-single")],
+            items=[{"phone": cast(str, phone), "jid": contact.jid.bare}],
+        )
+
+    def message_is_carbon(self, c: Recipient, legacy_msg_id: str) -> bool:
+        with self.xmpp.store.session() as orm:
+            return bool(
+                self.xmpp.store.id_map.get_xmpp(
+                    orm, c.stored.id, legacy_msg_id, c.is_group
+                )
+            )
+
+    def __reset_connected(self):
+        if hasattr(self, "__connected") and not self.__connected.done():
+            self.xmpp.loop.call_soon_threadsafe(self.__connected.cancel)
+        self.__connected: asyncio.Future[str] = self.xmpp.loop.create_future()
+
+    def __get_connected_status_message(self):
+        return f"Connected as {self.user_phone}"
+
+    async def __get_body(
+        self, message: whatsapp.Message, muc: Optional["MUC"] = None
+    ) -> str:
+        body = message.Body
+        if muc:
+            body = await muc.replace_mentions(body)
+        if message.Location.Latitude != 0 or message.Location.Longitude != 0:
+            body = "geo:%f,%f" % (message.Location.Latitude, message.Location.Longitude)
+            if message.Location.Accuracy > 0:
+                body = body + ";u=%d" % message.Location.Accuracy
+        if message.IsForwarded:
+            body = "↱ Forwarded message:\n " + add_quote_prefix(body)
+        if message.Album.IsAlbum:
+            body = body + "Album: "
+            if message.Album.ImageCount > 0:
+                body = body + "%d photos, " % message.Album.ImageCount
+            if message.Album.VideoCount > 0:
+                body = body + "%d videos" % message.Album.VideoCount
+            body = body.rstrip(" ,:")
+        return body
+
+    async def __get_reply_to(
+        self, message: whatsapp.Message, muc: Optional["MUC"] = None
+    ) -> Optional[MessageReference]:
+        if not message.ReplyID:
+            return None
+        reply_to = MessageReference(
+            legacy_id=message.ReplyID,
+            body=(
+                message.ReplyBody
+                if muc is None
+                else await muc.replace_mentions(message.ReplyBody)
+            ),
+        )
+        if message.OriginActor.JID == self.contacts.user_legacy_id:
+            reply_to.author = "user"
+        else:
+            reply_to.author, _muc = await self.__get_contact_or_participant(
+                message.Chat, message.OriginActor
+            )
+        return reply_to
+
+    async def __get_preview(self, text: str) -> Optional[whatsapp.Preview]:
+        if not config.ENABLE_LINK_PREVIEWS:
+            return None
+        match = search(URL_SEARCH_REGEX, text)
+        if not match:
+            return None
+        url = match.group("url")
+        try:
+            async with self.http.get(url) as resp:
+                if resp.status != 200:
+                    self.log.debug(
+                        "Could not generate a preview for %s because response status was %s",
+                        url,
+                        resp.status,
+                    )
+                    return None
+                if resp.content_type != "text/html":
+                    self.log.debug(
+                        "Could not generate a preview for %s because content type is %s",
+                        url,
+                        resp.content_type,
+                    )
+                    return None
+                try:
+                    html = await resp.text()
+                except Exception as e:
+                    self.log.debug(
+                        "Could not generate a preview for %s", url, exc_info=e
+                    )
+                    return None
+                preview = LinkPreview(Link(url, html))
+                if not preview.title:
+                    return None
+                thumbnail = (
+                    await get_url_bytes(self.http, preview.image)
+                    if preview.image
+                    else None
+                )
+                kind = (
+                    whatsapp.PreviewVideo
+                    if url.startswith(VIDEO_PREVIEW_DOMAINS)
+                    else whatsapp.PreviewPlain
+                )
+                return whatsapp.Preview(
+                    Kind=kind,
+                    Title=preview.title,
+                    Description=preview.description or "",
+                    URL=url,
+                    Thumbnail=(
+                        go.Slice_byte.from_bytes(thumbnail)
+                        if thumbnail
+                        else go.Slice_byte()
+                    ),
+                )
+        except Exception as e:
+            self.log.debug("Could not generate a preview for %s", url, exc_info=e)
+            return None
+
+    async def __get_location(self, text: str) -> Optional[whatsapp.Location]:
+        match = search(GEO_URI_SEARCH_REGEX, text)
+        if not match:
+            return None
+        latitude = match.group("lat")
+        longitude = match.group("lon")
+        if latitude == "" or longitude == "":
+            return None
+        return whatsapp.Location(
+            Latitude=float(latitude),
+            Longitude=float(longitude),
+            Accuracy=int(match.group("acc") or 0),
+        )
+
+    async def __is_message_in_archive(self, legacy_msg_id: str) -> bool:
+        with self.xmpp.store.session() as orm:
+            return bool(
+                orm.scalar(
+                    sqlalchemy.exists()
+                    .where(ArchivedMessage.legacy_id == legacy_msg_id)
+                    .select()
+                )
+            )
+
+    async def __get_contact_or_participant(
+        self, chat: whatsapp.Chat, actor: whatsapp.Actor
+    ) -> tuple[Contact | Participant, MUC | None]:
+        """
+        Return either a Contact or a Participant instance for the given contact and group JIDs.
+        """
+        if chat.IsGroup:
+            muc = await self.bookmarks.by_legacy_id(chat.JID)
+            if actor.IsMe:
+                return await muc.get_user_participant(
+                    occupant_id=actor.LID or None
+                ), muc
+            elif actor.JID:
+                return await muc.get_participant_by_legacy_id(  # type:ignore[call-overload]
+                    actor.JID, occupant_id=actor.LID or None
+                ), muc
+            else:
+                assert actor.LID
+                return await muc.get_participant(occupant_id=actor.LID), muc
+        elif not actor.JID:
+            raise ValueError("Contact for anonymous JID")
+        else:
+            return await self.contacts.by_legacy_id(chat.JID), None
+
+    def __set_reply_to(
+        self,
+        chat: Recipient,
+        message: whatsapp.Message,
+        reply_to_msg_id: Optional[str] = None,
+        reply_to_fallback_text: Optional[str] = None,
+        reply_to: Contact | Participant | None = None,
+    ) -> whatsapp.Message:
+        if chat.is_group:
+            message.OriginActor.GroupJID = chat.legacy_id
+
+        if reply_to_msg_id:
+            message.ReplyID = reply_to_msg_id
+        else:
+            return message
+
+        if reply_to_fallback_text:
+            message.ReplyBody = strip_quote_prefix(reply_to_fallback_text)
+            message.Body = message.Body.lstrip()
+
+        if not reply_to:
+            message.OriginActor.IsMe = not chat.is_group
+            message.OriginActor.JID = self.contacts.user_legacy_id
+            return message
+
+        if chat.is_group:
+            assert isinstance(reply_to, Participant)
+            message.OriginActor.IsMe = reply_to.is_user
+            message.OriginActor.GroupJID = reply_to.muc.legacy_id
+            if reply_to.contact:
+                message.OriginActor.JID = reply_to.contact.legacy_id
+            if reply_to.occupant_id and reply_to.occupant_id.endswith("@lid"):
+                message.OriginActor.LID = reply_to.occupant_id
+        else:
+            assert isinstance(reply_to, Contact)
+            message.OriginActor.JID = chat.legacy_id
+
+        return message
+
+
+class Attachment(LegacyAttachment):
+    @staticmethod
+    async def convert_list(
+        attachments: list, muc: Optional["MUC"] = None
+    ) -> list["Attachment"]:
+        return [await Attachment.convert(attachment, muc) for attachment in attachments]
+
+    @staticmethod
+    async def convert(
+        wa_attachment: whatsapp.Attachment, muc: Optional["MUC"] = None
+    ) -> "Attachment":
+        return Attachment(
+            content_type=wa_attachment.MIME,
+            data=bytes(wa_attachment.Data),
+            caption=(
+                wa_attachment.Caption
+                if muc is None
+                else await muc.replace_mentions(wa_attachment.Caption)
+            ),
+            name=wa_attachment.Filename,
+        )
+
+
+def add_quote_prefix(text: str):
+    """
+    Return multi-line text with leading quote marks (i.e. the ">" character).
+    """
+    return "\n".join(("> " + x).strip() for x in text.split("\n")).strip()
+
+
+def strip_quote_prefix(text: str):
+    """
+    Return multi-line text without leading quote marks (i.e. the ">" character).
+    """
+    return "\n".join(x.lstrip(">").strip() for x in text.split("\n")).strip()
+
+
+async def get_url_bytes(client: ClientSession, url: str) -> Optional[bytes]:
+    async with client.get(url) as resp:
+        if resp.status == 200:
+            return await resp.read()
+    return None
+
+
+def make_sync(func, loop):
+    """
+    Wrap async function in synchronous operation, running against the given loop in thread-safe mode.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        if asyncio.iscoroutine(result):
+            future = asyncio.run_coroutine_threadsafe(result, loop)
+            return future.result()
+        return result
+
+    return wrapper
+
+
+def mention_map(mention: Mention) -> str:
+    # mentions are @phonenumber, without the @s.whatsapp.net or @lid suffix
+    assert isinstance(mention.contact, Contact)
+    return f"@{mention.contact.phone}"
