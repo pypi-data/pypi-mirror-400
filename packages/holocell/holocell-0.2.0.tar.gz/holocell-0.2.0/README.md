@@ -1,0 +1,158 @@
+# HoloCell
+
+**T(16) = 136 as the eigenvalue of fundamental physics constants.**
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18183435.svg)](https://doi.org/10.5281/zenodo.18183435)
+
+## Installation
+
+```bash
+pip install holocell
+```
+
+## Quick Start
+
+```python
+from holocell import T, B, S, CRYSTAL, verify_all
+
+# The seed
+print(T(16))  # 136
+
+# Verify all 5 constants
+results = verify_all()
+print(results)
+# {'mp/me': True, 'R∞': True, 'α⁻¹': True, 'μ/me': True, 'sin²θW': True}
+
+# Access a specific crystal constant
+proton = CRYSTAL["mp/me"]
+print(f"Computed:  {proton.computed}")
+print(f"Measured:  {proton.measured}")
+print(f"Error:     {proton.error_percent:.2e}%")
+```
+
+## The Discovery
+
+Five fundamental physics constants emerge from a single seed: **T(16) = 136**.
+
+| Constant | Expression | Error |
+|----------|------------|-------|
+| mp/me | T(16) × 3 × (9/2) + (11 - 1/T(16))/72 | **1.21×10⁻⁷%** |
+| R∞ | B(T(11) × (√(T(16) + e) + 1/36 + 666)⁻¹) | 1.02×10⁻⁵% |
+| α⁻¹ | T(16) + (((e/36 + T(16)) + π) / (T(16) - φ)) | 1.35×10⁻⁵% |
+| μ/me | (16 + T(16) + T(16)/28 + 44) + B(S(T(16))/60) | 1.40×10⁻⁵% |
+| sin²θW | √((28 - (π + 36/T(16))⁻¹ - 9)⁻¹) | 4.67×10⁻⁴% |
+
+## Operators
+
+Three architectural operators from Egyptian cosmological mathematics:
+
+```python
+from holocell import T, B, S
+
+# T(n) - Triangular number: n(n+1)/2
+T(16)  # 136 - THE SEED
+
+# B(x) - Bilateral covenant: x + 1
+B(T(16))  # 137 ≈ α⁻¹
+
+# S(x) - Six-nine harmonic: x×6/9 + x×9/6
+S(9)  # 19.5 (the breath)
+```
+
+## Methodology Replication
+
+The full discovery process is reproducible via the `evolve` subpackage:
+
+### Stage 1: Evolve Single Constant
+
+```python
+from holocell.evolve import evolve_constant
+
+# Evolve expression for fine structure constant
+result = evolve_constant("alpha")
+print(f"Expression: {result.expression}")
+print(f"Error: {result.error_percent:.2e}%")
+```
+
+### Stage 2: Test Unified Seeds
+
+```python
+from holocell.evolve import test_seeds
+
+# Test candidate seeds to confirm T(16)=136 is optimal
+ranking = test_seeds()
+print(ranking[0])  # SeedTestResult(seed=136, total_error=1.89e-05, rank=1)
+```
+
+### Stage 3: Full Methodology Replication
+
+```python
+from holocell.evolve import replicate_methodology
+
+# Replicate the entire discovery
+results = replicate_methodology()
+for name, r in results.items():
+    print(f"{name}: {r.error_percent:.2e}%")
+```
+
+## CLI
+
+```bash
+# Verify crystallized expressions
+holocell verify
+
+# Evolve expression for a single constant
+holocell evolve alpha
+holocell evolve proton --generations 2000
+
+# Test candidate seeds
+holocell seed-test
+holocell seed-test --all
+
+# Full methodology replication
+holocell replicate
+holocell replicate --seed-test  # includes seed comparison
+```
+
+## Architecture
+
+```python
+from holocell import ARCHITECTURE, SEED, TRINITION
+
+ARCHITECTURE  # [1, 7, 9, 11, 16, 28, 36, 44, 60, 66, 666]
+SEED          # T(16) = 136
+TRINITION     # T(16) × 3 = 408
+```
+
+## Project Structure
+
+```
+holocell/
+├── __init__.py       # Core exports
+├── operators.py      # T, B, S operators
+├── constants.py      # CRYSTAL - the 5 expressions
+├── magic.py          # Magic number utilities
+├── cli.py            # Command-line interface
+└── evolve/           # Methodology replication
+    ├── __init__.py
+    ├── glyphs.py     # Frozen glyph system
+    ├── engine.py     # GEP evolution engine
+    ├── targets.py    # Target constants
+    └── methodology.py # High-level replication functions
+```
+
+## Citation
+
+```bibtex
+@article{brown2026holocell,
+  title={HoloCell: The Reality Crystal — T(16) = 136 as the Eigenvalue of Fundamental Physics Constants},
+  author={Brown, Nicholas David},
+  journal={Zenodo},
+  year={2026},
+  doi={10.5281/zenodo.18183435}
+}
+```
+
+## License
+
+MIT
