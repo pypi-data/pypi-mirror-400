@@ -1,0 +1,366 @@
+Metadata-Version: 2.4
+Name: udpbus
+Version: 0.3.1
+Summary: Simple UDP Message Bus with CBOR Array Protocol
+Project-URL: Homepage, https://github.com/blockshake-io/udpbus
+Project-URL: Repository, https://github.com/blockshake-io/udpbus
+Author: UDPBus Contributors
+License: MIT License
+        
+        Copyright (c) 2024 UDPBus Contributors
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Keywords: bus,cbor,iot,messaging,pubsub,robotics,sensor,udp
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Networking
+Requires-Python: >=3.8
+Requires-Dist: cbor2>=5.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# UDPBus
+
+UDPBus provides distributed communication for sensors, controllers, and processors across platforms from ESP32 microcontrollers to desktop applications. Nodes discover each other automatically via UDP multicast and exchange messages using topic-based subscriptions, eliminating the need for brokers or configuration files.
+
+UDPBus trades efficiency for guaranteed delivery, enabling it to scale from low-bandwidth sensor applications to high-throughput data streams while maintaining low latency. Message reliability is typically achieved in application code using resend-until-acknowledged patterns where needed. The protocol uses pure CBOR arrays over UDP with automatic message chunking for larger payloads, providing cross-platform compatibility from embedded systems to desktop applications.
+
+## Quick Start
+
+```bash
+# use uv for venv setup, but pip works too
+uv init udpbus-helloworld
+cd udpbus-helloworld
+uv add udpbus
+```
+
+### Python Publisher
+```python
+from udpbus import UDPBus
+import time
+
+sensor = UDPBus("temperature_sensor")
+sensor.run(blocking=False)
+time.sleep(2)  # allow some time for auto-discovery
+sensor.publish("sensor/temperature", [23.5, "celsius", 1634567890])
+```
+
+### Python Subscriber
+```python
+from udpbus import UDPBus
+
+def handle_temperature(header, payload):
+    temp, unit, timestamp = payload[0], payload[1], payload[2]
+    print(f"Temperature: {temp}°{unit}")
+
+controller = UDPBus("temperature_controller")
+controller.subscribe("sensor/temperature", handle_temperature)
+controller.run()
+```
+
+### ESP32/Arduino
+```cpp
+#include "udpbus.h"
+
+UDPBus bus("sensor_node");
+
+void setup() {
+    bus.begin();
+    
+    bus.subscribe("actuator/led", [](CBORArray& header, CBORArray& payload) {
+        bool state = (bool)payload[0];
+        int brightness = (int)payload[1];
+        digitalWrite(LED_PIN, state);
+    });
+}
+
+void loop() {
+    CBORArray data;
+    data.append(25.3f);
+    data.append("celsius");
+    bus.publish("sensor/temperature", data);
+    
+    bus.loop();
+    delay(5000);
+}
+```
+
+## Core Features
+
+### Zero Configuration
+- **Automatic discovery**: Nodes find each other via UDP multicast (239.255.42.99:4299)
+- **No brokers**: Direct peer-to-peer communication
+- **No setup**: Works immediately on local networks
+
+### Message Protocol
+- **CBOR arrays**: Binary-efficient serialization over UDP
+- **Message format**: `[sequence_id, topic, type, payload...]`
+- **Size limit**: 512 bytes per packet (Internet-safe UDP)
+- **Automatic chunking**: Large messages split and reassembled transparently
+
+### Cross-Platform Support
+- **Python**: Linux, macOS, Raspberry Pi (cbor2 library included)
+- **C++**: Header-only implementation with nlohmann/json
+- **Arduino/ESP32**: YACL CBOR library integration
+
+### Topic-Based Routing
+- **Exact matching**: `sensor/temperature`, `actuator/led`
+- **Wildcard patterns**: `sensor/*`, `*/temperature`, `*/*`
+- **Targeted delivery**: Messages sent only to interested subscribers
+
+## Architecture
+
+### Discovery Protocol
+Nodes announce themselves with adaptive intervals:
+- 0 peers: 2-second intervals (fast discovery)
+- 1-2 peers: 3-second intervals
+- 3-9 peers: 5-second intervals  
+- 10+ peers: 10-second intervals (reduced network load)
+
+Discovery announcements include subscribed and published topics for efficient routing.
+
+### Message Integrity
+- **Regular messages**: Simple sequence counters, best-effort delivery
+- **Chunked messages**: Full sequence validation with duplicate detection
+- **Error handling**: Malformed packets dropped silently
+- **Peer timeout**: 30-second automatic cleanup
+
+### Network Efficiency
+- **Targeted unicast**: Publishers check subscriber interests before sending
+- **Minimal overhead**: Pure CBOR payload, minimal protocol headers
+- **Adaptive discovery**: Network load adapts to deployment size
+
+## Advanced Usage
+
+### Wildcard Subscriptions
+```python
+# Subscribe to all sensor data
+bus.subscribe("sensor/*", handle_all_sensors)
+
+# Subscribe to temperature from any source  
+bus.subscribe("*/temperature", handle_temperature)
+
+# Universal logger
+bus.subscribe("*/*", log_all_messages)
+```
+
+### Manual Configuration
+```python
+# Disable discovery for static deployments
+bus = UDPBus("node", enable_discovery=False)
+
+# Add known peers manually
+bus.add_manual_peer("192.168.1.100", 4300, ["sensor/*"])
+```
+
+### Large Message Handling
+```python
+# Messages >512 bytes automatically chunked
+large_data = generate_sensor_array(1000)  # Creates >512 byte message
+bus.publish("sensor/bulk_data", large_data)  # Transparently chunked
+
+# Receiver gets complete reassembled message
+def handle_bulk_data(header, payload):
+    # payload contains complete reconstructed data
+    process_large_dataset(payload)
+```
+
+### JSON Configuration
+```python
+# Load network topology from file
+bus = UDPBus("node", config_file="network_config.json")
+```
+
+## Message Format Compatibility
+
+### Arduino-Compatible (Flat Arrays)
+```python
+# ESP32 can parse efficiently
+[42, "sensor/env", 0, 23.5, 65.2, 1013.25]  # temp, humidity, pressure
+```
+
+### Python/C++ Enhanced (Nested Structures)
+```python
+# Full CBOR support
+[43, "sensor/complex", 0, 
+ {"temperature": 23.5, "humidity": 65.2}, 
+ ["status", "calibrated"]]
+```
+
+## Performance Characteristics
+
+### Throughput
+- **Python**: >1000 messages/second
+- **C++**: >2000 messages/second
+- **ESP32**: >500 messages/second
+- **Cross-language**: <10ms latency
+
+### Memory Usage
+- **Base overhead**: ~200 bytes per node
+- **Per peer**: ~100 bytes
+- **Message overhead**: ~50 bytes CBOR structure
+
+### Network Load
+- **Discovery**: 100-200 bytes per announcement
+- **Messages**: Only sent to interested peers
+- **Chunking**: ~49 bytes overhead per 463-byte chunk
+
+## Testing
+
+Comprehensive test suite validates protocol compliance:
+
+```bash
+cd tests/
+python3 run_tests.py
+
+# Categories
+python3 run_tests.py --category protocol      # CBOR compliance, constants
+python3 run_tests.py --category communication # Pub/sub, discovery  
+python3 run_tests.py --category chunking      # Large message handling
+python3 run_tests.py --category performance   # Latency, throughput
+python3 run_tests.py --category integration   # Multi-node scenarios
+```
+
+**Test Coverage**:
+- Protocol compliance and message validation
+- Cross-language interoperability (Python ↔ C++)
+- Chunking integrity with sequence validation
+- Discovery scaling and wildcard matching
+- Real-world multi-node ecosystems
+
+## Use Cases
+
+### IoT Sensor Networks
+```python
+# Temperature sensor (ESP32)
+sensor = UDPBus("kitchen_sensor")
+sensor.publish("home/kitchen/temperature", [22.5, "celsius"])
+
+# HVAC controller (Raspberry Pi)  
+controller = UDPBus("hvac_controller")
+controller.subscribe("home/*/temperature", control_hvac)
+```
+
+### Robotics Control Systems
+```python
+# IMU sensor node
+imu = UDPBus("imu_sensor")
+imu.publish("robot/imu", [accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z])
+
+# Motor controller node
+motors = UDPBus("motor_controller")
+motors.subscribe("robot/imu", calculate_motor_commands)
+motors.publish("robot/motors", [left_speed, right_speed])
+```
+
+### Industrial Monitoring
+```python
+# Data logger (collects all messages)
+logger = UDPBus("central_logger")
+logger.subscribe("*/*", log_all_data)
+
+# Machine sensors
+machine_a = UDPBus("machine_a")
+machine_a.publish("factory/machine_a/status", ["running", 85.2, "ok"])
+```
+
+## Requirements
+
+### Python Implementation
+- Python 3.7+
+- Included cbor2 library (no external dependencies)
+- UDP multicast support (standard on most systems)
+
+### C++ Implementation
+- C++17 compatible compiler
+- nlohmann/json header (included)
+- POSIX sockets (Linux/macOS/Unix)
+
+### Arduino/ESP32 Implementation
+- Arduino IDE or PlatformIO
+- AsyncUDP library (ESP32)
+- YACL CBOR library
+- WiFi connection for multicast
+
+## Installation
+
+### Python
+
+**Using udpbus in your project:**
+```bash
+uv add udpbus
+```
+
+**Developing udpbus itself:**
+```bash
+git clone https://github.com/noema/udpbus.git
+cd udpbus
+uv sync  # Creates venv, installs deps, links udpbus in editable mode
+uv run examples/hello_world.py  # Run examples
+```
+
+### C++
+```bash
+# Header-only - copy cpp/udpbus.hpp
+cp cpp/udpbus.hpp /path/to/your/project/
+```
+
+### Arduino/ESP32
+```bash
+# Copy arduino/udpbus.h to your Arduino libraries
+cp arduino/udpbus.h ~/Arduino/libraries/
+```
+
+## Documentation
+
+- `docs/message-format.md` - CBOR array structure and platform compatibility
+- `docs/node-discovery.md` - Multicast discovery protocol specification  
+- `docs/topic-subscription.md` - Subscription matching and wildcard patterns
+- `docs/chunking-integrity.md` - Large message handling and sequence validation
+- `tests/README.md` - Comprehensive testing framework documentation
+
+## Design Decisions
+
+### UDP over TCP
+UDP provides lower latency and simpler implementation for sensor data and control commands. Packet loss is acceptable for most IoT use cases where latest values matter more than guaranteed delivery.
+
+### CBOR over JSON
+CBOR offers smaller message size (~38% reduction) and faster parsing, crucial for embedded systems with limited resources.
+
+### Multicast Discovery
+Eliminates need for centralized brokers or configuration files. Nodes automatically find each other within seconds of network connection.
+
+### Targeted Unicast
+Unlike broadcast systems, messages are sent only to interested subscribers, reducing network congestion and improving battery life for wireless nodes.
+
+### Sequence-Based Integrity
+Simple increment counters provide duplicate detection for chunked messages while maintaining minimal overhead for regular sensor data.
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+This is a focused, production-ready implementation. For issues or feature requests, please ensure they align with the core design principles of simplicity, performance, and broad compatibility.
