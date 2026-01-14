@@ -1,0 +1,203 @@
+import logging
+import tempfile
+from pathlib import Path
+
+import debug_gym.gym.utils as utils
+from debug_gym.constants import DEBUG_GYM_CACHE_DIR
+from debug_gym.gym.entities import EvalOutput
+from debug_gym.gym.envs.env import RepoEnv
+from debug_gym.gym.terminals.docker import DockerTerminal
+from debug_gym.gym.terminals.terminal import Terminal
+from debug_gym.logger import DebugGymLogger
+
+DOCKER_MINI_NIGHTMARE_IMAGE_NAME = "debug-gym:mini-nightmare"
+
+
+def build_docker_image(logger: logging.Logger | None = None):
+    """
+    Build a Docker image for the Mini Nightmare environment.
+    """
+    logger = logger or DebugGymLogger("debug-gym")
+    # Check if Docker image is built.
+    import docker
+
+    docker_client = docker.from_env(timeout=600)
+    try:
+        docker_client.images.get(DOCKER_MINI_NIGHTMARE_IMAGE_NAME)
+        return
+    except docker.errors.ImageNotFound:
+        pass
+
+    logger.info(
+        f"Docker image {DOCKER_MINI_NIGHTMARE_IMAGE_NAME} not found. Building it..."
+    )
+
+    # Starts from the official Python 3.12 slim image
+    base_image = "python:3.12-slim"
+    # Then install git and the required Python packages
+    setup_commands = [
+        "apt update",
+        "apt install -y git",
+        "pip install pytest pandas",
+    ]
+    # Create a temporary Dockerfile
+    with tempfile.TemporaryDirectory() as build_dir:
+        dockerfile_path = Path(build_dir) / "Dockerfile"
+        with open(dockerfile_path, "w") as dockerfile:
+            dockerfile.write(f"FROM {base_image}\n")
+            for command in setup_commands:
+                dockerfile.write(f"RUN {command}\n")
+
+        # Build the Docker image using docker client
+        image, build_logs = docker_client.images.build(
+            path=str(build_dir),
+            dockerfile="Dockerfile",
+            tag=DOCKER_MINI_NIGHTMARE_IMAGE_NAME,
+            rm=True,
+        )
+
+    logger.info(f"Docker image {DOCKER_MINI_NIGHTMARE_IMAGE_NAME} built successfully.")
+
+
+class MiniNightmareEnv(RepoEnv):
+    DATA_URL = "https://github.com/microsoft/debug-gym/releases/download/1.0.0/mini_nightmare.zip"
+    DATA_PATH = DEBUG_GYM_CACHE_DIR / "mini_nightmare"
+    TASK_NAMES = [
+        "config",
+        "counter",
+        "grader",
+        "pandas_dataframe",
+        "patcher",
+        "purr",
+        "scientific_calculator",
+        "shopping_cart",
+        "sum_tree",
+        "tomorrow_date",
+    ]
+
+    def __init__(
+        self,
+        task_data: dict,
+        entrypoint: str = "python -m pytest --tb=no -s test.py",
+        terminal: Terminal | None = None,
+        **kwargs,
+    ):
+        terminal = terminal or DockerTerminal(
+            base_image=DOCKER_MINI_NIGHTMARE_IMAGE_NAME,
+            logger=kwargs.get("logger"),
+        )
+        if hasattr(terminal, "base_image") and terminal.base_image is None:
+            terminal.base_image = DOCKER_MINI_NIGHTMARE_IMAGE_NAME
+
+        super().__init__(
+            task_data=task_data, entrypoint=entrypoint, terminal=terminal, **kwargs
+        )
+
+    @property
+    def instructions(self) -> str:
+        return (
+            "The program doesn't behave as intended."
+            " Investigate the repository, figure out the root cause, then edit the code to fix the issue."
+            " Beaware that the bug may not be in the code you initially see."
+        )
+
+    @property
+    def task_name(self) -> str:
+        return self.current_task["task_name"]
+
+    def calculate_max_score(self, eval_output: EvalOutput) -> int:
+        return utils.extract_max_score_from_pytest_output(eval_output.output)
+
+    def calculate_score(self, eval_output: EvalOutput) -> int:
+        return utils.extract_reward_from_pytest_output(eval_output.output)
+
+    def eval(self, **kwargs) -> EvalOutput:
+        success, output = self.terminal.run(self.entrypoint, timeout=self.run_timeout)
+        output = utils.cleanup_pytest_output(output)
+        self.last_eval = EvalOutput(success, output)
+        return self.last_eval
+
+    def setup_task(self):
+        self.current_task = self.task_data
+
+    def setup_workspace(self):
+        self.workspace.reset()
+
+        self.logger.debug("Copying files..")
+        self.workspace.copy_content(
+            src=self.current_task["codebase"], target=self.workspace.working_dir
+        )
+        self.workspace.setup_file_filters()  # Use codebase's .debugignore and .debugreadonly.
+
+    def setup_terminal(self):
+        self.logger.debug(f"Configuring {self.terminal}...")
+
+        self.terminal.run("git init")
+        self.terminal.run("git config user.name 'debug-gym'")
+        self.terminal.run("git config user.email '<>'")
+
+        self.terminal.run(
+            "git add *.py *.txt"
+        )  # Mini-nightmare tasks only have Python and text files.
+        self.terminal.run("git commit -am 'Init'")
+
+        self.terminal.run(
+            "git add .debugignore .debugreadonly"
+        )  # Mini-nightmare tasks come with those.
+        self.terminal.run("git commit -am 'Add debug-gym ignore and read-only files'")
+
+    @classmethod
+    def load_dataset(
+        cls,
+        problems: str | list[str] | None = None,
+        build_image: bool = True,
+        logger: object = None,
+        **kwargs,
+    ) -> dict:
+        if build_image:
+            build_docker_image(logger)
+
+        # Check if dataset content exists (not just the directory)
+        # The directory may exist but be empty/incomplete from a failed download
+        first_task_marker = cls.DATA_PATH / cls.TASK_NAMES[0] / "test.py"
+        if not first_task_marker.exists():
+            zipped_data = utils.download(
+                MiniNightmareEnv.DATA_URL,
+                MiniNightmareEnv.DATA_PATH,
+                f"Downloading mini-nightmare dataset.",
+            )
+            utils.unzip(zipped_data, dst=cls.DATA_PATH.parent)
+
+        dataset = {}
+        for task_name in cls.TASK_NAMES:
+            task_path = cls.DATA_PATH / task_name
+            # Validate required files exist with helpful error messages
+            required_files = [
+                "test.py",
+                f"{task_name}_code.py",
+                ".debugignore",
+                ".debugreadonly",
+            ]
+            for required_file in required_files:
+                file_path = task_path / required_file
+                if not file_path.exists():
+                    raise FileNotFoundError(
+                        f"Required file '{required_file}' not found in {task_path}. "
+                        f"The mini-nightmare dataset may be corrupted or incomplete. "
+                        f"Try deleting {cls.DATA_PATH} and re-running to re-download."
+                    )
+
+            dataset[task_name] = {
+                "task_name": task_name,
+                "codebase": task_path,
+                "filename": task_name + "_code.py",
+            }
+
+        problems = utils.filter_problems(dataset, problems)
+        dataset = {id: data for id, data in dataset.items() if id in problems}
+
+        # Add env_type to each task_data.
+        for task_data in dataset.values():
+            task_data["env_type"] = "mini_nightmare"
+
+        return dataset
