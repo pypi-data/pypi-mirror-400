@@ -1,0 +1,249 @@
+# ADR Builder
+
+[![CI](https://github.com/LighthouseGlobal/adr-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/LighthouseGlobal/adr-builder/actions/workflows/ci.yml)
+
+Create clear, consistent Architectural Decision Records (ADRs) from simple forms or YAML/JSON data — no coding required.
+
+- Generates Markdown ADRs using the MADR standard
+- Enforces structure and quality with built-in validation
+- Works locally via an easy CLI, or in CI via GitHub Actions
+- Stores ADRs in `docs/adr/` with automatic numbering, slugs, and an index
+
+## Who is this for?
+
+- Engineers, product managers, and stakeholders who need to record decisions
+- Teams standardizing how ADRs are written and stored
+- Anyone who wants a guided, non-technical way to produce ADRs
+
+---
+
+## Quick Start (No Coding)
+
+Option A — Guided interactive flow (recommended):
+1) Install (one-time)
+   - macOS: `brew install pipx && pipx ensurepath`
+   - All platforms (Python 3.9+): `pipx install adr-builder`
+2) In your project folder, run:
+   - `adr init` — sets up `docs/adr/` and defaults
+   - `adr new` — guided prompts to create an ADR without editing files
+3) Find your ADRs in `docs/adr/`
+
+Option B — From a simple YAML file:
+1) Create `criteria.yaml` like this:
+```yaml
+title: Database Selection
+status: Proposed
+authors: ["Jane Doe"]
+tags: ["data", "persistence"]
+context:
+  background: "We need a primary OLTP database."
+  constraints:
+    - "Managed service"
+    - "RTO <= 15m"
+  drivers:
+    - "Global availability"
+    - "Operational simplicity"
+options:
+  - name: "PostgreSQL (AWS RDS)"
+    pros: ["Mature ecosystem", "Managed backups"]
+    cons: ["Vertical scaling limits"]
+    risks: ["Cost at high scale"]
+    score: 8
+  - name: "CockroachDB Serverless"
+    pros: ["Horizontal scale", "Strong consistency"]
+    cons: ["Learning curve"]
+    risks: ["Pricing predictability"]
+    score: 7
+decision:
+  chosen: "PostgreSQL (AWS RDS)"
+  rationale: "Best balance of maturity and ops simplicity."
+consequences:
+  positive: ["Familiar tooling", "Reduced ops overhead"]
+  negative: ["Limited horizontal scale"]
+references:
+  links:
+    - "https://adr.github.io/madr/"
+```
+2) Generate your ADR:
+   - `adr generate --input criteria.yaml`
+3) Your ADRs are created (e.g., `docs/adr/001-database-selection.md` and `.docx`).
+
+Option C — In Pull Requests (GitHub Action):
+- Add our CI workflow, commit `criteria.yaml`, and the action will generate/update ADRs automatically on PRs. See “CI Integration” below.
+
+---
+
+## Sample criteria.yml
+
+Save this as `criteria.yml` (or `criteria.yaml`) and run `adr generate --input criteria.yml`:
+
+```yaml
+title: Database Selection
+status: Proposed
+authors: ["Jane Doe"]
+tags: ["data", "persistence"]
+context:
+  background: "We need a primary OLTP database."
+  constraints:
+    - "Managed service"
+    - "RTO <= 15m"
+  drivers:
+    - "Global availability"
+    - "Operational simplicity"
+options:
+  - name: "PostgreSQL (AWS RDS)"
+    pros: ["Mature ecosystem", "Managed backups"]
+    cons: ["Vertical scaling limits"]
+    risks: ["Cost at high scale"]
+    score: 8
+  - name: "CockroachDB Serverless"
+    pros: ["Horizontal scale", "Strong consistency"]
+    cons: ["Learning curve"]
+    risks: ["Pricing predictability"]
+    score: 7
+decision:
+  chosen: "PostgreSQL (AWS RDS)"
+  rationale: "Best balance of maturity and ops simplicity."
+consequences:
+  positive: ["Familiar tooling", "Reduced ops overhead"]
+  negative: ["Limited horizontal scale"]
+references:
+  links:
+    - "https://adr.github.io/madr/"
+```
+
+---
+
+## Installation
+
+- Requirements: Python 3.9+ (or use Docker)
+- Easiest: `pipx install adr-builder`
+  - If you don't have pipx: `brew install pipx && pipx ensurepath` (macOS) or see https://pipx.pypa.io
+- Verify: `adr --version`
+
+Docker (no Python needed):
+```bash
+docker run --rm -v "$PWD":/work -w /work ghcr.io/OWNER/adr-builder:latest adr --help
+```
+
+---
+
+## Commands
+
+- `adr init`
+  - Scaffolds `docs/adr/`, default config, and template
+- `adr new`
+  - Interactive, step-by-step ADR creation (no editing files needed)
+  - Generates both Markdown and Word outputs by default
+  - Use `--format md` or `--format docx` for single format
+- `adr generate --input criteria.yaml`
+  - Creates or updates an ADR from YAML/JSON (Markdown and Word by default)
+- `adr generate --input criteria.yaml --format md`
+  - Generate only a Markdown output
+- `adr generate --input criteria.yaml --format docx`
+  - Generate only a Word document output for non-developers
+- `adr validate --input criteria.yaml`
+  - Checks structure, required fields, and statuses
+  - Validates date format, option scores, URL formats, and decision consistency
+  - Use `--directory` to specify project root for config loading
+- `adr list`
+  - Shows existing ADRs, numbers, and slugs
+- `adr --version`
+  - Shows the installed version
+
+---
+
+## Output Format
+
+- Default template: MADR
+- Default output: Markdown and Word (both)
+- File naming: `NNN-slug.{md,docx}` (e.g., `001-database-selection.md`)
+- Location: `docs/adr/`
+- Statuses: Proposed, Accepted, Superseded, Rejected (configurable)
+
+Example generated ADR snippet:
+```markdown
+# Database Selection
+
+- Status: Proposed
+- Date: 2025-11-06
+- Deciders: Jane Doe
+- Tags: data, persistence
+
+## Context and Problem Statement
+We need a primary OLTP database.
+Constraints:
+- Managed service
+- RTO <= 15m
+
+Decision Drivers:
+- Global availability
+- Operational simplicity
+```
+
+---
+
+## Templates
+
+- Ships with MADR by default
+- Support for custom templates via Jinja2
+- Configure defaults in `.adr/adr.config.yaml`
+
+Use a custom template:
+```bash
+adr generate --input criteria.yaml --template path/to/template.md.j2
+```
+
+---
+
+## CI Integration (GitHub Action)
+
+Add `.github/workflows/adr.yml`:
+```yaml
+name: ADR
+on:
+  pull_request:
+    paths:
+      - 'criteria/*.yaml'
+jobs:
+  build-adr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - run: pipx install adr-builder
+      - run: adr init
+      - run: adr generate --input criteria/main.yaml
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(adr): generate ADR from criteria"
+```
+
+---
+
+## Troubleshooting
+
+- “Command not found: adr”
+  - Ensure `pipx ensurepath` was run, then open a new terminal
+- "Python not found"
+  - Install Python 3.9+ or use Docker
+- Validation errors
+  - Run `adr validate --input criteria.yaml` to see what to fix
+
+---
+
+## Contributing
+
+- Issues and PRs welcome
+- Install dev dependencies: `pip install -e ".[dev]"`
+- Run tests: `pytest`
+- Lint: `ruff check adr_builder/`
+- Type check: `mypy adr_builder/`
+
+## License
+
+MIT
+
+
