@@ -1,0 +1,191 @@
+Metadata-Version: 2.3
+Name: sourcerat
+Version: 0.1.3
+Summary: Collect and bundle source code for LLM input
+Author: Captain Solaris
+Author-email: Captain Solaris <hello@spielprinzip.com>
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+
+# sourcerat
+
+**sourcerat** collects, filters, and orders source code from a project so it can be used as high-quality context for LLMs.  
+The goal is not archiving, but **signal over noise**.
+
+## Project Vision
+
+LLMs perform poorly on raw project dumps.  
+Too many files, wrong ordering, irrelevant clutter.
+
+`sourcerat` addresses this structurally:
+
+- identify relevant files
+- prioritize entry points
+- expose project structure
+- keep output deterministic and reproducible
+- no magic, everything explainable
+
+Built for developers who want **explicit control** over what a model sees.
+
+## Installation
+
+```sh
+pip install sourcerat
+````
+
+or locally in a project:
+
+```sh
+pip install -e .
+```
+
+## Usage
+
+Basic form:
+
+```sh
+sourcerat [PATH]
+```
+
+By default, the current directory is scanned.
+
+Example:
+
+```sh
+sourcerat .
+```
+
+Output:
+
+* PROJECT TREE
+* followed by the contents of selected files
+* ordered by heuristic relevance
+
+## Common Workflows
+
+### Dry Run
+
+Show which files would be included:
+
+```sh
+sourcerat . --dry-run
+```
+
+### Write Output to File
+
+```sh
+sourcerat . -o context.txt
+```
+
+### Markdown for ChatGPT / GitHub
+
+```sh
+sourcerat . --format markdown -o context.md
+```
+
+### Restrict File Types
+
+```sh
+sourcerat . --file-suffixes py,rs
+```
+
+### Explicitly Include Directories
+
+```sh
+sourcerat . --include src
+```
+
+### Exclude Directories
+
+```sh
+sourcerat . --exclude tests,examples
+```
+
+### Size and Count Limits
+
+```sh
+sourcerat . --max-files 20 --max-lines 400
+```
+
+## Smart Sorting
+
+By default, `sourcerat` tries to surface important files first.
+
+Heuristics include:
+
+* common entry points (`main.py`, `__main__.py`, `cli.py`)
+* shallow directory depth
+* detection of `main()` functions
+* CLI indicators such as `argparse`, `click`, `typer`
+* de-prioritization of `tests`, `examples`, `demo`
+
+Disable:
+
+```sh
+sourcerat . --no-smart-sort
+```
+
+## Gitignore Support
+
+```sh
+sourcerat . --respect-gitignore
+```
+
+* reads `.gitignore` from project root
+* simple, transparent pattern matching
+* intentionally not a full Git implementation
+
+## Output Formats
+
+### Plain (default)
+
+```
+PROJECT TREE
+├── src
+│   └── app.py
+
+FILE: src/app.py
+<content>
+```
+
+### Markdown
+
+````md
+## src/app.py
+```python
+<content>
+````
+
+```
+
+Designed for direct LLM consumption.
+
+## Design Principles
+
+- no dependencies
+- no hidden defaults
+- everything is text
+- heuristic correctness over completeness
+- errors are visible, not hidden
+
+## Non-Goals
+
+- not a documentation generator
+- not a full parser
+- no AST or semantic analysis
+- not a project management tool
+
+## Intended Audience
+
+- developers using LLMs deliberately
+- code-centric prompt engineering
+- analyzing unfamiliar codebases
+- fast project onboarding
+
+## Status
+
+Early version, intentionally small.  
+Heuristics are extensible but conservative by design.
+
+Pull requests welcome if they respect the vision.
+```
