@@ -1,0 +1,125 @@
+Metadata-Version: 2.4
+Name: spacecraft-paladin
+Version: 0.1.6
+Summary: high-fidelity spaceraft dynamics propagator
+Home-page: https://github.com/Yuricst/paladin
+Author: Yuri Shimane
+Author-email: yuri.shimane@gatech.edu
+License: MIT License
+Keywords: astrodynamics
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.26.4
+Requires-Dist: numba>=0.54.0
+Requires-Dist: matplotlib>=3.8.4
+Requires-Dist: scipy>=1.13.0
+Requires-Dist: spiceypy>=6.0.0
+Requires-Dist: sympy>=1.12
+Requires-Dist: pygsl>=2.3.3
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
+
+# `paladin` : python library for astrodynamics
+
+| PyPI     | Documentation |
+| -------- | ------------- |
+| [![PyPI version](https://badge.fury.io/py/spacecraft-paladin.svg)](https://badge.fury.io/py/spacecraft-paladin)  | [![documentation workflow](https://github.com/Yuricst/paladin/actions/workflows/documentation.yml/badge.svg)](https://yuricst.github.io/paladin/)    |
+
+!! Currently only tested/working with python 3.11 and numpy 1.X (due to restriction by pygsl) !!
+
+## Installation
+
+To install via pip
+
+```bash
+pip install spacecraft-paladin
+```
+
+To uninstall
+
+```bash
+pip uninstall spacecraft-paladin
+```
+
+## Environment setup
+
+An example virtual environment for working with this library can be initialized using [`poetry`](https://python-poetry.org/) via
+
+```bash
+poetry install
+pip install pygsl
+```
+
+Note: `pygsl` cannot be imported via `poetry` as it does not PEP 517 builds. 
+
+
+## Overview
+
+This package provides tools for conducting CR3BP and ephemeris level analysis in cislunar and deep-space environments. 
+
+While the library is implemented in python, the majority of functionalities are powered by either [SPICE routines](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/FORTRAN/spicelib/index.html) or through numpy/scipy/numba implementations, resulting in (relatively) fast computations. 
+For numerical integration of ODEs, `paladin` provides the option of using either `scipy` or `gsl`; the latter is recommended due to higher accuracy. 
+
+Optimization is conducted by constructing problems as [`pygmo` udp's](https://esa.github.io/pygmo2/index.html), which can then be solved through a variety of compatible solvers, including IPOPT, SNOPT, or WORHP (the latter two requires licenses). 
+
+
+## Dependencies
+
+Developed for python 3.10 & 3.11.
+
+Package requirements: 
+
+- `numpy`, `matplotlib`, `numba`, `scipy`, `spiceypy`, `sympy`, `pygsl`
+
+Optional:
+
+- `pygmo`, `pygmo_plugins_nonfree` : required for running trajectory construction problems
+
+
+## SPICE setup
+
+Users are responsible for downloading [the generic SPICE kernels froom the NAIF website](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/). In addition, supplementary custom kernels specific to this module are stored in `paladin/assets/spice/`. The most commonly required kernels are:
+
+- `naif0012.tls`
+- `de440.bsp`
+- `gm_de440.tpc` 
+
+
+## GSL setup
+
+See [pygsl setup notes](./notes/pygsl_setup.md)
+
+
+
+## Capabilities
+
+- [x] GSL event capability
+- [x] Propagation in CR3BP
+- [x] Propagation in N-body problem
+- [x] Transition to full-ephemeris model
+- [x] Helper methods for frame transformation
+
+
+## Gallery
+
+NRHO propagation
+
+<p align="center">
+  <img src="./plots/propagation_example_nrho.png" width="400" title="Propagation example">
+</p>
+
+
