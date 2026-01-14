@@ -1,0 +1,161 @@
+Metadata-Version: 2.4
+Name: fastapi_swagger2
+Version: 0.2.6
+Summary: Swagger2 support for FastAPI framework
+Project-URL: Homepage, https://github.com/virajkanwade/fastapi_swagger2
+Project-URL: Documentation, https://github.com/virajkanwade/fastapi_swagger2
+Author-email: Viraj Kanwade <virajk.oib@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2023 Viraj Kanwade
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Classifier: Environment :: Web Environment
+Classifier: Framework :: AsyncIO
+Classifier: Framework :: FastAPI
+Classifier: Framework :: Pydantic
+Classifier: Framework :: Pydantic :: 1
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Internet
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Requires-Dist: fastapi<0.119.0,>=0.100.0
+Provides-Extra: all
+Requires-Dist: httpx>=0.28.1; extra == 'all'
+Provides-Extra: dev
+Requires-Dist: ruff==0.14.10; extra == 'dev'
+Provides-Extra: test
+Requires-Dist: black==25.12.0; extra == 'test'
+Requires-Dist: coverage[toml]<8.0,>=7.13.1; extra == 'test'
+Requires-Dist: httpx>=0.28.1; extra == 'test'
+Requires-Dist: isort>=7.0.0; extra == 'test'
+Requires-Dist: mypy==1.19.1; extra == 'test'
+Requires-Dist: pytest<10.0.0,>=9.0.2; extra == 'test'
+Requires-Dist: ruff==0.14.10; extra == 'test'
+Description-Content-Type: text/markdown
+
+# fastapi_swagger2
+<p align="center">
+Swagger2 support for FastAPI
+</p>
+<p align="center">
+<a href="https://pypi.org/project/fastapi_swagger2" target="_blank">
+    <img src="https://img.shields.io/pypi/v/fastapi_swagger2?color=%2334D058&label=pypi%20package" alt="Package version">
+</a>
+<a href="https://pypi.org/project/fastapi_swagger2" target="_blank">
+    <img src="https://img.shields.io/pypi/pyversions/fastapi_swagger2.svg?color=%2334D058" alt="Supported Python versions">
+</a>
+</p>
+
+---
+
+_Reason behind this library:_
+
+Few API GW services like Google Cloud API GW still support only Swagger 2.0 spec. Since FastAPI only supports OAS3, it is a challenge. Converting from OAS3 to Swagger 2.0 requires some manual steps which would hinder CI/CD.
+
+---
+
+## Requirements
+
+Python 3.9+
+
+* 0.0.3 - FastAPI >= 0.79.0, <= 0.98.0
+* 0.1.1 - FastAPI >= 0.99.0, <= 0.99.1
+* 0.2.4 - FastAPI >= 0.100.0
+* 0.2.6 - FastAPI >= 0.100.0, < 0.199.0 > + Pydantic v1/v2
+
+## Installation
+
+<div class="termy">
+
+```console
+$ pip install fastapi_swagger2
+```
+
+</div>
+
+## Example
+
+```Python
+from typing import Union
+
+from fastapi import FastAPI
+from fastapi_swagger2 import FastAPISwagger2
+
+app = FastAPI()
+FastAPISwagger2(app)
+
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: Union[str, None] = None):
+    return {"item_id": item_id, "q": q}
+```
+
+This adds following endpoints:
+* http://localhost:8000/swagger2.json
+* http://localhost:8000/swagger2/docs
+* http://localhost:8000/swagger2/redoc
+
+## Generate spec for CI/CD
+
+```Python
+import os
+
+import yaml
+
+from app.main import app
+
+URL = os.environ["CLOUD_RUN_URL"]
+
+app.servers.append(URL)
+
+spec = app.swagger2()
+spec['x-google-backend'] = {'address': URL}
+
+print(yaml.dump(spec))
+```
+
+## Development
+
+```console
+$ pip install "/path/to/fastapi_swagger2/repo[test,all]"
+```
