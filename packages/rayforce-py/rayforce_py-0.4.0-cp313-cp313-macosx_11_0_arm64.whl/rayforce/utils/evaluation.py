@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import typing as t
+
+from rayforce import _rayforce_c as r
+from rayforce import errors
+from rayforce.ffi import FFI
+from rayforce.utils.conversion import ray_to_python
+
+
+def eval_str(expr: str, *, raw: bool = False) -> t.Any:
+    if not isinstance(expr, str):
+        raise errors.RayforceEvaluationError(f"Expression must be a string, got {type(expr)}")
+
+    result_ptr = FFI.eval_str(FFI.init_string(expr))
+    if FFI.get_obj_type(result_ptr) == r.TYPE_ERR:
+        raise errors.RayforceEvaluationError(f"Evaluation error: {FFI.get_error_obj(result_ptr)}")
+
+    return result_ptr if raw else ray_to_python(result_ptr)
+
+
+def eval_obj(obj: t.Any) -> t.Any:
+    if hasattr(obj, "ptr"):
+        ptr = obj.ptr
+    elif isinstance(obj, r.RayObject):
+        ptr = obj
+    else:
+        raise errors.RayforceEvaluationError(f"Cannot evaluate {type(obj)}")
+
+    result_ptr = FFI.eval_obj(ptr)
+    if FFI.get_obj_type(result_ptr) == r.TYPE_ERR:
+        raise errors.RayforceEvaluationError(f"Evaluation error: {FFI.get_error_obj(result_ptr)}")
+
+    return ray_to_python(result_ptr)
