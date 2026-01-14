@@ -1,0 +1,137 @@
+Metadata-Version: 2.4
+Name: jupyterhub-credit-service
+Version: 0.3.11
+Summary: JupyterHub Credit Servce
+Project-URL: Documentation, https://github.com/jsc-jupyter/jupyterhub-credit-service#readme
+Project-URL: Source, https://github.com/jsc-jupyter/jupyterhub-credit-service
+Project-URL: Issues, https://github.com/jsc-jupyter/jupyterhub-credit-service/issues
+Author-email: Tim Kreuzer <t.kreuzer@fz-juelich.de>
+License: BSD 3-Clause License
+        
+        Copyright (c) 2025, Tim Kreuzer
+        All rights reserved.
+        
+        Redistribution and use in source and binary forms, with or without
+        modification, are permitted provided that the following conditions are met:
+        
+        1. Redistributions of source code must retain the above copyright notice, this
+           list of conditions and the following disclaimer.
+        
+        2. Redistributions in binary form must reproduce the above copyright notice,
+           this list of conditions and the following disclaimer in the documentation
+           and/or other materials provided with the distribution.
+        
+        3. Neither the name of the copyright holder nor the names of its
+           contributors may be used to endorse or promote products derived from
+           this software without specific prior written permission.
+        
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+        AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+        IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+        FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+        DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+        SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+        CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+        OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+License-File: LICENSE
+Keywords: jupyterhub
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.9
+Requires-Dist: packaging
+Requires-Dist: python-dateutil
+Requires-Dist: tornado
+Requires-Dist: traitlets
+Provides-Extra: test
+Requires-Dist: jupyterhub; extra == 'test'
+Requires-Dist: jupyterlab; extra == 'test'
+Requires-Dist: notebook; extra == 'test'
+Requires-Dist: psutil; extra == 'test'
+Requires-Dist: pytest; extra == 'test'
+Requires-Dist: pytest-asyncio; extra == 'test'
+Requires-Dist: pytest-cov; extra == 'test'
+Description-Content-Type: text/markdown
+
+# JupyterHub Credit Service
+
+[![Documentation](https://img.shields.io/badge/Documentation-passed-green)](https://jsc-jupyter.github.io/jupyterhub-credit-service/)
+[![PyPI Test Action](https://github.com/jsc-jupyter/jupyterhub-credit-service/actions/workflows/pytest.yml/badge.svg?branch=main)](https://github.com/jsc-jupyter/jupyterhub-credit-service/actions/workflows/pytest.yml)
+[![PyPI](https://img.shields.io/pypi/v/jupyterhub-credit-service)](https://pypi.org/project/jupyterhub-credit-service/)
+
+---
+
+## Overview
+
+The **JupyterHub Credit Service** is a python package that can be installed as an extension to JupyterHub. It introduces a lightweight, flexible system to limit **resource consumption** on a **per-user** and/or **per-project** model.
+
+It enables administrators to control how long users can use computational environments, and how shared project resources are allocated — all without complex accounting or billing systems.
+
+<div style="text-align: center;">
+  <img src="https://jsc-jupyter.github.io/jupyterhub-credit-service/images/image_home.png" alt="JupyterHub" style="width: 100%;">
+</div>
+
+---
+
+## Installation
+
+You can install the package directly from PyPI:
+
+```bash
+pip install jupyterhub-credit-service
+```
+
+---
+
+## Configuration
+
+For detailed information, please visit the [documentation site](https://jsc-jupyter.github.io/jupyterhub-credit-service/).
+
+Example `jupyterhub_config.py`:
+
+```python
+import jupyterhub_credit_service
+
+# Configure Authenticator
+from oauthenticator.generic import GenericOAuthenticator
+# Use any Authenticator you usually use together with the CreditsAuthenticator
+class MixinAuthenticator(GenericOAuthenticator, jupyterhub_credit_service.CreditsAuthenticator):
+    pass
+
+c.JupyterHub.authenticator_class = MixinAuthenticator
+
+# Different users may get different amount of credits
+def user_cap(username, user_groups=[], is_admin=False):
+    if username.endswith("mycompany.org"):
+        return 1000
+    elif username.endswith("googlemail.com") or username.endswith("gmail.com"):
+        return 30
+    return 100
+
+c.MixinAuthenticator.credits_user_cap = user_cap  # may be a callable or integer
+c.MixinAuthenticator.credits_user_grant_value = 5 # may be a callable or integer
+c.MixinAuthenticator.credits_user_grant_interval = 600 # Gain 5 credits every 10 minutes, may be a callable or integer
+
+c.MixinAuthenticator.userinfo_url = ... # your normal configuration
+
+
+# Configure Spawner
+import kubespawner
+# You can reuse the "KubeSpawner" name so you don't have to change your other configs
+class KubeSpawner(kubespawner.KubeSpawner, jupyterhub_credit_service.CreditsSpawner):
+    pass
+
+def get_billing_value(spawner):
+    # Costs gpus*10 credits + 5 credits, per billing_interval
+    billing_value = 5
+    if "gpus" in spawner.user_options.keys():
+        billing_value += spawner.user_options["gpus"] * 10
+    return billing_value
+
+c.JupyterHub.spawner_class = KubeSpawner
+c.KubeSpawner.billing_value = get_billing_value # may be a callable or integer
+c.KubeSpawner.billing_interval = 600 # Pay credits depending on gpus usage every 10 minutes, may be a callable or integer
+
+# Show JupyterHub Credits in the Header in your frontend
+c.JupyterHub.template_paths = jupyterhub_credit_service.template_paths
+```
