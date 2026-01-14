@@ -1,0 +1,1 @@
+"""Analytics domain examples package."""
