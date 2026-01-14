@@ -1,0 +1,171 @@
+```mermaid
+erDiagram
+    %% ============ CORE TABLES ============
+    
+    VAULTS ||--o{ DOCUMENTS : contains
+    VAULTS ||--o{ PROPERTY_SCHEMAS : defines
+    VAULTS ||--o{ TAGS : has
+    VAULTS ||--o{ ENTITIES : contains
+    
+    VAULTS {
+        text id PK "uuid"
+        text name UK "Naumen_CTO"
+        text path "абсолютный путь"
+        json config "embedding_model, chunk_size"
+        timestamp created_at
+        timestamp last_indexed_at
+        int doc_count "денормализация"
+    }
+    
+    %% ============ DOCUMENTS & PROPERTIES ============
+    
+    DOCUMENTS ||--o{ DOCUMENT_PROPERTIES : has
+    DOCUMENTS ||--o{ DOCUMENT_TAGS : tagged
+    DOCUMENTS ||--o{ DOCUMENT_ENTITIES : mentions
+    DOCUMENTS ||--o{ LINKS : source
+    DOCUMENTS ||--o{ LINKS : target
+    
+    DOCUMENTS {
+        text id PK "uuid"
+        text vault_id FK
+        text path "относительный путь"
+        text doc_id "vshadrin, psb"
+        text title
+        text doc_type "person, project, 1-1"
+        text content_hash "MD5"
+        text content "raw markdown"
+        timestamp file_created_at
+        timestamp file_modified_at
+        timestamp indexed_at
+        int chunk_count
+        int link_count
+        int backlink_count
+    }
+    
+    PROPERTY_SCHEMAS ||--o{ DOCUMENT_PROPERTIES : validates
+    PROPERTY_SCHEMAS {
+        text id PK
+        text vault_id FK
+        text key "status, role, priority"
+        text value_type "string, number, date, list, link"
+        text description
+        json allowed_values "enum значения"
+        bool is_required
+        bool is_list
+        int doc_count
+    }
+    
+    DOCUMENT_PROPERTIES {
+        text id PK
+        text document_id FK
+        text schema_id FK
+        text key "status"
+        text value_type "string, number, date, boolean, link"
+        text value_string "active"
+        real value_number "42"
+        text value_date "2025-01-08"
+        int value_boolean "0 или 1"
+        text value_link_target "doc_id ссылки"
+        text value_link_raw "оригинал [[...]]"
+        int list_index "для списков"
+        text source "frontmatter, inline"
+    }
+    
+    %% ============ TAGS ============
+    
+    TAGS ||--o{ DOCUMENT_TAGS : tagged
+    TAGS ||--o{ TAGS : parent
+    
+    TAGS {
+        text id PK
+        text vault_id FK
+        text name "Meeting"
+        text normalized "meeting"
+        text parent_tag_id FK "иерархия"
+        int doc_count
+    }
+    
+    DOCUMENT_TAGS {
+        text document_id PK_FK
+        text tag_id PK_FK
+        text source "frontmatter, inline"
+    }
+    
+    %% ============ GRAPH (LINKS) ============
+    
+    LINKS {
+        text id PK
+        text source_doc_id FK
+        text target_doc_id FK "NULL если не найден"
+        text target_raw "[[vshadrin]]"
+        text link_type "wikilink, embed, property, external"
+        text anchor_text "display text"
+        text context_type "frontmatter, heading, paragraph"
+        text context_value "имя поля или заголовок"
+        int position "offset"
+    }
+    
+    %% ============ ENTITIES (NER) ============
+    
+    ENTITIES ||--o{ DOCUMENT_ENTITIES : appears
+    
+    ENTITIES {
+        text id PK
+        text vault_id FK
+        text name "Всеволод Шадрин"
+        text normalized_id "vshadrin"
+        text entity_type "person, project, org, tech"
+        text canonical_doc_id FK "документ-профиль"
+        json aliases "Сева, Шадрин"
+        int mention_count
+    }
+    
+    DOCUMENT_ENTITIES {
+        text document_id PK_FK
+        text entity_id PK_FK
+        int mention_count
+        json positions "offsets"
+        real confidence "NER score"
+    }
+    
+    %% ============ CACHE & ANALYTICS ============
+    
+    EMBEDDING_CACHE {
+        text content_hash PK "MD5"
+        text model_name "bge-m3"
+        blob embedding "numpy bytes"
+        int embedding_dim "1024"
+        int token_count
+        timestamp created_at
+    }
+    
+    SEARCH_HISTORY {
+        text id PK
+        text vault_id FK
+        text query
+        text intent "document, chunk, graph"
+        json filters
+        int results_count
+        real latency_ms
+        timestamp created_at
+    }
+    
+    %% ============ LANCEDB (VECTORS) ============
+    
+    CHUNKS {
+        text id PK
+        text document_id FK
+        text vault_id
+        int chunk_index
+        text content
+        text context "Contextual Retrieval"
+        vector embedding "float32x1024"
+        int start_offset
+        int end_offset
+        text heading
+        text doc_type "денормализация"
+        text doc_id "денормализация"
+        list_string tags "денормализация"
+        timestamp file_modified_at
+    }
+```
