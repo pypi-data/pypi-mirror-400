@@ -1,0 +1,35 @@
+---
+description: Check if a snippet exists in target files
+inputs:
+  comment-prefix:
+    description: Force commented matching with this prefix
+    required: false
+  comment-prefix-map:
+    description: Override extension mapping (e.g., .js=//,.ts=//)
+    required: false
+  files:
+    description: Target files to check (space-separated)
+    required: true
+  infer-comment-prefix:
+    default: "false"
+    description: Infer comment prefix from file extension
+    required: false
+  snippet-file:
+    description: Path to file containing the snippet
+    required: true
+name: Contains Snippet
+runs:
+  steps:
+    - run: python3 -m pip install contains-snippet
+      shell: bash
+    - run: |
+        ARGS="--snippet-file ${{ inputs.snippet-file }}"
+        [ -n "${{ inputs.comment-prefix }}" ] && \
+          ARGS="$ARGS --comment-prefix '${{ inputs.comment-prefix }}'"
+        [ "${{ inputs.infer-comment-prefix }}" = "true" ] && \
+          ARGS="$ARGS --infer-comment-prefix"
+        [ -n "${{ inputs.comment-prefix-map }}" ] && \
+          ARGS="$ARGS --comment-prefix-map '${{ inputs.comment-prefix-map }}'"
+        eval "contains-snippet $ARGS ${{ inputs.files }}"
+      shell: bash
+  using: composite
