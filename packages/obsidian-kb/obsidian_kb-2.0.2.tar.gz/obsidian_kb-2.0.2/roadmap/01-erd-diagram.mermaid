@@ -1,0 +1,115 @@
+%% obsidian-kb Database Schema v2.1
+%% With DOCUMENT_PROPERTIES for frontmatter key-value storage
+
+erDiagram
+    VAULTS ||--o{ DOCUMENTS : contains
+    VAULTS ||--o{ PROPERTY_SCHEMA : defines
+    VAULTS {
+        string id PK "uuid"
+        string name "Naumen_CTO"
+        string path "/Users/.../Naumen CTO"
+        json config "embedding_model, chunk_size"
+        timestamp created_at
+        timestamp last_indexed_at
+    }
+    
+    DOCUMENTS ||--o{ CHUNKS : has
+    DOCUMENTS ||--o{ LINKS : source
+    DOCUMENTS ||--o{ LINKS : target
+    DOCUMENTS ||--o{ DOCUMENT_TAGS : has
+    DOCUMENTS ||--o{ DOCUMENT_PROPERTIES : has
+    DOCUMENTS ||--o{ DOCUMENT_ENTITIES : mentions
+    DOCUMENTS {
+        string id PK "uuid"
+        string vault_id FK
+        string path "07_PEOPLE/vshadrin/vshadrin.md"
+        string doc_id "vshadrin"
+        string title
+        string type "person|project|1-1|adr"
+        string content_hash "md5"
+        json frontmatter_raw "backup"
+        timestamp file_created_at
+        timestamp file_modified_at
+        timestamp indexed_at
+    }
+    
+    PROPERTY_SCHEMA ||--o{ DOCUMENT_PROPERTIES : validates
+    PROPERTY_SCHEMA {
+        string id PK
+        string vault_id FK
+        string key "role|status|priority"
+        string value_type "string|number|date|list|link"
+        json allowed_values "enum"
+        int usage_count "денормализация"
+        boolean is_indexed
+    }
+    
+    DOCUMENT_PROPERTIES {
+        string id PK
+        string document_id FK
+        string property_key "role"
+        string value_type "string|number|date|list|link"
+        string value_string "Lead Developer"
+        float value_number "null"
+        date value_date "null"
+        json value_list "null"
+        string value_link_target "doc_id ссылки"
+    }
+    
+    CHUNKS {
+        string id PK "uuid"
+        string document_id FK
+        int chunk_index
+        text content
+        text context "Contextual prefix"
+        vector embedding "float32[1024]"
+        int start_offset
+        int end_offset
+    }
+    
+    LINKS {
+        string id PK
+        string source_doc_id FK
+        string target_doc_id FK
+        string link_type "wikilink|embed"
+        string anchor_text
+        int position
+    }
+    
+    TAGS ||--o{ DOCUMENT_TAGS : tagged
+    TAGS {
+        string id PK
+        string vault_id FK
+        string name
+        string normalized
+        int doc_count
+    }
+    
+    DOCUMENT_TAGS {
+        string document_id FK
+        string tag_id FK
+        string source "frontmatter|inline"
+    }
+    
+    ENTITIES ||--o{ DOCUMENT_ENTITIES : appears_in
+    ENTITIES {
+        string id PK
+        string vault_id FK
+        string name
+        string normalized_id
+        string entity_type
+        string canonical_doc_id FK
+    }
+    
+    DOCUMENT_ENTITIES {
+        string document_id FK
+        string entity_id FK
+        int mention_count
+    }
+    
+    EMBEDDING_CACHE {
+        string content_hash PK
+        string model_name
+        blob embedding
+        timestamp created_at
+    }
