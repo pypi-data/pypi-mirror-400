@@ -1,0 +1,129 @@
+Metadata-Version: 2.4
+Name: pyThermoCalcDB
+Version: 0.7.1
+Summary: Python Thermodynamic Calculation Engine powered by PyThermoDB.
+Author-email: Sina Gilassi <sina.gilassi@gmail.com>
+License-Expression: Apache-2.0
+Project-URL: Homepage, https://github.com/sinagilassi/pyThermoCalcDB
+Project-URL: Source, https://github.com/sinagilassi/pyThermoCalcDB
+Project-URL: Tracker, https://github.com/sinagilassi/pyThermoCalcDB/issues
+Keywords: chemical-engineering,thermodynamics,thermodynamic-equations,thermodynamic-properties,process-simulation
+Classifier: Development Status :: 1 - Planning
+Classifier: Intended Audience :: Education
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Operating System :: Unix
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: scipy>=1.16.3
+Requires-Dist: numpy>=2.3.5
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: pydantic-settings>=2.12.0
+Requires-Dist: rich>=14.2.0
+Requires-Dist: pycuc
+Requires-Dist: pythermodb
+Requires-Dist: pythermolinkdb
+Requires-Dist: pythermodb-settings
+Requires-Dist: pyreactlab-core
+Dynamic: license-file
+
+# PyThermoCalcDB
+
+[![PyPI Downloads](https://static.pepy.tech/badge/pythermocalcdb/month)](https://pepy.tech/projects/pythermocalcdb)
+![PyPI](https://img.shields.io/pypi/v/PyThermoCalcDB)
+![Python Version](https://img.shields.io/pypi/pyversions/PyThermoCalcDB.svg)
+![License](https://img.shields.io/pypi/l/PyThermoCalcDB)
+
+**PyThermoCalcDB** — Python Thermodynamic Calculation Engine powered by PyThermoDB
+
+PyThermoCalcDB is a companion package to PyThermoDB, designed to provide a robust set of thermodynamic calculations, utilities, and workflows — using thermodynamic properties, constants, and equations built with PyThermoDB.
+
+## 🚀 Why PyThermoCalcDB?
+
+- **Seamless integration** with PyThermoDB: use the database of thermodynamic data (pure component properties, correlations, etc.) as the foundation.
+- **Reusable calculation tools**: functions for various calculations.
+- **Consistent with your thermodynamic ecosystem**: fits with existing packages like PyThermoModels, PyPhaseEQ, PyThermoFlash — offering a central “calculation engine” layer.
+- **Minimal dependencies**: lean design, using PyThermoDB as core data source; optionally depend on well-known numerical libraries (e.g. NumPy, SciPy) if needed for complex calculations.
+- **Flexible use-cases**: from quick property lookups to advanced process calculations, or integration in larger workflows or multi-agent systems.
+
+## 📦 Installation
+
+```bash
+pip install pyThermoCalcDB
+```
+
+## 🚀 Usage
+
+PyThermoCalcDB provides high-level thermodynamic routines built on PyThermoDB. It is optimized for scripts, notebooks, and pipelines ? the `examples/` directory contains runnable workflows.
+
+### 1) Build a ModelSource
+
+- Collect ThermoDB pickle paths for your components and load them with `pyThermoLinkDB.load_and_build_model_source`.
+
+```python
+import os
+import pyThermoLinkDB as ptdblink
+from pythermodb_settings.models import Component, ComponentRule, ComponentThermoDBSource, Temperature, Pressure
+
+CO2 = Component(name="carbon dioxide", formula="CO2", state="g")
+thermodb_dir = "/path/to/thermodb"
+CO2_src = ComponentThermoDBSource(
+    component=CO2,
+    source=os.path.join(thermodb_dir, "carbon dioxide-g.pkl"),
+)
+
+model_source = ptdblink.load_and_build_model_source(
+    thermodb_sources=[CO2_src],
+    original_equation_label=False
+)
+```
+
+### 2) Call helper modules
+
+- **Thermodynamic properties** (`pyThermoCalcDB.docs.thermo`): `calc_En`, `calc_GiFrEn`, `calc_En_range`, `calc_GiFrEn_range`, `calc_dEn` (Delta H between temperatures), `calc_dEnt` (Delta S with pressures and phase), `calc_En_mix` (mixture enthalpy with optional departure/excess terms and `output_unit`).
+- **Saturation & phase change** (`pyThermoCalcDB.docs.sat`): `calc_VaPr`, `calc_VaPr_range`, `calc_EnVap`, `calc_EnVap_range`, `calc_T_sat`, `calc_VaPr_sensitivity`, `calc_VaPr_sensitivity_range`.
+- **Reactions** (`pyThermoCalcDB.reactions.reactions`): `dEn_rxn_STD` and `dGiFrEn_rxn_STD` for standard reaction energetics.
+
+Example:
+
+```python
+from pyThermoCalcDB.docs import thermo, sat
+from pythermodb_settings.models import Temperature, Pressure
+
+T = Temperature(value=300.0, unit="K")
+P = Pressure(value=1.5e6, unit="Pa")
+
+enthalpy = thermo.calc_En(component=CO2, model_source=model_source, temperature=T)
+gibbs = thermo.calc_GiFrEn(component=CO2, model_source=model_source, temperature=T, phase="IG")
+VaPr = sat.calc_VaPr(component=CO2, model_source=model_source, temperature=T)
+Tsat = sat.calc_T_sat(
+    component=CO2,
+    model_source=model_source,
+    pressure=P,
+    temperature_guess=T,
+    method="least_squares",
+)
+```
+
+Notes:
+
+- All helpers expect typed `Component`, `Temperature`, and `Pressure` inputs plus a `model_source` from PyThermoLinkDB.
+- The optional `mode` kwarg accepts `silent`, `log`, or `attach` to control logging and timing.
+
+## 🤝 Contributing
+
+Contributions are highly welcome — bug fixes, new calculation routines, mixture models, extended unit tests, documentation, etc.
+
+## 📝 License
+
+This project is distributed under the Apache License, Version 2.0, which grants you broad freedom to use, modify, and integrate the software into your own applications or projects, provided that you comply with the conditions outlined in the license. Although Apache 2.0 does not require users to retain explicit author credit beyond standard copyright and license notices, I kindly request that if you incorporate this work into your own software, you acknowledge Sina Gilassi as the original author. Referencing the original repository or documentation is appreciated, as it helps recognize the effort invested in developing and maintaining this project.
+
+## ❓ FAQ
+
+For any question, contact me on [LinkedIn](https://www.linkedin.com/in/sina-gilassi/)
+
+## 👨‍💻 Authors
+
+- [@sinagilassi](https://www.github.com/sinagilassi)
