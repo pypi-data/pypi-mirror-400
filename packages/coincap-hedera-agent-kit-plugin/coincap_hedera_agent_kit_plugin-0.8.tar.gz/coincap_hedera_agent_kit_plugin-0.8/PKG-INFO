@@ -1,0 +1,145 @@
+Metadata-Version: 2.4
+Name: coincap-hedera-agent-kit-plugin
+Version: 0.8
+Home-page: https://github.com/henrytongv/coincap-hedera-plugin-py
+Author: Henry Tong
+Author-email: taksantong@gmail.com
+License: MIT
+Keywords: hedera agent-kit coincap web3
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: hedera-agent-kit
+Requires-Dist: requests
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+
+# Hedera Agent Kit - CoinCap Plugin Python version
+
+A plugin for [Hedera Agent Kit PY](https://github.com/hashgraph/hedera-agent-kit-py) that provides integration with the CoinCap API
+
+In this plugin we use CoinCap to get the current price in USD of one HBAR and combine it with the power of the Hedera Agent Kit to get your current balance of HBA in USD currency.
+
+## Overview
+
+This plugin enables `AI agents` to interact with the CoinCap API
+
+## Installation in the example index.js agent
+
+1.- Install the plugin
+
+```bash
+pip install coincap-hedera-agent-kit-plugin
+```
+
+2.- Add your CoinCap API Bearer token in the .env file ( You get it in the CoinCap website )
+
+```
+# Coincap API needed by coincap-hedera-plugin
+COINCAP_BEARER_TOKEN=******************************
+```
+
+3.- Import the plugin code in your index.js (Hedera Agent)
+
+```py
+from coincap_hedera_plugin import conincap_h_plugin
+```
+
+4.- Import the core_account_query_plugin plugin code
+
+This core plugin is already provided by the Hedera, it is needed to query the account (read its balance)
+```py
+from hedera_agent_kit.plugins import core_account_query_plugin
+```
+
+5.- Add the plugin in the plugins secion of the agent
+
+```py
+async def main():
+        ...
+        configuration=Configuration(
+            tools=[],
+            plugins=[
+                core_account_query_plugin,
+                conincap_h_plugin  # <---- add the plugin here
+```
+
+6.- Use a prompt to ask for you current balance and tell the agent to want it in USD currency, for example like this:
+
+```py
+response = await agent.ainvoke(
+    {"messages": [{"role": "user", "content": "Get my balance in HBAR and also convert it to USD please"}]},
+```
+
+> [!NOTE]
+> The previous prompt results in a multi-step tool invocation:
+> 
+> - Fetch the HBAR balance.
+> - Fetch the current HBAR price.
+> - Convert the balance to USD.
+> 
+> It is important for developers to be aware of, as configurations that limit the agent to only one tool call per request will cause this prompt to fail or behave incorrectly.
+
+7.- Now you can run the example agent and you should get your current HBAR balance converted to USD currency
+
+```bash
+python main.py
+```
+
+## Tools
+
+### Get HBAR price in USD
+Invoke the CoinCap API to get the current price in USD of one HBAR
+
+#### Python Function
+```py
+def get_hbar_price_from_coincap():
+```
+
+#### Input Parameters
+
+None
+
+#### Output Values
+
+| Value   | Type     | Description |
+|---------|----------|-------------|
+| Result  | `float` | Value in USD currency of 1 HBAR according to CoinCap |
+
+#### Example Prompt
+
+```
+Get my balance in HBAR and also convert it to USD please
+```
+
+## Optional - Code building, only needed when working on the source code
+
+Use a code formatter, for example `black`
+```bash
+pip install black
+black .
+```
+
+## Optional - Distribution, only needed when creating your own python package) How to publish a PyPi package
+1.- Read the [instructions](https://towardsdatascience.com/how-to-upload-your-python-package-to-pypi-de1b363a1b3/)
+
+1.- Create the distribution package
+```bash
+python setup.py sdist
+```
+
+2.- Install twine
+```bash
+pip install twine
+```
+
+3.- Upload package
+```bash
+twine upload dist/*
+```
