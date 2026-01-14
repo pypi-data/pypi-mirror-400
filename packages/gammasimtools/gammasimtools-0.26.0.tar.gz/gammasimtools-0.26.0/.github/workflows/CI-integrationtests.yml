@@ -1,0 +1,188 @@
+---
+name: CI-integrationtests
+
+on:
+  workflow_dispatch:
+    inputs:
+      simulation_model_branch:
+        description: 'Simulation model branch'
+        required: false
+        type: string
+        default: 'main'
+  workflow_call:
+    inputs:
+      container_image:
+        description: 'Container image to use for tests'
+        required: false
+        type: string
+        default: 'ghcr.io/gammasim/simtools-dev:latest'
+      model_versions:
+        description: 'Model versions to test'
+        required: false
+        type: string
+        default: '["7.0.0","6.0.2","5.0.0","6.0.2,6.1.1"]'
+    secrets:
+      CLOUD_QGSJET3:
+        required: false
+      DB_SERVER:
+        required: false
+      DB_API_USER:
+        required: false
+      DB_API_PW:
+        required: false
+      DB_API_PORT:
+        required: false
+  pull_request:
+    types: [opened, synchronize]
+    paths-ignore:
+      - 'docs/**'
+      - 'tests/unit_tests/**'
+  schedule:
+    - cron: "0 0 * * *"
+  release:
+    types: [published]
+
+env:
+  CLOUD_URL: "https://syncandshare.desy.de/index.php/s/"
+
+jobs:
+
+  test_building:
+    if: ${{ github.event_name != 'workflow_call' }}
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash -leo pipefail {0}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build package
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+  integration_tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: ${{ inputs.container_image || 'ghcr.io/gammasim/simtools-dev:latest' }}
+      options: --user 0
+
+    services:
+      mongodb:
+        image: mongo:latest
+        env:
+          MONGO_INITDB_ROOT_USERNAME: api
+          MONGO_INITDB_ROOT_PASSWORD: password
+        options: >-
+          --health-cmd "mongosh --host localhost --port 27017 -u api -p password --authenticationDatabase admin --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      fail-fast: false
+      matrix:
+        model_version: ${{ fromJSON(inputs.model_versions || '["7.0.0","6.0.2","5.0.0","6.0.2,6.1.1"]') }}
+
+    defaults:
+      run:
+        shell: bash -leo pipefail {0}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create runtime environment (.env)
+        run: |
+          set -a
+          source .env_template
+          set +a
+
+          DB_SERVER="mongodb"
+          DB_API_USER="api"
+          DB_API_PW="password"
+          DB_API_PORT="27017"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            DB_SERVER="${{ secrets.DB_SERVER }}"
+            DB_API_USER="${{ secrets.DB_API_USER }}"
+            DB_API_PW="${{ secrets.DB_API_PW }}"
+            DB_API_PORT="${{ secrets.DB_API_PORT }}"
+          fi
+
+          SIMTOOLS_DB_SIMULATION_MODEL="${SIMTOOLS_DB_SIMULATION_MODEL//\'/}"
+          {
+            echo "SIMTOOLS_DB_SERVER=$DB_SERVER"
+            echo "SIMTOOLS_DB_API_USER=$DB_API_USER"
+            echo "SIMTOOLS_DB_API_PW=$DB_API_PW"
+            echo "SIMTOOLS_DB_API_PORT=$DB_API_PORT"
+            echo "SIMTOOLS_DB_SIMULATION_MODEL=$SIMTOOLS_DB_SIMULATION_MODEL"
+            echo "SIMTOOLS_DB_SIMULATION_MODEL_VERSION=$SIMTOOLS_DB_SIMULATION_MODEL_VERSION"
+            echo "SIMTOOLS_SIM_TELARRAY_PATH=$SIMTOOLS_SIM_TELARRAY_PATH"
+            echo "SIMTOOLS_CORSIKA_PATH=$SIMTOOLS_CORSIKA_PATH"
+            echo "SIMTOOLS_CORSIKA_HE_INTERACTION=$SIMTOOLS_CORSIKA_HE_INTERACTION"
+            echo "SIMTOOLS_CORSIKA_LE_INTERACTION=$SIMTOOLS_CORSIKA_LE_INTERACTION"
+          } | tee .env >> "$GITHUB_ENV"
+
+      - name: Extend PATH (sim_telarray)
+        run: |
+          [ -n "$SIMTOOLS_SIM_TELARRAY_PATH" ] && echo "$SIMTOOLS_SIM_TELARRAY_PATH" >> "$GITHUB_PATH"
+
+      - name: Determine simulation model branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_BRANCH: ${{ github.event.inputs.simulation_model_branch }}
+        run: |
+          BRANCH="main"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_BRANCH" ]; then
+            BRANCH="$INPUT_BRANCH"
+          fi
+          CURRENT_REF="$REF_NAME"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            CURRENT_REF="$HEAD_REF"
+          fi
+          # release candidates (e.g., v1.2.3-rc or v1.2.3-rc3) should be tested against released versions of the
+          # simulation model database
+          if [[ "$CURRENT_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]*$ ]]; then
+            echo "Detected RC version branch: $CURRENT_REF - setting branch to $SIMTOOLS_DB_SIMULATION_MODEL_VERSION"
+            BRANCH="$SIMTOOLS_DB_SIMULATION_MODEL_VERSION"
+          fi
+          echo "SIMTOOLS_DB_SIMULATION_MODEL_BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Install Python dependencies (prod container)
+        if: contains(inputs.container_image, 'simtools-prod')
+        run: |
+          pip install --no-cache-dir pytest pytest-cov pytest-requirements pytest-xdist pytest-retry
+
+      - name: Install Python dependencies (dev container)
+        if: ${{ !contains(inputs.container_image, 'simtools-prod') }}
+        run: |
+          pip install --no-cache-dir -e '.[tests,dev,doc]'
+
+      - name: Upload data to MongoDB
+        if: github.event_name != 'schedule'
+        run: |
+          simtools-db-upload-model-repository \
+            --db_simulation_model ${{ env.SIMTOOLS_DB_SIMULATION_MODEL }} \
+            --db_simulation_model_version ${{ env.SIMTOOLS_DB_SIMULATION_MODEL_VERSION }} \
+            --branch "$SIMTOOLS_DB_SIMULATION_MODEL_BRANCH"
+
+      - name: Download QGSJet (prod images without tables)
+        if: contains(inputs.container_image, 'simtools-prod')
+        run: |
+          wget -nv -O - "${{ env.CLOUD_URL }}/${{ secrets.CLOUD_QGSJET3 }}/download" | \
+            bunzip2 > "${SIMTOOLS_CORSIKA_PATH}/qgsdat-III"
+
+      - name: Integration tests
+        shell: bash -l {0}
+        run: |
+          cat .env
+          simtools-print-version
+          pytest --model_version=${{ matrix.model_version }} --color=yes --durations=20 \
+            -n 4 --dist loadscope --retries 2 --retry-delay 5 --no-cov tests/integration_tests/
