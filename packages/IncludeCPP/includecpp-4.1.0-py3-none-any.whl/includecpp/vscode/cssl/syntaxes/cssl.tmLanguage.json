@@ -1,0 +1,903 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "CSSL",
+    "scopeName": "source.cssl",
+    "patterns": [
+        { "include": "#super-functions" },
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#append-operator" },
+        { "include": "#append-reference" },
+        { "include": "#class-definition" },
+        { "include": "#function-definitions" },
+        { "include": "#constructor-definition" },
+        { "include": "#super-call" },
+        { "include": "#sql-types" },
+        { "include": "#keywords" },
+        { "include": "#typed-declarations" },
+        { "include": "#types" },
+        { "include": "#function-modifiers" },
+        { "include": "#injection-operators" },
+        { "include": "#namespace-functions" },
+        { "include": "#iterator-methods" },
+        { "include": "#filter-helpers" },
+        { "include": "#this-access" },
+        { "include": "#captured-references" },
+        { "include": "#global-references" },
+        { "include": "#shared-references" },
+        { "include": "#instance-references" },
+        { "include": "#module-references" },
+        { "include": "#reference-operator" },
+        { "include": "#method-calls" },
+        { "include": "#function-calls" },
+        { "include": "#builtins" },
+        { "include": "#operators" },
+        { "include": "#constants" },
+        { "include": "#non-null-declarations" },
+        { "include": "#variables" }
+    ],
+    "repository": {
+        "append-operator": {
+            "patterns": [
+                {
+                    "comment": "++ append operator for constructor/function extension - orange",
+                    "name": "constant.character.escape.infuse.cssl",
+                    "match": "\\+\\+(?=\\s*\\{)"
+                }
+            ]
+        },
+        "append-reference": {
+            "patterns": [
+                {
+                    "comment": "&ClassName::member or &$var::member - all yellow for append reference",
+                    "name": "entity.name.tag.super.cssl",
+                    "match": "&(\\$?[a-zA-Z_][a-zA-Z0-9_]*)(::)([a-zA-Z_][a-zA-Z0-9_]*)"
+                },
+                {
+                    "comment": "&FunctionName - yellow for direct function reference",
+                    "name": "entity.name.tag.super.cssl",
+                    "match": "&([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\+\\+)"
+                }
+            ]
+        },
+        "non-null-declarations": {
+            "patterns": [
+                {
+                    "comment": "Non-null class: class *ClassName - turquoise",
+                    "name": "meta.class.non-null.cssl",
+                    "match": "\\b(class)\\s+(\\*)([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "storage.type.class.cssl" },
+                        "2": { "name": "keyword.operator.non-null.cssl" },
+                        "3": { "name": "support.class.non-null.cssl" }
+                    }
+                },
+                {
+                    "comment": "Non-null function: define *FuncName - light pink",
+                    "name": "meta.function.non-null.cssl",
+                    "match": "\\b(define)\\s+(\\*)([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "storage.type.function.cssl" },
+                        "2": { "name": "keyword.operator.non-null.cssl" },
+                        "3": { "name": "entity.name.function.non-null.cssl" }
+                    }
+                },
+                {
+                    "comment": "Non-null typed variable: type<T> *varName - light pink",
+                    "name": "meta.declaration.non-null.cssl",
+                    "match": "\\b(int|string|float|bool|dynamic|vector|stack|array|list|dict|json|datastruct|iterator)\\s*(<[^>]+>)?\\s+(\\*)([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "storage.type.cssl" },
+                        "2": { "name": "storage.type.generic.cssl" },
+                        "3": { "name": "keyword.operator.non-null.cssl" },
+                        "4": { "name": "variable.other.non-null.cssl" }
+                    }
+                },
+                {
+                    "comment": "Non-null open parameter: open *Params - light pink",
+                    "name": "meta.parameter.non-null.cssl",
+                    "match": "\\b(open)\\s+(\\*)([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "storage.modifier.open.cssl" },
+                        "2": { "name": "keyword.operator.non-null.cssl" },
+                        "3": { "name": "variable.parameter.non-null.cssl" }
+                    }
+                },
+                {
+                    "comment": "Return type -> * (non-null return)",
+                    "name": "meta.return-type.non-null.cssl",
+                    "match": "->\\s*\\*",
+                    "captures": {
+                        "0": { "name": "keyword.operator.non-null.return.cssl" }
+                    }
+                }
+            ]
+        },
+        "super-functions": {
+            "patterns": [
+                {
+                    "comment": "#$run, #$exec, #$printl - yellow/gold color",
+                    "name": "entity.name.tag.super.cssl",
+                    "match": "#\\$(run|exec|printl|init)\\b"
+                },
+                {
+                    "comment": "#$anyFunction - yellow/gold color",
+                    "name": "entity.name.tag.super.cssl",
+                    "match": "#\\$[a-zA-Z_][a-zA-Z0-9_]*"
+                }
+            ]
+        },
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.cssl",
+                    "match": "//.*$"
+                },
+                {
+                    "name": "comment.block.cssl",
+                    "begin": "/\\*",
+                    "end": "\\*/"
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.cssl",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.cssl",
+                            "match": "\\\\."
+                        },
+                        {
+                            "name": "variable.other.interpolated.fstring.cssl",
+                            "match": "\\{[a-zA-Z_][a-zA-Z0-9_]*\\}"
+                        },
+                        {
+                            "name": "variable.other.interpolated.cssl",
+                            "match": "<[a-zA-Z_][a-zA-Z0-9_]*>"
+                        }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.cssl",
+                    "begin": "'",
+                    "end": "'",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.cssl",
+                            "match": "\\\\."
+                        }
+                    ]
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.float.cssl",
+                    "match": "\\b[0-9]+\\.[0-9]+\\b"
+                },
+                {
+                    "name": "constant.numeric.integer.cssl",
+                    "match": "\\b[0-9]+\\b"
+                },
+                {
+                    "name": "constant.numeric.hex.cssl",
+                    "match": "\\b0x[0-9A-Fa-f]+\\b"
+                }
+            ]
+        },
+        "class-definition": {
+            "patterns": [
+                {
+                    "comment": "Class with extends AND overwrites: class X : extends Y : overwrites Z { }",
+                    "name": "meta.class.extends-overwrites.cssl",
+                    "begin": "\\b(class)\\s+(\\*?)([a-zA-Z_][a-zA-Z0-9_]*)\\s*:\\s*(extends)\\s+(\\$?[a-zA-Z_][a-zA-Z0-9_]*)\\s*:\\s*(overwrites)\\s+(\\$?[a-zA-Z_][a-zA-Z0-9_]*)(\\(\\))?\\s*\\{",
+                    "beginCaptures": {
+                        "1": { "name": "storage.type.class.cssl" },
+                        "2": { "name": "keyword.operator.non-null.cssl" },
+                        "3": { "name": "support.class.cssl" },
+                        "4": { "name": "storage.modifier.extends.cssl" },
+                        "5": { "name": "support.class.inherited.cssl" },
+                        "6": { "name": "storage.modifier.overwrites.cssl" },
+                        "7": { "name": "support.class.overwritten.cssl" }
+                    },
+                    "end": "\\}",
+                    "patterns": [
+                        { "include": "#comments" },
+                        { "include": "#constructor-definition" },
+                        { "include": "#class-method-definition" },
+                        { "include": "#class-member-declaration" },
+                        { "include": "#typed-declarations" },
+                        { "include": "#types" },
+                        { "include": "#function-modifiers" },
+                        { "include": "#this-access" },
+                        { "include": "#captured-references" },
+                        { "include": "#global-references" },
+                        { "include": "#shared-references" },
+                        { "include": "#instance-references" },
+                        { "include": "#strings" },
+                        { "include": "#numbers" },
+                        { "include": "#keywords" },
+                        { "include": "#function-calls" },
+                        { "include": "#builtins" },
+                        { "include": "#operators" },
+                        { "include": "#constants" }
+                    ]
+                },
+                {
+                    "comment": "Class with inheritance: class Child : extends Parent { }",
+                    "name": "meta.class.extends.cssl",
+                    "begin": "\\b(class)\\s+(\\*?)([a-zA-Z_][a-zA-Z0-9_]*)\\s*:\\s*(extends)\\s+(\\$?[a-zA-Z_][a-zA-Z0-9_]*)\\s*\\{",
+                    "beginCaptures": {
+                        "1": { "name": "storage.type.class.cssl" },
+                        "2": { "name": "keyword.operator.non-null.cssl" },
+                        "3": { "name": "support.class.cssl" },
+                        "4": { "name": "storage.modifier.extends.cssl" },
+                        "5": { "name": "support.class.inherited.cssl" }
+                    },
+                    "end": "\\}",
+                    "patterns": [
+                        { "include": "#comments" },
+                        { "include": "#constructor-definition" },
+                        { "include": "#class-method-definition" },
+                        { "include": "#class-member-declaration" },
+                        { "include": "#typed-declarations" },
+                        { "include": "#types" },
+                        { "include": "#function-modifiers" },
+                        { "include": "#this-access" },
+                        { "include": "#captured-references" },
+                        { "include": "#global-references" },
+                        { "include": "#shared-references" },
+                        { "include": "#instance-references" },
+                        { "include": "#strings" },
+                        { "include": "#numbers" },
+                        { "include": "#keywords" },
+                        { "include": "#function-calls" },
+                        { "include": "#builtins" },
+                        { "include": "#operators" },
+                        { "include": "#constants" }
+                    ]
+                },
+                {
+                    "name": "meta.class.cssl",
+                    "begin": "\\b(class)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\{",
+                    "beginCaptures": {
+                        "1": { "name": "storage.type.class.cssl" },
+                        "2": { "name": "support.class.cssl" }
+                    },
+                    "end": "\\}",
+                    "patterns": [
+                        { "include": "#comments" },
+                        { "include": "#constructor-definition" },
+                        { "include": "#class-method-definition" },
+                        { "include": "#class-member-declaration" },
+                        { "include": "#typed-declarations" },
+                        { "include": "#types" },
+                        { "include": "#function-modifiers" },
+                        { "include": "#this-access" },
+                        { "include": "#captured-references" },
+                        { "include": "#global-references" },
+                        { "include": "#shared-references" },
+                        { "include": "#instance-references" },
+                        { "include": "#strings" },
+                        { "include": "#numbers" },
+                        { "include": "#keywords" },
+                        { "include": "#function-calls" },
+                        { "include": "#builtins" },
+                        { "include": "#operators" },
+                        { "include": "#constants" }
+                    ]
+                }
+            ]
+        },
+        "constructor-definition": {
+            "patterns": [
+                {
+                    "comment": "New-style constructor with constr keyword and extends: constr Name() :: extends Parent::Name { }",
+                    "name": "meta.constructor.constr.extends.cssl",
+                    "match": "\\b(constr)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\([^)]*\\)\\s*(::)?\\s*(extends)\\s+(\\$?[a-zA-Z_][a-zA-Z0-9_]*)(::[a-zA-Z_][a-zA-Z0-9_]*)?",
+                    "captures": {
+                        "1": { "name": "storage.type.constructor.cssl" },
+                        "2": { "name": "entity.name.function.constructor.cssl" },
+                        "3": { "name": "punctuation.accessor.double-colon.cssl" },
+                        "4": { "name": "storage.modifier.extends.cssl" },
+                        "5": { "name": "entity.other.inherited-class.cssl" },
+                        "6": { "name": "entity.name.function.inherited.cssl" }
+                    }
+                },
+                {
+                    "comment": "New-style constructor with constr keyword: constr ConstructorName() { }",
+                    "name": "meta.constructor.constr.cssl",
+                    "match": "\\b(constr)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+                    "captures": {
+                        "1": { "name": "storage.type.constructor.cssl" },
+                        "2": { "name": "entity.name.function.constructor.cssl" }
+                    }
+                },
+                {
+                    "comment": "Constructor: ClassName { ... } or void ClassName(...)",
+                    "name": "meta.constructor.cssl",
+                    "match": "\\b(void\\s+)?([A-Z][a-zA-Z0-9_]*)\\s*(?=\\{|\\()",
+                    "captures": {
+                        "1": { "name": "storage.type.cssl" },
+                        "2": { "name": "entity.name.function.cssl" }
+                    }
+                }
+            ]
+        },
+        "super-call": {
+            "patterns": [
+                {
+                    "comment": "super::method() - call parent method",
+                    "name": "meta.super-call.method.cssl",
+                    "match": "\\b(super)(::)([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+                    "captures": {
+                        "1": { "name": "keyword.other.super.cssl" },
+                        "2": { "name": "punctuation.accessor.double-colon.cssl" },
+                        "3": { "name": "entity.name.function.parent.cssl" }
+                    }
+                },
+                {
+                    "comment": "super() - call parent constructor",
+                    "name": "meta.super-call.constructor.cssl",
+                    "match": "\\b(super)\\s*\\(",
+                    "captures": {
+                        "1": { "name": "keyword.other.super.cssl" }
+                    }
+                }
+            ]
+        },
+        "class-method-definition": {
+            "patterns": [
+                {
+                    "name": "meta.method.cssl",
+                    "match": "\\b(void|int|string|float|bool|dynamic|define|shuffled)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+                    "captures": {
+                        "1": { "name": "storage.type.cssl" },
+                        "2": { "name": "entity.name.function.cssl" }
+                    }
+                }
+            ]
+        },
+        "class-member-declaration": {
+            "patterns": [
+                {
+                    "comment": "Generic type member: datastruct<dynamic> Container;",
+                    "name": "meta.member.generic.cssl",
+                    "match": "(\\b(?:array|vector|stack|list|dictionary|dict|map|datastruct|dataspace|shuffled|iterator|combo|openquote|tuple|set|queue))(<)([^>]+)(>)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*;",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "punctuation.definition.typeparameters.begin.cssl" },
+                        "3": { "name": "support.type.cssl" },
+                        "4": { "name": "punctuation.definition.typeparameters.end.cssl" },
+                        "5": { "name": "variable.other.declaration.cssl" }
+                    }
+                },
+                {
+                    "comment": "Primitive type member: string ApiID;",
+                    "name": "meta.member.cssl",
+                    "match": "\\b(int|string|float|bool|dynamic|auto|void|json|long|double)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*;",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "variable.other.declaration.cssl" }
+                    }
+                },
+                {
+                    "comment": "Container type member without generic: list items;",
+                    "name": "meta.member.container.cssl",
+                    "match": "\\b(array|vector|stack|list|dictionary|dict|map|datastruct|dataspace|shuffled|iterator|combo|openquote|tuple|set|queue)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*;",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "variable.other.declaration.cssl" }
+                    }
+                },
+                {
+                    "comment": "Primitive type member with assignment: string ApiID = value;",
+                    "name": "meta.member.assigned.cssl",
+                    "match": "\\b(int|string|float|bool|dynamic|auto|void|json|long|double)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*=",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "variable.other.declaration.cssl" }
+                    }
+                }
+            ]
+        },
+        "function-definition": {
+            "patterns": [
+                {
+                    "name": "meta.function.cssl",
+                    "match": "\\b(void|int|string|float|bool|dynamic|[A-Z][a-zA-Z0-9_]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+                    "captures": {
+                        "1": { "name": "storage.type.cssl" },
+                        "2": { "name": "entity.name.function.cssl" }
+                    }
+                }
+            ]
+        },
+        "sql-types": {
+            "patterns": [
+                {
+                    "name": "support.type.sql.table.cssl",
+                    "match": "\\bsql::table::(space|Section|limited|protected)\\b"
+                },
+                {
+                    "name": "support.type.sql.cssl",
+                    "match": "\\bsql::(table|data|data__list|sync|db)\\b"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.cssl",
+                    "match": "\\b(if|else|elif|while|for|foreach|in|range|switch|case|default|break|continue|return|try|catch|finally|throw)\\b"
+                },
+                {
+                    "name": "storage.type.class.cssl",
+                    "match": "\\b(class|struct|structure|enum|interface)\\b"
+                },
+                {
+                    "name": "storage.modifier.extends.cssl",
+                    "match": "\\b(extends|overwrites)\\b"
+                },
+                {
+                    "comment": "new ClassName() - class instantiation with turquoise class name",
+                    "name": "meta.new-expression.cssl",
+                    "match": "\\b(new)\\s+([A-Z][a-zA-Z0-9_]*)\\s*\\(",
+                    "captures": {
+                        "1": { "name": "keyword.operator.new.cssl" },
+                        "2": { "name": "support.class.cssl" }
+                    }
+                },
+                {
+                    "name": "keyword.operator.new.cssl",
+                    "match": "\\bnew\\b"
+                },
+                {
+                    "name": "variable.language.this.cssl",
+                    "match": "\\bthis\\b"
+                },
+                {
+                    "name": "storage.type.function.cssl",
+                    "match": "\\b(define|void|shuffled|constr)\\b"
+                },
+                {
+                    "name": "keyword.other.super.cssl",
+                    "match": "\\bsuper\\b"
+                },
+                {
+                    "name": "keyword.other.cssl",
+                    "match": "\\b(service-init|service-run|service-include|main|package|package-includes|exec|as|global|include|get|payload|convert)\\b"
+                },
+                {
+                    "name": "keyword.operator.logical.cssl",
+                    "match": "\\b(and|or|not)\\b"
+                },
+                {
+                    "name": "keyword.other.async.cssl",
+                    "match": "\\b(start|stop|wait_for|on_event|emit_event|await)\\b"
+                }
+            ]
+        },
+        "typed-declarations": {
+            "patterns": [
+                {
+                    "comment": "Generic type declaration: datastruct<dynamic> Container; or vector<int> items;",
+                    "name": "meta.declaration.typed.generic.cssl",
+                    "match": "(\\b(?:array|vector|stack|list|dictionary|dict|map|datastruct|dataspace|shuffled|iterator|combo|openquote|tuple|set|queue))(<)([^>]+)(>)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "punctuation.definition.typeparameters.begin.cssl" },
+                        "3": { "name": "support.type.cssl" },
+                        "4": { "name": "punctuation.definition.typeparameters.end.cssl" },
+                        "5": { "name": "variable.other.declaration.cssl" }
+                    }
+                },
+                {
+                    "comment": "Primitive type declaration: string ID; or int count;",
+                    "name": "meta.declaration.typed.primitive.cssl",
+                    "match": "\\b(int|string|float|bool|void|json|dynamic|auto|long|double)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=[;=])",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "variable.other.declaration.cssl" }
+                    }
+                },
+                {
+                    "comment": "Container type declaration without generic: list items;",
+                    "name": "meta.declaration.typed.container.cssl",
+                    "match": "\\b(array|vector|stack|list|dictionary|dict|map|datastruct|dataspace|shuffled|iterator|combo|openquote|tuple|set|queue)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=[;=])",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "variable.other.declaration.cssl" }
+                    }
+                },
+                {
+                    "comment": "Generic type in function parameter: func(datastruct<dynamic> param)",
+                    "name": "meta.parameter.typed.generic.cssl",
+                    "match": "(\\b(?:array|vector|stack|list|dictionary|dict|map|datastruct|dataspace|shuffled|iterator|combo|openquote|tuple|set|queue))(<)([^>]+)(>)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=[,)])",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "punctuation.definition.typeparameters.begin.cssl" },
+                        "3": { "name": "support.type.cssl" },
+                        "4": { "name": "punctuation.definition.typeparameters.end.cssl" },
+                        "5": { "name": "variable.parameter.cssl" }
+                    }
+                },
+                {
+                    "comment": "Primitive type in function parameter: func(string name)",
+                    "name": "meta.parameter.typed.primitive.cssl",
+                    "match": "\\b(int|string|float|bool|void|json|dynamic|auto|long|double)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=[,)])",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "variable.parameter.cssl" }
+                    }
+                }
+            ]
+        },
+        "types": {
+            "patterns": [
+                {
+                    "name": "support.type.cssl",
+                    "match": "\\b(int|string|float|bool|void|json|dynamic|auto|long|double)\\b"
+                },
+                {
+                    "comment": "Generic containers with type parameter: vector<int>, map<string, int>",
+                    "name": "meta.generic.cssl",
+                    "match": "(\\b(?:array|vector|stack|list|dictionary|dict|map|datastruct|dataspace|shuffled|iterator|combo|openquote|tuple|set|queue))(<)([^>]+)(>)",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "punctuation.definition.typeparameters.begin.cssl" },
+                        "3": { "name": "support.type.cssl" },
+                        "4": { "name": "punctuation.definition.typeparameters.end.cssl" }
+                    }
+                },
+                {
+                    "name": "support.type.cssl",
+                    "match": "\\b(array|vector|stack|list|dictionary|dict|map|datastruct|dataspace|shuffled|iterator|combo|openquote|instance|tuple|set|queue)\\b"
+                },
+                {
+                    "name": "support.type.cssl",
+                    "match": "\\bcombo\\s*<\\s*open\\s*&"
+                }
+            ]
+        },
+        "function-modifiers": {
+            "patterns": [
+                {
+                    "name": "storage.modifier.cssl",
+                    "match": "\\b(undefined|open|closed|private|virtual|meta|super|sqlbased|protected|limited|const|static|final|abstract|readonly)\\b"
+                }
+            ]
+        },
+        "injection-operators": {
+            "patterns": [
+                {
+                    "comment": "Infuse operators <<== (REPLACE) - orange color",
+                    "name": "constant.character.escape.infuse.cssl",
+                    "match": "(\\+<<==|<<==|-<<==)"
+                },
+                {
+                    "comment": "Infuse out operators ==>> - orange color",
+                    "name": "constant.character.escape.infuse.out.cssl",
+                    "match": "(==>>\\+|==>>|-==>>)"
+                },
+                {
+                    "comment": "Brute injection <== (ADD) - cyan/blue color",
+                    "name": "support.function.brute.cssl",
+                    "match": "(\\+<==|<==|-<==)"
+                },
+                {
+                    "comment": "Brute injection out ==> - cyan/blue color",
+                    "name": "support.function.brute.out.cssl",
+                    "match": "(==>\\+|==>|-==>)"
+                },
+                {
+                    "name": "keyword.operator.flow.cssl",
+                    "match": "(->|<-)"
+                }
+            ]
+        },
+        "namespace-functions": {
+            "patterns": [
+                {
+                    "name": "support.function.namespace.json.cssl",
+                    "match": "\\bjson::(read|write|parse|stringify|pretty|get|set|has|keys|values|merge|key|value)\\b"
+                },
+                {
+                    "name": "support.function.namespace.instance.cssl",
+                    "match": "\\binstance::(getMethods|getClasses|getVars|getAll|call|has|type|exists)\\b"
+                },
+                {
+                    "name": "support.function.namespace.string.cssl",
+                    "match": "\\bstring::(where|contains|not|startsWith|endsWith|length|lenght|cut|cutAfter|value)\\b"
+                },
+                {
+                    "name": "support.function.namespace.sql.cssl",
+                    "match": "\\bsql::(connect|load|save|update|sync|Structured)\\b"
+                },
+                {
+                    "name": "support.function.namespace.combo.cssl",
+                    "match": "\\bcombo::(filterdb|blocked|like)\\b"
+                },
+                {
+                    "name": "support.function.namespace.python.cssl",
+                    "match": "\\bpython::(pythonize|wrap|export|csslize|import)\\b"
+                },
+                {
+                    "name": "support.function.namespace.filter.cssl",
+                    "match": "\\bfilter::(register|unregister|list|exists)\\b"
+                }
+            ]
+        },
+        "iterator-methods": {
+            "patterns": [
+                {
+                    "name": "support.function.iterator.cssl",
+                    "match": "::iterator::(set|move|insert|pop|task|dtask|read|write)\\b"
+                },
+                {
+                    "name": "support.function.like.cssl",
+                    "match": "::like\\s*="
+                }
+            ]
+        },
+        "filter-helpers": {
+            "patterns": [
+                {
+                    "name": "support.function.filter.cssl",
+                    "match": "\\[(string|integer|json|array|vector|combo|dynamic|sql)::(where|contains|not|startsWith|endsWith|length|lenght|key|value|index|filterdb|blocked|data)\\s*=?"
+                }
+            ]
+        },
+        "this-access": {
+            "patterns": [
+                {
+                    "name": "variable.language.this.cssl",
+                    "match": "\\bthis\\s*->"
+                },
+                {
+                    "name": "variable.language.this.member.cssl",
+                    "match": "(?<=this->)[a-zA-Z_][a-zA-Z0-9_]*"
+                }
+            ]
+        },
+        "captured-references": {
+            "patterns": [
+                {
+                    "comment": "%identifier - % is light blue/cyan, identifier is pink",
+                    "match": "(%)([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "entity.other.inherited-class.cssl" }
+                    }
+                }
+            ]
+        },
+        "global-references": {
+            "patterns": [
+                {
+                    "comment": "@identifier - magenta color (full)",
+                    "name": "constant.other.symbol.cssl",
+                    "match": "@[a-zA-Z_][a-zA-Z0-9_]*"
+                },
+                {
+                    "comment": "r@identifier - magenta color",
+                    "name": "constant.other.symbol.cssl",
+                    "match": "r@[a-zA-Z_][a-zA-Z0-9_]*"
+                },
+                {
+                    "comment": "s@identifier - magenta color",
+                    "name": "constant.other.symbol.cssl",
+                    "match": "s@[a-zA-Z_][a-zA-Z0-9_]*"
+                }
+            ]
+        },
+        "shared-references": {
+            "patterns": [
+                {
+                    "comment": "$identifier - same color as 'new' keyword (full)",
+                    "name": "keyword.operator.new.cssl",
+                    "match": "\\$[a-zA-Z_][a-zA-Z0-9_]*"
+                }
+            ]
+        },
+        "variables": {
+            "patterns": [
+                {
+                    "comment": "Regular variables - pink/salmon color",
+                    "name": "entity.other.inherited-class.cssl",
+                    "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
+                }
+            ]
+        },
+        "instance-references": {
+            "patterns": [
+                {
+                    "comment": "instance<\"name\"> varName - shared instance declaration with variable",
+                    "name": "meta.instance.declaration.cssl",
+                    "match": "(\\binstance)(<)(\"[^\"]+\")(>)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "punctuation.definition.typeparameters.begin.cssl" },
+                        "3": { "name": "string.quoted.double.cssl" },
+                        "4": { "name": "punctuation.definition.typeparameters.end.cssl" },
+                        "5": { "name": "variable.other.declaration.cssl" }
+                    }
+                },
+                {
+                    "comment": "instance<Type> varName - shared instance declaration with type and variable",
+                    "name": "meta.instance.declaration.cssl",
+                    "match": "(\\binstance)(<)([a-zA-Z_][a-zA-Z0-9_]*)(>)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "punctuation.definition.typeparameters.begin.cssl" },
+                        "3": { "name": "support.type.cssl" },
+                        "4": { "name": "punctuation.definition.typeparameters.end.cssl" },
+                        "5": { "name": "variable.other.declaration.cssl" }
+                    }
+                },
+                {
+                    "comment": "instance<\"name\"> - shared instance reference without variable",
+                    "name": "meta.instance.cssl",
+                    "match": "(\\binstance)(<)(\"[^\"]+\")(>)",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "punctuation.definition.typeparameters.begin.cssl" },
+                        "3": { "name": "string.quoted.double.cssl" },
+                        "4": { "name": "punctuation.definition.typeparameters.end.cssl" }
+                    }
+                },
+                {
+                    "comment": "instance<Type> - shared instance reference without variable",
+                    "name": "meta.instance.cssl",
+                    "match": "(\\binstance)(<)([a-zA-Z_][a-zA-Z0-9_]*)(>)",
+                    "captures": {
+                        "1": { "name": "support.type.cssl" },
+                        "2": { "name": "punctuation.definition.typeparameters.begin.cssl" },
+                        "3": { "name": "support.type.cssl" },
+                        "4": { "name": "punctuation.definition.typeparameters.end.cssl" }
+                    }
+                }
+            ]
+        },
+        "module-references": {
+            "patterns": [
+                {
+                    "name": "entity.name.type.module.cssl",
+                    "match": "@[A-Z][a-zA-Z0-9_]*"
+                }
+            ]
+        },
+        "reference-operator": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.reference.cssl",
+                    "match": "&(?=[a-zA-Z_@])"
+                }
+            ]
+        },
+        "method-calls": {
+            "patterns": [
+                {
+                    "name": "support.function.method.cssl",
+                    "match": "\\.(push_back|append|insert|fill|at|is|read|write|content|save|where|load|update|oqt|connect|Structured|create|Queue|sync|pop|end|get|set|has|keys|values|convert)\\b"
+                }
+            ]
+        },
+        "function-definitions": {
+            "patterns": [
+                {
+                    "comment": "Function with extends AND overwrites: define func : extends X : overwrites Y() { }",
+                    "name": "meta.function.extends-overwrites.cssl",
+                    "match": "\\b(define)\\s+(\\*?)([a-zA-Z_][a-zA-Z0-9_]*)\\s*:\\s*(extends)\\s+(\\$?[a-zA-Z_][a-zA-Z0-9_]*)(\\(\\))?\\s*:\\s*(overwrites)\\s+(\\$?[a-zA-Z_][a-zA-Z0-9_]*)(\\(\\))?",
+                    "captures": {
+                        "1": { "name": "storage.type.function.cssl" },
+                        "2": { "name": "keyword.operator.non-null.cssl" },
+                        "3": { "name": "entity.name.function.cssl" },
+                        "4": { "name": "storage.modifier.extends.cssl" },
+                        "5": { "name": "entity.other.inherited-function.cssl" },
+                        "7": { "name": "storage.modifier.overwrites.cssl" },
+                        "8": { "name": "entity.other.overwritten-function.cssl" }
+                    }
+                },
+                {
+                    "comment": "Function with extends: define func : extends otherFunc() { }",
+                    "name": "meta.function.extends.cssl",
+                    "match": "\\b(define)\\s+(\\*?)([a-zA-Z_][a-zA-Z0-9_]*)\\s*:\\s*(extends)\\s+(\\$?[a-zA-Z_][a-zA-Z0-9_]*)(\\(\\))?",
+                    "captures": {
+                        "1": { "name": "storage.type.function.cssl" },
+                        "2": { "name": "keyword.operator.non-null.cssl" },
+                        "3": { "name": "entity.name.function.cssl" },
+                        "4": { "name": "storage.modifier.extends.cssl" },
+                        "5": { "name": "entity.other.inherited-function.cssl" }
+                    }
+                },
+                {
+                    "comment": "Function with overwrites: define func : overwrites target() { }",
+                    "name": "meta.function.overwrites.cssl",
+                    "match": "\\b(define)\\s+(\\*?)([a-zA-Z_][a-zA-Z0-9_]*)\\s*:\\s*(overwrites)\\s+(\\$?[a-zA-Z_][a-zA-Z0-9_]*)(\\(\\))?",
+                    "captures": {
+                        "1": { "name": "storage.type.function.cssl" },
+                        "2": { "name": "keyword.operator.non-null.cssl" },
+                        "3": { "name": "entity.name.function.cssl" },
+                        "4": { "name": "storage.modifier.overwrites.cssl" },
+                        "5": { "name": "entity.other.overwritten-function.cssl" }
+                    }
+                }
+            ]
+        },
+        "function-calls": {
+            "patterns": [
+                {
+                    "name": "entity.name.function.cssl",
+                    "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()"
+                }
+            ]
+        },
+        "builtins": {
+            "patterns": [
+                {
+                    "name": "support.function.builtin.io.cssl",
+                    "match": "\\b(printl|print|println|input|read|readline|write|writeline)\\b"
+                },
+                {
+                    "name": "support.function.builtin.type.cssl",
+                    "match": "\\b(len|type|toInt|toFloat|toString|toBool|typeof)\\b"
+                },
+                {
+                    "name": "support.function.builtin.control.cssl",
+                    "match": "\\b(exit|sleep|range|isavailable)\\b"
+                },
+                {
+                    "name": "support.function.builtin.special.cssl",
+                    "match": "\\b(OpenFind|share|shared|include)\\b"
+                },
+                {
+                    "name": "support.variable.builtin.parameter.cssl",
+                    "match": "\\bparameter\\.(get|return|count|all|has|returns)\\b"
+                }
+            ]
+        },
+        "operators": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.comparison.cssl",
+                    "match": "(==|!=|<=|>=|<|>)"
+                },
+                {
+                    "name": "keyword.operator.arithmetic.cssl",
+                    "match": "(\\+\\+|--|\\+=|-=|\\*=|/=|\\+|-|\\*|/|%)"
+                },
+                {
+                    "name": "keyword.operator.logical.cssl",
+                    "match": "(&&|\\|\\||!)"
+                },
+                {
+                    "name": "keyword.operator.assignment.cssl",
+                    "match": "="
+                },
+                {
+                    "name": "keyword.operator.member.cssl",
+                    "match": "\\."
+                }
+            ]
+        },
+        "constants": {
+            "patterns": [
+                {
+                    "name": "constant.language.boolean.cssl",
+                    "match": "\\b(true|false|True|False)\\b"
+                },
+                {
+                    "name": "constant.language.null.cssl",
+                    "match": "\\b(null|None)\\b"
+                }
+            ]
+        }
+    }
+}
