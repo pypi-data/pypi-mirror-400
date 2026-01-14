@@ -1,0 +1,113 @@
+[tool.poetry]
+name = "prompt-cheater"
+version = "0.2.1"
+description = "Convert natural language to Claude-friendly XML prompts and inject into Tmux"
+authors = ["Kim Gyudong"]
+readme = "README.md"
+license = "MIT"
+packages = [{include = "prompt_cheater"}]
+keywords = ["claude", "ai", "prompt", "tmux", "cli", "xml", "gemini"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+homepage = "https://github.com/KIMGYUDONG/prompt-cheater"
+repository = "https://github.com/KIMGYUDONG/prompt-cheater"
+documentation = "https://github.com/KIMGYUDONG/prompt-cheater#readme"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+typer = "^0.12.0"
+rich = "^13.7.0"
+google-generativeai = "^0.8.0"
+libtmux = "^0.37.0"
+python-dotenv = "^1.0.0"
+prompt-toolkit = "^3.0.0"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.8.6"
+mypy = "^1.14.1"
+bandit = {extras = ["toml"], version = "^1.8.2"}
+pre-commit = "^4.0.1"
+pytest = "^8.3.4"
+pytest-cov = "^6.0.0"
+
+[tool.poetry.scripts]
+cheater = "prompt_cheater.main:app"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# Ruff configuration
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+exclude = [".venv", "__pycache__", ".git", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM", "PTH", "PL", "RUF", "S", "T20"]
+ignore = [
+    "E501",     # Line too long
+    "S101",     # Assert usage
+    "PLR0913",  # Too many arguments
+    "T201",     # Print statements (CLI tool)
+    "S603",     # subprocess calls
+    "S607",     # Partial path for subprocess
+    "PLR0912",  # Too many branches
+    "PLR0915",  # Too many statements
+    "PLR2004",  # Magic value comparison
+    "PLC0415",  # Import not at top level (runtime import)
+    "RUF001",   # Ambiguous unicode (intentional UI chars)
+    "PTH108",   # os.unlink vs Path.unlink
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["prompt_cheater"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+# mypy configuration
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+show_error_codes = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["libtmux.*", "google.generativeai.*"]
+ignore_missing_imports = true
+
+# Bandit configuration
+[tool.bandit]
+exclude_dirs = [".venv", "tests"]
+skips = ["B101", "B404", "B603", "B607"]
+
+# Pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = ["-v", "--tb=short", "-ra"]
+
+[tool.coverage.run]
+source = ["prompt_cheater"]
+omit = ["tests/*", ".venv/*"]
+
+[tool.coverage.report]
+fail_under = 60
