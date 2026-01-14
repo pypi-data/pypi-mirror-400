@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Filippo Bergamasco" />
+  <title>WASS / WASSfast mini tutorial</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="pandoc.css" />
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title"><p>WASS / WASSfast mini tutorial</p></h1>
+<p class="author">Filippo Bergamasco</p>
+<p class="date">21/07/2023</p>
+</header>
+<h2 id="dataset-preparation">Dataset preparation</h2>
+<p>Start by creating a new dataset directory. In this tutorial let’s
+create a directory named <code>my_sequence/</code>. Inside
+<code>my_sequence/</code>, images and calibration data must be arranged
+in the following way:</p>
+<pre><code>my_sequence
+├── config
+│   ├── distortion_00.xml
+│   ├── distortion_01.xml
+│   ├── intrinsics_00.xml
+│   ├── intrinsics_01.xml
+│   ├── matcher_config.txt
+│   ├── stereo_config.txt
+├── output
+└── input
+    ├── cam0
+    │   ├── 000000_0000000000000_01.tif
+    │   ├── 000001_0000000000199_01.tif
+    │   ├── 000002_0000000000399_01.tif
+    │   ├── 000003_0000000000599_01.tif
+     ...
+    ├── cam1
+    │   ├── 000000_0000000000000_02.tif
+    │   ├── 000001_0000000000199_02.tif
+    │   ├── 000002_0000000000399_02.tif
+    │   ├── 000003_0000000000599_02.tif
+    ...</code></pre>
+<h2 id="run-wass-pipeline">Run WASS pipeline</h2>
+<p><strong>Note 1:</strong> You can skip this step if WASS is executed
+via Matlab script.</p>
+<p><strong>Note 2:</strong> If needed, activate the “wass environment”
+with <code>$ conda activate wass</code>.</p>
+<p>cd into the <code>my_sequence/</code> directory, and execute the WASS
+pipeline with the <code>wasscli</code> tool:</p>
+<pre><code>$ wasscli
+
+
+ WASS-cli v. 0.1.4
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Copyright (C) Filippo Bergamasco 2022
+
+
+Searching for WASS pipeline executables...OK
+Current directory is: .../my_sequence 
+? What do you want to do?  (Use arrow keys)
+ ❯ Prepare
+   Match
+   Autocalibrate
+   Stereo
+   ---------------
+   Set number of parallel workers
+   Quit
+</code></pre>
+<p>Select <code>Prepare</code>, then <code>Match</code> and
+<code>Autocalibrate</code>. Then, select <code>Stereo</code> and
+reconstruct just the first stereo pair for testing. Check the
+<code>my_sequence/output/000000_wd</code> directory if the output looks
+good, then select <code>Stereo</code> again to process the whole
+sequence.</p>
+<h2 id="configure-for-gridding">Configure for gridding</h2>
+<ol type="1">
+<li>Create a directory named <code>gridding/</code> inside the
+<code>my_sequence/</code> directory:</li>
+</ol>
+<pre><code>$ mkdir gridding</code></pre>
+<ol start="2" type="1">
+<li>Generate a default grid config file:</li>
+</ol>
+<pre><code>wassgridsurface --action generategridconfig . gridding</code></pre>
+<ol start="3" type="1">
+<li>Open the newly generated file
+<code>my_sequence/gridding/gridconfig.txt</code>. It should contain
+something like:</li>
+</ol>
+<pre><code>[Area]
+area_center_x=0.0
+area_center_y=-35.0
+area_size=50
+N=1024</code></pre>
+<p><code>area_center_x</code> and <code>area_center_y</code> controls
+the grid location (in meters). <code>area_size</code> controls the area
+extent. <code>N</code> controls the grid resolution. For example,
+<code>N=1024</code> means that a <code>1024x1024</code> grid will be
+created.</p>
+<p><strong>Note:</strong> You must set <code>N=256</code> if you plan to
+use WASSfast to reconstruct a sequence.</p>
+<ol start="4" type="1">
+<li>Setup the reconstruction grid by running the following command:</li>
+</ol>
+<pre><code>wassgridsurface --action setup ./output ./gridding --gridconfig ./gridding/gridconfig.txt --baseline [CAMERA_BASELINE]</code></pre>
+<p>Where <code>[CAMERA_BASELINE]</code> must be replaced with the camera
+baseline in meters.</p>
+<ol start="5" type="1">
+<li>Open the file <code>my_sequence/gridding/area_grid.png</code> to
+check if the grid location and size is correct. If not, repeat steps 3,
+4 and 5 until satisfied.</li>
+</ol>
+<h2 id="grid-the-point-clouds">Grid the point clouds</h2>
+<p>Skip this step if you want to use WASSfast only. Otherwise, run</p>
+<pre><code>wassgridsurface --action grid --gridsetup ./gridding/config.mat ./output ./gridding</code></pre>
+<p>to grid the point clouds. The resulting NetCDF file is placed in
+<code>my_sequence/gridding/gridded.nc</code>.</p>
+<h2 id="running-wassfast">Running WASSfast</h2>
+<ol type="1">
+<li>Activate the <code>wassfast_cnn</code> environment:</li>
+</ol>
+<pre><code>conda activate wassfast_cnn</code></pre>
+<ol start="2" type="1">
+<li>cd into the WASSfast root directory and run:</li>
+</ol>
+<pre><code>alias wassfast=&quot;python `pwd`/wassfast/wassfast.py&quot;</code></pre>
+<ol start="3" type="1">
+<li><p>In <strong>the same shell</strong>, cd into
+<code>my_sequence/gridding/</code> directory</p></li>
+<li><p>Create a file named <code>settings.cfg</code> into
+<code>my_sequence/gridding</code> directory and paste the
+following:</p></li>
+</ol>
+<pre><code>[ImgProc]
+use_clahe=yes
+I0_cliplimit=1.0
+I0_gridsize=8
+I1_cliplimit=1.0
+I1_gridsize=8
+
+[SparseMatcher]
+quality_level=0.001
+max_corners=100000
+min_distance=6
+block_size=9
+
+[Flow]
+method=PyrLK
+#method=Fnbk
+winsize=15
+fb_threshold=0.6
+maxlevel=3
+
+[SpecFit]
+mit=1500
+stol=1E-9
+alpha=16.0
+final_smooth_sigma=0.37
+
+[PointsReducer]
+max_pt_distance=0.0055
+winsize=7
+
+[Visual]
+plot_surfaces=no</code></pre>
+<ol start="5" type="1">
+<li>Run WASSfast by executing the following command:</li>
+</ol>
+<pre><code>wassfast ./input ./gridding/config.mat ./config ./gridding/settings.cfg AUTO CNN --batchsize 16 -r [FPS] -o ./gridding/wassfast_output.nc --debug_stats</code></pre>
+<p>where <code>[FPS]</code> must be replaced with camera framerate (in
+Hz). Output NetCDF file will be saved in
+<code>my_sequence/gridding/wassfast_output.nc</code></p>
+<h2
+id="plot-the-reconstructed-surface-on-top-of-the-original-images">Plot
+the reconstructed surface on top of the original images</h2>
+<ol type="1">
+<li>Activate the <code>wass</code> environment:</li>
+</ol>
+<pre><code>conda activate wass</code></pre>
+<ol start="2" type="1">
+<li>cd into <code>my_sequence/</code> and create a new directory where
+the rendered frames will be placed:</li>
+</ol>
+<pre><code>mkdir frames</code></pre>
+<ol start="3" type="1">
+<li>Run wassncplot:</li>
+</ol>
+<pre><code>wassncplot ./gridding/wassfast_output.nc ./frames</code></pre>
+<p>Resulting images are saved in <code>my_sequence/frames</code>. To
+create an mp4 video instead, add the following options:</p>
+<pre><code>wassncplot ./gridding/wassfast_output.nc ./frames --ffmpeg --ffmpeg-delete-frames</code></pre>
+<p>For a full list of wassncplot program options, run:</p>
+<pre><code>wassncplot --help</code></pre>
+</body>
+</html>

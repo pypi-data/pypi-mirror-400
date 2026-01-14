@@ -1,0 +1,2 @@
+rem "../wassfast_testdata/input"
+python wassfast/wassfast.py "D:/dev/WASSR_DATA/RAW/20200715T195153.raw" "../wassfast_testdata/config256.mat" "../wassfast_testdata/config/" "../wassfast_testdata/settings.cfg" "AUTO" "CNN" --batchsize 16 -n 50 -r 15.0 --nographics --fft --debug_stats -dd "../wassfast_testdata/wassfast_frames_dbg/" --upload_url "https://www.dais.unive.it/wass/KIOST/dataupload.php" --location="test" -o "../wassfast_testdata/wassfast_output.nc" 

@@ -1,0 +1,1 @@
+python wassfast/wassfast.py "../wassfast_testdata/input" "../wassfast_testdata/config.mat" "../wassfast_testdata/config/" "../wassfast_testdata/settings.cfg" "RLTB" -n 1 -r 15.0 --fft --debug_mode -dd "../wassfast_testdata/wassfast_frames_dbg/" -o "../wassfast_testdata/wassfast_output.nc"

@@ -1,0 +1,1 @@
+python wassfast/wassfast.py "D:/dev/WASSR_DATA/RAW" "../wassfast_testdata/config.mat" "../wassfast_testdata/config/" "../wassfast_testdata/settings.cfg" "RLTB" "PU" -n 50 -r 15.0 --continuous_mode --nographics --fft --debug_stats -dd "../wassfast_testdata/wassfast_frames_dbg/" -o "../wassfast_testdata/wassfast_output.nc"

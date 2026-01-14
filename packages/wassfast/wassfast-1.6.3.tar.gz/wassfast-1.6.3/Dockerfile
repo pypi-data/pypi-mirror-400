@@ -1,0 +1,65 @@
+FROM ubuntu:18.04
+
+
+LABEL Name=wassfast Version=0.0.1
+LABEL maintainer "filippo.bergamasco@unive.it"
+
+
+# Install the required stuff
+RUN apt-get -y -qq update && apt-get -y -qq install python3-pip build-essential automake libtool m4 cmake git fftw3-dev xvfb libglfw3 libfontconfig1-dev wget
+
+
+# To enable ssh server
+#RUN apt-get -y install openssh-server && \
+#    mkdir /var/run/sshd && \
+#    echo 'root:root' | chpasswd && \
+#    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+#    sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd && sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+#ENV NOTVISIBLE "in users profile"
+#RUN echo "export VISIBLE=now" >> /etc/profile
+
+
+# Add a user "wass" matching the UID and GID given as arguments
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+RUN groupadd -g ${GROUP_ID} wass ;\
+    useradd -m -l -u ${USER_ID} -g ${GROUP_ID} wass
+
+
+WORKDIR /workspaces/wassfast
+ADD . /workspaces/wassfast
+RUN chown -R ${USER_ID}:${GROUP_ID} /workspaces/wassfast
+
+# The following is needed for VSC remote containers extension
+RUN chown -R ${USER_ID}:${GROUP_ID} /root
+RUN chmod a+rwx /root
+
+USER wass
+ENV PATH="/home/wass/.local/bin/:${PATH}"
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+RUN pip3 install --user pipenv
+RUN pipenv install
+
+USER root
+ADD ext /ext
+RUN chmod a+x /ext/*.sh
+RUN chmod a+x /ext
+RUN chown -R ${USER_ID}:${GROUP_ID} /ext
+USER wass
+RUN cd /workspaces/wassfast && /ext/setup_external_libs.sh /ext
+
+
+RUN cd /workspaces/wassfast/wassfast/PointsReducer && mkdir -p build && cd build && cmake ../ && make && make install
+
+
+WORKDIR /DATA
+VOLUME ["/DATA"]
+WORKDIR /workspaces/wassfast
+
+EXPOSE 22
+
+ENV WASSFAST_MODE CPU
+
+#ENTRYPOINT /workspaces/wassfast/entrypoint.sh
+#CMD pipenv shell
