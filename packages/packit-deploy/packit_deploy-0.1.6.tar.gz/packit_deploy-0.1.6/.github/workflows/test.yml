@@ -1,0 +1,53 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+
+jobs:
+  run:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Login to GHCR (GitHub Packages)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch
+          proxy/build
+      - name: Lint
+        run: |
+          hatch run lint:style
+      - name: Typing
+        run: |
+          hatch run lint:typing
+      - name: Test
+        run: |
+          hatch run cov-ci
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
