@@ -1,0 +1,83 @@
+from datetime import datetime
+from enum import Enum
+from typing import Any, Iterable, List, Optional
+
+from external_service import ExternalService, HTTPResponse
+{% if schema_imports %}
+
+from .schemas import (
+{% for schema in schema_imports %}
+    {{ schema }},
+{% endfor %}
+)
+{% endif %}
+
+
+class WebService(ExternalService):
+{% for op in operations %}
+    async def {{ op.function_name }}(
+        self,
+{% for param in op.path_params %}
+        {{ param.safe_name }}: {{ param.python_type }},
+{% endfor %}
+{% if op.has_body %}
+        body: {{ op.request_body_type }},
+{% endif %}
+{% for param in op.required_query_params %}
+        {{ param.signature }},
+{% endfor %}
+{% for param in op.optional_query_params %}
+        {{ param.signature }},
+{% endfor %}
+    ) -> HTTPResponse:
+{% if op.summary %}
+        """{{ op.summary }}"""
+{% endif %}
+{% if op.has_query_params %}
+        params = self._filter_params({
+{% for param in op.query_params %}
+            "{{ param.name }}": {{ param.safe_name }},
+{% endfor %}
+        })
+{% endif %}
+{% if op.method == "get" %}
+{% if op.has_query_params %}
+        return await self.get({{ op.formatted_path }}, {{ op.response_type }}, params=params)
+{% else %}
+        return await self.get({{ op.formatted_path }}, {{ op.response_type }})
+{% endif %}
+{% elif op.method == "post" %}
+{% if op.has_body %}
+        return await self.post({{ op.formatted_path }}, {{ op.response_type }}, json=body.model_dump(mode="json"))
+{% else %}
+        return await self.post({{ op.formatted_path }}, {{ op.response_type }})
+{% endif %}
+{% elif op.method == "put" %}
+{% if op.has_body %}
+        return await self.put({{ op.formatted_path }}, {{ op.response_type }}, json=body.model_dump(mode="json", exclude_unset=True))
+{% else %}
+        return await self.put({{ op.formatted_path }}, {{ op.response_type }})
+{% endif %}
+{% elif op.method == "delete" %}
+        return await self.delete({{ op.formatted_path }}, {{ op.response_type }})
+{% elif op.method == "patch" %}
+{% if op.has_body %}
+        return await self.patch({{ op.formatted_path }}, {{ op.response_type }}, json=body.model_dump(mode="json", exclude_unset=True))
+{% else %}
+        return await self.patch({{ op.formatted_path }}, {{ op.response_type }})
+{% endif %}
+{% endif %}
+
+{% endfor %}
+    @staticmethod
+    def _filter_params(params: dict[str, Any]) -> dict[str, Any]:
+        params.update({k: int(v) for k, v in params.items() if isinstance(v, bool)})
+        params.update({
+            k: ",".join(str(i) for i in v)
+            for k, v in params.items()
+            if isinstance(v, Iterable) and not isinstance(v, str)
+        })
+        params.update({k: v.isoformat() for k, v in params.items() if isinstance(v, datetime)})
+        params.update({k: v.value for k, v in params.items() if isinstance(v, Enum)})
+        params = {k: v for k, v in params.items() if v is not None}
+        return params

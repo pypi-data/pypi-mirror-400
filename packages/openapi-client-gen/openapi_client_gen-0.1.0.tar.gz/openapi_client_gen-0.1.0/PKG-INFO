@@ -1,0 +1,120 @@
+Metadata-Version: 2.4
+Name: openapi-client-gen
+Version: 0.1.0
+Summary: Generate Python async clients from OpenAPI specs with ExternalService pattern
+Requires-Python: >=3.10
+Requires-Dist: external-service
+Requires-Dist: jinja2>=3.0
+Requires-Dist: pydantic>=2.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0; extra == 'dev'
+Requires-Dist: pytest>=7.0; extra == 'dev'
+Requires-Dist: ruff>=0.1; extra == 'dev'
+Provides-Extra: schemas
+Requires-Dist: datamodel-code-generator>=0.25; extra == 'schemas'
+Description-Content-Type: text/markdown
+
+# openapi-client-gen
+
+Generate Python async API clients from OpenAPI 3.x specifications with Pydantic v2 support.
+
+## Features
+
+- Generates Pydantic v2 models from OpenAPI schemas
+- Creates async service classes extending `ExternalService`
+- Handles query parameters, path parameters, and request bodies
+- Supports custom Jinja2 templates for service generation
+- Automatic enum value normalization (lowercase)
+- Handles Python reserved words in parameter names
+- Deduplicates operation names automatically
+
+## Installation
+
+```bash
+pip install openapi-client-gen
+```
+
+For full schema generation (recommended):
+
+```bash
+pip install openapi-client-gen[schemas]
+```
+
+## Quick Start
+
+### CLI Usage
+
+```bash
+openapi-client-gen -i openapi.json -o ./client
+
+openapi-client-gen -i openapi.json -o ./client --no-lowercase-enums
+
+openapi-client-gen -i openapi.json -o ./client --template my_service.jinja2
+```
+
+### Programmatic Usage
+
+```python
+from pathlib import Path
+from openapi_client_gen import parse_openapi, generate_schemas, generate_service
+
+spec = parse_openapi(Path("openapi.json"))
+
+generate_schemas(
+    spec_path=Path("openapi.json"),
+    output_path=Path("client/schemas.py"),
+    lowercase_enums=True,
+)
+
+generate_service(
+    spec=spec,
+    output_path=Path("client/service.py"),
+)
+```
+
+## Generated Code Structure
+
+```
+client/
+  __init__.py
+  schemas.py
+  service.py
+```
+
+## Requirements
+
+- Python 3.10+
+- `external_service` library (for generated clients)
+- `jinja2` (for template rendering)
+- `pydantic>=2.0` (for schema validation)
+
+### Optional
+
+- `datamodel-code-generator` (for better schema generation)
+
+## API Reference
+
+### `parse_openapi(spec_path: Path) -> ParsedSpec`
+
+Parse an OpenAPI JSON file and return a structured representation.
+
+### `generate_schemas(spec_path: Path, output_path: Path, lowercase_enums: bool = True)`
+
+Generate Pydantic models from OpenAPI schemas.
+
+### `generate_service(spec: ParsedSpec, output_path: Path, template_path: Path | None = None)`
+
+Generate an async service class from parsed specification.
+
+## Custom Templates
+
+You can provide custom Jinja2 templates for service generation. The template receives:
+
+- `operations`: List of `Operation` objects
+- `schema_imports`: List of schema names to import
+- `title`: API title
+- `version`: API version
+
+## License
+
+MIT
