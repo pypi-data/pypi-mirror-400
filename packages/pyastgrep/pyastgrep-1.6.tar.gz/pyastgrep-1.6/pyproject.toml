@@ -1,0 +1,111 @@
+[project]
+name = "pyastgrep"
+description = "A search/query tool for Python abstract syntax trees"
+license = {text = "MIT"}
+authors = [{name = "Luke Plant"}]
+keywords = ["xpath xml ast asts syntax query css grep"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+]
+urls = {Homepage = "https://github.com/spookylukey/pyastgrep"}
+requires-python = ">=3.9"
+dependencies = [
+    "lxml>=3.3.5",
+    "elementpath",
+    "astpretty",
+    "pathspec",
+    "cssselect>=1.2",
+    'backports.strenum; python_version < "3.11"',
+    "typing-extensions>=4.12.2",
+]
+dynamic = ["version"]
+
+[project.readme]
+file = "README.rst"
+content-type = "text/x-rst"
+
+[project.scripts]
+pyastgrep = "pyastgrep.cli:main"
+pyastdump = "pyastgrep.dump:main"
+
+[build-system]
+requires = ["setuptools>=61.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.dynamic]
+version = {attr = "pyastgrep.__version__"}
+
+
+[tool.black]
+line-length = 120
+# required-version = '22.1.0' # see https://github.com/psf/black/issues/2493
+target-version = ['py310']
+
+
+[tool.isort]
+line_length = 120
+profile = "black"
+multi_line_output = 3
+
+
+[tool.ruff]
+line-length = 120
+target-version = 'py38'
+select = ["E", "F", "I", "UP", "FLY"]
+
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+show_error_codes = true
+strict = true
+exclude = ['dist', 'build']
+
+
+[[tool.mypy.overrides]]
+module = "tests.examples.*"
+ignore_errors = true
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[dependency-groups]
+dev = [
+    "pre-commit>=3.5.0",
+    "pyright>=1.1.391",
+    "pytest>=8.3.3",
+    "types-lxml>=2024.12.13",
+    "sphinx>=7.1.2",
+    "sphinx-rtd-theme>=3.0.2",
+    "tox>=4.25.0",
+    "tox-uv>=1.25.0",
+    "ipython>=8.18.1",
+]
