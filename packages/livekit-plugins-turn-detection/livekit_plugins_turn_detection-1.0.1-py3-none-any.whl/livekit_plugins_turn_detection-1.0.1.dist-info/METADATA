@@ -1,0 +1,112 @@
+Metadata-Version: 2.4
+Name: livekit-plugins-turn-detection
+Version: 1.0.1
+Summary: End of utterance detection for LiveKit Agents
+Project-URL: Documentation, https://docs.livekit.io
+Project-URL: Website, https://livekit.io/
+Project-URL: Source, https://github.com/livekit/agents
+Author: ggroup
+License-Expression: Apache-2.0
+Keywords: agent,ai,audio,livekit
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Communications :: Conferencing
+Classifier: Topic :: Multimedia :: Sound/Audio
+Classifier: Topic :: Multimedia :: Video
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.11
+Requires-Dist: jinja2
+Requires-Dist: livekit-agents>=1.2.18
+Requires-Dist: numpy>=1.27
+Requires-Dist: onnxruntime>=1.18
+Requires-Dist: python-dotenv>=1.2.1
+Requires-Dist: sentencepiece>=0.2.1
+Requires-Dist: transformers>=4.47.1
+Description-Content-Type: text/markdown
+
+# LiveKit Turn Detection Plugin (Vietnamese)
+
+A specialized turn detection plugin for LiveKit Agents, optimized for Vietnamese language contexts. This plugin uses a local ONNX model to predict the end of a user's turn with high accuracy and low latency.
+
+## Features
+
+- **Vietnamese Optimized**: Fine-tuned for Vietnamese conversational patterns.
+- **Local Inference**: Runs ONNX model locally for privacy and speed.
+- **Context Aware**: Considers preceding assistant messages for better prediction accuracy.
+- **Lightweight**: Uses `SafeTensor` / `ONNX` quantization for minimal memory footprint.
+
+## Development Workflow
+
+```mermaid
+flowchart TD
+    Train[Train BERT Model] -->|Export| Export[Export to ONNX]
+    Export -->|Copy & Replace| Replace[Replace livekit/plugins/turn_detection/model_quantized.onnx]
+    Replace -->|Build| Build[Build Wheel .whl]
+    Build -->|Push| Push[Push to S3 or PyPI]
+    Push -->|Install via uv/pip| Install[Install in Target Project]
+```
+
+## Build Instructions
+
+You can build the package wheel using `uv` (recommended) or `build`.
+
+### Build Wheel
+
+Run the build command in the project root:
+
+```bash
+uv build
+```
+
+This will create a `.whl` file in the `dist/` directory (e.g., `dist/livekit_plugins_turn_detection-1.0.0-py3-none-any.whl`).
+
+## Installation
+
+You can verify the build and install the generated wheel file directly into your environment:
+
+```bash
+pip install dist/livekit_plugins_turn_detection-1.0.0-py3-none-any.whl
+```
+
+## Usage
+
+Integrate the `TurnDetectionModel` into your LiveKit `VoicePipelineAgent`.
+
+### Basic Integration
+
+```python
+from livekit.agents import JobContext, WorkerOptions, cli
+from livekit.agents.voice import Agent, AgentSession
+from livekit.plugins import openai, silero
+from livekit.plugins.turn_detection import TurnDetectionModel
+
+class Assistant(Agent):
+    def __init__(self) -> None:
+        super().__init__()
+
+async def entrypoint(ctx: JobContext):
+    await ctx.connect()
+
+    session = AgentSession(
+        vad=silero.VAD.load(),
+        stt=openai.STT(language="vi"),
+        llm=openai.LLM(),
+        tts=openai.TTS(),
+        # Initialize the turn detector
+        turn_detection=TurnDetectionModel(threshold=0.5),
+    )
+
+    await session.start(
+        agent=Assistant(),
+        room=ctx.room
+    )
+
+if __name__ == "__main__":
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+```
+
+### Configuration
+
+The `TurnDetectionModel` accepts the following parameters:
+
+- `threshold` (float, default `0.5`): Probability threshold (0.0 - 1.0) to trigger end-of-turn. Higher values reduce false interruptions but may increase latency.
