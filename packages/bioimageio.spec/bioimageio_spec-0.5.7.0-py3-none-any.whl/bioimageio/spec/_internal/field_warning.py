@@ -1,0 +1,177 @@
+import dataclasses
+import inspect
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Union, get_args
+
+import pydantic.functional_validators
+from annotated_types import BaseMetadata, GroupedMetadata
+from loguru import logger
+from pydantic import TypeAdapter
+from pydantic_core import PydanticCustomError
+from pydantic_core.core_schema import (
+    NoInfoValidatorFunction,
+    ValidationInfo,
+    WithInfoValidatorFunction,
+)
+from typing_extensions import Annotated, LiteralString
+
+from .utils import SLOTS
+from .validation_context import get_validation_context
+from .warning_levels import WARNING, WarningSeverity
+
+if TYPE_CHECKING:
+    from pydantic.functional_validators import _V2Validator  # type: ignore
+
+
+ValidatorFunction = Union[NoInfoValidatorFunction, WithInfoValidatorFunction]
+
+AnnotationMetaData = Union[BaseMetadata, GroupedMetadata]
+
+
+def warn(
+    typ: Union[AnnotationMetaData, Any],
+    msg: LiteralString,  # warning message, e.g. "'{value}' incompatible with {typ}
+    severity: WarningSeverity = WARNING,
+):
+    """treat a type or its annotation metadata as a warning condition"""
+    if isinstance(typ, get_args(AnnotationMetaData)):
+        typ = Annotated[Any, typ]
+
+    validator: TypeAdapter[Any] = TypeAdapter(typ)
+
+    return AfterWarner(
+        validator.validate_python, severity=severity, msg=msg, context={"typ": typ}
+    )
+
+
+def _call_validator_func(
+    func: "_V2Validator",
+    mode: Literal["after", "before", "plain", "wrap"],
+    value: Any,
+    info: ValidationInfo,
+) -> Any:
+    # determine if validator needs info arg
+    # logic adapted from pydantic._internal._decorators.py v2.11.10
+    sig = inspect.signature(func)
+    parameters = list(sig.parameters.values())
+    n_positional = sum(
+        1
+        for param in parameters
+        if param.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        # First argument is the value being validated/serialized, and can have a default value
+        # (e.g. `float`, which has signature `(x=0, /)`). We assume other parameters (the info arg
+        # for instance) should be required, and thus without any default value.
+        and (param.default is inspect.Parameter.empty or param is parameters[0])
+    )
+    needs_info = None
+    if mode == "wrap":
+        if n_positional == 3:
+            needs_info = True
+        elif n_positional == 2:
+            needs_info = False
+    else:
+        assert mode in {"before", "after", "plain"}, (
+            f"invalid mode: {mode!r}, expected 'before', 'after' or 'plain"
+        )
+        if n_positional == 2:
+            needs_info = True
+        elif n_positional == 1:
+            needs_info = False
+
+    assert needs_info is not None, "could not determine if validator needs info arg"
+    if needs_info:
+        return func(value, info)  # type: ignore
+    else:
+        return func(value)  # type: ignore
+
+
+def as_warning(
+    func: "_V2Validator",
+    *,
+    mode: Literal["after", "before", "plain", "wrap"] = "after",
+    severity: WarningSeverity = WARNING,
+    msg: Optional[LiteralString] = None,
+    msg_context: Optional[Dict[str, Any]] = None,
+) -> ValidatorFunction:
+    """turn validation function into a no-op, based on warning level"""
+
+    def wrapper(value: Any, info: ValidationInfo) -> Any:
+        try:
+            _call_validator_func(func, mode, value, info)
+        except (AssertionError, ValueError) as e:
+            issue_warning(
+                msg or ",".join(e.args),
+                field=info.field_name,
+                log_depth=1,
+                msg_context=msg_context,
+                severity=severity,
+                value=value,
+            )
+
+        return value
+
+    return wrapper
+
+
+@dataclasses.dataclass(frozen=True, **SLOTS)
+class AfterWarner(pydantic.functional_validators.AfterValidator):
+    """Like AfterValidator, but wraps validation `func` `as_warning`"""
+
+    severity: WarningSeverity = WARNING
+    msg: Optional[LiteralString] = None
+    context: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        object.__setattr__(
+            self,
+            "func",
+            as_warning(
+                self.func,
+                mode="after",
+                severity=self.severity,
+                msg=self.msg,
+                msg_context=self.context,
+            ),
+        )
+
+
+@dataclasses.dataclass(frozen=True, **SLOTS)
+class BeforeWarner(pydantic.functional_validators.BeforeValidator):
+    """Like BeforeValidator, but wraps validation `func` `as_warning`"""
+
+    severity: WarningSeverity = WARNING
+    msg: Optional[LiteralString] = None
+    context: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        object.__setattr__(
+            self,
+            "func",
+            as_warning(
+                self.func,
+                mode="before",
+                severity=self.severity,
+                msg=self.msg,
+                msg_context=self.context,
+            ),
+        )
+
+
+# TODO: add `loc: Loc` to `issue_warning()`
+#   and use a loguru handler to format warnings accordingly
+def issue_warning(
+    msg: LiteralString,
+    *,
+    value: Any,
+    severity: WarningSeverity = WARNING,
+    msg_context: Optional[Dict[str, Any]] = None,
+    field: Optional[str] = None,
+    log_depth: int = 1,
+):
+    msg_context = {"value": value, "severity": severity, **(msg_context or {})}
+
+    if severity >= (ctxt := get_validation_context()).warning_level:
+        raise PydanticCustomError("warning", msg, msg_context)
+    elif ctxt.log_warnings:
+        log_msg = (field + ": " if field else "") + (msg.format(**msg_context))
+        logger.opt(depth=log_depth).log(severity, log_msg)
