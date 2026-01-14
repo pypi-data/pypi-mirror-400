@@ -1,0 +1,90 @@
+# -*- coding: utf-8 -*-
+"""
+
+"""
+import numpy as np
+
+
+def set_element_field_variables(qp_field_variables: dict[str, np.ndarray], iso_element_shape, dimension: int, nodes_number: int) -> dict[str, np.ndarray]:
+    """
+
+    """
+    method = ''
+
+    element_nodal_values = {}
+    for key, item in qp_field_variables.items():
+        if iso_element_shape.extrapolated_matrix.shape != (0,) and method == 'extrapolated':
+            if len(item.shape) == 1:
+                element_nodal_values[key] = np.dot(iso_element_shape.extrapolated_matrix, item.reshape(-1, 1))
+            else:
+                element_nodal_values[key] = np.dot(iso_element_shape.extrapolated_matrix, item)
+        else:
+            if len(item.shape) == 1:
+                tile_shape = (nodes_number, 1)
+            elif len(item.shape) == 2:
+                tile_shape = (nodes_number, 1)
+            elif len(item.shape) == 3:
+                tile_shape = (nodes_number, 1, 1)
+            else:
+                raise ValueError('The shape of field variable is not correct.')
+            element_nodal_values[key] = np.tile(np.average(item, axis=0), tile_shape)
+
+    element_nodal_field_variables = {}
+    for key, item in element_nodal_values.items():
+        if key == 'stress':
+            if dimension == 2:
+                element_nodal_field_variables['S11'] = item[:, 0]
+                element_nodal_field_variables['S22'] = item[:, 1]
+                element_nodal_field_variables['S12'] = item[:, 2]
+            elif dimension == 3:
+                element_nodal_field_variables['S11'] = item[:, 0]
+                element_nodal_field_variables['S22'] = item[:, 1]
+                element_nodal_field_variables['S33'] = item[:, 2]
+                element_nodal_field_variables['S12'] = item[:, 3]
+                element_nodal_field_variables['S13'] = item[:, 4]
+                element_nodal_field_variables['S23'] = item[:, 5]
+            element_nodal_field_variables['S'] = item
+
+        if key == 'strain':
+            if dimension == 2:
+                element_nodal_field_variables['E11'] = item[:, 0]
+                element_nodal_field_variables['E22'] = item[:, 1]
+                element_nodal_field_variables['E12'] = item[:, 2]
+            elif dimension == 3:
+                element_nodal_field_variables['E11'] = item[:, 0]
+                element_nodal_field_variables['E22'] = item[:, 1]
+                element_nodal_field_variables['E33'] = item[:, 2]
+                element_nodal_field_variables['E12'] = item[:, 3]
+                element_nodal_field_variables['E13'] = item[:, 4]
+                element_nodal_field_variables['E23'] = item[:, 5]
+            element_nodal_field_variables['E'] = item
+
+        if key == 'energy':
+            element_nodal_field_variables['Energy'] = item[:, 0]
+
+        if key == 'heat_flux':
+            if dimension >= 1:
+                element_nodal_field_variables['HFL1'] = item[:, 0]
+            if dimension >= 2:
+                element_nodal_field_variables['HFL2'] = item[:, 1]
+            if dimension >= 3:
+                element_nodal_field_variables['HFL3'] = item[:, 2]
+            element_nodal_field_variables['HFL'] = item
+
+        if key == 'concentration_flux':
+            if dimension >= 1:
+                element_nodal_field_variables['CFL1'] = item[:, 0]
+            if dimension >= 2:
+                element_nodal_field_variables['CFL2'] = item[:, 1]
+            if dimension >= 3:
+                element_nodal_field_variables['CFL3'] = item[:, 2]
+            element_nodal_field_variables['CFL'] = item
+
+        if 'SDV' in key:
+            element_nodal_field_variables[key] = item
+
+    return element_nodal_field_variables
+
+
+if __name__ == "__main__":
+    pass
