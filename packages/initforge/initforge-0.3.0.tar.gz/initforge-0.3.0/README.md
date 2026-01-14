@@ -1,0 +1,147 @@
+# InitForge 🚀  
+> Bootstrap Python projects in seconds — clean structure, zero chaos.
+
+InitForge is a CLI tool that automates the boring but necessary steps of starting a Python project:
+
+- Creating a clean folder structure  
+- Generating a proper README  
+- Managing presets for different project types  
+- Helping beginners follow the same professional workflow every time  
+
+---
+
+## ✨ Why InitForge?
+
+Every project usually follows the same flow:
+
+1. Create a GitHub repo  
+2. Clone it locally  
+3. Create a virtual environment  
+4. Set up folders  
+5. Add requirements  
+6. Write a README  
+7. Finally… start coding  
+
+InitForge turns this into **one command**.
+
+---
+
+## 📦 Installation
+
+```bash
+pip install initforge
+```
+
+# ⚡ Quick Start
+Inside your cloned repo:
+
+``` bash
+initforge
+```
+
+## You’ll get an interactive menu:
+
+- Choose project type (Base / ML / Streamlit / Custom)
+
+- Pick Python version
+
+- Set env name
+
+- Set run command
+
+- Done.
+
+---
+
+# 🧩 Presets
+
+## Built-in presets
+
+- Base – clean Python project
+
+- ML / Data Science – notebooks, data, training structure
+
+- Streamlit App – ready for UI projects
+
+## Custom presets
+Create your own once, reuse forever:
+
+``` bash
+initforge
+→ Create preset
+```
+Your presets are stored at:
+
+``` bash
+~/.initforge/presets/
+```
+They automatically appear in the menu next time.
+
+---
+
+## 🔍 Find Files Tool
+Need a common file like `logger.py`, `config.py`, or a template?
+
+``` bash
+initforge
+→ Find file
+```
+InitForge searches across all presets and shows you where it lives.
+
+## ⚙️ Config Mode
+Run InitForge using a config file:
+
+``` bash
+initforge --config .initforge.yaml
+```
+Perfect for teams, templates, and automation.
+
+## 🧪 Dry Run
+Preview everything without touching your files:
+
+``` bash
+initforge --dry-run
+```
+
+## 🛠 Example Workflow
+``` bash
+git clone your-repo
+cd your-repo
+initforge
+```
+
+Then:
+
+```bash
+conda create -n myenv python=3.10 -y
+conda activate myenv
+pip install -r requirements.txt
+python app.py
+```
+
+## 🎯 Who is this for?
+-  students
+
+- Beginners who want structure
+
+- Developers tired of repeating the same setup
+
+- Teams who want consistency
+
+## 📌 Roadmap
+- Preset marketplace
+
+- Team preset sharing
+
+- GitHub Actions templates
+
+- Plugin system
+
+## 🧑‍💻 Author
+**Shriful Islam** (InHuman)  
+**Built with the goal of making project setup simple, repeatable, and beginner-friendly.**
+
+## 📜 License
+**MIT License**
+
+---
