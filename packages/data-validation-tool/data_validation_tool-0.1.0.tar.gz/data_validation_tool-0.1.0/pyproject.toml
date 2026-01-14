@@ -1,0 +1,123 @@
+[build-system]
+requires = [
+    "pdm-backend",
+]
+build-backend = "pdm.backend"
+
+[project]
+name = "data-validation-tool"
+dynamic = []
+authors = [
+    { name = "Infinite Lambda", email = "dat@infinitelambda.com" },
+]
+description = "CLI tool for dbt data validation workflows"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = [
+    "dbt",
+    "data-validation",
+    "audit",
+    "cli",
+]
+dependencies = [
+    "click>=8.0.0",
+    "pyyaml>=6.0.0",
+]
+version = "0.1.0"
+
+[project.urls]
+Homepage = "https://github.com/infinitelambda/data-validation-tool"
+"Bug Tracker" = "https://github.com/infinitelambda/data-validation-tool/issues"
+Documentation = "https://github.com/infinitelambda/data-validation-tool#readme"
+
+[project.scripts]
+dvt = "data_validation_tool.cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "pytest>=8.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-cov>=6.0.0",
+]
+
+[tool.pdm.version]
+source = "scm"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+    "ARG",
+    "PTH",
+    "SIM",
+    "PLC0415",
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "PLC0415",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+python_files = [
+    "test_*.py",
+]
+python_classes = [
+    "Test*",
+]
+python_functions = [
+    "test_*",
+]
+addopts = [
+    "--cov=data_validation_tool",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=100",
+    "-v",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "src/data_validation_tool",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
