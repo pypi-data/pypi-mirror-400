@@ -1,0 +1,6 @@
+from ..he import He
+
+
+class Hd(He, dict):
+    def __init__(self, u: He, data: dict=None): ...
+    def __ds__(self, name, value)-> None: ...

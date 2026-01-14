@@ -1,0 +1,13 @@
+from ...configs import Configs as PluCfg
+
+
+class Configs(PluCfg):
+    @property
+    def version(self)-> str: ...
+    @version.setter
+    def version(self, value: str): ...
+
+    @property
+    def name(self)-> str: ...
+    @name.setter
+    def name(self, value: str): ...

@@ -1,0 +1,23 @@
+from ......types.he import He
+from .... import Database
+from ... import Tables
+from .. import Table
+from .column import Column
+from ....connection import Connection
+from ....configs import Configs
+
+
+class Columns(He):
+    @property
+    def __database__(self)-> Database: ...
+    @property
+    def __tables__(self)-> Tables: ...
+    @property
+    def __table__(self)-> Table: ...
+    @property
+    def __connection__(self)-> Connection: ...
+    @property
+    def __configs__(self)-> Configs: ...
+
+    def column(self, name)-> Column: ...
+    def search_names(self, keyword=None, startwith: bool = None, endwith: bool = None) -> list[str]: ...
