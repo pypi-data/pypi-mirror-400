@@ -1,0 +1,51 @@
+stages:
+  - test
+  - build
+  - publish
+
+default:
+  image: registry-sbp.gitlab.schubergphilis.com/security/tools/scr/vault-terraform:v1.2.0
+  before_script:
+    # Grant access to SecPI
+    - uv auth login sbp.gitlab.schubergphilis.com --username gitlab-ci-token --password ${CI_JOB_TOKEN}
+
+test:
+  stage: test
+  script:
+    - uv run pytest --junit-xml=test-results.xml --cov --cov-report xml:coverage.xml --cov-report term
+  artifacts:
+    reports:
+      junit: test-results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  coverage: '/TOTAL.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+
+build:
+  stage: build
+  script:
+    - uv build
+  artifacts:
+    paths:
+      - dist/
+
+publish:
+  stage: publish
+  script:
+    - |
+      curl --request POST \
+           --form token=${SECPI_TRIGGER_TOKEN} \
+           --form ref=master \
+           "${SECPI_TRIGGER_URL}"
+  only:
+    - master
+
+publish-pypi:
+  stage: publish
+  variables:
+    TWINE_USERNAME: __token__
+    TWINE_PASSWORD: $CI_PYPI_TOKEN
+  script:
+    - uv run twine upload --verbose --repository pypi dist/*
+  only:
+    - master
