@@ -1,0 +1,153 @@
+Metadata-Version: 2.2
+Name: adam_community
+Version: 1.0.26
+Summary: Adam Community Tools and Utilities
+Home-page: https://github.com/yourusername/adam-community
+Author: Adam Community
+Author-email: admin@sidereus-ai.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.31.0
+Requires-Dist: click>=8.0.0
+Requires-Dist: docstring-parser>=0.15
+Requires-Dist: rich>=13.0.0
+Requires-Dist: packaging>=21.0
+Requires-Dist: jsonschema>=4.0.0
+Requires-Dist: jinja2>=3.0.0
+Requires-Dist: prompt-toolkit
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Adam Community
+
+Adam Community 是一个 Python 工具包，提供了 CLI 命令行工具和 Python 模块，用于解析和构建 Python 项目包。
+
+## 安装
+
+```bash
+pip install -e .
+```
+
+## 使用方式
+
+### CLI 命令行
+
+查看帮助：
+```bash
+adam-cli --help
+```
+
+初始化新项目：
+```bash
+adam-cli init
+```
+
+解析 Python 文件生成 functions.json：
+```bash
+adam-cli parse .
+```
+
+构建项目包：
+```bash
+adam-cli build .
+```
+
+更新 CLI 到最新版本：
+```bash
+adam-cli update
+```
+
+#### SIF 文件管理
+
+管理 SIF 文件，包括上传到 Docker 镜像仓库等操作：
+
+```bash
+# 查看帮助
+adam-cli sif --help
+
+# 上传 SIF 文件到镜像仓库（自适应切片）
+adam-cli sif upload ./xxx.sif registry.example.com/image:1.0.0
+
+# 带认证上传
+adam-cli sif upload ./app.sif registry.cn-hangzhou.aliyuncs.com/ns/app:latest \
+  --username user --password pass
+
+```
+
+### Python 模块导入
+
+```python
+from adam_community.cli.parser import parse_directory, parse_python_file
+from adam_community.cli.build import build_package
+
+# 解析目录下的 Python 文件
+classes = parse_directory(Path("./"))
+
+# 构建项目包
+success, errors, zip_name = build_package(Path("./"))
+```
+
+### States Management（任务状态管理）
+
+用于在任务执行过程中记录和读取状态，与服务端共享 `states.json` 文件。
+
+```python
+from adam_community.util import setState, getState, trackPath
+
+# 记录文件列表（自动与服务端和其他 Tool 的文件合并）
+setState("files", [
+    {"path": "output/result.json", "is_dir": False, "mtime": 1704100800},
+    {"path": "cache", "is_dir": True, "mtime": 1704100000}
+])
+
+# 获取合并后的文件列表（来自 server + 所有 tools）
+files = getState("files")
+
+# 记录自定义状态（支持嵌套 key）
+setState("stage", "data_cleaning")
+setState("config.threshold", 0.5)
+
+# 获取状态
+stage = getState("stage")              # -> "data_cleaning"
+threshold = getState("config.threshold")  # -> 0.5
+
+# 追踪文件/目录（自动检测 is_dir 和 mtime，先进先出，最多 30 条）
+trackPath("/path/to/output/result.json")
+trackPath("/path/to/cache")
+```
+
+## 功能特性
+
+- **Python 文件解析**: 自动解析 Python 类和函数的文档字符串
+- **JSON Schema 验证**: 将 Python 类型转换为 JSON Schema 并验证
+- **项目构建**: 检查配置文件、文档文件并创建 zip 包
+- **类型检查**: 支持多种 Python 类型注解格式
+- **自动更新**: 智能检查和更新到最新版本，支持用户配置
+- **SIF 镜像构建**: 将 SIF 文件切片并构建 Docker 镜像推送到仓库
+
+## 开发
+
+安装依赖：
+```bash
+make install
+```
+
+运行测试：
+```bash
+make test
+```
+
+构建包：
+```bash
+make build
+```
