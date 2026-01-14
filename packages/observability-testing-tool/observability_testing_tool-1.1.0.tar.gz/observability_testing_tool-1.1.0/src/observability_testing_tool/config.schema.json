@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nekosoft.org/obstool/config.schema.json",
+  "$defs": {
+    "timeDurationFrequencyPattern": {
+      "description": "A pattern that checks a frequency or duration definition, either single value (e.g. 15s, 3m, 2d) or as a from/to range (e.g. 15s~30s, 3m~2h, 6h~2d) - it will be up to the application to confirm suitability in the context - this is parsed in parser#parse_timedelta_value and parser#parse_timedelta_interval",
+      "pattern": "^ *-? *(([.\\d]+?)d)? *(([.\\d]+?)h)? *(([.\\d]+?)m)? *(([.\\d]+?)s)? *((\\d+?)ms)? *(~ *(-?) *(([.\\d]+?)d)? *(([.\\d]+?)h)? *(([.\\d]+?)m)? *(([.\\d]+?)s)? *((\\d+?)ms)? *)?$"
+    },
+    "numericPattern": {
+      "description": "A pattern that checks an integer or float definition, either single value (e.g. 4.5, 3, -12) or as a from/to/step range (e.g. 15~3~2, 30~60, -12.5~12.5) - it will be up to the application to confirm suitability in the context - this is parsed in parser#parse_int_range() and parser#parse_float_range",
+      "pattern": "^ *-? *[.\\d]+? *(~ *-? *[.\\d]+? *(~ *-? *[.\\d]+? *)?)?$"
+    },
+    "metadataProperties": {
+      "description": "The definition of a an entry metadata.",
+      "type": "object",
+      "properties": {
+        "resourceType": { "type": "string" },
+        "resourceLabels": { "type": "object" },
+        "labels": { "type": "object" }
+      }
+    },
+    "timingProperties": {
+      "description": "The definition of a job timing. This is parsed in parser#configure_entry_timings() and handled in executor#_run_live_jobs(), executor#_handle_live_job(), executor#_run_batch_jobs()",
+      "type": "object",
+      "properties": {
+        "frequency": { "anyOf": [ { "const": "once" }, { "$ref": "#/$defs/timeDurationFrequencyPattern" } ] },
+        "startOffset": { "$ref": "#/$defs/timeDurationFrequencyPattern" },
+        "endOffset": { "$ref": "#/$defs/timeDurationFrequencyPattern" },
+        "startTime": { "format": "date-time" },
+        "endTime": { "format": "date-time" }
+      }
+    },
+    "dataSourceProperties": {
+      "description": "The definition of a data source for variables.",
+      "type": "object",
+      "required": [ "sourceType", "value" ],
+      "properties": {
+        "sourceType": {
+          "enum": [ "list", "env", "random", "gce-metadata", "fixed" ]
+        },
+        "value": { },
+        "range": { }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "list"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "array"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "env"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "random"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "enum": [
+                  "int",
+                  "float"
+                ]
+              },
+              "range": {
+                "$ref": "#/$defs/numericPattern"
+              }
+            },
+            "required": [
+              "range"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "gce-metadata"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "fixed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "metricDescriptorProperties": {
+      "description": "The definition of a metric descriptor. This configuration is used in executor#create_metric_descriptors()",
+      "type": "object",
+      "required": [ "projectId", "metricType", "metricKind", "valueType", "name" ],
+      "properties": {
+        "projectId": { "type": "string" },
+        "metricType": { "type": "string" },
+        "metricKind": { "type": "string" },
+        "valueType": { "type": "string" },
+        "name": { "type": "string" },
+        "unit": { "type": "string" },
+        "description": { "type": "string" },
+        "displayName": { "type": "string" },
+        "launchStage": { "type": "string" },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": { "type": "string"},
+              "valueType": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variablesProperties"
+          }
+        },
+        "monitoredResourceTypes": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
+    "variablesProperties": {
+      "description": "The definition of variables. They are parsed in parser#configure_variables() and handled in executor#expand_variables(), executor#expand_list_variable()",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "extractor": { "type": "string" },
+            "dataSource": { "type": "string" },
+            "selector": {
+              "oneOf": [
+                { "enum": [ "any", "first", "last", "all" ] },
+                { "type": "number" }
+              ]
+            }
+           },
+          "required": ["name"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "interpolatedProperty": {
+      "description": "Pattern to excludes checks from property values that contain an interpolated value",
+      "pattern": "\\{[^{}]+\\}"
+    },
+    "loggingProperties": {
+      "description": "The definition of a log entry. This configuration is used in executor#handle_logging_job()",
+      "type": "object",
+      "properties": {
+        "level": {
+          "oneOf": [
+            { "$ref": "#/$defs/interpolatedProperty" },
+            { "enum": [ "NOTSET", "DEFAULT", "DEBUG", "INFO", "NOTICE", "WARNING", "ERROR", "CRITICAL", "ALERT", "EMERGENCY" ] }
+          ]
+        },
+        "other": { "type": "object" },
+        "logName": { "type": "string" },
+        "jsonPayload": { "type": "object" },
+        "textPayload": { "type": "string" },
+        "protoPayload": { "type": "object" },
+        "variables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variablesProperties"
+          }
+        }
+      }
+    },
+    "metricsProperties": {
+      "description": "The definition of a metric entry. This configuration is used in executor#handle_monitoring_job()",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string" },
+        "metricType": { "type": "string" },
+        "metricKind": { "type": "string" },
+        "metricValue": { "type": "string" },
+        "valueType": { "type": "string" },
+        "name": { "type": "string" },
+        "unit": { "type": "string" },
+        "description": { "type": "string" },
+        "displayName": { "type": "string" },
+        "launchStage": { "type": "string" },
+        "variables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variablesProperties"
+          }
+        },
+        "monitoredResourceTypes": { "type": "array" }
+      }
+    }
+  },
+  "title": "Observability Testing Tool",
+  "description": "The YAML configuration file for the Observability Testing Tool for Google Cloud",
+  "type": "object",
+  "properties": {
+    "cloudConfig": {
+      "description": "Allows the Google Cloud client library environment variables to set in the configuration instead of in the process",
+      "type": "object",
+      "properties": {
+        "project": { "type": "string" },
+        "credentials": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "dataSources": {
+      "description": "A dictionary of names to sources of data for variables used in this configuration",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/dataSourceProperties" }
+    },
+    "metricDescriptors": {
+      "description": "A list of descriptors for the metrics submitted in this configuration",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/metricDescriptorProperties"
+      }
+    },
+    "loggingJobs": {
+      "description": "A list of logging jobs to be executed by this configuration.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "allOf": [
+          { "$ref": "#/$defs/timingProperties" },
+          { "$ref": "#/$defs/metadataProperties" },
+          { "$ref": "#/$defs/loggingProperties" }
+        ],
+        "properties": {
+          "live": { "type": "boolean" },
+          "logEntries": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/timingProperties" },
+                { "$ref": "#/$defs/metadataProperties" },
+                { "$ref": "#/$defs/loggingProperties" }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "monitoringJobs": {
+      "description": "A list of monitoring jobs to be executed by this configuration.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "allOf": [
+          { "$ref": "#/$defs/timingProperties" },
+          { "$ref": "#/$defs/metadataProperties" },
+          { "$ref": "#/$defs/metricsProperties" },
+          {
+            "properties": {
+              "live": { "type": "boolean" },
+              "metricEntries": {
+                "type": "array",
+                "items": {
+                  "allOf": [
+                    { "$ref": "#/$defs/timingProperties" },
+                    { "$ref": "#/$defs/metadataProperties" },
+                    { "$ref": "#/$defs/metricsProperties" }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "anyOf": [
+    { "required": [ "loggingJobs" ] },
+    { "required": [ "monitoringJobs" ] }
+  ],
+  "additionalProperties": false
+}
