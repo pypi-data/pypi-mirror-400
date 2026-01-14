@@ -1,0 +1,50 @@
+# .github/workflows/release.yml
+# This workflow will create a new release and upload it to PyPI.  It will run
+# whenever a new tag is merged into the repository.  It builds the application
+# and pushes it to PyPI using trusted publishing (OIDC).
+---
+name: Deploy package to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write  # Required for trusted publishing to PyPI
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Install build tools
+        run: uv run pip install build
+
+      - name: Build package
+        run: uv run python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          files: dist/*
+          draft: false
+          prerelease: false
