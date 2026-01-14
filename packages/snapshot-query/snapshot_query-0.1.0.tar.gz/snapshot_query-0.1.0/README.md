@@ -1,0 +1,96 @@
+# snapshot-query
+
+高效查询和分析 cursor-ide-browser 生成的快照日志文件。
+
+## 安装
+
+### 使用 uvx（推荐）
+
+**从本地项目运行**：
+```bash
+# 在项目目录下运行
+uvx --from . snapshot-query <文件路径> <命令> [参数]
+```
+
+**从 PyPI 运行**（发布后）：
+```bash
+# 直接运行，无需安装
+uvx snapshot-query <文件路径> <命令> [参数]
+```
+
+### 使用 pip
+
+```bash
+pip install snapshot-query
+```
+
+## 快速开始
+
+**使用 uvx（从本地项目）**：
+```bash
+# 查找包含"搜索"的元素
+uvx --from . snapshot-query snapshot.log find-name "搜索"
+
+# 查找所有按钮
+uvx --from . snapshot-query snapshot.log find-role button
+
+# 列出所有可交互元素
+uvx --from . snapshot-query snapshot.log interactive
+
+# 统计元素数量
+uvx --from . snapshot-query snapshot.log count
+```
+
+**使用 Python 模块**：
+```bash
+python -m snapshot_query snapshot.log find-name "搜索"
+```
+
+**使用原始脚本**：
+```bash
+python query_snapshot.py snapshot.log find-name "搜索"
+```
+
+## 命令列表
+
+- `find-name <文本>` - 根据名称查找元素（模糊匹配）
+- `find-name-exact <文本>` - 根据名称查找元素（精确匹配）
+- `find-role <角色>` - 根据角色查找元素
+- `find-ref <ref>` - 根据引用标识符查找元素
+- `find-text <文本>` - 查找包含指定文本的元素
+- `find-grep <模式> [字段]` - 使用正则表达式查找元素（支持 grep 语法）
+- `find-selector <选择器>` - 使用 CSS/jQuery 选择器语法查找元素
+- `interactive` - 列出所有可交互元素
+- `count` - 统计各类型元素数量
+- `path <ref>` - 显示元素在树中的路径
+- `all-refs` - 列出所有引用标识符
+
+## MCP 服务器接口
+
+snapshot-query 提供 MCP (Model Context Protocol) 服务器接口，允许 AI 助手通过标准化协议查询快照文件。
+
+**启动 MCP 服务器：**
+```bash
+snapshot-query-mcp
+```
+
+**配置客户端：**
+在 MCP 配置文件中添加：
+```json
+{
+  "mcpServers": {
+    "snapshot-query": {
+      "command": "snapshot-query-mcp"
+    }
+  }
+}
+```
+
+详细说明请查看 [MCP_README.md](./MCP_README.md)
+
+## 更多信息
+
+详细文档请查看：
+- [cursor-ide-browser.md](./cursor-ide-browser.md) - cursor-ide-browser 工具文档
+- [SNAPSHOT_QUERY_GUIDE.md](./SNAPSHOT_QUERY_GUIDE.md) - 详细查询指南
+- [MCP_README.md](./MCP_README.md) - MCP 服务器接口使用指南
