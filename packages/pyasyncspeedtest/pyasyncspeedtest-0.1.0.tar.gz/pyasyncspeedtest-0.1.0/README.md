@@ -1,0 +1,132 @@
+# pyasyncspeedtest
+
+An async-first Python library for measuring network throughput via HTTP-based speed tests. Designed to be embedded into async applications, services, and workers.
+
+## Why This Exists
+
+Most speedtest tools are designed as end-user CLI applications and rely on synchronous HTTP clients or threading. This makes them awkward to integrate into async Python applications (FastAPI services, async workers, aiohttp-based tools) without blocking the event loop or spawning threads.
+
+`pyasyncspeedtest` provides a reusable async library that integrates cleanly with `asyncio`-based applications. It uses `aiohttp` for all network operations and follows async Python conventions.
+
+## Features
+
+- Async server discovery and latency-based selection
+- Concurrent download and upload speed measurement
+- Geographic distance filtering using Haversine calculation
+- Configurable test durations and server selection criteria
+- Optional source address binding for multi-homed hosts
+- Minimal dependencies (only `aiohttp`)
+- No threads, no global state, no blocking I/O
+
+## Non-goals
+
+This library measures **application-level HTTP performance**, not low-level network behavior. It does not:
+
+- Perform kernel-level TCP benchmarking
+- Measure raw socket throughput
+- Replace `iperf`, `netperf`, or similar tools
+- Claim to measure congestion control behavior or packet loss
+- Provide CLI-first user experience (library-first design)
+
+Results reflect HTTP transfer speeds as seen by an async Python application, including all protocol overhead.
+
+## Installation
+
+```bash
+pip install pyasyncspeedtest
+```
+
+Requires Python 3.10 or later.
+
+## Basic Usage
+
+```python
+import asyncio
+
+from pyasyncspeedtest import AsyncSpeedtest
+
+
+async def main():
+    st = AsyncSpeedtest()
+    print("Finding best server...")
+    server = await st.get_best_server()
+
+    if server:
+        print(f"Server: {server['name']}, {server['country']}")
+
+        print("Testing download speed...")
+        await st.measure_download_speed()
+
+        print("Testing upload speed...")
+        await st.measure_upload_speed()
+
+        print(f"Download: {st.download * 8 / 1e6:.2f} Mbps")
+        print(f"Upload: {st.upload * 8 / 1e6:.2f} Mbps")
+        print(f"Ping: {st.ping:.1f} ms")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+```
+
+Advanced configuration:
+
+```python
+st = AsyncSpeedtest(
+    source_address="192.168.1.100",
+    download_test_duration=20,
+    upload_test_duration=15,
+    max_server_distance=1000  # kilometers
+)
+```
+
+## API Stability
+
+The public API is intentionally small:
+- `AsyncSpeedtest` class and its public methods
+- `run_speedtest()` convenience function
+- `SpeedTestResult`, `SpeedTestConfig`, `ServerInfo` dataclasses
+- `SpeedTestError` and subclasses for error handling
+
+Internals (server list parsing, timing implementation, HTTP request details) are not stable and may change between minor releases. The library is pre-1.0 and the API may evolve based on usage feedback.
+
+## Error Handling
+
+- Network failures (timeouts, DNS errors) are caught and logged; methods return gracefully
+- Invalid usage (e.g., measuring speed before selecting a server) raises `RuntimeError` with clear messages
+- No silent failures; errors are either raised or logged at appropriate levels
+- Empty server lists or malformed responses are handled defensively
+
+## Async & Performance Notes
+
+- Uses `aiohttp.ClientSession` with proper connection pooling
+- Explicit `ClientTimeout` objects (no deprecated timeout APIs)
+- High-resolution timers (`time.perf_counter()`) for accurate measurements
+- Bounded concurrency (configurable number of concurrent download streams)
+- Safe for use in existing event loops (no `asyncio.run()` internally)
+- Module-scoped logger; does not configure root logger
+
+## Testing
+
+Unit tests use mocked network responses to validate parsing logic, distance calculations, and error handling:
+
+```bash
+pytest tests/
+```
+
+Tests do not make real network requests by default. Integration tests that contact actual Speedtest.net servers are excluded from the default test run.
+
+## License
+
+MIT License. See LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome. Please:
+
+- Keep changes small and focused
+- Prioritize correctness and clarity over features
+- Discuss significant API changes in an issue before opening a PR
+- Ensure tests pass and add tests for new functionality
+
+This library aims to remain simple and focused. Large feature additions may be declined if they add complexity without clear value for the async embedding use case.

@@ -1,0 +1,424 @@
+import aiohttp
+import asyncio
+import time
+import re
+import math
+import logging
+from typing import Optional, Dict, List, Any
+from statistics import mean
+from aiohttp import ClientTimeout
+
+# Use module-specific logger instead of root logger
+logger = logging.getLogger(__name__)
+
+
+class AsyncSpeedtest:
+    """
+    A class to perform asynchronous speed tests to measure download and upload speeds.
+
+    Attributes:
+        CONFIG_URL (str): URL for the speed test configuration.
+        SERVER_LIST_URL (str): URL for the speed test server list.
+        DOWNLOAD_CHUNK_SIZE (int): Chunk size for download test.
+        UPLOAD_CHUNK_SIZE (int): Chunk size for upload test.
+        TEST_COUNT (int): Number of tests to perform.
+        LATENCY_TEST_COUNT (int): Number of latency tests to perform.
+        TIMEOUT (int): Timeout for each test in seconds.
+        source_address (Optional[str]): Source address for the tests.
+        debug (bool): Flag to enable debug logging.
+        download (float): Measured download speed.
+        upload (float): Measured upload speed.
+        ping (float): Measured ping.
+        best_server (Optional[Dict[str, Any]]): Best server for the tests.
+    """
+
+    CONFIG_URL = "https://www.speedtest.net/speedtest-config.php"
+    SERVER_LIST_URL = "https://www.speedtest.net/speedtest-servers-static.php"
+    DOWNLOAD_CHUNK_SIZE = 100 * 1024
+    UPLOAD_CHUNK_SIZE = 4 * 1024 * 1024
+    TEST_COUNT = 10
+    LATENCY_TEST_COUNT = 3
+    TIMEOUT = 30
+    DOWNLOAD_TEST_DURATION = 15  # seconds
+    UPLOAD_TEST_DURATION = 10  # seconds
+    MAX_SERVER_DISTANCE = 500  # kilometers
+
+    def __init__(
+        self,
+        source_address: Optional[str] = None,
+        debug: bool = False,
+        download_test_duration: Optional[int] = None,
+        upload_test_duration: Optional[int] = None,
+        max_server_distance: Optional[int] = None,
+    ) -> None:
+        """
+        Initializes the AsyncSpeedtest instance with optional configuration.
+
+        Args:
+            source_address (Optional[str]): The source address to bind to the requests.
+            debug (bool): Flag to enable debug logging.
+            download_test_duration (Optional[int]): Duration for download test in seconds.
+            upload_test_duration (Optional[int]): Duration for upload test in seconds.
+            max_server_distance (Optional[int]): Maximum server distance in kilometers.
+        """
+        self.best_server: Optional[Dict[str, Any]] = None
+        self.source_address: Optional[str] = source_address
+        self.debug: bool = debug
+        if debug:
+            # Set module logger level instead of configuring root logger
+            logger.setLevel(logging.DEBUG)
+            # Add console handler if not already present
+            if not logger.handlers:
+                handler = logging.StreamHandler()
+                handler.setLevel(logging.DEBUG)
+                formatter = logging.Formatter(
+                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                )
+                handler.setFormatter(formatter)
+                logger.addHandler(handler)
+        self.download: float = 0.0
+        self.upload: float = 0.0
+        self.ping: float = 0.0
+        self.public_ip: str = ""
+        self.isp: str = ""
+        self.lat: Optional[float] = None
+        self.lon: Optional[float] = None
+        # Configuration overrides
+        self.download_test_duration = download_test_duration or self.DOWNLOAD_TEST_DURATION
+        self.upload_test_duration = upload_test_duration or self.UPLOAD_TEST_DURATION
+        self.max_server_distance = max_server_distance or self.MAX_SERVER_DISTANCE
+        # Create proper ClientTimeout object
+        self._timeout: ClientTimeout = ClientTimeout(total=self.TIMEOUT)
+
+    async def fetch(
+        self,
+        session: aiohttp.ClientSession,
+        url: str,
+        method: str = "GET",
+        data: Optional[bytes] = None,
+    ) -> str:
+        """
+        Fetches data from the given URL using the specified method.
+
+        Args:
+            session (aiohttp.ClientSession): The aiohttp client session.
+            url (str): The URL to fetch data from.
+            method (str): The HTTP method to use for the request.
+            data (Optional[bytes]): The data to send with the request, if any.
+
+        Returns:
+            str: The response text from the request.
+        """
+        async with session.request(method, url, data=data) as response:
+            result: str = await response.text()
+            if self.debug:
+                logger.debug(f"Fetched {url} with method {method}")
+            return result
+
+    async def get_config(self) -> bool:
+        """
+        Fetches the configuration including public IP, ISP, and location information.
+
+        Returns:
+            bool: True if the configuration was successfully fetched, False otherwise.
+        """
+        async with aiohttp.ClientSession(connector=self._get_connector()) as session:
+            try:
+                response: str = await self.fetch(session, self.CONFIG_URL)
+                config = re.search(
+                    r'<client ip="(.*?)" lat="(.*?)" lon="(.*?)" isp="(.*?)"', response
+                )
+                if config:
+                    self.public_ip = config.group(1)
+                    self.lat = float(config.group(2))
+                    self.lon = float(config.group(3))
+                    self.isp = config.group(4)
+                    if self.debug:
+                        logger.debug(
+                            f"Public IP: {self.public_ip}, ISP: {self.isp}, "
+                            f"Location: ({self.lat}, {self.lon})"
+                        )
+                    return True
+                return False
+            except Exception as e:
+                logger.warning(f"Failed to get config: {e}")
+                return False
+
+    def calculate_distance(
+        self, lat1: float, lon1: float, lat2: float, lon2: float
+    ) -> float:
+        """
+        Calculates the distance between two geographic coordinates.
+
+        Args:
+            lat1 (float): Latitude of the first coordinate.
+            lon1 (float): Longitude of the first coordinate.
+            lat2 (float): Latitude of the second coordinate.
+            lon2 (float): Longitude of the second coordinate.
+
+        Returns:
+            float: The distance between the coordinates in kilometers.
+        """
+        R: float = 6371  # Radius of the earth in km
+        dlat: float = math.radians(lat2 - lat1)
+        dlon: float = math.radians(lon2 - lon1)
+        a: float = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(math.radians(lat1))
+            * math.cos(math.radians(lat2))
+            * math.sin(dlon / 2) ** 2
+        )
+        c: float = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance: float = R * c
+        if self.debug:
+            logger.debug(f"Calculated distance: {distance} km")
+        return distance
+
+    async def get_best_server(self) -> Optional[Dict[str, Any]]:
+        """
+        Finds the best server based on latency tests.
+
+        Fetches user config if not already loaded, then selects the server with
+        lowest latency within 500km of user's location.
+
+        Returns:
+            Optional[Dict[str, Any]]: The best server's details, or None if no suitable server is found.
+        """
+        # Ensure we have user location
+        if self.lat is None or self.lon is None:
+            if self.debug:
+                logger.debug("User location not set, fetching config...")
+            await self.get_config()
+
+        async with aiohttp.ClientSession(connector=self._get_connector()) as session:
+            response: str = await self.fetch(session, self.SERVER_LIST_URL)
+
+        servers: List[Dict[str, Any]] = []
+        for line in response.splitlines():
+            match = re.search(
+                r'<server url="(https?://.*?)" lat="(.*?)" lon="(.*?)" name="(.*?)" country="(.*?)" id="(.*?)"',
+                line,
+            )
+            if match:
+                servers.append(
+                    {
+                        "url": match.group(1),
+                        "lat": float(match.group(2)),
+                        "lon": float(match.group(3)),
+                        "name": match.group(4),
+                        "country": match.group(5),
+                        "id": match.group(6),
+                    }
+                )
+
+        if not servers:
+            logger.error("No servers found in server list")
+            return None
+
+        # Determine user location (use config if available, fallback to first server)
+        if self.lat is not None and self.lon is not None:
+            user_lat, user_lon = self.lat, self.lon
+            if self.debug:
+                logger.debug(f"Using user location: ({user_lat}, {user_lon})")
+        else:
+            user_lat, user_lon = servers[0]["lat"], servers[0]["lon"]
+            logger.warning(
+                f"User location unavailable, using first server location as fallback: "
+                f"({user_lat}, {user_lon})"
+            )
+
+        best: Optional[Dict[str, Any]] = None
+        best_latency: float = float("inf")
+
+        async with aiohttp.ClientSession(connector=self._get_connector()) as session:
+            for server in servers:
+                distance: float = self.calculate_distance(
+                    user_lat, user_lon, server["lat"], server["lon"]
+                )
+                if distance > self.max_server_distance:
+                    continue
+
+                latencies: List[float] = []
+                for _ in range(self.LATENCY_TEST_COUNT):
+                    try:
+                        start: float = time.perf_counter()
+                        await self.fetch(session, server["url"] + "?latency")
+                        latency: float = (
+                            time.perf_counter() - start
+                        ) * 1000  # Convert to milliseconds
+                        latencies.append(latency)
+                    except Exception:
+                        latencies.append(float("inf"))
+
+                avg_latency: float = mean(latencies)
+                if avg_latency < best_latency:
+                    best_latency = avg_latency
+                    best = server
+
+        self.best_server = best
+        if self.debug:
+            logger.debug(f"Best server: {best}")
+        return best
+
+    async def measure_latency(self) -> None:
+        """
+        Measures the latency to the best server.
+        Updates the instance's ping attribute with the measured latency in milliseconds.
+
+        Raises:
+            RuntimeError: If best_server has not been selected yet.
+        """
+        if self.best_server is None:
+            raise RuntimeError(
+                "No server selected. Call get_best_server() before measuring latency."
+            )
+
+        latencies: List[float] = []
+        async with aiohttp.ClientSession(connector=self._get_connector()) as session:
+            for _ in range(self.LATENCY_TEST_COUNT):
+                try:
+                    start: float = time.perf_counter()
+                    await self.fetch(session, self.best_server["url"] + "?latency")
+                    latency: float = (
+                        time.perf_counter() - start
+                    ) * 1000  # Convert to milliseconds
+                    latencies.append(latency)
+                except Exception as e:
+                    logger.debug(f"Latency test failed: {e}")
+                    latencies.append(float("inf"))
+        self.ping = mean(latencies) if latencies else float("inf")
+        if self.debug:
+            logger.debug(f"Ping latency: {self.ping:.2f} ms")
+
+    async def measure_download_speed(self) -> None:
+        """
+        Measures the download speed by fetching large chunks of data for 15 seconds using multiple concurrent requests.
+
+        Updates the instance's download attribute with the measured speed in bytes per second.
+
+        Raises:
+            RuntimeError: If best_server has not been selected yet.
+        """
+        if self.best_server is None:
+            raise RuntimeError(
+                "No server selected. Call get_best_server() before measuring download speed."
+            )
+
+        total_data: int = 0
+        start_time: float = time.perf_counter()
+        url = self.best_server["url"]
+
+        async def download_chunk(session: aiohttp.ClientSession, url: str):
+            nonlocal total_data
+            try:
+                async with session.get(url, timeout=self._timeout) as response:
+                    while True:
+                        chunk = await response.content.read(self.DOWNLOAD_CHUNK_SIZE)
+                        if not chunk or time.perf_counter() - start_time > self.download_test_duration:
+                            break
+                        total_data += len(chunk)
+                        if self.debug:
+                            logger.debug(
+                                f"Downloaded chunk: {len(chunk)} bytes, Total: {total_data} bytes"
+                            )
+            except Exception as e:
+                logger.debug(f"Download chunk failed: {e}")
+
+        async with aiohttp.ClientSession(connector=self._get_connector()) as session:
+            tasks = [
+                download_chunk(session, url + "/random4000x4000.jpg")
+                for _ in range(self.TEST_COUNT)
+            ]
+            await asyncio.gather(*tasks)
+
+        elapsed_time: float = time.perf_counter() - start_time
+        self.download = total_data / elapsed_time if elapsed_time else 0.0
+        if self.debug:
+            logger.debug(
+                f"Total downloaded data: {total_data} bytes in {elapsed_time:.2f} seconds"
+            )
+            logger.debug(f"Download speed: {self.download:.2f} Bps")
+
+    async def measure_upload_speed(self) -> None:
+        """
+        Measures the upload speed by sending large chunks of data for 10 seconds.
+
+        Updates the instance's upload attribute with the measured speed in bytes per second.
+
+        Raises:
+            RuntimeError: If best_server has not been selected yet.
+        """
+        if self.best_server is None:
+            raise RuntimeError(
+                "No server selected. Call get_best_server() before measuring upload speed."
+            )
+
+        total_data: int = 0
+        data: bytes = b"0" * self.UPLOAD_CHUNK_SIZE
+        url = self.best_server["url"]
+
+        async with aiohttp.ClientSession(connector=self._get_connector()) as session:
+            start_time: float = time.perf_counter()
+            try:
+                while time.perf_counter() - start_time < self.upload_test_duration:
+                    async with session.post(
+                        url + "/upload", data=data, timeout=self._timeout
+                    ) as response:
+                        await response.read()
+                    total_data += self.UPLOAD_CHUNK_SIZE
+                    if self.debug:
+                        logger.debug(
+                            f"Uploaded chunk: {self.UPLOAD_CHUNK_SIZE} bytes, Total: {total_data} bytes"
+                        )
+            except Exception as e:
+                logger.debug(f"Upload speed test {url} failed: {e}")
+
+        elapsed_time: float = time.perf_counter() - start_time
+        self.upload = total_data / elapsed_time if elapsed_time else 0.0
+        if self.debug:
+            logger.debug(
+                f"Total uploaded data: {total_data} bytes in {elapsed_time:.2f} seconds"
+            )
+            logger.debug(f"Upload speed: {self.upload:.2f} Bps")
+
+    def _get_connector(self) -> Optional[aiohttp.TCPConnector]:
+        """
+        Returns a TCPConnector with the specified source address.
+
+        Returns:
+            Optional[aiohttp.TCPConnector]: The TCPConnector with the source address if provided, otherwise None.
+        """
+        return (
+            aiohttp.TCPConnector(local_addr=(self.source_address, 0))
+            if self.source_address
+            else None
+        )
+
+
+async def run_speedtest() -> None:
+    """
+    Runs the speed test to measure download and upload speeds, and prints the results.
+    """
+    st = AsyncSpeedtest(debug=True)
+    print("Testing internet speed...")
+
+    print("Finding best server...")
+    best_server = await st.get_best_server()
+    if not best_server:
+        raise Exception("Could not find a suitable server.")
+
+    print("Starting download test...")
+    await st.measure_download_speed()
+
+    print("Starting upload test...")
+    await st.measure_upload_speed()
+
+    download = st.download * 8 / (1024 * 1024)
+    upload = st.upload * 8 / (1024 * 1024)
+
+    print(f"Download speed: {download:.2f} Mbps")
+    print(f"Upload speed: {upload:.2f} Mbps")
+
+
+if __name__ == "__main__":
+    asyncio.run(run_speedtest())
