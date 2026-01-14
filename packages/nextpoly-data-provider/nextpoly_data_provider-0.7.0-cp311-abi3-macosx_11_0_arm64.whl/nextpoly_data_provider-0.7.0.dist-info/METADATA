@@ -1,0 +1,144 @@
+Metadata-Version: 2.4
+Name: nextpoly-data-provider
+Version: 0.7.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Rust
+Classifier: Topic :: Database
+Summary: Data provider for Python - Query data from local DuckDB
+Keywords: duckdb,prediction-market
+Author: cupnfish
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://github.com/Unipredict/data-layer
+Project-URL: Repository, https://github.com/Unipredict/data-layer
+
+# nextpoly-data-provider
+
+NextPoly data provider for Python, built with Rust and PyO3.
+
+## Features
+
+- Query Polymarket on-chain data (order filled events, FPMM transactions)
+- Query Polymarket off-chain data (markets, market tokens)
+- Query timeseries data for trading analysis
+- Time-travel queries with `simulation_time` parameter
+- Built on DuckDB for fast local queries
+- Python 3.11+ support with abi3 compatibility
+
+## Installation
+
+```bash
+pip install nextpoly-data-provider
+```
+
+### uv
+
+```bash
+uv add nextpoly-data-provider
+# or
+uv pip install nextpoly-data-provider
+```
+
+## Quick Start
+
+```python
+from data_provider import DataProvider
+
+# Create provider with default DB paths
+provider = DataProvider()
+
+# Query markets
+markets = provider.off_chain.list_markets(limit=10)
+for market in markets:
+    print(f"{market.raw_data.get('question')}")
+
+# Query on-chain events
+orders = provider.on_chain.list_orders(limit=10)
+
+# Query time series data
+ts = provider.trading.get_timeseries(token_id="...")
+```
+
+## Time Travel Queries
+
+```python
+from datetime import datetime, timezone
+
+# Query data as of a specific time
+ts = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp())
+provider = DataProvider(simulation_time=ts)
+
+# Or set it later
+provider.set_simulation_time(ts)
+```
+
+## Development
+
+### Building from source
+
+```bash
+cd crates/data-provider
+uv sync
+uv run maturin develop
+```
+
+### Running tests
+
+```bash
+# Install test dependencies
+uv pip install pytest duckdb --python .venv/bin/python
+
+# Run all tests
+.venv/bin/python -m pytest tests/ -v
+
+# Run specific test file
+.venv/bin/python -m pytest tests/test_queries.py -v
+```
+
+### Code quality
+
+```bash
+# Lint with ruff
+ruff check tests/
+
+# Type check with ty
+uv tool run ty check tests/
+```
+
+## Requirements
+
+- Python 3.11+
+- Local DuckDB database files
+
+## Type stubs
+
+Type stubs live next to the package in `crates/data-provider/data_provider/*.pyi`.
+
+To build the extension with maturin and verify stubs against runtime objects:
+
+```bash
+uv --version
+cargo run -p xtask -- stub-check
+```
+
+`stub-check` uses `uv run` in `crates/provider`, creating `.venv` if needed and installing
+`maturin`, `mypy`, `ruff`, and `ty` automatically.
+Pass `--debug` to skip `--release`.
+
+## Publishing
+
+```bash
+maturin publish --release
+```
+
+## License
+
+MIT
+
