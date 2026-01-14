@@ -1,0 +1,134 @@
+Metadata-Version: 2.4
+Name: knai-provider
+Version: 0.1.0
+Summary: Python SDK for KNAI Wallet provider integration
+Home-page: https://knai.app
+Author: KNAI
+Author-email: KNAI <support@knai.app>
+License: MIT
+Project-URL: Homepage, https://knai.app
+Project-URL: Documentation, https://docs.knai.app
+Project-URL: Repository, https://github.com/knai-app/knai-python
+Keywords: knai,wallet,fintech,ai,sdk,payments
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25
+Dynamic: license-file
+
+# KNAI Provider SDK
+
+A Python SDK for integrating with KNAI Wallet, enabling AI providers to implement session-based, per-use charging. KNAI Wallet is an API-first fintech product that allows providers to monetize AI services through a secure, session-based payment system where users authorize spending via session tokens.
+
+## Installation
+
+```bash
+pip install knai-provider
+```
+
+## Usage
+
+```python
+from knai import KNAIProvider, SessionExpiredError, InsufficientBalanceError
+
+# Initialize the client with your credentials
+provider = KNAIProvider(
+    provider_api_key="your-api-key",
+    provider_slug="your-provider-slug",
+)
+
+# Wait for an active session from a user
+session = provider.wait_for_session(provider_username="user123")
+session_token = session["session_token"]
+
+# Charge for usage
+try:
+    result = provider.charge(
+        session_token=session_token,
+        amount_tokens=1500,
+        model="gpt-4",
+    )
+    print(f"Charge successful: {result}")
+except SessionExpiredError:
+    print("Session has expired, request a new session")
+except InsufficientBalanceError:
+    print("User has insufficient balance")
+```
+
+## API Reference
+
+### `KNAIProvider`
+
+#### Constructor
+
+```python
+KNAIProvider(
+    provider_api_key: str,
+    provider_slug: str,
+    base_url: str = "https://api.conx.ai"
+)
+```
+
+- `provider_api_key`: Your provider API key for authentication
+- `provider_slug`: Your unique provider identifier
+- `base_url`: Optional API base URL (defaults to production)
+
+#### Methods
+
+##### `wait_for_session(provider_username: str, poll_interval: float = 1.5) -> dict`
+
+Polls for an active provider session. Blocks until a session becomes active.
+
+- `provider_username`: The username to poll session status for
+- `poll_interval`: Time in seconds between poll attempts (default: 1.5)
+- Returns: Session payload dict when status becomes "active"
+
+##### `charge(session_token: str, amount_tokens: int, model: str) -> dict`
+
+Charges wallet usage for the current session.
+
+- `session_token`: The active session token authorizing the charge
+- `amount_tokens`: Number of tokens to charge
+- `model`: The model identifier being used
+- Returns: Parsed JSON response from the charge API
+
+### Exceptions
+
+- `KNAIError`: Base exception for all SDK errors
+- `SessionExpiredError`: Session has expired or is no longer valid
+- `InsufficientBalanceError`: Wallet has insufficient balance
+- `InvalidAPIKeyError`: Provider API key is invalid
+
+## Security Warning
+
+⚠️ **This SDK is designed for server-side use only.**
+
+- Never expose your `provider_api_key` in client-side code
+- Never use this SDK in browser environments
+- Store API keys securely using environment variables or secret management
+- Session tokens should only be handled server-side
+
+```python
+import os
+
+# Load API key from environment
+provider = KNAIProvider(
+    provider_api_key=os.environ["KNAI_API_KEY"],
+    provider_slug=os.environ["KNAI_PROVIDER_SLUG"],
+)
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
