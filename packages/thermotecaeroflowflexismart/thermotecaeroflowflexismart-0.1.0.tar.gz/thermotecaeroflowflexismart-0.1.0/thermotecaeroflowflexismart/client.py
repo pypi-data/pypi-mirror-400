@@ -1,0 +1,745 @@
+"""Client module for the Python Thermotec AeroFlow® Library"""
+import logging
+from asyncio import sleep
+from datetime import datetime
+
+from .communication import FlexiSmartGateway
+from .const import OPERATION, OPERATION_OK, OKAY
+from .data_object import (
+    GatewayNetworkConfiguration,
+    Temperature,
+    GatewayData,
+    GatewayDateTime,
+    ModuleData,
+    HolidayData,
+    HomeAssistantModuleData
+)
+from .exception import InvalidResponse, InvalidRequest, RequestTimeout
+from .utils import (
+    check_if_zone_exists,
+    check_if_module_is_valid,
+    calculate_int_from_temperature,
+    calculate_temperature_offset_from_int,
+    calculate_int_from_temperature_offset
+)
+
+_LOGGER = logging.getLogger(__name__)
+INVALID_DEVICE_IDENTIFIER = "0.0.0.0"
+
+
+class Client:
+    def __init__(self, host: str, port: int = 6653):
+        self._gateway = FlexiSmartGateway(host, port)
+
+    # Command: PING
+    # GatewayResponse: OP
+    async def ping(self) -> bool:
+        command = "PING"
+
+        try:
+            response = await self._gateway.send_message_get_response(command)
+            if not response.startswith(OPERATION):
+                raise InvalidResponse()
+            return True
+        except Exception:
+            return False
+
+    # Command: OPH...
+    # GatewayResponse: OPOK,<>
+    async def get_date_time(self) -> GatewayDateTime:
+        operation = "OPH"
+        data = await self.__get_data(operation, False)
+        return GatewayDateTime(data)
+
+    async def update_date_time(self) -> None:
+        now = datetime.now()
+        return await self.set_date_time(now)
+
+    # Command: OPF...
+    # GatewayResponse: OPOK
+    async def set_date_time(self, target_datetime: datetime) -> None:
+        hour = "%H"
+        minute = "%M"
+        second = "%S"
+        day_of_week = target_datetime.weekday()  # Sunday = 6 - Monday = 0
+        day = "%d"
+        month = "%m"
+        year = "%y"
+
+        operation = "OPF"
+        command = target_datetime.strftime(f"{operation}{hour}{minute}{second}{day_of_week}/{day},{month},{year}/")
+
+        response = await self._gateway.send_message_get_response(command)
+
+        if not response.startswith(OPERATION_OK):
+            raise InvalidResponse()
+
+        return None
+
+    # Command: OPF/
+    # GatewayResponse: OPOK,<firmware_version>,<installation_id>,<idu>
+    async def get_gateway_data(self) -> GatewayData:
+        operation = "OPF"
+        data = await self.__get_data(operation, False)
+        return GatewayData(data)
+
+    # Command: OPS1/
+    # GatewayResponse: OPOK,OPS1,<server_sync_id>,x,x,x,x,<id_a>,<id_b>,x,x,x
+    # if sync id != last sync id -> environment has changed
+    async def get_status(self):
+        operation = "OPS1"
+        data = await self.__get_data(operation, True)
+        return {"serverSyncId": data[0], "idA": data[5], "idB": data[6]}
+
+    # Command: OPS2/
+    # GatewayResponse: OPOK,OPS2,<zone_id>,<...>
+    async def get_zones(self) -> list[int]:
+        operation = "OPS2"
+        return await self.__get_zones(operation)
+
+    # Command: OPS3/
+    # GatewayResponse: OPOK,OPS3,<module_count>,<...>
+    async def get_zones_with_module_count(self) -> list[int]:
+        operation = "OPS3"
+        return await self.__get_zones(operation)
+
+    # Command: OPS4/
+    # GatewayResponse: OPOK,OPS4,<x>,<x>,<x>
+    # async def get_ops4(self):
+    #     operation = "OPS4"
+    #     command = f"{operation}/"
+    #     response = await self._gateway.send_message_get_response(command)
+    #
+    #     status = OPERATION_OK
+    #     response_identifier = f"{status},{operation},"
+    #
+    #     placeholder = []
+    #     if response.startswith(response_identifier):
+    #         placeholder = response.replace(response_identifier, "").split(",")
+    #
+    #     return placeholder
+
+    # Command: OPS5/
+    # GatewayResponse: OPOK,OPS5,<x>,<x>,<x>
+    # async def get_ops5(self):
+    #     operation = "OPS5"
+    #     command = f"{operation}/"
+    #     response = await self._gateway.send_message_get_response(command)
+    #
+    #     status = OPERATION_OK
+    #     response_identifier = f"{status},{operation},"
+    #
+    #     placeholder = []
+    #     if response.startswith(response_identifier):
+    #         placeholder = response.replace(response_identifier, "").split(",")
+    #
+    #     return placeholder
+
+    # Command: OPS6/
+    # GatewayResponse: OPOK,OPS6
+    # async def get_ops6(self):
+    #     operation = "OPS6"
+    #     command = f"{operation}/"
+    #     response = await self._gateway.send_message_get_response(command)
+    #
+    #     status = OPERATION_OK
+    #     response_identifier = f"{status},{operation},"
+    #
+    #     placeholder = []
+    #     if response.startswith(response_identifier):
+    #         placeholder = response.replace(response_identifier, "").split(",")
+    #
+    #     return placeholder
+
+    # Command: OPS7/
+    # GatewayResponse: OPOK,OPS7
+    # async def get_ops7(self):
+    #     operation = "OPS7"
+    #     command = f"{operation}/"
+    #     response = await self._gateway.send_message_get_response(command)
+    #
+    #     status = OPERATION_OK
+    #     response_identifier = f"{status},{operation},"
+    #
+    #     placeholder = []
+    #     if response.startswith(response_identifier):
+    #         placeholder = response.replace(response_identifier, "").split(",")
+    #
+    #     return placeholder
+
+    # Command: OPS38/
+    # GatewayResponse: OPOK,OPS38,<ip[0-3]>,<gateway[4-7]>,<netmask[8-11],x,x,x,x
+    async def get_network_configuration(self) -> GatewayNetworkConfiguration:
+        operation = "OPS38"
+        data = await self.__get_data(operation, True)
+        return GatewayNetworkConfiguration(data)
+
+    # Command: OPS43/
+    # GatewayResponse: OPOK,OPS43,<x>,<x>
+    # async def get_ops43(self):
+    #     operation = "OPS43"
+    #     command = f"{operation}/"
+    #     response = await self._gateway.send_message_get_response(command)
+    #
+    #     status = OPERATION_OK
+    #     response_identifier = f"{status},{operation},"
+    #
+    #     placeholder = []
+    #     if response.startswith(response_identifier):
+    #         placeholder = response.replace(response_identifier, "").split(",")
+    #
+    #     return placeholder
+
+    async def register_module_in_zone(self, zone: int, timeout: int = 30, zones: list[int] | None = None) -> None:
+        return await self._register_module(zone, timeout, zones)
+
+    # Command: OPMW<zone_position>,<zone_id>/
+    # GatewayResponse: OPOK
+    async def create_zone(self) -> None:
+        zones = await self.get_zones_with_module_count()
+        await sleep(0.1)
+
+        total_zones = len(zones)
+
+        zone_position = total_zones + 9
+        new_zone_id = total_zones + 1
+
+        operation = "OPMW"
+        command = f"{operation}{zone_position},{new_zone_id}/"
+        response = await self._gateway.send_message_get_response(command)
+
+        if not response.startswith(OPERATION_OK):
+            raise InvalidResponse()
+
+        return None
+
+    # Command: OPMW<big_zone_id>,0/
+    # GatewayResponse: OPOK
+    async def delete_zone(self, zone: int, zones: list[int] | None = None) -> None:
+        if zones is None or len(zones) == 0:
+            zones = await self.get_zones_with_module_count()
+            await sleep(0.1)
+
+        check_if_zone_exists(zones, zone)
+
+        # module type = 120
+        # some crazy constant value = 8
+        # zone id = <zone>
+        big_zone_id = 120 + 8 + zone
+
+        operation = "OPMW"
+        command = f"{operation}{big_zone_id},0/"
+        response = await self._gateway.send_message_get_response(command)
+
+        if not response.startswith(OPERATION_OK):
+            raise InvalidResponse()
+        return None
+
+    # Command: R#<zone_id>#<zone_module_count>#0#0*?F/
+    async def get_module_data(self, zone: int, module: int, zones: list[int] | None = None) -> ModuleData:
+        if zones is None or len(zones) == 0:
+            zones = await self.get_zones_with_module_count()
+            await sleep(0.1)
+
+        check_if_zone_exists(zones, zone)
+
+        operation = "R"
+        command = f"{operation}#{zone}#{module}#0#0*?F/"
+        response = await self._gateway.send_message_get_response(command)
+
+        status = OKAY
+        response_identifier = f"{status},"
+
+        if not response.startswith(response_identifier):
+            raise InvalidResponse()
+
+        data = response.replace(response_identifier, "").split(",")
+        return ModuleData(data)
+
+    # >>>>>>> Temperature <<<<<<< #
+    async def get_zone_temperature(self, zone: int, zones: list[int] | None = None) -> Temperature:
+        return await self._get_temperature(zone, zones)
+
+    async def set_zone_temperature(self, zone: int, temperature: float, zones: list[int] | None = None) -> None:
+        return await self._set_temperature(temperature, zone, zones)
+
+    async def get_module_temperature(self, zone: int, module: int, zones: list[int] | None = None) -> Temperature:
+        return await self._get_temperature(zone, zones, module)
+
+    async def set_module_temperature(self, zone: int, module: int, temperature: float, zones: list[int] | None = None) -> None:
+        return await self._set_temperature(temperature, zone, zones, module)
+
+    # >>>>>>> Offset Temperature <<<<<<< #
+    async def get_zone_temperature_offset(self, zone: int, zones: list[int] | None = None) -> float:
+        return await self._get_temperature_offset(zone, zones)
+
+    async def set_zone_temperature_offset(self, zone: int, temperature: float, zones: list[int] | None = None) -> None:
+        return await self._set_temperature_offset(temperature, zone, zones)
+
+    async def get_module_temperature_offset(self, zone: int, module: int, zones: list[int] | None = None) -> float:
+        return await self._get_temperature_offset(zone, zones, module)
+
+    async def set_module_temperature_offset(self, zone: int, module: int, temperature: float, zones: list[int] | None = None) -> None:
+        return await self._set_temperature_offset(temperature, zone, zones, module)
+
+    # >>>>>>> Anti Freeze Temperature <<<<<<< #
+    async def get_zone_anti_freeze_temperature(self, zone: int, zones: list[int] | None = None) -> float:
+        return await self._get_anti_freeze_temperature(zone, zones)
+
+    async def set_zone_anti_freeze_temperature(self, zone: int, temperature: float, zones: list[int] | None = None) -> None:
+        return await self._set_anti_freeze_temperature(temperature, zone, zones)
+
+    async def get_module_anti_freeze_temperature(self, zone: int, module: int, zones: list[int] | None = None) -> float:
+        return await self._get_anti_freeze_temperature(zone, zones, module)
+
+    async def set_module_anti_freeze_temperature(self, zone: int, module: int, temperature: float, zones: list[int] | None = None) -> None:
+        return await self._set_anti_freeze_temperature(temperature, zone, zones, module)
+
+    # >>>>>>> Boost <<<<<<< #
+    async def get_zone_boost(self, zone: int, zones: list[int] | None = None) -> float:
+        return await self._get_boost(zone, zones)
+
+    async def set_zone_boost(self, zone: int, time: int, zones: list[int] | None = None) -> None:
+        return await self._set_boost(time, zone, zones)
+
+    async def get_module_boost(self, zone: int, module: int, zones: list[int] | None = None) -> int:
+        return await self._get_boost(zone, zones, module)
+
+    async def set_module_boost(self, zone: int, module: int, time: int, zones: list[int] | None = None) -> None:
+        return await self._set_boost(time, zone, zones, module)
+
+    # >>>>>>> Window Open Detection <<<<<<< #
+    async def is_zone_window_open_detection_enabled(self, zone: int, zones: list[int] | None = None) -> bool:
+        return await self._is_window_open_detection_enabled(zone, zones)
+
+    async def enable_zone_window_open_detection(self, zone: int, zones: list[int] | None = None) -> None:
+        return await self._set_window_open_detection(True, zone, zones)
+
+    async def disable_zone_window_open_detection(self, zone: int, zones: list[int] | None = None) -> None:
+        return await self._set_window_open_detection(False, zone, zones)
+
+    async def set_zone_window_open_detection(self, zone: int, value: bool, zones: list[int] | None = None) -> None:
+        return await self._set_window_open_detection(value, zone, zones)
+
+    async def is_module_window_open_detection_enabled(self, zone: int, module: int, zones: list[int] | None = None) -> bool:
+        return await self._is_window_open_detection_enabled(zone, zones, module)
+
+    async def enable_module_window_open_detection(self, zone: int, module: int, zones: list[int] | None = None) -> None:
+        return await self._set_window_open_detection(True, zone, zones, module)
+
+    async def disable_module_window_open_detection(self, zone: int, module: int, zones: list[int] | None = None) -> None:
+        return await self._set_window_open_detection(False, zone, zones, module)
+
+    async def set_module_window_open_detection(self, zone: int, module: int, value: bool, zones: list[int] | None = None) -> None:
+        return await self._set_window_open_detection(value, zone, zones, module)
+
+    # >>>>>>> Smart Start <<<<<<< #
+    async def is_zone_smart_start_enabled(self, zone: int, zones: list[int] | None = None) -> bool:
+        return await self._is_smart_start_enabled(zone, zones)
+
+    async def enable_zone_smart_start(self, zone: int, zones: list[int] | None = None) -> None:
+        return await self._set_smart_start(True, zone, zones)
+
+    async def disable_zone_smart_start(self, zone: int, zones: list[int] | None = None) -> None:
+        return await self._set_smart_start(False, zone, zones)
+
+    async def set_zone_smart_start(self, zone: int, value: bool, zones: list[int] | None = None) -> None:
+        return await self._set_smart_start(value, zone, zones)
+
+    async def is_module_smart_start_enabled(self, zone: int, module: int, zones: list[int] | None = None) -> bool:
+        return await self._is_smart_start_enabled(zone, zones, module)
+
+    async def enable_module_smart_start(self, zone: int, module: int, zones: list[int] | None = None) -> None:
+        return await self._set_smart_start(True, zone, zones, module)
+
+    async def disable_module_smart_start(self, zone: int, module: int, zones: list[int] | None = None) -> None:
+        return await self._set_smart_start(False, zone, zones, module)
+
+    async def set_module_smart_start(self, zone: int, module: int, value: bool, zones: list[int] | None = None) -> None:
+        return await self._set_smart_start(value, zone, zones, module)
+
+    # >>>>>>> Holiday <<<<<<< #
+    async def get_zone_holiday_mode(self, zone: int, zones: list[int] | None = None) -> HolidayData:
+        return await self._get_holiday_mode(zone, zones)
+
+    async def disable_zone_holiday_mode(self, zone: int, zones: list[int] | None = None) -> None:
+        return await self._disable_holiday_mode(zone, zones)
+
+    async def set_zone_holiday_mode(self, zone: int, target_datetime: datetime, target_temperature: float, zones: list[int] | None = None) -> None:
+        return await self._set_holiday_mode(target_datetime, target_temperature, zone, zones)
+
+    async def get_module_holiday_mode(self, zone: int, module: int, zones: list[int] | None = None) -> HolidayData:
+        return await self._get_holiday_mode(zone, zones, module)
+
+    async def disable_module_holiday_mode(self, zone: int, module: int, zones: list[int] | None = None) -> None:
+        return await self._disable_holiday_mode(zone, zones, module)
+
+    async def set_module_holiday_mode(self, zone: int, module: int, target_datetime: datetime,
+                                      target_temperature: float, zones: list[int] | None = None) -> None:
+        return await self._set_holiday_mode(target_datetime, target_temperature, zone, zones, module)
+
+    # >>>>>>> Programming <<<<<<< #
+    # TODO: Implement Programming feature
+
+    # >>>>>>> Restart <<<<<<< #
+    async def restart_zone(self, zone: int, zones: list[int] | None = None) -> ModuleData:
+        # if we restart multiple we might get ER,1, but it still works
+        return await self._restart_module(zone, zones)
+
+    async def restart_module(self, zone: int, zones: list[int] | None, module: int) -> ModuleData:
+        return await self._restart_module(zone, zones, module)
+
+    # >>>>>>> HomeAssistant <<<<<<< #
+    async def get_module_all_data(self, zone: int, module: int, zones: list[int] | None = None, extended: bool = True) -> HomeAssistantModuleData:
+        if zones is None or len(zones) == 0:
+            zones = await self.get_zones_with_module_count()
+            await sleep(0.1)
+
+        check_if_zone_exists(zones, zone)
+
+        target_module = zones[(zone - 1)]
+
+        check_if_module_is_valid(target_module, module)
+
+        module_data = await self.get_module_data(zone=zone, module=module)
+
+        anti_freeze_temperature = None
+        holiday_data = None
+        date_time = None
+        if extended:
+            await sleep(0.1)
+            anti_freeze_temperature = await self.get_module_anti_freeze_temperature(zone=zone, module=module)
+            await sleep(0.1)
+            holiday_data = await self.get_module_holiday_mode(zone=zone, module=module)
+            await sleep(0.1)
+            date_time = await self.get_date_time()
+            await sleep(0.1)
+
+        return HomeAssistantModuleData(zone_id=zone, module_id=module, module_data=module_data,
+                                       anti_freeze_temperature=anti_freeze_temperature, holiday_data=holiday_data,
+                                       date_time=date_time)
+
+    async def get_all_data(self, zones: list[int] | None = None, extended: bool = True) -> dict[str, HomeAssistantModuleData]:
+        if zones is None or len(zones) == 0:
+            zones = await self.get_zones_with_module_count()
+            await sleep(0.1)
+
+        _LOGGER.debug("Zones with modules: %s", ", ".join(map(str, zones)))
+
+        date_time = None
+        if extended:
+            date_time = await self.get_date_time() if extended else None
+            await sleep(0.1)
+
+        home_assistant_modules = dict()
+        zone = 0
+        for modules in zones:
+            zone = zone + 1
+            if modules == 0:
+                _LOGGER.debug("Zone: %s is empty. Skipping", zone)
+                continue
+
+            for module in range(1, (modules + 1)):
+                try:
+                    _LOGGER.debug("Zone: %s, Module: %s. Request module data", zone, module)
+
+                    device_identifier = INVALID_DEVICE_IDENTIFIER
+                    module_data = None
+                    for attempt in range(4):  # UDP and Gateway are sometimes not 100% reliable. Retry 3 times
+                        module_data = await self.get_module_data(zone, module, zones)
+                        device_identifier = module_data.get_device_identifier()
+                        if device_identifier != INVALID_DEVICE_IDENTIFIER:
+                            break
+
+                    if device_identifier == INVALID_DEVICE_IDENTIFIER:
+                        _LOGGER.warning("Could not uniquely identify module after 3 attempts. Skip this module")
+                        continue
+
+                    _LOGGER.debug("Add module with Identifier: %s", device_identifier)
+
+                    anti_freeze_temperature = None
+                    holiday_data = None
+                    if extended:
+                        anti_freeze_temperature = await self.get_module_anti_freeze_temperature(zone=zone, zones=zones, module=module)
+                        await sleep(0.1)
+                        holiday_data = await self.get_module_holiday_mode(zone=zone, zones=zones, module=module)
+                        await sleep(0.1)
+
+                    home_assistant_module = HomeAssistantModuleData(
+                        zone_id=zone,
+                        module_id=module,
+                        module_data=module_data,
+                        anti_freeze_temperature=anti_freeze_temperature,
+                        holiday_data=holiday_data,
+                        date_time=date_time
+                    )
+                    home_assistant_modules[device_identifier] = home_assistant_module
+                except RequestTimeout:
+                    _LOGGER.warning(f"Timeout while fetching data for Module: {module} in Zone: {zone} - If this "
+                                    f"module does not exist anymore, remove it from the Gateway to improve "
+                                    f"performance and update speed")
+
+        return home_assistant_modules
+
+    # --------------------------------- #
+    # >>>>>>> Private functions <<<<<<< #
+    # --------------------------------- #
+
+    # Command: OPZI199,<zone>,<module>/
+    # GatewayResponse: OPOK
+    async def _register_module(self, zone: int, timeout: int, zones: list[int] | None, module: int = -1) -> None:
+        if zones is None or len(zones) == 0:
+            zones = await self.get_zones_with_module_count()
+            await sleep(0.1)
+
+        check_if_zone_exists(zones, zone)
+
+        target_module = zones[(zone - 1)]
+
+        # if module was not -1 we verify the requested module
+        if module != -1:
+            check_if_module_is_valid(target_module, module)
+            target_module = module
+
+        operation = "OPZI199"
+        command = f"{operation},{zone},{target_module}/"
+        response = await self._gateway.send_message_get_response(command, timeout)
+
+        status = OPERATION_OK
+        response_identifier = f"{status}"
+
+        if not response.startswith(response_identifier):
+            raise InvalidResponse()
+
+        return None
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*?T/
+    # GatewayResponse: OK,<current_temperature>,<current_temperature>,<target_temperature>
+    async def _get_temperature(self, zone: int, zones: list[int] | None, module: int = -1) -> Temperature:
+        data = await self.__get_zone_command("?T", zone, zones, module)
+
+        return Temperature(data)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*T<target_temperature>/
+    # GatewayResponse: OK
+    async def _set_temperature(self, temperature: float, zone: int, zones: list[int] | None, module: int = -1) -> None:
+        target_temperature = calculate_int_from_temperature(temperature)
+
+        sub_command = f"T{target_temperature}"
+
+        return await self.__set_zone_command(sub_command, zone, zones, module)
+
+    # Command: R<zone_id>#<zone_module_count>#0#0*?E#0#9/
+    # GatewayResponse: OK,<offset_temperature>
+    async def _get_temperature_offset(self, zone: int, zones: list[int] | None, module: int = -1) -> float:
+        data = await self.__get_zone_command("?E#0#9", zone, zones, module)
+
+        return calculate_temperature_offset_from_int(int(data[0]))
+
+    # Command: R<zone_id>#<zone_module_count>#0#0*SEP#0#9#<target_offset_temperature>/
+    # GatewayResponse: OK
+    async def _set_temperature_offset(self, temperature: float, zone: int, zones: list[int] | None, module: int = -1) -> None:
+        target_temperature = calculate_int_from_temperature_offset(temperature)
+
+        sub_command = f"SEP#0#9#{target_temperature}"
+
+        return await self.__set_zone_command(sub_command, zone, zones, module)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*?E#1#20/
+    # GatewayResponse: OK,<anti_freeze_temperature>
+    async def _get_anti_freeze_temperature(self, zone: int, zones: list[int] | None, module: int = -1) -> float:
+        response = await self.__get_zone_command_string("?E#1#20", zone, zones, module)
+
+        data = int(response)
+
+        # if data == 255 -> Anti Freeze was never Set -> default might be 5°C
+        if data == 255:
+            data = 5
+
+        return float(data)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*SEP#1#20#<target_temperature>/
+    # GatewayResponse: OK
+    async def _set_anti_freeze_temperature(self, temperature: float, zone: int, zones: list[int] | None, module: int = -1) -> None:
+        target_temperature = int(temperature)
+
+        sub_command = f"SEP#1#20#{target_temperature}"
+
+        return await self.__set_zone_command(sub_command, zone, zones, module)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*?E#1#22/
+    # GatewayResponse: OK,<boost_time>
+    async def _get_boost(self, zone: int, zones: list[int] | None, module: int = -1) -> int:
+        response = await self.__get_zone_command_string("?E#1#22", zone, zones, module)
+
+        data = int(response)
+
+        if data == 255:
+            data = 0
+
+        # Multiply by 5 as each step is 5 minutes
+        return data * 5
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*SEP#1#22#<target_temperature>/
+    # GatewayResponse: OK
+    async def _set_boost(self, time: int, zone: int, zones: list[int] | None, module: int = -1) -> None:
+        if time > 95:
+            raise InvalidRequest("Boost time can not exceed 95 Minutes")
+
+        target_time = 0
+        if time >= 5:
+            target_time = int(time / 5)
+
+        sub_command = f"SEP#1#22#{target_time}"
+
+        return await self.__set_zone_command(sub_command, zone, zones, module)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*?E#0#6/
+    # GatewayResponse: OK,<0|1>
+    async def _is_window_open_detection_enabled(self, zone: int, zones: list[int] | None, module: int = -1) -> bool:
+        response = await self.__get_zone_command_string("?E#0#6", zone, zones, module)
+
+        return bool(int(response))
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*SEP#0#6#<target_temperature>/
+    # GatewayResponse: OK
+    async def _set_window_open_detection(self, value: bool, zone: int, zones: list[int] | None, module: int = -1) -> None:
+        target_value = int(value)
+
+        sub_command = f"SEP#0#6#{target_value}"
+
+        return await self.__set_zone_command(sub_command, zone, zones, module)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*RH#<days>#<final_hour>#<final_minute>#<target_temperature_afterwards>/
+    # GatewayResponse: OK
+    async def _set_holiday_mode(self, target_datetime: datetime, temperature: float, zone: int,
+                                zones: list[int] | None, module: int = -1) -> None:
+        today = datetime.now()
+
+        days_to_target = (
+                (target_datetime.replace(hour=0, minute=0, second=0, microsecond=0)) -
+                (today.replace(hour=0, minute=0, second=0, microsecond=0))
+        ).days
+
+        if days_to_target > 240:
+            raise InvalidRequest("Holiday Target Date can not exceed 240 Days")
+
+        if days_to_target <= 0:
+            raise InvalidRequest("Holiday Target Date needs to be at least one day in the future")
+
+        target_temperature = calculate_int_from_temperature(temperature)
+
+        sub_command = f"RH#{days_to_target}#{target_datetime.hour}#{target_datetime.minute}#{target_temperature}"
+
+        return await self.__set_zone_command(sub_command, zone, zones, module)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*RH#<days>#<final_hour>#<final_minute>#<target_temperature_afterwards>/
+    # GatewayResponse: OK
+    async def _disable_holiday_mode(self, zone: int, zones: list[int] | None, module: int = -1) -> None:
+        sub_command = f"RH#0#0#0#251"
+
+        return await self.__set_zone_command(sub_command, zone, zones, module)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*?RH
+    # GatewayResponse: OK
+    async def _get_holiday_mode(self, zone: int, zones: list[int] | None, module: int = -1) -> HolidayData:
+        data = await self.__get_zone_command("?RH", zone, zones, module)
+
+        return HolidayData(data)
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*?E#0#7/
+    # GatewayResponse: OK
+    async def _is_smart_start_enabled(self, zone: int, zones: list[int] | None, module: int = -1) -> bool:
+        response = await self.__get_zone_command_string("?E#0#7", zone, zones, module)
+
+        return bool(int(response))
+
+    # Command: D<zone_id>#<zone_module_count>#0#0*SEP#0#7#<target_temperature>/
+    # GatewayResponse: OK
+    async def _set_smart_start(self, value: bool, zone: int, zones: list[int] | None, module: int = -1) -> None:
+        target_value = int(value)
+
+        sub_command = f"SEP#0#7#{target_value}"
+
+        return await self.__set_zone_command(sub_command, zone, zones, module)
+
+    # Command: D<zone_id><module>#0#0*-TU#0#0#0#0#2/
+    # GatewayResponse: OPOK,<module-data>
+    async def _restart_module(self, zone: int, zones: list[int] | None, module: int = -1) -> ModuleData:
+        # if we remove one 0 after TU, we reset the module (by accident?)
+        data = await self.__get_zone_command("-TU#0#0#0#0#2", zone, zones, module)
+
+        return ModuleData(data)
+
+    async def __get_data(self, operation: str, include_operation_in_response_identifier: bool) -> list[str]:
+        command = f"{operation}/"
+        response = await self._gateway.send_message_get_response(command)
+
+        status = OPERATION_OK
+        response_identifier = f"{status},"
+        if include_operation_in_response_identifier:
+            response_identifier += f"{operation},"
+
+        if not response.startswith(response_identifier):
+            raise InvalidResponse()
+
+        return response.replace(response_identifier, "").split(",")
+
+    async def __get_zones(self, operation: str) -> list[int]:
+        data = await self.__get_data(operation, True)
+
+        zones = []
+        for value in data:
+            zones.append(int(value))
+
+        return zones
+
+    async def __set_zone_command(self, sub_command: str, zone: int, zones: list[int] | None, module: int = -1):
+        response = await self.__zone_command(sub_command, zone, zones, module)
+
+        status = OKAY
+        response_identifier = f"{status}"
+
+        if not response.startswith(response_identifier):
+            raise InvalidResponse()
+
+        return None
+
+    async def __get_zone_command(self, sub_command: str, zone: int, zones: list[int] | None, module: int = -1):
+        response = await self.__get_zone_command_string(sub_command, zone, zones, module)
+
+        return response.split(",")
+
+    async def __get_zone_command_string(self, sub_command: str, zone: int, zones: list[int] | None, module: int = -1):
+        response = await self.__zone_command(sub_command, zone, zones, module)
+
+        status = OKAY
+        response_identifier = f"{status},"
+
+        if not response.startswith(response_identifier):
+            raise InvalidResponse()
+
+        return response.replace(response_identifier, "")
+
+    async def __zone_command(self, sub_command: str, zone: int, zones: list[int] | None, module: int = -1):
+        if zones is None or len(zones) == 0:
+            zones = await self.get_zones_with_module_count()
+            await sleep(0.1)
+
+        check_if_zone_exists(zones, zone)
+
+        operation = "D"
+        target_module = zones[(zone - 1)]
+
+        # if module was not -1 we verify the requested module
+        if module != -1:
+            check_if_module_is_valid(target_module, module)
+            operation = "R"
+            target_module = module
+
+        command = f"{operation}#{zone}#{target_module}#0#0*{sub_command}/"
+        return await self._gateway.send_message_get_response(command)
+
+# Update Temperature etc.:
+# ER,2 = Communication error with one module (2 in this case)
+# ER,1,2 = Communication error with two modules (1,2 in this case)
