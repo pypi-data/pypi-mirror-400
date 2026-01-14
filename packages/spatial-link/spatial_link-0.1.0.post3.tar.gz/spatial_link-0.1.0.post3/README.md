@@ -1,0 +1,272 @@
+# Spatial-Link
+
+**Spatial-Link** is a weekly graph-based framework (BFS → Monte Carlo) for detecting **statistically significant directed linkages** in spatio-temporal data.
+
+Spatial-Link was originally developed to address a core **iHARP** research problem: understanding the interaction between **sea ice retreat** and **ice shelf melting** in the Antarctic. Within this context, the method was designed to capture how **heterogeneous spatio-temporal phenomena** interact across space, specifically identifying how changes in one region systematically influence other regions over time.
+
+Although motivated by polar climate science, Spatial-Link is a **general and reusable framework** for discovering linkages between **heterogeneous spatio-temporal phenomena**.
+Each node represents a spatial region or entity, and a directed linkage indicates that one region or node exerts a statistically significant influence on another region or node over time. Spatial-Link identifies such influence pathways while filtering out spurious connections caused by background variability or noise.
+
+This work is part of the NSF HDR Institute for Harnessing Data and Model Revolution in the Polar Regions (**[iHARP](https://iharp.umbc.edu/)**).
+
+
+---
+
+## Dataset Used
+
+We validate Spatial-Link using a **single synthetic velocity dataset** that mimics realistic wind-driven transport behavior.
+
+- **30 spatial regions (nodes)**
+- **30 days of data**
+- **Daily 30 × 30 velocity matrices**
+- Each entry \( V_{ij} \) represents the velocity-driven influence from region or node *i* to *j*
+- The graph is dense and directed
+- A small number of **persistent strong linkages** are injected across days
+- All other edges represent weaker background transport
+
+If these strong linkages consistently dominate the background velocities,
+Spatial-Link is expected to detect them as statistically significant.
+
+---
+
+## Installation
+
+```bash
+pip install spatial-link
+```
+
+## Demo Code for using Spatial-Link
+
+```python
+import numpy as np
+from spatial_link import weekly_spatial_link
+
+def generate_realistic_velocity(
+    n_days=30,
+    n_regions=30,
+    base_mean=5.0,
+    base_std=1.0,
+    noise_std=0.8,
+    strong_links=10,
+    strong_boost=8.0,
+    seed=0
+):
+    """
+    Generate realistic synthetic spatio-temporal data (30 days of 30x30 matrices).
+
+    Parameters
+    ----------
+    n_days : int
+        Number of days (time steps).
+
+    n_regions : int
+        Number of regions/nodes. Output matrices are n_regions x n_regions.
+
+    base_mean : float
+        Mean of the baseline interaction/velocity strength (background transport).
+
+    base_std : float
+        Std-dev of baseline strengths across edges (controls overall variability).
+
+    noise_std : float
+        Std-dev of daily noise added to the baseline (controls day-to-day fluctuation).
+        Higher = more unstable daily measurements.
+
+    strong_links : int
+        Number of persistent "true" linkages we inject (same edges boosted every day).
+
+    strong_boost : float
+        Added boost for each strong linkage (controls separation between true linkages
+        and background edges).
+
+    seed : int
+        Random seed (reproducibility).
+    """
+    rng = np.random.default_rng(seed)
+
+    # Base field shared across days (represents stable transport structure)
+    base = rng.normal(base_mean, base_std, size=(n_regions, n_regions))
+    base = np.clip(base, 0.5, None)
+    np.fill_diagonal(base, 0)  # no self-loop influence
+
+    # Choose persistent strong edges (true linkages)
+    strong_edges = set()
+    while len(strong_edges) < strong_links:
+        i, j = rng.integers(0, n_regions, size=2)
+        if i != j:
+            strong_edges.add((i, j))
+
+    # Boost those edges strongly across all days
+    for (i, j) in strong_edges:
+        base[i, j] += strong_boost
+
+    # Generate daily matrices by adding noise
+    vel = np.zeros((n_days, n_regions, n_regions))
+    for d in range(n_days):
+        noise = rng.normal(0, noise_std, size=(n_regions, n_regions))
+        day_mat = base + noise
+        day_mat = np.clip(day_mat, 0, None)
+        np.fill_diagonal(day_mat, 0)
+        vel[d] = day_mat
+
+    return vel, strong_edges
+
+
+# -----------------------------
+# Generate synthetic dataset
+# -----------------------------
+vel, planted_edges = generate_realistic_velocity(
+    n_days=30,          # 30 days total
+    n_regions=30,       # 30 nodes/regions
+    strong_links=12,    # inject 12 persistent true linkages
+    strong_boost=10.0,  # how strong true linkages are vs background
+    seed=42             # reproducible run
+)
+
+# Inspect daily value ranges (helps mimic real magnitudes)
+for d in range(vel.shape[0]):
+    pos = vel[d][vel[d] > 0]
+    print(f"Day {d:02d}: min={pos.min():.2f}, max={pos.max():.2f}")
+
+
+# -----------------------------
+# Run Weekly Spatial-Link
+# -----------------------------
+adj, windows = weekly_spatial_link(
+    vel,
+
+    # days_per_week defines the window size used to compute ONE weekly graph.
+    # Example: days_per_week=7 => week1 = days 0..6, week2 = days 7..13, etc.
+    days_per_week=7,
+
+    # min_days defines the MINIMUM number of days required to compute a window.
+    #
+    # Why do we need min_days?
+    # - In real datasets you may not have a full 7 days at the end (e.g., 30 days -> last window is 2 days).
+    # - If the last window has too few days, the weekly mean becomes unstable and Monte Carlo testing is noisy.
+    #
+    # What happens with min_days=7?
+    # - You ONLY accept full 7-day windows.
+    # - For 30 days and days_per_week=7, you get windows:
+    #   (0,7), (7,14), (14,21), (21,28)
+    #   and the last 2 days (28,30) are dropped.
+    #
+    # What if you set min_days=4?
+    # - You allow an incomplete final window IF it has at least 4 days.
+    # - With 30 days, the last window has only 2 days, so it would STILL be dropped.
+    # - If you had 32 days, the last window would be 4 days and would be included.
+    min_days=7,
+
+    # drop_last_incomplete controls whether incomplete final windows are ignored.
+    # - True  => always drop the last incomplete window (more stable).
+    # - False => include last window if it has >= min_days (more coverage, possibly less stable).
+    drop_last_incomplete=True,
+
+    # n_mc = number of Monte Carlo samples used to estimate the null distribution.
+    # Larger n_mc => more stable p-values, but slower runtime.
+    n_mc=200,
+
+    # alpha = significance threshold for calling an edge a "significant linkage".
+    # Example: alpha=0.05 means we keep edges whose Monte Carlo p-value < 0.05.
+    alpha=0.05,
+
+    # max_depth = maximum hop length used in BFS for extracting candidate pathways.
+    # Smaller max_depth => fewer candidates (more conservative).
+    # Larger max_depth => more candidates (more coverage, can include indirect paths).
+    max_depth=4,
+)
+
+print("Adjacency shape:", adj.shape)   # (n_weeks, 30, 30)
+print("Weekly windows:", windows)     # e.g., [(0,7), (7,14), (14,21), (21,28)]
+ 
+```
+
+## Demo Code for Ouput Visualization using Spatial-Link
+```python
+
+
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+
+def plot_weekly_linkage_graphs(adj, windows, *, layout_seed=0, node_size=220, font_size=7):
+    """
+    Plot one directed linkage graph per week from Spatial-Link output.
+
+    Parameters
+    ----------
+    adj : np.ndarray
+        (n_weeks, n_regions, n_regions) adjacency from weekly_spatial_link.
+        Assumes binary output (0/1). If weighted, edges are still drawn for >0.
+    windows : list[tuple[int,int]]
+        Weekly windows: (start_day, end_day) end is exclusive.
+    layout_seed : int
+        Seed for consistent node positions across all weeks.
+    node_size : int
+        Node size in plot.
+    font_size : int
+        Label font size.
+    """
+    n_weeks, n_regions, _ = adj.shape
+
+    # Use a fixed layout so week-to-week plots are comparable
+    baseG = nx.DiGraph()
+    baseG.add_nodes_from(range(n_regions))
+    pos = nx.spring_layout(baseG, seed=layout_seed)
+
+    for w in range(n_weeks):
+        A = adj[w]
+
+        # ✅ NO THRESHOLD: just plot detected linkages
+        edges = [(i, j) for i in range(n_regions) for j in range(n_regions)
+                 if i != j and A[i, j] > 0]
+
+        G = nx.DiGraph()
+        G.add_nodes_from(range(n_regions))
+        G.add_edges_from(edges)
+
+        s, e = windows[w]
+        plt.figure(figsize=(7, 7))
+        nx.draw_networkx_nodes(G, pos, node_size=node_size)
+        nx.draw_networkx_edges(G, pos, arrows=True, width=1.6, alpha=0.85)
+        nx.draw_networkx_labels(G, pos, font_size=font_size)
+        plt.title(f"Week {w+1} (days {s+1}–{e}) | linkages={len(edges)}")
+        plt.axis("off")
+        plt.show()
+
+
+plot_weekly_linkage_graphs(adj, windows, layout_seed=1)
+
+
+
+
+```
+
+
+## Interpretation
+
+- Spatial-Link first aggregates daily velocities into weekly mean graphs
+- **Monte Carlo significance testing is performed using a week-specific null distribution, constructed from the empirical velocity values observed within each temporal window. This design allows Spatial-Link to adapt to temporal heterogeneity and non-stationary dynamics.**
+- **The null distribution is recomputed independently for each temporal window, rather than using a single global null across all weeks.**
+- BFS identifies reachable candidate pathways
+- Monte Carlo testing filters out edges that are not consistently stronger than random velocity fluctuations
+- If true velocity-driven linkages exist, they emerge as significant directed edges in the weekly adjacency matrices
+
+
+## Citation If you use spatial-link in your research, please cite the following paper:
+```bibtex
+@inproceedings{devnath2025spatiallink,
+  author    = {Maloy Kumar Devnath and Sudip Chakraborty and Vandana P. Janeja},
+  title     = {Modeling Heterogeneity across Varying Spatial Extents: Discovering Linkages between Sea Ice Retreat and Ice Shelf Melt in the Antarctic},
+  booktitle = {Proceedings of the 33rd ACM International Conference on Advances in Geographic Information Systems},
+  year      = {2025},
+  publisher = {ACM},
+  pages     = {261--264}
+}
+
+```
+**Full Reference** 
+
+Maloy Kumar Devnath, Sudip Chakraborty, and Vandana P. Janeja. 2025.
+*Modeling Heterogeneity across Varying Spatial Extents: Discovering Linkages between Sea Ice Retreat and Ice Shelf Melt in the Antarctic.*
+Proceedings of the 33rd ACM International Conference on Advances in Geographic Information Systems, pp. 261–264.
