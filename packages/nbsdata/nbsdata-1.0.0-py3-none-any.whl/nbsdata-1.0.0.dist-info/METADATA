@@ -1,0 +1,140 @@
+Metadata-Version: 2.4
+Name: nbsdata
+Version: 1.0.0
+Summary: Data from National Bureau of Statistics, China
+Author-email: Rho Zhang <rhozhang@163.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/rhozhang/nbsdata
+Project-URL: Issues, https://github.com/rhozhang/nbsdata/issues
+Keywords: data,NBS,China,sn-stats
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Classifier: Development Status :: 4 - Beta
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests
+Requires-Dist: polars
+Dynamic: license-file
+
+# Retrieving Data from China National Bureau of Statistics
+
+<https://data.stats.gov.cn/easyquery.htm>
+
+## Installation
+
+```
+pip install nbsdata
+```
+
+## Usage
+
+```
+from nbsdata import NBS
+bs = NBS()
+```
+
+### Get Databases
+
+```
+bs.databases
+```
+
+### Get Region Codes
+
+province-level or city-level
+
+```
+bs.regioncode('浙江')   # 330000
+bs.regioncode('杭州', city = True)   # 330100
+```
+
+### Query Indicator Codes
+
+Indicator codes for each database are retrived with module `get_nbs_indicators` (in directory 'rhopy')
+
+Indicator data files are stored in package's 'asset' directory. The indicators are somewhat stable. We will update them if needed.
+
+To update these files, run related function in module 'get_nbs_indicators'
+
+NB: With method 'indicatorcode()', we can only get those indicators which appear in the selection bar on the left in the official pages. Those leaf-level indicators which only appear in the table need to be queried with 'leafindicator()' further
+
+```
+bs.indicatorcode('fsjd', '可支配收入')
+bs.leafindicator('fsjd', 'A0301')
+```
+
+### National Data
+
+**Case**: Annual data of GDP in the last 5 years ('LAST5', mrv = 5)
+
+Step 1: query indicator code
+
+```
+bs.indicatorcode('hgnd', '生产总值')
+```
+
+Now we can get the code: 'A0201'
+
+Step 2: get data
+
+```
+gdp = bs.nationaldata('hgnd', 'A0201', 'LAST5')
+```
+
+We can see indicator code 'A0201' contains the following sub-codes: 'A010101' (国民总收入), 'A020102' (国内生产总值), ..., 'A020106' (人均国内生产总值)
+
+Step 3:
+
+Filter from the dataframe above
+
+```
+import polars as pl
+gdp.filter(pl.col('indicator_code') == 'A020102')
+```
+
+Or retrieve data again with subcode 'A020102'
+
+```
+
+bs.nationaldata('hgnd', 'A020102', 'LAST5')
+```
+
+### Regional Data
+
+For single region (e.g. Zhejiang), we can retrieve data with either category-level or leaf-level indicator; for all regions, we can only use leaf-level indicator, or you will only get the data of the first subcode of the category-level indicator.
+
+**Case 1**: Quarterly data of urban disposable income of Zhejiang from '2010Q1' to '2025Q3'
+
+Step 1: query indicator code
+
+```
+bs.indicatorcode('fsjd', '城镇居民.+可支配收入')
+```
+
+We get nothing, because the indicator code is not available. Loose the query condition
+
+```
+bs.indicatorcode('fsjd', '可支配收入')
+```
+
+Now we get one item named '居民人均可支配收入', the code is 'A0301'
+
+Step 2: get data with code 'A0301'
+
+```
+bs.regionaldata('fsjd', 'A0301', '2010A-2025C', '330000')
+```
+
+The result above contains the following subcodes: 'A030101' (居民人均可支配收入), 'A030102' (城镇居民人均可支配收入), 'A030103' (农村居民人均可支配收入)
+
+Step 3: Filter data or retrieve data again with subcode 'A030102'
+
+**Case 2**: Quarterly data of urban disposable income of of All provinces from '2020Q1' to '2025Q3'
+
+Use category-level indicator, say, 'A0301'
+
+```
+bs.leafindicator('fsjd', 'A0301')
+bs.regionaldata('fsjd', 'A030102', '2020A-2025C')
+```
