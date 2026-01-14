@@ -1,0 +1,39 @@
+import asyncio
+
+
+async def confirm(
+    message: str,
+    default: bool = True,
+) -> bool:
+    """
+    Prompt the user to confirm a decision.
+    """
+
+    # NOTE: typing is worse than using arrows, so we'll just use select instead of `questionary.confirm` with [Y/n]
+
+    # - Run select prompt
+
+    from dony.prompts.select import select  # avoid circular import
+
+    answer = await select(
+        message=message,
+        choices=["Yes", "No"] if default else ["No", "Yes"],
+        fuzzy=False,
+    )
+
+    # - Raise KeyboardInterrupt if no result
+
+    if answer is None:
+        raise KeyboardInterrupt
+
+    # - Return result
+
+    return answer == "Yes"
+
+
+async def example():
+    print(await confirm("Are you sure?"))
+
+
+if __name__ == "__main__":
+    asyncio.run(example())
