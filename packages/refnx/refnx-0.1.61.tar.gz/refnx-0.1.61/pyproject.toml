@@ -1,0 +1,135 @@
+[build-system]
+requires = [
+    "setuptools",
+    "cython",
+    "wheel",
+    "numpy>=2.0.0rc1",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "refnx"
+authors = [{name="Andrew Nelson", email="andyfaff+refnx@gmail.com"}]
+description = "Neutron and X-ray Reflectometry Analysis"
+license = "BSD-3-Clause"
+readme = "README.md"
+requires-python = ">=3.9"
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=2.0",
+    "scipy",
+    "orsopy",
+]
+
+[project.urls]
+homepage = "https://github.com/refnx/refnx"
+documentation = "https://refnx.readthedocs.io/en/latest"
+tracker = "https://github.com/refnx/refnx/issues"
+source = "https://github.com/refnx/refnx"
+
+[project.optional-dependencies]
+all = [
+    "IPython",
+    "ipywidgets",
+    "traitlets",
+    "matplotlib",
+    "xlrd",
+    "h5py",
+    "jupyter",
+    "tqdm",
+    "pymc",
+    "pytensor",
+    "attrs",
+    "pandas",
+    "pyparsing",
+    "periodictable",
+    "pyqt6",
+    "qtpy",
+    "corner",
+    "numba",
+]
+
+test = [
+    "pytest",
+    "uncertainties",
+]
+
+[project.gui-scripts]
+refnx = "refnx.reflect:main"
+
+[tool.setuptools]
+packages = [
+     "refnx",
+     "refnx._lib",
+     "refnx._lib.tests",
+     "refnx._lib.emcee",
+     "refnx._lib.emcee.backends",
+     "refnx._lib.emcee.moves",
+     "refnx._lib.ptemcee",
+     "refnx.analysis",
+     "refnx.analysis.tests",
+     "refnx.analysis.tests.NIST_STRD",
+     "refnx.dataset",
+     "refnx.dataset.tests",
+     "refnx.reduce",
+     "refnx.reduce._app",
+     "refnx.reduce._app.ui",
+     "refnx.reduce.batch_reduce",
+     "refnx.reduce.tests",
+     "refnx.reflect",
+     "refnx.reflect._app",
+     "refnx.reflect._app.icons",
+     "refnx.reflect._app.tests",
+     "refnx.reflect._app.ui",
+     "refnx.reflect._app.ui.licences",
+     "refnx.reflect.tests",
+     "refnx.util",
+     "refnx.util.tests",
+]
+
+
+[tool.black]
+line-length = 79
+extend-exclude="refnx/_lib/emcee/|refnx/_lib/ptemcee/|benchmarks"
+
+
+[tool.ruff]
+exclude = [
+    "refnx/_lib/emcee",
+    "refnx/reflect/_app/resources_rc.py",
+    "refnx/_lib/ptemcee",
+    "*.ipynb",
+]
+
+
+[tool.ruff.lint]
+ignore = ["F401", "F405", "E501", "E203", "E231"]
+
+
+[tool.cibuildwheel]
+skip = "pp* cp36-* cp37-* cp38-* cp39-* cp310-*"
+test-requires = ["pytest", "periodictable"]
+test-command = "pytest --pyargs refnx.reflect.tests.test_reflect"
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+
+# On an Linux Intel runner with qemu installed, build Intel and ARM wheels
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+musllinux-x86_64-image = "musllinux_1_2"
+musllinux-aarch64-image = "musllinux_1_2"
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
