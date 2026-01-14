@@ -1,0 +1,318 @@
+Metadata-Version: 2.4
+Name: clientity
+Version: 0.1.6
+Summary: rapid http clients
+Author-email: Joel Yisrael <schizoprada@gmail.com>
+Requires-Dist: loguru
+Requires-Dist: pydantic
+Provides-Extra: dev
+Requires-Dist: pytest; extra == 'dev'
+Requires-Dist: pytest-asyncio; extra == 'dev'
+Provides-Extra: engines
+Requires-Dist: aiohttp; extra == 'engines'
+Requires-Dist: httpx; extra == 'engines'
+Requires-Dist: requests; extra == 'engines'
+Description-Content-Type: text/markdown
+
+# clientity
+
+Rapid HTTP clients with operator-based endpoint definitions.
+
+## Installation
+
+```bash
+pip install clientity
+```
+
+With your preferred HTTP library:
+
+```bash
+pip install clientity[httpx]    # or requests, aiohttp
+```
+
+## Quick Start
+
+```python
+import httpx
+from dataclasses import dataclass
+from clientity import client, endpoint, Resource
+
+# Define response models
+@dataclass
+class User:
+    id: int
+    name: str
+    email: str
+
+@dataclass
+class Status:
+    ok: bool
+    version: str
+
+# Create client
+api = client(httpx.AsyncClient()) @ "https://api.example.com"
+
+# Define endpoints with operators
+api.status = endpoint.get @ "/status" >> Status
+api.user = endpoint.get @ "/users/{id}" >> User
+api.users = endpoint.get @ "/users" >> list[User]
+
+# Use it
+async def main():
+    status = await api.status()
+    user = await api.user(id=123)
+    users = await api.users()
+```
+
+## Operators
+
+| Operator | Method | Description |
+|----------|--------|-------------|
+| `@` | `.at(path)` | Set endpoint path |
+| `%` | `.queries(model)` | Set query parameter model |
+| `<<` | `.requests(model)` | Set request body model |
+| `>>` | `.responds(model)` | Set response model |
+| `&` | `.prehook(fn)` | Add pre-request hook |
+| `\|` | `.posthook(fn)` | Add post-response hook |
+
+```python
+# Full example
+api.search = (
+    endpoint.post 
+    @ "/search" 
+    % SearchQuery      # query params
+    << SearchBody      # request body
+    >> list[Result]    # response model
+    & log_request      # pre-hook [(Request) -> Request]
+    | log_response     # post-hook [(Response) -> Response]
+)
+
+results = await api.search(q="python", limit=10, filters={"type": "code"})
+```
+
+## Path Parameters
+
+Path parameters are extracted from `{param}` syntax and can be passed positionally or by name:
+
+```python
+api.user = endpoint.get @ "/users/{user_id}/posts/{post_id}"
+
+# Both work:
+post = await api.user(123, 456)
+post = await api.user(user_id=123, post_id=456)
+```
+
+## Query & Body Models
+
+Use dataclasses or Pydantic models for query parameters and request bodies:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class SearchQuery:
+    q: str
+    limit: int = 10
+    offset: int = 0
+
+@dataclass
+class CreateUser:
+    name: str
+    email: str
+
+api.search = endpoint.get @ "/search" % SearchQuery
+api.create_user = endpoint.post @ "/users" << CreateUser
+
+# Query params from model fields
+results = await api.search(q="python", limit=20)
+
+# Body from model fields  
+user = await api.create_user(name="Joel", email="joel@example.com")
+```
+
+## Response Models
+
+### Single Model
+
+```python
+@dataclass
+class User:
+    id: int
+    name: str
+
+api.user = endpoint.get @ "/users/{id}" >> User
+user = await api.user(id=1)  # Returns User instance
+```
+
+### List Response
+
+```python
+api.users = endpoint.get @ "/users" >> list[User]
+users = await api.users()  # Returns list[User]
+```
+
+### Custom Response Handling
+
+Implement `__respond__` for custom single-item parsing:
+
+```python
+@dataclass
+class User:
+    id: int
+    name: str
+    
+    @classmethod
+    def __respond__(cls, response) -> 'User':
+        data = response.json()["data"]["user"]
+        return cls(**data)
+```
+
+Implement `__respondall__` for custom list parsing:
+
+```python
+@dataclass  
+class User:
+    id: int
+    name: str
+    
+    @classmethod
+    def __respondall__(cls, response) -> list['User']:
+        data = response.json()
+        return [cls(**u) for u in data["results"]]
+```
+
+## Resources
+
+Group related endpoints under a path prefix:
+
+```python
+from clientity import Resource
+
+users = Resource("users")
+users.list = endpoint.get @ "" >> list[User]
+users.get = endpoint.get @ "{id}" >> User
+users.create = endpoint.post @ "" << CreateUser >> User
+users.delete = endpoint.delete @ "{id}"
+
+api.users = users
+
+# Usage
+all_users = await api.users.list()
+user = await api.users.get(id=123)
+new_user = await api.users.create(name="Joel", email="joel@example.com")
+await api.users.delete(id=123)
+```
+
+### Nested Resources
+
+```python
+api_resource = Resource("api")
+v1 = Resource("v1")
+v1.users = endpoint.get @ "users" >> list[User]
+v1.posts = endpoint.get @ "posts" >> list[Post]
+api_resource.v1 = v1
+
+api.api = api_resource
+
+# Resolves to /api/v1/users
+users = await api.api.v1.users()
+```
+
+## Namespaces
+
+For endpoints with different base URLs or independent HTTP clients:
+
+```python
+from clientity import Namespace
+
+# Independent namespace with own client
+search = Namespace(
+    base="https://search.example.com",
+    interface=httpx.AsyncClient()
+)
+search.query = endpoint.post @ "/query" >> list[Result]
+
+api.search = search
+
+# Uses search.example.com, not api.example.com
+results = await api.search.query(q="test")
+```
+
+Dependent namespace (uses parent client):
+
+```python
+auth = Namespace(name="auth")
+auth.login = endpoint.post @ "/auth/login" << Credentials >> Token
+
+api.auth = auth
+
+# Uses api.example.com/auth/login
+token = await api.auth.login(username="joel", password="secret")
+```
+
+## Hooks
+
+Pre-hooks modify the request before sending:
+
+```python
+def add_auth(request):
+    request.headers["Authorization"] = "Bearer token123"
+    return request
+
+api.secure = endpoint.get @ "/secure" & add_auth
+```
+
+Post-hooks modify the response after receiving:
+
+```python
+def log_response(response):
+    print(f"Status: {response.status_code}")
+    return response
+
+api.logged = endpoint.get @ "/data" | log_response
+```
+
+Async hooks work too:
+
+```python
+async def refresh_token(request):
+    token = await get_fresh_token()
+    request.headers["Authorization"] = f"Bearer {token}"
+    return request
+
+api.secure = endpoint.get @ "/secure" & refresh_token
+```
+
+## Supported HTTP Libraries
+
+clientity adapts to your preferred HTTP library:
+
+```python
+# httpx (sync or async)
+import httpx
+api = client(httpx.AsyncClient()) @ "https://api.example.com"
+api = client(httpx.Client()) @ "https://api.example.com"
+
+# requests
+import requests
+api = client(requests.Session()) @ "https://api.example.com"
+
+# aiohttp
+import aiohttp
+api = client(aiohttp.ClientSession()) @ "https://api.example.com"
+```
+
+## Lazy Interface
+
+Pass a callable to defer client creation:
+
+```python
+def make_client():
+    return httpx.AsyncClient(headers={"X-API-Key": os.environ["API_KEY"]})
+
+api = client(make_client) @ "https://api.example.com"
+```
+
+## License
+
+MIT
