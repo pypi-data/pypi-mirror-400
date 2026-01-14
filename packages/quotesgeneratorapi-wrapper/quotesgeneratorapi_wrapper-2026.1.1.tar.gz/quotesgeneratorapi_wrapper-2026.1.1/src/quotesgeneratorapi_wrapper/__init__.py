@@ -1,0 +1,1 @@
+from .quotesgenerator import getQuotes
