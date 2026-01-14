@@ -1,0 +1,235 @@
+import unittest
+import pytest
+import dotmotif
+import networkx as nx
+from dotmotif.executors.Neo4jExecutor import Neo4jExecutor
+from dotmotif.executors.GrandIsoExecutor import GrandIsoExecutor
+
+
+_DEMO_G_MIN = """
+A -> B
+C -> A
+B !- A
+C !> D
+"""
+_DEMO_G_MIN_CYPHER = """
+MATCH (A:Neuron)-[A_B:SYN]->(B:Neuron)
+MATCH (C:Neuron)-[C_A:SYN]->(A:Neuron)
+WHERE NOT (B:Neuron)-[:INH]->(A:Neuron) AND NOT (C:Neuron)-[:SYN]->(D:Neuron)
+RETURN DISTINCT A,B,C,D
+"""
+
+
+class TestDotmotifFlags(unittest.TestCase):
+    def test_sanity(self):
+        self.assertEqual(1, 1)
+
+    def test_dm_parser_defaults(self):
+        dm = dotmotif.Motif()
+        dm.from_motif(_DEMO_G_MIN)
+        self.assertEqual(
+            Neo4jExecutor.motif_to_cypher(dm).strip(), _DEMO_G_MIN_CYPHER.strip()
+        )
+
+    def test_dm_parser_no_pretty_print(self):
+        dm = dotmotif.Motif(pretty_print=False)
+        dm.from_motif(_DEMO_G_MIN)
+        self.assertEqual(
+            Neo4jExecutor.motif_to_cypher(dm).strip(),
+            _DEMO_G_MIN_CYPHER.strip().replace("\n", " "),
+        )
+
+    def test_dm_parser_no_direction(self):
+        dm = dotmotif.Motif(ignore_direction=True)
+        dm.from_motif(_DEMO_G_MIN)
+        self.assertEqual(
+            Neo4jExecutor.motif_to_cypher(dm).strip(),
+            _DEMO_G_MIN_CYPHER.strip().replace("->", "-"),
+        )
+
+    def test_dm_parser_inequality(self):
+        dm = dotmotif.Motif(enforce_inequality=True)
+        dm.from_motif(_DEMO_G_MIN)
+        self.assertTrue(
+            "A<>B" in Neo4jExecutor.motif_to_cypher(dm).strip()
+            or "B<>A" in Neo4jExecutor.motif_to_cypher(dm).strip()
+        )
+        self.assertTrue(
+            "B<>C" in Neo4jExecutor.motif_to_cypher(dm).strip()
+            or "C<>B" in Neo4jExecutor.motif_to_cypher(dm).strip()
+        )
+        self.assertTrue(
+            "A<>C" in Neo4jExecutor.motif_to_cypher(dm).strip()
+            or "C<>A" in Neo4jExecutor.motif_to_cypher(dm).strip()
+        )
+
+    def test_dm_parser_limit(self):
+        dm = dotmotif.Motif(limit=3)
+        dm.from_motif(_DEMO_G_MIN)
+        self.assertTrue("LIMIT 3" in Neo4jExecutor.motif_to_cypher(dm).strip())
+        dm = dotmotif.Motif()
+        dm.from_motif(_DEMO_G_MIN)
+        self.assertFalse("LIMIT" in Neo4jExecutor.motif_to_cypher(dm).strip())
+
+    def test_from_nx_import(self):
+        G = nx.Graph()
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+
+        g = nx.Graph()
+        g.add_edge("A", "B")
+        dm = dotmotif.Motif(ignore_direction=True).from_nx(g)
+
+        E = GrandIsoExecutor(graph=G)
+        self.assertEqual(len(E.find(dm)), 4)
+
+
+class TestPropagationOfAutomorphicConstraints(unittest.TestCase):
+    def test_automorphisms(self):
+        m = dotmotif.Motif(
+            """
+        A -> B
+        B -> A
+
+        A === B
+        """
+        )
+        assert len(m.list_automorphisms()) == 1
+
+    def test_constraints_propagate(self):
+        m = dotmotif.Motif(
+            """
+        A -> B
+        B -> A
+        A === B
+        A.radius = 5
+        """
+        )
+        assert len(m.list_automorphisms()) == 1
+        assert len(m.list_node_constraints()) == 2
+
+    def test_constraints_propagate_multi_auto(self):
+        m = dotmotif.Motif(
+            """
+        A -> B
+        B -> A
+        A -> C
+        A === B
+        A === C
+        A.radius = 5
+        """
+        )
+        assert len(m.list_automorphisms()) == 2
+        assert len(m.list_node_constraints()) == 3
+
+    def test_conflicting_constraints_raise(self):
+        with pytest.raises(ValueError):
+            dotmotif.Motif(
+                """
+            A -> B
+            B -> A
+            A.radius = 5
+            A.radius = 6
+            """
+            )
+
+    def test_conflicting_constraints_on_automorphisms_raise(self):
+        with pytest.raises(ValueError):
+            dotmotif.Motif(
+                """
+            A -> B
+            B -> A
+            A === B
+            A.radius = 5
+            B.radius = 6
+            """
+            )
+
+    def test_conflicting_equality_and_inequality_from_automorphism(self):
+        with pytest.raises(ValueError):
+            dotmotif.Motif(
+                """
+            A -> B
+            B -> A
+            A === B
+            A.type = 4
+            B.type != 4
+            """
+            )
+
+    def test_gtlt_raise(self):
+        with pytest.raises(ValueError):
+            dotmotif.Motif(
+                """
+            A -> B
+            B -> A
+            A.size > 5
+            A.size < 3
+            """
+            )
+
+    def test_gtlt_meta_raise(self):
+        with pytest.raises(ValueError):
+            dotmotif.Motif(
+                """
+            A -> B
+            B -> A
+            A.size > B.size
+            A.size < B.size
+            """
+            )
+
+    def test_ge_le_same_value_ok(self):
+        # Non-strict bounds that meet at a point are allowed
+        dotmotif.Motif(
+            """
+        A -> B
+        B -> A
+        A.size >= 5
+        A.size <= 5
+        """
+        )
+
+    def test_gt_le_strict_conflict(self):
+        with pytest.raises(ValueError):
+            dotmotif.Motif(
+                """
+            A -> B
+            B -> A
+            A.size > 5
+            A.size <= 5
+            """
+            )
+
+    def test_gt_eq_conflict(self):
+        with pytest.raises(ValueError):
+            dotmotif.Motif(
+                """
+            A -> B
+            B -> A
+            A.size > 5
+            A.size = 5
+            """
+            )
+
+    def test_dynamic_ge_le_same_target_ok(self):
+        # Cross-node non-strict sandwich on same target is allowed
+        dotmotif.Motif(
+            """
+        A -> B
+        B -> A
+        A.size >= B.size
+        A.size <= B.size
+        """
+        )
+
+    def test_dynamic_gt_le_conflict(self):
+        with pytest.raises(ValueError):
+            dotmotif.Motif(
+                """
+            A -> B
+            B -> A
+            A.size > B.size
+            A.size <= B.size
+            """
+            )
