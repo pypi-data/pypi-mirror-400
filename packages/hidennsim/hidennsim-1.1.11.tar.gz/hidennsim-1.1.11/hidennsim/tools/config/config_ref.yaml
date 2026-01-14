@@ -1,0 +1,65 @@
+MODEL_PARAM: 
+
+  ## INN interpolation method
+  interp_method : "gaussian" # optional. String. Interpolation method. "linear" or "nonlinear" or "gaussian" or "MLP" or "KAN" or "FNO". The first three refer to INN interpolation methods while "MLP", "KAN", "FNO" refer to the MLP, KAN, and FNO models.
+
+  ## INN linear
+  nmode : 20 # optional. Integer or List of integers. Number of CP tensor decomposition modes. If list, the training will be performed in series while fixing the previous solutions.
+  nseg : 20 # optional. Integer or List of integers. Number of segments (or elements, grid size) in each dimension. If list, each dimension has a different number of segments.
+  
+  ## INN nonlinear
+  s_patch : 2 # optional. Integer. Size of the patch for the nonlinear INN interpolation function.
+  alpha_dil: 20 # optional. Float. Dilatation factor for the nonlinear INN interpolation function.
+  p_order: 2 # optional. Integer. Order of the polynomial for the nonlinear INN interpolation function.
+  radial_basis : "cubicSpline" # optional. String. Radial basis function for the nonlinear INN interpolation function.
+  INNactivation : 'polynomial' # optional. String. Activation function for the nonlinear INN interpolation function.
+
+  ## INN gaussian
+  sigma_factor : 1.2 # optional. Float. Sigma factor for the Gaussian INN interpolation function.
+
+  ## MLP
+  nlayers : 3 # optional. Integer. Number of layers for the MLP model.
+  nneurons : 50 # optional. Integer. Number of neurons for the MLP model.
+  activation : "sigmoid" # optional. String. Activation function for the MLP model.
+
+  ## KAN (Kolmogorov-Arnold Network)
+  hidden_dim : 64 # optional. Integer. Number of hidden dimensions for the KAN model.
+  grid_size : 8 # optional. Integer. Grid size for the KAN model.
+  spline_order : 3 # optional. Integer. Order of the B-spline basis for the KAN model.
+
+  ## FNO (Fourier Neural Operator)
+  num_layers : 3 # optional. Integer. Number of layers for the FNO model.
+  modes : 16 # optional. Integer. Number of modes for the FNO model.
+
+DATA_PARAM:
+  input_col : [0,1,2] # must be provided. List of integers. Input columns of the data. The columns are numbered from 0 to the number of columns - 1.
+  output_col : [3] # must be provided. List of integers. Output columns of the data. The columns are numbered from 0 to the number of columns - 1.
+  
+  bool_data_generation : False # optional. Boolean.
+  data_filenames: ['train.csv','test.csv'] # must be provided. List of strings (entire file paths) upto three files. If there is only one file, it means the entire data is provided and we will split the data using the split_ratio. If there are two files, it means that the first file is training data and the second file will be used as both validation and test data. If there are three files, it means that the first file is training data, the second file is validation data, and the third file is test data. 
+  split_ratio: [0.8,0.1,0.1] # optional. List of floats. The split ratio for the data. It has three ratios for train, validation, and test. The sum should be equal to 1.0. 
+
+  bool_normalize: True # optional. Boolean. Whether to normalize the training data.
+  bool_shuffle : True # optional. Boolean. Whether to shuffle the training data.
+  
+  
+TRAIN_PARAM:
+  num_epochs_INN : 300 # optional. Integer. Number of epochs for the INN model.
+  num_epochs_MLP : 300 # optional. Integer. Number of epochs for the MLP model.
+  num_epochs_KAN : 50 # optional. Integer. Number of epochs for the KAN model.
+  num_epochs_FNO : 50 # optional. Integer. Number of epochs for the FNO model.
+  batch_size : 128 # optional. Integer. Batch size for the training.
+  learning_rate : 1e-3 # optional. Float. Learning rate for the training.
+  
+  validation_period : 5 # optional. Integer. Period for the validation.
+  bool_denormalize: False # optional. Boolean. Whether to denormalize the model predictions when testing is performed..
+  patience : 20 # optional. Integer. Patience for the training.
+  stopping_loss_train: 6e-10 # optional. Float. Stopping loss for the training.
+
+  bool_save_model: True # optional. Boolean. Whether to save the model. 
+
+PLOT:
+  bool_plot: False # optional. Boolean. Whether to plot the results.
+  plot_in_axis: ['x1','x2','p1'] # optional. List of strings. Defines the types of the input variables. The number of components must be matched with the input_col.
+  plot_out_axis: [0] # optional. List of integers. Defines the types of the output variables.
+  plot_params_number: 2 # optional. Integer. Number of parameter sets to be plotted.
