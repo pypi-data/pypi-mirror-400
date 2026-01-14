@@ -1,0 +1,69 @@
+[project]
+name = "django-access-inspector"
+version = "0.4.2"
+description = "A tool to analyze your Django app access control"
+authors = [{ name = "Bastien Teissier", email = "bastient@theodo.fr" }]
+requires-python = "~=3.10"
+readme = "README.md"
+license = {text = "MIT License"}
+dependencies = [
+    "rich>=13.3.5,<14",
+    "twine>=5.1.1,<6",
+    "fastmcp>=2.14.2,<2.15",
+    "pydantic>=2.12,<3",
+]
+
+[project.urls]
+Repository = "https://github.com/BastienTeissier/django-access-inspector"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.2,<0.12.0",
+    "pytest>=7.3.1,<8",
+    "django>=5.2.0,<6",
+    "pytest-django>=4.5.2,<5",
+    "djangorestframework>=3.14.0,<4",
+    "build>=0.10.0,<0.11",
+    "mypy>=1.8.0,<2.0",
+    "django-stubs>=4.2.0,<5.0",
+    "pytest-cov>=6.1.1",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["django_access_inspector"]
+
+[tool.hatch.build.targets.wheel]
+include = ["django_access_inspector"]
+
+[build-system]
+requires = ["hatchling<1.25"]
+build-backend = "hatchling.build"
+
+[tool.mypy]
+python_version = "3.10"
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+show_error_codes = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+# Django specific settings
+plugins = ["mypy_django_plugin.main"]
+
+# Allow some flexibility for Django's dynamic nature
+[[tool.mypy.overrides]]
+module = "django.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "rest_framework.*"
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "django_access_inspector.settings"
