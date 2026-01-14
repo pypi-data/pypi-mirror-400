@@ -1,0 +1,728 @@
+import importlib.metadata
+import logging
+import os
+from dataclasses import dataclass, field
+from datetime import timedelta
+from functools import partial
+from typing import Tuple, List, Dict, Callable, cast
+
+import pandas as pd
+import plotly.graph_objects as go
+import pytz
+import sqlalchemy
+from skypro.common.config.data_source import TimeseriesDataSource
+from skypro.common.config.path_field import resolve_file_path
+from skypro.common.config.rates_parse_yaml import parse_supply_points, parse_vol_rates_files_for_all_energy_flows, parse_rate_files
+from skypro.common.config.rates_parse_db import get_rates_from_db
+from skypro.common.config.time_offset import time_offset_str_to_timedelta
+from skypro.common.data.get_profile import get_profile
+from skypro.common.data.get_timeseries import get_timeseries
+from skypro.common.microgrid_analysis.output import generate_output_df
+
+from skypro.common.rate_utils.to_dfs import get_vol_rates_dfs, get_rates_dfs_by_type, VolRatesForEnergyFlows
+from skypro.common.rate_utils.osam import calculate_osam_ncsp
+from skypro.common.rates.rates import FixedRate, VolRate, OSAMFlatVolRate
+from skypro.common.rate_utils.friendly_summary import get_friendly_rates_summary
+from skypro.common.timeutils.math import floor_hh
+from skypro.common.timeutils.timeseries import get_step_size
+from tabulate import tabulate
+
+from skypro.common.cli_utils.cli_utils import read_json_file, set_auto_accept_cli_warnings, get_user_ack_of_warning_or_exit
+from skypro.commands.simulator.algorithms.lp.optimiser import Optimiser
+from skypro.commands.simulator.algorithms.price_curve.algo import PriceCurveAlgo
+from skypro.commands.simulator.config.parse_config import parse_config
+from skypro.commands.simulator.config.config import Config, SimulationCase, AllRates, SolarOrLoad
+from skypro.commands.simulator.microgrid import calculate_microgrid_flows
+from skypro.commands.simulator.normalise_data import normalise_final_imbalance_data, normalise_live_imbalance_data
+from skypro.commands.simulator.profiler import Profiler
+from skypro.commands.simulator.results import explore_results
+
+
+STEP_SIZE = timedelta(minutes=10)
+STEP_SIZE_HRS = STEP_SIZE.total_seconds() / 3600
+STEPS_PER_SP = int(timedelta(minutes=30) / STEP_SIZE)
+assert ((timedelta(minutes=30) / STEP_SIZE) == STEPS_PER_SP)  # Check that we have an exact number of steps per SP
+
+
+@dataclass
+class ParsedRates:
+    """
+    This is a structure to hold the various rates
+    """
+    live_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)   # Volume-based (p/kWh) market/supplier rates for each energy flow, as predicted in real-time
+    final_mkt_vol: VolRatesForEnergyFlows = field(default_factory=VolRatesForEnergyFlows)  # Volume-based (p/kWh) market/supplier rates for each energy flow
+    final_mkt_fix: Dict[str, List[FixedRate]] = field(default_factory=dict)   # Fixed p/day rates associated with market/suppliers
+    final_customer_vol: Dict[str, List[VolRate]] = field(default_factory=dict)  # Volume rates charged to customers, in string categories
+    final_customer_fix: Dict[str, List[FixedRate]] = field(default_factory=dict)  # Fixed rates charged to customers, in string categories
+
+
+def simulate(
+        config_file_path: str,
+        env_file_path: str,
+        do_plots: bool,
+        skip_cli_warnings: bool,
+        chosen_sim_name: str,
+):
+    """
+    This runs the simulation command, and may run multiple individual simulations depending on the configuration.
+    """
+
+    logging.info("Simulator - - - - - - - - - - - - -")
+
+    set_auto_accept_cli_warnings(skip_cli_warnings)
+
+    logging.info(f"Using env var file: {os.path.expanduser(env_file_path)}")
+    env_config = read_json_file(env_file_path)
+    env_vars = env_config["vars"]
+
+    # Parse the main config file
+    logging.info(f"Using config file: {config_file_path}")
+    config: Config = parse_config(config_file_path, env_vars)
+
+    if not chosen_sim_name:
+        raise ValueError("You must specify the --sim to run.")
+    if chosen_sim_name == "all":
+        simulations = config.simulations
+    elif chosen_sim_name in config.simulations.keys():
+        simulations = {chosen_sim_name: config.simulations[chosen_sim_name]}
+    else:
+        raise KeyError(f"Simulation case '{chosen_sim_name}' is not defined in the configuration.")
+
+    if config.all_sims and config.all_sims.output and config.all_sims.output.summary and config.all_sims.output.summary.rate_detail:
+        raise ValueError(
+            "The 'rateDetail' option is invalid for allSimulations - please specify the rateDetail option within"
+            " each simulations' summary output configuration."
+        )
+
+    summary_df = pd.DataFrame()
+
+    for sim_name, sim_config in simulations.items():
+
+        print("\n\n")
+        logging.info(f"Running simulation '{sim_name}' from {sim_config.start} to {sim_config.end}...")
+
+        sim_summary_df = _run_one_simulation(
+            sim_config=sim_config,
+            sim_name=sim_name,
+            do_plots=do_plots,
+            env_config=env_config
+        )
+        # Maintain a dataframe containing the summaries of each simulation
+        summary_df = pd.concat([summary_df, sim_summary_df], axis=0)
+
+    if chosen_sim_name == "all" and config.all_sims and config.all_sims.output and config.all_sims.output.summary:
+        # Optionally write a CSV file containing the summaries of all the simulations
+        summary_df.to_csv(config.all_sims.output.summary.csv, index=False)
+
+
+def _run_one_simulation(
+        sim_config: SimulationCase,
+        sim_name: str,
+        do_plots: bool,
+        env_config: Dict,
+) -> pd.DataFrame:
+    """
+    Runs a single simulation as defined by the configuration and returns a dataframe containing a summary of the results
+    """
+
+    time_index = _get_time_index(sim_config)
+
+    # File paths may have special characters or variables that need substituting. This defines a function that can do this.
+    file_path_resolver_func = partial(resolve_file_path, env_vars=env_config["vars"])
+
+    # Extract the rates objects from the config files
+    rates, imbalance_df = _get_rates_from_config(
+        time_index=time_index,
+        rates_config=sim_config.rates,
+        env_config=env_config,
+        file_path_resolver_func=file_path_resolver_func
+    )
+
+    _log_rates_to_screen(rates, time_index)
+
+    df = imbalance_df[["imbalance_volume_live", "imbalance_volume_final"]].copy()
+
+    df, load_energy_breakdown_df = _process_profiles_and_prepare_dataframe(df, sim_config, file_path_resolver_func, do_plots)
+
+    # Determine which algo has been configured and run it
+    if sim_config.strategy.price_curve_algo:
+
+        cols_to_share_with_algo = [  # We have calculated a variety of columns above, but only give the algorithm the columns that it needs
+            "solar",
+            "load",
+            "time_into_sp",
+            "microgrid_residual_power",
+            "bess_max_power_charge",
+            "bess_max_power_discharge",
+            "imbalance_volume_live",
+        ]
+        algo = PriceCurveAlgo(
+            algo_config=sim_config.strategy.price_curve_algo,
+            bess_config=sim_config.site.bess,
+            live_vol_rates=rates.live_mkt_vol,
+            df=df[cols_to_share_with_algo]
+        )
+        df_algo = algo.run()
+    elif sim_config.strategy.optimiser:
+        cols_to_share_with_algo = [  # We have calculated a variety of columns above, but only give the algorithm the columns that it needs
+            "solar",
+            "load",
+            "bess_max_charge",
+            "bess_max_discharge",
+            "time_into_sp",
+        ]
+        opt = Optimiser(
+            algo_config=sim_config.strategy.optimiser,
+            bess_config=sim_config.site.bess,
+            final_vol_rates=rates.final_mkt_vol,
+            df=df[cols_to_share_with_algo],
+        )
+        df_algo = opt.run()
+    else:
+        raise ValueError("Unknown algorithm chosen")
+
+    _check_algo_result_consistency(
+        df_algo=df_algo,
+        df_in=df,
+        battery_charge_efficiency=sim_config.site.bess.charge_efficiency,
+    )
+
+    # Add the results of the algo into the main dataframe
+    df = pd.concat([df, df_algo], axis=1)
+
+    df = calculate_microgrid_flows(df)
+
+    df, final_int_vol_rates_dfs, final_mkt_vol_rates_dfs, osam_df, osam_rates = _process_final_rates(df, rates)
+
+    # Get the 'peripheral' rate dataframes - these are for things like fixed market, or customer rates, which do
+    # not affect the algorithm, but which are passed through into the output CSV
+    mkt_fixed_cost_dfs, _ = get_rates_dfs_by_type(
+        time_index=time_index,
+        rates_by_category=rates.final_mkt_fix,
+        allow_vol_rates=False,
+        allow_fix_rates=True,
+    )
+    _, customer_vol_rates_dfs = get_rates_dfs_by_type(
+        time_index=time_index,
+        rates_by_category=rates.final_customer_vol,
+        allow_vol_rates=True,
+        allow_fix_rates=False,
+    )
+    customer_fix_costs_dfs, _ = get_rates_dfs_by_type(
+        time_index=time_index,
+        rates_by_category=rates.final_customer_fix,
+        allow_vol_rates=False,
+        allow_fix_rates=True,
+    )
+
+    # Generate an output file if configured to do so
+    simulation_output_config = sim_config.output.simulation if sim_config.output else None
+    if simulation_output_config and simulation_output_config.csv:
+        logging.info(f"Generating output to {simulation_output_config.csv}...")
+        generate_output_df(
+            df=df,
+            int_final_vol_rates_dfs=final_int_vol_rates_dfs,
+            mkt_final_vol_rates_dfs=final_mkt_vol_rates_dfs,
+            int_live_vol_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
+            mkt_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
+            mkt_fixed_costs_dfs=mkt_fixed_cost_dfs,
+            customer_fixed_cost_dfs=customer_fix_costs_dfs,
+            customer_vol_rates_dfs=customer_vol_rates_dfs,
+            load_energy_breakdown_df=load_energy_breakdown_df,
+            aggregate_timebase=simulation_output_config.aggregate,
+            rate_detail=simulation_output_config.rate_detail,
+            config_entries=[
+                ("skypro.version", importlib.metadata.version('skypro')),
+                ("start", sim_config.start.isoformat()),
+                ("end", sim_config.end.isoformat()),
+                ("site.gridConnection.importLimit", sim_config.site.grid_connection.import_limit),
+                ("site.gridConnection.exportLimit", sim_config.site.grid_connection.export_limit),
+                ("site.solar.profiles", sim_config.site.solar.profiles),
+                ("site.load.profiles", sim_config.site.load.profiles),
+                ("site.bess.energyCapacity", sim_config.site.bess.energy_capacity),
+                ("site.bess.nameplatePower", sim_config.site.bess.nameplate_power),
+                ("site.bess.chargeEfficiency", sim_config.site.bess.charge_efficiency),
+                ("strategy.priceCurveAlgo", sim_config.strategy.price_curve_algo),
+                ("rates", sim_config.rates),
+            ]
+        ).to_csv(
+            simulation_output_config.csv,
+            index_label="utctime"
+        )
+
+    save_summary = sim_config.output and sim_config.output.summary and sim_config.output.summary.csv
+    if save_summary:
+        logging.info(f"Generating summary to {sim_config.output.summary.csv}...")
+    else:
+        logging.info("Generating summary...")
+
+    # The summary dataframe is just an output dataframe with aggregate_timebase set to 'all'
+    sim_summary_df = generate_output_df(
+        df=df,
+        int_final_vol_rates_dfs=final_int_vol_rates_dfs,
+        mkt_final_vol_rates_dfs=final_mkt_vol_rates_dfs,
+        int_live_vol_rates_dfs=None,  # These 'live' rates aren't available in the output CSV at the moment as they are
+        mkt_live_vol_rates_dfs=None,  # calculated by the price curve algo internally and not returned
+        mkt_fixed_costs_dfs=mkt_fixed_cost_dfs,
+        customer_fixed_cost_dfs=customer_fix_costs_dfs,
+        customer_vol_rates_dfs=customer_vol_rates_dfs,
+        load_energy_breakdown_df=load_energy_breakdown_df,
+        aggregate_timebase="all",
+        rate_detail=sim_config.output.summary.rate_detail if (sim_config.output and sim_config.output.summary) else None,
+        config_entries=[],
+    )
+    sim_summary_df.insert(0, "sim_name", sim_name)
+
+    if save_summary:
+        sim_summary_df.to_csv(sim_config.output.summary.csv, index=False)
+
+    explore_results(
+        df=df,
+        final_mkt_vol_rates_dfs=final_mkt_vol_rates_dfs,
+        final_int_vol_rates_dfs=final_int_vol_rates_dfs,
+        mkt_fixed_costs_dfs=mkt_fixed_cost_dfs,
+        do_plots=do_plots,
+        battery_energy_capacity=sim_config.site.bess.energy_capacity,
+        battery_nameplate_power=sim_config.site.bess.nameplate_power,
+        osam_rates=osam_rates,
+        osam_df=osam_df,
+    )
+
+    return sim_summary_df
+
+
+def _process_final_rates(df: pd.DataFrame, rates: ParsedRates):
+    """
+    There are two sets of rates defined in the configuration: live and final. The algorithm has used the 'live' rates (that were
+    available at the simulated time the algorithm was running). But now that the simulation has finished we use the 'final' rates
+    to access the profitability of the strategy and for reporting.
+    This function returns:
+    - A copy of the main dataframe with additional columns for the final rates and the OSAM non-chargeable proportion
+    - A detailed breakdown of the final internal volumetric rates
+    - A detailed breakdown of the final market volumetric rates
+    - A detailed breakdown of the OSAM calculations
+    - A list of all the OSAM rates
+    """
+    df = df.copy()
+
+    df["osam_ncsp"], osam_df = calculate_osam_ncsp(
+        df=df,
+        index_to_calc_for=df.index,
+        imp_bp_col="grid_import",
+        exp_bp_col="grid_export",
+        imp_stor_col="bess_charge",
+        exp_stor_col="bess_discharge",
+        imp_gen_col=None,
+        exp_gen_col="solar",
+    )
+
+    # Inform any OSAM rate objects about the NCSP
+    osam_rates = []
+    for rate in rates.final_mkt_vol.grid_to_batt:
+        if isinstance(rate, OSAMFlatVolRate):
+            rate.add_ncsp(df["osam_ncsp"])
+            osam_rates.append(rate)
+
+    # Next we can calculate the individual p/kWh rates that apply for today
+    final_mkt_vol_rates_dfs, final_int_vol_rates_dfs = get_vol_rates_dfs(df.index, rates.final_mkt_vol)
+
+    # Then we sum up the individual rates to create a total for each flow
+    for set_name, vol_rates_df in final_mkt_vol_rates_dfs.items():
+        df[f"mkt_vol_rate_final_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
+    for set_name, vol_rates_df in final_int_vol_rates_dfs.items():
+        df[f"int_vol_rate_final_{set_name}"] = vol_rates_df.sum(axis=1, skipna=False)
+
+    return df, final_int_vol_rates_dfs, final_mkt_vol_rates_dfs, osam_df, osam_rates
+
+
+def _process_profiles_and_prepare_dataframe(df: pd.DataFrame, sim_config: SimulationCase, file_path_resolver_func: Callable, do_plots: bool) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Reads the various profiles that are specified in the configuration (e.g. load, solar and grid connection profiles) and
+    adds associated columns to the dataframe. A copy of the main dataframe with the additional columns is returned, along with
+    a breakdown of the profiled load energies.
+    """
+
+    df = df.copy()
+
+    # Process behind-the-meter microgrid solar profiles
+    solar_energy_breakdown_df, total_solar_power = _process_profiles(
+        time_index=df.index,
+        config=sim_config.site.solar,
+        do_plots=do_plots,
+        context_hint="Solar",
+        file_path_resolver_func=file_path_resolver_func
+    )
+    df["solar"] = solar_energy_breakdown_df.sum(axis=1)
+    df["solar_power"] = total_solar_power
+
+    # Process behind-the-meter microgrid load profiles
+    load_energy_breakdown_df, total_load_power = _process_profiles(
+        time_index=df.index,
+        config=sim_config.site.load,
+        do_plots=do_plots,
+        context_hint="Load",
+        file_path_resolver_func=file_path_resolver_func,
+    )
+    df["load"] = load_energy_breakdown_df.sum(axis=1)
+    df["load_power"] = total_load_power
+
+    # Process grid connection profiles - normally the microgrid will sit on a grid connection with a fixed capacity in each direction, but sometimes we want to model
+    # a grid connection that has varying capacity over time. For example, if there is load and solar installed which is not part of the microgrid, but which effects the
+    # grid constraint.
+    if sim_config.site.grid_connection.variations:
+        _, total_grid_connection_vary_load_power = _process_profiles(
+            time_index=df.index,
+            config=sim_config.site.grid_connection.variations.load,
+            do_plots=do_plots,
+            context_hint="Grid connection variations - load",
+            file_path_resolver_func=file_path_resolver_func
+        )
+        _, total_grid_connection_vary_gen_power = _process_profiles(
+            time_index=df.index,
+            config=sim_config.site.grid_connection.variations.generation,
+            do_plots=do_plots,
+            context_hint="Grid connection variations - generation",
+            file_path_resolver_func=file_path_resolver_func
+        )
+        total_grid_connection_vary_power = total_grid_connection_vary_load_power - total_grid_connection_vary_gen_power
+        df["grid_connection_import_limit_power"] = sim_config.site.grid_connection.import_limit - total_grid_connection_vary_power
+        df["grid_connection_export_limit_power"] = sim_config.site.grid_connection.export_limit + total_grid_connection_vary_power
+    else:
+        # If there isn't a variation profile defined then we just have flat import and export limits
+        df["grid_connection_import_limit_power"] = sim_config.site.grid_connection.import_limit
+        df["grid_connection_export_limit_power"] = sim_config.site.grid_connection.export_limit
+
+    # Calculate the BESS charge and discharge limits based on how much solar generation and housing load
+    # there is. We need to abide by the overall site import/export limits. And stay within the nameplate inverter
+    # capabilities of the BESS
+    df["microgrid_residual_power"] = df["load_power"] - df["solar_power"]
+    df["bess_max_power_charge"] = ((df["grid_connection_import_limit_power"] - df["microgrid_residual_power"]).
+                                   clip(upper=sim_config.site.bess.nameplate_power))
+    df["bess_max_power_discharge"] = ((df["grid_connection_export_limit_power"] + df["microgrid_residual_power"]).
+                                      clip(upper=sim_config.site.bess.nameplate_power))
+
+    # The grid constraints and solar/load profiles may be configured such that the battery HAS to perform a charge or discharge to keep within
+    # grid constraints. This can be okay (if intentional) but there are also situations where the constraints are impossible to fulfil.
+    forced_discharges = df["bess_max_power_charge"] < 0
+    forced_charges = df["bess_max_power_discharge"] < 0
+    impossible_charges = df[forced_charges]["bess_max_power_discharge"].abs() > df[forced_charges]["bess_max_power_charge"]
+    impossible_discharges = df[forced_discharges]["bess_max_power_charge"].abs() > df[forced_discharges]["bess_max_power_discharge"]
+    if impossible_charges.sum() > 0 or impossible_discharges.sum() > 0:
+        raise ValueError("The grid constraints are impossible to satisfy with the configured battery and load/solar profiles")
+    if forced_discharges.sum() > 0 or forced_charges.sum() > 0:
+        import_pct = (forced_discharges.sum() / len(df)) * 100
+        export_pct = (forced_charges.sum() / len(df)) * 100
+        get_user_ack_of_warning_or_exit(f"The battery will be forced to manage import constraints {import_pct:.2f}% of the time, and export constraints {export_pct:.2f}% of the time")
+
+    # Also store the energy equivalent of the powers
+    df["bess_max_charge"] = df["bess_max_power_charge"] * STEP_SIZE_HRS
+    df["bess_max_discharge"] = df["bess_max_power_discharge"] * STEP_SIZE_HRS
+
+    # Calculate settlement period timings
+    df["sp"] = df.index.to_series().apply(lambda t: floor_hh(t))
+    df["time_into_sp"] = df.index.to_series() - df["sp"]
+    df["time_left_of_sp"] = timedelta(minutes=30) - df["time_into_sp"]
+
+    return df, load_energy_breakdown_df
+
+
+def _log_rates_to_screen(rates: ParsedRates, time_index: pd.DatetimeIndex):
+    """
+    This prints some of the key rates to the CLI to help the user gauge if their configuration is correct.
+    """
+    print(f"\nIMPORT RATES (at {time_index[0]}, final grid to battery)")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.final_mkt_vol.grid_to_batt, time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+    print(f"\nEXPORT RATES (at {time_index[0]}, final battery to grid)")
+    print(tabulate(
+        tabular_data=get_friendly_rates_summary(rates.final_mkt_vol.batt_to_grid, time_index[0]),
+        headers="keys",
+        tablefmt="presto",
+        showindex=False
+    ))
+    print("")
+
+
+def _get_time_index(sim_config) -> pd.DatetimeIndex:
+    """
+    Returns a DatetimeIndex covering the whole simulation, with steps size defined by the constant `STEP_SIZE`
+    """
+    time_index_start = sim_config.start.astimezone(pytz.UTC)
+    time_index_end = sim_config.end.astimezone(pytz.UTC) - STEP_SIZE
+    if time_index_end <= time_index_start:
+        raise ValueError("Simulation end time is before the start time")
+    # The simulation runs at 10 minute granularity, create a time index for that
+    time_index = pd.date_range(
+        start=sim_config.start.astimezone(pytz.UTC),
+        end=sim_config.end.astimezone(pytz.UTC) - STEP_SIZE,
+        freq=STEP_SIZE
+    )
+    time_index = time_index.tz_convert(pytz.timezone("Europe/London"))
+    return time_index
+
+
+def _get_rates_from_config(
+        time_index: pd.DatetimeIndex,
+        rates_config: AllRates,
+        env_config: Dict,
+        file_path_resolver_func: Callable
+) -> Tuple[ParsedRates, pd.DataFrame]:
+    """
+    This parses the rates defined in the given rates configuration block and returns the ParsedRates,
+    and a dataframe containing live and final imbalance data.
+    """
+
+    def read_imbalance_data(source: TimeseriesDataSource, context: str):
+        """
+        Convenience function for reading imbalance data
+        """
+        ts_df, notices = get_timeseries(
+            source=source,
+            start=time_index[0],
+            end=time_index[-1],
+            file_path_resolver_func=file_path_resolver_func,
+            db_engine=sqlalchemy.create_engine(env_config["flows"]["dbUrl"]),
+            context=context
+        )
+        for notice in notices:
+            get_user_ack_of_warning_or_exit(notice.detail)
+        return ts_df
+
+    final_price_df = read_imbalance_data(rates_config.final.imbalance_data_source.price, context="final imbalance price")
+    final_volume_df = read_imbalance_data(rates_config.final.imbalance_data_source.volume, context="final imbalance volume")
+    live_price_df = read_imbalance_data(rates_config.live.imbalance_data_source.price, context="live imbalance price")
+    live_volume_df = read_imbalance_data(rates_config.live.imbalance_data_source.volume, context="live imbalance volume")
+
+    final_imbalance_df = normalise_final_imbalance_data(time_index, final_price_df, final_volume_df)
+    live_imbalance_df = normalise_live_imbalance_data(time_index, live_price_df, live_volume_df)
+    df = pd.concat([final_imbalance_df, live_imbalance_df], axis=1)
+
+    if (rates_config.live.rates_db is None) != (rates_config.final.rates_db is None):
+        # There is nothing inherent about this limitation: the below code could be refactored to support it.
+        raise ValueError("Both live and final rates must use the same source: either the rates DB or YAML configuration")
+
+    parsed_rates = ParsedRates()
+
+    # Rates can either be read from the "rates database" or from local YAML files
+    if rates_config.live.rates_db is not None:
+        db_rates_live = get_rates_from_db(
+            supply_points_name=rates_config.live.rates_db.supply_points_name,
+            site_region=rates_config.live.rates_db.site_specific.region,
+            site_bands=rates_config.live.rates_db.site_specific.bands,
+            import_bundle_names=rates_config.live.rates_db.import_bundles,
+            export_bundle_names=rates_config.live.rates_db.export_bundles,
+            db_engine=env_config["rates"]["dbUrl"],
+            imbalance_pricing=df["imbalance_price_live"],
+            import_grid_capacity=0,
+            export_grid_capacity=0,
+            future_offset=time_offset_str_to_timedelta(rates_config.live.rates_db.future_offset_str),
+            customer_import_bundle_names=[],
+            customer_export_bundle_names=[],
+        )
+        parsed_rates.live_mkt_vol = db_rates_live.mkt_vol_by_flow
+
+        db_rates_final = get_rates_from_db(
+            supply_points_name=rates_config.final.rates_db.supply_points_name,
+            site_region=rates_config.final.rates_db.site_specific.region,
+            site_bands=rates_config.final.rates_db.site_specific.bands,
+            import_bundle_names=rates_config.final.rates_db.import_bundles,
+            export_bundle_names=rates_config.final.rates_db.export_bundles,
+            db_engine=env_config["rates"]["dbUrl"],
+            imbalance_pricing=df["imbalance_price_final"],
+            import_grid_capacity=0,
+            export_grid_capacity=0,
+            future_offset=time_offset_str_to_timedelta(rates_config.final.rates_db.future_offset_str),
+            customer_import_bundle_names=rates_config.final.rates_db.customer.import_bundles if rates_config.final.rates_db.customer is not None else [],
+            customer_export_bundle_names=rates_config.final.rates_db.customer.export_bundles if rates_config.final.rates_db.customer is not None else [],
+        )
+        parsed_rates.final_mkt_vol = db_rates_final.mkt_vol_by_flow
+
+    else:   # Read rates from local YAML files...
+        final_supply_points = parse_supply_points(
+            supply_points_config_file=rates_config.final.supply_points_config_file
+        )
+        live_supply_points = parse_supply_points(
+            supply_points_config_file=rates_config.live.supply_points_config_file
+        )
+        parsed_rates.final_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
+                rates_files=rates_config.final.files,
+                supply_points=final_supply_points,
+                imbalance_pricing=df["imbalance_price_final"],
+                file_path_resolver_func=file_path_resolver_func
+            )
+        parsed_rates.live_mkt_vol = parse_vol_rates_files_for_all_energy_flows(
+            rates_files=rates_config.live.files,
+            supply_points=live_supply_points,
+            imbalance_pricing=df["imbalance_price_live"],
+            file_path_resolver_func=file_path_resolver_func
+        )
+
+        # There is an 'experimental' configuration block which has beta supports customer and fixed market rates.
+        if rates_config.final.experimental:
+            if rates_config.final.experimental.mkt_fixed_files:
+                # Read in fixed rates just to output them in the CSV
+                for category_str, files in rates_config.final.experimental.mkt_fixed_files.items():
+                    rates = parse_rate_files(
+                        files=files,
+                        supply_points=final_supply_points,
+                        imbalance_pricing=None,
+                        file_path_resolver_func=file_path_resolver_func,
+                    )
+                    for rate in rates:
+                        if not isinstance(rate, FixedRate):
+                            raise ValueError(f"Only fixed rates can be specified in the fixedMarketFiles, got: '{rate.name}'")
+                    parsed_rates.final_mkt_fix[category_str] = cast(List[FixedRate], rates)
+
+            if rates_config.final.experimental.customer_load_files:
+                for category_str, files in rates_config.final.experimental.customer_load_files.items():
+                    rates = parse_rate_files(
+                        files=files,
+                        supply_points=final_supply_points,
+                        imbalance_pricing=None,
+                        file_path_resolver_func=file_path_resolver_func
+                    )
+                    parsed_rates.final_customer_fix[category_str] = []
+                    parsed_rates.final_customer_vol[category_str] = []
+                    for rate in rates:
+                        if isinstance(rate, FixedRate):
+                            parsed_rates.final_customer_fix[category_str].append(rate)
+                        elif isinstance(rate, VolRate):
+                            parsed_rates.final_customer_vol[category_str].append(rate)
+                        else:
+                            raise ValueError(f"Unknown rate type: {rate}")
+
+    return parsed_rates, df
+
+
+def _check_algo_result_consistency(df_algo: pd.DataFrame, df_in: pd.DataFrame, battery_charge_efficiency: float):
+    """
+    Does various checks to ensure that the algorithm results are viable. The algos generate their results in
+    different ways, so we want to check that they are all following basic rules here.
+    These could be written as unit tests, but they run quickly so there's no harm in running them over every
+    result set that is generated.
+    """
+
+    tolerance = 0.01
+
+    # Calculate the energy delta from the soe and check that it matches the energy delta given
+    soe_diff = df_algo["soe"].diff().shift(-1)
+    soe_diff.iloc[-1] = 0.0
+    energy_delta_check = soe_diff.copy()
+    charges = energy_delta_check[energy_delta_check > 0] / battery_charge_efficiency
+    discharges = energy_delta_check[energy_delta_check < 0]
+    energy_delta_check.loc[charges.index] = charges
+    energy_delta_check.iloc[-1] = df_algo["energy_delta"].iloc[-1]  # There isn't a valid soe diff on the last row
+    if (df_algo["energy_delta"] - energy_delta_check).abs().max() > tolerance:
+        raise AssertionError("Algorithm solution has inconsistent energy delta")
+
+    # Check the bess losses are expected given the SoE
+    bess_losses = charges * (1 - battery_charge_efficiency)
+    bess_losses_check = pd.Series(index=df_algo.index, data=0.0)
+    bess_losses_check.loc[bess_losses.index] = bess_losses
+    bess_losses_error = bess_losses_check - df_algo["bess_losses"]
+    bess_losses_error = bess_losses_error.iloc[:-1]  # There isn't a valid check for the last row
+    if bess_losses_error.abs().max() > tolerance:
+        raise AssertionError("Algorithm solution has inconsistent bess losses")
+
+    # Check that the max charge/discharges are not breached
+    if (charges.abs() > (df_in["bess_max_charge"].loc[charges.index] + tolerance)).sum() > 0:
+        raise AssertionError("Algorithm solution charges at too high a rate")
+    if (discharges.abs() > (df_in["bess_max_discharge"].loc[discharges.index] + tolerance)).sum() > 0:
+        raise AssertionError("Algorithm solution discharges at too high a rate")
+
+    # The grid constraints and solar/load profiles may be configured such that the battery HAS to perform a charge or discharge to keep within
+    # grid constraints. Check that this has been done properly by the algorithm.
+    forced_discharges = df_in["bess_max_power_charge"] < 0
+    forced_charges = df_in["bess_max_power_discharge"] < 0
+    step_size_hrs = get_step_size(df_in.index).total_seconds() / 3600
+    actual_discharges = abs(df_algo[forced_discharges]["energy_delta"])
+    required_discharges = abs(df_in[forced_discharges]["bess_max_power_charge"] * step_size_hrs)
+    missing_discharges = actual_discharges + tolerance < required_discharges
+    actual_charges = abs(df_algo[forced_charges]["energy_delta"])
+    required_charges = abs(df_in[forced_charges]["bess_max_power_discharge"] * step_size_hrs)
+    missing_charges = actual_charges + tolerance < required_charges
+    if missing_discharges.sum() > 0 or missing_charges.sum() > 0:
+        raise ValueError("The grid constraints required active management, which the BESS control algorithm didn't do properly!")
+
+
+def _process_profiles(
+        time_index: pd.DatetimeIndex,
+        config: SolarOrLoad,
+        do_plots: bool,
+        context_hint: str,
+        file_path_resolver_func: Callable
+) -> (pd.DataFrame, pd.Series):
+    """
+    Reads the specified profile configuration and returns a dataframe of the individual profiled energies, as well as
+    the summed total power in a pd.Series.
+    This function also optionally plots the profiles and exports a CSV of the profiles broken down by category.
+    """
+
+    energy_df = pd.DataFrame(index=time_index)
+    power_df = pd.DataFrame(index=time_index)
+
+    # The user can either specify a single profile or an array of profiles
+    if config.profiles:
+        profiles = config.profiles
+    else:
+        profiles = [config.profile]
+
+    for i, profile_config in enumerate(profiles):
+        if profile_config.tag:
+            tag = profile_config.tag
+        else:
+            tag = "untagged"
+
+        logging.info(f"Generating {context_hint} profile for '{tag}'...")
+
+        df = get_profile(
+            source=profile_config.source,
+            time_index=time_index,
+            file_path_resolver_func=file_path_resolver_func,
+        )
+
+        profiler = Profiler(
+            scaling_factor=profile_config.scaling_factor,
+            df=df,
+            energy_cols=profile_config.energy_cols,
+        )
+        energy = profiler.get_for(time_index)
+        power = energy_to_power(energy)
+
+        # There may be multiple profiles under the same tag - in which case the profiles are added together under the
+        # tag name.
+        if tag in energy_df.columns:
+            energy_df[tag] = energy_df[tag] + energy
+            power_df[tag] = power_df[tag] + power
+        else:
+            energy_df[tag] = energy
+            power_df[tag] = power
+
+    total_power = power_df.sum(axis=1)
+    if do_plots:
+        fig = go.Figure()
+        for tag in power_df.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=power_df.index,
+                    y=power_df[tag],
+                    mode='lines',
+                    name=tag
+                )
+            )
+        fig.add_trace(go.Scatter(x=total_power.index, y=total_power, name="total-power"))
+        fig.update_layout(
+            title=f"{context_hint} Profile(s)",
+            yaxis_title="Power (kW)"
+        )
+        fig.show()
+
+    return energy_df, total_power
+
+
+def energy_to_power(energy: pd.Series) -> pd.Series:
+    return energy / (STEP_SIZE.total_seconds() / 3600)

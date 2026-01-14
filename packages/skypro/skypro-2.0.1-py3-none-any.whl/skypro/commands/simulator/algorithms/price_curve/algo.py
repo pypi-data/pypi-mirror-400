@@ -1,0 +1,320 @@
+import logging
+from datetime import timedelta, datetime
+from typing import Tuple, List
+
+import numpy as np
+import pandas as pd
+import pytz
+from skypro.common.rate_utils.to_dfs import VolRatesForEnergyFlows
+
+from skypro.commands.simulator.algorithms.price_curve.peak import get_peak_approach_energies, get_peak_power
+from skypro.commands.simulator.algorithms.price_curve.system_state import get_system_state, SystemState
+from skypro.commands.simulator.algorithms.price_curve.microgrid import get_microgrid_algo_energy
+from skypro.commands.simulator.algorithms.rate_management import run_osam_calcs_for_day, add_total_vol_rates_to_df
+from skypro.commands.simulator.algorithms.utils import get_power, cap_power, get_energy, get_hours
+from skypro.commands.simulator.cartesian import Curve, Point
+from skypro.commands.simulator.config import PriceCurveAlgo as PriceCurveAlgoConfig, Bess as BessConfig, NivPeriod
+
+
+class PriceCurveAlgo:
+    """
+    Applies a trading algorithm based on 'price curves' to determine a set of battery actions.
+    """
+    def __init__(
+            self,
+            algo_config: PriceCurveAlgoConfig,
+            bess_config: BessConfig,
+            live_vol_rates: VolRatesForEnergyFlows,
+            df: pd.DataFrame
+    ):
+
+        self._algo_config = algo_config
+        self._bess_config = bess_config
+        self._live_vol_rates = live_vol_rates
+
+        self._df = df.copy()
+
+    def run(self):
+
+        # These vars keep track of the previous settlement periods values
+        last_soe = self._bess_config.energy_capacity / 2  # initial SoE is 50%
+        last_energy_delta = 0
+        last_bess_losses = 0
+        num_skipped_periods = 0
+
+        time_step = timedelta(seconds=pd.to_timedelta(self._df.index.freq).total_seconds())
+        time_steps_per_sp = int(timedelta(minutes=30) / time_step)
+
+        # Run through each row (where each row represents a time step) and apply the strategy
+        for t in self._df.index:
+
+            if is_first_timeslot_of_month(t):
+                # Show the user the progress with a log of each month
+                print(f"Simulating {t.date()}...")
+
+            if (t == self._df.index[0]) or is_first_timeslot_of_day(t):
+                # If this is the first timestep of the day then calculate the rates for the coming day.
+                # This is done on each day in turn because OSAM rates vary day-by-day depending on historical volumes.
+                self._df, todays_index = run_osam_calcs_for_day(self._df, t)
+
+                self._df = add_total_vol_rates_to_df(
+                    df=self._df,
+                    index_to_add_for=todays_index,
+                    mkt_vol_rates=self._live_vol_rates,
+                    live_or_final="live"
+                )
+
+                # This algo also uses the last live rate from the previous SP to inform actions, so make that available
+                # on each df row:
+                # TODO: this shifts all rows for every day, it may be a speed improvement to make it so only the days
+                #  data is shifted
+                cols_to_shift = [
+                    "mkt_vol_rate_live_grid_to_batt",
+                    "mkt_vol_rate_live_batt_to_grid",
+                    "imbalance_volume_live",
+                ]
+                for col in cols_to_shift:
+                    self._df[f"prev_sp_{col}"] = self._df[col].shift(time_steps_per_sp).bfill(limit=time_steps_per_sp-1)
+
+            # Set the `soe` column to the value at the start of this time step (the previous value plus the energy
+            # transferred in the previous time step)
+            soe = last_soe + last_energy_delta - last_bess_losses
+            self._df.loc[t, "soe"] = soe
+
+            power, num_skipped_periods = self._get_power_at_time(t, time_step)
+
+            power = cap_power(power, self._df.loc[t, "bess_max_power_charge"], self._df.loc[t, "bess_max_power_discharge"])
+            energy_delta = get_energy(power, time_step)
+
+            # Cap the SoE at the physical limits of the battery
+            if soe + energy_delta > self._bess_config.energy_capacity:
+                energy_delta = self._bess_config.energy_capacity - soe
+            elif soe + energy_delta < 0:
+                energy_delta = -soe
+
+            # Apply a charge efficiency
+            if energy_delta > 0:
+                bess_losses = energy_delta * (1 - self._bess_config.charge_efficiency)
+            else:
+                bess_losses = 0
+
+            self._df.loc[t, "power"] = power
+            self._df.loc[t, "energy_delta"] = energy_delta
+            self._df.loc[t, "bess_losses"] = bess_losses
+
+            # Save for next iteration...
+            last_soe = soe
+            last_energy_delta = energy_delta
+            last_bess_losses = bess_losses
+
+        if num_skipped_periods > 0:
+            time_step_minutes = time_step.total_seconds() / 60
+            logging.info(
+                f"Skipped {num_skipped_periods}/{len(self._df)} {time_step_minutes} minute periods (probably due to "
+                f"missing imbalance data)")
+
+        return self._df[["soe", "energy_delta", "bess_losses", "red_approach_distance", "amber_approach_distance"]]  # the 'approach distances' are sometimes used for debugging/plotting
+
+    def _get_power_at_time(self, t: datetime, time_step: timedelta) -> Tuple[float, bool]:
+        """
+        Runs the price curve and ancillary algorithms to return the battery power at the given time.
+        Also returns a boolean indicating if the timestep was effectively skipped due to missing data.
+        """
+
+        skipped = False
+
+        # Select the appropriate NIV chasing configuration for this time of day
+        niv_config = get_relevant_niv_config(self._algo_config.niv_chase_periods, t).niv
+        system_state = get_system_state(self._df, t, niv_config.volume_cutoff_for_prediction)
+        # If we are in a pre-defined 'peak period' then we probably just want to discharge fully to benefit from the DUoS red band:
+        peak_power = get_peak_power(
+            peak_config=self._algo_config.peak,
+            t=t,
+            time_step=time_step,
+            soe=self._df.loc[t, "soe"],
+            bess_max_power_discharge=self._df.loc[t, "bess_max_power_discharge"],
+            microgrid_residual_power=self._df.loc[t, "microgrid_residual_power"],
+            system_state=system_state
+        )
+        if peak_power is not None:
+            power = peak_power
+
+        else:
+            target_energy_delta = 0
+
+            red_approach_energy, amber_approach_energy = get_peak_approach_energies(
+                t=t,
+                time_step=time_step,
+                soe=self._df.loc[t, "soe"],
+                charge_efficiency=self._bess_config.charge_efficiency,
+                peak_config=self._algo_config.peak,
+                is_long=system_state == SystemState.LONG
+            )
+
+            # Store these values for debugging/plotting
+            self._df.loc[t, "red_approach_distance"] = red_approach_energy
+            self._df.loc[t, "amber_approach_distance"] = amber_approach_energy
+
+            if not np.isnan(self._df.loc[t, "mkt_vol_rate_live_grid_to_batt"]) and \
+                    not np.isnan(self._df.loc[t, "mkt_vol_rate_live_batt_to_grid"]) and \
+                    not np.isnan(self._df.loc[t, "imbalance_volume_live"]):
+
+                # If we have predictions of the imbalance price then use them to generate a battery action
+                target_energy_delta = get_target_energy_delta_from_shifted_curves(
+                    charge_rate=self._df.loc[t, "mkt_vol_rate_live_grid_to_batt"],
+                    discharge_rate=self._df.loc[t, "mkt_vol_rate_live_batt_to_grid"],
+                    imbalance_volume=self._df.loc[t, "imbalance_volume_live"],
+                    soe=self._df.loc[t, "soe"],
+                    battery_charge_efficiency=self._bess_config.charge_efficiency,
+                    niv_config=niv_config
+                )
+
+            elif self._df.loc[t, "time_into_sp"] < timedelta(minutes=10) and \
+                    not np.isnan(self._df.loc[t, "prev_sp_mkt_vol_rate_live_grid_to_batt"]) and \
+                    not np.isnan(self._df.loc[t, "prev_sp_mkt_vol_rate_live_batt_to_grid"]) and \
+                    not np.isnan(self._df.loc[t, "prev_sp_imbalance_volume_live"]):
+
+                # If we don't have predictions yet, then in the first 10mins of the SP we can use the previous SPs
+                # imbalance data to inform the activity
+
+                # MWh to kWh
+                if abs(self._df.loc[
+                           t, "prev_sp_imbalance_volume_live"]) * 1e3 >= niv_config.volume_cutoff_for_prediction:
+                    target_energy_delta = get_target_energy_delta_from_shifted_curves(
+                        charge_rate=self._df.loc[t, "prev_sp_mkt_vol_rate_live_grid_to_batt"],
+                        discharge_rate=self._df.loc[t, "prev_sp_mkt_vol_rate_live_batt_to_grid"],
+                        imbalance_volume=self._df.loc[t, "prev_sp_imbalance_volume_live"],
+                        soe=self._df.loc[t, "soe"],
+                        battery_charge_efficiency=self._bess_config.charge_efficiency,
+                        niv_config=niv_config
+                    )
+            else:
+                # TODO: this isn't very helpful, it would be more interesting to report how many settlement periods are skipped, rather than individual time-steps
+                skipped = True
+
+            if self._algo_config.microgrid:
+                system_state = SystemState.UNKNOWN
+                if self._algo_config.microgrid.imbalance_control:
+                    system_state = get_system_state(self._df, t,
+                                                    self._algo_config.microgrid.imbalance_control.niv_cutoff_for_system_state_assumption)
+
+                microgrid_algo_energy = get_microgrid_algo_energy(
+                    config=self._algo_config.microgrid,
+                    microgrid_residual_energy=self._df.loc[t, "microgrid_residual_power"] * get_hours(time_step),
+                    system_state=system_state
+                )
+            else:
+                microgrid_algo_energy = 0.0
+
+            if red_approach_energy > 0:
+                target_energy_delta = max(red_approach_energy, amber_approach_energy, target_energy_delta)
+            elif amber_approach_energy > 0:
+                target_energy_delta = max(amber_approach_energy, target_energy_delta)
+            else:
+                target_energy_delta = target_energy_delta + microgrid_algo_energy
+
+            power = get_power(target_energy_delta, time_step)
+
+        return power, skipped
+
+
+def get_target_energy_delta_from_shifted_curves(
+        charge_rate: float,
+        discharge_rate: float,
+        imbalance_volume: float,
+        soe: float,
+        battery_charge_efficiency: float,
+        niv_config,
+) -> float:
+    """
+    Uses 'shifted price curves' to determine what charge/discharge action to take.
+    """
+
+    shifted_rate_charge_from_grid, shifted_rate_discharge_to_grid = shift_rates(
+        original_import_rate=charge_rate,
+        original_export_rate=-discharge_rate,
+        imbalance_volume=imbalance_volume,
+        rate_shift_long=niv_config.curve_shift_long,
+        rate_shift_short=niv_config.curve_shift_short
+    )
+
+    target_energy_delta = get_target_energy_delta_from_curves(
+        charge_curve=niv_config.charge_curve,
+        discharge_curve=niv_config.discharge_curve,
+        import_rate=shifted_rate_charge_from_grid,
+        export_rate=shifted_rate_discharge_to_grid,
+        soe=soe,
+        battery_charge_efficiency=battery_charge_efficiency
+    )
+    return target_energy_delta
+
+
+def shift_rates(
+        original_import_rate: float,
+        original_export_rate: float,
+        imbalance_volume: float,
+        rate_shift_long: float,
+        rate_shift_short: float
+) -> (float, float):
+    """
+    Alters the original import and export rates to make charging more likely when the system is long, and vice-versa. Returns the shifted rates.
+    """
+
+    is_long = imbalance_volume < 0
+
+    if is_long:
+        shifted_import_rate = original_import_rate - rate_shift_long
+        shifted_export_rate = original_export_rate - rate_shift_long
+    else:
+        shifted_import_rate = original_import_rate + rate_shift_short
+        shifted_export_rate = original_export_rate + rate_shift_short
+
+    return shifted_import_rate, shifted_export_rate
+
+
+def get_target_energy_delta_from_curves(
+        charge_curve: Curve,
+        discharge_curve: Curve,
+        import_rate: float,
+        export_rate: float,
+        soe: float,
+        battery_charge_efficiency: float
+) -> float:
+    """
+    Checks the charge/discharge curves to see if we should be charging/discharging and to what extent.
+    Returns the kWh that we should/charge discharge at this price - which may not be practically achievable, depending
+    on timeframes, site limits etc.
+    """
+
+    target_energy_delta = 0
+
+    charge_distance = charge_curve.vertical_distance(Point(import_rate, soe))
+    if charge_distance > 0:
+        target_energy_delta = charge_distance / battery_charge_efficiency
+    else:
+        discharge_distance = discharge_curve.vertical_distance(Point(export_rate, soe))
+        if discharge_distance < 0:
+            target_energy_delta = discharge_distance
+
+    return target_energy_delta
+
+
+def is_first_timeslot_of_day(t: pd.Timestamp) -> bool:
+    t = t.astimezone(pytz.timezone("Europe/London"))
+    return t.time().hour == 0 and t.time().minute == 0
+
+
+def is_first_timeslot_of_month(t: pd.Timestamp) -> bool:
+    t = t.astimezone(pytz.timezone("Europe/London"))
+    return t.day == 1 and t.time().hour == 0 and t.time().minute == 0
+
+
+def get_relevant_niv_config(niv_periods: List[NivPeriod], t: datetime) -> NivPeriod:
+    """
+    Returns the first NivPeriod instance that corresponds with the given time.
+    Different configurations may have been specified for different times of day.
+    """
+    for niv_period in niv_periods:
+        if niv_period.period.contains(t):
+            return niv_period
+    raise ValueError(f"No niv chase configuration matches the time '{t}'")
