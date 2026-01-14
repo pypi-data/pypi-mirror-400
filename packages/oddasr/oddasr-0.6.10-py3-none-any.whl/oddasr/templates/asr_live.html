@@ -1,0 +1,412 @@
+<html>
+<head>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="plugins/fontawesome-free/css/all.min.css">
+  <!-- Theme style -->
+  <link rel="stylesheet" href="dist/css/adminlte.min.css">
+  <style>
+    .content {
+      overflow: hidden; /* 防止内容区域出现滚动条 */
+    }
+    .card-body {
+      overflow-y: auto; /* 仅在卡片内容超出时显示垂直滚动条 */
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Content Header (Page header) -->
+  <section class="content-header">
+    <div class="container-fluid">
+      <div class="row mb-2">
+        <div class="col-sm-6">
+          <h1>实时识别 Live Streaming ASR</h1>
+        </div>
+        <div class="col-sm-6">
+          <ol class="breadcrumb float-sm-right">
+            <li class="breadcrumb-item"><a href="asr_sentence.html">一句话识别</a></li>
+            <li class="breadcrumb-item active">实时识别</li>
+            <li class="breadcrumb-item"><a href="asr_file.html">文件识别</a></li>
+          </ol>
+        </div>
+      </div>
+    </div><!-- /.container-fluid -->
+  </section>
+  <!-- /.content-header -->
+
+
+  <section class="content"> 
+    <div class="row justify-content-center"> <!-- 添加row容器并使用justify-content-center类 -->
+
+      <div class="col-md-9">
+        <div class="card card-primary card-outline">
+
+          <div class="card-header">
+          </div>
+          <!-- /.card-header -->
+          
+          <div class="card-body">
+            <div class="form-group row">
+                <label for="meeting-name" class="col-sm-2 col-form-label">名称：</label>
+                <div class="col-sm-10">
+                    <input class="form-control" id="meeting-name" placeholder="实时转写任务名称">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label for="meeting-location" class="col-sm-2 col-form-label">地点：</label>
+                <div class="col-sm-10">
+                    <input class="form-control" id="meeting-location" placeholder="地点">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label for="meeting-participants" class="col-sm-2 col-form-label">人员：</label>
+                <div class="col-sm-10">
+                    <input class="form-control" id="meeting-participants" placeholder="人员" value="{{username}}">
+                </div>
+            </div>
+      
+            <!-- <div class="form-group row">
+                <label class="col-sm-2 col-form-label">转写选项：</label>
+                <div class="col-sm-1">
+                    <input class="form-control" type="checkbox" id="storeOnServer" checked>
+                </div>
+                <label class="col-sm-2 col-form-label">云端存储</label>
+                <div class="col-sm-1">
+                    <input class="form-control" type="checkbox" id="enableSensword" name="enableSensword" checked>
+                </div>
+                <label class="col-sm-2 col-form-label">启用热词</label>
+                <div class="col-sm-1">
+                    <input class="form-control" type="checkbox" id="enableHotword" name="enableHotword" checked>
+                </div>
+                <label class="col-sm-2 col-form-label">启用敏感词</label>
+            </div>
+            -->
+            <div class="form-group">
+                <h>转写结果</h>
+                <textarea id="textarea_result" class="form-control" style="height: 270px; display: block;"></textarea>
+            </div>
+            <!-- /.card-body -->
+      
+
+            <div class="card-footer text-right">
+              <button type="submit" class="btn btn-primary" id="btnStartLiveasr" onclick="start_liveasr();">
+                  <i class="far fa-envelope"></i> 启动
+              </button>
+              <button type="button" class="btn btn-default" id="btnStopLiveasr" onclick="stop_liveasr();">
+                  <i class="fas fa-pencil-alt"></i>停止
+              </button>
+              <button type="reset" class="btn btn-default" onclick="reset();"><i class="fas fa-times"></i> 清除</button>
+            </div>
+            <!-- /.card-footer -->
+      
+          </div>
+          <!-- /.card -->
+      </div>
+      <!-- /.col -->
+    </div>
+    <!-- /.row -->
+  </section>
+
+</body>
+</html>
+
+<script src="common/oddrecoder.js"></script>
+<script src="common/oddasr.js"></script>
+<script src="common/crypto-js.js"></script>
+
+<!-- jQuery -->
+<script src="plugins/jquery/jquery.min.js"></script>
+<!-- Bootstrap 4 -->
+<script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<!-- AdminLTE App -->
+<script src="dist/js/adminlte.min.js"></script>
+
+<script>
+  var recorder = null;
+  var finResult = '';
+  var session_id = '';
+  var client = null;
+
+  // 对Date的扩展，将 Date 转化为指定格式的String
+  // 月(M)、日(d)、小时(h)、分(m)、秒(s)、季度(q) 可以用 1-2 个占位符，
+  // 年(y)可以用 1-4 个占位符，毫秒(S)只能用 1 个占位符(是 1-3 位的数字)
+  // 例子：
+  // (new Date()).Format("yyyy-MM-dd hh:mm:ss.S") ==> 2006-07-02 08:09:04.423
+  // (new Date()).Format("yyyy-M-d h:m:s.S")      ==> 2006-7-2 8:9:4.18
+  Date.prototype.Format = function (fmt) {
+    var o = {
+      "M+": this.getMonth() + 1, //月份
+      "d+": this.getDate(), //日
+      "H+": this.getHours(), //小时
+      "m+": this.getMinutes(), //分
+      "s+": this.getSeconds(), //秒
+      "q+": Math.floor((this.getMonth() + 3) / 3), //季度
+      "S": this.getMilliseconds() //毫秒
+    };
+    if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+    for (var k in o)
+      if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+    return fmt;
+  }
+
+  //$("#meeting-time").val(new Date().Format("yyyy-MM-dd HH:mm:ss"));
+
+  function tips(text) {
+    alert(text);
+  }
+
+  function goEnd() {
+    var obj = document.getElementById("textarea_result");
+    obj.scrollTop = obj.scrollHeight;
+    obj.selectionStart = obj.value.length;
+  }
+
+  function showText(text, show_append_replacelast = 0) {
+    var ele = document.getElementById("textarea_result");
+    console.log("content=" + ele.innerText + "value=" + ele.value + ", append=" + show_append_replacelast);
+
+    if (show_append_replacelast == 0) {
+      $("#textarea_result").val(text);
+    } else if (show_append_replacelast == 1) {
+      // append to the textarea
+      ele.value = ele.value + text;
+    } else {
+      // replace last line
+      ele.value = text;
+    }
+
+    goEnd();
+
+    console.log(ele.innerText);
+  }
+
+  function reset() {
+    finResult = "";
+    showText("", 0);
+  }
+
+  function uiControl(state) {
+    switch (state) {
+      case 0:
+        $("#btnStartLiveasr").attr('disabled', true);
+        $("#btnStopLiveasr").attr('disabled', false);
+        $('#btnStartLiveasr').attr('class', 'btn btn-default');
+        $('#btnStopLiveasr').attr('class', 'btn btn-primary');
+        console.log("1")
+        break;
+      default:
+        $("#btnStartLiveasr").attr('disabled', false);
+        $("#btnStopLiveasr").attr('disabled', true);
+        $('#btnStartLiveasr').attr('class', 'btn btn-primary');
+        $('#btnStopLiveasr').attr('class', 'btn btn-default');
+        console.log("-1")
+        break;
+    }
+  }
+
+  function getToken(app_id, app_secret) {
+    const version = '1';
+    const user_id = '';
+    const expire = 7200;
+
+    let salt = Math.floor(Math.random() * 100000000);
+    let expire_ts = new Date().getTime() + expire;
+
+    const signature = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(app_id + user_id + salt + expire_ts, app_secret));
+
+    return version + ":" + app_id + ":" + salt + ":" + expire_ts + ":" + signature
+  }
+
+  function start_liveasr() {
+      var serveraddr = '{{servercfg.liveasr}}'
+      var appid = '{{servercfg.appid}}';
+      var secret = '{{servercfg.secret}}';
+      var meeting_name = $("#meeting-name").val();
+      var meeting_location = $("#meeting-location").val();
+      var meeting_time = $("#meeting-time").val();
+      var meeting_participants = $("#meeting-participants").val();
+      var require_store = $("#storeOnServer").is(":checked");
+
+      if (meeting_name == "") {
+          tips("请输入名称！");
+          return;
+      }
+
+      if (serveraddr == "") {
+          var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          var host = window.location.hostname;
+          var port = '8101'; // WebSocket服务器端口
+          serveraddr = protocol + '//' + host + ':' + port;
+      }
+
+      console.log("liveasr=" + serveraddr + ", appid=" + appid + ", secret=" + secret);
+
+      if (appid == "" || secret == "") {
+          tips('服务器地址、appid或secret为空!');
+          return;
+      }
+      uiControl(0);
+
+      console.log("init");
+
+      //initialize kasrsdk
+      ODDASR.init({ isEnableLog: true });
+      recorder = new OddRecoder();
+      client = ODDASR.createAsrInstance();
+      let tmpResult = '';
+      client.init({
+          onStart: function (result, sessionId) {
+              if (result != ODDASR.CODE.ASR_ERROR_NONE) {
+                  if (ODDASR.CODE.ASR_ERROR_NET == result)
+                      tips('服务器连接失败，服务器地址可能不对!');
+                  else if (ODDASR.CODE.ASR_ERROR_SESSION_DUP == result)
+                      tips('授权token已经存在连接!');
+                  else if (ODDASR.CODE.ASR_ERROR_TOKEN == result)
+                      tips('授权验证失败，可能token不正确!');
+                  else if (ODDASR.CODE.ASR_ERROR_SESSION_TIMEOUT == result)
+                      tips('服务器接收音频超时，连接断开！');
+                  else
+                      tips('服务器异常');
+
+                  recorder.stopRecoder();
+                  ODDASR.destoryAsrInstance(client);
+                  ODDASR.release({serveraddr: serveraddr, client:client});
+                  update_transmit(0);
+                  uiControl(1);
+              } else {
+                  session_id = sessionId;
+                  console.log("session_id=", sessionId);
+              }
+          }, onEnstable: function () {
+              // 检测是否启用敏感词
+              if ($('input[name="enableSensword"]:checked').val() == 'on') {
+                  console.log("启用敏感词")
+                  client.ctrl({unqiue_id:'test123', type:0})
+              }
+
+              // 检测是否启用热词
+              if ($('input[name="enableHotword"]:checked').val() == 'on') {
+                  console.log("启用热词")
+                  client.ctrl({unqiue_id:'test123', type:1})
+              }
+          },
+          onError: function (result, content) {
+              console.log("result: %o", result);
+              if (ODDASR.CODE.ASR_ERROR_INTER == result)
+                  tips('服务器接收音频超时，连接断开！');
+              else
+                  tips('服务器发生错误!');
+
+              recorder.stopRecoder();
+              ODDASR.destoryAsrInstance(client);
+              ODDASR.release({serveraddr: serveraddr, client:client});
+              update_transmit(0)
+              uiControl(1);
+          }, onRecogResult: function ({ text = '', fin = 0 }) {
+              if (fin == 0) {
+                  tmpResult = text;
+              } else {
+                  finResult += text + '\r\n';
+                  tmpResult = ''
+              }
+              showText(finResult + tmpResult);
+          }
+      });
+      console.log(meeting_name, meeting_location, meeting_participants, require_store);
+
+      var ret = client.start({
+          serveraddr: serveraddr,
+          token: getToken(appid, secret),
+          meeting_info: { 'name': meeting_name, 'address': meeting_location, 'participant': meeting_participants },
+          autosave: require_store
+      })
+
+      if (ret == ODDASR.CODE.ASR_ERROR_NO_RESOURCE) {
+          tips('当前语音授权资源不足');
+      } else if (ret != ODDASR.CODE.ASR_ERROR_NONE) {
+          tips('服务器连接错误');
+      }
+
+      if (ret != ODDASR.CODE.ASR_ERROR_NONE) {
+          recorder.stopRecoder();
+          ODDASR.destoryAsrInstance(client);
+          ODDASR.release({serveraddr: serveraddr, client:client});
+          uiControl(1);
+          update_transmit(0)
+          return;
+      } else {
+          update_transmit(1)
+      }
+      recorder = new OddRecoder();
+      recorder.startRecoder(e => {
+          if (client != null) {
+              client.feed({ data: e });
+          }
+      });
+  }
+
+  $("#enableHotword").on("change",function() {
+      // 判断client对象
+      if (client == null) {
+          return;
+      }
+      // 检测是否启用热词
+      if ($('input[name="enableHotword"]:checked').val() == 'on') {
+          console.log("启用热词")
+          client.ctrl({unqiue_id:'test123', type:1})
+      } else {
+          console.log("禁用热词")
+          client.ctrl({unqiue_id:'test123', type:1, enable:false})
+      }
+  })
+
+  $("#enableSensword").on("change",function() {
+      // 判断client对象
+      if (client == null) {
+          return;
+      }
+
+      // 检测是否启用敏感词
+      if ($('input[name="enableSensword"]:checked').val() == 'on') {
+          console.log("启用敏感词")
+          client.ctrl({unqiue_id:'test123', type:0})
+      } else {
+          console.log("禁用敏感词")
+          client.ctrl({unqiue_id:'test123', type:0, enable:false})
+      }
+  })
+
+  function stop_liveasr() {
+      console.log("mannual stop");
+      $("#meeting-name").val('');
+      $("#meeting-location").val('');
+      // $("#textarea_result").val('');
+      finResult = "";
+      if (recorder && client) {
+          recorder.stopRecoder();
+          try {
+              // client.stop();
+              ODDASR.destoryAsrInstance(client);
+              ODDASR.release({serveraddr: '{{servercfg.liveasr}}', client:client});
+          } catch (e) {
+              console.log(e);
+          }
+          update_transmit(0)
+          client = null;
+      }
+      uiControl(1);
+      session_id = "";
+  }
+
+  function update_transmit(flag) {
+      $.ajaxSetup({ "xhrFields": true });
+      $.ajax({
+        url: "/update_transmit",
+        data: JSON.stringify({ "flag": flag }),
+        contentType: "application/json",
+        type: "Post",
+        traditional: true
+      })
+  }
+</script>
+
