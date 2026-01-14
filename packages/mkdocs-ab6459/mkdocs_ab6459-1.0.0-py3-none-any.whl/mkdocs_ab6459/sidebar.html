@@ -1,0 +1,83 @@
+<div class="flex-row flex-grow-1">
+    <div class="accordion" id="accordion-modules">
+        {% for nav_item in nav %}
+
+        {% if nav_item.title == "Lectures" %}
+        {% set icon = "bi-journals" %}
+        {% elif nav_item.title == "Lab Activities" %}
+        {% set icon = "bi-pen" %}
+        {% elif nav_item.title == "Your Assessment" %}
+        {% set icon = "bi-journal-code" %}
+        {% elif nav_item.title == "Getting Started" %}
+        {% set icon = "bi-flag" %}
+        {% elif nav_item.title == "Support" %}
+        {% set icon = "bi-info-circle" %}
+        {% elif nav_item.title == "Module Essentials" %}
+        {% set icon = "bi-journal-bookmark" %}
+        {% elif nav_item.title == "Linux" %}
+        {% set icon = "bi-ubuntu" %}
+        {% elif nav_item.title == "macOS" %}
+        {% set icon = "bi-apple" %}
+        {% elif nav_item.title == "Windows" %}
+        {% set icon = "bi-microsoft" %}
+        {% elif nav_item.title == "Windows Subsystem for Linux" %}
+        {% set icon = "bi-terminal" %}
+        {% elif 'Git' in nav_item.title %}
+        {% set icon = "bi-github" %}
+        {% else %}
+        {% set icon = "bi-link-45deg" %}
+        {% endif %}
+
+        {% if nav_item.children %}
+        <div class="accordion-item {% if loop.last %}mb-0{% else %}mb-3{% endif %}">
+            <button class="btn btn-link collapsed text-decoration-none text-start text-white w-100"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#{{ nav_item.title.replace(' ', '-')|lower }}"
+                    aria-expanded="false">
+                <i class="bi {{ icon }} me-2"></i>
+                {{ nav_item.title }}
+            </button>
+            <div id="{{ nav_item.title.replace(' ', '-')|lower }}" class="accordion-collapse collapse"
+                 data-bs-parent="#accordion-modules">
+                <div class="accordion-body p-3">
+                    <ul class="list-unstyled m-0">
+                        {% for nav_item_secondary in nav_item.children %}
+                        <li class="">
+                            {% if nav_item_secondary.children %}
+                            <ul class="bg-body-tertiary rounded-2 p-2 m-0 {% if not(loop.last) %}mb-2{% endif %}"
+                                id="{{ nav_item_secondary.title.replace(' ', '-')|lower }}">
+                                <li class="d-flex flex-row tertiary-item"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#{{ nav_item.title.replace(' ', '-')|lower }}-{{ nav_item_secondary.title.replace(' ', '-')|lower }}"
+                                    aria-expanded="false"
+                                    aria-controls="{{ nav_item.title.replace(' ', '-')|lower }}-{{ nav_item_secondary.title.replace(' ', '-')|lower }}">
+                                    <h4 class="btn-link-text fw-bold mb-0">{{ nav_item_secondary.title }}</h4>
+                                </li>
+                                <div class="collapse no-transition"
+                                     id="{{ nav_item.title.replace(' ', '-')|lower }}-{{ nav_item_secondary.title.replace(' ', '-')|lower }}">
+                                    <ul class="ps-0 mt-2">
+                                        {% for nav_item_tertiary in nav_item_secondary.children %}
+                                        <li class="ms-4 mb-1">
+                                            <a class="text-decoration-none"
+                                                href="{{ nav_item_tertiary.url | url }}">
+                                                {{ nav_item_tertiary.title }}
+                                            </a>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </ul>
+                            {% else %}
+                            <a href="{{ nav_item_secondary.url | url }}">{{ nav_item_secondary.title }}</a>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
