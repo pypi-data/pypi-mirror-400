@@ -1,0 +1,55 @@
+Metadata-Version: 2.4
+Name: langgraph-checkpoint-aerospike
+Version: 0.1.0
+Summary: Aerospike-based checkpoint saver for LangGraph
+Author-email: "Aerospike, Inc." <info@aerospike.com>
+License: Apache Software License
+Project-URL: Repository, https://github.com/aerospike/aerospike-langgraph/tree/main/packages/langgraph-checkpoint-aerospike
+Keywords: langgraph,aerospike,checkpoint
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Database
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: langgraph>=0.6.0
+Requires-Dist: aerospike>=15.0.0
+
+# LangGraph Checkpoint Aerospike
+
+Store LangGraph checkpoints in Aerospike using the provided `AerospikeSaver`.
+
+## Installation
+
+```bash
+pip install -U langgraph-checkpoint-aerospike
+```
+
+## Usage
+
+1. Bring up Aerospike locally using prebuilt [Aerospike Docker Image](https://hub.docker.com/_/aerospike):
+
+```bash
+docker run -d --name aerospike -p 3000-3002:3000-3002 container.aerospike.com/aerospike/aerospike-server
+```
+
+2. Point the saver at your cluster (Default):
+   - `AEROSPIKE_HOST=127.0.0.1`
+   - `AEROSPIKE_PORT=3000`
+   - `AEROSPIKE_NAMESPACE=test`
+
+3. Use in workflow:
+
+   ```python
+   import aerospike
+   from langgraph.checkpoint.aerospike import AerospikeSaver
+
+   client = aerospike.client({"hosts": [("127.0.0.1", 3000)]}).connect()
+   saver = AerospikeSaver(client=client, namespace="test")
+
+   compiled = graph.compile(checkpointer=saver)  # graph is your LangGraph graph
+   compiled.invoke({"input": "hello"}, config={"configurable": {"thread_id": "demo"}})
+   ```
