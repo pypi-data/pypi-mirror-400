@@ -1,0 +1,1 @@
+from .ufo_detector import detect_ufos, UfoDetector
