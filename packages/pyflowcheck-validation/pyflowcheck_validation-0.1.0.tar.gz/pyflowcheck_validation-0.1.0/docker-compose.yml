@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  py-flowcheck-app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PY_FLOWCHECK_ENV=prod
+      - PY_FLOWCHECK_SAMPLE_SIZE=0.1
+      - PY_FLOWCHECK_MODE=log
+      - PY_FLOWCHECK_ENABLE_METRICS=true
+      - PY_FLOWCHECK_MAX_METRICS_HISTORY=5000
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "from py_flowcheck.monitoring import is_healthy; exit(0 if is_healthy() else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    restart: unless-stopped
+
+volumes:
+  grafana-storage:

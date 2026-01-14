@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: py-flowcheck-app
+  labels:
+    app: py-flowcheck
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: py-flowcheck
+  template:
+    metadata:
+      labels:
+        app: py-flowcheck
+    spec:
+      containers:
+      - name: py-flowcheck
+        image: py-flowcheck:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PY_FLOWCHECK_ENV
+          value: "prod"
+        - name: PY_FLOWCHECK_SAMPLE_SIZE
+          value: "0.1"
+        - name: PY_FLOWCHECK_MODE
+          value: "log"
+        - name: PY_FLOWCHECK_ENABLE_METRICS
+          value: "true"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "from py_flowcheck.monitoring import is_healthy; exit(0 if is_healthy() else 1)"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: py-flowcheck-service
+spec:
+  selector:
+    app: py-flowcheck
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: LoadBalancer
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: py-flowcheck-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: py-flowcheck-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

@@ -1,0 +1,108 @@
+name: Performance Monitoring
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-prod.txt
+        pip install -e .
+
+    - name: Run benchmarks
+      run: |
+        python examples/benchmarks.py > benchmark-results.txt
+        cat benchmark-results.txt
+
+    - name: Store benchmark results
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        tool: 'customSmallerIsBetter'
+        output-file-path: benchmark-results.txt
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+
+    - name: Performance regression check
+      run: |
+        python -c "
+        import re
+        
+        with open('benchmark-results.txt', 'r') as f:
+            content = f.read()
+        
+        # Extract validation overhead
+        overhead_match = re.search(r'Overhead: ([\d.]+)ms', content)
+        if overhead_match:
+            overhead = float(overhead_match.group(1))
+            if overhead > 1.0:  # Alert if overhead > 1ms
+                print(f'⚠️ Performance regression detected: {overhead}ms overhead')
+                exit(1)
+            else:
+                print(f'✅ Performance OK: {overhead}ms overhead')
+        "
+
+  load-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Start application
+      run: |
+        docker-compose up -d
+        sleep 30
+
+    - name: Install k6
+      run: |
+        sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+
+    - name: Run load test
+      run: |
+        k6 run --vus 10 --duration 30s - <<EOF
+        import http from 'k6/http';
+        import { check } from 'k6';
+        
+        export default function () {
+          let response = http.get('http://localhost:8000/health');
+          check(response, {
+            'status is 200': (r) => r.status === 200,
+            'response time < 100ms': (r) => r.timings.duration < 100,
+          });
+          
+          let userData = {
+            username: 'loadtest',
+            email: 'test@example.com',
+            age: 25
+          };
+          
+          response = http.post('http://localhost:8000/users', JSON.stringify(userData), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+          
+          check(response, {
+            'user creation status is 200': (r) => r.status === 200,
+          });
+        }
+        EOF
+
+    - name: Check application health after load test
+      run: |
+        curl -f http://localhost:8000/health/detailed

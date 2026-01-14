@@ -1,0 +1,67 @@
+name: Docker Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set environment variables
+      run: |
+        if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+          echo "PY_FLOWCHECK_ENV=prod" >> $GITHUB_ENV
+          echo "PY_FLOWCHECK_SAMPLE_SIZE=0.1" >> $GITHUB_ENV
+          echo "PY_FLOWCHECK_MODE=log" >> $GITHUB_ENV
+        else
+          echo "PY_FLOWCHECK_ENV=staging" >> $GITHUB_ENV
+          echo "PY_FLOWCHECK_SAMPLE_SIZE=1.0" >> $GITHUB_ENV
+          echo "PY_FLOWCHECK_MODE=log" >> $GITHUB_ENV
+        fi
+
+    - name: Deploy with Docker Compose
+      run: |
+        docker-compose down || true
+        docker-compose pull
+        docker-compose up -d
+        
+    - name: Health check
+      run: |
+        sleep 30
+        curl -f http://localhost:8000/health
+        curl -f http://localhost:8000/health/detailed
+
+    - name: Run smoke tests
+      run: |
+        python -c "
+        import requests
+        import json
+        
+        # Test health endpoint
+        r = requests.get('http://localhost:8000/health')
+        assert r.status_code == 200
+        
+        # Test metrics endpoint
+        r = requests.get('http://localhost:8000/metrics')
+        assert r.status_code == 200
+        
+        # Test API endpoint
+        data = {'username': 'test', 'email': 'test@example.com', 'age': 25}
+        r = requests.post('http://localhost:8000/users', json=data)
+        assert r.status_code == 200
+        
+        print('✅ All smoke tests passed!')
+        "
