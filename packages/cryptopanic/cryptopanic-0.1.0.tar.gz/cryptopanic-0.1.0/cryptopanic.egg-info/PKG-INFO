@@ -1,0 +1,448 @@
+Metadata-Version: 2.4
+Name: cryptopanic
+Version: 0.1.0
+Summary: A Python client library for the CryptoPanic API
+Author-email: Erwin Lejeune <rangonomics@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/guilyx/cryptopanic
+Project-URL: Documentation, https://github.com/guilyx/cryptopanic#readme
+Project-URL: Repository, https://github.com/guilyx/cryptopanic
+Project-URL: Issues, https://github/guilyx/cryptopanic/issues
+Keywords: cryptopanic,crypto,news,api,cryptocurrency
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.11.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Requires-Dist: pre-commit>=3.4.0; extra == "dev"
+Requires-Dist: types-requests>=2.31.0; extra == "dev"
+Dynamic: license-file
+
+# cryptopanic
+
+[![Unit Tests](https://github.com/guilyx/cryptopanic/actions/workflows/ci.yml/badge.svg)](https://github.com/guilyx/cryptopanic/actions/workflows/ci.yml)
+[![Integration Tests](https://github.com/guilyx/cryptopanic/actions/workflows/integration.yml/badge.svg)](https://github.com/guilyx/cryptopanic/actions/workflows/integration.yml)
+[![codecov](https://codecov.io/gh/guilyx/cryptopanic/graph/badge.svg?token=KVI712MWFJ)](https://codecov.io/gh/guilyx/cryptopanic)
+[![PyPI version](https://badge.fury.io/py/cryptopanic.svg)](https://badge.fury.io/py/cryptopanic)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+A modern, type-safe Python client library for the [CryptoPanic API](https://cryptopanic.com/developers/api/). This library provides a clean, intuitive interface to access cryptocurrency news and market data.
+
+## Features
+
+- 🚀 **Type-safe**: Built with Pydantic for robust data validation
+- 🎯 **Easy to use**: Simple, Pythonic API design
+- 🔒 **Error handling**: Comprehensive exception handling for all API error codes
+- 📦 **Well tested**: High test coverage with pytest
+- 🛠️ **Developer friendly**: Full type hints, comprehensive documentation
+- ⚡ **Async ready**: Built on requests for reliable HTTP handling
+
+## Installation
+
+```bash
+pip install cryptopanic
+```
+
+## Quick Start
+
+```python
+from cryptopanic import CryptoPanicClient
+
+# Initialize the client with your API token
+client = CryptoPanicClient(auth_token="your_api_token_here")
+
+# Get news posts for Bitcoin and Ethereum
+posts = client.get_posts(
+    currencies=["BTC", "ETH"],
+    filter="rising"
+)
+
+# Iterate through posts
+for post in posts.results:
+    print(f"{post.title} - {post.published_at}")
+    print(f"Source: {post.source.title}")
+    print(f"URL: {post.url}")
+    print(f"Panic Score: {post.panic_score}")
+    print("-" * 50)
+```
+
+## API Reference
+
+### CryptoPanicClient
+
+The main client class for interacting with the CryptoPanic API.
+
+#### Initialization
+
+```python
+client = CryptoPanicClient(
+    auth_token: str,  # Your CryptoPanic API token (required)
+    timeout: int = 30  # Request timeout in seconds (optional)
+)
+```
+
+#### Methods
+
+##### `get_posts(...)`
+
+Retrieve a list of news posts with various filtering options.
+
+**Parameters:**
+
+- `public` (bool, optional): Enable public mode (uses non-user-specific settings)
+- `currencies` (list[str], optional): Filter by currency codes (e.g., `["BTC", "ETH"]`)
+- `regions` (list[str], optional): Filter by regions (e.g., `["en", "fr"]`)
+- `filter` (str, optional): Filter by type: `"rising"`, `"hot"`, `"bullish"`, `"bearish"`, `"important"`, `"saved"`, `"lol"`
+- `kind` (str, optional): Filter by news kind: `"news"`, `"media"`, `"all"` (default: `"all"`)
+- `following` (bool, optional): Filter by sources you follow (PRIVATE API only)
+- `last_pull` (datetime | str, optional): Limit search to last pull time (ISO 8601) - Enterprise only
+- `panic_period` (str, optional): Include panic score for period: `"1h"`, `"6h"`, `"24h"` - Enterprise only
+- `panic_sort` (str, optional): Sort by panic score: `"asc"` or `"desc"` (requires `panic_period`) - Enterprise only
+- `size` (int, optional): Items per page (1-500, max 500) - Enterprise only
+- `with_content` (bool, optional): Filter items with full content - Enterprise only
+- `search` (str, optional): Search by keyword - Enterprise only
+- `format` (str, optional): Response format (e.g., `"rss"`) - returns max 20 items
+
+**Returns:** `PostsResponse` object containing:
+- `results`: List of `Post` objects
+- `next`: URL for next page (or `None`)
+- `previous`: URL for previous page (or `None`)
+
+**Example:**
+
+```python
+# Get rising news for Bitcoin
+posts = client.get_posts(
+    currencies=["BTC"],
+    filter="rising"
+)
+
+# Get public news in English and French
+posts = client.get_posts(
+    public=True,
+    regions=["en", "fr"]
+)
+
+# Search for specific keywords (Enterprise plan)
+posts = client.get_posts(
+    search="bitcoin halving"
+)
+```
+
+##### `get_portfolio()`
+
+Retrieve your portfolio. Available only for GROWTH and ENTERPRISE API plans.
+
+**Returns:** `PortfolioResponse` object
+
+**Example:**
+
+```python
+portfolio = client.get_portfolio()
+```
+
+## Data Models
+
+### Post
+
+Represents a news post from CryptoPanic.
+
+```python
+class Post:
+    id: int
+    slug: str
+    title: str
+    description: str
+    published_at: datetime
+    created_at: datetime
+    kind: str  # "news", "media", "blog", "twitter", "reddit"
+    source: Source
+    original_url: str
+    url: str
+    image: str | None
+    instruments: list[Instrument]
+    votes: Votes
+    panic_score: int | None  # 0-100
+    panic_score_1h: int | None  # 0-100
+    author: str | None
+    content: Content | None
+```
+
+### Instrument
+
+Represents a cryptocurrency instrument.
+
+```python
+class Instrument:
+    code: str  # e.g., "BTC"
+    title: str  # e.g., "Bitcoin"
+    slug: str
+    url: str
+    market_cap_usd: float | None
+    price_in_usd: float | None
+    price_in_btc: float | None
+    price_in_eth: float | None
+    price_in_eur: float | None
+    market_rank: int | None
+```
+
+### Source
+
+Represents a news source.
+
+```python
+class Source:
+    title: str
+    region: str  # Language code (e.g., "en", "fr")
+    domain: str
+    type: str  # "feed", "blog", "twitter", "media", "reddit"
+```
+
+### Votes
+
+Represents vote counts for a post.
+
+```python
+class Votes:
+    negative: int
+    positive: int
+    important: int
+    liked: int
+    disliked: int
+    lol: int
+    toxic: int
+    saved: int
+    comments: int
+```
+
+## Error Handling
+
+The library provides specific exception classes for different error scenarios:
+
+```python
+from cryptopanic import (
+    CryptoPanicClient,
+    CryptoPanicAuthenticationError,
+    CryptoPanicForbiddenError,
+    CryptoPanicRateLimitError,
+    CryptoPanicServerError,
+    CryptoPanicAPIError,
+)
+
+client = CryptoPanicClient(auth_token="your_token")
+
+try:
+    posts = client.get_posts()
+except CryptoPanicAuthenticationError:
+    print("Invalid API token")
+except CryptoPanicRateLimitError:
+    print("Rate limit exceeded. Please wait before making more requests.")
+except CryptoPanicForbiddenError:
+    print("Access forbidden. Check your API plan limits.")
+except CryptoPanicServerError:
+    print("Server error. Please try again later.")
+except CryptoPanicAPIError as e:
+    print(f"API error: {e}")
+```
+
+### Exception Classes
+
+- `CryptoPanicAPIError`: Base exception for all API errors
+- `CryptoPanicAuthenticationError`: Raised on 401 Unauthorized
+- `CryptoPanicForbiddenError`: Raised on 403 Forbidden (rate limit or access denied)
+- `CryptoPanicRateLimitError`: Raised on 429 Too Many Requests
+- `CryptoPanicServerError`: Raised on 500 Internal Server Error
+
+## Examples
+
+### Filter by Multiple Currencies
+
+```python
+posts = client.get_posts(
+    currencies=["BTC", "ETH", "SOL"],
+    filter="hot"
+)
+
+for post in posts.results:
+    print(f"{post.title}")
+    for instrument in post.instruments:
+        print(f"  - {instrument.code}: ${instrument.price_in_usd}")
+```
+
+### Get Posts with Full Content
+
+```python
+# Enterprise plan only
+posts = client.get_posts(
+    currencies=["BTC"],
+    with_content=True
+)
+
+for post in posts.results:
+    if post.content:
+        print(f"Title: {post.title}")
+        print(f"Clean content: {post.content.clean}")
+```
+
+### Pagination
+
+```python
+posts = client.get_posts(currencies=["BTC"])
+
+# Process first page
+for post in posts.results:
+    print(post.title)
+
+# Get next page (you would need to parse the URL or implement pagination helper)
+if posts.next:
+    print(f"Next page: {posts.next}")
+```
+
+### RSS Feed
+
+```python
+# Get RSS feed (max 20 items)
+posts = client.get_posts(
+    currencies=["BTC"],
+    format="rss"
+)
+```
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/guilyx/cryptopanic.git
+cd cryptopanic
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+### Running Tests
+
+```bash
+# Run all tests (unit tests only, uses mocked requests)
+pytest
+
+# Run with coverage
+pytest --cov=cryptopanic --cov-report=html
+
+# Run specific test file
+pytest tests/test_client.py
+
+# Run integration tests (requires CRYPTOPANIC_AUTH_TOKEN env var)
+CRYPTOPANIC_AUTH_TOKEN=your_token pytest tests/test_integration.py
+
+# Run all tests including integration tests
+CRYPTOPANIC_AUTH_TOKEN=your_token pytest
+```
+
+**Note:** Unit tests use mocked API responses and don't require a real API token. Integration tests make real API calls and require the `CRYPTOPANIC_AUTH_TOKEN` environment variable to be set.
+
+### Code Quality
+
+```bash
+# Format code
+black .
+
+# Lint code
+ruff check .
+
+# Type checking
+mypy cryptopanic
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass and code is formatted
+6. Commit your changes (following the commit message guidelines)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [CryptoPanic](https://cryptopanic.com/) for providing the API
+- All contributors who help improve this library
+
+## Release Process
+
+### Development Flow
+
+1. **Feature Development**: Work happens on feature branches
+2. **Merge to Master**: Features are merged to `master` after review
+3. **Release Candidates**: When enough features accumulate (typically 3-5), create a release candidate:
+   ```bash
+   # Update version in pyproject.toml (e.g., 0.2.0rc1)
+   git add pyproject.toml CHANGELOG.md
+   git commit -m "chore: prepare release 0.2.0rc1"
+   git tag v0.2.0rc1
+   git push origin master --tags
+   ```
+   - **Optional**: Create a GitHub Release marked as "pre-release" for testing (won't publish to PyPI)
+   - **Test**: Install and test the release candidate: `pip install cryptopanic==0.2.0rc1`
+4. **Final Release**: After testing passes, create final release:
+   ```bash
+   # Update version in pyproject.toml (e.g., 0.2.0)
+   git add pyproject.toml CHANGELOG.md
+   git commit -m "chore: release 0.2.0"
+   git tag v0.2.0
+   git push origin master --tags
+   ```
+5. **GitHub Release**: Create a GitHub Release with the tag (via UI or `gh release create v0.2.0`)
+6. **Auto-publish**: Workflow automatically publishes final releases to PyPI (pre-releases are skipped)
+
+### Setup (One-time)
+
+**PyPI Trusted Publishing:**
+1. Create GitHub Environment: Settings → Environments → New (`pypi`)
+2. Configure at https://pypi.org/manage/account/publishing/:
+   - Project: `cryptopanic`
+   - Workflow: `publish.yml`
+   - Environment: `pypi`
+   - Repository: `guilyx/cryptopanic`
+
+**Version Format:** Follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
+
+## Support
+
+For issues, questions, or contributions, please open an issue on [GitHub](https://github.com/guilyx/cryptopanic/issues).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
