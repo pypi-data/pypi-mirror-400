@@ -1,0 +1,21 @@
+## API
+
+### -> safe_eval
+safe_eval(expr, variables=None, degrees=False)
+
+Evaluates a mathematical expression safely.
+
+### -> solve_equation
+solve_equation(expr, var="x", interval=(-10,10), constraint=None)
+
+Solves equations numerically.
+
+### -> convert_base
+convert_base(value, from_base, to_base)
+
+Converts numbers between bases.
+
+### -> value_table
+value_table(expr, var="x", start=0, end=10, step=1)
+
+Generates a table of values for a function.
