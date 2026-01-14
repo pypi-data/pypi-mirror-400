@@ -1,0 +1,36 @@
+on:
+  workflow_call:
+
+env:
+  # https://github.com/pytest-dev/pytest/issues/2042
+  PY_IGNORE_IMPORTMISMATCH: "1"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          # Need this to get version number from last tag
+          fetch-depth: 0
+          # Check out example services
+          submodules: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Compose services
+        uses: hoverkraft-tech/compose-action@05da55b2bb8a5a759d1c4732095044bd9018c050 # v2.4.3
+        with:
+          compose-file: "tests/system_tests/compose.yaml"
+
+      - name: Start Blueapi Server
+        env:
+          EPICS_CA_NAME_SERVERS: 127.0.0.1:9064
+          EPICS_PVA_NAME_SERVERS: 127.0.0.1:9075
+        run: uv run blueapi -c ${{ github.workspace }}/tests/system_tests/config.yaml serve &
+
+      - name: Run tests
+        run: uv run --locked tox -e system-test
