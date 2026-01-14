@@ -1,0 +1,443 @@
+Metadata-Version: 2.4
+Name: debug-gym
+Version: 1.3.0rc1
+Summary: debug-gym - interactive debugging environment
+Project-URL: Homepage, https://aka.ms/debug-gym
+Project-URL: Repository, https://github.com/microsoft/debug-gym
+Project-URL: Issues, https://github.com/microsoft/debug-gym/issues
+Project-URL: Changelog, https://github.com/microsoft/debug-gym/blob/main/CHANGELOG.md
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: datasets==3.6.0
+Requires-Dist: openai==1.99.9
+Requires-Dist: azure-identity==1.22.0
+Requires-Dist: tenacity==9.1.2
+Requires-Dist: pyyaml==6.0.2
+Requires-Dist: pytest==8.3.5
+Requires-Dist: gitignore_parser==0.1.12
+Requires-Dist: termcolor==3.1.0
+Requires-Dist: transformers==4.51.3
+Requires-Dist: tiktoken
+Requires-Dist: docker==7.1.0
+Requires-Dist: swebench==4.0.3
+Requires-Dist: swesmith==0.0.4
+Requires-Dist: prompt_toolkit==3.0.51
+Requires-Dist: anthropic==0.51.0
+Requires-Dist: jinja2==3.1.6
+Requires-Dist: rich==14.0.0
+Requires-Dist: kubernetes==33.1.0
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: pytest-xdist; extra == "dev"
+Requires-Dist: pytest-timeout; extra == "dev"
+Requires-Dist: pytest-env; extra == "dev"
+Requires-Dist: isort; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Dynamic: license-file
+
+# debug-gym: A Text-Based Environment for Interactive Debugging
+
+`debug-gym` is a text-based interactive debugging framework, designed for debugging Python programs.
+
+[[Technical Report](https://arxiv.org/abs/2503.21557)] [[Project Page](https://aka.ms/debug-gym/)]
+
+The technical report corresponds to [version 1.0.0](https://github.com/microsoft/debug-gym/tree/1.0.0). Please see [CHANGELOG.md](https://github.com/microsoft/debug-gym/blob/main/CHANGELOG.md) for recent updates.
+
+## 1. Installation
+
+It's recommended to create and activate a conda or virtual environment. `debug-gym` requires `Python>=3.12`:
+
+    conda create -n debug-gym python=3.12
+    conda activate debug-gym
+
+Then, install `debug-gym` directly from PyPI:
+
+    pip install debug-gym
+
+Alternatively, clone the repository and install locally:
+
+    git clone https://github.com/microsoft/debug-gym
+    cd debug-gym
+    pip install -e .
+
+To install development dependencies, run:
+
+    pip install -e '.[dev]'
+
+
+**Set your API information in llm.yaml**
+
+First, create an LLM config template by running `python -m debug_gym.llms.configure`:
+
+    python -m debug_gym.llms.configure
+
+> [!TIP]
+> Run `python -m debug_gym.llms.configure --help` for more options. By default, the template is created at `$HOME/.config/debug_gym/llm.yaml`, but you can specify any directory.
+
+Then, edit this file with your endpoint and credentials. You can choose one of these authentication methods:
+- For authenticating with an API key, provide `api_key`.
+- For `az login` or Managed Identity authentication on Azure, remove `api_key` and include `scope` instead.
+
+> [!WARNING]
+> When using open-sourced LLMs, e.g., via vLLM, you need to correctly setup `HF_TOKEN` required by the tokenizer. You can also provide `tokenizer_kwargs` in your `llm.yaml` entry (for example `trust_remote_code: true`) to control how the Hugging Face tokenizer is instantiated.
+
+By default, `debug-gym` looks for the LLM config file at `$HOME/.config/debug_gym/llm.yaml`. You can change this behavior by exporting the environment variable `LLM_CONFIG_FILE_PATH` or by setting `llm_config_file_path` in your script config file (see [Running Baselines](#3-running-baselines)).
+
+**Overriding LLM parameters in experiment configs**
+
+You can override LLM generation parameters like `temperature` and `max_tokens` directly in your experiment config file under the `llm:` section. These values take precedence over the defaults in `llm.yaml`:
+
+```yaml
+llm:
+  name: gpt-4o
+  temperature: 0.7   # optional, overrides llm.yaml default
+  max_tokens: 4096   # optional, overrides llm.yaml default
+```
+
+---
+
+## 2. System Design
+
+The structure of `debug-gym` is as below:
+```bash
+debug_gym
+├── gym
+│   ├── envs
+│   ├── terminals
+│   └── tools
+├── agents
+└── llms
+```
+
+`debug_gym.gym` is a simulation environment. Given a code repository, an agent can iteratively interact with a set of tools, such as `pdb`, that are designed for investigate the code. Once gathered enough information, the agent can propose a patch that edits certain lines of the code. The terminal will subsequently execute the new code against a set of test cases.
+
+`debug_gym.agents` are LLM-based debugging agents that use `debug_gym.gym` to interact with code repositories to seek necessary information and thus fix potential bugs. At an interaction step, the agent takes a text observation that describes the environment states and tool states as input, it is expected to generate a command, subsequently, the environment will provide a new text observation in response, describing the state change caused by that command.
+
+`debug_gym.llms` are the different LLM backends that can be used to instantiate agents. Currently, we support OpenAI, Azure OpenAI, Hugging Face/vLLM deployments (via an OpenAI-compatible endpoint), and Anthropic. For Hugging Face models served through vLLM, the tokenizer's chat template is applied automatically to ensure token counting and truncation match the hosted model.
+
+> [!WARNING]
+> `debug-gym` has limited support on non-Linux platforms. Interactive terminal sessions using PTY (pseudo-terminal) in Docker are not fully supported on macOS or Windows. As a result, the `pdb` tool (see [2.1. Environment and Tools](#21-environment-and-tools)) only works on Linux.
+
+---
+
+#### 2.1. Environment and Tools
+
+Our base environment, `RepoEnv`, is an interactive environment that follows the [Gymnasium](https://github.com/Farama-Foundation/Gymnasium) paradigm. Once the environment `env` is instantiated, one can use `env.reset()` to start an episode and receives initial informations. Then, one can interact with the environment using `env.step(action)`, where `action` specifies one of the available tools (see below), doing so will return subsequent informations (e.g, error message, debugger stdout, etc.)
+
+One of the core designs of `debug-gym` is the notion of tools. Users can dynamically import tools, or develop customized tools and utilize them in the environment. Tools are modules that augment an agent's action space, observation space, or provide additonal functionalities to the agent. Below are the set of tools we have implemented so far.
+
+| Tool name | Description |
+| :-: | :----- |
+| `bash` | Run commands in a bash shell. You have access to common Linux and Python packages via pip. State is persistent across command calls within the same session. |
+| `view` | It is used to change an agent's focus to a particular source code file. This is particularly useful when dealing with a repository with multiple files. |
+| `eval` | It runs the current code repository using the provided entrypoint (e.g., pytest), and returns the terminal's output (e.g., error message). |
+| `pdb` | Interactive debugger wrapping the [Python pdb tool](https://docs.python.org/3/library/pdb.html). In addition, users can choose to maintain a set of persistent breakpoints (as in some programming IDEs), which are not reset after every eval. With such feature, a new pdb debugging session is activated automatically, with all the breakpoints restored. Note such breakpoints can be cleared by pdb commands such as `cl`. |
+| `grep` | Search for patterns in files within the repository. Supports both literal string matching and regular expressions. Can search in specific files, directories, or the entire repository. Useful for finding code patterns, function definitions, variable usage, or identifying files containing specific text. |
+| `listdir` | List the file and folder contents of a directory within the working directory, up to a specified depth. Useful for exploring the repository structure. |
+| `edit` | It can be used to edit a certain piece of code to fix the bug. The inputs of this tool call include the file path, the start and end line numbers, and the new code. |
+| `submit` | Submit your changes once the task is complete. By default, it runs evaluation before terminating the session, but this can be disabled via `eval_on_submit: false`. |
+
+Upon importing a tool, its action space and observation space will be automatically merged into `debug-gym`'s action space and observation space; its instruction will also be merged into the overall instruction provided to the agent (e.g., as system prompt).
+
+**Tool Dependencies:** Some tools require additional packages to be installed in the terminal environment. When a tool is added to the configuration, its required dependencies are automatically installed during terminal setup. For example, the `listdir` tool requires the `tree` package, which is automatically installed when the tool is used. This ensures that tools work out of the box without manual configuration.
+
+Users can include a `.debugignore` file in the repository to specify files and directories that are not visible to `debug-gym`, similarly, they can include a `.debugreadonly` to specify files and directories that are read only by the agents (e.g., the test files). Both files share the same syntax as `.gitignore`.
+
+---
+
+#### 2.2. Agents
+
+We provide the below LLM-based agents, they all have minimal design and serve the purpose of demonstrating the `debug-gym` APIs.
+
+| Agent name | Available Tools | Description |
+| :-: | :-: | :----- |
+| `froggy_agent` | `bash`, `view`, `edit`, `submit` (configurable) | Primary debugging agent. Adjust prompts and tool lists in YAML to customize workflows. |
+| `solution_agent` | `pdb`, `eval`  | An oracle agent that applies a gold patch (works with `swebench`, `swesmith`, and `r2egym` benchmarks). The agent checks that tests are failing before applying the patch, and passing after. It also checks that `pdb` tool can be used as expected (if available). |
+
+---
+
+#### 2.3. Benchmarks
+
+To demonstrate how to integrate `debug-gym` with coding tasks and repositories, we provide example code importing widely used benchmarks, namely `aider`, `swebench`, `swesmith` and `r2egym`, and a small set of minimal buggy code snippets, namely `mini_nightmare`.
+
+| Benchmark name | Link |
+| :-: | :----- |
+| `aider` | [https://github.com/Aider-AI/aider](https://github.com/Aider-AI/aider) |
+| `swebench`| [https://github.com/princeton-nlp/SWE-bench](https://github.com/princeton-nlp/SWE-bench) |
+| `swesmith`| [https://github.com/SWE-bench/SWE-smith](https://github.com/SWE-bench/SWE-smith) |
+| `r2egym`| [https://github.com/R2E-Gym/R2E-Gym](https://github.com/R2E-Gym/R2E-Gym) |
+| `mini_nightmare` | A set of 10 hand-crafted minimal buggy code snippet where edit-only agents have harder time to tackle. Read details [here](https://github.com/microsoft/debug-gym/blob/main/data/mini_nightmare/mini_nightmare.md). |
+
+> [!NOTE]
+> Since debug-gym focuses on debugging tasks with the use of a debugger, we provide a customized version of `swebench`, called `swebench-debug`, where each problem's codebase already has the gold test patch applied. This allows us to better simulate real-world debugging scenarios where the buggy code is expected to have failing tests and we can set the debugger's entrypoint accordingly. To use `swebench-debug`, use `configs/swebench_debug.yaml` or set `dataset.type: swebench-debug` in your config file.
+
+---
+
+#### 2.4. Terminals
+
+`debug-gym` supports multiple terminal backends to accommodate different execution environments and deployment scenarios. Each terminal type provides a consistent interface while handling the underlying infrastructure differently.
+
+| Terminal Type | Description |
+| :-: | :----- |
+| `LocalTerminal` | Executes commands directly on the local machine using bash. Ideal for development and testing on local systems. |
+| `DockerTerminal` | Executes commands inside Docker containers running on your machine. Provides isolated execution environments. (Recommended) |
+| `KubernetesTerminal` | Executes commands in Kubernetes pods for scalable deployments. Provides isolated execution environments. Suitable when dealing with large benchmarks like `swebench`, `swesmith`, and `r2egym`. |
+
+All terminals support:
+- Specify custom working directories and session commands
+- Environment variable configuration
+- Command execution with timeout handling
+- Output capturing and error reporting
+- Automatic cleanup and resource management
+- Retry mechanisms for transient errors
+- Provide a way to create persistent interactive shell sessions using pseudo-terminals (PTY). Used internally by interactive debugging tools such as `pdb`.
+> [!WARNING]
+> Interactive shell sessions are not fully compatible with macOS due to their reliance on pty.
+
+Terminal selection is configured through the `terminal_config` in your script configuration file. The framework automatically handles terminal initialization, command execution, and cleanup based on the specified type.
+
+---
+
+#### 2.5. Timeouts
+
+`debug-gym` provides several timeout mechanisms to ensure agents don't hang indefinitely:
+
+| Timeout Type | Description | Default | Configuration |
+| :-: | :----- | :-: | :----- |
+| **Command Timeout** | Maximum time for a single command (e.g., `bash`, `eval`) to execute. Prevents blocking commands like `serve_forever()` or infinite loops from hanging the agent. | 300s (5 min) | `terminal.command_timeout` |
+| **Run Timeout** | Maximum time for a single eval/run (e.g., pytest execution). | 300s (5 min) | `env.run_timeout` |
+| **Agent Step Timeout** | Maximum time for the LLM to generate a response. | varies | LLM provider settings |
+| **Session Lifetime** | Total time an agent can interact with the environment. | unlimited | Application-level |
+
+**Command Timeout** is particularly important for exploration agents that might accidentally run blocking scripts. When a command times out, it returns `(False, "Command timed out after X seconds")` with any partial output.
+
+Example terminal configuration with custom timeout:
+
+```yaml
+terminal:
+  type: docker
+  command_timeout: 300  # 5 minutes per command (default: 600)
+```
+
+For Kubernetes deployments:
+
+```yaml
+terminal:
+  type: kubernetes
+  command_timeout: 900  # 15 minutes for longer-running tests
+  namespace: debug-gym
+  base_image: your-image:tag
+```
+
+> [!TIP]
+> If your agent runs `eval` or `submit` tools that execute large test suites, consider increasing `command_timeout` to accommodate longer test runs.
+
+---
+
+## 3. Running Baselines
+We use `.yaml` files to specify configurations. Example config files can be found in `configs/`. To run an agent:
+
+    python scripts/run.py --config configs/<benchmark_name>.yaml
+
+Common options:
+- `-v` or `-vv`: Verbose or very verbose logging
+- `--debug`: Enter debug mode (press `c` to continue after each step)
+- `-n <num>`: Number of parallel workers (default: 1)
+- `-p key=value`: Override config values (use `.` for nested keys, e.g., `-p llm.name=gpt-4o`)
+- `--force-all`: Re-run all problems even if already completed
+- `--force-failed`: Re-run only failed problems
+
+> [!WARNING]
+> When using --debug, you will need to press `c` to continue after each reasoning step.
+
+#### 3.1 Sanity Checks
+
+We can use the `solution_agent` to validate that your `swebench`, `swesmith`, and `r2egym` instances work as expected. This agent will apply a gold patch to the buggy code and check that the tests are failing before applying the patch, and passing after. It also checks that `pdb` tool can be used as expected (if available).
+
+    python scripts/run.py --config configs/swebench.yaml -p agent.type=solution_agent
+    python scripts/run.py --config configs/swesmith.yaml -p agent.type=solution_agent
+    python scripts/run.py --config configs/r2egym.yaml -p agent.type=solution_agent
+
+#### 3.2 Human Mode
+
+We provide a human mode that enables developers to manually interact with `debug-gym`. To activate this mode, set `llm.name` to `"human"` in your config YAML (or use `-p llm.name=human`). Once activated, at every step, the environment will expect a command input (in tool calling format). One can use the `Tab` key to get a list of tool calling templates and fill in any necessary arguments.
+
+#### 3.3. Overriding Values in Config
+
+The `-p` flag is a handy way to override values defined in the config file. Use `.` notation for nested keys. For example, the command below will run on Aider with human mode (even if the config file specifies gpt-4o). The command also overrides the default system prompt (see below for more information).
+
+    python scripts/run.py --config configs/aider.yaml \
+        -v \
+        -p llm.name="human" \
+        -p agent.system_prompt="scripts/templates/human_friendly_system_prompt.jinja"
+
+
+#### 3.4. Customizing the System Prompt with Jinja Templates
+
+`debug-gym` allows you to fully customize the system prompt by providing a [Jinja](https://jinja.palletsprojects.com/) template file. This enables you to control the format and content of the prompt sent to the LLM, making it easier to adapt the environment to your specific needs or research experiments.
+
+To use a custom system prompt template, specify the path to your Jinja template file in your agent's configuration under `system_prompt`. For example:
+
+```yaml
+agent:
+  type: froggy
+  system_prompt: scripts/templates/custom_system_prompt.jinja
+```
+
+Alternatively, you can provide a custom template from the command line with `-p agent.system_prompt="<path/to/template.jinja>"` (see above).
+
+Within your Jinja template, you have access to the `agent` and `info` objects, which provide all relevant context about the current environment and agent state.
+
+#### Custom Jinja Filters
+
+In addition to all [built-in Jinja filters](https://jinja.palletsprojects.com/en/stable/templates/#list-of-builtin-filters), two custom filters are available for use in your template:
+
+- **`to_pretty_json`**: Converts a Python object to a pretty-printed JSON string. Useful for displaying structured data in a readable format.
+    ```jinja
+    {{ info.tools | to_pretty_json }}
+    ```
+
+    - **`trim_message`**: Trims a string to approximately fit within a token or character limit while filtering non-UTF8 characters. This helps keep large outputs (such as directory trees or evaluation results) within the LLM's context window. The `trim_message` filter accepts the following arguments to control how messages are trimmed:
+    - **`max_length`**: The maximum number of tokens to keep in the message. If the message exceeds this length, it will be trimmed.
+    - **`max_length_percentage`**: Instead of specifying an absolute number, you can provide a percentage (e.g., `0.1` for 10%) of the LLM's context window. The message will be trimmed to fit within this percentage of the model's maximum context length.
+    - **`where`**: Specifies where to trim the message if it exceeds the limit. The default is `"middle"`, which trims from the middle of the message. Other options are `start` or `end`.
+
+    ```jinja
+    {{ info.instructions | trim_message(max_length_percentage=0.1, where="end") }}
+    ```
+
+#### Example Template
+
+Here is an example of a custom system prompt template using Jinja:
+
+```jinja
+You are an autonomous debugging agent designed to fix bugs in Python code repositories.
+
+Instructions:
+{{ info.instructions }}
+
+Current Breakpoints:
+{{ info.current_breakpoints | to_pretty_json }}
+
+{% if agent.shortcut_features() %}
+Shortcut Features:
+{{ agent.shortcut_features() | to_pretty_json }}
+{% endif %}
+```
+
+
+#### 3.5. Debugging a Custom Repository
+
+You can debug a custom repository by using `configs/local.yaml` and modifying the `task_data` section to set the path and entrypoint of the custom repository. We assume there is a `.debugignore` file and a `.debugreadonly` within the repository that labels files/folders that are not seen or not editable, respectively.
+
+    python scripts/run.py --config configs/local.yaml \
+        -p task_data.path="/path/to/your/repo" \
+        -p task_data.entrypoint="pytest tests/"
+
+#### 3.6. Debugging a Custom SWE-Smith Instance
+
+[SWE-Smith](https://github.com/SWE-bench/SWE-smith) allows to generate new buggy code instances. Given a custom HuggingFace dataset (either local or remote) that has a similar structure as [SWE-bench/SWE-smith](https://huggingface.co/datasets/SWE-bench/SWE-smith), one can override the `dataset.dataset_id` in the command line to run the agent on that dataset. For example, to run on a local dataset:
+
+    python scripts/run.py --config configs/swesmith.yaml -p dataset.dataset_id="path/to/local/dataset"
+
+#### 3.7. Design Your Own Tool
+`debug-gym`'s modular design makes it extensible. Users are encouraged to extend `debug-gym` to their specific usecases, for example by creating new tools that diversify an agent's action and observation spaces. For detailed instruction on designing new tools that are `debug-gym`-compatible, please refer to the [Technical Report](https://arxiv.org/abs/2503.21557).
+
+#### 3.8. Analysis and Visualization
+
+We provide a set of scripts to help analyze the log files (e.g., the `.jsonl` files) generated by the agent.
+- In the `analysis` folder, we provide scripts that used to generate the corresponding figures in our technical report.
+- In the `analysis/json_log_viewer` folder, we provide a Flask app to view a `.jsonl` log file in the browser.
+
+#### 3.9. FreeEnv: Open-Ended Agent Development
+
+While `debug-gym` was designed for debugging tasks, the `FreeEnv` environment enables open-ended agent development beyond SWE-bench-style debugging. Use `FreeEnv` to build and test general-purpose coding agents that can perform any task you define—code exploration, refactoring, feature implementation, or custom workflows.
+
+**Key features:**
+- **Custom Docker image**: Specify any Docker image as the execution environment
+- **Flexible tool configuration**: Mix and match tools (`bash`, `edit`, `pdb`, `view`, `grep`, etc.) as needed
+- **Custom system prompts**: Define your agent's behavior and goals
+- **No predefined test harness**: The `submit` tool simply ends the session without running evaluations (configurable via `eval_on_submit`)
+
+**Example configuration** (`configs/free_env.yaml`):
+
+```yaml
+task_name: free-session
+output_path: exps/free_env
+
+llm:
+  name: gpt-4o
+
+tools:
+  - edit
+  - bash
+  - submit:
+      eval_on_submit: false
+
+task_data:
+  env_type: FreeEnv
+  image: ubuntu:22.04
+  local_path: /path/to/your/codebase
+  workspace_dir: /testbed
+
+terminal:
+  type: docker
+
+agent:
+  type: froggy
+  max_steps: 50
+  system_prompt: >-
+    You are a coding assistant. Use the available tools to explore and modify the codebase.
+    When you are done, use the submit tool to end the session.
+```
+
+Run with:
+
+    python scripts/run.py --config configs/free_env.yaml
+
+This provides a sandbox for developing and evaluating coding agents on arbitrary tasks, making `debug-gym` useful for general agent research beyond debugging.
+
+## Citation
+```
+@article{yuan2025debuggym,
+  title={debug-gym: A Text-Based Environment for Interactive Debugging},
+  author={Xingdi Yuan, Morgane M Moss, Charbel El Feghali, Chinmay Singh, Darya Moldavskaya, Drew MacPhee, Lucas Caccia, Matheus Pereira, Minseon Kim, Alessandro Sordoni, Marc-Alexandre C\^ot\'e},
+  journal={arXiv preprint arXiv:2503.21557},
+  year={2025},
+  url={https://arxiv.org/abs/2503.21557}
+}
+```
+
+## Contributing
+
+This project welcomes contributions and suggestions.  Most contributions require you to agree to a
+Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
+the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
+
+When you submit a pull request, a CLA bot will automatically determine whether you need to provide
+a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
+provided by the bot. You will only need to do this once across all repos using our CLA.
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+## Trademarks
+
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
+trademarks or logos is subject to and must follow
+[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
+Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
+Any use of third-party trademarks or logos are subject to those third-party's policies.
+
+## Privacy
+This framework does not collect user's personal data. For more information about Microsoft's privacy policies. Please see [Microsoft Privacy Statement](https://www.microsoft.com/en-ca/privacy/privacystatement).
+
+## Responsible AI
+Please see our [Responsible AI Statement](https://github.com/microsoft/debug-gym/blob/main/RESPONSIBLE_AI.md).

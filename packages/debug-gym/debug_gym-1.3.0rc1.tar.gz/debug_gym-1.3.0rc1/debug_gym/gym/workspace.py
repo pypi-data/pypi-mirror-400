@@ -1,0 +1,272 @@
+import atexit
+import os
+import shlex
+import tempfile
+from pathlib import Path
+
+from debug_gym.gym.terminals.local import LocalTerminal
+from debug_gym.gym.terminals.terminal import Terminal
+from debug_gym.gym.utils import make_file_matcher
+from debug_gym.logger import DebugGymLogger
+
+
+class WorkspaceError(Exception):
+    """Base class for workspace-related errors."""
+
+
+class WorkspaceReadError(WorkspaceError):
+    """Raised when a file cannot be read or is missing from the workspace."""
+
+
+class WorkspaceWriteError(WorkspaceError):
+    """Raised when a file cannot be written."""
+
+
+class Workspace:
+
+    def __init__(self, terminal: Terminal, logger: DebugGymLogger | None = None):
+        self._tempdir = None
+        self.working_dir = None
+        self.logger = logger or DebugGymLogger("debug-gym")
+        self.terminal = terminal
+
+    def cleanup(self):
+        self.working_dir = None
+        if self._tempdir:
+            self._tempdir.cleanup()
+            self._tempdir = None
+
+    def reset(
+        self,
+        readonly_patterns: list[str] | None = None,
+        ignore_patterns: list[str] | None = None,
+    ):
+        self.cleanup()
+
+        self.working_dir = self.working_dir or Path("/testbed")
+        # only create temp dir for local terminal
+        if type(self.terminal) is LocalTerminal:
+            self._tempdir = tempfile.TemporaryDirectory(prefix="DebugGym-")
+            atexit.register(self._tempdir.cleanup)
+            self.working_dir = Path(self._tempdir.name).resolve()
+
+        self.logger.debug(f"Working directory: {self.working_dir}")
+        self.terminal.working_dir = str(self.working_dir)
+        self.setup_file_filters(readonly_patterns, ignore_patterns)
+
+    def setup_file_filters(
+        self,
+        readonly_patterns: list[str] | None = None,
+        ignore_patterns: list[str] | None = None,
+    ):
+        """Indexes files and subdir in the working
+        directory, applying ignore and readonly patterns."""
+        self._is_readonly_func = lambda f: False
+        self._is_ignored_func = lambda f: False
+
+        readonly_patterns = readonly_patterns or []
+        ignore_patterns = ignore_patterns or []
+
+        # Ignore debug gym hidden files
+        ignore_patterns += [".debugignore", ".debugreadonly"]
+
+        ignore_patterns += (
+            self.read_file(".gitignore").splitlines()
+            if self.has_file(".gitignore")
+            else []
+        )
+        ignore_patterns += (
+            self.read_file(".debugignore").splitlines()
+            if self.has_file(".debugignore")
+            else []
+        )
+
+        readonly_patterns += (
+            self.read_file(".debugreadonly").splitlines()
+            if self.has_file(".debugreadonly")
+            else []
+        )
+
+        # create a matcher function for ignored files, .debugignore has precedence over .gitignore
+        self._is_ignored_func = make_file_matcher(
+            base_dir=self.working_dir,
+            pattern_files=[],
+            patterns=ignore_patterns,
+        )
+
+        # create a matcher function for readonly files
+        self._is_readonly_func = make_file_matcher(
+            base_dir=self.working_dir,
+            pattern_files=[],
+            patterns=readonly_patterns,
+        )
+
+    def copy_content(self, src: str | Path, target: str | Path | None = None):
+        """Copy files contained in src to a target directory."""
+        src = Path(src).resolve()
+        target = Path(target or self.working_dir).resolve()
+        self.terminal.copy_content(src, target)
+
+    def resolve_path(self, filepath: str | Path, raises: str | bool = False) -> Path:
+        """Convert a relative filepath to absolute based on the working_dir.
+        If the path is already absolute, it is returned as is.
+        If raises is True, raises FileNotFoundError if the file does not exist,
+        or is not in the working directory or is ignored by the ignore patterns.
+        If raises is "ignore", then raises FileNotFoundError only if the file is ignored.
+        If raises is False, returns the absolute path regardless of the file existence.
+        """
+        abs_filepath = Path(filepath)
+        if not abs_filepath.is_absolute():
+            abs_filepath = Path(self.working_dir) / abs_filepath
+        abs_filepath_str = str(abs_filepath)
+
+        if raises in [True, "ignore"] and abs_filepath != self.working_dir:
+            # Check if file exists, is within working_dir and is not ignored.
+            # Use trailing slash in path comparison to prevent /testbed_evil matching /testbed
+            working_dir_quoted = shlex.quote(str(self.working_dir))
+            check_cmd = (
+                f"abs_path=$(realpath -s {shlex.quote(abs_filepath_str)}); "
+                f'test -e "$abs_path" && [[ "$abs_path" == {working_dir_quoted}/* || "$abs_path" == {working_dir_quoted} ]]'
+            )
+            success, result = self.terminal.run(
+                f"{check_cmd} && echo OK || echo MISSING"
+            )
+            if (result.strip() != "OK" and raises is True) or self._is_ignored_func(
+                abs_filepath
+            ):
+                raise FileNotFoundError(
+                    f"`{filepath}` does not exist or is not in "
+                    f"the working directory `{self.working_dir}`."
+                )
+
+        return Path(abs_filepath_str)
+
+    def read_file(self, filepath: str, raises: bool = True) -> str:
+        """Reads a file from the working directory.
+        By default, raises WorkspaceReadError if the file does not exist or cannot be read.
+        """
+        try:
+            abs_filepath = self.resolve_path(filepath, raises=raises)
+        except FileNotFoundError as exc:
+            raise WorkspaceReadError(
+                f"Failed to read `{filepath}` because it does not exist in the working directory `{self.working_dir}`."
+            ) from exc
+
+        success_read, output = self.terminal.run(
+            f"cat {shlex.quote(str(abs_filepath))}", raises=False, strip_output=False
+        )
+
+        if not success_read:
+            message = output.strip() or "Unknown error"
+            raise WorkspaceReadError(
+                f"Failed to read `{filepath}`. Command output:\n{message}"
+            )
+
+        return output
+
+    def write_file(self, filepath: str, content: str):
+        """Writes `content` to `filepath` exactly as-is, preserving any trailing newlines."""
+        try:
+            abs_filepath = self.resolve_path(filepath, raises="ignore")
+        except FileNotFoundError as exc:
+            raise WorkspaceWriteError(
+                f"Failed to write `{filepath}` because it is outside the workspace."
+            ) from exc
+
+        def _run_or_raise(command: str):
+            success, output = self.terminal.run(
+                command, raises=False, strip_output=False
+            )
+            if not success:
+                message = output.strip() or "Unknown error"
+                raise WorkspaceWriteError(
+                    f"Failed to write `{filepath}`. Command output:\n{message}"
+                )
+
+        # create parent directories via the terminal if needed
+        _run_or_raise(f"mkdir -p {shlex.quote(str(abs_filepath.parent))}")
+
+        # We will split content in chunks of 32kB to avoid hitting command length limits.
+        chunk_size = 32 * 1024  # 32kB
+        first_chunk = content[:chunk_size]
+        rest = content[chunk_size:]
+
+        # In the following command we:
+        # - use a single-quoted heredoc (cat <<'nDEBUGGYM_EOF' ... nDEBUGGYM_EOF) so the heredoc body is taken literally (no shell expansion)
+        # - append a sentinel character DEBUGGYM_DEL inside the heredoc so we can detect/restore trailing newlines later
+        # - capture the heredoc output into shell variable CONTENT since command substitution strips trailing newlines
+        # - "${CONTENT%DEBUGGYM_DEL}" removes the trailing sentinel DEBUGGYM_DEL (restoring the original trailing-newline state)
+        # - echo -n writes the result without adding an extra newline
+        quoted_filepath = shlex.quote(str(abs_filepath))
+        cmd = (
+            "CONTENT=$(cat <<'DEBUGGYM_EOF'\n"
+            f"{first_chunk}DEBUGGYM_DEL\nDEBUGGYM_EOF\n); "
+            'echo -n "${CONTENT%DEBUGGYM_DEL}" > '
+            f"{quoted_filepath}"
+        )
+        _run_or_raise(cmd)
+
+        for i in range(0, len(rest), chunk_size):
+            chunk = rest[i : i + chunk_size]
+            cmd = (
+                "CONTENT=$(cat <<'DEBUGGYM_EOF'\n"
+                f"{chunk}DEBUGGYM_DEL\nDEBUGGYM_EOF\n); "
+                'echo -n "${CONTENT%DEBUGGYM_DEL}" >> '
+                f"{quoted_filepath}"
+            )
+            _run_or_raise(cmd)
+
+    def is_editable(self, filepath):
+        return not self._is_readonly_func(self.resolve_path(filepath, raises=True))
+
+    def directory_tree(self, root: str | Path = None, max_depth: int = 1):
+        """List the directory tree using the `tree` command.
+        Requires the `tree` package to be installed in the terminal.
+        """
+        root = self.resolve_path(root or self.working_dir, raises=True)
+        # Validate max_depth to prevent abuse
+        max_depth = max(1, min(int(max_depth), 20))
+        # Use the terminal to run a bash command to list files
+        tree_cmd = f"tree --charset=ASCII --noreport -a -v -F -f -l -L {max_depth} {shlex.quote(str(root))} "
+        success, output = self.terminal.run(tree_cmd, raises=False)
+        if not success:
+            raise WorkspaceReadError(
+                f"Failed to list directory '{root}'. Command output:\n{output}"
+            )
+
+        first, *rest = output.splitlines()
+        lines = [first]
+        for line in rest:
+            assert "-- " in line
+            prefix, path = line.split("-- ", 1)
+            prefix += "-- "
+
+            if self._is_ignored_func(path):
+                continue
+
+            # Remove trailing / and symbolic link details.
+            clean_path = path.split(" -> ")[0].rstrip("/")
+            lines.append(f"{prefix}{os.path.basename(clean_path)}")
+
+            if path.endswith("/"):
+                # i.e. a directory
+                lines[-1] += "/"
+
+            if self._is_readonly_func(path):
+                lines[-1] += " (read-only)"
+
+        output = "\n".join(lines)
+
+        # To maintain backward compatibility with previous version of debug-gym.
+        output = output.replace("`", "|").replace("    ", "  ")
+        return output
+
+    def has_file(self, filepath: str) -> bool:
+        """Checks if a file exists in the working directory.
+        Shortcut for `resolve_path` with raises=True.
+        """
+        try:
+            self.resolve_path(filepath, raises=True)
+            return True
+        except FileNotFoundError:
+            return False
