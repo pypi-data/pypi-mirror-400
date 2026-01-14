@@ -1,0 +1,29 @@
+# github action to run CI/CD on pushes to main
+name: Main
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up environment
+        uses: ./.github/actions/setup-python-env
+      - name: Run tests
+        run: make test
+
+  code-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up environment
+        uses: ./.github/actions/setup-python-env
+      - name: Run code check
+        run: make check
