@@ -1,0 +1,768 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>temoa.components.capacity &mdash; Tools for Energy Model Optimization and Analysis (Temoa) 4.0.0a1.dev20251113 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/my_theme.css?v=a08f7516" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=09296c51"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Tools for Energy Model Optimization and Analysis (Temoa)
+              <img src="../../../_static/Temoa_logo_color_small.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html">Preface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#quick-start">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#database-construction">Database Construction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#data-quality">Data Quality</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#visualization">Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-math-behind-temoa">The Math Behind Temoa</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-temoa-computational-implementation">The Temoa Computational Implementation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#temoa-code-style-guide">Temoa Code Style Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Tools for Energy Model Optimization and Analysis (Temoa)</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">temoa.components.capacity</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for temoa.components.capacity</h1><div class="highlight"><pre>
+<span></span><span class="c1"># temoa/components/capacity.py</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Defines the capacity-related components of the Temoa model.</span>
+
+<span class="sd">This module is responsible for:</span>
+<span class="sd">-  Defining Pyomo index sets for variables.</span>
+<span class="sd">-  Defining the rules for all capacity-related constraints, such as capacity</span>
+<span class="sd">    production limits, retirement accounting, and available capacity aggregation.</span>
+<span class="sd">-  Pre-calculating sparse index sets for capacity, retirement, and material flows.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">product</span> <span class="k">as</span> <span class="n">cross_product</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">getLogger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">deprecated</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="kn">import</span> <span class="n">value</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">temoa.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExprLike</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">temoa.core.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemoaModel</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">temoa.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">Period</span><span class="p">,</span>
+        <span class="n">Region</span><span class="p">,</span>
+        <span class="n">Season</span><span class="p">,</span>
+        <span class="n">Technology</span><span class="p">,</span>
+        <span class="n">TimeOfDay</span><span class="p">,</span>
+        <span class="n">Vintage</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># HELPER FUNCTIONS AND VALIDATORS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">check_capacity_factor_process</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">count_rptv</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">],</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="c1"># Pull capacity_factor_tech by default</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">_s</span><span class="p">,</span> <span class="n">_d</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_rpsdt</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]:</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">is_capacity_factor_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">count_rptv</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Check for bad values and count up the good ones</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">_s</span><span class="p">,</span> <span class="n">_d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_process</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Invalid process </span><span class="si">{</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="si">}</span><span class="s1"> for </span><span class="si">{</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">t</span><span class="si">}</span><span class="s1"> in capacity_factor_process table&#39;</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="c1"># Good value, pull from capacity_factor_process table</span>
+        <span class="n">count_rptv</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># Check if all possible values have been set by process</span>
+    <span class="c1"># log a warning if some are missing (allowed but maybe accidental)</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">count_rptv</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">num_seg</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">])</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">is_capacity_factor_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">&lt;</span> <span class="n">num_seg</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s1">&#39;Some but not all processes were set in capacity_factor_process (</span><span class="si">%i</span><span class="s1"> out of a possible </span><span class="si">%i</span><span class="s1">) for: </span><span class="si">%s</span><span class="s1">&#39;</span>
+                    <span class="s1">&#39; Missing values will default to capacity_factor_tech value or 1 if that is not set either.&#39;</span><span class="p">,</span>
+                    <span class="n">count</span><span class="p">,</span>
+                    <span class="n">num_seg</span><span class="p">,</span>
+                    <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span>
+                <span class="p">)</span>
+
+
+<span class="nd">@deprecated</span><span class="p">(</span><span class="s1">&#39;should not be needed.  We are pulling the default on-the-fly where used&#39;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_capacity_factors</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Steps to creating capacity factors:</span>
+<span class="sd">    1. Collect all possible processes</span>
+<span class="sd">    2. Find the ones _not_ specified in capacity_factor_process</span>
+<span class="sd">    3. Set them, based on capacity_factor_tech.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">capacity_factor_process</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_process</span>
+
+    <span class="c1"># Step 1</span>
+    <span class="n">processes</span> <span class="o">=</span> <span class="p">{(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">efficiency</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()}</span>
+
+    <span class="n">all_cfs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">processes</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cross_product</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">],</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">)</span>
+    <span class="p">}</span>
+
+    <span class="c1"># Step 2</span>
+    <span class="n">unspecified_cfs</span> <span class="o">=</span> <span class="n">all_cfs</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">capacity_factor_process</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">())</span>
+
+    <span class="c1"># Step 3</span>
+
+    <span class="c1"># Some hackery: We futz with _constructed because Pyomo thinks that this</span>
+    <span class="c1"># Param is already constructed.  However, in our view, it is not yet,</span>
+    <span class="c1"># because we&#39;re specifically targeting values that have not yet been</span>
+    <span class="c1"># constructed, that we know are valid, and that we will need.</span>
+
+    <span class="k">if</span> <span class="n">unspecified_cfs</span><span class="p">:</span>
+        <span class="c1"># CFP._constructed = False</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">unspecified_cfs</span><span class="p">:</span>
+            <span class="n">capacity_factor_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_tech</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s1">&#39;Created Capacity Factors for </span><span class="si">%d</span><span class="s1"> processes without an explicit specification&#39;</span><span class="p">,</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">unspecified_cfs</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="c1"># CFP._constructed = True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_default_capacity_factor</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This initializer is used to fill the capacity_factor_process from the capacity_factor_tech where needed.</span>
+
+<span class="sd">    Priority:</span>
+<span class="sd">        1.  As specified in data input (this function not called)</span>
+<span class="sd">        2.  Here</span>
+<span class="sd">        3.  The default from capacity_factor_tech param</span>
+<span class="sd">    :param M: generic model reference</span>
+<span class="sd">    :param r: region</span>
+<span class="sd">    :param s: season</span>
+<span class="sd">    :param d: time-of-day slice</span>
+<span class="sd">    :param t: tech</span>
+<span class="sd">    :param v: vintage</span>
+<span class="sd">    :return: the capacity factor</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_tech</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_capacity_factor</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">is_capacity_factor_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_tech</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO INDEX SETS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_variable_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">new_capacity_rtv</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">retired_capacity_variable_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_retirement</span> <span class="ow">and</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;</span> <span class="n">p</span> <span class="o">&lt;=</span> <span class="n">v</span> <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span> <span class="o">-</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">])</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">annual_retirement_variable_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_periods</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_available_variable_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">active_capacity_available_rpt</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">regional_exchange_capacity_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="n">indices</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">r_e</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">export_regions</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">r_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">export_regions</span><span class="p">[</span><span class="n">r_e</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">]:</span>
+            <span class="n">indices</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">r_e</span><span class="p">,</span> <span class="n">r_i</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_annual_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="n">capacity_indices</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">active_activity_rptv</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">active_activity_rptv</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span> <span class="ow">and</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_demand</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span><span class="p">:</span>
+                    <span class="n">capacity_indices</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">capacity_indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="n">capacity_indices</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">active_activity_rptv</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">active_activity_rptv</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span> <span class="ow">or</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_demand</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]:</span>
+                            <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">:</span>
+                                <span class="n">capacity_indices</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">capacity_indices</span>
+
+
+<span class="nd">@deprecated</span><span class="p">(</span><span class="s1">&#39;switched over to validator... this set is typically VERY empty&#39;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_factor_process_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="n">indices</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">efficiency</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]:</span>
+                <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">:</span>
+                    <span class="n">indices</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_factor_tech_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">]]:</span>
+    <span class="n">all_cfs</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">active_capacity_available_rpt</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">active_capacity_available_rpt</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]:</span>
+                <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">:</span>
+                    <span class="n">all_cfs</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">all_cfs</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_available_variable_indices_vintage</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">active_capacity_available_rptv</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO CONSTRAINT RULES</span>
+<span class="c1"># ============================================================================</span>
+
+
+<div class="viewcode-block" id="annual_retirement_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.capacity.annual_retirement_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">annual_retirement_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the annualised retirement rate for a process in a given period.</span>
+<span class="sd">    Used to output retirement (including end of life, EOL) and to model end of</span>
+<span class="sd">    life flows and emissions. Assumes that retirement from the beginning of each period</span>
+<span class="sd">    is evenly distributed over that model period :math:`\frac{1}{\text{LEN}_p}`</span>
+<span class="sd">    for the accounting of retirement flows (in the same way we assume capacity is</span>
+<span class="sd">    deployed evenly over the model period for construction inputs and embodied emissions).</span>
+<span class="sd">    The factor :math:`\frac{\text{LSC}_{r,p,t,v}}{\text{PLF}_{r,p,t,v}}`</span>
+<span class="sd">    adjusts the average survival during a period to the survival at the beginning</span>
+<span class="sd">    of that period.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: Annual Retirement</span>
+
+<span class="sd">            \textbf{ART}_{r,p,t,v} =</span>
+<span class="sd">            \begin{cases}</span>
+<span class="sd">                \frac{1}{\text{LEN}_p} \cdot</span>
+<span class="sd">                \frac{\text{LSC}_{r,p,t,v}}{\text{PLF}_{r,p,t,v}} \cdot \textbf{CAP}_{r,p,t,v}</span>
+<span class="sd">                &amp; \text{if EOL} \\</span>
+<span class="sd">                \frac{1}{\text{LEN}_p} \cdot</span>
+<span class="sd">                \left(</span>
+<span class="sd">                \frac{\text{LSC}_{r,p,t,v}}{\text{PLF}_{r,p,t,v}} \cdot \textbf{CAP}_{r,p,t,v}</span>
+<span class="sd">                - \frac{\text{LSC}_{r,p_{next},t,v}}{\text{PLF}_{r,p_{next},t,v}} \cdot \textbf{CAP}_{r,p_{next},t,v}</span>
+<span class="sd">                \right)</span>
+<span class="sd">                &amp; \text{otherwise} \\</span>
+<span class="sd">            \end{cases}</span>
+
+<span class="sd">            \\\text{where EOL when } p \leq v + LTP_{r,t,v} &lt; p + LEN_p</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1">## Get the capacity at the start of this period</span>
+    <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">v</span> <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]):</span>
+        <span class="c1"># Exact EOL. No v_capacity or v_retired_capacity for this period.</span>
+        <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span><span class="o">.</span><span class="n">first</span><span class="p">():</span>
+            <span class="c1"># Must be existing capacity. Apply survival curve to existing cap</span>
+            <span class="n">cap_begin</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">existing_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Get previous capacity and continue survival curve</span>
+            <span class="n">p_prev</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span><span class="o">.</span><span class="n">prev</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+            <span class="n">cap_begin</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p_prev</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+                <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+                <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">process_life_frac</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p_prev</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># The capacity at the beginning of the period</span>
+        <span class="n">cap_begin</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">process_life_frac</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+        <span class="p">)</span>
+
+    <span class="c1">## Get the capacity at the end of this period</span>
+    <span class="k">if</span> <span class="n">p</span> <span class="o">&lt;=</span> <span class="n">v</span> <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">p</span> <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]):</span>
+        <span class="c1"># EOL so capacity ends on zero</span>
+        <span class="n">cap_end</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Mid-life period, ending capacity is beginning capacity of next period</span>
+        <span class="n">p_next</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_future</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span><span class="o">.</span><span class="n">last</span><span class="p">()</span> <span class="ow">or</span> <span class="n">p_next</span> <span class="o">==</span> <span class="n">v</span> <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]):</span>
+            <span class="c1"># No v_capacity or v_retired_capacity for next period so just continue down the survival curve</span>
+            <span class="n">cap_end</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">cap_begin</span>
+                <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p_next</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+                <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Get the next period&#39;s beginning capacity</span>
+            <span class="n">cap_end</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p_next</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+                <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p_next</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+                <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">process_life_frac</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p_next</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="p">)</span>
+
+    <span class="n">annualised_retirement</span> <span class="o">=</span> <span class="p">(</span><span class="n">cap_begin</span> <span class="o">-</span> <span class="n">cap_end</span><span class="p">)</span> <span class="o">/</span> <span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">v_annual_retirement</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="n">annualised_retirement</span></div>
+
+
+
+<div class="viewcode-block" id="capacity_available_by_period_and_tech_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.capacity.capacity_available_by_period_and_tech_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_available_by_period_and_tech_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    The :math:`\textbf{CAPAVL}` variable is nominally for reporting solution values,</span>
+<span class="sd">    but is also used in the Limit constraint calculations.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: CapacityAvailable</span>
+
+<span class="sd">        \textbf{CAPAVL}_{r, p, t} = \sum_{v, p_i \leq p} \textbf{CAP}_{r, p, t, v}</span>
+
+<span class="sd">        \\</span>
+<span class="sd">        \forall p \in \text{P}^o, r \in R, t \in T</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cap_avail</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span> <span class="k">for</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity_available_by_period_and_tech</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span> <span class="o">==</span> <span class="n">cap_avail</span>
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="capacity_annual_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.capacity.capacity_annual_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_annual_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Similar to Capacity_constraint, but for technologies belonging to the</span>
+<span class="sd">    :code:`tech_annual`  set. Technologies in the tech_annual set have constant output</span>
+<span class="sd">    across different timeslices within a year, so we do not need to ensure</span>
+<span class="sd">    that installed capacity is sufficient across all timeslices, thus saving</span>
+<span class="sd">    some computational effort. Instead, annual output is sufficient to calculate</span>
+<span class="sd">    capacity. Hourly capacity factors cannot be defined to annual technologies</span>
+<span class="sd">    but annual capacity factors can be set using limit_annual_capacity_factor,</span>
+<span class="sd">    which will be implicitly accounted for here.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: CapacityAnnual</span>
+
+<span class="sd">            \text{C2A}_{r, t}</span>
+<span class="sd">            \cdot \textbf{CAP}_{r, t, v}</span>
+<span class="sd">        =</span>
+<span class="sd">            \sum_{I, O} \textbf{FOA}_{r, p, i, t \in T^{a}, v, o}</span>
+
+<span class="sd">        \\</span>
+<span class="sd">        \forall \{r, p, t \in T^{a}, v\} \in \Theta_{\text{Activity}}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">activity_rptv</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">activity_rptv</span></div>
+
+
+
+<div class="viewcode-block" id="capacity_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.capacity.capacity_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">capacity_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This constraint ensures that the capacity of a given process is sufficient</span>
+<span class="sd">    to support its activity across all time periods and time slices. The calculation</span>
+<span class="sd">    on the left hand side of the equality is the maximum amount of energy a process</span>
+<span class="sd">    can produce in the timeslice :code:`(s,d)`. Note that the curtailment variable</span>
+<span class="sd">    shown below only applies to technologies that are members of the curtailment set.</span>
+<span class="sd">    Curtailment is necessary to track explicitly in scenarios that include a high</span>
+<span class="sd">    renewable target. Without it, the model can generate more activity than is used</span>
+<span class="sd">    to meet demand, and have all activity (including the portion curtailed) count</span>
+<span class="sd">    towards the target. Tracking activity and curtailment separately prevents this</span>
+<span class="sd">    possibility.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: Capacity</span>
+
+<span class="sd">           \left (</span>
+<span class="sd">                   \text{CFP}_{r, p, s, d, t, v}</span>
+<span class="sd">             \cdot \text{C2A}_{r, t}</span>
+<span class="sd">             \cdot \text{SEG}_{s, d}</span>
+<span class="sd">           \right )</span>
+<span class="sd">           \cdot \textbf{CAP}_{r, t, v}</span>
+<span class="sd">           =</span>
+<span class="sd">           \sum_{I, O} \textbf{FO}_{r, p, s, d, i, t, v, o}</span>
+<span class="sd">           +</span>
+<span class="sd">           \sum_{I, O} \textbf{CUR}_{r, p, s, d, i, t, v, o}</span>
+
+<span class="sd">       \\</span>
+<span class="sd">       \forall \{r, p, s, d, t, v\} \in \Theta_{\text{FO}}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># The expressions below are defined in-line to minimize the amount of</span>
+    <span class="c1"># expression cloning taking place with Pyomo.</span>
+
+    <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span><span class="p">:</span>
+        <span class="c1"># Annual demand technology</span>
+        <span class="n">useful_activity</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">demand_specific_distribution</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_o</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_demand</span>
+                <span class="k">else</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+            <span class="p">)</span>
+            <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">useful_activity</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_curtailment</span><span class="p">:</span>
+        <span class="c1"># If technologies are present in the curtailment set, then enough</span>
+        <span class="c1"># capacity must be available to cover both activity and curtailment.</span>
+        <span class="k">return</span> <span class="n">get_capacity_factor</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span>
+            <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span>
+        <span class="p">]</span> <span class="o">==</span> <span class="n">useful_activity</span> <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_curtailment</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">get_capacity_factor</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="o">&gt;=</span> <span class="n">useful_activity</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="adjusted_capacity_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.capacity.adjusted_capacity_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">adjusted_capacity_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This constraint updates the capacity of a process by taking into account retirements</span>
+<span class="sd">    and end of life. For a given :code:`(r,p,t,v)` index, this constraint sets the capacity</span>
+<span class="sd">    equal to the amount installed in period :code:`v` and subtracts from it any and all retirements</span>
+<span class="sd">    that occurred prior to the period in question, :code:`p`, and end of life from the</span>
+<span class="sd">    survival curve if defined. It finally adjusts for the process life fraction, which</span>
+<span class="sd">    accounts for a possible mid-period end of life where, for example, EOL 3 years into a 5-year</span>
+<span class="sd">    period would be treated as :math:`\frac{3}{5}` capacity for all 5 years.</span>
+
+<span class="sd">    .. figure:: images/adjusted_capacity_plf.*</span>
+<span class="sd">        :align: center</span>
+<span class="sd">        :width: 100%</span>
+<span class="sd">        :figclass: align-center</span>
+<span class="sd">        :figwidth: 50%</span>
+
+<span class="sd">        For processes reaching end of life mid-period, the process life fraction adjustment is applied,</span>
+<span class="sd">        distributing the effective capacity over the whole period.</span>
+
+<span class="sd">    For processes using survival curves, the yearly survival curve :math:`\text{LSC}_{r,p,t,v}` is</span>
+<span class="sd">    averaged over the period to get the effective remaining capacity for that period  Because this</span>
+<span class="sd">    implicitly handles mid-period end of life, :math:`\text{PLF}_{r,p,t,v}` is used to account for both</span>
+<span class="sd">    phenomena.</span>
+
+<span class="sd">    .. figure:: images/adjusted_capacity_sc.*</span>
+<span class="sd">        :align: center</span>
+<span class="sd">        :width: 100%</span>
+<span class="sd">        :figclass: align-center</span>
+<span class="sd">        :figwidth: 50%</span>
+
+<span class="sd">        For processes with a defined survival curve, the surviving capacity is averaged over each</span>
+<span class="sd">        period to get the adjusted capacity. This implicitly handles mid-period end of life as a</span>
+<span class="sd">        survival curve will always be zero after the end of life of a process.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: Adjusted Capacity</span>
+
+<span class="sd">            \textbf{CAP}_{r,p,t,v} =</span>
+<span class="sd">            \begin{cases}</span>
+<span class="sd">                \text{PLF}_{r,p,t,v} \cdot</span>
+<span class="sd">                \left(</span>
+<span class="sd">                \text{ECAP}_{r,t,v} - \sum\limits_{v &lt; p&#39; &lt;= p}</span>
+<span class="sd">                \frac{\textbf{RCAP}_{r,p&#39;,t,v}}{\text{LSC}_{r,p&#39;,t,v}}</span>
+<span class="sd">                \right)</span>
+<span class="sd">                &amp; \text{if } \ v \in T^e \\</span>
+<span class="sd">                \text{PLF}_{r,p,t,v} \cdot</span>
+<span class="sd">                \left(</span>
+<span class="sd">                \textbf{NCAP}_{r,t,v} - \sum\limits_{v &lt; p&#39; &lt;= p}</span>
+<span class="sd">                \frac{\textbf{RCAP}_{r,p&#39;,t,v}}{\text{LSC}_{r,p&#39;,t,v}}</span>
+<span class="sd">                \right)</span>
+<span class="sd">                &amp; \text{if } \ v \notin T^e</span>
+<span class="sd">            \end{cases}</span>
+
+<span class="sd">            \\\text{where }</span>
+<span class="sd">            \text{PLF}_{r,p,t,v} =</span>
+<span class="sd">            \begin{cases}</span>
+<span class="sd">                \frac{1}{\text{LEN}_p} \cdot \left(</span>
+<span class="sd">                \sum\limits_{y = p}^{p+\text{LEN}_{p}-1}{\text{LSC}_{r,y,t,v}}</span>
+<span class="sd">                \right)</span>
+<span class="sd">                &amp; \text{if } t \in T^{sc} \\</span>
+<span class="sd">                \frac{1}{\text{LEN}_p} \cdot \left( v + \text{LTP}_{r,t,v} - p \right)</span>
+<span class="sd">                &amp; \text{if } t \notin T^{sc} \\</span>
+<span class="sd">            \end{cases}</span>
+
+<span class="sd">    We divide :math:`\frac{\textbf{RCAP}_{r,p&#39;,t,v}}{\text{LSC}_{r,p&#39;,t,v}}`</span>
+<span class="sd">    because the average survival factor in :math:`\text{PLF}_{r,p,t,v}` is indexed to the vintage</span>
+<span class="sd">    period (the beginning of the survival curve). So, we adjust for the relative survival from</span>
+<span class="sd">    the time when that retirement occurred (treated here as at the beginning of each period).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_exist</span><span class="p">:</span>
+        <span class="n">built_capacity</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">existing_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">built_capacity</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">v_new_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+
+    <span class="n">early_retirements</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_retirement</span><span class="p">:</span>
+        <span class="n">early_retirements</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_retired_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_survival_curve</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">S_p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">S_p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;</span> <span class="n">S_p</span> <span class="o">&lt;=</span> <span class="n">p</span>
+            <span class="ow">and</span> <span class="n">S_p</span> <span class="o">&lt;</span> <span class="n">v</span> <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span> <span class="o">-</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">S_p</span><span class="p">])</span>
+        <span class="p">)</span>
+
+    <span class="n">remaining_capacity</span> <span class="o">=</span> <span class="p">(</span><span class="n">built_capacity</span> <span class="o">-</span> <span class="n">early_retirements</span><span class="p">)</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">process_life_frac</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">==</span> <span class="n">remaining_capacity</span></div>
+
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PRE-COMPUTATION FUNCTIONS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_capacity_and_retirement_sets</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Creates and populates component-specific Python sets and dictionaries on the model object.</span>
+
+<span class="sd">    This function is called once during model initialization and is responsible for</span>
+<span class="sd">    creating the sparse indices related to technology capacity, retirement, and</span>
+<span class="sd">    construction/end-of-life material flows. These data structures are then</span>
+<span class="sd">    used by other functions in this module to build Pyomo components.</span>
+
+<span class="sd">    Populates:</span>
+<span class="sd">        - model.retirement_periods: dict mapping (r, t, v) to a set of periods `p`</span>
+<span class="sd">          where retirement can occur.</span>
+<span class="sd">        - model.capacity_consumption_techs: dict mapping (r, v, i) to a set of techs `t`</span>
+<span class="sd">          that consume commodity `i` for construction.</span>
+<span class="sd">        - model.retirement_production_processes: dict mapping (r, p, o) to a set of `(t, v)`</span>
+<span class="sd">          processes that produce commodity `o` at end-of-life.</span>
+<span class="sd">        - model.new_capacity_rtv: set of (r, t, v) for new capacity investments.</span>
+<span class="sd">        - model.active_capacity_available_rpt: set of (r, p, t) where capacity is active.</span>
+<span class="sd">        - model.active_capacity_available_rptv: set of (r, p, t, v) where vintage capacity is active.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Creating capacity, retirement, and construction/EOL sets.&#39;</span><span class="p">)</span>
+    <span class="c1"># Calculate retirement periods based on lifetime and survival curves</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">efficiency</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">():</span>
+        <span class="n">lifetime</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">lifetime_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span><span class="p">:</span>
+            <span class="n">is_natural_eol</span> <span class="o">=</span> <span class="n">p</span> <span class="o">&lt;=</span> <span class="n">v</span> <span class="o">+</span> <span class="n">lifetime</span> <span class="o">&lt;</span> <span class="n">p</span> <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">])</span>
+            <span class="n">is_early_retire</span> <span class="o">=</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_retirement</span> <span class="ow">and</span> <span class="n">v</span> <span class="o">&lt;</span> <span class="n">p</span> <span class="o">&lt;=</span> <span class="n">v</span> <span class="o">+</span> <span class="n">lifetime</span> <span class="o">-</span> <span class="n">value</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">is_survival_curve</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">is_survival_curve_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="ow">and</span> <span class="n">v</span> <span class="o">&lt;=</span> <span class="n">p</span> <span class="o">&lt;=</span> <span class="n">v</span> <span class="o">+</span> <span class="n">lifetime</span>
+
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">is_natural_eol</span><span class="p">,</span> <span class="n">is_early_retire</span><span class="p">,</span> <span class="n">is_survival_curve</span><span class="p">)</span>
+            <span class="p">):</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">retirement_periods</span><span class="o">.</span><span class="n">setdefault</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+    <span class="c1"># Link construction materials to technologies</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">construction_input</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">():</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">capacity_consumption_techs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">i</span><span class="p">),</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+    <span class="c1"># Link end-of-life materials to retiring technologies</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">end_of_life_output</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">():</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_periods</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">retirement_production_processes</span><span class="o">.</span><span class="n">setdefault</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">o</span><span class="p">),</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+
+    <span class="c1"># Create active capacity index sets from the now-populated process_vintages</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">new_capacity_rtv</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span> <span class="ow">and</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span>
+    <span class="p">}</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">active_capacity_available_rpt</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span>
+        <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span> <span class="ow">and</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span>
+    <span class="p">}</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">active_capacity_available_rptv</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span>
+    <span class="p">}</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2011-2025, NC State University.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

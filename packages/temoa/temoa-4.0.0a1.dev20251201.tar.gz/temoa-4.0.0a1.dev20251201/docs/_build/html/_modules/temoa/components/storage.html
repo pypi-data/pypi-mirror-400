@@ -1,0 +1,668 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>temoa.components.storage &mdash; Tools for Energy Model Optimization and Analysis (Temoa) 4.0.0a1.dev20251113 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/my_theme.css?v=a08f7516" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=09296c51"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Tools for Energy Model Optimization and Analysis (Temoa)
+              <img src="../../../_static/Temoa_logo_color_small.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html">Preface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#quick-start">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#database-construction">Database Construction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#data-quality">Data Quality</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#visualization">Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-math-behind-temoa">The Math Behind Temoa</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-temoa-computational-implementation">The Temoa Computational Implementation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#temoa-code-style-guide">Temoa Code Style Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Tools for Energy Model Optimization and Analysis (Temoa)</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">temoa.components.storage</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for temoa.components.storage</h1><div class="highlight"><pre>
+<span></span><span class="c1"># temoa/components/storage.py</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Defines the energy storage-related components of the Temoa model.</span>
+
+<span class="sd">This module is responsible for modeling the behavior of storage technologies,</span>
+<span class="sd">including:</span>
+<span class="sd">-  Defining the state variables for storage levels (both daily and seasonal).</span>
+<span class="sd">-  Enforcing the conservation of energy from one time slice to the next.</span>
+<span class="sd">-  Constraining the storage level to be within the device&#39;s energy capacity.</span>
+<span class="sd">-  Constraining the charge, discharge, and throughput rates to be within the</span>
+<span class="sd">    device&#39;s power capacity.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="kn">import</span> <span class="n">Constraint</span><span class="p">,</span> <span class="n">value</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExprLike</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Region</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Vintage</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">Operator</span><span class="p">,</span> <span class="n">get_variable_efficiency</span><span class="p">,</span> <span class="n">operator_expression</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">temoa.core.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemoaModel</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO INDEX SET FUNCTIONS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">storage_level_variable_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">storage_level_indices_rpsdtv</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">seasonal_storage_level_variable_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">seasonal_storage_level_indices_rpstv</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">seasonal_storage_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">seasonal_storage_level_indices_rpstv</span><span class="p">:</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">seasonal_storage_level_indices_rpstv</span>
+            <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">indices</span>
+    <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">storage_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">storage_level_indices_rpsdtv</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO CONSTRAINT RULES</span>
+<span class="c1"># ============================================================================</span>
+
+<span class="c1"># --- Core Energy Balance Constraints ---</span>
+
+
+<div class="viewcode-block" id="storage_energy_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.storage.storage_energy_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">storage_energy_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This constraint enforces the continuity of storage level between time slices.</span>
+<span class="sd">    storage level in the next time slice (:math:`s_{next}, d_{next}`) is equal to</span>
+<span class="sd">    current storage level plus net charge in the current time slice.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: Storage Energy</span>
+
+<span class="sd">            {SL}_{r,p,s,d,t,v}</span>
+<span class="sd">            + \sum\limits_{I,O} \mathbf{FIS}_{r,p,s,d,i,t,v,o} \cdot {EFF}_{r,i,t,v,o}</span>
+<span class="sd">            - \sum\limits_{I,O} \mathbf{FO}_{r,p,s,d,i,t,v,o}</span>
+<span class="sd">            = {SL}_{r,p,s_{{next}},d_{{next}},t,v}</span>
+
+<span class="sd">    Note that for all seasonal representations except consecutive_days, the last time slice</span>
+<span class="sd">    of each season will loop back to the first time slice of the same season, preventing</span>
+<span class="sd">    seasonal deltas for non-seasonal storage (see SeasonalStorageEnergyUpperBound).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># We allow a non-zero daily delta only in the case of seasonal storage</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">is_seasonal_storage</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="ow">and</span> <span class="n">d</span> <span class="o">==</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>  <span class="c1"># handled by SeasonalStorageEnergy_constraint</span>
+
+    <span class="c1"># This is the sum of all input=i sent TO storage tech t of vintage v with</span>
+    <span class="c1"># output=o in p,s,d</span>
+    <span class="n">charge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_in</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># This is the sum of all output=o withdrawn FROM storage tech t of vintage v</span>
+    <span class="c1"># with input=i in p,s,d</span>
+    <span class="n">discharge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">stored_energy</span> <span class="o">=</span> <span class="n">charge</span> <span class="o">-</span> <span class="n">discharge</span>
+
+    <span class="n">s_next</span><span class="p">:</span> <span class="n">Season</span>
+    <span class="n">d_next</span><span class="p">:</span> <span class="n">TimeOfDay</span>
+    <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_next</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">]</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">+</span> <span class="n">stored_energy</span>
+        <span class="o">==</span> <span class="n">model</span><span class="o">.</span><span class="n">v_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="seasonal_storage_energy_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.storage.seasonal_storage_energy_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">seasonal_storage_energy_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This constraint enforces the continuity of state of charge between seasons for seasonal</span>
+<span class="sd">    storage. Sequential season storage level increases by the matched season&#39;s net charge</span>
+<span class="sd">    over that entire day, adjusted for number of days represented by sequential vs non-sequential</span>
+<span class="sd">    seasons. Only applies to storage technologies in the :code:`tech_seasonal_storage` set.</span>
+<span class="sd">    :math:`s^*` represents the matching non-sequential season for the sequential season</span>
+<span class="sd">    :math:`s^{seq}`.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: Storage Energy (Sequential Seasons)</span>
+
+<span class="sd">        \mathbf{SSL}_{r,p,s^{seq},t,v}</span>
+<span class="sd">        + DA_{r,p,s^{seq}} \cdot \left(\mathbf{SL}_{r,p,s^*,d_{last},t,v} +</span>
+<span class="sd">        \sum_{I,O} \mathbf{FI}_{r,p,s^*,d_{last},i,t,v,o} \cdot EFF_{r,i,t,v,o}</span>
+<span class="sd">        - \sum_{I,O} \mathbf{FO}_{r,p,s^*,d_{last},i,t,v,o}</span>
+<span class="sd">        \right)</span>
+
+<span class="sd">        = DA_{r,p,s^{seq}_{next}} \cdot \mathbf{SL}_{r,p,s_{next}^*,d_{first},t,v}</span>
+<span class="sd">        + \mathbf{SSL}_{r,p,s^{seq}_{next},t,v}</span>
+
+<span class="sd">        \\</span>
+<span class="sd">        \text{where } DA_{r,p,s^{seq}} = \frac{\#days_{s^{seq}}}{SEG_{r,p,s^*} \cdot DPP}</span>
+
+<span class="sd">    .. figure:: images/ldes_chain.*</span>
+<span class="sd">        :align: center</span>
+<span class="sd">        :width: 100%</span>
+<span class="sd">        :figclass: align-center</span>
+<span class="sd">        :figwidth: 60%</span>
+
+<span class="sd">        How sequential seasons chain together for seasonal storage. Hatched area is</span>
+<span class="sd">        seasonal_storage_level :math:`SSL_{r,p,s^{seq},t,v}`. Vertical lines are</span>
+<span class="sd">        StorageLevel :math:`SL_{r,p,s^*,d,t,v}`. Green line is net seasonal storage</span>
+<span class="sd">        level :math:`SSL_{r,p,s^{seq},t,v} + SL_{r,p,s^*,d,t,v}`. Background grey</span>
+<span class="sd">        lines show how storage levels from non-sequential seasons are combined</span>
+<span class="sd">        in sequential seasons. Dashed line is SeasonalStorageEnergyUpperBound.</span>
+<span class="sd">        Sequential seasons two and four here are each two days while one and three</span>
+<span class="sd">        are each one day.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">sequential_to_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">]</span>
+
+    <span class="c1"># This is the sum of all input=i sent TO storage tech t of vintage v with</span>
+    <span class="c1"># output=o in p,s</span>
+    <span class="n">charge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_in</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">(),</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">(),</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># This is the sum of all output=o withdrawn FROM storage tech t of vintage v</span>
+    <span class="c1"># with input=i in p,s</span>
+    <span class="n">discharge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">(),</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">s_seq_next</span><span class="p">:</span> <span class="n">Season</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_next_sequential</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">]</span>
+    <span class="n">s_next</span><span class="p">:</span> <span class="n">Season</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">sequential_to_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq_next</span><span class="p">]</span>
+
+    <span class="c1"># Flows and StorageLevel are normalised to the number of days in the non-sequential season, so must</span>
+    <span class="c1"># be adjusted to the number of days in the sequential season</span>
+    <span class="n">days_adjust</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_season_sequential</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">days_adjust_next</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_season_sequential</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq_next</span><span class="p">,</span> <span class="n">s_next</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="n">stored_energy</span> <span class="o">=</span> <span class="p">(</span><span class="n">charge</span> <span class="o">-</span> <span class="n">discharge</span><span class="p">)</span> <span class="o">*</span> <span class="n">days_adjust</span>
+
+    <span class="n">start</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_seasonal_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">+</span> <span class="n">model</span><span class="o">.</span><span class="n">v_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">(),</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">*</span> <span class="n">days_adjust</span>
+    <span class="p">)</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_seasonal_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_seq_next</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">+</span> <span class="n">model</span><span class="o">.</span><span class="n">v_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">first</span><span class="p">(),</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">*</span> <span class="n">days_adjust_next</span>
+    <span class="p">)</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">stored_energy</span> <span class="o">==</span> <span class="n">end</span>
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<span class="c1"># --- Capacity and Rate Limit Constraints ---</span>
+
+
+<div class="viewcode-block" id="storage_energy_upper_bound_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.storage.storage_energy_upper_bound_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">storage_energy_upper_bound_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This constraint ensures that the amount of energy stored does not exceed</span>
+<span class="sd">    the upper bound set by the energy capacity of the storage device, as calculated</span>
+<span class="sd">    on the right-hand side.</span>
+
+<span class="sd">    Because the number and duration of time slices are user-defined, we need to adjust</span>
+<span class="sd">    the storage duration, which is specified in hours. First, the hourly duration is divided</span>
+<span class="sd">    by the number of hours in a year to obtain the duration as a fraction of the year.</span>
+<span class="sd">    Since the :math:`C2A` parameter assumes the conversion of capacity to annual activity,</span>
+<span class="sd">    we need to express the storage duration as fraction of a year. Then, :math:`SEG_{s,d}`</span>
+<span class="sd">    summed over the time-of-day slices (:math:`d`) multiplied by :math:`DPP` yields the</span>
+<span class="sd">    number of days per season. This step is necessary because conventional time sliced models</span>
+<span class="sd">    use a single day to represent many days within a given season. Thus, it is necessary to</span>
+<span class="sd">    scale the storage duration to account for the number of days in each season.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: StorageEnergyUpperBound</span>
+
+<span class="sd">          \textbf{SL}_{r, p, s, d, t, v} \le</span>
+<span class="sd">          \textbf{CAP}_{r,t,v} \cdot C2A_{r,t} \cdot \frac {SD_{r,t}}{24 \cdot DPP}</span>
+<span class="sd">          \cdot \sum_{d} SEG_{s,d} \cdot DPP</span>
+
+<span class="sd">          \\</span>
+<span class="sd">          \forall \{r, p, s, d, t, v\} \in \Theta_{\text{StorageEnergyUpperBound}}</span>
+
+<span class="sd">    A season can represent many days. Within each season, flows are multiplied by the</span>
+<span class="sd">    number of days each season represents and, so, the upper bound needs to be adjusted</span>
+<span class="sd">    to allow day-scale flows (e.g., charge in the morning, discharge in the afternoon).</span>
+
+<span class="sd">    .. figure:: images/daily_storage_representation.*</span>
+<span class="sd">        :align: center</span>
+<span class="sd">        :width: 100%</span>
+<span class="sd">        :figclass: center</span>
+<span class="sd">        :figwidth: 40%</span>
+
+<span class="sd">        Representation of a 3-day season for non-seasonal (daily) storage.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">is_seasonal_storage</span><span class="p">[</span><span class="n">t</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>  <span class="c1"># redundant on SeasonalStorageEnergyUpperBound</span>
+
+    <span class="n">energy_capacity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+        <span class="o">*</span> <span class="p">(</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">storage_duration</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="mi">24</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)))</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span>  <span class="c1"># adjust for days in season</span>
+    <span class="p">)</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">v_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">energy_capacity</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="seasonal_storage_energy_upper_bound_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.storage.seasonal_storage_energy_upper_bound_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">seasonal_storage_energy_upper_bound_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Builds off of StorageEnergyUpperBound_constraint. Enforces the max charge capacity</span>
+<span class="sd">    of seasonal storage, summing the real storage level with the superimposed sequential</span>
+<span class="sd">    seasonal storage level. :math:`s^*` represents the matching non-sequential season for</span>
+<span class="sd">    the sequential season :math:`s^{seq}`.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: Seasonal Storage Energy Capacity</span>
+
+<span class="sd">        \mathbf{SSL}_{r,p,s^{seq},t,v}</span>
+<span class="sd">        + \mathbf{SL}_{r,p,s^*,d,t,v} \cdot DA_{r,p,s^{seq}}</span>
+<span class="sd">        \leq \mathbf{CAP}_{r,p,t,v} \cdot C2A_{r,t} \cdot \frac{SD_{r,t}}{24 \cdot DPP}</span>
+
+<span class="sd">        \\</span>
+
+<span class="sd">        \text{where } DA_{r,p,s^{seq}} = \frac{\#days_{s^{seq}}}{SEG_{r,p,s^*} \cdot DPP}</span>
+
+
+
+<span class="sd">    Unlike non-seasonal (daily) storage, seasonal storage is allowed to carry energy</span>
+<span class="sd">    between seasons. However, through seasons representing multiple days, many days&#39;</span>
+<span class="sd">    charge deltas have accumulated, multiplied by the number of days the season</span>
+<span class="sd">    represents. If we allowed these stacked deltas to carry between seasons then we would</span>
+<span class="sd">    be multiplying the effective energy capacity of the storage. We could just constrain</span>
+<span class="sd">    the seasonal delta to the unadjusted energy capacity, but then the final day in the</span>
+<span class="sd">    season would sit atop a season&#39;s worth of deltas, possibly exceeding our upper or</span>
+<span class="sd">    lower bound by a factor of :math:`\frac{N-1}{N}` where :math:`N` is the number of</span>
+<span class="sd">    days the sequential season represents.</span>
+
+<span class="sd">    .. figure:: images/ldes_delta_problem.*</span>
+<span class="sd">        :align: center</span>
+<span class="sd">        :width: 100%</span>
+<span class="sd">        :figclass: center</span>
+<span class="sd">        :figwidth: 100%</span>
+
+<span class="sd">        The energy upper bound or non-negative lower bound could be violated in a</span>
+<span class="sd">        season representing multiple days if we both adjusted the upper bound to</span>
+<span class="sd">        the number of days and allowed a seasonal delta.</span>
+
+<span class="sd">    So, we do not adjust the upper energy bound for seasonal storage. This limits the</span>
+<span class="sd">    ability of seasonal storage to perform arbitrage within each season, but allows it to</span>
+<span class="sd">    carry energy between seasons realistically.</span>
+
+<span class="sd">    .. figure:: images/ldes_delta_representation.*</span>
+<span class="sd">        :align: center</span>
+<span class="sd">        :width: 100%</span>
+<span class="sd">        :figclass: center</span>
+<span class="sd">        :figwidth: 40%</span>
+
+<span class="sd">        Unadjusted energy upper bound constraint for seasonal storage.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">sequential_to_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">]</span>
+
+    <span class="n">energy_capacity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+        <span class="o">*</span> <span class="p">(</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">storage_duration</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="mi">24</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)))</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Flows and StorageLevel are normalised to the number of days in the non-sequential season, so must</span>
+    <span class="c1"># be adjusted to the number of days in the sequential season</span>
+    <span class="n">days_adjust</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_season_sequential</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="c1"># v_storage_level tracks the running cumulative delta in the non-sequential season, so must be adjusted</span>
+    <span class="c1"># to the size of the sequential season</span>
+    <span class="n">running_day_delta</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">v_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">*</span> <span class="n">days_adjust</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">v_seasonal_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">+</span> <span class="n">running_day_delta</span> <span class="o">&lt;=</span> <span class="n">energy_capacity</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="storage_charge_rate_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.storage.storage_charge_rate_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">storage_charge_rate_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    This constraint ensures that the charge rate of the storage unit is</span>
+<span class="sd">    limited by the power capacity (typically GW) of the storage unit.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: StorageChargeRate</span>
+
+<span class="sd">          \sum_{I, O} \textbf{FIS}_{r, p, s, d, i, t, v, o} \cdot EFF_{r,i,t,v,o}</span>
+<span class="sd">          \le</span>
+<span class="sd">          \textbf{CAP}_{r,t,v} \cdot C2A_{r,t} \cdot SEG_{s,d}</span>
+
+<span class="sd">          \\</span>
+<span class="sd">          \forall \{r, p, s, d, t, v\} \in \Theta_{\text{StorageChargeRate}}</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Calculate energy charge in each time slice</span>
+    <span class="n">slice_charge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_in</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Maximum energy charge in each time slice</span>
+    <span class="n">max_charge</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Energy charge cannot exceed the power capacity of the storage unit</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">slice_charge</span> <span class="o">&lt;=</span> <span class="n">max_charge</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="storage_discharge_rate_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.storage.storage_discharge_rate_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">storage_discharge_rate_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    This constraint ensures that the discharge rate of the storage unit</span>
+<span class="sd">    is limited by the power capacity (typically GW) of the storage unit.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: StorageDischargeRate</span>
+
+<span class="sd">          \sum_{I, O} \textbf{FO}_{r, p, s, d, i, t, v, o}</span>
+<span class="sd">          \le</span>
+<span class="sd">          \textbf{CAP}_{r,t,v} \cdot C2A_{r,t} \cdot SEG_{s,d}</span>
+
+<span class="sd">          \\</span>
+<span class="sd">          \forall \{r,p, s, d, t, v\} \in \Theta_{\text{StorageDischargeRate}}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Calculate energy discharge in each time slice</span>
+    <span class="n">slice_discharge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Maximum energy discharge in each time slice</span>
+    <span class="n">max_discharge</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Energy discharge cannot exceed the capacity of the storage unit</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">slice_discharge</span> <span class="o">&lt;=</span> <span class="n">max_discharge</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="storage_throughput_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.storage.storage_throughput_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">storage_throughput_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    It is not enough to only limit the charge and discharge rate separately. We also</span>
+<span class="sd">    need to ensure that the maximum throughput (charge + discharge) does not exceed</span>
+<span class="sd">    the capacity (typically GW) of the storage unit.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: StorageThroughput</span>
+
+<span class="sd">          \sum_{I, O} \textbf{FO}_{r, p, s, d, i, t, v, o}</span>
+<span class="sd">          +</span>
+<span class="sd">          \sum_{I, O} \textbf{FIS}_{r, p, s, d, i, t, v, o} \cdot EFF_{r,i,t,v,o}</span>
+<span class="sd">          \le</span>
+<span class="sd">          \textbf{CAP}_{r,t,v} \cdot C2A_{r,t} \cdot SEG_{s,d}</span>
+
+<span class="sd">          \\</span>
+<span class="sd">          \forall \{r, p, s, d, t, v\} \in \Theta_{\text{StorageThroughput}}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">discharge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">charge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_in</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">throughput</span> <span class="o">=</span> <span class="n">charge</span> <span class="o">+</span> <span class="n">discharge</span>
+    <span class="n">max_throughput</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+    <span class="p">)</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">throughput</span> <span class="o">&lt;=</span> <span class="n">max_throughput</span>
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<span class="c1"># A limit but more cohesive here than in limits.py</span>
+<div class="viewcode-block" id="limit_storage_fraction_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.storage.limit_storage_fraction_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">limit_storage_fraction_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+    <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">,</span>
+    <span class="n">op</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    This constraint is used if the users wishes to force a specific storage charge level</span>
+<span class="sd">    for certain storage technologies and vintages at a certain time slice.</span>
+<span class="sd">    In this case, the value of the decision variable :math:`\textbf{SI}_{r,t,v}` is set by</span>
+<span class="sd">    this constraint rather than being optimized. User-specified storage charge levels that are</span>
+<span class="sd">    sufficiently different from the optimal :math:`\textbf{SI}_{r,t,v}` could impact the</span>
+<span class="sd">    cost-effectiveness of storage. For example, if the optimal charge level happens to be</span>
+<span class="sd">    50% of the full energy capacity, forced charge levels (specified by parameter</span>
+<span class="sd">    :math:`SIF_{r,t,v}`) equal to 10% or 90% of the full energycapacity could lead to</span>
+<span class="sd">    more expensive solutions.</span>
+
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: limit_storage_fraction</span>
+
+<span class="sd">          \textbf{SF}_{r,p,s,d,t,v} \le</span>
+<span class="sd">          \ SF_{r,p,s,d,t,v}</span>
+<span class="sd">          \cdot</span>
+<span class="sd">          \textbf{CAP}_{r,p,t,v} \cdot C2A_{r,t} \cdot \frac {SD_{r,t}}{(24 \cdot DPP hrs/yr}</span>
+<span class="sd">          \cdot \sum_{d} SEG_{s,d} \cdot M.days_per_period days/yr \cdot MPL_{r,p,t,v}</span>
+
+<span class="sd">          \\</span>
+<span class="sd">          \forall \{r, p, s, d, t, v\} \in \Theta_{\text{limit_storage_fraction}}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">energy_limit</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+        <span class="o">*</span> <span class="p">(</span><span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">storage_duration</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="mi">24</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)))</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">limit_storage_fraction</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">op</span><span class="p">])</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">is_seasonal_storage</span><span class="p">[</span><span class="n">t</span><span class="p">]:</span>
+        <span class="n">s_seq</span><span class="p">:</span> <span class="n">Season</span> <span class="o">=</span> <span class="n">s</span>  <span class="c1"># sequential season</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">sequential_to_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">]</span>  <span class="c1"># non-sequential season</span>
+
+    <span class="c1"># adjust the storage level to the individual-day level</span>
+    <span class="n">energy_level</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">v_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">is_seasonal_storage</span><span class="p">[</span><span class="n">t</span><span class="p">]:</span>
+        <span class="c1"># seasonal storage upper energy limit is absolute</span>
+        <span class="n">energy_level</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">v_seasonal_storage_level</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">+</span> <span class="n">energy_level</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">time_season_sequential</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">,</span> <span class="n">s</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">operator_expression</span><span class="p">(</span><span class="n">energy_level</span><span class="p">,</span> <span class="n">Operator</span><span class="p">(</span><span class="n">op</span><span class="p">),</span> <span class="n">energy_limit</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2011-2025, NC State University.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,899 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Temoa Computational Implementation &mdash; Tools for Energy Model Optimization and Analysis (Temoa) 4.0.0a1.dev20251113 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/my_theme.css?v=a08f7516" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=09296c51"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Tools for Energy Model Optimization and Analysis (Temoa)
+              <img src="_static/Temoa_logo_color_small.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="Documentation.html">Preface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Documentation.html#quick-start">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Documentation.html#database-construction">Database Construction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Documentation.html#data-quality">Data Quality</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Documentation.html#visualization">Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Documentation.html#the-math-behind-temoa">The Math Behind Temoa</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Documentation.html#the-temoa-computational-implementation">The Temoa Computational Implementation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Documentation.html#temoa-code-style-guide">Temoa Code Style Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Tools for Energy Model Optimization and Analysis (Temoa)</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">The Temoa Computational Implementation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/computational_implementation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="the-temoa-computational-implementation">
+<h1>The Temoa Computational Implementation<a class="headerlink" href="#the-temoa-computational-implementation" title="Link to this heading"></a></h1>
+<p>We have implemented Temoa within an algebraic modeling environment (AME).  AMEs
+provide both a convenient way to describe mathematical optimization models
+for a computational context, and allow for abstract model<a href="#id9"><span class="problematic" id="id1">[#abstract_model]_</span></a>
+formulations <span id="id2">[<a class="reference internal" href="Documentation.html#id25" title="Josef Kallrath. Modeling Languages in Mathematical Optimization. Volume 88. Springer, 2004.">Kallrath04</a>]</span>.  In contrast to describing a model in a
+formal computer programming language like C or Java, AMEs generally have syntax
+that directly translates to standard mathematical notation.  Consequently,
+models written in AMEs are more easily understood by a wider variety of researchers.
+Further, by allowing abstract formulations, a model written with an AME may be
+used with many different input data sets.</p>
+<p>Three well-known and popular algebraic modeling environments are the General
+Algebraic Modeling System (GAMS) <span id="id3">[<a class="reference internal" href="Documentation.html#id24" title="Anthony Brooke and Richard E. Rosenthal. GAMS. GAMS Development, 2003.">BrookeRosenthal03</a>]</span>, AMPL
+<span id="id4">[<a class="reference internal" href="Documentation.html#id26" title="Robert Fourer, David M. Gay, and Brian W. Kernighan. AMPL: A Mathematical Programming Language. AT&amp;T Bell Laboratories, Murray Hill, NJ 07974, 1987.">FourerGayKernighan87</a>]</span>, and GNU MathProg <span id="id5">[<a class="reference internal" href="Documentation.html#id27" title="Andrew Makhorin. Modeling Language GNU MathProg. Relatório Técnico, 2000.">Makhorin00</a>]</span>.  All three
+environments provide concise syntax that closely resembles standard (paper)
+notation.  We decided to implement Temoa within an AME called
+Python Optimization Modeling Objects (Pyomo).</p>
+<p>Pyomo provides similar functionality to GAMS, AMPL, and MathProg, but is open
+source and written in the Python scripting language.  This has two general
+consequences of which to be aware:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Python is a scripting language; in general, scripts are an order of
+magnitude slower than an equivalent compiled program.</p></li>
+<li><p>Pyomo provides similar functionality, but because of its Python heritage, is
+<strong>much</strong> more verbose than GAMS, AMPL, or MathProg.</p></li>
+</ul>
+</div></blockquote>
+<p>It is our view that the speed penalty of Python as compared to compiled
+languages is inconsequential in the face of other large resource bottle necks,
+so we omit any discussion of it as an issue.  However, the “boiler-plate” code
+(verbosity) overhead requires some discussion.  We discuss this in the
+<a class="reference internal" href="#constraint-anatomy"><span class="std std-ref">Anatomy of a Constraint</span></a>.</p>
+<section id="anatomy-of-a-constraint">
+<span id="constraint-anatomy"></span><h2>Anatomy of a Constraint<a class="headerlink" href="#anatomy-of-a-constraint" title="Link to this heading"></a></h2>
+<p>To help explain the Pyomo implementation, we discuss a single constraint in
+detail. Consider the <code class="code docutils literal notranslate"><span class="pre">Demand</span></code> <a class="reference internal" href="mathematical_formulation.html#equation-demand">(6)</a> constraint:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}\sum_{I, T, V} \textbf{FO}_{r, p, s, d, i, t, v, dem} +
+SEG_{s,d} \cdot  \sum_{I, T^{a}, V} \textbf{FOA}_{r, p, i, t, v, dem}
+\ge
+{DEM}_{r, p, dem} \cdot {DSD}_{r, s, d, dem}\\\begin{split}\\
+\forall \{r, p, s, d, dem\} \in \Theta_{\text{Demand}}\end{split}\end{aligned}\end{align} \]</div>
+<p>Implementing this with Pyomo requires two pieces, and optionally a third:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>a constraint definition (in <code class="docutils literal notranslate"><span class="pre">temoa/core/model.py</span></code>),</p></li>
+<li><p>the constraint implementation (in <code class="docutils literal notranslate"><span class="pre">temoa/components/</span></code>), and</p></li>
+<li><p>(optional) sparse constraint index creation (in <code class="docutils literal notranslate"><span class="pre">temoa/components/technology.py</span></code>).</p></li>
+</ol>
+</div></blockquote>
+<p>We discuss first a straightforward implementation of this constraint, that
+specifies the sets over which the constraint is defined.  We will follow it with
+the actual implementation which utilizes a more computationally efficient but
+less transparent constraint index definition (the optional step 3).</p>
+<p>A simple definition of this constraint is:</p>
+<aside class="topic">
+<p class="topic-title">in <code class="docutils literal notranslate"><span class="pre">temoa/core/model.py</span></code></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="n">M</span><span class="o">.</span><span class="n">demand_constraint</span> <span class="o">=</span> <span class="n">Constraint</span><span class="p">(</span>
+<span class="linenos">2</span>  <span class="n">M</span><span class="o">.</span><span class="n">regions</span><span class="p">,</span> <span class="n">M</span><span class="o">.</span><span class="n">time_optimize</span><span class="p">,</span> <span class="n">M</span><span class="o">.</span><span class="n">time_season</span><span class="p">,</span> <span class="n">M</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">,</span> <span class="n">M</span><span class="o">.</span><span class="n">commodity_demand</span><span class="p">,</span>
+<span class="linenos">3</span>  <span class="n">rule</span><span class="o">=</span><span class="n">demand_constraint</span>
+<span class="linenos">4</span><span class="p">)</span>
+</pre></div>
+</div>
+</aside>
+<p>In line 1, ‘<code class="docutils literal notranslate"><span class="pre">M.demand_constraint</span> <span class="pre">=</span></code>’ creates a place holder in the model object
+<code class="docutils literal notranslate"><span class="pre">M</span></code>, called ‘demand_constraint’.  Like a variable, this is the name through
+which Pyomo will reference this class of constraints.  <code class="docutils literal notranslate"><span class="pre">Constraint(...)</span></code> is a
+Pyomo-specific function that creates each individual constraint in the class.
+The first arguments (line 2) are the index sets of the constraint class.  Line 2
+is the Pyomo method of saying “for all” (<span class="math notranslate nohighlight">\(\forall\)</span>).  Line 3 contains the
+final, mandatory argument (<code class="docutils literal notranslate"><span class="pre">rule=...</span></code>) that specifies the name of the
+implementation rule for the constraint, in this case <code class="docutils literal notranslate"><span class="pre">demand_constraint</span></code>.
+Pyomo will call this rule with each tuple in the Cartesian product of the index
+sets.</p>
+<p>An associated implementation of this constraint based on the definition above
+is:</p>
+<aside class="topic">
+<p class="topic-title">temoa/components/</p>
+<p>…</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="k">def</span><span class="w"> </span><span class="nf">demand_constraint</span> <span class="p">(</span> <span class="n">M</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">dem</span> <span class="p">):</span>
+<span class="linenos"> 2</span>   <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span><span class="n">p</span><span class="p">,</span><span class="n">s</span><span class="p">,</span><span class="n">d</span><span class="p">,</span><span class="n">dem</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">demand_specific_distribution</span><span class="o">.</span><span class="n">sparse_keys</span><span class="p">():</span>  <span class="c1"># If user did not specify this Demand, tell</span>
+<span class="linenos"> 3</span>      <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>           <span class="c1"># Pyomo to ignore this constraint index.</span>
+<span class="linenos"> 4</span>
+<span class="linenos"> 5</span>   <span class="n">supply</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+<span class="linenos"> 6</span>      <span class="n">M</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+<span class="linenos"> 7</span>      <span class="k">for</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span> <span class="k">if</span> <span class="n">S_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">tech_annual</span>
+<span class="linenos"> 8</span>      <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">process_input_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+<span class="linenos"> 9</span>   <span class="p">)</span>
+<span class="linenos">10</span>
+<span class="linenos">11</span>   <span class="n">supply_annual</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+<span class="linenos">12</span>      <span class="n">M</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+<span class="linenos">13</span>      <span class="k">for</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span> <span class="k">if</span> <span class="n">S_t</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">tech_annual</span>
+<span class="linenos">14</span>      <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">process_input_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+<span class="linenos">15</span>   <span class="p">)</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span> <span class="n">M</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+<span class="linenos">16</span>
+<span class="linenos">17</span>   <span class="n">demand_constraintErrorCheck</span><span class="p">(</span><span class="n">supply</span> <span class="o">+</span> <span class="n">supply_annual</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">dem</span><span class="p">)</span>
+<span class="linenos">18</span>
+<span class="linenos">19</span>   <span class="n">expr</span> <span class="o">=</span> <span class="n">supply</span> <span class="o">+</span> <span class="n">supply_annual</span> <span class="o">==</span> <span class="n">M</span><span class="o">.</span><span class="n">Demand</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span> <span class="o">*</span> <span class="n">M</span><span class="o">.</span><span class="n">demand_specific_distribution</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+<span class="linenos">20</span>   <span class="k">return</span> <span class="n">expr</span>
+</pre></div>
+</div>
+<p>…</p>
+</aside>
+<p>The Python boiler-plate code to create the rule is on line 1.  It begins with
+<code class="code docutils literal notranslate"><span class="pre">def</span></code>, followed by the rule name (matching the <code class="code docutils literal notranslate"><span class="pre">rule=...</span></code> argument
+in the constraint definition in <code class="docutils literal notranslate"><span class="pre">temoa.core.model</span></code>), followed by the argument list.
+The argument list will always start with the model (Temoa convention shortens
+this to just <code class="code docutils literal notranslate"><span class="pre">M</span></code>) followed by local variable names in which to store the
+index set elements passed by Pyomo.  Note that the ordering is the same as
+specified in the constraint definition.  Thus the first item after <code class="code docutils literal notranslate"><span class="pre">M</span></code>
+will be an item from <code class="code docutils literal notranslate"><span class="pre">region</span></code>, the second from <code class="code docutils literal notranslate"><span class="pre">time_optimize</span></code>,
+the third from <code class="code docutils literal notranslate"><span class="pre">time_season</span></code>, fourth from <code class="code docutils literal notranslate"><span class="pre">time_of_day</span></code>, and the
+fifth from <code class="code docutils literal notranslate"><span class="pre">commodity_demand</span></code>.  Though one could choose <code class="code docutils literal notranslate"><span class="pre">a</span></code>, <code class="code docutils literal notranslate"><span class="pre">b</span></code>,
+<code class="code docutils literal notranslate"><span class="pre">c</span></code>, <code class="code docutils literal notranslate"><span class="pre">d</span></code>, and <code class="code docutils literal notranslate"><span class="pre">e</span></code> (or any naming scheme), we chose <code class="code docutils literal notranslate"><span class="pre">p</span></code>, <code class="code docutils literal notranslate"><span class="pre">s</span></code>,
+<code class="code docutils literal notranslate"><span class="pre">d</span></code>, and <code class="code docutils literal notranslate"><span class="pre">dem</span></code> as part of a <a class="reference internal" href="#naming-conventions"><span class="std std-ref">naming scheme</span></a> to aid in mnemonic understanding.  Consequently, the rule
+signature (Line 1) is another place to look to discover what indices define a
+constraint.</p>
+<p>Lines 2 and 3 are an indication that this constraint is implemented in a
+non-sparse manner.  That is, Pyomo does not inherently know the valid indices
+for a given model parameter or equation.  In <code class="docutils literal notranslate"><span class="pre">temoa.core.model</span></code>, the constraint definition
+listed five index sets, so Pyomo will naively call this function for every
+possible combination of tuple <span class="math notranslate nohighlight">\(\{r, p, s, d, dem\}\)</span>.  However, as there
+may be slices for which a demand does not exist (e.g., the winter season might
+have no cooling demand), there is no need to create a constraint for any tuple
+involving ‘winter’ and ‘cooling’.  Indeed, an attempt to access a demand for
+which the modeler has not specified a value results in a Pyomo error, so it is
+necessary to ignore any tuple for which no Demand exists.</p>
+<p>Lines 5 through 11 represent two <em>source-lines</em> that we split over several lines for
+clarity.  These lines implement the summations of the demand commodity <code class="docutils literal notranslate"><span class="pre">dem</span></code>
+produced by demand technologies with both variable and constant output across the
+year, summed over all relevant technologies, vintages, and the inputs. The
+<code class="code docutils literal notranslate"><span class="pre">supply</span></code> and <code class="code docutils literal notranslate"><span class="pre">supply_annual</span></code> are local variables used in the expression
+(<code class="code docutils literal notranslate"><span class="pre">expr</span></code>) shown below. Note that the sum is performed with sparse indices, which
+are returned from dictionaries created in <code class="code docutils literal notranslate"><span class="pre">temoa/components/technology.py</span></code>.</p>
+<p>Lines 5 through 11 also showcase a very common idiom in Python:
+list-comprehension.  List comprehension is a concise and efficient syntax to
+create lists.  As opposed to building a list element-by-element with for-loops,
+list comprehension can convert many statements into a single operation.
+Consider a naive approach to calculating the supply:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">to_sum</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">S_t</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">tech_all</span><span class="p">:</span>
+   <span class="k">for</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">vintage_all</span><span class="p">:</span>
+      <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">process_input_by_output</span><span class="p">(</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">dem</span> <span class="p">):</span>
+         <span class="n">to_sum</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">M</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span> <span class="p">)</span>
+<span class="n">supply</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span> <span class="n">to_sum</span> <span class="p">)</span>
+</pre></div>
+</div>
+<p>This implementation creates an extra list (<code class="code docutils literal notranslate"><span class="pre">to_sum</span></code>), then builds the list
+element by element with <code class="code docutils literal notranslate"><span class="pre">.append()</span></code>, before finally calculating the summation.
+This means that the Python interpreter must iterate through the elements of the
+summation, not once, but twice.</p>
+<p>A less naive approach would replace the <code class="code docutils literal notranslate"><span class="pre">.append()</span></code> call with the
+<code class="code docutils literal notranslate"><span class="pre">+=</span></code> operator, reducing the number of iterations through the elements to
+one:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">supply</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">for</span> <span class="n">S_t</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">tech_all</span><span class="p">:</span>
+   <span class="k">for</span> <span class="n">S_v</span> <span class="ow">in</span> <span class="n">M</span><span class="o">.</span><span class="n">vintage_all</span><span class="p">:</span>
+      <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">process_input_by_output</span><span class="p">(</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">dem</span> <span class="p">):</span>
+         <span class="n">supply</span> <span class="o">+=</span> <span class="n">M</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">S_t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Why is list comprehension necessary?  Strictly speaking, it is not, especially
+in light of this last example, which may read more familiar to those comfortable
+with C, Fortran, or Java.  However, due to quirks of both Python and Pyomo,
+list-comprehension is preferred both syntactically as “the Pythonic” way, and as
+the more efficient route for many list manipulations.  (It also <em>may</em> seem
+slightly more familiar to those used to a more mainstream algebraic modeling
+language.)</p>
+<p>With the correct model variables summed and stored in the <code class="docutils literal notranslate"><span class="pre">supply</span></code> and
+<code class="docutils literal notranslate"><span class="pre">supply_annual</span></code> variables, Line 17 calls a function defined in
+<code class="code docutils literal notranslate"><span class="pre">temoa/components/technology.py</span></code> that checks to make sure there is technology
+that can supply each demand commodity <code class="docutils literal notranslate"><span class="pre">dem</span></code> in each <span class="math notranslate nohighlight">\(\{r, p, s, d\}\)</span>.</p>
+<p>If no process supplies the demand, then it quits computation immediately rather
+than completing a potentially lengthy model generation and waiting for the
+solver to recognize the infeasibility of the model. Further, the function
+lists potential ways for the modeler to correct the problem. This is one of the
+benefits of Temoa: we’ve incorporated error handling in several places to
+try and capture the most common user errors. This capability is subtle, but in
+practice extremely useful while building and debugging a model.</p>
+<p>Line 19 creates the actual inequality comparison.  This line is superfluous, but
+we leave it in the code as a reminder that inequality operators (i.e. <code class="code docutils literal notranslate"><span class="pre">&lt;=</span></code>
+and <code class="code docutils literal notranslate"><span class="pre">&gt;=</span></code>) with a Pyomo object (like supply) generate a Pyomo <em>expression
+object</em>, not a boolean True or False as one might expect.<a href="#id10"><span class="problematic" id="id6">[#return_expression]_</span></a>
+It is this expression object that must be returned to Pyomo, as on Line 20.</p>
+<p>In the above implementation, the constraint is called for every tuple in the
+Cartesian product of the indices, and the constraint must then decide whether
+each tuple is valid.  The below implementation differs from the one above
+because it only calls the constraint rule for the valid tuples within the
+Cartesian product, which is computationally more efficient than the simpler
+implementation above.</p>
+<aside class="topic">
+<p class="topic-title">in <code class="docutils literal notranslate"><span class="pre">temoa/core/model.py</span></code> (actual implementation)</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="n">M</span><span class="o">.</span><span class="n">demand_constraint_rpsdc</span> <span class="o">=</span> <span class="n">Set</span><span class="p">(</span> <span class="n">dimen</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="n">demand_constraint_indices</span> <span class="p">)</span>
+<span class="linenos">2</span><span class="c1"># ...</span>
+<span class="linenos">3</span><span class="n">M</span><span class="o">.</span><span class="n">demand_constraint</span> <span class="o">=</span> <span class="n">Constraint</span><span class="p">(</span> <span class="n">M</span><span class="o">.</span><span class="n">demand_constraint_rpsdc</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="n">demand_constraint</span> <span class="p">)</span>
+</pre></div>
+</div>
+</aside>
+<p>As discussed above, the demand_constraint is only valid for certain
+<span class="math notranslate nohighlight">\(\{r, p, s, d, dem\}\)</span> tuples.  Since the modeler can specify the demand
+distribution per commodity (necessary to model demands like heating, that do not
+apply in all time slices), Temoa must ascertain the valid tuples. We have
+implemented this logic in the function <code class="code docutils literal notranslate"><span class="pre">demand_constraint_indices</span></code> in
+<code class="docutils literal notranslate"><span class="pre">temoa/components/technology.py</span></code>.  Thus, Line 1 tells Pyomo to instantiate
+<code class="code docutils literal notranslate"><span class="pre">demand_constraint_rpsdc</span></code> as a Set of 5-length tuples indices
+(<code class="code docutils literal notranslate"><span class="pre">dimen=5</span></code>), and populate it with what Temoa’s rule
+<code class="code docutils literal notranslate"><span class="pre">demand_constraint_indices</span></code> returns.  We omit here an explanation of the
+implementation of the <code class="code docutils literal notranslate"><span class="pre">demand_constraint_indices</span></code> function, stating merely
+that it returns the exact indices over which the demand_constraint must to be
+created.  With the sparse set <code class="code docutils literal notranslate"><span class="pre">demand_constraint_rpsdc</span></code> created, we can now
+can use it in place of the five sets specified in the non-sparse
+implementation.  Pyomo will now call the constraint implementation rule the
+minimum number of times.</p>
+<p>On the choice of the <code class="code docutils literal notranslate"><span class="pre">_rpsdc</span></code> suffix for the index set name, there is no
+Pyomo-enforced restriction.  However, use of an index set in place of the
+non-sparse specification obfuscates over what indexes a constraint is defined.
+While it is not impossible to deduce, either from this documentation
+or from looking at the <code class="code docutils literal notranslate"><span class="pre">demand_constraint_indices</span></code> or
+<code class="code docutils literal notranslate"><span class="pre">demand_constraint</span></code> implementations, the Temoa convention includes
+index set names that feature the one-character representation of each set dimension.
+In this case, the name <code class="code docutils literal notranslate"><span class="pre">demand_constraint_rpsdc</span></code> implies that this set has a
+dimensionality of 5, and (following the <a class="reference internal" href="#naming-conventions"><span class="std std-ref">naming scheme</span></a>) the first index of each tuple will be an element of
+<code class="code docutils literal notranslate"><span class="pre">region</span></code>, the second an element of <code class="code docutils literal notranslate"><span class="pre">time_optimize</span></code>, the third
+an element of <code class="code docutils literal notranslate"><span class="pre">time_season</span></code>, fourth an element of <code class="code docutils literal notranslate"><span class="pre">time_of_day</span></code>,
+and fifth a commodity.  From the contextual information that this is the
+Demand constraint, one can assume that the <code class="docutils literal notranslate"><span class="pre">c</span></code> represents an element from
+<code class="code docutils literal notranslate"><span class="pre">commodity_demand</span></code>.</p>
+</section>
+<section id="a-word-on-verbosity">
+<h2>A Word on Verbosity<a class="headerlink" href="#a-word-on-verbosity" title="Link to this heading"></a></h2>
+<p>Implementing this same constraint in AMPL, GAMS, or MathProg would require only
+a single source-line (in a single file).  Using MathProg as an example, it might
+look like:</p>
+<div class="highlight-ampl notranslate"><div class="highlight"><pre><span></span><span class="kd">s.t.</span><span class="w"> </span><span class="nv">demand_constraint</span><span class="p">{(</span>p<span class="p">,</span><span class="w"> </span>s<span class="p">,</span><span class="w"> </span>d<span class="p">,</span><span class="w"> </span>dem<span class="p">)</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span>sDemand_psd_dem<span class="p">}</span><span class="w"> </span><span class="p">:</span>
+<span class="w">    </span><span class="kr">sum</span><span class="p">{(</span>p<span class="p">,</span><span class="w"> </span>s<span class="p">,</span><span class="w"> </span>d<span class="p">,</span><span class="w"> </span>Si<span class="p">,</span><span class="w"> </span>St<span class="p">,</span><span class="w"> </span>Sv<span class="p">,</span><span class="w"> </span>dem<span class="p">)</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span>sFlowVar_psditvo<span class="p">}</span>
+<span class="w">      </span>v_flow_out<span class="p">[</span>p<span class="p">,</span><span class="w"> </span>s<span class="p">,</span><span class="w"> </span>d<span class="p">,</span><span class="w"> </span>Si<span class="p">,</span><span class="w"> </span>St<span class="p">,</span><span class="w"> </span>Sv<span class="p">,</span><span class="w"> </span>dem<span class="p">]</span>
+<span class="w"> </span><span class="o">=</span>
+<span class="w">    </span>pDemand<span class="p">[</span>p<span class="p">,</span><span class="w"> </span>s<span class="p">,</span><span class="w"> </span>d<span class="p">,</span><span class="w"> </span>dem<span class="p">];</span>
+</pre></div>
+</div>
+<p>While the syntax is not a direct translation, the indices of the constraint
+(<code class="docutils literal notranslate"><span class="pre">p</span></code>, <code class="docutils literal notranslate"><span class="pre">s</span></code>, <code class="docutils literal notranslate"><span class="pre">d</span></code>, and <code class="docutils literal notranslate"><span class="pre">dem</span></code>) are clear, and by inference, so are the
+indices of summation (<code class="docutils literal notranslate"><span class="pre">i</span></code>, <code class="docutils literal notranslate"><span class="pre">t</span></code>, <code class="docutils literal notranslate"><span class="pre">v</span></code>) and operand (<code class="docutils literal notranslate"><span class="pre">v_flow_out</span></code>).  This
+one-line definition creates an inequality for each period, season, time of day,
+and demand, ensuring that total output meets each demand in each time slice –
+almost exactly as we have formulated the demand constraint <a class="reference internal" href="mathematical_formulation.html#equation-demand">(6)</a>.  In
+contrast, Temoa’s implementation in Pyomo takes 47 source-lines (the code
+discussed above does not include the function documentation).  While some of the
+verbosity is inherent to working with a general purpose scripting language, and
+most of it is our formatting for clarity, the absolute minimum number of lines a
+Pyomo constraint can be is 2 lines, and that likely will be even less readable.</p>
+<p>So why use Python and Pyomo if they are so verbose?  In short, for four
+reasons:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Temoa has the full power of Python, and has access to a rich ecosystem of
+tools (e.g. numpy, matplotlib) that are not as cleanly available to other
+AMLs.  For instance, there is minimal capability in MathProg to error check a
+model before a solve, and providing interactive feedback like what Temoa’s
+demand_constraintErrorCheck function does is difficult, if not impossible.
+While a subtle addition, specific and directed error messages are an
+effective measure to reduce the learning curve for new modelers.</p></li>
+<li><p>Python has a vibrant community.  Whereas mathematical optimization has a
+small community, its open-source segment even smaller, and the energy modeling segment
+significantly smaller than that, the Python community is huge, and
+encompasses many disciplines.  This means that where a developer may struggle
+to find an answer, implementation, or workaround to a problem with a more
+standard AML, Python will likely enable a community-suggested solution.</p></li>
+<li><p>Powerful documentation tools.  One of the available toolsets in the Python
+world is documentation generators that <em>dynamically</em> introspect Python code.
+While it is possible to inline and block comment with more traditional AMLs,
+the integration with Python that many documentation generators have is much
+more powerful.  Temoa uses this capability to embed user-oriented
+documentation literally in the code, and almost every constraint has a block
+comment.  Having both the documentation and implementation in one place helps
+reduce the mental friction and discrepancies often involved in maintaining
+multiple sources of model authority.</p></li>
+<li><p>AMLs are not as concise as thought.</p></li>
+</ul>
+</div></blockquote>
+<p>This last point is somewhat esoteric, but consider the MathProg implementation
+of the Demand constraint in contrast with the last line of the Pyomo version:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">expr</span> <span class="o">=</span> <span class="p">(</span><span class="n">supply</span> <span class="o">=</span> <span class="n">M</span><span class="o">.</span><span class="n">Demand</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">dem</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>While the MathProg version indeed translates more directly to standard notation,
+consider that standard notation itself needs extensive surrounding text to
+explain the significance of an equation.  <em>Why</em> does the equation compare the
+sum of a subset of FlowOut to Demand?  In Temoa’s implementation, a high-level
+understanding of what a constraint does requires only the last line of code:
+“Supply must meet demand.”</p>
+</section>
+<section id="project-structure">
+<h2>Project Structure<a class="headerlink" href="#project-structure" title="Link to this heading"></a></h2>
+<p>The Temoa model code is organized into clear, purpose-driven packages:</p>
+<p><strong>Core Packages:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">temoa.core</span></code> - Public API for end users</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">model.py</span></code> - Contains the <code class="docutils literal notranslate"><span class="pre">TemoaModel</span></code> class, the main entry point for building
+and solving energy system models. This class coordinates all model components.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">config.py</span></code> - Contains <code class="docutils literal notranslate"><span class="pre">TemoaConfig</span></code> and <code class="docutils literal notranslate"><span class="pre">TemoaMode</span></code> for model configuration
+and execution mode selection (perfect foresight, myopic, MGA, etc.).</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">temoa.cli</span></code> - Command-line interface</p>
+<ul>
+<li><p>Provides the <code class="docutils literal notranslate"><span class="pre">temoa</span></code> command with subcommands for running models, validating
+configurations, migrating databases, and generating tutorial files.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">temoa.components</span></code> - Model components and constraints</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">costs.py</span></code> - Objective function implementation (total system cost minimization)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">flows.py</span></code> - Commodity flow balance constraints</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">capacity.py</span></code> - Capacity and activity constraints</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">emissions.py</span></code> - Emission accounting and constraints</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">reserves.py</span></code> - Reserve margin requirements</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">limits.py</span></code> - Various limit constraints (capacity, activity, emissions, etc.)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">storage.py</span></code> - Energy storage constraints</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ramping.py</span></code> - Ramping constraints for generators</p></li>
+<li><p>Additional constraint modules for specific features</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">temoa.data_io</span></code> - Data loading and validation</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">hybrid_loader.py</span></code> - Main data loading engine using manifest-driven architecture</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">component_manifest.py</span></code> - Declarative specification of all data components</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">loader_manifest.py</span></code> - Data structure definitions for the loader</p></li>
+<li><p>Database interface and validation logic</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">temoa.model_checking</span></code> - Model validation and integrity checking</p>
+<ul>
+<li><p>Price checking for cost data consistency</p></li>
+<li><p>Source tracing for commodity network validation</p></li>
+<li><p>Network visualization tools</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">temoa.data_processing</span></code> - Output analysis and visualization</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">db_to_excel.py</span></code> - Excel output generation (⚠️ untested in v4.0)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">make_graphviz.py</span></code> - Network diagram generation (⚠️ untested in v4.0)</p></li>
+<li><p>Result processing utilities</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">temoa.extensions</span></code> - Optional extensions for advanced analysis</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">modeling_to_generate_alternatives</span></code> - MGA analysis for exploring near-optimal solutions (⚠️ untested in v4.0)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">method_of_morris</span></code> - Sensitivity analysis (⚠️ untested in v4.0)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">monte_carlo</span></code> - Uncertainty quantification (⚠️ untested in v4.0)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">myopic</span></code> - Sequential decision making with limited foresight</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">single_vector_mga</span></code> - Focused MGA on specific variables (⚠️ untested in v4.0)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">stochastics</span></code> - Stochastic programming capabilities (⚠️ untested in v4.0)</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">temoa._internal</span></code> - Internal utilities (not part of public API)</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">table_writer.py</span></code> - Database output formatting</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">table_data_puller.py</span></code> - Result extraction utilities</p></li>
+<li><p>Other internal helper modules</p></li>
+</ul>
+</li>
+</ul>
+<p>If you are working with a Temoa Git repository, these packages are in the
+<code class="docutils literal notranslate"><span class="pre">temoa/</span></code> subdirectory. For detailed architecture documentation, see the
+README.md file in the repository root.</p>
+</section>
+<section id="the-bleeding-edge">
+<h2>The Bleeding Edge<a class="headerlink" href="#the-bleeding-edge" title="Link to this heading"></a></h2>
+<p>The Temoa Project uses the Git source code management system, and the services
+of Github.com.  If you are inclined to work with the bleeding edge of the Temoa
+Project code base, then take a look at the Temoa repository.  To acquire a
+copy, make sure you have Git installed on your local machine, then execute this
+command to clone the repository:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ git clone git://github.com/TemoaProject/temoa.git
+Cloning into &#39;temoa&#39;...
+remote: Counting objects: 2386, done.
+remote: Compressing objects: 100% (910/910), done.
+remote: Total 2386 (delta 1552), reused 2280 (delta 1446)
+Receiving objects: 100% (2386/2386), 2.79 MiB | 1.82 MiB/s, done.
+Resolving deltas: 100% (1552/1552), done.
+</pre></div>
+</div>
+<p>You will now have a new subdirectory called <code class="docutils literal notranslate"><span class="pre">temoa</span></code>, that contains the entire
+Temoa Project code and archive history.  Note that Git is a <em>distributed</em> source
+code management tool.  This means that by cloning the Temoa repository, you have
+your own copy to which you are welcome (and encouraged!) to alter and make
+commits to.  It will not affect the source repository.</p>
+<p>Though this is not a Git manual, we recognize that many readers of this manual
+may not be software developers, so we offer a few quick pointers to using Git
+effectively.</p>
+<p>If you want to see the log of commits, use the command git log:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ git log -1
+commit b5bddea7312c34c5c44fe5cce2830cbf5b9f0f3b
+Date:   Thu Jul 5 03:23:11 2012 -0400
+
+    Update two APIs
+
+     * I had updated the internal global variables to use the _psditvo
+       naming scheme, and had forgotten to make the changes to _graphviz.py
+     * Coopr also updated their API with the new .sparse_* methods.
+</pre></div>
+</div>
+<p>You can also explore the various development branches in the repository:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ ls
+data_files  stochastic  temoa_model  create_archive.sh  README.txt
+
+$ git branch -a
+* energysystem
+  remotes/origin/HEAD -&gt; origin/energysystem
+  remotes/origin/energysystem
+  remotes/origin/exp_electric_load_duration_reorg
+  remotes/origin/exp_electricity_sector
+  remotes/origin/exp_energysystem_flow_based
+  remotes/origin/exp_energysystem_match_markal
+  remotes/origin/exp_energysystem_test_framework
+  remotes/origin/misc_scripts
+  remotes/origin/old_energysystem_coopr2
+  remotes/origin/temoaproject.org
+
+$ git checkout exp_energysystem_match_markal
+Branch exp_energysystem_match_markal set up to track remote branch
+exp_energysystem_match_markal from origin.
+Switched to a new branch &#39;exp_energysystem_match_markal&#39;
+
+$ ls
+temoa_model                create_archive.sh     utopia-markal-20.dat
+compare_with_utopia-15.py  README.txt
+compare_with_utopia-20.py  utopia-markal-15.dat
+</pre></div>
+</div>
+<p>To view exactly what changes you have made since the most recent commit to the
+repository use the <code class="docutils literal notranslate"><span class="pre">diff</span></code> command to <code class="docutils literal notranslate"><span class="pre">git</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ git diff
+diff --git a/temoa_model/temoa_lib.py b/temoa_model/temoa_lib.py
+index 4ff9b30..0ba15b0 100644
+--- a/temoa_model/temoa_lib.py
++++ b/temoa_model/temoa_lib.py
+@@ -246,7 +246,7 @@ def InitializeProcessParameters ( M ):
+                if l_vin in M.vintage_exist:
+                        if l_process not in l_exist_indices:
+                                msg = (&#39;Warning: %s has a specified efficiency, but does not &#39;
+-                                 &#39;have any existing install base (existing_capacity)\n.&#39;)
++                                 &#39;have any existing install base (existing_capacity).\n&#39;)
+                                SE.write( msg % str(l_process) )
+                                continue
+                        if 0 == M.existing_capacity[ l_process ]:
+ [ ... ]
+</pre></div>
+</div>
+<p>For a crash course on git, here is a handy <a href="#id11"><span class="problematic" id="id12">`quick start guide`_</span></a>.</p>
+<section id="temoa-code-style-guide">
+<h3>Temoa Code Style Guide<a class="headerlink" href="#temoa-code-style-guide" title="Link to this heading"></a></h3>
+<p>It is an open question in programming circles whether code formatting actually
+matters.  The Temoa Project developers believe that it does for these main
+reasons:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Consistently-formatted code reduces the cognitive work required to understand
+the structure and intent of a code base.  Specifically, we believe that
+before code is to be executed, it is to be understood by other humans.  The
+fact that it makes the computer do something useful is a (happy) coincidence.</p></li>
+<li><p>Consistently-formatted code helps identify <a href="#id13"><span class="problematic" id="id14">`code smell`_</span></a>.</p></li>
+<li><p>Consistently-formatted code helps one to spot code bugs and typos more
+easily.</p></li>
+</ul>
+</div></blockquote>
+<p>Note, however, that this is a style <cite>guide</cite>, not a strict ruleset.  There will
+also be corner cases to which a style guide does not apply, and in these cases,
+the judgment of what to do is left to the implementers and maintainers of the
+code base.  To this end, the Python project has a well-written treatise in <a href="#id15"><span class="problematic" id="id16">`PEP
+8`_</span></a>:</p>
+<blockquote>
+<div><p><strong>A Foolish Consistency is the Hobgoblin of Little Minds</strong></p>
+<p>One of Guido’s key insights is that code is read much more often than it is
+written.  The guidelines provided here are intended to improve the
+readability of code and make it consistent across the wide spectrum of Python
+code.  As PEP 20 says, “Readability counts”.</p>
+<p>A style guide is about consistency.  Consistency with this style guide is
+important.  Consistency within a project is more important.  Consistency
+within one module or function is most important.</p>
+<p>But most importantly: know when to be inconsistent – sometimes the style
+guide just doesn’t apply.  When in doubt, use your best judgment.  Look at
+other examples and decide what looks best.  And don’t hesitate to ask!</p>
+<p>Two good reasons to break a particular rule:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>When applying the rule would make the code less readable, even for
+someone who is used to reading code that follows the rules.</p></li>
+<li><p>To be consistent with surrounding code that also breaks it (maybe for
+historic reasons) – although this is also an opportunity to clean up
+someone else’s mess (in true XP style).</p></li>
+</ol>
+</div></blockquote>
+</div></blockquote>
+</section>
+</section>
+<section id="ruff-formatting">
+<h2>Ruff Formatting<a class="headerlink" href="#ruff-formatting" title="Link to this heading"></a></h2>
+<p>The project has shifted to using Ruff (<a href="#id17"><span class="problematic" id="id18">`ruff`_</span></a>) as a formatter / linter.  Commits to
+the project should use Ruff to format any changed code.  Ruff relies on
+settings in the <code class="code docutils literal notranslate"><span class="pre">pyproject.toml</span></code> file.  Contributors should be able
+to apply ruff to any changed files with the command <code class="code docutils literal notranslate"><span class="pre">ruff</span> <span class="pre">format</span> <span class="pre">&lt;file&gt;</span></code>.
+If there is <em>specific</em> need to disable Ruff for a particular table or equation,
+contributors can sparingly turn off Ruff formatting for sections of code using
+comments.  (See the Ruff documentation.)</p>
+</section>
+<section id="indentation-tabs-and-spaces">
+<h2>Indentation: Tabs and Spaces<a class="headerlink" href="#indentation-tabs-and-spaces" title="Link to this heading"></a></h2>
+<p>The project is standardized to using spaces for indentation in accordance with
+PEP-8 standards.  Ruff will convert tabs to spaces.</p>
+</section>
+<section id="end-of-line-whitespace">
+<h2>End of Line Whitespace<a class="headerlink" href="#end-of-line-whitespace" title="Link to this heading"></a></h2>
+<p>Remove it.  Many editors have plugins or builtin functionality that will take
+care of this automatically when the file is saved.</p>
+</section>
+<section id="maximum-line-length">
+<h2>Maximum Line Length<a class="headerlink" href="#maximum-line-length" title="Link to this heading"></a></h2>
+<p>(Similar to <a href="#id19"><span class="problematic" id="id20">`PEP 8`_</span></a>) Limit all lines to a maximum of 100 characters.</p>
+<p>Historically, 80 characters was the width (in monospace characters) that a
+terminal had to display output.  With the advent of graphical user interfaces
+with variable font-sizes, this technological limit no longer exists.  While
+80 characters remains an excellent metric of what constitutes a “long line” most
+modern wide-screen displays can comfortably show side-by-side difference files with
+100 characters per side, and 100 characters better accommodates some long equations. A
+long line in this sense is one that is not as transparent as to its intent as it
+could be.  <strong>Ruff will enforce 100 character line length</strong>, in accordance with the settings
+in the <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> file</p>
+<p>Slightly adapted from <a href="#id21"><span class="problematic" id="id22">`PEP 8`_</span></a>:</p>
+<blockquote>
+<div><p>The preferred way of wrapping long lines is by using Python’s implied line
+continuation inside parentheses, brackets and braces.  Long lines can be
+broken over multiple lines by wrapping expressions in parentheses.  These
+should be used in preference to using a backslash for line continuation.
+Make sure to indent the continued line appropriately.  The preferred place to
+break around a binary operator is after the operator, not before it.  Some
+examples:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">Rectangle</span> <span class="p">(</span> <span class="n">Blob</span> <span class="p">):</span>
+
+   <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span> <span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span>
+                  <span class="n">color</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">emphasis</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">highlight</span><span class="o">=</span><span class="mi">0</span> <span class="p">):</span>
+      <span class="k">if</span> <span class="p">(</span> <span class="n">width</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">height</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span>
+          <span class="n">color</span> <span class="o">==</span> <span class="s1">&#39;red&#39;</span> <span class="ow">and</span> <span class="n">emphasis</span> <span class="o">==</span> <span class="s1">&#39;strong&#39;</span> <span class="ow">or</span>
+          <span class="n">highlight</span> <span class="o">&gt;</span> <span class="mi">100</span> <span class="p">):</span>
+          <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;sorry, you lose&quot;</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">width</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">height</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="p">(</span><span class="n">color</span> <span class="o">==</span> <span class="s1">&#39;red&#39;</span> <span class="ow">or</span>
+                                         <span class="n">emphasis</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+          <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;I don&#39;t think so -- values are </span><span class="si">{}</span><span class="s2">, </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                           <span class="p">(</span><span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">)</span> <span class="p">))</span>
+      <span class="n">Blob</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span>
+                    <span class="n">color</span><span class="p">,</span> <span class="n">emphasis</span><span class="p">,</span> <span class="n">highlight</span> <span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+</section>
+<section id="blank-lines">
+<h2>Blank Lines<a class="headerlink" href="#blank-lines" title="Link to this heading"></a></h2>
+<blockquote>
+<div><ul class="simple">
+<li><p>Separate logical sections within a single function with a single blank line.</p></li>
+<li><p>Separate function and method definitions with two blank lines.</p></li>
+<li><p>Separate class definitions with three blank lines.</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="encodings">
+<h2>Encodings<a class="headerlink" href="#encodings" title="Link to this heading"></a></h2>
+<p>Following <cite>PEP 3120</cite>, all code files should use UTF-8 encoding.</p>
+</section>
+<section id="naming-conventions">
+<span id="id7"></span><h2>Naming Conventions<a class="headerlink" href="#naming-conventions" title="Link to this heading"></a></h2>
+<p>All constraints attached to a model should end with <code class="docutils literal notranslate"><span class="pre">constraint</span></code>.  Similarly,
+the function they use to define the constraint for each index should use the
+same prefix and <code class="docutils literal notranslate"><span class="pre">constraint</span></code> suffix, but separate them with an underscore
+(e.g. <code class="docutils literal notranslate"><span class="pre">M.somename_constraint</span> <span class="pre">=</span> <span class="pre">Constraint(</span> <span class="pre">...,</span>&#160; <span class="pre">rule=somename_constraint</span></code>):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">M</span><span class="o">.</span><span class="n">capacity_constraint</span> <span class="o">=</span> <span class="n">Constraint</span><span class="p">(</span> <span class="n">M</span><span class="o">.</span><span class="n">CapacityVar_tv</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="n">Capacity_constraint</span> <span class="p">)</span>
+</pre></div>
+</div>
+<p>When providing the implementation for a constraint rule, use a consistent naming
+scheme between functions and constraint definitions.  For instance, we have
+already chosen <code class="docutils literal notranslate"><span class="pre">model</span></code> to represent the Pyomo model instance, <code class="docutils literal notranslate"><span class="pre">t</span></code> to represent
+<em>technology</em>, and <code class="docutils literal notranslate"><span class="pre">v</span></code> to represent <em>vintage</em>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">capacity_constraint</span> <span class="p">(</span> <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span> <span class="p">):</span>
+   <span class="o">...</span>
+</pre></div>
+</div>
+<p>The complete list we have already chosen:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(p\)</span> to represent a period item from <span class="math notranslate nohighlight">\(time\_optimize\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(s\)</span> to represent a season item from <span class="math notranslate nohighlight">\(time\_season\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(d\)</span> to represent a time of day item from <span class="math notranslate nohighlight">\(time\_of\_day\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(i\)</span> to represent an input to a process, an item from
+<span class="math notranslate nohighlight">\(commodity\_physical\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(t\)</span> to represent a technology from <span class="math notranslate nohighlight">\(tech\_all\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(v\)</span> to represent a vintage from <span class="math notranslate nohighlight">\(vintage\_all\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(o\)</span> to represent an output of a process, an item from
+<span class="math notranslate nohighlight">\(commodity\_carrier\)</span></p></li>
+</ul>
+</div></blockquote>
+<p>Note also the order of presentation, even in this list.  In order to reduce the
+number mental “question marks” one might have while discovering Temoa, we
+attempt to rigidly reference a mental model of “left to right”.  Just as the
+entire energy system that Temoa optimizes may be thought of as a left-to-right
+graph, so too are the individual processes.  As mentioned above in <a href="#id23"><span class="problematic" id="id24">`A Word on Index
+Ordering`_</span></a>:</p>
+<blockquote>
+<div><p>For any indexed parameter or variable within Temoa, our intent is to enable a
+mental model of a left-to-right arrow-box-arrow as a simple mnemonic to
+describe the “input <span class="math notranslate nohighlight">\(\rightarrow\)</span> process <span class="math notranslate nohighlight">\(\rightarrow\)</span> output”
+flow of energy.  And while not all variables, parameters, or constraints have
+7 indices, the 7-index order mentioned here (p, s, d, i, t, v, o) is the
+canonical ordering.  If you note any case where, for example, d comes before
+s, that is an oversight.</p>
+</div></blockquote>
+</section>
+<section id="in-line-implementation-conventions">
+<h2>In-line Implementation Conventions<a class="headerlink" href="#in-line-implementation-conventions" title="Link to this heading"></a></h2>
+<p>Wherever possible, implement the algorithm in a way that is <em>pedagogically</em>
+sound or reads like an English sentence.  Consider this snippet:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="p">(</span> <span class="n">a</span> <span class="o">&gt;</span> <span class="mi">5</span> <span class="ow">and</span> <span class="n">a</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="p">):</span>
+   <span class="n">doSomething</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>In English, one might translate this snippet as “If a is greater than 5 and less
+then 10, do something.”  However, a semantically stronger implementation might
+be:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="p">(</span> <span class="mi">5</span> <span class="o">&lt;</span> <span class="n">a</span> <span class="ow">and</span> <span class="n">a</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="p">):</span>
+   <span class="n">doSomething</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>This reads closer to the more familiar mathematical notation of <code class="docutils literal notranslate"><span class="pre">5</span> <span class="pre">&lt;</span> <span class="pre">a</span> <span class="pre">&lt;</span> <span class="pre">10</span></code>
+and translates to English as “If a is between 5 and 10, do something.”  The
+semantic meaning that <code class="docutils literal notranslate"><span class="pre">a</span></code> should be <em>between</em> 5 and 10 is more readily
+apparent from just the visual placement between 5 and 10, and is easier for the
+“next person” to understand (who may very well be you in six months!).</p>
+<p>Consider the reverse case:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="p">(</span> <span class="n">a</span> <span class="o">&lt;</span> <span class="mi">5</span> <span class="ow">or</span> <span class="n">a</span> <span class="o">&gt;</span> <span class="mi">10</span> <span class="p">):</span>
+   <span class="n">doSomething</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>On the number line, this says that a must fall before 5 or beyond 10.  But the
+intent might more easily be understood if altered as above:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="ow">not</span> <span class="p">(</span> <span class="mi">5</span> <span class="o">&lt;</span> <span class="n">a</span> <span class="ow">and</span> <span class="n">a</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="p">):</span>
+   <span class="n">doSomething</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>This last snippet now makes clear the core question that a should <code class="docutils literal notranslate"><span class="pre">not</span></code> fall
+between 5 and 10.</p>
+<p>Consider another snippet:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">acounter</span> <span class="o">=</span> <span class="n">scounter</span> <span class="o">+</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>This method of increasing or incrementing a variable is one that many
+mathematicians-turned-programmers prefer, but is more prone to error.  For
+example, is that an intentional use of <code class="docutils literal notranslate"><span class="pre">acounter</span></code> or <code class="docutils literal notranslate"><span class="pre">scounter</span></code>?  Assuming
+as written that it’s incorrect, a better paradigm uses the += operator:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">acounter</span> <span class="o">+=</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>This performs the same operation, but makes clear that the <code class="docutils literal notranslate"><span class="pre">acounter</span></code> variable
+is to be incremented by one, rather than be set to one greater than <code class="docutils literal notranslate"><span class="pre">scounter</span></code>.</p>
+<p>The same argument can be made for the related operators:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">+=</span> <span class="mi">5</span><span class="p">;</span>  <span class="n">a</span>    <span class="c1"># same as a = a + 5</span>
+<span class="go">15</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">-=</span> <span class="n">b</span><span class="p">;</span>  <span class="n">a</span>    <span class="c1"># same as a = a - b</span>
+<span class="go">12</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">/=</span> <span class="n">b</span><span class="p">;</span>  <span class="n">a</span>    <span class="c1"># same as a = a / b</span>
+<span class="go">4</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">*=</span> <span class="n">c</span><span class="p">;</span>  <span class="n">a</span>    <span class="c1"># same as a = a * c</span>
+<span class="go">8</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">**=</span> <span class="n">c</span><span class="p">;</span> <span class="n">a</span>    <span class="c1"># same as a = a ** c</span>
+<span class="go">64</span>
+</pre></div>
+</div>
+</section>
+<section id="miscellaneous-style-conventions">
+<h2>Miscellaneous Style Conventions<a class="headerlink" href="#miscellaneous-style-conventions" title="Link to this heading"></a></h2>
+<blockquote>
+<div><ul>
+<li><p>(Same as <a href="#id25"><span class="problematic" id="id26">`PEP 8`_</span></a>) Do not use spaces around the assignment operator (<code class="docutils literal notranslate"><span class="pre">=</span></code>)
+when used to indicate a default argument or keyword parameter:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">complex</span> <span class="p">(</span> <span class="n">real</span><span class="p">,</span> <span class="n">imag</span> <span class="o">=</span> <span class="mf">0.0</span> <span class="p">):</span>         <span class="c1"># bad</span>
+   <span class="k">return</span> <span class="n">magic</span><span class="p">(</span><span class="n">r</span> <span class="o">=</span> <span class="n">real</span><span class="p">,</span> <span class="n">i</span> <span class="o">=</span> <span class="n">imag</span><span class="p">)</span>       <span class="c1"># bad</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">complex</span> <span class="p">(</span> <span class="n">real</span><span class="p">,</span> <span class="n">imag</span><span class="o">=</span><span class="mf">0.0</span> <span class="p">):</span>           <span class="c1"># good</span>
+   <span class="k">return</span> <span class="n">magic</span><span class="p">(</span> <span class="n">r</span><span class="o">=</span><span class="n">real</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">imag</span> <span class="p">)</span>         <span class="c1"># good</span>
+</pre></div>
+</div>
+</li>
+<li><p>(Same as <a href="#id27"><span class="problematic" id="id28">`PEP 8`_</span></a>) Do not use spaces immediately before the open
+parenthesis that starts the argument list of a function call:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">calc</span> <span class="p">()</span>         <span class="c1"># bad</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">calc</span> <span class="p">(</span> <span class="n">c</span> <span class="p">)</span>      <span class="c1"># bad</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">calc</span><span class="p">(</span> <span class="n">c</span> <span class="p">)</span>       <span class="c1"># good</span>
+</pre></div>
+</div>
+</li>
+<li><p>(Same as <a href="#id29"><span class="problematic" id="id30">`PEP 8`_</span></a>) Do not use spaces immediately before the open
+bracket that starts an indexing or slicing:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">a</span> <span class="o">=</span> <span class="n">b</span> <span class="p">[</span><span class="s1">&#39;key&#39;</span><span class="p">]</span>         <span class="c1"># bad</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">b</span> <span class="p">[</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">]</span>          <span class="c1"># bad</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="s1">&#39;key&#39;</span><span class="p">]</span>          <span class="c1"># good</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">]</span>           <span class="c1"># good</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="patches-and-commits-to-the-repository">
+<h2>Patches and Commits to the Repository<a class="headerlink" href="#patches-and-commits-to-the-repository" title="Link to this heading"></a></h2>
+<p>In terms of code quality and maintaining a legible “audit trail,” every patch
+should meet a basic standard of quality:</p>
+<blockquote>
+<div><ul>
+<li><p>Every commit to the repository must include an appropriate summary message
+about the accompanying code changes.  Include enough context that one reading
+the patch need not also inspect the code to get a high-level understanding of
+the changes.  For example, “Fixed broken algorithm” does not convey much
+information.  A more appropriate and complete summary message might be:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Fixed</span> <span class="n">broken</span> <span class="n">storage</span> <span class="n">algorithm</span>
+
+<span class="n">The</span> <span class="n">previous</span> <span class="n">implementation</span> <span class="n">erroneously</span> <span class="n">assumed</span> <span class="n">that</span> <span class="n">only</span> <span class="n">the</span> <span class="n">energy</span>
+<span class="n">flow</span> <span class="n">out</span> <span class="n">of</span> <span class="n">a</span> <span class="n">storage</span> <span class="n">device</span> <span class="n">mattered</span><span class="o">.</span>  <span class="n">However</span><span class="p">,</span> <span class="n">Temoa</span> <span class="n">needs</span> <span class="n">to</span> <span class="n">know</span> <span class="n">the</span>
+<span class="n">energy</span> <span class="n">flow</span> <span class="ow">in</span> <span class="n">to</span> <span class="nb">all</span> <span class="n">devices</span> <span class="n">so</span> <span class="n">that</span> <span class="n">it</span> <span class="n">can</span> <span class="n">appropriately</span> <span class="n">calculate</span> <span class="n">the</span>
+<span class="n">inter</span><span class="o">-</span><span class="n">process</span> <span class="n">commodity</span> <span class="n">balance</span><span class="o">.</span>
+
+<span class="n">License</span><span class="p">:</span> <span class="n">MIT</span>
+</pre></div>
+</div>
+<p>If there is any external information that would be helpful, such as a bug
+report, include a “clickable” link to it, such that one reading the patch as
+via an email or online, can immediately view the external information.</p>
+<p>Specifically, commit messages should follow the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">A</span> <span class="n">subject</span> <span class="n">line</span> <span class="n">of</span> <span class="mi">50</span> <span class="n">characters</span> <span class="ow">or</span> <span class="n">less</span>
+ <span class="p">[</span> <span class="n">an</span> <span class="n">empty</span> <span class="n">line</span> <span class="p">]</span>
+<span class="mf">1.</span> <span class="n">http</span><span class="p">:</span><span class="o">//</span><span class="nb">any</span><span class="o">.</span><span class="n">com</span><span class="o">/</span>
+<span class="mf">2.</span> <span class="n">http</span><span class="p">:</span><span class="o">//</span><span class="n">relevant</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">some</span><span class="o">/</span><span class="n">path</span><span class="o">/</span>
+<span class="mf">3.</span> <span class="n">http</span><span class="p">:</span><span class="o">//</span><span class="n">urls</span><span class="o">.</span><span class="n">edu</span><span class="o">/~</span><span class="n">some</span><span class="o">/</span><span class="n">other</span><span class="o">/</span><span class="n">path</span><span class="o">/</span>
+<span class="mf">4.</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">blog</span><span class="o">/</span><span class="mi">926</span><span class="o">-</span><span class="n">shiny</span><span class="o">-</span><span class="n">new</span><span class="o">-</span><span class="n">commit</span><span class="o">-</span><span class="n">styles</span>
+<span class="mf">5.</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">help</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">articles</span><span class="o">/</span><span class="n">github</span><span class="o">-</span><span class="n">flavored</span><span class="o">-</span><span class="n">markdown</span>
+ <span class="p">[</span> <span class="n">another</span> <span class="n">empty</span> <span class="n">line</span> <span class="p">]</span>
+<span class="n">Any</span> <span class="n">amount</span> <span class="ow">and</span> <span class="nb">format</span> <span class="n">of</span> <span class="n">text</span><span class="p">,</span> <span class="n">such</span> <span class="n">that</span> <span class="n">it</span> <span class="n">conforms</span> <span class="n">to</span> <span class="n">a</span> <span class="n">line</span><span class="o">-</span><span class="n">width</span> <span class="n">of</span>
+<span class="mi">72</span> <span class="n">characters</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">.</span>  <span class="n">Bonus</span> <span class="n">points</span> <span class="k">for</span> <span class="n">being</span> <span class="n">aware</span> <span class="n">of</span> <span class="n">the</span> <span class="n">Github</span> <span class="n">Markdown</span>
+<span class="n">syntax</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span>
+
+<span class="n">License</span><span class="p">:</span> <span class="n">MIT</span>
+</pre></div>
+</div>
+</li>
+<li><p>Ensure that each commit contains no more than one <em>logical</em> change to the
+code base.  This is very important for later auditing.  If you have not
+developed in a logical manner (like many of us don’t), <code class="code docutils literal notranslate"><span class="pre">git</span> <span class="pre">add</span> <span class="pre">-p</span></code> is
+a very helpful tool.</p></li>
+<li><p>If you are not a core maintainer of the project, all commits must also
+include a specific reference to the license under which you are giving your
+code to the project.  Note that Temoa will not accept any patches that
+are not licensed under MIT.  A line like this at the end of your commit
+will suffice:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">...</span> <span class="n">the</span> <span class="n">last</span> <span class="n">line</span> <span class="n">of</span> <span class="n">the</span> <span class="n">commit</span> <span class="n">message</span><span class="o">.</span>
+
+<span class="n">License</span><span class="p">:</span> <span class="n">MIT</span>
+</pre></div>
+</div>
+<p>This indicates that you retain all rights to any intellectual property your
+(set of) commit(s) creates, but that you license it to the Temoa Project
+under the terms of the MIT license.  If
+the Temoa Project incorporates your commit, then Temoa may not relicense
+your (set of) patch(es), other than to increase the version number of the
+MIT license.  In short, the intellectual property remains yours, and the
+Temoa Project would be but a licensee using your code similarly under the
+terms of MIT.</p>
+<p>Executing licensing in this manner – rather than requesting IP assignment –
+ensures that no one group of code contributers may unilaterally change the
+license of Temoa, unless <strong>all</strong> contributers agree in writing in a
+publicly archived forum (such as the <a href="#id31"><span class="problematic" id="id32">`Temoa Forum`_</span></a>).</p>
+</li>
+<li><p>When you are ready to submit your (set of) patch(es) to the Temoa Project,
+we will utilize GitHub’s <a href="#id33"><span class="problematic" id="id34">`Pull Request`_</span></a> mechanism.</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2011-2025, NC State University.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
