@@ -1,0 +1,53 @@
+Metadata-Version: 2.4
+Name: WTFork
+Version: 1.0.0
+Summary: Detects invisible network exploits in GitHub Actions pins
+Author: Javier Dominguez
+Project-URL: Homepage, https://github.com/javixeneize/wtfork
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: requests
+
+# WTFork 🤌🤌
+
+**Pinning to SHA isn't the silver bullet you think it is.**
+
+This tool detects if your GitHub Actions are vulnerable to the **Fork Network** exploit (a.k.a. "The Invisible Network"), verifying that the commits you pin actually belong to the repositories you trust.
+
+This project is inspired by this Aikido’s write-up on how fork networks work, and how Sai-Hulud was abusing it:
+
+> [The Fork Awakens: Why GitHub’s invisible networks break package security](https://www.aikido.dev/blog/the-fork-awakens-why-githubs-invisible-networks-break-package-security)
+---
+
+## 🚩 The Problem: "Invisible Networks"
+
+Security best practices tell us to pin GitHub Actions to a full commit SHA (`uses: owner/repo@<sha>`). The assumption is simple: **"If I pin the SHA, I trust code I'm running."** Strict immutability usually equals strict trust
+
+**That assumption is wrong.**
+
+GitHub's architecture creates a loophole. It resolves SHAs across the entire **fork network**, not just the target repository.
+
+This means `uses: owner/repo@<sha>` guarantees the *code* (the SHA), but **it does not guarantee the source**. A commit might resolve successfully from any fork, even if it **never existed** in the trusted `owner/repo`, effectively pulling unreviewed code from an obscure or malicious fork while appearing to come from upstream.
+
+**The Worst Case Scenario:**
+1. Your workflow defines: `uses: trusted-owner/action@<sha>`
+2. That `<sha>` **does not exist** in `trusted-owner/action`.
+3. However, GitHub resolves it to a malicious commit in an obscure fork.
+4. You unknowingly execute `untrusted-owner/action@<sha>` from a different owner you never agreed to trust.
+
+---
+
+## 🛡️ How WTFork works
+
+`wtfork` audits your repository’s GitHub Actions workflow files to validate that every referenced SHA is legitimate.
+
+It scans:
+- `.github/workflows/*.yml`
+- `.github/workflows/*.yaml`
+
+For every `uses: owner/repo@<sha>` found, `wtfork` performs a sanity check: **Does this commit actually live inside `owner/repo`?**
+
+If the SHA is missing from the origin repo (but resolving due to the fork network quirk), `wtfork` flags it immediately so you can fix the pin before it becomes a supply-chain attack vector.
