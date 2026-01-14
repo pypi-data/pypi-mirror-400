@@ -1,0 +1,87 @@
+"""Core module - Foundation layer with domain models, interfaces, and events."""
+
+from gnosisllm_knowledge.core.domain import (
+    AgenticSearchQuery,
+    AgenticSearchResult,
+    AgentType,
+    BatchResult,
+    Document,
+    DocumentStatus,
+    IndexResult,
+    LoadResult,
+    ReasoningStep,
+    SearchMode,
+    SearchQuery,
+    SearchResult,
+    SearchResultItem,
+    SourceConfig,
+    TextChunk,
+    ValidationResult,
+)
+from gnosisllm_knowledge.core.events import Event, EventEmitter, EventType
+from gnosisllm_knowledge.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    ConfigurationError,
+    ConnectionError,
+    EmbeddingError,
+    IndexError,
+    KnowledgeError,
+    LoadError,
+    SearchError,
+    SetupError,
+    TimeoutError,
+    ValidationError,
+)
+from gnosisllm_knowledge.core.interfaces import (
+    IAgenticSearcher,
+    IContentFetcher,
+    IContentLoader,
+    IDocumentIndexer,
+    IKnowledgeSearcher,
+    ITextChunker,
+)
+
+__all__ = [
+    # Domain models
+    "Document",
+    "DocumentStatus",
+    "TextChunk",
+    "LoadResult",
+    "IndexResult",
+    "BatchResult",
+    "ValidationResult",
+    "SearchQuery",
+    "SearchResult",
+    "SearchResultItem",
+    "SearchMode",
+    "AgenticSearchQuery",
+    "AgenticSearchResult",
+    "AgentType",
+    "ReasoningStep",
+    "SourceConfig",
+    # Events
+    "Event",
+    "EventType",
+    "EventEmitter",
+    # Exceptions
+    "KnowledgeError",
+    "ConfigurationError",
+    "ConnectionError",
+    "AuthenticationError",
+    "AuthorizationError",
+    "LoadError",
+    "ValidationError",
+    "IndexError",
+    "SearchError",
+    "EmbeddingError",
+    "SetupError",
+    "TimeoutError",
+    # Interfaces
+    "IContentLoader",
+    "IContentFetcher",
+    "ITextChunker",
+    "IDocumentIndexer",
+    "IKnowledgeSearcher",
+    "IAgenticSearcher",
+]

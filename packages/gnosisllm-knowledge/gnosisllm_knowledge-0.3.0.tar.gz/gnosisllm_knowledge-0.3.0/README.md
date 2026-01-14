@@ -1,0 +1,389 @@
+# GnosisLLM Knowledge
+
+Enterprise-grade knowledge loading, indexing, and semantic search library for Python.
+
+## Features
+
+- **Semantic Search**: Vector-based similarity search using OpenAI embeddings
+- **Hybrid Search**: Combine semantic and keyword (BM25) search for best results
+- **Agentic Search**: AI-powered search with reasoning and natural language answers
+- **Agentic Memory**: Conversational memory with automatic fact extraction
+- **Multiple Loaders**: Load content from websites, sitemaps, and files
+- **Intelligent Chunking**: Sentence-aware text splitting with configurable overlap
+- **OpenSearch Backend**: Production-ready with k-NN vector search
+- **Multi-Tenancy**: Built-in support for account and collection isolation
+- **Event-Driven**: Observer pattern for progress tracking and monitoring
+- **SOLID Architecture**: Clean, maintainable, and extensible codebase
+
+## Installation
+
+```bash
+pip install gnosisllm-knowledge
+
+# With OpenSearch backend
+pip install gnosisllm-knowledge[opensearch]
+
+# With all optional dependencies
+pip install gnosisllm-knowledge[all]
+```
+
+## Quick Start (CLI)
+
+```bash
+# Install
+pip install gnosisllm-knowledge
+
+# Set OpenAI API key for embeddings
+export OPENAI_API_KEY=sk-...
+
+# Setup OpenSearch with ML model
+gnosisllm-knowledge setup --host localhost --port 9200
+# ✓ Created connector, model, pipelines, index
+# Model ID: abc123  →  Add to .env: OPENSEARCH_MODEL_ID=abc123
+
+export OPENSEARCH_MODEL_ID=abc123
+
+# Load content from a sitemap
+gnosisllm-knowledge load https://docs.example.com/sitemap.xml
+# ✓ Loaded 247 documents (1,248 chunks) in 45.3s
+
+# Search
+gnosisllm-knowledge search "how to configure authentication"
+# Found 42 results (23.4ms)
+# 1. Authentication Guide (92.3%)
+#    To configure authentication, set AUTH_PROVIDER...
+
+# Interactive search mode
+gnosisllm-knowledge search --interactive
+```
+
+## Quick Start (Python API)
+
+```python
+from gnosisllm_knowledge import Knowledge
+
+# Create instance with OpenSearch backend
+knowledge = Knowledge.from_opensearch(
+    host="localhost",
+    port=9200,
+)
+
+# Setup backend (creates indices)
+await knowledge.setup()
+
+# Load and index a sitemap
+await knowledge.load(
+    "https://docs.example.com/sitemap.xml",
+    collection_id="docs",
+)
+
+# Search
+results = await knowledge.search("how to configure authentication")
+for item in results.items:
+    print(f"{item.title}: {item.score}")
+```
+
+## CLI Commands
+
+### Setup
+
+Configure OpenSearch with neural search capabilities:
+
+```bash
+gnosisllm-knowledge setup [OPTIONS]
+
+Options:
+  --host        OpenSearch host (default: localhost)
+  --port        OpenSearch port (default: 9200)
+  --use-ssl     Enable SSL connection
+  --force       Clean up existing resources first
+  --no-hybrid   Skip hybrid search pipeline
+```
+
+### Load
+
+Load and index content from URLs or sitemaps:
+
+```bash
+gnosisllm-knowledge load <URL> [OPTIONS]
+
+Options:
+  --type         Source type: website, sitemap (auto-detects)
+  --index        Target index name (default: knowledge)
+  --account-id   Multi-tenant account ID
+  --collection-id Collection grouping ID
+  --batch-size   Documents per batch (default: 100)
+  --max-urls     Max URLs from sitemap (default: 1000)
+  --dry-run      Preview without indexing
+```
+
+### Search
+
+Search indexed content with multiple modes:
+
+```bash
+gnosisllm-knowledge search <QUERY> [OPTIONS]
+
+Options:
+  --mode         Search mode: semantic, keyword, hybrid, agentic
+  --index        Index to search (default: knowledge)
+  --limit        Max results (default: 5)
+  --account-id   Filter by account
+  --collection-ids Filter by collections (comma-separated)
+  --json         Output as JSON for scripting
+  --interactive  Interactive search session
+```
+
+## Architecture
+
+```
+gnosisllm-knowledge/
+├── api/                 # High-level Knowledge facade
+├── core/
+│   ├── domain/          # Document, SearchQuery, SearchResult models
+│   ├── interfaces/      # Protocol definitions (IContentLoader, etc.)
+│   ├── events/          # Event system for progress tracking
+│   └── exceptions.py    # Exception hierarchy
+├── loaders/             # Content loaders (website, sitemap)
+├── fetchers/            # Content fetchers (HTTP, Neoreader)
+├── chunking/            # Text chunking strategies
+├── backends/
+│   ├── opensearch/      # OpenSearch implementation
+│   └── memory/          # In-memory backend for testing
+└── services/            # Indexing and search orchestration
+```
+
+## Search Modes
+
+```python
+from gnosisllm_knowledge import SearchMode
+
+# Semantic search (vector similarity)
+results = await knowledge.search(query, mode=SearchMode.SEMANTIC)
+
+# Keyword search (BM25)
+results = await knowledge.search(query, mode=SearchMode.KEYWORD)
+
+# Hybrid search (default - combines both)
+results = await knowledge.search(query, mode=SearchMode.HYBRID)
+```
+
+## Agentic Search
+
+AI-powered search with reasoning and natural language answers using OpenSearch ML agents.
+
+**Requirements:** OpenSearch 3.4+ for conversational memory support.
+
+### Setup
+
+```bash
+# 1. First run standard setup (creates embedding model)
+gnosisllm-knowledge setup --port 9201
+
+# 2. Setup agentic agents (creates LLM connector, VectorDBTool, MLModelTool, agents)
+gnosisllm-knowledge agentic setup
+# ✓ Flow Agent ID: abc123
+# ✓ Conversational Agent ID: def456
+
+# 3. Add agent IDs to environment
+export OPENSEARCH_FLOW_AGENT_ID=abc123
+export OPENSEARCH_CONVERSATIONAL_AGENT_ID=def456
+```
+
+### Usage
+
+```bash
+# Single-turn agentic search (uses flow agent)
+gnosisllm-knowledge search --mode agentic "What is Typer?"
+
+# Interactive multi-turn chat (uses conversational agent with memory)
+gnosisllm-knowledge agentic chat
+# You: What is Typer?
+# Assistant: Typer is a library for building CLI applications...
+# You: What did you just say about it?
+# Assistant: I told you that Typer is a library for building CLI...
+```
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         User Query                                   │
+│                    "What is Typer?"                                  │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    OpenSearch ML Agent                               │
+│              (Flow or Conversational)                                │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+            ┌─────────────────┴─────────────────┐
+            ▼                                   ▼
+┌───────────────────────┐           ┌───────────────────────┐
+│     VectorDBTool      │           │   Conversation Memory │
+│  (Knowledge Search)   │           │   (Conversational     │
+│                       │           │    Agent Only)        │
+│  - Searches index     │           │                       │
+│  - Returns context    │           │  - Stores Q&A pairs   │
+│                       │           │  - Injects chat_history│
+└───────────────────────┘           └───────────────────────┘
+            │                                   │
+            └─────────────────┬─────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      MLModelTool (answer_generator)                  │
+│                                                                      │
+│  Prompt Template:                                                    │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │ Context from knowledge base:                                    │ │
+│  │ ${parameters.knowledge_search.output}                           │ │
+│  │                                                                 │ │
+│  │ Previous conversation:        ← Only for conversational agent  │ │
+│  │ ${parameters.chat_history:-}                                    │ │
+│  │                                                                 │ │
+│  │ Question: ${parameters.question}                                │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      AI-Generated Answer                             │
+│  "Typer is a library for building CLI applications in Python..."    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Agent Types
+
+| Agent | Type | Use Case | Memory |
+|-------|------|----------|--------|
+| Flow | `flow` | Fast single-turn RAG, API calls | No |
+| Conversational | `conversational_flow` | Multi-turn dialogue, chat | Yes |
+
+### Key Configuration
+
+The conversational agent requires these settings for memory to work:
+
+```python
+# In agent registration (setup.py)
+agent_body = {
+    "type": "conversational_flow",
+    "app_type": "rag",  # Required for memory injection
+    "llm": {
+        "model_id": llm_model_id,
+        "parameters": {
+            "message_history_limit": 10,  # Include last N messages
+        },
+    },
+    "memory": {"type": "conversation_index"},
+}
+
+# MLModelTool prompt must include:
+# ${parameters.chat_history:-}  ← Receives conversation history
+```
+
+## Multi-Tenancy
+
+```python
+# Load with tenant isolation
+await knowledge.load(
+    source="https://docs.example.com/sitemap.xml",
+    account_id="tenant-123",
+    collection_id="docs",
+)
+
+# Search within tenant
+results = await knowledge.search(
+    "query",
+    account_id="tenant-123",
+    collection_ids=["docs"],
+)
+```
+
+## Agentic Memory
+
+Conversational memory with automatic fact extraction using OpenSearch's ML Memory plugin.
+
+```bash
+# Setup memory connectors
+gnosisllm-knowledge memory setup --openai-key sk-...
+
+# Create container and store conversations
+gnosisllm-knowledge memory container create my-memory
+gnosisllm-knowledge memory store <container-id> --file messages.json --user-id alice
+gnosisllm-knowledge memory recall <container-id> "user preferences" --user-id alice
+```
+
+```python
+from gnosisllm_knowledge import Memory, MemoryStrategy, StrategyConfig, Message
+
+memory = Memory.from_env()
+
+# Create container with strategies
+container = await memory.create_container(
+    name="agent-memory",
+    strategies=[
+        StrategyConfig(type=MemoryStrategy.SEMANTIC, namespace=["user_id"]),
+    ],
+)
+
+# Store conversation with fact extraction
+await memory.store(
+    container_id=container.id,
+    messages=[Message(role="user", content="I prefer dark mode")],
+    user_id="alice",
+    infer=True,
+)
+
+# Recall memories
+result = await memory.recall(container.id, "preferences", user_id="alice")
+```
+
+See [docs/memory.md](docs/memory.md) for full documentation.
+
+## Event Tracking
+
+```python
+from gnosisllm_knowledge import EventType
+
+# Subscribe to events
+@knowledge.events.on(EventType.DOCUMENT_INDEXED)
+def on_indexed(event):
+    print(f"Indexed: {event.document_id}")
+
+@knowledge.events.on(EventType.BATCH_COMPLETED)
+def on_batch(event):
+    print(f"Batch complete: {event.documents_indexed} docs")
+```
+
+## Configuration
+
+```python
+from gnosisllm_knowledge import OpenSearchConfig
+
+# From environment variables
+config = OpenSearchConfig.from_env()
+
+# Explicit configuration
+config = OpenSearchConfig(
+    host="search.example.com",
+    port=443,
+    use_ssl=True,
+    username="admin",
+    password="secret",
+    embedding_model="text-embedding-3-small",
+    embedding_dimension=1536,
+)
+
+knowledge = Knowledge.from_opensearch(config=config)
+```
+
+## Requirements
+
+- Python 3.11+
+- OpenSearch 2.0+ (for production use)
+- OpenSearch 3.4+ (for agentic search with conversation memory)
+
+## License
+
+MIT
