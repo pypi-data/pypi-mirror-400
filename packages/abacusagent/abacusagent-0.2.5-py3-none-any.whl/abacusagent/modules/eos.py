@@ -1,0 +1,30 @@
+from pathlib import Path
+from typing import Literal
+
+from abacusagent.init_mcp import mcp
+from abacusagent.modules.submodules.eos import abacus_eos as _abacus_eos
+
+@mcp.tool()
+def abacus_eos(
+    abacus_inputs_dir: Path,
+    stru_scale_number: int = 3,
+    scale_stepsize: float = 0.02
+):
+    """
+    Use Birch-Murnaghan equation of state (EOS) to calculate the EOS data. The shape of fitted crystal is limited to cubic now.
+
+    Args:
+        abacus_inputs_dir (Path): Path to the ABACUS input files, which contains the INPUT, STRU, KPT, and pseudopotential or orbital files.
+        stru_scale_number (int): Number of structures to generate for EOS calculation.
+        scale_stepsize (float): Step size for scaling. Default is 0.02, which means 2% of the original cell size.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing EOS calculation results:
+            - "eos_work_path" (Path): Working directory for the EOS calculation.
+            - "eos_fig_path" (Path): Path to the EOS fitting plot (energy vs. volume).
+            - "E0" (float): Minimum energy (in eV) from the EOS fit.
+            - "V0" (float): Equilibrium volume (in Å³) corresponding to E0.
+            - "B0" (float): Bulk modulus (in GPa) at equilibrium volume.
+            - "B0_deriv" (float): Pressure derivative of the bulk modulus.
+    """
+    return _abacus_eos(abacus_inputs_dir, stru_scale_number, scale_stepsize)
