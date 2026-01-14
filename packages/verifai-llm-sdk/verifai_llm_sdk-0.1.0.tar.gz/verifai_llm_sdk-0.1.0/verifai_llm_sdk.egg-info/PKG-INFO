@@ -1,0 +1,107 @@
+Metadata-Version: 2.4
+Name: verifai-llm-sdk
+Version: 0.1.0
+Summary: VerifAI Python SDK for LLM tracing and evaluation
+Home-page: https://github.com/verifai-ai/verifai-sdk
+Author: VerifAI Contributors
+Author-email: VerifAI Contributors <hello@verifai.dev>
+License: Apache-2.0
+Project-URL: Homepage, https://github.com/verifai-ai/verifai-sdk
+Project-URL: Documentation, https://docs.verifai.dev
+Project-URL: Repository, https://github.com/verifai-ai/verifai-sdk
+Project-URL: Issues, https://github.com/verifai-ai/verifai-sdk/issues
+Keywords: ai,llm,tracing,evaluation,observability,opentelemetry
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.31.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: opentelemetry-sdk>=1.20.0
+Requires-Dist: opentelemetry-api>=1.20.0
+Requires-Dist: opentelemetry-instrumentation>=0.41b0
+Provides-Extra: openai
+Requires-Dist: opentelemetry-instrumentation-openai>=0.1.0; extra == "openai"
+Provides-Extra: langchain
+Requires-Dist: opentelemetry-instrumentation-langchain>=0.1.0; extra == "langchain"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Dynamic: author
+Dynamic: home-page
+Dynamic: requires-python
+
+# VerifAI SDK
+
+[![PyPI version](https://badge.fury.io/py/verifai-sdk.svg)](https://pypi.org/project/verifai-sdk/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+**VerifAI SDK** provides automatic tracing and evaluation for your AI/LLM applications. With one line of code, capture all LLM calls and send them to the VerifAI platform for analysis.
+
+## Installation
+
+```bash
+pip install verifai-sdk
+```
+
+## Quick Start
+
+```python
+import verifai
+from openai import OpenAI
+
+# 1. Initialize (one line!)
+verifai.auto_instrument(
+    project_name="my_project",
+    capture_content=True
+)
+
+# 2. Use your AI libraries as usual
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+# Traces are automatically sent to VerifAI! ✨
+```
+
+## Configuration
+
+Set your API key as an environment variable:
+
+```bash
+export VERIFAI_API_KEY="your_api_key_here"
+export VERIFAI_API_URL="http://localhost:8000"  # Optional
+```
+
+## Supported Frameworks
+
+- ✅ OpenAI
+- ✅ Anthropic
+- ✅ LangChain
+- ✅ LlamaIndex
+- ✅ Custom agents (via `@verifai.trace` decorator)
+
+## Manual Tracing
+
+For custom agent logic:
+
+```python
+@verifai.trace
+def my_agent(query: str):
+    # Your agent logic here
+    return result
+```
+
+## License
+
+Apache 2.0
