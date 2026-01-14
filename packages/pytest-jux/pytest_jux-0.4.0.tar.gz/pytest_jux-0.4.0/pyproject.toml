@@ -1,0 +1,210 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-jux"
+version = "0.4.0"
+description = "A pytest plugin for signing and publishing JUnit XML test reports to the Jux REST API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Georges Martin", email = "jrjsmrtn@gmail.com"}
+]
+keywords = [
+    "pytest",
+    "junit-xml",
+    "xml-signature",
+    "test-reporting",
+    "jux",
+    "security"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Security :: Cryptography",
+]
+
+dependencies = [
+    "lxml>=5.0",
+    "xmlschema>=2.5",
+    "signxml>=3.2",
+    "cryptography>=41.0",
+    "pytest>=7.4",
+    "pytest-metadata>=3.0",
+    "configargparse>=1.7",
+    "rich>=13.0",
+    "requests>=2.31",
+    "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1",
+    "mypy>=1.7",
+    "pytest-cov>=4.1",
+    "pytest-mock>=3.12",
+    "pytest-xdist>=3.5",
+    "coverage[toml]>=7.3",
+    "types-requests>=2.31",
+    "responses>=0.25",
+    "hypothesis>=6.92",
+    "pre-commit>=3.5",
+]
+
+security = [
+    "pip-audit>=2.6",
+    "safety>=3.0",
+]
+
+docs = [
+    "sphinx>=8.0",
+    "myst-parser>=4.0",
+    "sphinx-argparse-cli>=1.18",
+    "sphinx-autodoc-typehints>=2.0",
+    "furo>=2024.0",  # Modern Sphinx theme
+]
+
+[project.urls]
+Homepage = "https://github.com/jrjsmrtn/pytest-jux"
+Documentation = "https://github.com/jrjsmrtn/pytest-jux/tree/main/docs"
+Repository = "https://github.com/jrjsmrtn/pytest-jux"
+Issues = "https://github.com/jrjsmrtn/pytest-jux/issues"
+Security = "https://github.com/jrjsmrtn/pytest-jux/blob/main/docs/security/SECURITY.md"
+
+[project.entry-points.pytest11]
+jux_publisher = "pytest_jux.plugin"
+
+[project.scripts]
+jux-keygen = "pytest_jux.commands.keygen:main"
+jux-sign = "pytest_jux.commands.sign:main"
+jux-verify = "pytest_jux.commands.verify:main"
+jux-inspect = "pytest_jux.commands.inspect:main"
+jux-cache = "pytest_jux.commands.cache:main"
+jux-config = "pytest_jux.commands.config_cmd:main"
+jux-publish = "pytest_jux.commands.publish:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pytest_jux*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+minversion = "7.4"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=pytest_jux",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=85",
+]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "security: security-focused tests",
+    "slow: slow-running tests",
+]
+
+[tool.coverage.run]
+source = ["pytest_jux"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/site-packages/*",
+    "pytest_jux/__init__.py",  # Exclude package init (module-level only)
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    # Exclude import statements (standard practice)
+    "^import ",
+    "^from .* import",
+    # Exclude dataclass and type alias definitions
+    "@dataclass",
+    "^\\s*\\.\\.\\.$",  # Ellipsis in protocol definitions
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+extra_checks = true
+
+[[tool.mypy.overrides]]
+module = "lxml.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "signxml.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "configargparse.*"
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "S",   # flake8-bandit (security)
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["B008", "S101"]  # S101: Allow assert in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
