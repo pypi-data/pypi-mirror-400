@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - uses: pre-commit/action@v3.0.0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          enable-cache: true
+          version: "0.8.11"
+
+      - name: Build the project
+        run: uv build
+
+      - name: Build docs
+        if: github.event_name == 'pull_request'
+        run: uv run --group docs mkdocs build
+
+      - name: Upload docs
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: uv run --group docs mkdocs gh-deploy --force
