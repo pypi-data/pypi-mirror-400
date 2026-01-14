@@ -1,0 +1,29 @@
+spec:
+  container:
+    - name: server
+      image: /sas_test_spcs_db/sas_test_spcs_schema/sas_test_spcs_repository/my_job_server_image:latest
+      env:
+        SNOWFLAKE_WAREHOUSE: sas_test_spcs_warehouse
+      volumeMounts:
+        - name: heartbeat
+          mountPath: /var/heartbeat
+    - name: client
+      image: /sas_test_spcs_db/sas_test_spcs_schema/sas_test_spcs_repository/my_job_client_image:latest
+      env:
+        SNOWFLAKE_WAREHOUSE: sas_test_spcs_warehouse
+        SERVICE_NAME: test_service
+      volumeMounts:
+        - name: client-src
+          mountPath: /home/spark/client-src
+        - name: heartbeat
+          mountPath: /var/heartbeat
+      args:
+        - "test_spark_submit_cmd"
+        - "client_src_zip_file_path"
+  volumes:
+    - name: client-src
+      source: temp_stage_name
+      uid: 1001
+      gid: 1001
+    - name: heartbeat
+      source: local
