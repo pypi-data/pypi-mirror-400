@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Promptheus - Transform raw prompts into optimized gold through digital alchemy">
+    <title>Promptheus - Alchemical Prompt Optimization</title>
+    
+    <!-- Favicon Implementation -->
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="manifest" href="site.webmanifest">
+    <meta name="theme-color" content="#1a1a1a">
+    
+    <link rel="stylesheet" href="styles.css?v=1764005259">
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="top-bar">
+        <div class="top-bar-content">
+            <a href="#" class="logo">
+                <span class="logo-icon">⚗</span>
+                <span class="logo-text">Promptheus</span>
+            </a>
+            <div class="top-bar-controls">
+                <div class="provider-config-group">
+                    <div class="provider-selector">
+                        <label for="provider-select">Provider:</label>
+                        <select id="provider-select"
+                                aria-label="Select AI provider for processing prompts">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="provider-selector">
+                        <label for="model-select">Model:</label>
+                        <select id="model-select"
+                                disabled
+                                aria-label="Select AI model from chosen provider">
+                            <option value="">Auto</option>
+                        </select>
+                    </div>
+                    <button class="provider-status-indicator" id="provider-status-btn" title="System status" aria-label="System status">
+                        <span class="status-dot status-ok"></span>
+                    </button>
+                </div>
+                <button id="settings-btn" class="btn btn-secondary" aria-label="Open settings">
+                    <span>⚙</span>
+                    <span>Settings</span>
+                </button>
+            </div>
+            <button id="hamburger-btn" class="hamburger-btn" aria-label="Open mobile menu" aria-expanded="false">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Mobile Menu -->
+    <nav id="mobile-menu" class="mobile-menu" aria-hidden="true">
+        <div class="mobile-menu-header">
+            <div class="mobile-menu-title">Controls</div>
+            <button id="mobile-menu-close" class="mobile-menu-close" aria-label="Close menu">✕</button>
+        </div>
+        <div class="mobile-menu-section">
+            <div class="mobile-menu-section-title">Provider & Model</div>
+            <div class="provider-selector-mobile">
+                <label for="provider-select-mobile">Provider:</label>
+                <select id="provider-select-mobile"
+                        aria-label="Select AI provider"
+                        aria-describedby="provider-mobile-status">
+                    <option value="">Loading...</option>
+                </select>
+                <span id="provider-mobile-status" class="sr-only">Synced with main toolbar</span>
+                <span class="sync-indicator" id="provider-sync-indicator" aria-hidden="true">⟲</span>
+            </div>
+            <div class="provider-selector-mobile">
+                <label for="model-select-mobile">Model:</label>
+                <select id="model-select-mobile"
+                        disabled
+                        aria-label="Select AI model"
+                        aria-describedby="model-mobile-status">
+                    <option value="">Auto</option>
+                </select>
+                <span id="model-mobile-status" class="sr-only">Synced with main toolbar</span>
+                <span class="sync-indicator" id="model-sync-indicator" aria-hidden="true">⟲</span>
+            </div>
+        </div>
+        <a href="/web-ui-guide.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="width: 100%;">
+            <span>?</span>
+            <span>Help</span>
+        </a>
+        <button id="settings-btn-mobile" class="btn btn-secondary" style="width: 100%;">
+            <span>⚙</span>
+            <span>Settings</span>
+        </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+        <!-- Workspace Container - Side by Side -->
+        <div class="workspace-container">
+            <!-- Prompt Input Canvas -->
+            <section class="prompt-canvas" aria-label="Prompt input section">
+            <div class="prompt-input-wrapper">
+                <!-- Floating Toolbar for Mode and Style Controls -->
+                <div class="prompt-toolbar" role="toolbar" aria-label="Prompt controls">
+                    <div class="toolbar-left">
+                        <div class="toolbar-item">
+                            <div class="provider-selector" id="mode-selector">
+                                <span>Mode:</span>
+                                <select id="question-mode">
+                                    <option value="auto">Auto</option>
+                                    <option value="force">Always Ask</option>
+                                    <option value="skip">Skip Questions</option>
+                                </select>
+                                <button class="toolbar-help-icon" data-help-for="mode" aria-label="Mode help">
+                                    <span>ℹ</span>
+                                </button>
+                            </div>
+                            <!-- Help tooltip for Mode -->
+                            <div class="help-tooltip" id="mode-help-tooltip">
+                                <div class="help-tooltip-header">
+                                    <span>Mode Options</span>
+                                    <button class="help-tooltip-close" aria-label="Close help">✕</button>
+                                </div>
+                                <div class="help-tooltip-content">
+                                    <div class="help-option">
+                                        <div class="help-option-name">Auto</div>
+                                        <div class="help-option-description">AI intelligently detects your task type and decides whether to ask clarifying questions. Best for most users.</div>
+                                    </div>
+                                    <div class="help-option">
+                                        <div class="help-option-name">Always Ask</div>
+                                        <div class="help-option-description">Always asks clarifying questions to ensure the best possible optimization, even for simple prompts.</div>
+                                    </div>
+                                    <div class="help-option">
+                                        <div class="help-option-name">Skip Questions</div>
+                                        <div class="help-option-description">Optimizes immediately without any questions. Fastest option when you know what you want.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="toolbar-item">
+                            <div class="provider-selector" id="style-selector">
+                                <span>Style:</span>
+                                <select id="style-select">
+                                    <option value="default">Default</option>
+                                    <option value="bullets">Bullets</option>
+                                    <option value="steps">Steps</option>
+                                    <option value="plain">Plain</option>
+                                    <option value="concise">Concise</option>
+                                </select>
+                                <button class="toolbar-help-icon" data-help-for="style" aria-label="Style help">
+                                    <span>ℹ</span>
+                                </button>
+                            </div>
+                            <!-- Help tooltip for Style -->
+                            <div class="help-tooltip" id="style-help-tooltip">
+                                <div class="help-tooltip-header">
+                                    <span>Style Options</span>
+                                    <button class="help-tooltip-close" aria-label="Close help">✕</button>
+                                </div>
+                                <div class="help-tooltip-content">
+                                    <div class="help-option">
+                                        <div class="help-option-name">Default</div>
+                                        <div class="help-option-description">No specific formatting - AI decides the best structure based on your prompt content and context.</div>
+                                    </div>
+                                    <div class="help-option">
+                                        <div class="help-option-name">Bullets</div>
+                                        <div class="help-option-description">Format the final response as concise bullet points for easy scanning and quick comprehension.</div>
+                                    </div>
+                                    <div class="help-option">
+                                        <div class="help-option-name">Steps</div>
+                                        <div class="help-option-description">Return a numbered, step-by-step plan with clear sequential instructions for following processes.</div>
+                                    </div>
+                                    <div class="help-option">
+                                        <div class="help-option-name">Plain</div>
+                                        <div class="help-option-description">Use natural sentences without heavy formatting or special structural elements.</div>
+                                    </div>
+                                    <div class="help-option">
+                                        <div class="help-option-name">Concise</div>
+                                        <div class="help-option-description">Be brief and to the point while preserving key details and essential information.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="toolbar-right">
+                        <!-- Space for future features -->
+                    </div>
+                </div>
+
+                <label for="prompt-input" class="sr-only">Enter your prompt</label>
+                <textarea
+                    id="prompt-input"
+                    placeholder="Enter your prompt here..."
+                    aria-describedby="prompt-hint"
+                ></textarea>
+                <span id="prompt-hint" class="sr-only">Type your prompt and press the optimize button to improve it</span>
+            </div>
+
+            <!-- Simplified Controls Area -->
+            <div class="prompt-controls">
+                <div class="prompt-controls-left">
+                    <!-- Space for future stats or indicators -->
+                </div>
+                <div class="prompt-controls-right">
+                    <button id="cancel-btn" class="btn btn-danger hidden" aria-label="Cancel current operation">
+                        <span>✕</span>
+                        <span>Cancel</span>
+                    </button>
+                    <button id="start-over-btn" class="btn btn-secondary hidden" aria-label="Start new optimization">
+                        <span>↻</span>
+                        <span>Start Over</span>
+                    </button>
+                    <button id="submit-btn" class="btn btn-primary" aria-label="Optimize prompt">
+                        <span>Optimize Prompt</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Output Section -->
+        <section class="output-section" aria-label="Optimized prompt output">
+            <div class="output-header">
+                <h2 class="output-title">
+                    <span>🜃</span>
+                    <span>Optimized Prompt</span>
+                </h2>
+                <div class="output-actions">
+                    <button id="tweak-btn" class="btn btn-secondary hidden" title="Tweak this prompt" aria-label="Tweak optimized prompt">
+                        <span>🔧</span>
+                        <span>Tweak</span>
+                    </button>
+                    <button id="copy-btn" class="btn btn-secondary hidden" title="Copy to clipboard" aria-label="Copy optimized prompt">
+                        <span>📋</span>
+                        <span>Copy</span>
+                    </button>
+                </div>
+            </div>
+            <div id="output" aria-live="polite" aria-atomic="true">
+                <!-- Output messages will appear here dynamically -->
+            </div>
+        </section>
+        </div>
+
+        <!-- History Section -->
+        <section class="history-section" aria-label="Prompt history">
+            <div class="history-header">
+                <h2 class="history-title">History</h2>
+                <button id="clear-history-btn" class="btn btn-secondary btn-sm" title="Clear all history" aria-label="Clear history">
+                    <span>🗑</span>
+                    <span>Clear History</span>
+                </button>
+            </div>
+
+            <div id="history-list" class="history-grid" role="list">
+                <!-- History cards will be dynamically inserted here -->
+            </div>
+
+            <div class="history-pagination">
+                <button
+                    id="prev-page-btn"
+                    class="btn btn-secondary"
+                    aria-label="Previous page"
+                    disabled
+                >
+                    <span>←</span>
+                    <span>Previous</span>
+                </button>
+
+                <div class="pagination-info">
+                    <span class="pagination-current" id="current-page" aria-live="polite">1 of 1</span>
+                </div>
+
+                <button
+                    id="next-page-btn"
+                    class="btn btn-secondary"
+                    aria-label="Next page"
+                    disabled
+                >
+                    <span>Next</span>
+                    <span>→</span>
+                </button>
+
+                <div class="page-size-selector">
+                    <label for="page-size-select" class="sr-only">Items per page</label>
+                    <select id="page-size-select" aria-label="Items per page">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                    </select>
+                    <span>per page</span>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Settings Panel (Slide-out) -->
+    <div id="settings-overlay" class="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <aside id="settings-panel" class="settings-panel">
+            <header class="settings-header">
+                <div class="settings-header-content">
+                    <h2 id="settings-title" class="settings-title">
+                        <span>⚙</span>
+                        <span>Settings</span>
+                    </h2>
+                    <button id="settings-close-btn" class="btn btn-icon btn-secondary" aria-label="Close settings">
+                        <span>✕</span>
+                    </button>
+                </div>
+            </header>
+
+            <div class="settings-content">
+                <!-- Settings Form Container -->
+                <div id="settings-form">
+                    <!-- Settings form will be dynamically inserted here -->
+                    <!-- Includes: General Settings, API Keys -->
+                </div>
+
+                <!-- System Status Section -->
+                <section class="settings-category system-status-section">
+                    <h3 class="settings-category-heading">System Status</h3>
+
+                    <div class="system-status-actions">
+                        <button id="validate-all-providers-btn" class="btn btn-secondary btn-sm">
+                            <span>✓</span>
+                            <span>Validate All Providers</span>
+                        </button>
+                    </div>
+
+                    <div class="provider-status-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Provider</th>
+                                    <th>Status</th>
+                                    <th>Models</th>
+                                    <th>Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="provider-status-tbody">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: var(--text-tertiary); padding: var(--space-6);">
+                                        Click "Validate All Providers" to check status
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="cache-management">
+                        <button id="refresh-models-cache-btn" class="btn btn-secondary btn-sm">
+                            <span>🔄</span>
+                            <span>Refresh Model Cache</span>
+                        </button>
+                        <span class="cache-timestamp" id="cache-timestamp-settings">Last updated: --</span>
+                    </div>
+                </section>
+
+                <!-- About Section -->
+                <section class="settings-category about-section">
+                    <h3 class="settings-category-heading">About</h3>
+                    <div class="about-container">
+                        <div class="about-header">
+                            <div class="about-logo">
+                                <span class="logo-symbol">⚗</span>
+                            </div>
+                            <div class="about-title">
+                                <h4>Promptheus</h4>
+                                <p class="about-tagline">Digital Alchemy for Prompt Optimization</p>
+                            </div>
+                        </div>
+
+                        <div class="about-content">
+                            <div class="about-description">
+                                <p>Transform your raw prompts into golden perfection through AI-powered optimization</p>
+                            </div>
+
+                            <div class="version-section">
+                                <div class="version-header">
+                                    <span class="version-icon">🜃</span>
+                                    <span class="version-label">Build Information</span>
+                                </div>
+                                <div class="version-details">
+                                    <div class="version-row">
+                                        <span class="version-field">Version:</span>
+                                        <span id="version-text" class="version-value">Loading...</span>
+                                    </div>
+                                    <div id="build-info" class="build-details"></div>
+                                </div>
+                            </div>
+
+                            <div class="about-links">
+                                <a href="https://github.com/abhichandra21/Promptheus" target="_blank" rel="noopener noreferrer" class="about-link">
+                                    <span class="about-link-icon">🔗</span>
+                                    <span>GitHub Repository</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </aside>
+    </div>
+
+      <!-- Footer -->
+    <footer class="app-footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <div class="footer-logo">
+                    <span class="logo-symbol">⚗</span>
+                    <span class="footer-title">Promptheus</span>
+                </div>
+                <p class="footer-description">AI-powered prompt optimization through digital alchemy</p>
+            </div>
+
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4 class="footer-section-title">Product</h4>
+                    <ul class="footer-link-list">
+                        <li><a href="/web-ui-guide.html" target="_blank" rel="noopener noreferrer" class="footer-link">Documentation</a></li>
+                        <li><a href="#" onclick="window.promptheusApp.showKeyboardShortcuts()" class="footer-link">Keyboard Shortcuts</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h4 class="footer-section-title">Resources</h4>
+                    <ul class="footer-link-list">
+                        <li><a href="https://github.com/abhichandra21/Promptheus" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub</a></li>
+                        <li><a href="#" onclick="window.promptheusApp.openSettings()" class="footer-link">About</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <div class="footer-bottom-content">
+                <span class="footer-copyright">© 2025 Promptheus</span>
+                <span id="footer-version" class="footer-version">Loading...</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js?v=1764115199"></script>
+</body>
+</html>
