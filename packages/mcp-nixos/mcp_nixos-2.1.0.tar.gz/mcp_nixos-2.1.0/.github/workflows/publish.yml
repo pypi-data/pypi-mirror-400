@@ -1,0 +1,229 @@
+name: Publish Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      docker_only:
+        description: 'Build and push Docker images only (skip PyPI)'
+        required: false
+        type: boolean
+        default: true
+      tag:
+        description: 'Git tag to build from (e.g., v1.0.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Skip when manually triggered with docker_only
+    if: ${{ github.event_name == 'release' || !inputs.docker_only }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.tag || github.ref }}
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+
+    - name: Build Python package
+      run: |
+        nix develop --command python -m build
+        ls -la dist/
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+  deploy-test:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: testpypi
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Publish to Test PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+
+  deploy-prod:
+    needs: deploy-test
+    runs-on: ubuntu-latest
+    # Only deploy to PyPI for non-prerelease versions
+    if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+  docker-build:
+    if: ${{ github.event_name == 'release' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: amd64
+            system: x86_64-linux
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            system: aarch64-linux
+    permissions:
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.tag || github.ref }}
+
+    - name: Validate tag format
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        if [[ ! "${{ inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+          echo "Invalid tag format. Expected: v1.2.3 or v1.2.3-alpha"
+          exit 1
+        fi
+
+    - name: Verify tag exists
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        if ! git rev-parse --verify "refs/tags/${{ inputs.tag }}" >/dev/null 2>&1; then
+          echo "Tag ${{ inputs.tag }} does not exist"
+          exit 1
+        fi
+
+    - name: Normalize tag
+      id: tag
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          TAG="${{ inputs.tag }}"
+        else
+          TAG="${{ github.ref_name }}"
+        fi
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build Docker image with Nix
+      run: nix build .#packages.${{ matrix.system }}.docker
+
+    - name: Load and push arch-specific image
+      run: |
+        docker load < result
+        VERSION="${{ steps.tag.outputs.version }}"
+        for registry in "utensils/mcp-nixos" "ghcr.io/utensils/mcp-nixos"; do
+          docker tag ghcr.io/utensils/mcp-nixos:latest $registry:$VERSION-${{ matrix.arch }}
+          docker push $registry:$VERSION-${{ matrix.arch }}
+        done
+
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+
+  docker-manifest:
+    if: ${{ github.event_name == 'release' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    needs: docker-build
+    permissions:
+      packages: write
+
+    steps:
+    - name: Normalize tag
+      id: tag
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          TAG="${{ inputs.tag }}"
+        else
+          TAG="${{ github.ref_name }}"
+        fi
+        VERSION="${TAG#v}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "major=$(echo $VERSION | cut -d. -f1)" >> $GITHUB_OUTPUT
+        echo "minor=$(echo $VERSION | cut -d. -f1-2)" >> $GITHUB_OUTPUT
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create and push multi-arch manifests
+      run: |
+        VERSION="${{ steps.tag.outputs.version }}"
+        MAJOR="${{ steps.tag.outputs.major }}"
+        MINOR="${{ steps.tag.outputs.minor }}"
+        for registry in "utensils/mcp-nixos" "ghcr.io/utensils/mcp-nixos"; do
+          for tag in "latest" "$VERSION" "$MINOR" "$MAJOR"; do
+            docker manifest create $registry:$tag \
+              $registry:$VERSION-amd64 \
+              $registry:$VERSION-arm64
+            docker manifest push $registry:$tag
+          done
+        done
+
+    - name: Make GHCR package public
+      continue-on-error: true
+      run: |
+        gh api --method PATCH \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "/orgs/utensils/packages/container/mcp-nixos" \
+          -f visibility=public || echo "Could not set visibility via API"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
