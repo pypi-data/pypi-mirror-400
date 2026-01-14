@@ -1,0 +1,282 @@
+# coding: utf-8
+
+from huaweicloudsdkcore.utils.http_utils import sanitize_for_serialization
+
+
+class AudioInfo:
+
+    """
+    Attributes:
+      openapi_types (dict): The key is attribute name
+                            and the value is attribute type.
+      attribute_map (dict): The key is attribute name
+                            and the value is json key in definition.
+    """
+    sensitive_list = []
+
+    openapi_types = {
+        'codec': 'str',
+        'sample': 'int',
+        'channels': 'int',
+        'bitrate': 'int',
+        'bitrate_bps': 'int',
+        'duration': 'str',
+        'duration_ms': 'str'
+    }
+
+    attribute_map = {
+        'codec': 'codec',
+        'sample': 'sample',
+        'channels': 'channels',
+        'bitrate': 'bitrate',
+        'bitrate_bps': 'bitrate_bps',
+        'duration': 'duration',
+        'duration_ms': 'duration_ms'
+    }
+
+    def __init__(self, codec=None, sample=None, channels=None, bitrate=None, bitrate_bps=None, duration=None, duration_ms=None):
+        r"""AudioInfo
+
+        The model defined in huaweicloud sdk
+
+        :param codec: 音频编码格式
+        :type codec: str
+        :param sample: 音频采样率
+        :type sample: int
+        :param channels: 音频信道
+        :type channels: int
+        :param bitrate: 音频码率，单位: kbit/s 
+        :type bitrate: int
+        :param bitrate_bps: 音频码率，单位: bit/s 
+        :type bitrate_bps: int
+        :param duration: 音频流时长，单位：秒
+        :type duration: str
+        :param duration_ms: 音频流时长，单位：毫秒
+        :type duration_ms: str
+        """
+        
+        
+
+        self._codec = None
+        self._sample = None
+        self._channels = None
+        self._bitrate = None
+        self._bitrate_bps = None
+        self._duration = None
+        self._duration_ms = None
+        self.discriminator = None
+
+        if codec is not None:
+            self.codec = codec
+        if sample is not None:
+            self.sample = sample
+        if channels is not None:
+            self.channels = channels
+        if bitrate is not None:
+            self.bitrate = bitrate
+        if bitrate_bps is not None:
+            self.bitrate_bps = bitrate_bps
+        if duration is not None:
+            self.duration = duration
+        if duration_ms is not None:
+            self.duration_ms = duration_ms
+
+    @property
+    def codec(self):
+        r"""Gets the codec of this AudioInfo.
+
+        音频编码格式
+
+        :return: The codec of this AudioInfo.
+        :rtype: str
+        """
+        return self._codec
+
+    @codec.setter
+    def codec(self, codec):
+        r"""Sets the codec of this AudioInfo.
+
+        音频编码格式
+
+        :param codec: The codec of this AudioInfo.
+        :type codec: str
+        """
+        self._codec = codec
+
+    @property
+    def sample(self):
+        r"""Gets the sample of this AudioInfo.
+
+        音频采样率
+
+        :return: The sample of this AudioInfo.
+        :rtype: int
+        """
+        return self._sample
+
+    @sample.setter
+    def sample(self, sample):
+        r"""Sets the sample of this AudioInfo.
+
+        音频采样率
+
+        :param sample: The sample of this AudioInfo.
+        :type sample: int
+        """
+        self._sample = sample
+
+    @property
+    def channels(self):
+        r"""Gets the channels of this AudioInfo.
+
+        音频信道
+
+        :return: The channels of this AudioInfo.
+        :rtype: int
+        """
+        return self._channels
+
+    @channels.setter
+    def channels(self, channels):
+        r"""Sets the channels of this AudioInfo.
+
+        音频信道
+
+        :param channels: The channels of this AudioInfo.
+        :type channels: int
+        """
+        self._channels = channels
+
+    @property
+    def bitrate(self):
+        r"""Gets the bitrate of this AudioInfo.
+
+        音频码率，单位: kbit/s 
+
+        :return: The bitrate of this AudioInfo.
+        :rtype: int
+        """
+        return self._bitrate
+
+    @bitrate.setter
+    def bitrate(self, bitrate):
+        r"""Sets the bitrate of this AudioInfo.
+
+        音频码率，单位: kbit/s 
+
+        :param bitrate: The bitrate of this AudioInfo.
+        :type bitrate: int
+        """
+        self._bitrate = bitrate
+
+    @property
+    def bitrate_bps(self):
+        r"""Gets the bitrate_bps of this AudioInfo.
+
+        音频码率，单位: bit/s 
+
+        :return: The bitrate_bps of this AudioInfo.
+        :rtype: int
+        """
+        return self._bitrate_bps
+
+    @bitrate_bps.setter
+    def bitrate_bps(self, bitrate_bps):
+        r"""Sets the bitrate_bps of this AudioInfo.
+
+        音频码率，单位: bit/s 
+
+        :param bitrate_bps: The bitrate_bps of this AudioInfo.
+        :type bitrate_bps: int
+        """
+        self._bitrate_bps = bitrate_bps
+
+    @property
+    def duration(self):
+        r"""Gets the duration of this AudioInfo.
+
+        音频流时长，单位：秒
+
+        :return: The duration of this AudioInfo.
+        :rtype: str
+        """
+        return self._duration
+
+    @duration.setter
+    def duration(self, duration):
+        r"""Sets the duration of this AudioInfo.
+
+        音频流时长，单位：秒
+
+        :param duration: The duration of this AudioInfo.
+        :type duration: str
+        """
+        self._duration = duration
+
+    @property
+    def duration_ms(self):
+        r"""Gets the duration_ms of this AudioInfo.
+
+        音频流时长，单位：毫秒
+
+        :return: The duration_ms of this AudioInfo.
+        :rtype: str
+        """
+        return self._duration_ms
+
+    @duration_ms.setter
+    def duration_ms(self, duration_ms):
+        r"""Sets the duration_ms of this AudioInfo.
+
+        音频流时长，单位：毫秒
+
+        :param duration_ms: The duration_ms of this AudioInfo.
+        :type duration_ms: str
+        """
+        self._duration_ms = duration_ms
+
+    def to_dict(self):
+        result = {}
+
+        for attr, _ in self.openapi_types.items():
+            value = getattr(self, attr)
+            if isinstance(value, list):
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
+            elif hasattr(value, "to_dict"):
+                result[attr] = value.to_dict()
+            elif isinstance(value, dict):
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
+            else:
+                if attr in self.sensitive_list:
+                    result[attr] = "****"
+                else:
+                    result[attr] = value
+
+        return result
+
+    def to_str(self):
+        """Returns the string representation of the model"""
+        import simplejson as json
+        return json.dumps(sanitize_for_serialization(self), ensure_ascii=False)
+
+    def __repr__(self):
+        """For `print`"""
+        return self.to_str()
+
+    def __eq__(self, other):
+        """Returns true if both objects are equal"""
+        if not isinstance(other, AudioInfo):
+            return False
+
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        """Returns true if both objects are not equal"""
+        return not self == other
