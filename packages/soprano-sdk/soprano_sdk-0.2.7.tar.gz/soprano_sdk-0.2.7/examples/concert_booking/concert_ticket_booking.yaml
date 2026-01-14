@@ -1,0 +1,244 @@
+name: Concert Ticket Booking
+description: Manages concert ticket booking with seat selection, payment processing, and confirmation
+version: '1.0.0'
+
+data:
+  - name: bearer_token
+    type: text
+    description: User authentication bearer token for MFA
+  - name: customer_name
+    type: text
+    description: Customer's full name
+  - name: concert_name
+    type: text
+    description: Name of the concert to book
+  - name: seat_preference
+    type: text
+    description: Preferred seating section (VIP, Premium, General)
+  - name: ticket_quantity
+    type: number
+    description: Number of tickets to book
+  - name: seat_available
+    type: boolean
+    description: Whether requested seats are available
+  - name: payment_status
+    type: boolean
+    description: Payment transaction status
+  - name: confirmation_sent
+    type: boolean
+    description: Whether confirmation email was sent
+  - name: modification_requested
+    type: boolean
+    description: Whether customer wants to modify booking
+  - name: booking_reference
+    type: text
+    description: Unique booking reference number
+  - name: vip_price
+    type: number
+    description: VIP ticket price
+  - name: premium_price
+    type: number
+    description: Premium ticket price
+  - name: general_price
+    type: number
+    description: General ticket price
+
+steps:
+  - id: initialize_pricing
+    description: Initialize ticket pricing
+    action: call_function
+    function: booking_helpers.initialize_prices
+    output: vip_price
+    next: collect_customer_name
+
+  - id: collect_customer_name
+    description: Collect customer name
+    action: collect_input_with_agent
+    field: customer_name
+    max_attempts: 3
+    agent:
+      name: Customer Name Collector
+      model: gpt-4o-mini
+      initial_message: "Welcome to Concert Ticket Booking! Please provide your full name."
+      instructions: >
+        Extract the customer's full name from their message.
+        Return: NAME_CAPTURED: [customer_name] or INVALID_INPUT:
+    transitions:
+      - next: collect_concert_details
+        pattern: "NAME_CAPTURED:"
+      - next: booking_cancelled
+        pattern: "INVALID_INPUT:"
+
+  - id: collect_concert_details
+    description: Collect concert and seat preferences
+    action: collect_input_with_agent
+    field: concert_name
+    max_attempts: 3
+    agent:
+      name: Concert Details Collector
+      model: gpt-4o-mini
+      initial_message: "Hi {{customer_name}}! Which concert would you like to attend? Please specify the concert name."
+      instructions: >
+        Extract concert name from the user's message.
+        Return: CONCERT_CAPTURED: [concert_name] or CANCEL_REQUEST:
+    transitions:
+      - next: collect_seat_preference
+        pattern: "CONCERT_CAPTURED:"
+      - next: booking_cancelled
+        pattern: "CANCEL_REQUEST:"
+
+  - id: collect_seat_preference
+    description: Collect seating preference
+    action: collect_input_with_agent
+    field: seat_preference
+    max_attempts: 3
+    agent:
+      name: Seat Preference Collector
+      model: gpt-4o-mini
+      initial_message: >
+        Please choose your seating preference for {{concert_name}}:
+        - VIP (₹{{vip_price}})
+        - Premium (₹{{premium_price}})
+        - General (₹{{general_price}})
+      instructions: >
+        Identify seating preference (VIP, Premium, or General).
+        Return: SEAT_CAPTURED: [seat_preference] or CANCEL_REQUEST:
+    transitions:
+      - next: collect_ticket_quantity
+        pattern: "SEAT_CAPTURED:"
+      - next: booking_cancelled
+        pattern: "CANCEL_REQUEST:"
+
+  - id: collect_ticket_quantity
+    description: Collect number of tickets
+    action: collect_input_with_agent
+    field: ticket_quantity
+    max_attempts: 3
+    agent:
+      name: Ticket Quantity Collector
+      model: gpt-4o-mini
+      initial_message: "How many {{seat_preference}} tickets would you like to book? (Maximum 8 per booking)"
+      instructions: >
+        Extract the number of tickets (1-8).
+        Return: QUANTITY_CAPTURED: [ticket_quantity] or INVALID_QUANTITY:
+    transitions:
+      - next: check_seat_availability
+        pattern: "QUANTITY_CAPTURED:"
+      - next: booking_cancelled
+        pattern: "INVALID_QUANTITY:"
+
+  - id: check_seat_availability
+    description: Check if requested seats are available
+    action: call_function
+    function: booking_helpers.check_availability
+    output: seat_available
+    transitions:
+      - next: process_payment
+        condition: true
+      - next: offer_alternative_seats
+        condition: false
+
+  - id: offer_alternative_seats
+    description: Offer alternative seat options
+    action: collect_input_with_agent
+    field: seat_preference
+    max_attempts: 3
+    agent:
+      name: Alternative Seat Offer
+      model: gpt-4o-mini
+      initial_message: >
+        Sorry {{customer_name}}, {{seat_preference}} seats are not available for {{concert_name}}.
+        Would you like to try a different section?
+      instructions: >
+        Ask if user wants alternative seats.
+        Return: ALTERNATIVE_ACCEPTED: [new_preference] or BOOKING_DECLINED:
+    transitions:
+      - next: check_seat_availability
+        pattern: "ALTERNATIVE_ACCEPTED:"
+      - next: booking_cancelled
+        pattern: "BOOKING_DECLINED:"
+
+  # MFA-PROTECTED STEP: Payment processing requires authentication
+  - id: process_payment
+    description: Process payment transaction with MFA
+    action: call_function
+    function: booking_helpers.process_payment
+    output: payment_status
+    mfa:
+      model: gpt-4o-mini
+      type: REST
+      payload:
+        transactionType: CONCERT_TICKET_PAYMENT
+        businessKey:
+          customerName: "{{customer_name}}"
+          concertName: "{{concert_name}}"
+          seatPreference: "{{seat_preference}}"
+          ticketQuantity: "{{ticket_quantity}}"
+    transitions:
+      - next: send_confirmation
+        condition: true
+      - next: payment_failed
+        condition: false
+
+  # MFA-PROTECTED STEP: Sending confirmation requires authentication
+  - id: send_confirmation
+    description: Send booking confirmation with MFA
+    action: call_function
+    function: booking_helpers.send_confirmation
+    output: confirmation_sent
+    mfa:
+      model: gpt-4o-mini
+      type: REST
+      payload:
+        transactionType: SEND_TICKET_CONFIRMATION
+        businessKey:
+          bookingReference: "{{booking_reference}}"
+          customerName: "{{customer_name}}"
+    next: ask_modification_needed
+
+  - id: ask_modification_needed
+    description: Ask if customer wants to modify booking
+    action: collect_input_with_agent
+    field: modification_requested
+    max_attempts: 3
+    agent:
+      name: Modification Request Collector
+      model: gpt-4o-mini
+      initial_message: >
+        Booking confirmed for {{concert_name}}, {{customer_name}}!
+        Reference: {{booking_reference}}
+        Seats: {{ticket_quantity}} x {{seat_preference}}
+
+        Would you like to modify your booking details? (Yes/No)
+      instructions: >
+        Determine if user wants to modify the booking.
+        Return: MODIFICATION_REQUESTED: or NO_MODIFICATION:
+    transitions:
+      - next: collect_seat_preference
+        pattern: "MODIFICATION_REQUESTED:"
+      - next: booking_success
+        pattern: "NO_MODIFICATION:"
+
+  - id: payment_failed
+    description: Handle payment failure
+    action: call_function
+    function: booking_helpers.handle_payment_failure
+    output: payment_status
+    next: booking_failed
+
+outcomes:
+  - id: booking_success
+    type: success
+    message: "Thank you {{customer_name}}! Your {{ticket_quantity}} {{seat_preference}} tickets for {{concert_name}} have been confirmed. Booking reference: {{booking_reference}}"
+
+  - id: booking_cancelled
+    type: failure
+    message: "Booking cancelled. Feel free to start a new booking anytime!"
+
+  - id: booking_failed
+    type: failure
+    message: "We couldn't complete your booking. Please try again or contact support."
+
+  - id: payment_failed
+    type: failure
+    message: "Payment failed. Please check your payment method and try again."
