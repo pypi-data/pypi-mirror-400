@@ -1,0 +1,158 @@
+# tgzr.pipeline [prototype]
+
+tgzr's pipeline Engine
+
+# Concepts
+
+## Asset Packaging
+
+*"All your assets are belong to a package index."*
+
+We're using python packages to represent assets, so:
+- Assets are versioned, SemVer style: `major.minor.micro[.suffix]`
+- Assets dependencies can be:
+    - Abstract: `KitchenSet-1.2` requires `Table`
+        - This effectively gives a "push" pipeline
+        - Every publication of `Table` will affect `KitchenSet` automatically.
+    - Bounded: `KitchenSet-1.3` requires `Table>=1.2.3<2.0`
+        - This effectively gives a "semi-push" pipeline
+        - Every publication of `Table` will affect `KitchenSet` automatically unless the version major has changed.
+    - Concrete: `KitchenSet-1.4` requires `Table==3.2.1`
+        - This effectively gives a "pull" pipeline
+- Asset can be installed from 
+    - a package index (LAN or WAN)
+    - a folder (local or shared)
+- Assets dependencies are automatically installed when installing the Asset.
+- Asset dependencies are versioned with the asset
+    - `Table==1.2.3` dependencies != `Table==2.3.4` dependencies
+- Assets dependencies can be grouped and type:
+    - build dependencies for building a scene
+    - edit dependencies to open and edit a scene
+    - export dependencies to export edited content to new assets
+- An asset can be installed as "output" (i.e editable mode) so that:
+    - It can be edited
+    - Its version can be bumped
+    - It can be built and published.
+- Assets can be published to:
+    - a package index (LAN or WAN)
+    - a folder (local or shared)
+    - We call them "repos"
+- Assets can be published to different repos, for example:
+    - A `blessed` repo, used as default installation source.
+    - A `review` repo, used as default publish target.
+- Assets dependencies can be actual pyton code, so assets can:
+    - Contain the code needed to use them or transcode them
+        - custom asset setup during scene building
+        - on-the-fly rigging with in-dcc tools
+    - Run dependency processes on their value:
+        - Build their counterpart in DCC documents
+        - Be processed by dependencies
+            - generative aggregation (todays_reviews, new_delivery, ...)
+            - arbitrary collection (playlist, anim_tools, render_settings, ...)
+        - Create/Clone/Edit/Build/Publish other assets
+
+✨ All of this almost for **FREE** and blasing **FAST** thanks to `uv` ✨
+
+    - "But wait... can I really shove a 800Go simulation in a python wheel?!?
+    - No, you can't. You silly one...
+    - So what is that ?! A Pipeline for ants?!?
+    - Ok, there's a trick ^_^ Assets files are not stored in the asset packages."
+
+
+## Asset Files
+
+Even though some creative minds manage to bundle 12Go ML models in python packages, we know it does not lead to a good experience ^_^'
+
+But thanks to amazing people, this need has been solved with [dvc](https://dvc.org/)
+which stands for "Data Version Control" (check it out, it's amazing).
+
+So we're using `dvc` to version and store the asset files. And since assets can execute code they can easily `dvc pull` or `dvc push` their files when requested.
+
+Thanks to `dvc`:
+- Asset files are versioned in sync with Asset packaged data.
+- Asset files can be pulled and pushed many storage flavors:
+    - The filesystem (local or LAN)
+    - SSH
+    - SFTP
+    - HTTP
+    - Amazon S3 and compatible storage (Min.io)
+    - Azure Blob Storage
+    - Google Cloud Storage
+    - Google Drive
+    - Aliyun OSS (Alibaba)
+    - WebDAV
+- Asset files content is deduplicated in local cache and in storage.
+    - Publishing a new version of a 500 frames sequence with only 3 frames changed will only take the space of the 3 changed frames.
+- Asset files can be pulled from shared cache deployed as you need.
+- Asset files can be ingested ("imported") from external source while retaining the source state so you know when you need to reimport them.
+- Asset can define and execute `dvc pipeline` to automatically transform/transcode/translate their files when the dependencies have changed:
+    - Automatically create movie from published frames
+    - Automatically transcode movies for web player
+    - Basically create any alternative representation of the files as needed.
+
+## Workspaces
+
+Before intalling Asset and create or edit other Assets, you need to setup an environment. We call this environemt a `Workspaces`.
+
+The Workspace is a folder containing:
+- inputs: a python virtualenv where the asset packages will be installed.
+- outputs: a folder where the editable assets are deployed.
+- build: a folder containing the publishable builds of editable assets.
+- external_packages: a folder with all non-asset dependencies neeed by your assets
+
+The Workspace is configured with a list of "repos". One of them is `blessed` and 
+one of them is `default`.
+
+When an Asset is created in the Workspace, it is configured with the same repos.
+When that asset is installed or build, its dependencies will be pulled from the corresponding repo.
+
+> Note:
+>
+> For now only folder repo are supported, but support for `devpi` index will be implemented to allow multi-site collaboration.
+
+The Workspace remembers which asset you required for install and can export that in
+a requirements.txt.\
+This means that Workspaces are reproductible, which will help for process distribution, debug, tutorial reciepies, etc...
+
+## What are the drawbacks?
+
+### Working Locally
+
+Some people think that working locally is not a good thing.
+
+We do believe that this feeling comes from the challenges involved:
+- Bad tracking of dependencies lead to data loss.
+- Sometimes the speed you gain in working with local files is not worth the time needed to transfer the data.
+
+But sometimes you don't have a choice and you need your file locally to edit them:
+- You may not be on the file server LAN
+- You may not have access to a shared drive on the server
+- You may have intermittent internet connection
+- You maybe stream data direct from disk and need a very fast SSD
+
+We think that our battle tested dependency tracking technology (python packaging) and the caching/optimization of data (dvc), coupled with a pipeline thought from the ground for multi-site collaboration offer way more options than the non-universal benefits of LAN/VPN setups.
+
+Also, free data backup... right? >_<
+
+### Complexity
+
+Some could argue that all this is way more complicated than what we need:
+- "Asset versioning doesn't need semver"
+- "Tracking dependencies *per version* is overkill"
+- "What do you mean "push" or "pull" dataflow? We do anime, not ML!"
+
+We disagree on all these points :p
+
+But more importantly: whatever the complexity, what counts is the user experience.\
+Try it, and if there are parts you don't like tell us what we can do to improve your experiencs <3
+
+### Adoption
+
+You may think that adopting tgzr.org is a big decision just to enjoy a better pipeline engine.
+
+You'll be pleased to know that `tgzr.pipeline` has no dependency on the `tgzr` runtime.
+Even if both share a few libraries, you can totally use `tgzr.pipeline` without other parts of `tgzr`.
+
+Of course, you would miss some great integration between `tgzr.pipeline` and the `tgzr` settings, entities, hosts, apps, services etc... But all the benefits of `tgzr.pipeline` would still be delivered.
+
+
