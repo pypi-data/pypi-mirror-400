@@ -1,0 +1,81 @@
+# Parâmetros do script
+$VMMServer="{{ vmm_server }}"
+$VMName = "{{ vm_name }}"
+$Description = "{{ description }}"
+$TemplateName = "{{ image }}"
+$CPUCount = "{{ cpu }}"
+$MemoryMB = "{{ memory }}"
+$DynamicMemory = {{ "$true" if dynamic_memory else "$false" }}
+$CloudName = "{{ cloud }}"
+
+# Validações
+$MsgsErro = ''
+
+$cloud = Get-SCCloud -VMMServer $VMMServer -Name $CloudName
+if (!$cloud ) {
+  $MsgsErro += "Cloud (Cloud) $CloudName not found.`n"
+}
+
+$image = Get-SCVMTemplate -VMMServer $VMMServer | Where {$_.Name -eq $TemplateName }
+if (!$image ) {
+  $MsgsErro += "Image (Template) $TemplateName not found.`n"
+}
+
+{% for network in networks %}
+$network = Get-SCVMNetwork -VMMServer $VMMServer -Name "{{ network }}"
+if (!$network ) {
+  $MsgsErro += "Rede {{ network }} not found.`n"
+}
+{% endfor %}
+
+if ($cloud){
+  $custom_group = Get-SCCustomProperty -VMMServer $VMMServer -Name "{{ field_group }}"
+  $vms_nuvem = Get-SCVirtualMachine -VMMServer $VMMServer -Cloud $cloud
+  foreach($vm in $vms_nuvem) {
+    $group = Get-SCCustomPropertyValue -InputObject $vm -CustomProperty $custom_group
+    if ($group.Value -ne "{{ group }}" -and $vm.Name -eq $VMName) {
+      $MsgsErro += "O name '$vm' já está sendo usado por uma VM na cloud '$cloud'.`n"
+    }
+  }
+}
+
+
+# Tratando erro
+if ($MsgsErro){
+  $Resultado = [PSCustomObject]@{
+    Status = 'ERRO'
+    Msgs = $MsgsErro
+  }
+}else{
+  # Variáveis de controle
+  $JobGroupID = "{{ guid }}"
+  $TemporaryName = "$JobGroupID"
+  $TemplateBase = Get-SCVMTemplate -VMMServer $VMMServer -Name $TemplateName
+  $CPUType = $TemplateBase.CPUType
+  $CapabilityProfile = $TemplateBase.CapabilityProfile
+  $MemoryMBMin = [math]::min( 2048 , $MemoryMB )
+
+  New-SCVirtualScsiAdapter -VMMServer $VMMServer -JobGroup $JobGroupID -AdapterID 7 -ShareVirtualScsiAdapter $false -ScsiControllerType DefaultTypeNoType
+  New-SCVirtualDVDDrive -VMMServer $VMMServer -JobGroup $JobGroupID -Bus 0 -LUN 1
+
+  {% for network in networks %}
+  $VMNetwork{{ loop.index }} = Get-SCVMNetwork -VMMServer $VMMServer -Name "{{ network }}"
+  New-SCVirtualNetworkAdapter -VMMServer $VMMServer -JobGroup $JobGroupID -VMNetwork $VMNetwork{{ loop.index }} -MACAddress "00:00:00:00:00:00" -MACAddressType Static -Synthetic -EnableVMNetworkOptimization $false -EnableMACAddressSpoofing $false -EnableGuestIPNetworkVirtualizationUpdates $false -IPv4AddressType Static -IPv6AddressType Dynamic -DevicePropertiesAdapterNameMode Disabled 
+  {% endfor %}
+
+  {% set memoria_dinamica_params_adic = "-DynamicMemoryMinimumMB $MemoryMBMin -DynamicMemoryMaximumMB $MemoryMB -DynamicMemoryBufferPercentage 35" if dynamic_memory else "" %}
+
+  $HardwareProfile = New-SCHardwareProfile -VMMServer $VMMServer -JobGroup $JobGroupID -Name $TemporaryName -CPUType $CPUType -CapabilityProfile $CapabilityProfile -Description "Perfil temporário do vmm_manager" -CPUCount $CPUCount -MemoryMB $MemoryMB -DynamicMemoryEnabled $DynamicMemory {{ memoria_dinamica_params_adic }} -MemoryWeight 5000 -CPUExpectedUtilizationPercent 20 -DiskIops 0 -CPUMaximumPercent 100 -CPUReserve 0 -NumaIsolationRequired $false -NetworkUtilizationMbps 0 -CPURelativeWeight 100 -HighlyAvailable $true -HAVMPriority 2000 -DRProtectionRequired $false -SecureBootEnabled $false -CPULimitFunctionality $false -CPULimitForMigration $false -CheckpointType Production -Generation 2
+  $Template = New-SCVMTemplate -JobGroup $JobGroupID -Name $TemporaryName -ComputerName $VMName -Template $TemplateBase -HardwareProfile $HardwareProfile
+
+  $virtualMachineConfiguration = New-SCVMConfiguration -VMTemplate $Template -Name $VMName
+  $cloud = Get-SCCloud -Name $CloudName
+  New-SCVirtualMachine -Name $VMName -VMConfiguration $virtualMachineConfiguration -Cloud $cloud -Description $Description -JobVariable "VMMJob" -JobGroup $JobGroupID -ReturnImmediately -StartAction "TurnOnVMIfRunningWhenVSStopped" -StopAction "SaveVM" -StartVM
+
+  $Resultado = [PSCustomObject]@{
+    Status = 'OK'
+    Guid = $VMMJob.ID.Guid
+  }
+}
+
+ConvertTo-Json -Depth 3 $Resultado

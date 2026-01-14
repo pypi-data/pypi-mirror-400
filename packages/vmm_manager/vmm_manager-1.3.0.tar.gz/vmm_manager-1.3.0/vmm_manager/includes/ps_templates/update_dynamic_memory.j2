@@ -1,0 +1,38 @@
+# Recuperar VM com segurança
+# Pelo ID gera dependência cíclica e, só pelo name, pode gerar conflito
+# SCVMM allows more than one VM with the same name!
+$VM = $null
+$custom_group = Get-SCCustomProperty -VMMServer "{{ vmm_server }}" -Name "{{ field_group }}"
+$custom_name_id = Get-SCCustomProperty -VMMServer "{{ vmm_server }}" -Name "{{ field_id }}"
+$cloud = Get-SCCloud -VMMServer "{{ vmm_server }}" -Name "{{ cloud }}"
+$vms_nuvem = Get-SCVirtualMachine -VMMServer "{{ vmm_server }}" -Cloud $cloud
+
+foreach($vm_obj in $vms_nuvem) {
+  $group = Get-SCCustomPropertyValue -InputObject $vm_obj -CustomProperty $custom_group
+  if ($group.Value -eq "{{ group }}") {
+    $nome_id = Get-SCCustomPropertyValue -InputObject $vm_obj -CustomProperty $custom_name_id
+
+    # Recuperando VM correta
+    if ("{{ vm_name }}" -eq $nome_id.Value){
+        $VM = $vm_obj
+    }
+  }
+}
+
+$MemoryMB = $VM.Memory
+$MemoryMBMin = [math]::min( 2048 , $MemoryMB )
+$DynamicMemory = {{ "$true" if dynamic_memory else "$false" }}
+{% set memoria_dinamica_params_adic = "-DynamicMemoryMinimumMB $MemoryMBMin -DynamicMemoryMaximumMB $MemoryMB -DynamicMemoryBufferPercentage 35" if dynamic_memory else "" %}
+
+# Máquina deve estar desligada
+if ($VM.Status -ne "Poweroff"){
+    Stop-SCVirtualMachine -VM $VM | Out-Null
+}
+
+Set-SCVirtualMachine -VM $VM -DynamicMemoryEnabled $DynamicMemory {{ memoria_dinamica_params_adic }} | Out-Null
+Start-SCVirtualMachine -VM $VM | Out-Null
+
+$Resultado = [PSCustomObject]@{
+    Status = 'OK'
+}
+ConvertTo-Json -Depth 3 $Resultado
