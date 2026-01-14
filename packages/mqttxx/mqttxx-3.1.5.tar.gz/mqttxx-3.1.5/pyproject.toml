@@ -1,0 +1,140 @@
+[build-system]
+requires = ["setuptools>=70.0,<71", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mqttxx"
+version = "3.1.5"
+description = "基于 aiomqtt 的高级 MQTT 客户端和 RPC 框架"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "MQTTX Team"}
+]
+keywords = ["mqtt", "rpc", "async", "iot", "messaging"]
+
+dependencies = [
+    "aiomqtt>=2.0.0,<3.0.0",
+    "loguru>=0.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-rich",
+    "ruff",
+    "build",
+    "twine",
+]
+
+# [project.urls]
+# Homepage = "https://github.com/yourusername/mqttx"
+# Documentation = "https://github.com/yourusername/mqttx#readme"
+# Repository = "https://github.com/yourusername/mqttx"
+# Issues = "https://github.com/yourusername/mqttx/issues"
+
+[tool.setuptools]
+packages = ["mqttxx"]
+
+[tool.setuptools.package-data]
+mqttxx = ["py.typed"]
+
+# ==================== Pytest 配置 ====================
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "performance: Performance tests",
+    "p0: P0 fix verification tests",
+    "slow: Slow-running tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+log_cli = true
+log_cli_level = "INFO"
+
+# ==================== Coverage 配置 ====================
+[tool.coverage.run]
+source = ["mqttxx"]
+omit = [
+    "tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+]
+
+
+[tool.ruff]
+# Ruff 基本行为
+target-version = "py311"
+line-length = 100
+fix = true
+unsafe-fixes = false
+
+# 不扫描的目录
+exclude = [
+  ".git",
+  ".venv",
+  "__pycache__",
+  ".pytest_cache",
+  "dist",
+  "build",
+]
+
+# =========================
+# 规则选择（重点）
+# =========================
+[tool.ruff.lint]
+select = [
+  # 基础错误
+  "F",      # Pyflakes（未使用变量、未定义名）
+  "E",      # pycodestyle error
+  "W",      # pycodestyle warning
+
+  # 代码质量
+  "B",      # flake8-bugbear（非常值得）
+  "SIM",    # flake8-simplify（适度）
+  "UP",     # pyupgrade（现代 Python）
+  "C4",     # flake8-comprehensions
+  "RUF",    # Ruff 自身规则
+
+  # asyncio / 并发安全
+  "ASYNC",
+
+  # pytest（你在大量用）
+  "PT",
+
+  # import 顺序
+  "I",
+]
+
+ignore = [
+  # === 工程中非常常见、但不值得管 ===
+
+  "E501",   # 行长度（我们用 line-length 控制）
+  "B008",   # 在函数参数里调用函数（FastAPI / Depends 常见）
+  "B905",   # zip(strict=...)（工程中收益极低）
+
+  # pytest
+  "PT004",  # pytest fixture 名强制下划线（太教条）
+  "PT011",  # pytest.raises() 过度约束
+
+  # simplify
+  "SIM108", # if-else return（可读性争议）
+]
+
+# =========================
+# import 排序
+# =========================
+[tool.ruff.lint.isort]
+known-first-party = ["mqttxx"]
