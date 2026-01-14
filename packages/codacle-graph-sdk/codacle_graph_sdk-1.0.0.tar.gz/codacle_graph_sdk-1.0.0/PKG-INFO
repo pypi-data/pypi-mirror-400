@@ -1,0 +1,84 @@
+Metadata-Version: 2.4
+Name: codacle-graph-sdk
+Version: 1.0.0
+Summary: Python SDK for the Codacle Graph Service API
+License: MIT
+Author: Octavio
+Author-email: octaviopavon7@gmail.com
+Requires-Python: >=3.10,<4.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: Pydantic :: 2
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Typing :: Typed
+Requires-Dist: httpx (>=0.27.0,<0.28.0)
+Requires-Dist: pydantic (>=2.0,<3.0)
+Requires-Dist: typing-extensions (>=4.0,<5.0)
+Project-URL: Repository, https://github.com/codacle/codacle-graph-sdk
+Description-Content-Type: text/markdown
+
+# Codacle Graph SDK
+
+Python SDK for the Codacle Graph Service API. Provides sync/async clients with statically typed models for Neo4j graph operations.
+
+## Installation
+
+```bash
+pip install codacle-graph-sdk
+```
+
+## Quick Start
+
+### Sync Client
+
+```python
+from codacle_graph_sdk import CodacleGraphClient
+
+with CodacleGraphClient(
+    url="https://api.codacle.com",
+    api_key="your-api-key",
+    alias="production-db",
+) as client:
+    # Natural language query
+    result = client.natural_query("Find all classes")
+    for node in result.get_nodes():
+        print(node.name)
+
+    # Direct Cypher query
+    result = client.cypher_query("MATCH (c:Class) RETURN c LIMIT 10")
+```
+
+### Async Client
+
+```python
+import asyncio
+from codacle_graph_sdk import AsyncCodacleGraphClient
+
+async def main():
+    async with AsyncCodacleGraphClient(
+        url="https://api.codacle.com",
+        api_key="your-api-key",
+    ) as client:
+        result = await client.natural_query("Find all modules")
+        print(result.get_nodes())
+
+asyncio.run(main())
+```
+
+## Features
+
+- Sync and async clients
+- Typed node models (Client, Application, Module, Class, Subroutine, etc.)
+- Typed relationship models
+- Convenience methods for graph traversal
+- Exception hierarchy mirroring API errors
+
+## License
+
+MIT
+
