@@ -1,0 +1,206 @@
+# fast2common
+
+**Core utilities for automated Android testing**
+
+A comprehensive toolkit for Android RPA (Robotic Process Automation) including ADB control, AI-powered UI analysis, and test case actions.
+
+## Features
+
+### 🎯 Core Components
+
+- **ADB Controller**: Advanced Android Debug Bridge control
+- **AI Client**: Integration with ZhipuAI for intelligent analysis
+- **Screenshot Analyzer**: AI-powered UI element detection and analysis
+- **UI Analyzer**: Parse and analyze Android UI hierarchy
+- **Animation Detector**: Detect and wait for UI animations
+- **Icon Locator**: AI-based icon matching and localization
+- **Coordinate Converter**: Convert between coordinate systems
+- **Element Locator**: Find UI elements by various criteria
+
+### 🚀 Test Actions (New!)
+
+Extensible test case action framework:
+
+- **Tap**: Click on screen elements (supports AI-based element finding)
+- **Swipe**: Gesture-based swipe actions
+- **Launch App**: Start Android applications
+- **Close App**: Force-stop applications
+- **Input**: Input text into fields
+- **Wait**: Wait for specified duration
+- **Press Back**: Navigate back
+- **Screenshot**: Capture screen states
+
+## Installation
+
+```bash
+pip install fast2common
+```
+
+### Development installation
+
+```bash
+git clone https://github.com/yourorg/fast2common.git
+cd fast2common
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+### ADB Control
+
+```python
+from fast2common.adb_controller import ADBController
+
+# Initialize ADB controller
+adb = ADBController(device_id="emulator-5554")
+
+# Take screenshot
+adb.screenshot("/path/to/screenshot.png")
+
+# Get UI dump
+ui_xml = adb.get_ui_dump()
+
+# Click at coordinates
+adb.click(100, 200)
+```
+
+### Test Case Actions
+
+```python
+from fast2common.actions import ActionExecutor, ActionContext
+import asyncio
+
+async def run_test():
+    # Create execution context
+    context = ActionContext(
+        device_id="emulator-5554",
+        package_name="com.example.app",
+        main_activity=".MainActivity",
+        task_id="test_001"
+    )
+
+    # Execute tap action
+    result = await ActionExecutor.execute(
+        action_type="tap",
+        action_data={"x": 100, "y": 200},
+        context=context
+    )
+
+    if result.success:
+        print(f"✅ Success: {result.message}")
+    else:
+        print(f"❌ Error: {result.error}")
+
+asyncio.run(run_test())
+```
+
+### UI Analysis
+
+```python
+from fast2common.screenshot_analyzer import ScreenshotAnalyzer
+
+# Analyze screenshot for UI elements
+analyzer = ScreenshotAnalyzer()
+result = analyzer.analyze_screenshot(
+    screenshot_path="screenshot.png",
+    prompt="Find all clickable buttons"
+)
+
+# Get detected elements
+for element in result.get("elements", []):
+    print(f"Found: {element['label']} at {element['bounds']}")
+```
+
+## Supported Action Types
+
+| Action | Description | Example |
+|--------|-------------|---------|
+| `tap` | Click on screen | `{"x": 100, "y": 200}` |
+| `swipe` | Swipe gesture | `{"start_x": 100, "start_y": 200, "end_x": 300, "end_y": 400}` |
+| `launch_app` | Launch app | `{"package_name": "com.example.app", "main_activity": ".MainActivity"}` |
+| `close_app` | Close app | `{"package_name": "com.example.app"}` |
+| `input` | Input text | `{"text": "Hello World"}` |
+| `wait` | Wait time | `{"duration": 2}` |
+| `press_back` | Back button | `{}` |
+| `screenshot` | Take screenshot | `{}` |
+
+## Extending Actions
+
+Create custom actions easily:
+
+```python
+from fast2common.actions.base import BaseAction, ActionContext, ActionResult
+from fast2common.actions import ActionExecutor
+
+class CustomAction(BaseAction):
+    action_type = "custom_action"
+    description = "My custom action"
+
+    async def execute(self, action_data, context, send_log_callback=None):
+        # Your implementation here
+        return ActionResult(
+            success=True,
+            message="Action completed"
+        )
+
+# Register custom action
+ActionExecutor.register_action("custom_action", CustomAction)
+```
+
+## Requirements
+
+- Python 3.8+
+- Android SDK (for ADB)
+- ZhipuAI API key (for AI features)
+
+## Dependencies
+
+```
+zhipuai>=1.0.0
+pillow>=9.0.0
+aiohttp>=3.8.0
+```
+
+## Documentation
+
+Full documentation is available at [https://fast2common.readthedocs.io](https://fast2common.readthedocs.io)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Changelog
+
+### 0.2.0 (2025-01-08)
+- ✨ Added extensible test case actions framework
+- ✨ Added ActionExecutor for unified action execution
+- ✨ Added 8 built-in action types (tap, swipe, launch_app, etc.)
+- 📝 Improved documentation
+- 🐛 Bug fixes
+
+### 0.1.2 (2025-01-05)
+- Initial release
+- ADB controller
+- UI analysis tools
+- AI client integration
+
+## Support
+
+- GitHub Issues: [https://github.com/yourorg/fast2common/issues](https://github.com/yourorg/fast2common/issues)
+- Email: test@example.com
+
+## Acknowledgments
+
+- ZhipuAI for AI analysis capabilities
+- Android Open Source Project
+- All contributors
