@@ -1,0 +1,59 @@
+Metadata-Version: 2.4
+Name: devqubit-cirq
+Version: 0.1.0
+Summary: devqubit adapter for Cirq
+Author: devqubit
+License-Expression: Apache-2.0
+License-File: LICENSE
+Keywords: cirq,experiment-tracking,quantum
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: <3.14,>=3.11
+Requires-Dist: cirq<2,>=1.6
+Requires-Dist: devqubit-engine<0.2.0,>=0.1.0
+Requires-Dist: ply>=3.11
+Description-Content-Type: text/markdown
+
+# devqubit-cirq
+
+Google Cirq adapter for devqubit. Automatically captures circuits and results from Cirq simulators.
+
+## Installation
+
+```bash
+pip install devqubit[cirq]
+```
+
+## Usage
+
+```python
+import cirq
+from devqubit import track
+
+q0, q1 = cirq.LineQubit.range(2)
+circuit = cirq.Circuit([
+    cirq.H(q0),
+    cirq.CNOT(q0, q1),
+    cirq.measure(q0, q1, key="result"),
+])
+
+with track(project="cirq-exp") as run:
+    simulator = run.wrap(cirq.Simulator())
+    result = simulator.run(circuit, repetitions=1000)
+```
+
+## What's Captured
+
+- **Circuits** — Cirq JSON, OpenQASM 3
+- **Results** — Measurement counts, histograms
+- **Simulator info** — Simulator type, configuration
+
+## License
+
+Apache 2.0
