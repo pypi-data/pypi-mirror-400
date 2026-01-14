@@ -1,0 +1,178 @@
+# GitLab CI/CD Configuration for task-ng
+
+# Define stages
+stages:
+  - lint
+  - test
+  - security
+  - coverage
+  - deploy
+
+# Default settings for all jobs
+default:
+  image: python:3.11
+  before_script:
+    - python --version
+    - pip install --upgrade pip
+    # Generate version info from git before installing
+    - python scripts/generate_version.py
+    - pip install -e ".[dev]"
+
+# Cache pip packages between jobs
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - .venv/
+
+# -----------------------
+# Linting Jobs
+# -----------------------
+
+ruff-check:
+  stage: lint
+  script:
+    - ruff check src/ tests/
+  allow_failure: false
+
+ruff-format:
+  stage: lint
+  script:
+    - ruff format --check src/ tests/
+  allow_failure: false
+
+mypy:
+  stage: lint
+  script:
+    - mypy src/
+  allow_failure: false
+
+# -----------------------
+# Test Jobs
+# -----------------------
+
+# Test on Python 3.11
+test:python3.11:
+  stage: test
+  image: python:3.11
+  script:
+    - pytest -v --cov --cov-report=term --cov-report=xml
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.xml
+      - .coverage
+    expire_in: 1 week
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+
+# Test on Python 3.12
+test:python3.12:
+  stage: test
+  image: python:3.12
+  script:
+    - pytest -v --cov --cov-report=term --cov-report=xml
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.xml
+    expire_in: 1 week
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+
+# Test on Python 3.13
+test:python3.13:
+  stage: test
+  image: python:3.13
+  script:
+    - pytest -v --cov --cov-report=term --cov-report=html
+  artifacts:
+    paths:
+      - htmlcov/
+    expire_in: 1 week
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  allow_failure: true  # Python 3.13 may have compatibility issues
+
+# -----------------------
+# Security Jobs
+# -----------------------
+
+bandit:
+  stage: security
+  script:
+    - pip install bandit[toml]
+    - bandit -r src/ -c pyproject.toml -f json -o bandit-report.json --severity-level medium || true
+  artifacts:
+    reports:
+      sast: bandit-report.json
+    paths:
+      - bandit-report.json
+    expire_in: 1 week
+  allow_failure: true
+
+# Check for known security vulnerabilities in dependencies
+safety:
+  stage: security
+  script:
+    - pip install safety
+    - safety check --json || true
+  allow_failure: true
+
+# -----------------------
+# Coverage Job
+# -----------------------
+
+coverage:
+  stage: coverage
+  dependencies:
+    - test:python3.11
+  script:
+    - pip install coverage
+    - coverage report
+    - coverage html
+  artifacts:
+    paths:
+      - htmlcov/
+    expire_in: 30 days
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  only:
+    - main
+    - develop
+
+# -----------------------
+# Deploy Job
+# -----------------------
+
+publish:pypi:
+  stage: deploy
+  image: python:3.11
+  variables:
+    TWINE_USERNAME: __token__
+    TWINE_PASSWORD: $PYPI_API_TOKEN
+  before_script:
+    - python --version
+    - pip install --upgrade pip build twine
+  script:
+    # Generate git commit info
+    - python scripts/generate_version.py
+    # Build distribution packages
+    - python -m build
+    # Verify packages
+    - twine check dist/*
+    # Upload to PyPI
+    - twine upload dist/*
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  environment:
+    name: pypi
+    url: https://pypi.org/project/task-ng/
+  only:
+    - tags
