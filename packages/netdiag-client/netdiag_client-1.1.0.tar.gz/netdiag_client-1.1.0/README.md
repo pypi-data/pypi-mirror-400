@@ -1,0 +1,199 @@
+# netdiag-client
+
+Official Python client for [NetDiag API](https://netdiag.dev) - network diagnostics (HTTP, DNS, TLS, ping) as a service. Run distributed health checks from multiple regions worldwide.
+
+## Installation
+
+```bash
+pip install netdiag-client
+```
+
+## Quick Start
+
+```python
+from netdiag_client import NetDiagClient
+
+client = NetDiagClient()
+
+# Run a full diagnostic check
+result = client.check("example.com")
+
+print(f"Status: {result.status}")           # Status.HEALTHY, Status.WARNING, or Status.UNHEALTHY
+print(f"Quorum: {result.quorum.required}/{result.quorum.total} (met: {result.quorum.met})")
+print(f"Duration: {result.duration_ms}ms")
+
+# Check for cross-region observations
+for obs in result.observations:
+    print(f"  [{obs.severity}] {obs.code}: {obs.message}")
+
+# Inspect per-region results
+for region in result.regions:
+    print(f"{region.region}: {region.status}")
+    if region.ping:
+        print(f"  Ping: {region.ping.avg_rtt_ms}ms ({region.ping.received}/{region.ping.sent})")
+    if region.dns:
+        print(f"  DNS: {region.dns.query_time_ms}ms")
+    if region.http:
+        print(f"  HTTP: {region.http.status_code} in {region.http.total_time_ms}ms")
+```
+
+## API Reference
+
+### Constructor
+
+```python
+# Default configuration
+client = NetDiagClient()
+
+# With API key (increases rate limits)
+client = NetDiagClient(api_key="your-api-key")
+
+# Full options
+client = NetDiagClient(
+    base_url="https://api.netdiag.dev",  # API base URL
+    api_key="your-api-key",              # API key for authentication
+    timeout=30.0,                         # Request timeout in seconds
+)
+```
+
+### Context Manager
+
+```python
+with NetDiagClient() as client:
+    result = client.check("example.com")
+    print(result.status)
+# Client is automatically closed
+```
+
+### Methods
+
+#### `check(host) -> CheckResponse`
+
+Run network diagnostics against a host.
+
+```python
+# Simple usage
+result = client.check("example.com")
+
+# URLs are accepted (host is extracted automatically)
+result = client.check("https://example.com/path")
+
+# With options
+from netdiag_client import CheckRequest
+
+result = client.check(CheckRequest(
+    host="example.com",
+    port=443,
+    regions="us-west,eu-central",
+    ping_count=10,
+    ping_timeout=5,
+    dns="8.8.8.8",
+))
+```
+
+#### `check_prometheus(host) -> str`
+
+Run diagnostics and get results in Prometheus exposition format.
+
+```python
+metrics = client.check_prometheus("example.com")
+# Returns:
+# netdiag_check_success{host="example.com",region="us-west"} 1
+# netdiag_ping_rtt_ms{host="example.com",region="us-west"} 15.2
+# netdiag_http_time_ms{host="example.com",region="us-west"} 120.0
+# ...
+```
+
+#### `is_healthy(host) -> bool`
+
+Quick check if a host is healthy.
+
+```python
+if client.is_healthy("example.com"):
+    print("All systems operational")
+```
+
+#### `get_status(host) -> Status`
+
+Get the health status of a host.
+
+```python
+from netdiag_client import Status
+
+status = client.get_status("example.com")
+if status == Status.HEALTHY:
+    print("Host is healthy")
+```
+
+## Error Handling
+
+```python
+from netdiag_client import (
+    NetDiagClient,
+    NetDiagApiError,
+    NetDiagRateLimitError,
+)
+
+client = NetDiagClient()
+
+try:
+    result = client.check("example.com")
+except NetDiagRateLimitError as e:
+    print(f"Rate limited. Retry after {e.retry_after_seconds}s")
+except NetDiagApiError as e:
+    print(f"API error: {e.status_code} - {e}")
+```
+
+## Type Hints
+
+Full type hints included for IDE support:
+
+```python
+from netdiag_client import (
+    CheckRequest,
+    CheckResponse,
+    LocationResult,
+    QuorumInfo,
+    Observation,
+    PingResult,
+    DnsResult,
+    TlsResult,
+    HttpResult,
+    Status,
+)
+```
+
+## Response Types
+
+### CheckResponse
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `host` | str | Target hostname |
+| `status` | Status | Overall health status |
+| `quorum` | QuorumInfo | Quorum details (required, total, met) |
+| `duration_ms` | int | Total check duration |
+| `observations` | list[Observation] | Cross-region analysis findings |
+| `regions` | list[LocationResult] | Per-region results |
+
+### Observation Codes
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| `DNS_ANSWERS_MISMATCH` | warning | DNS differs across regions |
+| `CERT_EXPIRING_SOON` | warning | Certificate expires < 30 days |
+| `CERT_WEAK_PROTOCOL` | warning | TLS 1.0 or 1.1 detected |
+| `REGIONAL_FAILURE` | error | Probe failed in some regions |
+
+## Requirements
+
+- Python 3.10+
+- httpx
+
+## Documentation
+
+Full documentation available at [netdiag.dev/docs/python](https://netdiag.dev/docs/python)
+
+## License
+
+MIT
