@@ -1,0 +1,234 @@
+# notify-to-cisco-webex
+
+Overview
+
+A small Python module and CLI for sending messages (and file attachments) to Cisco Webex. It can be used both as a Python library (programmatic API) and as a command-line tool.
+
+Key features
+
+- Send text or markdown messages.
+- Attach files (one file per Webex message; when multiple files are supplied the tool sends one message per file and includes the message body only on the first send).
+- Support for programmatic file attachments using local filesystem paths or Base64-encoded file objects (when used as a Python module).
+- Configuration via constructor arguments, OS environment variables, or a `.env` file (priority: constructor args > environment > .env).
+- TLS verification toggle, proxy support, and request timeout.
+- Returns API responses as parsed JSON when operations succeed.
+- Minimal external dependencies: `dotenv` and `httpx`.
+
+Requirements
+
+- Python 3.14+ (project metadata)
+- External packages:
+    - `dotenv` (for loading .env)
+    - `httpx` (for HTTP)
+- (Dev) `pytest` for running tests
+
+Installation
+
+Install the package and its dependencies. Examples:
+
+- Editable install for development:
+
+```/dev/null/example.md#L1-4
+python -m pip install -e .
+```
+
+- Install production deps (after building or from PyPI if published):
+
+```/dev/null/example.md#L1-4
+python -m pip install .
+```
+
+Configuration / Environment variables
+
+The following environment variables (or entries in a `.env` file) are supported:
+
+- `WEBEX_ACCESS_TOKEN` — Webex access token (required unless supplied to constructor/CLI).
+- `WEBEX_ROOM_ID` — Room ID to post messages to (optional if `WEBEX_TO_EMAIL` is used).
+- `WEBEX_TO_EMAIL` — Recipient email address (optional if `WEBEX_ROOM_ID` is used).
+- `WEBEX_PROXY` — Optional HTTP proxy URL (passed to httpx).
+
+Priority for configuration when creating a `Webex` object:
+
+1. Constructor arguments
+2. OS environment variables
+3. `.env` file
+
+Note: If both `room_id` and `to_email` are provided, `room_id` takes precedence.
+
+Using the Python module
+
+Import and use the `Webex` class to send messages programmatically.
+
+Example:
+
+```/dev/null/example.py#L1-20
+from notify_to_cisco_webex.notify_to_cisco_webex import Webex
+
+# Create a client (constructor args override environment)
+client = Webex(access_token="MY_TOKEN", room_id="ROOM_ID")
+
+# Send a message (no attachments)
+response = client.send_message(message="Hello from Python!", format="markdown")
+print(response)
+
+# Send message with multiple attachments (will POST one message per file;
+# the message body is included only for the first file)
+files = ["./image1.png", "./doc.pdf"]
+responses = client.send_message(message="Files attached", format="markdown", files=files)
+print(responses)
+```
+
+API notes:
+
+- `format` accepts `"markdown"` or `"text"`.
+- Attachments:
+    - CLI usage (via `--file`): supply one or more local filesystem paths. Example: `--file ./image.png --file ./doc.pdf`. The CLI only accepts filesystem paths.
+    - Python module usage (programmatic `send_message`): `files` may be provided in any of the following forms:
+        - A list of local filesystem path strings: `["/path/to/a.png", "/path/to/b.pdf"]`
+        - A list of objects (dicts), each containing `filename` and `content` (base64-encoded bytes). Example:
+            ```python
+            [{"filename": "a.txt", "content": "<base64>"}, {"filename": "b.png", "content": "<base64>"}]
+            ```
+            When object entries are used, the library creates temporary files from the decoded content and attaches them.
+        - A single base64-encoded JSON string representing the list of objects described above. This is useful when passing the payload through an environment variable or other string channel. Example JSON before encoding:
+            ```json
+            [
+                { "filename": "a.txt", "content": "<base64>" },
+                { "filename": "b.png", "content": "<base64>" }
+            ]
+            ```
+            Encode that JSON using base64 (UTF-8) and pass the resulting string as the `files` argument to `send_message`.
+    - Note: Base64 object attachments are supported only when using the Python module API (programmatic calls). CLI remains unchanged and only accepts local paths.
+- Dify `files` variable (new): In workflows that use the Dify plugin SDK, attachments are commonly passed as a `files` variable that contains objects following the Dify File model (or simple dicts with similar fields). This project adds a new programmatic helper to support that pattern without affecting existing APIs:
+    - New method: `Webex.send_message_from_dify_files_in_memory(message: Optional[str] = None, format: str = "markdown", dify_files: Optional[List[object]] = None)`
+
+    - Behavior:
+        - Accepts a list of Dify File model instances (objects exposing a `blob` property that returns bytes), or dicts that include one of:
+            - `blob` (raw bytes),
+            - `url` (HTTP/HTTPS URL to fetch the file content), or
+            - `content` (base64-encoded bytes) together with `filename`.
+        - For each entry the method uploads the content using in-memory file objects (BytesIO); it does not write to local disk.
+        - For multiple files the method performs one multipart POST per file; the message body is included only on the first POST (same semantics as `send_message`).
+        - In-memory buffers are released after the requests complete.
+        - Errors specific to reading the dify file entries (e.g., failed download or base64 decode) raise `WebexError`.
+
+    - Example usage (Dify model instances):
+
+        ```/dev/null/example.py#L1-10
+        from notify_to_cisco_webex.notify_to_cisco_webex import Webex
+
+        client = Webex(access_token="MY_TOKEN", room_id="ROOM_ID")
+        # `file_obj1` and `file_obj2` are Dify File-like objects that expose `.blob` and `.filename`
+        responses = client.send_message_from_dify_files_in_memory(message="Here are Dify files", dify_files=[file_obj1, file_obj2])
+        print(responses)
+        ```
+
+    - Example usage (dicts with `url` or base64 `content`):
+
+        ```/dev/null/example.py#L1-12
+        dicts = [
+            {"filename": "a.txt", "url": "https://example.com/a.txt"},
+            {"filename": "b.bin", "content": "<base64-encoded-bytes>"}
+        ]
+        responses = client.send_message_from_dify_files_in_memory(message="Files from dicts", dify_files=dicts)
+        ```
+
+    - Notes:
+        - This method is intentionally implemented as a separate API so that existing `send_message` behavior (and the CLI) remains unchanged.
+        - The `send_message_from_dify_files_in_memory` method mirrors `send_message` semantics for formatting and return values: no files => single non-file JSON POST; one file => dict return; multiple files => list of dicts.
+
+- When multiple files are passed, the return value is a list of response JSON objects (one per sent message). When a single file or no files is used, a single dict is returned for convenience.
+- Errors raise `WebexError` with a descriptive message.
+
+Using the CLI
+
+A CLI entrypoint is provided. There are multiple ways to run the CLI depending on how you have installed or are running the package. All of the following are supported after installation:
+
+- Module invocation (short module): `python -m notify_to_cisco_webex`
+- Module invocation (explicit module file): `python -m notify_to_cisco_webex.notify_to_cisco_webex`
+- Installed console script (underscore name): `notify_to_cisco_webex` — installed when you create a console-script entry with this name
+- Installed console script (hyphenated name): `notify-to-cisco-webex` — the hyphenated command is provided by the package's console script entry (recommended for shell ergonomics)
+
+Examples
+
+Run via python -m:
+
+```/dev/null/example.md#L1-4
+python -m notify_to_cisco_webex -t "$WEBEX_ACCESS_TOKEN" -r "ROOM_ID" -m "Hello from -m" --file ./image.png
+```
+
+Run via direct module path:
+
+```/dev/null/example.md#L1-4
+python -m notify_to_cisco_webex.notify_to_cisco_webex -t "$WEBEX_ACCESS_TOKEN" -r "ROOM_ID" -m "Hello from direct module" --file ./image.png
+```
+
+Run via installed underscore console script (after `pip install .` or `pip install -e .`):
+
+```/dev/null/example.md#L1-4
+notify_to_cisco_webex -t "$WEBEX_ACCESS_TOKEN" -r "ROOM_ID" -m "Hello from underscore script" --file ./image.png
+```
+
+Run via installed hyphenated console script (after `pip install .` or `pip install -e .`):
+
+```/dev/null/example.md#L1-4
+notify-to-cisco-webex -t "$WEBEX_ACCESS_TOKEN" -r "ROOM_ID" -m "Hello from hyphenated script" --file ./image.png
+```
+
+CLI options
+
+- `-t, --token` — Webex access token (overrides env/.env)
+- `-r, --room-id` — Room ID to send the message to
+- `-e, --to-email` — Recipient email address (used when room id is not set)
+- `-m, --message` — Message body text
+- `-f, --format` — Message format, `text` or `markdown` (default: Markdown)
+- `--timeout` — HTTP request timeout in seconds (default: 10.0)
+- `--no-verify` — Disable SSL certificate verification (flag)
+- `-v, --verbose` — Enable verbose logging (flag)
+- `-p, --proxy` — HTTP proxy URL
+- `--file` — Attach a file. This option can be specified multiple times to attach multiple files (note: one file per Webex message). CLI only accepts local filesystem paths for `--file`.
+
+CLI output:
+
+- Printed JSON is pretty-printed for human readability when the operation succeeds.
+- On error, the CLI prints a JSON object containing an `error` key and exits with a non-zero status.
+
+Examples
+
+Send a simple message using environment variables:
+
+```/dev/null/example.md#L1-6
+export WEBEX_ACCESS_TOKEN="TOKEN"
+export WEBEX_ROOM_ID="ROOM_ID"
+python -m notify_to_cisco_webex --message "Hello"
+```
+
+Send multiple files (the message is included in the first message only):
+
+```/dev/null/example.md#L1-6
+notify-to-cisco-webex --token "TOKEN" --room-id "ROOM_ID" \
+  --message "Here are the files" --file ./1.jpg --file ./2.pdf
+```
+
+Testing
+
+Run the automated tests using pytest:
+
+```/dev/null/example.md#L1-4
+python -m pip install -e '.[dev]'
+pytest -q
+```
+
+Project structure highlights
+
+- `notify_to_cisco_webex/notify_to_cisco_webex.py` — Main implementation (contains the `Webex` class and a `main()` CLI entry).
+- `tests/` — pytest test cases.
+
+Error handling
+
+- The module raises `WebexError` for invalid configuration, file errors, HTTP errors, and non-JSON responses.
+- The CLI prints error information as JSON and returns a non-zero exit code on failures.
+
+License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
