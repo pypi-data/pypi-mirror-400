@@ -1,0 +1,44 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) St. Anne's University Hospital in Brno. International Clinical
+# Research Center, Biomedical Engineering. All Rights Reserved.
+# Distributed under the (new) BSD License. See LICENSE.txt for more info.
+
+from setuptools import setup, find_packages
+
+from setuptools import setup, find_packages
+
+setup(
+    name="epycom",
+    version="0.3",
+    description="Package for EEG data processing and analysis",
+    url="",
+    author="FNUSA-ICRC, BME",
+    author_email="jan.cimbalnik@fnusa.cz, jan.cimbalnik@mayo.edu",
+    license="BSD 3.0",
+    packages=find_packages(),
+    install_requires=[
+        "numpy<1.27",
+        "scipy",
+        "pandas",
+        "scikit-learn",
+        "numba",
+    ],
+    extras_require={
+        "test": [
+            "pytest",
+            "pytest-benchmark",
+        ],
+    },
+    keywords="EEG epilepsy signal processing",
+    classifiers=[
+        "Development Status :: 2 - Pre-Alpha",
+        "Intended Audience :: Healthcare Industry",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: BSD License",
+        "Programming Language :: Python :: 3",
+        "Operating System :: OS Independent",
+        "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    ],
+    zip_safe=False,
+)
+
