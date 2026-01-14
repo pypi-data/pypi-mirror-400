@@ -1,0 +1,19 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Copy dependency files and install
+COPY pyproject.toml ./
+RUN uv sync --no-dev --no-install-project
+
+# Copy application code (filtered by .dockerignore)
+COPY . .
+
+# Expose port for AWS App Runner
+EXPOSE 8080
+
+# Run the tool server
+CMD ["uv", "run", "python", "tool.py"]

@@ -1,0 +1,297 @@
+# {{ name }}
+
+AirOps tool built with the AirOps Python SDK.
+
+---
+
+# Building an AirOps Tool: Step-by-Step Instructions
+
+This guide walks you through building a custom AirOps tool using the Python SDK. By the end, you'll have a working tool that can be deployed to the AirOps platform.
+
+## Table of Contents
+
+1. [Prerequisites](#1-prerequisites)
+2. [Installation](#2-installation)
+3. [Project Setup](#3-project-setup)
+4. [Understanding the Tool Structure](#4-understanding-the-tool-structure)
+5. [Defining Input and Output Models](#5-defining-input-and-output-models)
+6. [Writing the Handler Function](#6-writing-the-handler-function)
+7. [Using the Steps API](#7-using-the-steps-api)
+8. [Error Handling](#8-error-handling)
+9. [Running Locally](#9-running-locally)
+10. [Testing Your Tool](#10-testing-your-tool)
+11. [Configuration Reference](#11-configuration-reference)
+12. [Deployment](#12-deployment)
+
+---
+
+## 1. Prerequisites
+
+Before you begin, ensure you have:
+
+- **Python 3.13 or later** installed
+- **uv** package manager (recommended for this project)
+- An **AirOps API token** (obtain from the AirOps platform)
+
+To install uv:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+---
+
+## 2. Installation
+
+Install the AirOps SDK:
+
+```bash
+pip install airops
+```
+
+Or with uv:
+
+```bash
+uv add airops
+```
+
+---
+
+## 3. Project Setup
+
+```bash
+airops init my-tool
+cd my-tool
+```
+
+This creates:
+
+```
+my-tool/
+├── tool.py           # Tool implementation (entry point)
+├── pyproject.toml    # Package configuration
+├── Dockerfile        # Container image for deployment
+├── .dockerignore
+├── .env.example      # Copy to .env and add AIROPS_API_TOKEN
+└── tests/
+    └── test_tool.py
+```
+
+---
+
+## 4. Understanding the Tool Structure
+
+An AirOps tool consists of three main components:
+
+### 4.1 The Tool Instance
+
+```python
+from airops import Tool
+
+tool = Tool(
+    name="my_tool",           # Unique identifier (snake_case)
+    description="Description", # Human-readable description
+    input_model=Inputs,       # ToolInputs subclass for inputs
+    output_model=Outputs,     # ToolOutputs subclass for outputs
+)
+```
+
+The `Tool` class:
+- Validates inputs and outputs using Pydantic models
+- Creates a FastAPI application with REST endpoints
+- Provides a web UI for testing
+- Handles hot-reload during development
+- Generates AirOps workflow-compatible input schemas
+
+### 4.2 Input/Output Models
+
+Input models must inherit from `ToolInputs` and use AirOps input types. Output models must inherit from `ToolOutputs`:
+
+```python
+from pydantic import Field
+from airops import ToolOutputs
+from airops.inputs import ToolInputs, ShortText, Number
+
+class Inputs(ToolInputs):
+    query: ShortText = Field(..., description="Search query")
+    limit: Number = Field(default=10, description="Max results")
+
+class Outputs(ToolOutputs):
+    results: list[dict]
+    total_count: int
+```
+
+### 4.3 The Handler Function
+
+The async handler processes inputs and returns outputs:
+
+```python
+@tool.handler
+async def run(inputs: Inputs) -> Outputs:
+    # Your logic here
+    return Outputs(results=[], total_count=0)
+```
+
+---
+
+## 5. Defining Input and Output Models
+
+### AirOps Input Types
+
+The SDK provides specialized input types that map to AirOps workflow UI components:
+
+```python
+from pydantic import Field
+from airops.inputs import (
+    ToolInputs,
+    ShortText,      # Single-line text input
+    LongText,       # Multi-line text input
+    Number,         # Numeric input (int or float)
+    Json,           # JSON data input
+    SingleSelect,   # Dropdown with single selection
+    MultiSelect,    # Dropdown with multiple selections
+    KnowledgeBase,  # AirOps knowledge base reference (int ID)
+    Brandkit,       # AirOps brandkit reference (int ID)
+    Database,       # AirOps database reference (int ID)
+)
+
+class Inputs(ToolInputs):
+    # Required text field
+    query: ShortText = Field(..., description="Search query")
+
+    # Optional field with default
+    limit: Number = Field(default=10, description="Number of results")
+
+    # Long text for multi-line content
+    content: LongText = Field(..., description="Article content")
+
+    # JSON data
+    config: Json = Field(default={}, description="Configuration options")
+
+    # Single selection from options
+    format: SingleSelect("json", "csv", "xml") = Field(default="json")
+
+    # Multiple selections from options
+    tags: MultiSelect("urgent", "important", "low") = Field(default=[])
+
+    # AirOps resource references
+    kb_id: KnowledgeBase = Field(..., description="Knowledge base to search")
+    brand_id: Brandkit = Field(..., description="Brand guidelines to use")
+    db_id: Database = Field(..., description="Database to query")
+```
+
+### Output Models
+
+Output models inherit from `ToolOutputs` and use standard Python types (must be JSON serializable). Field descriptions become hints in the AirOps workflow builder UI.
+
+---
+
+## 6. Writing the Handler Function
+
+The handler is an async function decorated with `@tool.handler` that receives validated inputs and returns outputs:
+
+```python
+@tool.handler
+async def run(inputs: Inputs) -> Outputs:
+    # Process the inputs
+    processed = inputs.query.upper()
+
+    # Return outputs matching the model
+    return Outputs(result=processed)
+```
+
+---
+
+## 7. Using the Steps API
+
+The Steps API lets you call pre-built AirOps steps from within your tool.
+
+### Execute and Wait
+
+```python
+from airops import steps
+
+result = await steps.execute(
+    "google_search",
+    {"query": inputs.query, "limit": inputs.limit},
+    timeout_s=600  # optional, default 7200s
+)
+```
+
+### Manual Start/Poll
+
+For non-blocking execution:
+
+```python
+handle = await steps.start("google_search", {"query": inputs.query})
+# ... do other work ...
+status = await steps.poll(handle.step_execution_id)
+# status.status is "pending", "success", or "error"
+# status.outputs contains results on success
+# status.error contains error details on failure
+```
+
+Use `asyncio.gather()` with `steps.execute()` for parallel execution.
+
+---
+
+## 8. Error Handling
+
+### SDK Exceptions
+
+```python
+from airops.errors import (
+    AiropsError,              # Base exception for all SDK errors
+    AuthError,                # Authentication failed (401/403)
+    InvalidInputError,        # Input validation failed (400)
+    RateLimitedError,         # Rate limit exceeded after retries
+    StepFailedError,          # Step execution failed
+    StepTimeoutError,         # Step didn't complete in time
+    UpstreamUnavailableError, # Server errors (5xx) or network issues
+)
+```
+
+`StepFailedError` has an `error_details` attribute with `message`, `code`, and `retryable` fields.
+
+`InvalidInputError` has a `violations` list with `path` and `message` for each validation error.
+
+---
+
+## 9. Running Locally
+
+```bash
+airops run              # Builds Docker image, starts server with hot-reload
+airops run --port 9000  # Custom port
+```
+
+### Endpoints
+
+- `http://localhost:8080/` - Web UI for testing
+- `POST /runs` - Start a run (returns `run_id`)
+- `GET /runs/{run_id}` - Poll for results
+- `GET /health` - Health check
+
+---
+
+## 10. Testing Your Tool
+
+Test the handler directly with `tool._handler(inputs)` or use `TestClient(tool.app)` for HTTP tests.
+
+```bash
+uv run python -m pytest tests/ -v
+```
+
+---
+
+## 11. Configuration Reference
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AIROPS_API_TOKEN` | Yes | - | Your AirOps API token |
+| `AIROPS_API_BASE_URL` | No | `https://api.airops.com` | API base URL |
+| `AIROPS_DEFAULT_TIMEOUT_S` | No | `7200` | Default step timeout (2 hours) |
+| `AIROPS_POLL_INTERVAL_S` | No | `2.0` | Polling interval for step status |
+
+Access via `get_config()` from `airops.config`.
