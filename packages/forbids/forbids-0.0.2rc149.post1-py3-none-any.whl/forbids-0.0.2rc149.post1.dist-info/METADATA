@@ -1,0 +1,56 @@
+Metadata-Version: 2.4
+Name: forbids
+Version: 0.0.2rc149.post1
+Summary: forBIDS - BIDS protocol compliance validation
+Author-email: Basile Pinsard <basile.pinsard@gmail.com>
+Requires-Python: >=3.11.0
+Description-Content-Type: text/markdown
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+License-File: LICENSE
+Requires-Dist: pybids
+Requires-Dist: apischema
+Requires-Dist: openapi-schema-validator
+Requires-Dist: coloredlogs
+Requires-Dist: pyspark>=3.0.0 ; extra == "spark"
+Requires-Dist: bandit[toml]==1.7.10 ; extra == "test"
+Requires-Dist: black==24.8.0 ; extra == "test"
+Requires-Dist: check-manifest==0.49 ; extra == "test"
+Requires-Dist: flake8-bugbear==24.8.19 ; extra == "test"
+Requires-Dist: flake8-docstrings ; extra == "test"
+Requires-Dist: flake8-formatter_junit_xml ; extra == "test"
+Requires-Dist: flake8 ; extra == "test"
+Requires-Dist: flake8-pyproject ; extra == "test"
+Requires-Dist: pre-commit==3.8.0 ; extra == "test"
+Requires-Dist: pylint==3.3.1 ; extra == "test"
+Requires-Dist: pylint_junit ; extra == "test"
+Requires-Dist: pytest-cov==5.0.0 ; extra == "test"
+Requires-Dist: pytest-mock<3.14.1 ; extra == "test"
+Requires-Dist: pytest-runner ; extra == "test"
+Requires-Dist: pytest==8.3.3 ; extra == "test"
+Requires-Dist: pytest-github-actions-annotate-failures ; extra == "test"
+Requires-Dist: shellcheck-py==0.10.0.1 ; extra == "test"
+Project-URL: Documentation, https://github.com/UNFMontreal/forbids
+Project-URL: Source, https://github.com/UNFMontreal/forbids
+Project-URL: Tracker, https://github.com/UNFMontreal/forbids/issues
+Provides-Extra: spark
+Provides-Extra: test
+
+# ![forBIDS logo](docs/static/forbids_logo.png) forBIDS: a protocol compliance check
+
+forBIDS aims to be a tool for BIDS that forbids deviation from a established acquisition protocol.
+
+It is meant to be ran continuously on session newly converted to BIDS, as a validation before being merged into a dataset.
+
+It aims to check that all planned sequences have been acquired (allowing optional ones), and check that a configured set of sequence parameters match expected values.
+It is designed for multi-centric/multi-vendor studies: the sequence parameters constraint can be set conditional to Manufacturer/Model/Instrument/SoftwareVersion.
+
+
+## design
+
+- `forbids init <bids_path>` : create a `.forbids` folder that contains a BIDS-like structure with json schemas for each series in a BIDS dataset with a set of sessions from each scanner.
+- `forbids validate <bids_path> --participant-label <sub> [--session-label <ses>]` : validate the subject/session against the schema found in `.forbids` by validating all schema files against the subject/session BIDS files and checking for missing or extra/unwanted BIDS files.
+
