@@ -1,0 +1,411 @@
+Metadata-Version: 2.4
+Name: free-mcp-excel
+Version: 0.1.2
+Summary: 本地Excel MCP服务，提供Excel文件解析能力
+Author-email: fanzhiyu <fanzhiyu7410@163.com>
+License: MIT
+Project-URL: Homepage, https://gitee.com/fanzhiyu/free-mcp-excel
+Project-URL: Documentation, https://gitee.com/fanzhiyu/free-mcp-excel#readme
+Project-URL: Repository, https://gitee.com/fanzhiyu/free-mcp-excel
+Project-URL: Issues, https://gitee.com/fanzhiyu/free-mcp-excel/issues
+Keywords: mcp,excel,model-context-protocol,ai
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: mcp>=0.9.0
+Requires-Dist: openpyxl>=3.0.0
+Requires-Dist: pandas>=1.5.0
+Requires-Dist: xlrd>=2.0.0
+Requires-Dist: xlwt>=1.3.0
+Requires-Dist: pycel>=1.0b0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
+Requires-Dist: pytest-benchmark>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Dynamic: license-file
+
+# Excel MCP Server
+
+本地Excel MCP（Model Context Protocol）服务，提供轻量、开箱即用的Excel文件解析能力。
+
+## 特性
+
+- ✅ **纯本地运行**：通过stdio通信，无端口监听、无网络依赖
+- ✅ **多格式支持**：自动识别并兼容 `.xlsx` 和 `.xls` 两种格式
+- ✅ **灵活部署**：支持uvx自动管理依赖或pip手动安装
+- ✅ **标准化协议**：遵循MCP协议规范，兼容Claude Desktop、Cursor等AI客户端
+- ✅ **健壮性保障**：内置文件校验、格式识别、异常处理等机制
+
+## 快速开始
+
+### 环境要求
+
+- Python 3.8+
+- MCP客户端（如Claude Desktop、Cursor等）
+
+### 安装方式
+
+#### 方式一：从PyPI安装（推荐）
+
+```bash
+# 使用pip安装
+pip install free-mcp-excel
+
+# 或使用uvx（自动管理依赖）
+uvx free-mcp-excel
+```
+
+#### 方式二：从源码安装
+
+```bash
+# 克隆项目
+git clone https://gitee.com/fanzhiyu/free-mcp-excel.git
+cd free-mcp-excel
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 或使用开发模式安装
+pip install -e .
+```
+
+### 配置MCP客户端
+
+#### Cursor IDE配置
+
+在项目根目录创建或编辑 `.cursor/mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "free-mcp-excel": {
+      "command": "uvx",
+      "args": ["free-mcp-excel"]
+    }
+  }
+}
+```
+
+#### Claude Desktop配置
+
+编辑配置文件（macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`）：
+
+```json
+{
+  "mcpServers": {
+    "free-mcp-excel": {
+      "command": "uvx",
+      "args": ["free-mcp-excel"]
+    }
+  }
+}
+```
+
+#### 其他MCP客户端
+
+对于其他支持MCP的客户端，使用相同的配置格式，将 `command` 设置为 `uvx`，`args` 设置为 `["free-mcp-excel"]`。
+
+**注意**：如果使用 `pip install` 安装，可以使用：
+```json
+{
+  "mcpServers": {
+    "free-mcp-excel": {
+      "command": "python",
+      "args": ["-m", "free_mcp_excel"]
+    }
+  }
+}
+```
+
+详细配置说明请参考 [使用指南](docs/使用指南.md)。
+
+## 可用工具
+
+### 读取类工具
+- **read_sheet_names**：读取所有工作表名称
+- **read_sheet_data**：读取工作表数据（支持范围、行列过滤、空行处理）
+- **read_cell_data**：读取单个或范围单元格数据
+- **read_cell_formula**：读取单元格公式
+- **read_merged_cells**：读取合并单元格信息
+- **read_chart_info**：读取图表信息
+- **read_table_info**：读取表格信息
+- **get_workbook_info**：获取工作簿基本信息（格式、工作表列表等）
+
+### 写入类工具
+- **create_workbook**：创建新工作簿
+- **create_sheet**：创建工作表
+- **write_cell_data**：写入单元格数据
+- **write_cell_formula**：写入单元格公式
+- **write_range_data**：批量写入范围数据
+- **merge_cells** / **unmerge_cells**：合并/取消合并单元格
+- **create_chart**：创建图表（支持多种图表类型）
+- **update_chart** / **delete_chart**：更新/删除图表
+- **create_table**：创建表格
+- **save_workbook**：保存工作簿
+
+### 计算类工具
+- **calc_cell_data**：计算单元格值（支持公式计算）
+- **calc_range_data**：批量计算范围数据
+- **evaluate_formula**：评估公式表达式
+
+### 工具类工具
+- **excel_to_base64** / **base64_to_excel**：文件格式转换（用于MCP协议传输）
+
+**特性说明**：
+- ✅ 支持 `.xlsx` 和 `.xls` 两种格式
+- ✅ 智能处理稀疏数据（大量空行）
+- ✅ 自动识别表头（即使首行为空行）
+- ✅ 支持合并单元格、公式、图表等高级功能
+
+## 使用示例
+
+### 在Cursor中使用
+
+配置完成后，你可以在Cursor中直接与AI助手对话。以下是完整的提示词示例：
+
+#### Cursor 完整提示词（复制使用）
+
+```
+你是一个专业的Excel数据分析助手，可以使用Excel MCP服务工具来处理Excel文件。
+
+## 可用工具说明
+
+### 读取类工具
+- **read_sheet_names**: 读取Excel文件的所有工作表名称
+  - 参数：file (Excel文件的Base64编码)
+  - 返回：sheet_names数组和sheet_count
+
+- **read_sheet_data**: 读取工作表数据
+  - 参数：
+    - file: Excel文件的Base64编码（必需）
+    - sheet: 工作表名称（可选，默认第一个）
+    - range: 数据范围，如"A1:B10"（可选）
+    - skip_empty_rows: 是否跳过空行（可选，默认true）
+      - true: 自动跳过所有空行，适用于数据分析
+      - false: 保留所有空行，自动识别第一个非空行作为表头
+  - 返回：headers（表头数组）和data_rows（数据行二维数组）
+
+- **read_cell_data**: 读取单元格数据
+  - 参数：file, sheet, cell（如"A1"或"A1:B10"）
+  - 返回：单元格值或范围数据
+
+- **read_cell_formula**: 读取单元格公式
+  - 参数：file, sheet, cell
+  - 返回：公式文本
+
+### 写入类工具
+- **create_workbook**: 创建新工作簿
+  - 参数：sheet_name（可选，默认"Sheet1"）
+  - 返回：workbook_id（用于后续操作）
+
+- **write_cell_data**: 写入单个单元格
+  - 参数：workbook_id, sheet, cell, value, data_type（可选）
+
+- **write_range_data**: 批量写入范围数据
+  - 参数：workbook_id, sheet, start_cell, data（二维数组）
+
+- **save_workbook**: 保存工作簿
+  - 参数：workbook_id
+  - 返回：file（Base64编码的Excel文件）
+
+### 计算类工具
+- **calc_cell_data**: 计算单元格值
+  - 参数：file, sheet, cell, force_recalc（可选）
+  - 返回：计算后的值
+
+## 使用规则
+
+1. **文件处理流程**：
+   - 用户提供Excel文件 → 先调用read_sheet_names获取工作表列表
+   - 需要读取数据 → 调用read_sheet_data
+   - 需要修改或创建 → 使用create_workbook → write操作 → save_workbook
+
+2. **空行处理**：
+   - 数据分析场景：使用skip_empty_rows=true（默认）
+   - 需要保持原始格式：使用skip_empty_rows=false
+   - 当skip_empty_rows=false时，系统会自动识别第一个非空行作为表头
+
+3. **数据范围**：
+   - 大文件建议指定range参数提高效率
+   - 如"A1:C100"表示A1到C100的范围
+
+4. **文件保存**：
+   - 创建或修改文件后，必须调用save_workbook
+   - 返回的file是Base64编码，需要告知用户如何保存
+
+5. **错误处理**：
+   - 如果工具返回error，检查错误信息并告知用户
+   - 常见错误：文件格式不支持、工作表不存在、单元格地址无效
+
+## 示例对话
+
+用户："这个Excel文件有哪些工作表？"
+→ 调用read_sheet_names工具
+
+用户："读取'销售数据'工作表的所有数据"
+→ 调用read_sheet_data，参数：sheet="销售数据", skip_empty_rows=true
+
+用户："创建一个包含员工信息的Excel文件"
+→ 调用create_workbook → write_range_data写入数据 → save_workbook保存
+
+现在请帮助用户处理Excel文件，根据用户需求智能选择合适的工具。
+```
+
+#### 快速对话示例
+
+```
+用户：读取这个Excel文件的所有工作表名称
+AI：我会调用read_sheet_names工具来获取工作表列表...
+
+用户：分析销售数据表中的数据
+AI：我会先读取工作表数据，然后进行分析...
+```
+
+### 提示词示例
+
+#### 场景1：读取Excel文件信息
+
+**读取工作表列表**
+```
+用户："这个Excel文件有哪些工作表？"
+→ AI会调用 read_sheet_names 工具
+```
+
+**读取工作表数据**
+```
+用户："读取'销售数据'工作表的所有数据"
+→ AI会调用 read_sheet_data 工具，参数：sheet="销售数据"
+```
+
+**读取指定范围**
+```
+用户："读取'员工信息'工作表的A1:D10范围"
+→ AI会调用 read_sheet_data 工具，参数：sheet="员工信息", range="A1:D10"
+```
+
+**读取单个单元格**
+```
+用户："'财务报表'工作表的B5单元格是什么？"
+→ AI会调用 read_cell_data 工具，参数：sheet="财务报表", cell="B5"
+```
+
+#### 场景2：数据分析
+
+**分析数据表**
+```
+用户："分析'销售数据'工作表，找出销售额最高的前10条记录"
+→ AI会：
+  1. 调用 read_sheet_data 读取数据
+  2. 分析数据并找出销售额最高的记录
+  3. 返回分析结果
+```
+
+**统计汇总**
+```
+用户："统计'订单明细'工作表中每个产品的总销售额"
+→ AI会：
+  1. 调用 read_sheet_data 读取订单数据
+  2. 按产品分组统计
+  3. 返回汇总结果
+```
+
+#### 场景3：创建和编辑Excel文件
+
+**创建新文件**
+```
+用户："创建一个包含员工信息的Excel文件，包含姓名、部门、工资三列"
+→ AI会：
+  1. 调用 create_workbook 创建新工作簿
+  2. 调用 write_range_data 写入表头和数据
+  3. 调用 save_workbook 保存文件
+  4. 返回 base64 编码的文件
+```
+
+**修改现有文件**
+```
+用户："在'销售数据'工作表的E列添加'利润率'，计算公式为(销售额-成本)/销售额"
+→ AI会：
+  1. 调用 read_sheet_data 读取现有数据
+  2. 调用 write_cell_formula 写入公式到E列
+  3. 调用 save_workbook 保存文件
+```
+
+#### 场景4：处理稀疏数据
+
+**跳过空行**
+```
+用户："读取'数据表'工作表，跳过所有空行"
+→ AI会调用 read_sheet_data，参数：skip_empty_rows=True
+```
+
+**保留空行（智能识别表头）**
+```
+用户："读取'数据表'工作表，保留空行，自动识别表头"
+→ AI会调用 read_sheet_data，参数：skip_empty_rows=False
+→ 系统会自动识别第一个非空行作为表头
+```
+
+#### 场景5：公式计算
+
+**计算单元格值**
+```
+用户："计算'财务报表'工作表A10单元格的公式值"
+→ AI会调用 calc_cell_data 工具
+```
+
+**批量计算**
+```
+用户："计算'数据表'工作表A1:C10范围的所有公式"
+→ AI会调用 calc_range_data 工具
+```
+
+### 提示词最佳实践
+
+1. **明确指定工作表名称**：如果文件有多个工作表，明确指定要操作的工作表
+2. **使用范围参数**：对于大文件，指定范围可以提高效率
+3. **处理稀疏数据**：如果数据中有很多空行，使用 `skip_empty_rows` 参数
+4. **组合使用工具**：复杂任务可以组合多个工具，如读取→分析→写入→保存
+
+更多详细的提示词示例和最佳实践，请查看 [提示词示例文档](docs/提示词示例.md)。
+
+## 文档
+
+- [📖 使用指南](docs/使用指南.md) - 安装、配置和使用说明
+- [📋 完整方案](docs/完整方案.md) - 详细的技术实现方案和架构设计
+- [💡 提示词示例](docs/提示词示例.md) - AI助手调用工具的提示词示例（**推荐查看**）
+- [📚 文档索引](docs/README.md) - 所有文档的完整列表
+
+### 快速链接
+
+- **想快速上手？** → [使用指南](docs/使用指南.md)
+- **想了解如何调用工具？** → [提示词示例](docs/提示词示例.md)
+- **想深入了解技术细节？** → [完整方案](docs/完整方案.md)
+
+## 官方资源
+
+- [MCP官方文档](https://modelcontextprotocol.io)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- [MCP规范文档](https://mcp.fleeto.us/spec/)
+- [MCP中文文档](https://mcp.wiki/introduction)
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE) 许可证。
+
+## 贡献
+
+欢迎提交Issue和Pull Request！
+
