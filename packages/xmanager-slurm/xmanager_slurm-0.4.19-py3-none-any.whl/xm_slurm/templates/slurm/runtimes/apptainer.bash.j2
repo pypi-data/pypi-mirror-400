@@ -1,0 +1,73 @@
+{% macro run(cluster, job) -%}
+{%- set runtime = (cluster.runtime | string | lower) -%}
+
+# Bundle will be where our built sandbox image is stored
+# container-workdir will be our container's scratch directory
+# TODO(jfarebro): We can make this more efficient by doing an srun per node and downloading the container once per node.
+# but this requires apptainer support to have an overlay per procid
+mkdir -p "$SLURM_TMPDIR"/{container-"$SLURM_PROCID",container-workdir-"$SLURM_PROCID",container-overlay-"$SLURM_PROCID"}
+
+retry -c 255 -n 10 -d 1 -b 2 -- \
+{% if job.executable.credentials %}
+  env {{ runtime | upper }}_DOCKER_USERNAME="{{ job.executable.credentials.username }}" {{ runtime | upper }}_DOCKER_PASSWORD="{{ job.executable.credentials.password }}" time {{ runtime }} build \
+{% else %}
+  time {{ runtime }} build \
+{% endif %}
+    --force \
+    --sandbox \
+    --fix-perms \
+    "$SLURM_TMPDIR"/container-"$SLURM_PROCID" \
+    docker://{{ job.executable.image }}
+
+{% if runtime == "singularity" and cluster.mounts %}
+{% for source, dest in cluster.mounts.items() %}
+mkdir -p "$SLURM_TMPDIR"/container-"$SLURM_PROCID"/{{ dest | trim('/') }}
+{% endfor %}
+{% endif %}
+
+cat << 'ENTRYPOINT_EOF' > "$SLURM_TMPDIR"/container-"$SLURM_PROCID"/xm-slurm-entrypoint.sh
+{{ entrypoint(cluster, job) }}
+ENTRYPOINT_EOF
+chmod +x "$SLURM_TMPDIR"/container-"$SLURM_PROCID"/xm-slurm-entrypoint.sh
+
+for var in "${!SLURM_@}"; do export "{{ runtime | upper }}ENV_${var}=${!var}"; done
+
+exec {{ runtime }} exec \
+{% if job.executor.requirements.accelerator %}
+  --nv \
+{% endif %}
+  --no-init \
+  --no-umask \
+  --no-home \
+  --cleanenv \
+{% if runtime == "apptainer" %}
+  --no-eval \
+{% endif %}
+  --containall \
+{% if cluster.mounts %}
+{% for source, dest in cluster.mounts.items() %}
+  --bind {{ source }}:{{ dest }} \
+{% endfor %}
+{% endif %}
+  --workdir "$SLURM_TMPDIR"/container-workdir-"$SLURM_PROCID" \
+{% if (cluster.runtime | string) == "apptainer" %}
+  --overlay "$SLURM_TMPDIR"/container-overlay-"$SLURM_PROCID" \
+{% else %}
+  --writable \
+{% endif %}
+{% if job.executable.workdir %}
+  --pwd {{ job.executable.workdir }} \
+{% endif %}
+  "$SLURM_TMPDIR"/container-"$SLURM_PROCID" \
+  /xm-slurm-entrypoint.sh \
+{% for arg in job.executable.args.to_list() %}
+  {{ arg }} \
+{% endfor %}
+{% for arg in job.args.to_list() %}
+  {{ arg }} \
+{% endfor %}
+{% if caller %}
+  {{- caller() -}}
+{% endif %}
+  "$@"
+{%- endmacro %}

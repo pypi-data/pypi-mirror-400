@@ -1,0 +1,47 @@
+{% extends "job.bash.j2" %}
+{% block directives %}
+#SBATCH --export=NONE
+#SBATCH --comment="{'xid': {{ experiment_id }}}"
+{% if cluster.account %}
+#SBATCH --account={{ cluster.account }}
+{% endif %}
+{% if cluster.partition %}
+#SBATCH --partition={{ cluster.partition }}
+{% endif %}
+{% if cluster.qos %}
+#SBATCH --qos={{ cluster.qos }}
+{% endif %}
+
+{% for job_name, job in job_group.jobs.items() %}
+#SBATCH --output=xm-%j+{{ job_name }}.stdout
+#SBATCH --error=xm-%j+{{ job_name }}.stderr
+{% if identity %}
+#SBATCH --job-name=xm[{{ job_name }}@{{ experiment_id }}.{{ identity }}]
+#SBATCH --dependency=singleton
+{% else %}
+#SBATCH --job-name=xm[{{ job_name }}@{{ experiment_id }}]
+{% endif %}
+{% for directive in job.executor.batch_directives() %}
+#SBATCH {{ directive }}
+{% endfor %}
+{{ "\n#SBATCH hetjob\n" if not loop.last }}
+{% endfor %}
+{% endblock directives %}
+
+{% block bootstrap %}
+{% for job in job_group.jobs.values() +%}
+srun \
+  --label \
+  --unbuffered \
+  --kill-on-bad-exit=1 \
+  --export="ALL" \
+{% for directive in job.executor.step_directives() %}
+  {{ directive }} \
+{% endfor %}
+  --het-group={{ loop.index0 }} \
+  bash <<'SRUN_EOF' &
+set -Eeuxo pipefail
+{{ run(cluster, job) }}
+SRUN_EOF
+{% endfor +%}
+{% endblock bootstrap %}

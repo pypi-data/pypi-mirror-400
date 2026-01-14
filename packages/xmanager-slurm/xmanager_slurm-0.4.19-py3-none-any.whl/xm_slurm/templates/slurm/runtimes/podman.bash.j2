@@ -1,0 +1,43 @@
+{% macro run(cluster, job) -%}
+retry -c 255 -n 10 -d 1 -b 2 -- \
+  time podman pull \
+{% if job.executable.credentials %}
+    --creds {{ job.executable.credentials.username }}:{{ job.executable.credentials.password }} \
+{% endif %}
+    {{ job.executable.image }}
+
+cat << 'ENTRYPOINT_EOF' > "$SLURM_TMPDIR"/xm-slurm-entrypoint.sh
+{{ entrypoint(cluster, job) }}
+ENTRYPOINT_EOF
+chmod +x "$SLURM_TMPDIR"/xm-slurm-entrypoint.sh
+
+exec podman run \
+  --mount type=bind,src="$SLURM_TMPDIR"/xm-slurm-entrypoint.sh,dst=/xm-slurm-entrypoint.sh,ro \
+  --entrypoint /xm-slurm-entrypoint.sh \
+  --pull never \
+  --restart no \
+  --env "SLURM_*" \
+  --rm \
+{% if job.executor.requirements.accelerator %}
+  --device nvidia.com/gpu=all \
+{% endif %}
+{% if cluster.mounts %}
+{% for source, dest in cluster.mounts.items() %}
+  --mount type=bind,src={{ source }},dst={{ dest }} \
+{% endfor %}
+{% endif %}
+{% if job.executable.workdir %}
+  --workdir {{ job.executable.workdir }} \
+{% endif %}
+  {{ job.executable.image }} \
+{% for arg in job.executable.args.to_list() %}
+  {{ arg }} \
+{% endfor %}
+{% for arg in job.args.to_list() %}
+  {{ arg }} \
+{% endfor %}
+{% if caller %}
+  {{- caller() -}}
+{% endif %}
+  "$@"
+{% endmacro %}
