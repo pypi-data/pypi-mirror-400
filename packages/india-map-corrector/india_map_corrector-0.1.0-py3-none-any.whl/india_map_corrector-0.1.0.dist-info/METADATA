@@ -1,0 +1,252 @@
+Metadata-Version: 2.4
+Name: india-map-corrector
+Version: 0.1.0
+Summary: Python module to visualize maps with correct (de jure) India borders
+Author-email: Your Name <your.email@example.com>
+Keywords: india,map,geojson,visualization,borders,folium,plotly,matplotlib
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: folium>=0.20.0
+Requires-Dist: geopandas>=1.0.0
+Requires-Dist: matplotlib>=3.8.0
+Requires-Dist: plotly>=5.18.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: nbformat>=5.10.4
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: jupyter>=1.0.0; extra == "dev"
+Dynamic: license-file
+
+# India Map Corrector 🗺️
+
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
+A Python module to visualize maps with **correct (de jure) India borders**.
+
+Most mapping libraries (Plotly, Folium, etc.) show India's de facto borders by default. This module provides an easy overlay to display the legally recognized boundaries of India, including:
+- ✅ Jammu & Kashmir (complete)
+- ✅ Arunachal Pradesh  
+- ✅ Aksai Chin region
+
+## 📦 Installation
+
+
+### From Source
+
+```bash
+cd india-map-corrector
+pip install -e .
+```
+
+### Dependencies
+
+The package will automatically install:
+- `folium>=0.20.0`
+- `geopandas>=1.0.0`
+- `matplotlib>=3.8.0`
+- `plotly>=5.18.0`
+- `pandas>=2.0.0`
+- `numpy>=1.24.0`
+- `nbformat>=5.10.4`
+
+## 🚀 Quick Start
+
+### Interactive Map (Folium)
+
+```python
+from india_map_corrector import create_folium_map
+
+m = create_folium_map()
+m  # Display in Jupyter
+```
+
+### 🏛️ Official Government Map (ISRO Bhuvan)
+
+Use official tiles from ISRO's Bhuvan portal:
+
+```python
+from india_map_corrector import create_bhuvan_map
+
+# Creates map with ISRO tiles + correct overlay
+m = create_bhuvan_map()
+m
+```
+
+### Interactive Map (Plotly)
+
+```python
+from india_map_corrector import create_plotly_map
+
+fig = create_plotly_map(title="India Map")
+fig.show()
+```
+
+### Static Map (Matplotlib)
+
+```python
+from india_map_corrector import plot_static
+import matplotlib.pyplot as plt
+
+fig, ax = plot_static(title="India with Correct Borders")
+plt.show()
+```
+
+### 🌟 Fix Existing Plotly Maps (Key Feature!)
+
+```python
+import plotly.express as px
+from india_map_corrector import correct_map
+
+# Your existing Plotly code
+fig = px.choropleth_mapbox(data, ...)
+
+# Just wrap it to fix borders!
+fig = correct_map(fig)
+fig.show()
+```
+
+### Decorator for Automatic Correction
+
+```python
+from india_map_corrector import with_correct_borders
+
+@with_correct_borders()
+def create_my_map(data):
+    return px.choropleth_mapbox(data, ...)
+
+fig = create_my_map(my_data)  # Automatically has correct borders!
+```
+
+## 🎨 Available Map Styles
+
+### Folium Styles
+
+| Style | Description |
+|-------|-------------|
+| `"OpenStreetMap"` | Standard OSM with roads and labels |
+| `"CartoDB positron"` | Light, minimal - great for data viz |
+| `"CartoDB dark_matter"` | Dark theme |
+| `"Esri.WorldImagery"` | Satellite imagery |
+| `"Esri.WorldTopoMap"` | Topographic map |
+| `"Stamen Terrain"` | Terrain with hill shading |
+| `"Stamen Watercolor"` | Artistic watercolor style |
+| `None` or `"blank"` | No background (overlay only) |
+
+### Plotly Styles (Free - No Token Required)
+
+| Style | Description |
+|-------|-------------|
+| `"open-street-map"` | Standard OSM |
+| `"carto-positron"` | Light minimal |
+| `"carto-darkmatter"` | Dark theme |
+| `"white-bg"` | Plain white background |
+
+```python
+# List all available styles
+from india_map_corrector import print_all_styles
+print_all_styles()
+```
+
+## 📖 API Reference
+
+### Visualization Functions
+
+| Function | Library | Output |
+|----------|---------|--------|
+| `plot_static()` | Matplotlib | Static PNG/PDF |
+| `create_folium_map()` | Folium | Interactive HTML |
+| `create_plotly_map()` | Plotly | Interactive widget |
+
+### Convenience Functions
+
+| Function | Description |
+|----------|-------------|
+| `create_satellite_map()` | Folium with satellite background |
+| `create_blank_map()` | Folium with no background |
+| `create_bhuvan_map()` | **Official ISRO Bhuvan** tiles (WMS) |
+| `create_dark_map()` | Plotly dark theme |
+| `create_minimal_map()` | Plotly minimal/white theme |
+
+### Wrapper Functions
+
+| Function | Description |
+|----------|-------------|
+| `correct_map(fig)` | Add correct borders to any Plotly figure |
+| `@with_correct_borders()` | Decorator for automatic correction |
+
+### Core Functions
+
+| Function | Description |
+|----------|-------------|
+| `get_corrected_geojson()` | Get the corrected world boundaries GeoDataFrame |
+| `get_india_center()` | Returns `(22.5, 82.5)` lat/lon |
+| `get_india_bounds()` | Returns bounding box tuple |
+
+## 💡 Examples
+
+Check out the example files to get started quickly:
+
+| File | Description |
+|------|-------------|
+| 📓 [complete_guide.ipynb](examples/complete_guide.ipynb) | **Comprehensive Jupyter notebook** with interactive demos of all features - static maps, Folium, Plotly, wrapper functions, and styling options |
+| 🐍 [usage_examples.py](examples/usage_examples.py) | **Python script** with runnable examples for each functionality |
+
+### Running Examples
+
+```bash
+# Run the Python examples
+cd examples
+python usage_examples.py
+
+# Or open the Jupyter notebook
+jupyter notebook examples/complete_guide.ipynb
+```
+
+## 🎯 Customization
+
+### Custom Colors
+
+```python
+m = create_folium_map(
+    fill_color="#e8f4f8",
+    line_color="#2c3e50",
+    fill_opacity=0.6,
+    line_weight=2
+)
+```
+
+### World View
+
+```python
+m = create_folium_map(focus_india=False, zoom_start=2)
+fig = create_plotly_map(focus_india=False, zoom=1.5)
+```
+
+### Save Maps
+
+```python
+# Folium to HTML
+m = create_folium_map(save_html="map.html")
+
+# Matplotlib to PNG/PDF
+fig, ax = plot_static(save_path="map.png", dpi=300)
+
+# Plotly to HTML
+fig = create_plotly_map()
+fig.write_html("map.html")
+```
+
