@@ -1,0 +1,117 @@
+Metadata-Version: 2.4
+Name: cggr
+Version: 0.4.0
+Summary: Confidence-Gated Gradient Routing for Efficient Transformer Training
+Home-page: https://github.com/MinimaML/CGGR
+Author: MinimaML
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.0.0
+Requires-Dist: triton>=2.0.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# CGGR - Confidence-Gated Gradient Routing
+
+Selective loss computation for Transformer training. Only hard tokens contribute to loss, providing actual backward pass savings.
+
+## Installation
+
+```bash
+pip install cggr
+```
+
+> Requires CUDA + Triton.
+
+## Quick Start
+
+```python
+from cggr import CGGRLoss
+
+criterion = CGGRLoss(
+    scoring='combined',      # 'entropy', 'margin', 'loss', 'combined'
+    selection='stratified',  # 'topk', 'stratified', 'sequence_aware'
+    min_tokens_ratio=0.25,
+    warmup_steps=1000,
+)
+
+for batch in dataloader:
+    logits = model(input_ids)
+    loss = criterion(logits, targets)  # Only hard tokens
+    loss.backward()
+    optimizer.step()
+    criterion.step()
+```
+
+## Scoring Strategies
+
+| Strategy   | Description               | Best For            |
+| ---------- | ------------------------- | ------------------- |
+| `entropy`  | High entropy = hard       | General training    |
+| `margin`   | Small top-2 margin = hard | Classification      |
+| `loss`     | High loss = hard          | Direct optimization |
+| `combined` | All signals combined      | Best overall        |
+
+## Selection Strategies
+
+| Strategy         | Description                    | Benefit             |
+| ---------------- | ------------------------------ | ------------------- |
+| `topk`           | Top-k hardest tokens           | Simple, fast        |
+| `stratified`     | Sample from difficulty buckets | Prevents forgetting |
+| `sequence_aware` | Ensure coverage per sequence   | Preserves structure |
+
+## Dynamic Thresholding
+
+Automatically adjusts token ratio based on batch confidence:
+- Low confidence → more tokens (model is learning)
+- High confidence → fewer tokens (model has converged)
+
+```python
+CGGRLoss(dynamic_threshold=True, threshold_sensitivity=0.5)
+```
+
+## Full API
+
+```python
+CGGRLoss(
+    # Scoring
+    scoring='combined',
+    
+    # Selection
+    selection='topk',
+    num_strata=4,                  # For stratified
+    min_tokens_per_sequence=1,     # For sequence_aware
+    
+    # Thresholding
+    dynamic_threshold=True,
+    threshold_sensitivity=0.5,
+    
+    # Curriculum
+    min_tokens_ratio=0.25,
+    warmup_steps=1000,
+)
+```
+
+## Performance
+
+| Config                | Backward FLOPs | Overhead |
+| --------------------- | -------------- | -------- |
+| Standard Loss         | 100%           | 0%       |
+| **CGGR (25% tokens)** | **~25%**       | **~0%**  |
