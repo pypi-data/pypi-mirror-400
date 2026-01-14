@@ -1,0 +1,306 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/kevinchannon/tasktree/schema/tasktree-schema.json",
+  "title": "Task Tree Recipe Schema",
+  "description": "Schema for Task Tree (tt) recipe files (tasktree.yaml or tt.yaml)",
+  "type": "object",
+  "properties": {
+    "imports": {
+      "description": "Import task definitions from other files",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Path to the YAML file to import (relative to current file)"
+          },
+          "as": {
+            "type": "string",
+            "description": "Namespace to use for imported tasks",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
+          }
+        },
+        "required": ["file", "as"],
+        "additionalProperties": false
+      }
+    },
+    "environments": {
+      "description": "Shell execution environment configurations",
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "string",
+          "description": "Name of the default environment to use"
+        }
+      },
+      "patternProperties": {
+        "^[a-zA-Z][a-zA-Z0-9_-]*$": {
+          "type": "object",
+          "properties": {
+            "shell": {
+              "type": "string",
+              "description": "Path to the shell executable (e.g., /bin/bash, python3, pwsh). Required for shell environments, optional for Docker environments (defaults to 'sh' inside container)."
+            },
+            "args": {
+              "description": "Arguments to pass to the shell",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "preamble": {
+              "type": "string",
+              "description": "Code to execute before the command (e.g., imports, setup)"
+            },
+            "dockerfile": {
+              "type": "string",
+              "description": "Path to Dockerfile (relative to recipe file). When present, indicates a Docker environment."
+            },
+            "context": {
+              "type": "string",
+              "description": "Path to Docker build context directory (relative to recipe file). Required if dockerfile is specified."
+            },
+            "volumes": {
+              "description": "Volume mounts for Docker container (format: 'host_path:container_path')",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "ports": {
+              "description": "Port mappings for Docker container (format: 'host_port:container_port')",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "env_vars": {
+              "description": "Environment variables to set inside the Docker container",
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "working_dir": {
+              "type": "string",
+              "description": "Working directory inside the container (for Docker environments) or on the host (for shell environments)"
+            },
+            "extra_args": {
+              "description": "Additional arguments to pass to docker run",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "variables": {
+      "description": "Variable definitions that can be referenced in tasks using {{ var.name }} syntax",
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z][a-zA-Z0-9_-]*$": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Simple string value"
+            },
+            {
+              "type": "integer",
+              "description": "Integer value"
+            },
+            {
+              "type": "number",
+              "description": "Floating-point number value"
+            },
+            {
+              "type": "boolean",
+              "description": "Boolean value (true/false)"
+            },
+            {
+              "type": "object",
+              "description": "Environment variable reference",
+              "properties": {
+                "env": {
+                  "type": "string",
+                  "description": "Name of environment variable to read",
+                  "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                },
+                "default": {
+                  "type": "string",
+                  "description": "Value to use if the environment variable is not defined",
+                  "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                }
+              },
+              "required": ["env"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "File read reference",
+              "properties": {
+                "read": {
+                  "type": "string",
+                  "description": "Path to file to read (relative to recipe file, or absolute)"
+                }
+              },
+              "required": ["read"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "Eval command reference (executes shell command and captures output)",
+              "properties": {
+                "eval": {
+                  "type": "string",
+                  "description": "Shell command to execute (stdout becomes variable value)"
+                }
+              },
+              "required": ["eval"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "tasks": {
+      "description": "Task definitions",
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z][a-zA-Z0-9_-]*$": {
+          "type": "object",
+          "properties": {
+            "desc": {
+              "type": "string",
+              "description": "Human-readable description of the task"
+            },
+            "deps": {
+              "description": "Task dependencies (must run before this task)",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "inputs": {
+              "description": "Input file patterns (glob supported). Task re-runs if inputs change.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "outputs": {
+              "description": "Output file patterns (glob supported). Supports anonymous outputs (strings) and named outputs (objects). Named outputs can be referenced by dependent tasks using {{ dep.task.outputs.name }}. Task re-runs if outputs missing.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "description": "Anonymous output file pattern"
+                      },
+                      {
+                        "type": "object",
+                        "description": "Named output (format: { name: 'path/to/file' })",
+                        "minProperties": 1,
+                        "maxProperties": 1,
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "string",
+                  "description": "Single anonymous output file pattern"
+                }
+              ]
+            },
+            "working_dir": {
+              "type": "string",
+              "description": "Directory to execute the command in (relative to recipe file)"
+            },
+            "args": {
+              "description": "Parameterized arguments for the task (format: name, name:type, name:type=default)",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },{
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the argument (int, float, bool, string, path, ip, ipv4, ipv6, email, hostname)"
+                      },
+                      "default": {
+                        "type": "string",
+                        "description": "The default value of the argument"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "env": {
+              "type": "string",
+              "description": "Environment to use for this task (overrides default)"
+            },
+            "private": {
+              "type": "boolean",
+              "description": "If true, task is hidden from --list output but can still be run directly",
+              "default": false
+            },
+            "cmd": {
+              "type": "string",
+              "description": "Shell command to execute. Use {{arg}} for parameter substitution."
+            }
+          },
+          "required": ["cmd"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "anyOf": [
+    { "required": ["tasks"] },
+    { "required": ["imports"] },
+    { "required": ["environments"] },
+    { "required": ["variables"] }
+  ]
+}

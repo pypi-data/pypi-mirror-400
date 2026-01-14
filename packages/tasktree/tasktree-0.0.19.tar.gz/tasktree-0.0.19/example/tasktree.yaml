@@ -1,0 +1,37 @@
+variables:
+  log_level: { env: LOG_LEVEL, default: "info" }
+
+tasks:
+  build:
+    desc: Building outputs (imagine this is a call to Cargo, or gcc, or something)
+    args:
+      - build_type:
+          choices: [ "debug", "release", "{{ var.log_level }}" ]
+          default: "{{ var.log_level }}"
+      - target:
+           type: str
+           choices:
+             - "x86"
+             - "x86_64"
+             - "arm"
+             - "ppc"
+           default: "x86_64"
+    outputs: [build/**]
+    cmd: |
+      echo building for {{ arg.target }}...
+      cd build
+      echo "code and stuff" > output-{{ arg.build_type }}-{{ arg.target }}.txt
+
+  package:
+    desc: Create archive
+    deps:
+      - build: [ "debug", "x86" ]
+      - build: [ "release" ]
+      - build: { build_type: "release", target: "ppc" }
+    outputs: [archive.tar.gz]
+    cmd: echo "making archive.tar.gz..."
+
+  clean:
+    desc: Clean generated files
+    inputs: [ archive.tar.gz ]
+    cmd: rm -f archive.tar.gz
