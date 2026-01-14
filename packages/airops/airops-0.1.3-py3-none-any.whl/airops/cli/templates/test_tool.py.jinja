@@ -1,0 +1,68 @@
+"""Tests for {{ name }} tool."""
+
+from __future__ import annotations
+
+import time
+
+import pytest
+from fastapi.testclient import TestClient
+
+from tool import Inputs, Outputs, tool
+
+
+@pytest.fixture
+def client() -> TestClient:
+    """Create test client for the tool."""
+    return TestClient(tool.app)
+
+
+def test_health_endpoint(client: TestClient) -> None:
+    """Health endpoint returns ok."""
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_start_run(client: TestClient) -> None:
+    """POST /runs starts a run."""
+    response = client.post(
+        "/runs",
+        json={"inputs": {"query": "test", "limit": 5}},
+    )
+    assert response.status_code == 202
+    data = response.json()
+    assert "run_id" in data
+    assert data["status"] == "queued"
+
+
+def test_run_completes(client: TestClient) -> None:
+    """Run completes successfully."""
+    # Start run
+    response = client.post(
+        "/runs",
+        json={"inputs": {"query": "hello"}},
+    )
+    assert response.status_code == 202
+    run_id = response.json()["run_id"]
+
+    # Poll until complete
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        poll = client.get(f"/runs/{run_id}")
+        assert poll.status_code == 200
+        data = poll.json()
+        if data["status"] == "success":
+            assert "results" in data["outputs"]
+            return
+        time.sleep(0.1)
+
+    pytest.fail("Run did not complete in time")
+
+
+def test_invalid_inputs(client: TestClient) -> None:
+    """Invalid inputs return 400."""
+    response = client.post(
+        "/runs",
+        json={"inputs": {}},  # missing required 'query'
+    )
+    assert response.status_code == 400
