@@ -1,0 +1,1 @@
+::: funfedi_results.allure
