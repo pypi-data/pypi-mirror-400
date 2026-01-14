@@ -1,0 +1,511 @@
+"""
+小红书笔记提取器模块
+
+该模块提供了从小红书URL中提取笔记信息的功能，包括：
+- URL解析和转换
+- 设备连接和页面跳转
+- 笔记内容提取（正文、图片、点赞数等）
+- 结构化数据返回
+
+作者: JoyCode Agent
+版本: 1.0.0
+"""
+
+import uiautomator2 as u2
+import time
+import re
+import requests
+import logging
+from typing import Dict, List, Optional, Union
+from urllib.parse import urlparse, parse_qs
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class XHSNoteExtractor:
+    """
+    小红书笔记提取器类
+    
+    提供了从小红书URL中提取笔记信息的完整功能，
+    包括URL解析、设备连接、页面跳转和笔记内容提取。
+    """
+    
+    def __init__(self, device_serial: Optional[str] = None):
+        """
+        初始化小红书笔记提取器
+        
+        Args:
+            device_serial (str, optional): 设备序列号，如果为None则自动连接可用设备
+            
+        Raises:
+            RuntimeError: 当没有可用设备时抛出异常
+        """
+        self.device = None
+        self.device_serial = device_serial
+        if not self.connect_device():
+            raise RuntimeError("未找到可用的Android设备，请连接设备后再试")
+    
+    def connect_device(self) -> bool:
+        """
+        连接设备
+        
+        Returns:
+            bool: 是否成功连接设备
+        """
+        try:
+            if self.device_serial:
+                self.device = u2.connect(self.device_serial)
+            else:
+                self.device = u2.connect()
+            logger.info(f"✓ 已连接设备: {self.device.serial}")
+            return True
+        except Exception as e:
+            logger.error(f"✗ 设备连接失败: {e}")
+            return False
+    def is_device_connected(self) -> bool:
+        """
+        检查设备是否仍然连接
+        
+        Returns:
+            bool: 设备是否连接
+        """
+        if not self.device:
+            return False
+        try:
+            # 通过获取设备信息来验证连接
+            self.device.info
+            return True
+        except:
+            return False
+
+    @staticmethod
+    def parse_xhs_url(url: str) -> Dict[str, str]:
+
+        """
+        解析小红书URL，提取note_id和xsec_token
+        
+        Args:
+            url (str): 小红书URL，支持标准格式或xhsdiscover协议格式
+            
+        Returns:
+            Dict[str, str]: 包含note_id和xsec_token的字典
+            
+        Raises:
+            ValueError: 当URL格式不正确时抛出异常
+        """
+        # 处理xhsdiscover协议格式
+        if url.startswith("xhsdiscover://"):
+            # 提取note_id
+            note_id_match = re.search(r'item/([^?]+)', url)
+            if not note_id_match:
+                raise ValueError("无法从xhsdiscover URL中提取note_id")
+            
+            note_id = note_id_match.group(1)
+            
+            # 尝试从open_url参数中提取原始URL
+            open_url_match = re.search(r'open_url=([^&]+)', url)
+            xsec_token = ""
+            if open_url_match:
+                open_url = open_url_match.group(1)
+                # 解码URL
+                import urllib.parse
+                decoded_url = urllib.parse.unquote(open_url)
+                # 从原始URL中提取xsec_token
+                token_match = re.search(r'xsec_token=([^&]+)', decoded_url)
+                if token_match:
+                    xsec_token = token_match.group(1)
+            
+            return {
+                "note_id": note_id,
+                "xsec_token": xsec_token,
+                "original_url": url
+            }
+        
+        # 处理标准URL格式
+        elif "xiaohongshu.com" in url:
+            parsed_url = urlparse(url)
+            path_parts = parsed_url.path.strip('/').split('/')
+            
+            # 查找explore部分和note_id
+            if 'explore' in path_parts:
+                explore_index = path_parts.index('explore')
+                if explore_index + 1 < len(path_parts):
+                    note_id = path_parts[explore_index + 1]
+                else:
+                    raise ValueError("URL中缺少note_id")
+            # 兼容 /discovery/item/ 格式
+            elif 'discovery' in path_parts and 'item' in path_parts:
+                item_index = path_parts.index('item')
+                if item_index + 1 < len(path_parts):
+                    note_id = path_parts[item_index + 1]
+                else:
+                    raise ValueError("URL中缺少note_id")
+            else:
+                raise ValueError("URL格式不正确，缺少/explore/或/discovery/item/路径")
+            
+            # 提取查询参数中的xsec_token
+            query_params = parse_qs(parsed_url.query)
+            xsec_token = query_params.get('xsec_token', [''])[0]
+            
+            return {
+                "note_id": note_id,
+                "xsec_token": xsec_token,
+                "original_url": url
+            }
+        
+        else:
+            raise ValueError("不支持的URL格式")
+    
+    @staticmethod
+    def validate_url(url: str) -> bool:
+        """
+        验证URL是否是有效的小红书URL
+        
+        Args:
+            url (str): 要验证的URL
+            
+        Returns:
+            bool: URL是否有效
+        """
+        try:
+            XHSNoteExtractor.parse_xhs_url(url)
+            return True
+        except ValueError:
+            return False
+    
+    @staticmethod
+    def convert_to_xhsdiscover_format(note_id: str, xsec_token: str = "") -> str:
+        """
+        将note_id和xsec_token转换为xhsdiscover协议格式
+        
+        Args:
+            note_id (str): 笔记ID
+            xsec_token (str): xsec_token参数
+            
+        Returns:
+            str: xhsdiscover协议格式的URL
+        """
+        if xsec_token:
+            original_url = f"http://www.xiaohongshu.com/explore/{note_id}?xsec_token={xsec_token}&xsec_source=pc_feed"
+            encoded_url = requests.utils.quote(original_url)
+            return f"xhsdiscover://item/{note_id}?open_url={encoded_url}"
+        else:
+            return f"xhsdiscover://item/{note_id}"
+    
+    def extract_note_data(self, url: Optional[str] = None, note_id: Optional[str] = None, 
+                         xsec_token: Optional[str] = None) -> Dict[str, Union[str, List[str]]]:
+        """
+        从小红书笔记中提取数据
+        
+        Args:
+            url (str, optional): 小红书URL，如果提供则会解析其中的note_id和xsec_token
+            note_id (str, optional): 笔记ID，如果提供则直接使用
+            xsec_token (str, optional): xsec_token参数
+            
+        Returns:
+            Dict[str, Union[str, List[str]]]: 包含笔记数据的字典，格式与xhs_utils.get_detail_data()一致
+            
+        Raises:
+            RuntimeError: 当设备未连接时抛出异常
+            Exception: 当提取过程中出现错误时抛出异常
+        """
+        # 如果提供了URL，则先解析它（验证URL有效性）
+        if url:
+            parsed_data = self.parse_xhs_url(url)
+            note_id = parsed_data["note_id"]
+            xsec_token = parsed_data["xsec_token"]
+            
+        # 检查设备是否连接
+        if self.device is None:
+            raise RuntimeError("设备未连接，请先连接设备")
+        
+        # 构建跳转URL
+        jump_url = self.convert_to_xhsdiscover_format(note_id, xsec_token)
+        
+        logger.info(f"正在尝试跳转至笔记: {note_id}")
+        
+        try:
+            # 发起跳转
+            self.device.open_url(jump_url)
+            logger.info("✓ 已发送跳转指令，等待页面加载...")
+            
+            # 使用现有的xhs_utils功能提取数据
+            data = self._get_detail_data()
+            
+            logger.info(f"✓ 成功提取笔记数据，点赞数: {data['likes']}, 图片数: {len(data['image_urls'])}")
+            
+            return data
+            
+        except Exception as e:
+            logger.error(f"✗ 提取笔记数据失败: {e}")
+            raise
+    
+    def _get_detail_data(self) -> Dict[str, Union[str, List[str]]]:
+        """
+        从当前已经打开的小红书详情页提取完整正文、图片和点赞数。
+        这是xhs_utils.get_detail_data的封装版本，保持相同功能。
+        
+        Returns:
+            Dict[str, Union[str, List[str]]]: 包含笔记数据的字典
+        """
+        logger.info("🔍 进入深度提取模式...")
+        
+        # 1. 验证是否进入详情页 (增加重试和多关键词检测)
+        detail_loaded = False
+        detail_keywords = ["说点什么", "写评论", "写点什么", "收藏", "点赞", "评论", "分享", "发弹幕"]
+        for i in range(8):
+            if any(self.device(textContains=kw).exists or self.device(descriptionContains=kw).exists for kw in detail_keywords):
+                detail_loaded = True
+                break
+            if i == 4:
+                # 可能是视频，点击屏幕中心尝试激活 UI
+                self.device.click(540, 900)
+            time.sleep(1)
+        
+        if not detail_loaded:
+            logger.warning("⚠ 警告：详情页特征未发现，提取可能不完整")
+
+        # 1.5 提取作者信息 (优先尝试)
+        author_name = "Unknown"
+        try:
+            # 策略: 寻找 "关注" 或 "已关注" 按钮，作者名通常在它左边
+            follow_keyword = "关注"
+            follow_btn = self.device(text=follow_keyword)
+            if not follow_btn.exists:
+                follow_keyword = "已关注"
+                follow_btn = self.device(text=follow_keyword)
+            
+            if follow_btn.exists:
+                # 获取关注按钮位置
+                btn_info = follow_btn.info
+                if btn_info and 'bounds' in btn_info:
+                    btn_cnter_y = (btn_info['bounds']['top'] + btn_info['bounds']['bottom']) / 2
+                    btn_left = btn_info['bounds']['left']
+                    
+                    # 寻找左侧最近的文本
+                    candidates = []
+                    for el in self.device(className="android.widget.TextView"):
+                        txt = el.get_text()
+                        # 名字太长通常不是，但放宽限制到 30
+                        if not txt or txt == follow_keyword or len(txt) > 30: continue 
+                        
+                        b = el.info.get('bounds')
+                        if not b: continue
+                        
+                        el_center_y = (b['top'] + b['bottom']) / 2
+                        # 垂直对齐判断 (容差 50px)
+                        if abs(el_center_y - btn_cnter_y) < 50:
+                            # 必须在按钮左侧
+                            if b['right'] < btn_left + 50: # 允许少量重叠或紧贴
+                                candidates.append((txt, b['right']))
+                    
+                    # 选最靠右的那个 (离按钮最近)
+                    if candidates:
+                        candidates.sort(key=lambda x: x[1], reverse=True)
+                        author_name = candidates[0][0]
+                        logger.info(f"✓ 识别到作者: {author_name}")
+        except Exception as e:
+            logger.warning(f"⚠ 作者提取异常: {e}")
+
+        # 2. 处理"展开"按钮以获取完整长文
+        for btn_text in ["展开", "查看全部", "全文"]:
+            btn = self.device(text=btn_text)
+            if btn.exists:
+                logger.info(f"[Action] 点击'{btn_text}'")
+                btn.click()
+                time.sleep(1)
+
+        # 3. 提取正文 (多策略拼接)
+        content = ""
+        # 策略 A: 尝试常见 ID
+        desc_el = self.device(resourceIdMatches=".*desc.*|.*content.*")
+        if desc_el.exists:
+            content = desc_el.get_text()
+        
+        # 策略 B: 文本容器遍历 (更稳健)
+        if not content or len(content) < 20:
+            texts = []
+            for el in self.device(className="android.widget.TextView"):
+                try:
+                    t = el.get_text()
+                    if not t or len(t) < 3: continue
+                    # 过滤坐标：只取屏幕中间内容区
+                    b = el.info.get('bounds', {})
+                    if 200 < b.get('top', 0) < 2100:
+                        if not any(k in t for k in ['收藏', '点赞', '评论', '分享', '发布于', '说点什么', '条评论']):
+                            texts.append(t)
+                except: continue
+            content = "\n".join(texts)
+
+        # 4. 提取图片 (通过分享链接解析高清图)
+        image_urls = []
+        try:
+            share_btn = self.device(description="分享")
+            if share_btn.exists:
+                share_btn.click()
+                time.sleep(1.5)
+                copy_link_btn = self.device(text="复制链接")
+                if copy_link_btn.exists:
+                    copy_link_btn.click()
+                    time.sleep(0.5)
+                    share_link = self.device.clipboard
+                    if "http" in str(share_link):
+                        image_urls = self._fetch_web_images(share_link)
+                else:
+                    self.device.press("back")
+        except Exception as e:
+            logger.warning(f"⚠ 图片提取异常: {e}")
+
+        # 5. 提取互动数据 (点赞、收藏、评论)
+        likes = "0"
+        collects = "0"
+        comments = "0"
+        
+        try:
+            # 在底部区域查找互动数据
+            # 通常顺序是：左边评论(或直接显示写评论)，右边依次是点赞、收藏、评论数
+            # 策略：遍历底部 TextView，根据位置和内容识别
+            bottom_elements = []
+            for el in self.device(className="android.widget.TextView"):
+                b = el.info.get('bounds', {})
+                if b.get('top', 0) > 2000: # 屏幕底部区域
+                    bottom_elements.append(el)
+            
+            # 排序：按从左到右
+            bottom_elements.sort(key=lambda x: x.info.get('bounds', {}).get('left', 0))
+            
+            for el in bottom_elements:
+                txt = el.get_text() or ""
+                # 提取数字部分
+                num_txt = ''.join(c for c in txt if c.isdigit() or c in ['.', 'w', 'W'])
+                if not num_txt: continue
+                
+                b = el.info.get('bounds', {})
+                left = b.get('left', 0)
+                
+                # 根据位置初步判断 (这类位置可能随机型变化，但相对顺序通常一致)
+                # 点赞通常在 500-750 左右
+                # 收藏通常在 750-900 左右
+                # 评论通常在 900+ 左右
+                if 500 < left < 750:
+                    likes = num_txt
+                elif 750 < left < 900:
+                    collects = num_txt
+                elif left >= 900:
+                    comments = num_txt
+        except Exception as e:
+            logger.warning(f"⚠ 互动数据提取异常: {e}")
+
+        return {
+            "content": content,
+            "image_urls": image_urls,
+            "likes": likes,
+            "collects": collects,
+            "comments": comments,
+            "author_name": author_name
+        }
+    
+    def _fetch_web_images(self, url: str) -> List[str]:
+        """
+        从分享链接中解析图片地址
+        
+        Args:
+            url (str): 分享链接URL
+            
+        Returns:
+            List[str]: 图片URL列表
+        """
+        try:
+            headers = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1"}
+            res = requests.get(url, headers=headers, timeout=10)
+            html = res.text
+            img_patterns = [
+                r'property="og:image" content="(https://[^"]+)"',
+                r'"url":"(https://sns-img-[^"]+)"',
+                r'"url":"(https://sns-img-qc\.xhscdn\.com/[^"]+)"'
+            ]
+            found = []
+            for pattern in img_patterns:
+                matches = re.findall(pattern, html)
+                for m in matches:
+                    clean_url = m.replace('\\u002F', '/')
+                    if clean_url not in found: found.append(clean_url)
+            return found
+        except:
+            return []
+    
+    def save_note_data(self, data: Dict[str, Union[str, List[str]]], 
+                      filename: str = "last_extracted_note.txt", 
+                      note_url: str = "") -> None:
+        """
+        保存笔记数据到文件
+        
+        Args:
+            data (Dict[str, Union[str, List[str]]]): 笔记数据
+            filename (str): 保存文件名
+            note_url (str): 笔记URL
+        """
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write("=" * 50 + "\n")
+                f.write("【小红书笔记提取结果】\n")
+                f.write("=" * 50 + "\n")
+                if note_url:
+                    f.write(f"笔记URL: {note_url}\n")
+                    f.write("=" * 50 + "\n")
+                f.write(f"作者: {data.get('author_name', 'Unknown')}\n")
+                f.write(f"点赞数: {data.get('likes', '0')}\n")
+                f.write(f"收藏数: {data.get('collects', '0')}\n")
+                f.write(f"评论数: {data.get('comments', '0')}\n")
+                f.write(f"图片数: {len(data.get('image_urls', []))}\n")
+                f.write("=" * 50 + "\n")
+                f.write("【正文内容】\n")
+                f.write(data['content'])
+                f.write("\n" + "=" * 50 + "\n")
+                if data['image_urls']:
+                    f.write("【图片URL】\n")
+                    for i, url in enumerate(data['image_urls'], 1):
+                        f.write(f"{i}. {url}\n")
+                    f.write("=" * 50 + "\n")
+            
+            logger.info(f"✓ 笔记数据已保存到: {filename}")
+        except Exception as e:
+            logger.error(f"✗ 保存笔记数据失败: {e}")
+            raise
+
+
+def extract_note_from_url(url: str, device_serial: Optional[str] = None) -> Dict[str, Union[str, List[str]]]:
+    """
+    便捷函数：直接从URL提取笔记数据
+    
+    Args:
+        url (str): 小红书笔记URL
+        device_serial (str, optional): 设备序列号
+        
+    Returns:
+        Dict[str, Union[str, List[str]]]: 笔记数据
+    """
+    extractor = XHSNoteExtractor(device_serial=device_serial)
+    return extractor.extract_note_data(url=url)
+
+
+def convert_url_format(url: str) -> str:
+    """
+    便捷函数：转换URL格式
+    
+    Args:
+        url (str): 输入URL
+        
+    Returns:
+        str: 转换后的xhsdiscover协议格式URL
+    """
+    parsed_data = XHSNoteExtractor.parse_xhs_url(url)
+    return XHSNoteExtractor.convert_to_xhsdiscover_format(
+        parsed_data["note_id"], 
+        parsed_data["xsec_token"]
+    )
