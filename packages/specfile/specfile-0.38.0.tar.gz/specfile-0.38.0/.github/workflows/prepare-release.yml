@@ -1,0 +1,37 @@
+name: Prepare a new release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        description: Version number for the new release
+
+jobs:
+  prepare-release:
+    # To not run in forks
+    if: github.repository_owner == 'packit'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Prepare release content
+        uses: packit/prepare-release@v3
+        with:
+          version: ${{ inputs.version }}
+          specfiles: fedora/python-specfile.spec,epel8/python-specfile.spec,epel10/python-specfile.spec,centos-integration-sig/python-specfile.spec
+          prerelease_suffix_pattern: "([.\\-_]?)(a(lpha)?|b(eta)?|r?c|pre(view)?)([.\\-_]?\\d+)?"
+          prerelease_suffix_macro: prerelease
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          labels: release
+          commit-message: Release ${{ inputs.version }}
+          title: Release ${{ inputs.version }}
+          body: Update the changelog and the specfile for release ${{ inputs.version }}.
+          delete-branch: true
+          token: ${{ secrets.RELEASEBOT_GITHUB_TOKEN }}
