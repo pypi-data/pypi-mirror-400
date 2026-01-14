@@ -1,0 +1,28 @@
+{% if SENTRY_KEY %}
+
+<script>
+    window.sentryOnLoad = function() {
+        Sentry.init({
+            environment: '{{ ENVIRONMENT }}',
+
+            {% if request and request.user %}
+            initialScope: {
+                user: {
+                    {% if request.user.is_anonymous %}
+                    username: 'anonymous'
+                    {% else %}
+                    email: '{{ request.user.email }}',
+                    username: '{{ request.user.username }}'
+                    {% endif %}
+                }
+            }
+            {% endif %}
+
+        });
+    };
+</script>
+
+<script src="https://js.sentry-cdn.com/{{ SENTRY_KEY }}.min.js"
+        crossorigin="anonymous"></script>
+
+{% endif %}
