@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyrandyos"
+dynamic = ["version"]
+description = "Library of common functions for Python applications"
+readme = "readme.md"
+authors = [
+  {name = "Randy Eckman", email = "emanspeaks@gmail.com"},
+]
+maintainers = [
+  {name = "Randy Eckman", email = "emanspeaks@gmail.com"},
+]
+dependencies = [
+  "pywin32; sys_platform == 'win32'",
+  "tqdm",
+  "pyside2",
+  "pandas",
+  "numpy",
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+qdarkstyle = ["qdarkstyle"]
+dev = [
+  "hatch-vcs",
+  "types-pyside2",  # pip only
+  "pdoc",
+  "hatchling",
+]
+
+[tool.hatch.version]
+# path = "pyrandyos/_version.py"
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# This removes the local version identifier (+gXXXXXX) that PyPI doesn't accept
+# local_scheme = "no-local-version"
+local_scheme = "dirty-tag"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "pyrandyos/_version.py"
+
+[tool.hatch.build]
+include = [
+  "pyrandyos/**/*.py",
+  "pyrandyos/gui/styles/assets",
+  "pyrandyos/gui/icons/assets",
+]
+
+[project.urls]
+Homepage = "https://github.com/emanspeaks/pyrandyos"
+Issues = "https://github.com/emanspeaks/pyrandyos/issues"
+Documentation = "https://py.randyos.org"
+
+[tool.coverage.report]
+# ignore_errors = true
+
+# Regexes for lines to exclude from consideration
+exclude_also = [
+  # Don't complain about missing debug-only code:
+  # "def __repr__",
+  # "if self\\.debug",
+
+  # Don't complain if tests don't hit defensive assertion code:
+  "raise AssertionError",
+  "raise NotImplementedError",
+
+  # Don't complain if non-runnable code isn't run:
+  # "if 0:",
+  "if __name__ == .__main__.:",
+
+  # Don't complain about abstract methods, they aren't run:
+  "@(abc\\.)?abstractmethod",
+
+  'if TYPE_CHECKING:',
+  'if IS_WIN_CTYPES:'
+]
+
+[tool.coverage.run]
+branch = true
+# https://github.com/nedbat/coveragepy/issues/1392#issuecomment-1149310741
+omit = [
+    "shibokensupport/*",
+    "pyscript",
+    "signature_bootstrap.py",
+    "tests/*",
+]
