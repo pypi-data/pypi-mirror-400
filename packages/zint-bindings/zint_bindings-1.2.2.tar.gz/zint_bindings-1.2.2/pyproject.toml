@@ -1,0 +1,151 @@
+[project]
+name = "zint-bindings"
+version = "1.2.2"
+authors = [
+    { name = "Anna Zhukova" }
+]
+
+description = "A barcode encoding library supporting over 50 symbologies."
+readme = "README.md"
+keywords = [
+    "QR", "qrcode", "datamatrix", "barcode", "generator", "gs1", "code128", "aztec", "pdf417", "ean", "code93",
+    "maxicode", "microqr", "rmqr"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: Apache Software License",
+    "Natural Language :: English",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+	"Topic :: Communications",
+	"Topic :: Multimedia :: Graphics",
+]
+
+requires-python = ">=3.9"
+dependencies = []
+
+[project.urls]
+Documentation = "https://zint-bindings.readthedocs.io/"
+Repository = "https://github.com/bindreams/zint-bindings"
+Issues = "https://github.com/bindreams/zint-bindings/issues"
+
+[project.optional-dependencies]
+test = [
+    "pytest >= 7",
+    "pytest-sugar",
+    "mypy; platform_python_implementation == 'CPython'"  # For commandline utility "stubtest"
+]
+
+docs = [
+    "sphinx",
+    "myst-parser",
+    "furo",
+    "sphinx-design",
+    "sphinx-copybutton",
+    "sphinx_substitution_extensions",
+]
+
+[dependency-groups]
+dist = [
+    "build",
+    "cibuildwheel == 3.3.1",
+]
+
+[build-system]
+requires = [
+    "scikit-build-core >= 0.11.6",
+    "pybind11 == 3.0.1",
+    "pip >= 24",  # For installing script dependencies
+    # Requirements from src/zint/scripts/generate-stub.requirements.txt
+    "pybind11-stubgen == 2.5.5",
+    "typing-extensions >= 4.6",
+    "yapf",
+]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+cmake.args = ["-GNinja"]
+build.targets = ["zint_bindings"]
+install.components = ["zint_bindings"]
+
+cmake.version = ">=3.28,<4"
+ninja.version = ">=1.11"
+ninja.make-fallback = false
+
+sdist.cmake = true  # CMake required for generated files
+sdist.exclude = [
+    # Included in repo for visibility, but generated at compile time
+    "src/generated",
+    # Development and CI
+    ".github",
+    ".editorconfig",
+    ".clang-format",
+    ".devcontainer",
+    "CMakePresets.json",
+    "scripts/build.sh",
+    "scripts/install.sh",
+    # Tests and docs
+    "tests",
+    "docs",
+    # Git files
+    ".gitattributes",
+    ".gitignore",
+]
+
+[tool.cibuildwheel]
+enable = [
+    "cpython-prerelease",
+    "pypy",
+]
+skip = [
+    "*linux_i686*",
+    "*linux_ppc64le*",
+    "*linux_s390x*",
+    "*-win32",
+]
+environment = {CMAKE_GENERATOR="Ninja"}  # Force Ninja even on Windows
+
+# Hardcode manylinux2014 as the target because tool.cibuildwheel.linux uses yum to install packages.
+manylinux-x86_64-image       = "manylinux2014"
+manylinux-aarch64-image      = "manylinux2014"
+manylinux-pypy_x86_64-image  = "manylinux2014"
+manylinux-pypy_aarch64-image = "manylinux2014"
+musllinux-x86_64-image       = "musllinux_1_2"
+musllinux-aarch64-image      = "musllinux_1_2"
+
+test-extras = "test"  # Install [test] optional requirements
+test-command = "pytest {project}"
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y curl zip unzip tar"  # For bootstrapping vcpkg
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux*"
+before-all = "apk add build-base cmake ninja zip unzip curl git"
+environment = {VCPKG_FORCE_SYSTEM_BINARIES="1"}
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = ["--doctest-glob=README.md"]
+doctest_optionflags = "ELLIPSIS"
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = "missing-function-docstring, too-many-arguments, too-many-locals"
+max-line-length = 120
+
+[tool.yapf]
+based_on_style = "pep8"
+column_limit = 120
+each_dict_entry_on_separate_line = false
+dedent_closing_brackets = true
+coalesce_brackets = true
