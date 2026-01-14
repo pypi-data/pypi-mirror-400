@@ -1,0 +1,48 @@
+{% extends "georgeforge/base.html" %}
+{% load i18n %}
+{% load humanize %}
+{% load static %}
+{% load django_bootstrap5 %}
+{% block details %}
+    <h4>{% translate "In Progress Orders" %}</h4>
+    <div class="table-responsive">
+        <table class="table table-hover table-striped w-100"
+               id="table-active-orders">
+            {% include "georgeforge/partials/order_table_header.html" with show_character=True show_estimated_delivery=True show_notes=True %}
+            <tbody>
+                {% for entry in all_orders %}
+                    {% include "georgeforge/partials/order_table_row.html" with entry=entry editable=True show_character=True show_estimated_delivery=True show_notes=True %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <h4>{% translate "Completed Orders" %}</h4>
+    <div class="table-responsive">
+        <table class="table table-hover table-striped w-100"
+               id="table-completed-orders">
+            {% include "georgeforge/partials/order_table_header.html" with show_character=True show_estimated_delivery=True show_notes=False %}
+            <tbody>
+                {% for entry in done_orders %}
+                    {% include "georgeforge/partials/order_table_row.html" with entry=entry editable=False show_character=True show_estimated_delivery=True show_notes=False %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock details %}
+{% block extra_javascript %}
+    {% include "bundles/datatables-js-bs5.html" %}
+    {% include "bundles/x-editable-js.html" %}
+    {% include "bundles/moment-js.html" %}
+    {% get_datatables_language_static LANGUAGE_CODE as DT_LANG_PATH %}
+    {% include "georgeforge/partials/order_table_toast.html" %}
+    {% include "georgeforge/partials/order_table_editable.html" %}
+    {% include "georgeforge/partials/order_table_javascript.html" with table_id="table-active-orders" non_sortable_columns=8 %}
+    {% include "georgeforge/partials/order_table_javascript.html" with table_id="table-completed-orders" %}
+{% endblock %}
+{% block extra_css %}
+    {% include "bundles/datatables-css-bs5.html" %}
+    {% include "bundles/x-editable.css.html" %}
+    {% include "georgeforge/partials/order_table_editable.css.html" %}
+    {% include "georgeforge/partials/order_pips.css.html" %}
+{% endblock %}
+{% block extra_script %}{% endblock %}
