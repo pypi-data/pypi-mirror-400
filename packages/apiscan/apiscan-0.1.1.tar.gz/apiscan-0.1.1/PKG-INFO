@@ -1,0 +1,750 @@
+Metadata-Version: 2.4
+Name: apiscan
+Version: 0.1.1
+Summary: A safe, public-API security scanner CLI
+Author: Samuel Selasi
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx>=0.26
+Requires-Dist: rich>=13.0
+Requires-Dist: pydantic>=2.0
+Requires-Dist: jinja2>=3.1
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Dynamic: license-file
+
+# APIScan
+
+[![PyPI version](https://badge.fury.io/py/apiscan.svg)](https://badge.fury.io/py/apiscan)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+**A Linux-first, safe-by-default API security scanner for modern web APIs**
+
+APIScan is a lightweight command-line security assessment tool designed to identify common misconfigurations and information leaks in public APIs. Built with safety and practicality in mind, it performs non-invasive reconnaissance that mirrors real-world attacker techniques without exploiting vulnerabilities or modifying data.
+
+Whether you're a developer hardening your API, a security engineer conducting assessments, or a learner exploring API security, APIScan provides fast, actionable insights into your API's security posture through beautiful terminal output and comprehensive reports.
+
+---
+
+## Features
+
+### Security Checks
+
+APIScan performs comprehensive yet non-destructive analysis across multiple security dimensions:
+
+- **TLS/HTTPS Enforcement**: Validates SSL/TLS configuration and checks for proper HTTPS usage
+- **Protocol Downgrade Detection**: Identifies HTTP to HTTPS downgrade vulnerabilities
+- **Security Headers Analysis**: Examines critical security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, etc.)
+- **CORS Misconfiguration Detection**: Detects overly permissive Cross-Origin Resource Sharing policies
+- **Rate Limiting Assessment**: Tests for absence or weak rate limiting controls
+- **Information Disclosure**: Identifies verbose error messages, stack traces, and sensitive data leaks
+- **OpenAPI/Swagger Discovery**: Automatically locates and parses API definitions to extract endpoints
+
+### Output Formats
+
+APIScan generates reports in three complementary formats:
+
+1. **Rich Terminal Output**: Beautiful, colorized tables with severity indicators for immediate feedback
+2. **JSON Report**: Machine-readable format perfect for CI/CD pipelines and automation tools
+3. **HTML Report**: Human-friendly format with visual severity indicators and detailed findings
+
+### Severity Classification
+
+Every finding is classified into four clear severity levels with an overall risk score:
+
+- **Info**: Informational findings (e.g., "CORS configuration detected")
+- **Low**: Minor issues (e.g., "Potential information leakage via headers")
+- **Medium**: Significant misconfigurations (e.g., "Missing security headers")
+- **High**: Critical security issues (e.g., "Missing HTTPS enforcement")
+
+---
+
+## Installation
+
+### From PyPI (Recommended)
+
+```bash
+pip install apiscan
+```
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/samuelselasi/apiscan
+cd apiscan
+
+# Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install in editable mode
+pip install -U pip
+pip install -e .
+```
+
+### Prerequisites
+
+- Python 3.8 or higher
+- Linux (primary), macOS, or WSL on Windows
+- Internet connection for scanning public APIs
+
+---
+
+## Quick Start
+
+### Basic Scan
+
+Scan an API with default settings (scans root path `/`):
+
+```bash
+apiscan https://api.github.com
+```
+
+**Example Output:**
+
+```
+Scanning https://api.github.com
+Paths to scan (1): /
+
+╭───────── Severity Summary ──────────╮
+│ high: 0  medium: 0  low: 1  info: 3 │
+│ risk_score: 1                       │
+╰─────────────────────────────────────╯
+
+                         Global Findings (Target-wide)                          
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Severity ┃ Issue                       ┃ Description                         ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ info     │ HTTP redirects to HTTPS     │ HTTP requests are redirected to     │
+│          │                             │ HTTPS (good).                       │
+│ info     │ CORS configuration detected │ CORS headers were detected. Review  │
+│          │                             │ allowed origins and credentials if  │
+│          │                             │ sensitive endpoints exist.          │
+│ info     │ Rate limit headers present  │ Rate limiting headers were          │
+│          │                             │ observed. Throttling may be         │
+│          │                             │ enforced.                           │
+└──────────┴─────────────────────────────┴─────────────────────────────────────┘
+
+                          Findings for / (status 200)                           
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Severity ┃ Issue                           ┃ Description                     ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ low      │ Potential information leakage   │ The response includes           │
+│          │ via headers                     │ technology-identifying headers  │
+│          │                                 │ that may aid attackers in       │
+│          │                                 │ fingerprinting.                 │
+└──────────┴─────────────────────────────────┴─────────────────────────────────┘
+```
+
+---
+
+## Usage Guide
+
+### Scanning Specific Endpoints
+
+Target multiple paths for comprehensive assessment:
+
+```bash
+apiscan https://api.github.com --paths / /rate_limit /users/octocat
+```
+
+**Example Output:**
+
+```
+Scanning https://api.github.com
+Paths to scan (3): /, /rate_limit, /users/octocat
+
+╭───────── Severity Summary ──────────╮
+│ high: 0  medium: 1  low: 2  info: 3 │
+│ risk_score: 5                       │
+╰─────────────────────────────────────╯
+
+                         Global Findings (Target-wide)                          
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Severity ┃ Issue                       ┃ Description                         ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ info     │ HTTP redirects to HTTPS     │ HTTP requests are redirected to     │
+│          │                             │ HTTPS (good).                       │
+│ info     │ CORS configuration detected │ CORS headers were detected. Review  │
+│          │                             │ allowed origins and credentials if  │
+│          │                             │ sensitive endpoints exist.          │
+│ info     │ Rate limit headers present  │ Rate limiting headers were          │
+│          │                             │ observed. Throttling may be         │
+│          │                             │ enforced.                           │
+└──────────┴─────────────────────────────┴─────────────────────────────────────┘
+
+                          Findings for / (status 200)                           
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Severity ┃ Issue                           ┃ Description                     ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ low      │ Potential information leakage   │ The response includes           │
+│          │ via headers                     │ technology-identifying headers  │
+│          │                                 │ that may aid attackers in       │
+│          │                                 │ fingerprinting.                 │
+└──────────┴─────────────────────────────────┴─────────────────────────────────┘
+
+                     Findings for /rate_limit (status 200)                      
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Severity ┃ Issue                    ┃ Description                            ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ medium   │ Missing security headers │ The API response is missing important  │
+│          │                          │ security headers.                      │
+└──────────┴──────────────────────────┴────────────────────────────────────────┘
+
+                    Findings for /users/octocat (status 200)                    
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Severity ┃ Issue                           ┃ Description                     ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ low      │ Potential information leakage   │ The response includes           │
+│          │ via headers                     │ technology-identifying headers  │
+│          │                                 │ that may aid attackers in       │
+│          │                                 │ fingerprinting.                 │
+└──────────┴─────────────────────────────────┴─────────────────────────────────┘
+```
+
+### Performance Tuning
+
+Adjust concurrency and timeout for faster scans or slower/rate-limited targets:
+
+```bash
+# Faster scanning with higher concurrency
+apiscan https://api.github.com \
+  --paths / /users/octocat \
+  --concurrency 15 \
+  --timeout 10
+
+# Slower, more cautious scanning
+apiscan https://api.example.com \
+  --concurrency 3 \
+  --timeout 15
+```
+
+### Generating Reports
+
+#### Organized Output Directory
+
+Keep all reports in a dedicated directory:
+
+```bash
+apiscan https://api.github.com \
+  --paths / /rate_limit \
+  --output-dir reports/
+```
+
+This generates:
+- `reports/apiscan_report.json` - Machine-readable JSON
+- `reports/apiscan_report.html` - Human-readable HTML
+
+#### Custom Report Names
+
+Specify custom filenames for better organization:
+
+```bash
+apiscan https://api.github.com \
+  --paths / \
+  --output-dir reports/ \
+  --json github_api.json \
+  --report-html github_api.html
+```
+
+### OpenAPI/Swagger Discovery
+
+APIScan can automatically discover and parse OpenAPI/Swagger specifications:
+
+```bash
+# Auto-discover and scan up to 25 endpoints
+apiscan https://petstore.swagger.io \
+  --discover \
+  --max-paths 25 \
+  --output-dir reports/
+```
+
+#### Combining Discovery with Manual Paths
+
+Mix automatic discovery with specific endpoints:
+
+```bash
+apiscan https://api.example.com \
+  --discover \
+  --paths / /health /metrics \
+  --max-paths 30
+```
+
+---
+
+## Understanding Results
+
+### Severity Summary
+
+The top of every scan shows a quick summary:
+
+```
+╭───────── Severity Summary ──────────╮
+│ high: 0  medium: 1  low: 2  info: 3 │
+│ risk_score: 5                       │
+╰─────────────────────────────────────╯
+```
+
+- **Severity counts**: Number of findings at each level
+- **Risk score**: Weighted overall risk (0-100+)
+
+### Finding Categories
+
+#### Global Findings
+
+Issues that affect the entire API target:
+- HTTP/HTTPS configuration
+- CORS policies
+- Rate limiting presence
+- TLS configuration
+
+#### Path-Specific Findings
+
+Issues found on individual endpoints:
+- Missing security headers
+- Information leakage
+- Error message exposure
+- Authentication issues
+
+### Severity Levels Explained
+
+| Severity | Weight | Examples | Action Required |
+|----------|--------|----------|-----------------|
+| **Info** | 0 | CORS detected, Rate limiting present | Review configuration |
+| **Low** | 1 | Technology fingerprinting, Minor header issues | Consider fixing |
+| **Medium** | 3 | Missing security headers, Verbose errors | Should fix soon |
+| **High** | 10 | No HTTPS, Exposed credentials | Fix immediately |
+
+### Risk Score Calculation
+
+The risk score is calculated as:
+```
+risk_score = (high × 10) + (medium × 3) + (low × 1) + (info × 0)
+```
+
+**Risk Score Interpretation:**
+- **0-5**: Low risk - Minor issues
+- **6-15**: Medium risk - Several concerns
+- **16-30**: High risk - Significant problems
+- **31+**: Critical risk - Immediate action required
+
+---
+
+## Command-Line Reference
+
+### Basic Syntax
+
+```bash
+apiscan <url> [options]
+```
+
+### Required Arguments
+
+| Argument | Description | Example |
+|----------|-------------|---------|
+| `url` | Base URL of the target API | `https://api.github.com` |
+
+### Optional Arguments
+
+| Option | Description | Default | Example |
+|--------|-------------|---------|---------|
+| `--paths` | Space-separated list of paths to scan | `/` | `--paths / /api /v1/users` |
+| `--discover` | Attempt OpenAPI/Swagger discovery | `false` | `--discover` |
+| `--max-paths` | Maximum paths to scan from discovery | `50` | `--max-paths 100` |
+| `--concurrency` | Number of concurrent requests | `10` | `--concurrency 20` |
+| `--timeout` | Request timeout in seconds | `5` | `--timeout 15` |
+| `--output-dir` | Directory to store output files | `.` (current) | `--output-dir ./scans` |
+| `--json` | Custom filename for JSON report | `apiscan_report.json` | `--json results.json` |
+| `--report-html` | Custom filename for HTML report | `apiscan_report.html` | `--report-html report.html` |
+
+### Usage Examples
+
+```bash
+# Quick scan of API root
+apiscan https://api.example.com
+
+# Comprehensive multi-endpoint scan
+apiscan https://api.example.com \
+  --paths / /v1/users /v1/posts /health \
+  --output-dir scans/ \
+  --concurrency 5
+
+# Discovery mode with custom limits
+apiscan https://petstore.swagger.io \
+  --discover \
+  --max-paths 50 \
+  --timeout 10 \
+  --output-dir petstore_scan/
+
+# Production-safe slow scan
+apiscan https://api.production.com \
+  --paths /health /ready \
+  --concurrency 2 \
+  --timeout 20 \
+  --json prod_check.json
+
+# CI/CD pipeline scan
+apiscan https://staging-api.company.com \
+  --paths / /api /health \
+  --output-dir ./scan_results \
+  --json ci_scan_${BUILD_NUMBER}.json
+```
+
+---
+
+## Safety and Ethics
+
+### Safe by Design
+
+APIScan is explicitly designed to be **safe by default** and follows responsible security testing principles:
+
+#### What APIScan Does NOT Do
+
+- **No brute force attacks** - No password guessing or credential stuffing
+- **No vulnerability exploitation** - No attempts to exploit discovered issues
+- **No payload injection** - No SQL injection, XSS, or command injection attempts
+- **No data modification** - No POST/PUT/DELETE requests that alter data
+- **No authentication bypass** - No attempts to circumvent authentication
+- **No denial of service** - Controlled request rate to avoid overwhelming targets
+- **No sensitive data extraction** - Only analyzes publicly accessible information
+
+#### What APIScan Does
+
+APIScan only performs **standard HTTP reconnaissance**:
+
+- Sends normal GET requests to specified endpoints
+- Analyzes publicly accessible HTTP responses
+- Examines HTTP headers and status codes
+- Parses publicly exposed API documentation
+- Checks for common security misconfigurations
+- Reports findings without taking action
+
+### Legal and Ethical Use
+
+**CRITICAL**: Only scan systems you own or have explicit authorization to test.
+
+**Unauthorized security testing may violate:**
+- Computer Fraud and Abuse Act (CFAA) in the United States
+- Computer Misuse Act in the United Kingdom
+- Similar laws in other jurisdictions
+- Terms of service agreements
+- Data protection regulations (GDPR, CCPA, etc.)
+- Acceptable use policies
+
+**Before scanning any API:**
+
+1. Ensure you own the API or have written permission
+2. Review the target's terms of service
+3. Check for a security.txt file or responsible disclosure policy
+4. Stay within scope boundaries
+5. Respect rate limits and system resources
+6. Document your authorization
+
+**Responsible Disclosure:**
+
+If you discover security issues during authorized testing:
+1. Report findings to the API owner privately
+2. Allow reasonable time for remediation
+3. Follow responsible disclosure guidelines
+4. Do not publicly disclose until issues are fixed
+
+---
+
+## Real-World Examples
+
+### Example 1: GitHub API Security Check
+
+```bash
+apiscan https://api.github.com \
+  --paths / /rate_limit /users/octocat \
+  --output-dir github_scan/
+```
+
+**Use Case**: Quick security assessment of GitHub's public API to understand their security posture and learn from best practices.
+
+### Example 2: Internal API Pre-Deployment Check
+
+```bash
+apiscan https://staging-api.company.internal \
+  --paths /api/v1/health /api/v1/users /api/v1/products \
+  --output-dir pre_deploy_scan/ \
+  --json pre_deploy_$(date +%Y%m%d).json \
+  --concurrency 5 \
+  --timeout 10
+```
+
+**Use Case**: Automated security check before deploying API to production, integrated into CI/CD pipeline.
+
+### Example 3: Third-Party API Integration Security Review
+
+```bash
+apiscan https://api.partner.com \
+  --discover \
+  --max-paths 30 \
+  --output-dir partner_api_review/ \
+  --concurrency 3 \
+  --timeout 15
+```
+
+**Use Case**: Security assessment of a third-party API you're integrating with (with permission) to understand security risks.
+
+### Example 4: Swagger Petstore Full Assessment
+
+```bash
+apiscan https://petstore.swagger.io \
+  --discover \
+  --max-paths 50 \
+  --concurrency 10 \
+  --output-dir petstore_results/
+```
+
+**Use Case**: Learning exercise using the public Petstore API to understand API security concepts.
+
+### Example 5: Microservices Health Check
+
+```bash
+# Script to check multiple microservices
+for service in auth user product payment; do
+  apiscan https://${service}-api.company.com \
+    --paths /health /metrics \
+    --output-dir scans/${service}/ \
+    --json ${service}_health.json
+done
+```
+
+**Use Case**: Automated health and security checks across multiple internal microservices.
+
+---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Issue: Connection Timeout Errors
+
+**Symptoms:**
+```
+Error: Connection timeout after 5 seconds
+```
+
+**Solutions:**
+```bash
+# Increase timeout value
+apiscan https://api.example.com --timeout 15
+
+# Reduce concurrency to avoid overwhelming slow APIs
+apiscan https://api.example.com --concurrency 3 --timeout 20
+```
+
+---
+
+#### Issue: Rate Limited by Target API
+
+**Symptoms:**
+```
+Error: Received 429 Too Many Requests
+```
+
+**Solutions:**
+```bash
+# Reduce concurrency dramatically
+apiscan https://api.example.com --concurrency 2
+
+# Increase timeout to add delays
+apiscan https://api.example.com --concurrency 2 --timeout 10
+```
+
+---
+
+#### Issue: Permission Denied When Writing Reports
+
+**Symptoms:**
+```
+Error: Permission denied: ./reports/
+```
+
+**Solutions:**
+```bash
+# Check and fix directory permissions
+mkdir -p ./reports
+chmod 755 ./reports
+
+# Specify a writable directory
+apiscan https://api.example.com --output-dir ~/scans/
+
+# Use current directory
+apiscan https://api.example.com --json results.json
+```
+
+---
+
+#### Issue: SSL Certificate Verification Errors
+
+**Symptoms:**
+```
+Error: SSL certificate verification failed
+```
+
+**Solutions:**
+- Verify the target URL is correct (https://, not http://)
+- Ensure your system's CA certificates are up to date
+- Check if the target uses a self-signed certificate (may be expected for internal APIs)
+
+---
+
+#### Issue: No Findings Reported
+
+**Symptoms:**
+Scan completes but shows no security findings
+
+**Possible Causes:**
+- API is very well-configured (good!)
+- Incorrect paths specified
+- API requires authentication
+- API is behind a WAF filtering requests
+
+**Solutions:**
+```bash
+# Try discovering endpoints first
+apiscan https://api.example.com --discover
+
+# Verify paths are correct
+apiscan https://api.example.com --paths / /api /v1
+
+# Check if API documentation specifies required headers
+```
+
+---
+
+## Roadmap
+
+### Version 0.2.0 (Planned)
+
+- [ ] **Authentication Support**: Handle API keys, Bearer tokens, Basic auth
+- [ ] **Custom Headers**: Allow setting custom HTTP headers
+- [ ] **Request Methods**: Support POST, PUT, DELETE for authenticated testing
+- [ ] **Enhanced OpenAPI Analysis**: Deep schema validation and coverage testing
+
+### Version 0.3.0 (Planned)
+
+- [ ] **JWT Token Analysis**: Decode and analyze JWT tokens
+- [ ] **OAuth Flow Testing**: Test OAuth 2.0 implementations
+- [ ] **Enhanced Severity Scoring**: ML-based risk assessment
+- [ ] **PDF Report Export**: Professional reports for stakeholders
+
+### Version 0.4.0 (Future)
+
+- [ ] **CI/CD Integration**: GitHub Actions, GitLab CI, Jenkins plugins
+- [ ] **GraphQL Support**: Schema introspection and query analysis
+- [ ] **WebSocket Testing**: Real-time protocol security checks
+- [ ] **Rate Limit Intelligence**: Adaptive throttling based on API responses
+- [ ] **Vulnerability Database**: CVE matching for known issues
+- [ ] **Cloud Provider Integrations**: AWS API Gateway, Azure APIM, Kong
+
+### Long-Term Vision
+
+- Browser extension for real-time API monitoring
+- Team collaboration features
+- Historical trend analysis
+- Compliance reporting (OWASP API Security Top 10)
+- Integration with security orchestration platforms
+
+---
+
+## Contributing
+
+Contributions are welcome! Whether you're fixing bugs, adding features, improving documentation, or suggesting enhancements, your help makes APIScan better.
+
+### How to Contribute
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes** and add tests if applicable
+4. **Commit your changes**: `git commit -m 'Add amazing feature'`
+5. **Push to your fork**: `git push origin feature/amazing-feature`
+6. **Open a Pull Request**
+
+### Development Setup
+
+```bash
+# Clone your fork
+git clone https://github.com/yourusername/apiscan
+cd apiscan
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install in development mode with dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linting
+flake8 src/
+black src/ --check
+```
+
+### Contribution Guidelines
+
+- Follow PEP 8 style guidelines
+- Add tests for new features
+- Update documentation as needed
+- Keep commits atomic and well-described
+- Ensure all tests pass before submitting PR
+
+See `CONTRIBUTING.md` for detailed guidelines.
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+**TL;DR**: You can use, modify, and distribute this software freely, but without warranty.
+
+---
+
+## Acknowledgments
+
+APIScan is built with security and simplicity in mind. Special thanks to:
+
+- The open-source security community for inspiration and guidance
+- OWASP API Security Project for comprehensive API security guidelines
+- All contributors who help improve this tool
+
+**Built with:**
+- Python 3
+- [Rich](https://github.com/Textualize/rich) for beautiful terminal output
+- [Requests](https://requests.readthedocs.io/) for HTTP operations
+- [Jinja2](https://jinja.palletsprojects.com/) for HTML report templating
+
+---
+
+## Support and Contact
+
+### Get Help
+
+- **Documentation**: You're reading it! Scroll up for guides
+- **Issues**: [GitHub Issues](https://github.com/samuelselasi/apiscan/issues) - Report bugs or request features
+- **Discussions**: [GitHub Discussions](https://github.com/samuelselasi/apiscan/discussions) - Ask questions and share ideas
+- **Email**: [samelsekasi@gmail.com](mailto:samelsekasi@gmail.com) - Direct inquiries
+
+---
+
+## Project Stats
+
+- **Status**: Active Development
+- **Latest Version**: 0.1.0 (PyPI)
+- **License**: MIT
+- **Python**: 3.8+
+- **Platform**: Linux, macOS, Windows (WSL)
+
+---
