@@ -1,0 +1,6 @@
+from ..he import He
+
+
+class Hs(He, str):
+    def __new__(cls, u: He, string: str): ...
+    def __init__(self, u: He, string: str): ...
