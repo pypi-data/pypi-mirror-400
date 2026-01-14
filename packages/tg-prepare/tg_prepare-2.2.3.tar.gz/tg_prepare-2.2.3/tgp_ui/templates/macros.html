@@ -1,0 +1,101 @@
+{% macro multi_input(_items, input_name) %}
+{% set items = _items or [None] %}
+{% for item in items %}
+<div class="input-group mb-2">
+    <input type="text" class="form-control" title="Name" name="{{input_name}}_name" placeholder="e.g.: Jane Doe"
+        value="{{ item.fullname or item.name }}" required>
+    <input type="url" class="form-control" title="URL" name="{{input_name}}_url" value="{{ item.url or '' }}"
+        placeholder="e.g.: https://orcid.org/0000-0001-2345-6789">
+    {% if loop.first %}
+    <button class="input-group-text add-multi-input">
+        <i class="bi bi-plus-circle-dotted"></i>
+    </button>
+    {% else %}
+    <button class="input-group-text remove-multi-input">
+        <i class="bi bi-dash-circle-dotted"></i>
+    </button>
+    {% endif %}
+</div>
+{% endfor %}
+{% endmacro %}
+
+{% macro form_field_with_xpath(type, label, field_key, elem, delete_button=False) %}
+<div class="mb-2 row">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <label class="form-label mb-0">
+            {{ label }}
+        </label>
+        {% if delete_button %}
+        <a href="#" class="badge text-dark remove-multi-field-classification ms-3">
+            <span class="bi bi-trash"></span>
+        </a>
+        {% endif %}
+    </div>
+    <div class="col-12">
+        <div class="input-group">
+            <input type="text" class="form-control" data-key="{{ field_key }}" data-type="value" placeholder="Value"
+                value="{{ elem['value'] if elem and elem.get('value') }}" name="{{ type }}-{{ field_key }}-value">
+            <input type="text" class="form-control" data-key="{{ field_key }}" data-type="xpath" placeholder="XPath"
+                value="{{ elem['xpath'] if elem and elem.get('xpath') }}" name="{{ type }}-{{ field_key }}-xpath">
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro classification_input(type, heading, elements) %}
+<div class="border-bottom mb-3 row">
+    <div class="d-flex justify-content-between align-items-center">
+        <label class="form-label text-center flex-grow-1 mb-0">
+            <i>{{ heading }}</i>
+        </label>
+        <a href="#" class="add-multi-input-classifications btn btn-md ms-3" title="Add {{ heading }}">
+            <span class="bi bi-plus-circle"></span>
+        </a>
+    </div>
+</div>
+{% for item in elements or [None] %}
+<div class="multi-input {{'mb-3 pb-3 border-bottom' if loop.nextitem }}" data-name="{{ type }}">
+    {{ form_field_with_xpath(type, 'ID', 'id', item.get('id') if item, delete_button=True) }}
+    {{ form_field_with_xpath(type, 'URL', 'url', item.get('url') if item) }}
+    {{ form_field_with_xpath(type, 'Value', 'value', item.get('value') if item) }}
+</div>
+{% endfor %}
+{% endmacro %}
+
+
+{% macro xpath_or_value_input(heading, input_name, item, collection_parser, required=False) %}
+<div class="mb-3">
+    <label class="form-label">
+        <span>{{ heading }}</span>
+        {% if required %}<span class="text-danger">*</span>{% endif %}
+    </label>
+    <div class="row g-2">
+        <!-- Value Input -->
+        <div class="col-lg-6">
+            <input type="text" class="form-control" id="valueInput_{{ input_name }}" name="{{ input_name }}_value"
+                value="{{ item['value'] if item['value'] }}" placeholder="Value">
+        </div>
+
+        <!-- XPath Input -->
+        <div class="col-lg-6 position-relative">
+            <input type="text" class="form-control" id="xpathInput_{{ input_name }}" name="{{ input_name }}_xpath"
+                value="{{ item['xpath'] if item['xpath'] }}" placeholder="XPath">
+            <a href="#" class="load-modal" title="Hitrate of xpath (in %) - CLICK to see results"
+                data-args_xpath="{{ item['xpath'] }}"
+                data-url="{{ url_for('collection.modal_xpath_parser', projectname=project.name, collectionname=collectionname) }}">
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success"
+                    data-bs-placement="top" title="Hitrate of XPath">
+                    {{ '%s%%' % collection_parser.test_xpath(item['xpath'])['count']['percentage'] if item['xpath']
+                    else '-' }}
+                </span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro required_fields_disclaimer() %}
+<div class="mb-3 mt-3">
+    <small class="text-muted"><span class="text-danger">*</span> indicates required fields</small>
+</div>
+{% endmacro %}

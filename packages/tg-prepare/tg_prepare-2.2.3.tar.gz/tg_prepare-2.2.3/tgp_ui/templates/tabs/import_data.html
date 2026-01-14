@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+{% macro file_upload_form(button_size='btn-sm') %}
+<form action="{{ url_for('data.upload_files', projectname=project.name) }}" method="POST" enctype="multipart/form-data"
+    class="d-inline js-tab-submit" id="fileUploadLocal">
+    <input type="file" id="fileInput" name="files" multiple webkitdirectory class="d-none">
+    <button type="button" class="btn {{ button_size }} btn-outline-primary" id="triggerFileInput">
+        <i class="bi bi-folder-plus"></i> Local Files
+    </button>
+
+</form>
+{% endmacro %}
+
+{% block content %}
+{% set has_files = project.list_files_and_folders()|length > 0 %}
+<div class="container py-4">
+    <div class="row">
+        <!-- Form Title -->
+        <div class="col-12 text-center mb-4">
+            <h1 class="fs-3 fw-bold">Upload Data</h1>
+            <p class="text-muted">Import directories containing your TEI files.</p>
+            {% if error_message %}
+            <div class="alert alert-danger" role="alert">
+                {{ error_message }}
+            </div>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            {% if has_files %}
+            <!-- File display card when files exist -->
+            <div class="card">
+                <!-- Card header with title and upload buttons -->
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="btn-group">
+                        <!-- Upload option buttons -->
+                        {{ file_upload_form('btn-sm') }}
+                        <button class="load-modal btn btn-sm btn-outline-dark"
+                            data-url="{{ url_for('data.modal_github', projectname=project.name) }}">
+                            <i class=" bi bi-github"></i> GitHub
+                        </button>
+                        <button class="load-modal btn btn-sm btn-outline-dark"
+                            data-url="{{ url_for('data.modal_nextcloud', projectname=project.name) }}">
+                            <i class="bi bi-cloud-plus"></i> Nextcloud
+                        </button>
+                    </div>
+                </div>
+                <!-- List of files and folders -->
+                <div class="list-group list-group-flush">
+                    {% for item in project.list_files_and_folders() %}
+                    <div class="list-group-item list-group-item-action d-flex align-items-center">
+                        <!-- Different display for folders and files -->
+                        {% if item.type == 'folder' %}
+                        <button
+                            class="btn btn-link text-decoration-none text-dark p-0 d-flex align-items-center flex-grow-1"
+                            data-bs-toggle="modal" data-bs-target="#folderModal{{ loop.index }}">
+                            <i class="bi bi-folder-fill text-warning me-2"></i>
+                            <span>{{ item.name }}</span>
+                        </button>
+                        {% else %}
+                        <i class="bi bi-file-text me-2"></i>
+                        <span class="flex-grow-1">{{ item.name }}</span>
+                        {% endif %}
+
+                        <!-- Action buttons for each item -->
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-danger delete-folder" data-item-path="{{ item.path }}"
+                                data-item-name="{{ item.name }}" data-projectname="{{ project.name }}"
+                                data-item-type="{{ item.type }}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Folder modals - rendered at the end of file -->
+                {% for item in project.list_files_and_folders() %}
+                {% if item.type == 'folder' %}
+                {% with folder=item, index=loop.index %}
+                {% include 'modal/file_explorer_main.html' %}
+                {% endwith %}
+                {% endif %}
+                {% endfor %}
+
+            </div>
+            {% else %}
+            <!-- Welcome screen shown when no files exist -->
+            <div class="row min-vh-50 align-items-center justify-content-center">
+                <div class="col-12 text-center">
+                    <div class="card border-0 bg-transparent">
+                        <div class="card-body">
+                            <div class="btn-group">
+                                {{ file_upload_form('btn-lg') }}
+                                <button class="load-modal btn btn-lg btn-outline-dark"
+                                    data-url="{{ url_for('data.modal_github', projectname=project.name) }}">
+                                    <i class="bi bi-github"></i> GitHub
+                                </button>
+                                <button class="load-modal btn btn-lg btn-outline-dark"
+                                    data-url="{{ url_for('data.modal_nextcloud', projectname=project.name) }}">
+                                    <i class="bi bi-cloud-plus"></i> Nextcloud
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% if has_files %}
+        <div class=" row mt-4">
+            <div class="col-12 text-end">
+                <button type="button" class="btn btn-primary btn-next" data-next-target="#tab-select-directories"
+                    data-additional-button="#tab-group-collections">
+                    <i class="bi bi-chevron-right"></i> Next
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Modal definitions -->
+
+    {% endblock %}

@@ -1,0 +1,34 @@
+{% for item in items %}
+<div class="list-group-item border-0">
+    <div class="d-flex align-items-center">
+        <div style="width: {{ item.depth * 1.2 }}rem"></div>
+        {% if item.type == 'folder' %}
+        <div class="form-check me-1">
+            {% if item.contains_xml or show_all_folders %}
+            {% if show_checkbox %}
+            <input class="form-check-input nextcloud-folder" type="checkbox" name="selected_folder"
+                value="{{ item.path }}" {{'checked' if item.path in selected_directories else '' }}>
+            {% endif %}
+            <label class="form-check-label">
+                <i class="bi bi-folder-fill text-warning me-1"></i>
+                {{ item.name }}
+            </label>
+            {% else %}
+            <i class="bi bi-folder-fill text-warning me-1"></i>
+            <span>{{ item.name }}</span>
+            {% endif %}
+        </div>
+        {% else %}
+        <i class="bi bi-file-text me-1 small"></i>
+        <span style="font-size: 0.7rem;">{{ item.name }}</span>
+        {% endif %}
+    </div>
+    {% if item.type == 'folder' and item.children.count > 0 %}
+    <div class="mt-1">
+        {% with items=item.children.list %}
+        {% include 'modal/file_explorer_content.html' %}
+        {% endwith %}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
