@@ -1,0 +1,1 @@
+from myweather.myweather import MyWeather
