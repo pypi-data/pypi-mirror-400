@@ -1,0 +1,1129 @@
+#:kivy 2.0
+#:import NumericProperty kivy.properties.NumericProperty
+#:import Image kivy.uix.image.Image
+#: import partial functools.partial
+# main Window has 3 columns
+# left most is settings  and setting displays
+# middle is the image window
+# right most is opening dialogs
+
+
+
+MainWindow:
+    size: root.size
+    pos: root.pos
+    id: maingrid
+    cols: 3
+    rows: 2
+    padding: [10,10,10,10]
+    spacing: 10
+    MyLogo:
+        size_hint: (0.3, 0.12)
+
+    Image:
+        fit_mode: 'contain'
+        source: 'icons/glowtracker_gray_logo.png'
+        border: 0,0,0,0
+        size_hint: (0.5, 0.12)
+
+    BoxLayout:
+        size_hint: (0.1, 0.12)
+        FloatLayout:
+            Label:
+                size_hint: (1, 1)
+                font_size: 18
+                color: '#8e0045ff'
+
+                text: "v. 0.12.0"
+                id: versionlabel
+
+                pos_hint: {'x':.0, 'y':.0}
+                text_size: self.size
+                halign: 'center'
+                valign: 'middle'
+                
+            Label:
+                size_hint: (1, 1)
+                font_size: 18
+                color: '#ffffff'
+
+                text: "FPS:"
+                id: fpslabel
+
+                pos_hint: {'x':.0, 'y':.0}
+                text_size: self.size
+                halign: 'right'
+                valign: 'top'
+
+                disabled: app.config.getboolean('Developer', 'showfps') is False
+                opacity: 1 if app.config.getboolean('Developer', 'showfps') else 0
+
+
+    LeftColumn:
+        id: leftcolumn
+
+    MiddleColumn:
+        id: middlecolumn
+
+    RightColumn:
+        id: rightcolumn
+
+# popup confirming closing
+<ExitApp>:
+    BoxLayout:
+        size_hint_y: None
+        height: 30
+        Button:
+            text: "Cancel"
+            on_release: root.cancel()
+
+        Button:
+            text: "Close"
+            on_release: root.stop()
+
+#################################
+# Left column
+#################################
+<LeftColumn>:
+    saveloc:saveloc
+    size_hint: (0.3,1)
+    orientation: 'vertical'
+    pos: root.pos
+    spacing: 5
+    MyLabel: 
+        text: 'Stage Controls'
+    XControls:
+        id: xcontrols
+    YControls:
+        id: ycontrols
+    ZControls:
+        id: zcontrols
+    MyButton:
+        text: 'Autofocus'
+        pos_hint: {'x': 0.25}
+        on_release: root.autoFocusButtonCallback()
+    MyLabel: 
+        text: 'Camera Settings'
+    CameraProperties:
+        id: camprops
+        size_hint: (1, 1.75)
+    MyButton:
+        text: 'Load camera settings'
+        pos_hint: {'x': 0.25}
+        on_release: root.show_load()
+        
+    MyLabel: 
+        text: 'Experiment'
+    TextInput:
+        id: saveloc
+        size_hint_y: None
+        height: 30
+        multiline: False
+        text: root.savefile
+        on_text_validate: root.path_validate()
+        on_focus: app.toggle_key_binding(self.focus)
+        on_focus: 
+            if not self.focus: root.path_validate()  
+                
+    MyButton:
+        text: 'Save Location'
+        pos_hint: {'x': 0.25}
+        on_release: root.show_save()
+    
+        
+### Display camera properties
+<CameraProperties>:
+    cols: 3
+    rows: 3
+    Label:
+        text: 'Exposure (us)'
+        size_hint: (.25, 1)
+    Slider:
+        size_hint: (.5, 1)
+        min: 100
+        max: 100000
+        step: 100
+        on_value: root.exposure = self.value
+        on_value: root.change_exposure()
+        value: root.exposure
+    TextInput:
+        size_hint: (.25, 1)
+        text: str(root.exposure)
+        input_filter: 'float'
+        multiline: False
+        on_text_validate: root.exposure = float(self.text)
+        on_text_validate: root.change_exposure()
+        on_focus: app.toggle_key_binding(self.focus)
+        on_focus: if not self.focus: root.change_exposure()
+    Label: 
+        text: 'Framerate (fps)'
+        size_hint: (.25, 1)
+    Slider:
+        size_hint: (.5, 1)
+        min: 0.01
+        max: 57
+        step: 0.5
+        on_value: root.framerate = self.value
+        on_value: root.change_framerate()
+        value: root.framerate
+    TextInput:
+        size_hint: (.25, 1)
+        text: str(root.framerate)
+        input_filter: 'float'
+        multiline: False
+        on_text_validate: root.framerate = float(self.text)
+        on_text_validate: root.change_framerate()
+        on_focus: app.toggle_key_binding(self.focus)
+        on_focus:  if not self.focus: root.change_framerate()
+        text: str(round(root.framerate, 2))
+    Label:
+        text: 'Gain'
+        size_hint: (.25, 1)
+    Slider:
+        size_hint: (.5, 1)
+        min: 0
+        max: 36
+        step: 0.5
+        on_value: root.gain = self.value
+        on_value: root.change_gain()
+        value: root.gain
+    TextInput:
+        size_hint: (.25, 1)
+        text: str(root.gain)
+        input_filter: 'float'
+        multiline: False
+        on_text_validate: root.gain = float(self.text)
+        on_text_validate: root.change_gain()
+        on_focus: app.toggle_key_binding(self.focus)
+        on_focus:  if not self.focus: root.change_gain()
+        text: str(root.gain)
+    
+        
+    
+#################################
+# Stage motion buttons
+#################################
+
+<StageButtonLeftFast@ToggleButton>:
+    size_hint: .5, .9
+    pos_hint: {"x":0.1, "y":0.1}
+    background_normal: 'icons/LeftButtonNormal_Double.jpg'
+    background_down: 'icons/LeftButtonOnPress_Double.jpg'
+    background_disabled_normal: 'icons/LeftButtonDisabled_Double.jpg'
+    
+<StageButtonLeft@ToggleButton>:
+    size_hint: .25, .9
+    pos_hint: {"x":0.1, "y":0.1}
+    background_normal: 'icons/LeftButtonNormal.jpg'
+    background_down: 'icons/LeftButtonOnPress.jpg'
+    background_disabled_normal: 'icons/LeftButtonDisabled.jpg'
+    
+<StageButtonRightFast@ToggleButton>:
+    size_hint: .5, .9
+    pos_hint: {"x":0.1, "y":0.1}
+    background_normal: 'icons/RightButtonNormal_Double.jpg'
+    background_down: 'icons/RightButtonOnPress_Double.jpg'
+    background_disabled_normal: 'icons/RightButtonDisabled_Double.jpg'
+    
+<StageButtonRight@ToggleButton>:
+    size_hint: .25, .9
+    pos_hint: {"x":0.1, "y":0.1}
+    background_normal: 'icons/RightButtonNormal.jpg'
+    background_down: 'icons/RightButtonOnPress.jpg'
+    background_disabled_normal: 'icons/RightButtonDisabled.jpg'
+
+<XControls>:
+    orientation: 'horizontal'
+    pos: root.pos
+    size: root.size
+    
+    StageButtonLeftFast:
+        id: sbl1
+        on_state: app.stage.start_move((-app.vhigh,0,0), app.unit)  if self.state=='down' else app.stage.stop()    
+        #disabled: app.stage.connection is None
+    StageButtonLeft:
+        id: sbl2
+        on_state: app.stage.start_move((-app.vlow,0,0), app.unit)  if self.state=='down' else app.stage.stop()
+        #disabled: app.stage.connection is None
+    Label:
+        text: 'X'
+        font_size: 40
+        size_hint: (0.2,1)
+    StageButtonRight:
+        id: sbl3
+        on_state: app.stage.start_move((app.vlow,0,0), app.unit)  if self.state=='down' else app.stage.stop()
+        #disabled: app.stage.connection is None
+    StageButtonRightFast:
+        id: sbl4       
+        on_state: app.stage.start_move((app.vhigh,0,0), app.unit)  if self.state=='down' else app.stage.stop()
+        #disabled: app.stage.connection is None
+
+<YControls>:
+    BoxLayout:
+        pos: root.pos
+        size: root.size
+        orientation: 'horizontal'
+        
+        StageButtonLeftFast:
+            id: sbl1        
+            on_state: app.stage.start_move((0,-app.vhigh,0), app.unit)  if self.state=='down' else app.stage.stop()
+            #disabled: app.stage.connection is None
+        StageButtonLeft:
+            id: sbl2
+            on_state: app.stage.start_move((0,-app.vlow,0), app.unit)  if self.state=='down' else app.stage.stop()
+            #disabled: app.stage.connection is None
+        Label:
+            text: 'Y'
+            valign: 'bottom'
+            font_size: 40
+            size_hint: (0.2,1)
+        StageButtonRight:
+            id: sbl3
+            on_state: app.stage.start_move((0,app.vlow,0), app.unit)  if self.state=='down' else app.stage.stop()
+            #disabled: app.stage.connection is None
+        StageButtonRightFast:
+            id: sbl4
+            on_state: app.stage.start_move((0,app.vhigh,0), app.unit)  if self.state=='down' else app.stage.stop()
+            #disabled: app.stage.connection is None
+            
+            
+<ZControls>:
+    BoxLayout:
+        pos: root.pos
+        size: root.size
+        orientation: 'horizontal'
+        
+        StageButtonLeftFast: 
+            id: sbl1
+            on_state: app.stage.start_move((0,0,-app.vhigh), app.unit)  if self.state=='down' else app.stage.stop()
+            #disabled: app.stage.connection is None
+        StageButtonLeft:
+            id: sbl2
+            on_state: app.stage.start_move((0,0,-app.vlow), app.unit)  if self.state=='down' else app.stage.stop()
+            #disabled: app.stage.connection is None
+        Label:
+            text: 'Z'
+            font_size: 40
+            size_hint: (0.2,1)
+        StageButtonRight:
+            id: sbl3
+            on_state: app.stage.start_move((0,0,app.vlow), app.unit)  if self.state=='down' else app.stage.stop() 
+            #disabled: app.stage.connection is None
+        StageButtonRightFast:   
+            id: sbl4    
+            on_state: app.stage.start_move((0,0,app.vhigh), app.unit)  if self.state=='down' else app.stage.stop() 
+            #disabled: app.stage.connection is None
+#################################
+# Load camera properties - Popup
+#################################
+<LoadCameraProperties>:
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        FileChooserListView:
+            id: filechooser2
+            path: ''
+            filters: ['*.pfs']
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+
+            Button:
+                text: "Load"
+                on_release: root.load(filechooser2.path, filechooser2.selection)
+                
+#################################
+# save location experiment - Popup
+#################################
+<SaveExperiment>:
+    rows: 2
+    cols:1
+    text_input: text_input
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        FileChooserListView:
+            id: filechooser
+            dirselect: True
+            path: '/home'
+            on_selection: text_input.text = self.selection and self.selection[0] or ''
+        TextInput:
+            id: text_input
+            size_hint_y: None
+            height: 30
+            multiline: False
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+
+            Button:
+                text: "Save"
+                on_release: root.save(filechooser.path, text_input.text)        
+         
+#################################
+# autofocus - Popup
+#################################
+<AutoFocus>:
+    id: autofocus
+    orientation: 'vertical'
+    
+    GridLayout:
+        id: multipleimages
+        cols: root.nsteps//2#app.config.getint('Autofocus', 'nsteps')//2
+        spacing: 30,30
+        
+    BoxLayout:
+        size_hint_y: 0.05
+        Label:
+            text: 'Number of steps'
+        Label:
+            text: str(root.nsteps)
+        TextInput:
+            text: str(root.nsteps)
+            multiline: False
+            on_text_validate: root.nsteps = self.text
+        Label:
+            text: 'step size'
+        Label:
+            text: str(root.stepsize)
+        TextInput:
+            text: str(root.stepsize)
+            multiline: False
+            on_text_validate: root.stepsize = self.text
+        Label:
+            text: 'Units'
+        Label:
+            text: str(root.stepunits)
+            multiline: False
+        
+    BoxLayout:
+        size_hint_y: None
+        height: 30
+        Button:
+            text: "Cancel"
+            on_release: root.cancel()
+
+        Button:
+            text: "Run Autofocus"
+            on_release: root.run_autofocus()   
+
+#################################
+# Middle column
+#################################
+<MiddleColumn>:
+    runtimecontrols:runtimecontrols
+    previewimage:previewimage
+    stagepos: stagepos
+    size: root.size
+    pos: root.pos
+    size_hint: (0.6,1)
+    orientation: 'vertical'
+    
+    StencilFloatLayout:
+        id: stencil
+        size_hint: (1, 0.75)
+        canvas:
+            Color:
+                # rgb: 155/255, 152/255, 145/255      # Ammonite
+                rgb: 64/255, 55/255, 58/255         # Mahogany
+                # rgb: 185/255, 76/255, 137/255       # Pink, lighter shade of the main color
+            Rectangle:
+                size: self.size
+                pos: self.pos
+
+        ScalableImage:
+            id: scalableimage
+            size_hint: (None, None)
+            pos: stencil.pos
+            size: previewimage.size
+            auto_bring_to_front: False
+            do_translation: True
+            do_rotation: False
+            do_scale: False
+            scale_max: 2
+            PreviewImage:
+                #pos: 0,0
+                size_hint: (None, None)
+                size: stencil.size
+                id: previewimage
+                texture: app.texture
+                source: "icons/scholz-lab_logo.png"
+            ImageOverlay:
+                size_hint: (None, None)
+                pos: previewimage.pos
+                size: previewimage.size
+                id: imageoverlay
+
+        LiveAnalysisLabel:
+            outline_width: 2
+            outline_colour: (0, 0, 0, 0.1)
+            id: liveanalysislabel
+            valign: 'top'
+            halign: 'left'
+            size: stencil.size
+            text_size: stencil.size
+            pos: stencil.pos
+            disabled: app.config.getboolean('LiveAnalysis', 'showliveanalysis') is False
+            opacity: 1 if app.config.getboolean('LiveAnalysis', 'showliveanalysis') else 0
+    
+
+    GridLayout:
+        cols: 2
+        size_hint: (1, 0.05)
+        Label:
+            #size_hint_y: 30
+            #size_hint_: (0.5, 0.05)
+            pos_hint: {'left': 0.0}
+            halign: 'left'
+            valign: 'top'
+            text_size: self.size
+            id: stagepos
+            text: 'Stage (mm): ({:.2f}, {:.2f}, {:.2f})'.format(*app.coords)
+        Label:
+            #size_hint: (0.5, 0.05)
+            valign: 'top'
+            pos_hint: {'right': 1}
+            text_size: self.size
+            id: pixelvalue
+            text: 'x:0, y:0, intensity:0'
+            halign: 'right'
+        
+    RuntimeControls:
+        id:runtimecontrols
+        size_hint: (1, 0.2)
+
+
+### live camera image
+<PreviewImage>:
+    canvas:
+        Color:
+            rgba: 1,0,0,1
+        Line:
+            circle: self.circle
+            id: circle
+            
+
+### toggle tracking or autofocus
+<RuntimeControls>:
+    framecounter: framecounter
+    livefocuscheckbox: livefocuscheckbox
+    trackingcheckbox: trackingcheckbox
+    imageacquisitionmanager: imageacquisitionmanager
+
+
+    ImageAcquisitionManager:
+        id: imageacquisitionmanager
+        size_hint: (2.5, 1)
+
+    GridLayout:
+        cols: 2
+        rows: 3
+        MyLabel:
+            text: 'Frames'
+            color: '#ffffff'
+        MyCounter:
+            id: framecounter
+            color: '#ffffff'
+            text: str(self.value)
+        MyLabel:
+            text: 'Livefocus'
+            color: '#ffffff'
+        CheckBox:
+            id: livefocuscheckbox
+            on_state: root.startLiveFocus() if self.state=='down' else root.stopLiveFocus()
+            
+        MyLabel:
+            text: 'Tracking'
+            color: '#ffffff'
+        CheckBox:
+            id: trackingcheckbox
+            on_state: root.trackingButtonCallback() if self.state=='down' else root.stopTracking()
+
+    BoxLayout:
+        orientation: 'vertical'
+
+        BoxLayout:
+            id: trackingoverlayquickbuttonlayout
+            padding: [dp(5), 0, dp(5), dp(5)]
+
+            TrackingOverlayQuickButton:
+                id: trackingoverlayquickbutton
+
+        BoxLayout:
+            id: liveanalysisquickbuttonlayout
+            padding: [dp(5), dp(5), dp(5), dp(5)]
+
+            LiveAnalysisQuickButton:
+                id: liveanalysisquickbutton
+
+        DualColorViewModeQuickButtonLayout:
+            id: dualcolorviewmodequickbuttonlayout
+            padding: [dp(5), dp(5), dp(5), 0]
+            
+
+### LiveView, Record, Snap
+<ImageAcquisitionManager>:
+    orientation: 'horizontal'
+    spacing: 30
+    padding: [30,10]
+    recordbutton: recordbutton
+    liveviewbutton: liveviewbutton
+    snapbutton: snapbutton
+    
+    LiveViewButton:
+        id: liveviewbutton
+        border: 0,0,0,0
+        size_hint_x: 0.1
+        size_hint_y: None
+        height: self.width 
+        pos_hint: {'center_x': .5, 'center_y': .5}
+        background_normal: 'icons/play_off.png'
+        background_down: 'icons/play_on.png'
+        background_disabled_normal: 'icons/play_disabled.png'
+        background_disabled_down: 'icons/play_disabled.png'
+
+    RecordButton: 
+        id: recordbutton
+        border: 0,0,0,0
+        size_hint_x: 0.1
+        size_hint_y: None
+        height: self.width 
+        pos_hint: {'center_x': .5, 'center_y': .5}
+        background_normal: 'icons/record_inactive.png'
+        background_down: 'icons/record_active.png'
+    
+    Button: 
+        id: snapbutton
+        border: 0,0,0,0
+        size_hint_x: 0.1
+        size_hint_y: None
+        height: self.width 
+        pos_hint: {'center_x': .5, 'center_y': .5}
+        background_normal: 'icons/snap_inactive.png'
+        background_down: 'icons/snap_active.png'
+        on_release: root.snap()
+
+
+#################################
+# Right column
+#################################
+<RightColumn>:
+    size: root.size
+    pos: root.pos
+    orientation: "vertical"
+    size_hint: (0.1, 1)
+    MyLabel:
+        text: 'Settings'
+        size_hint: (1, 0.1)
+    MyButton:
+        size_hint: (1, 0.1)
+        text: 'Settings'
+        on_release: root.open_settings()
+    MyButton:
+        size_hint: (1, 0.1)
+        text: 'Macro'
+        on_release: root.open_macro()
+    MyButton: 
+        id:recording
+        size_hint: (1, 0.1)
+        text: 'Recording'
+        on_release: root.show_recording_settings()
+    MyButton:
+        size_hint: (1, 0.1)
+        text: 'Calibrate'
+        on_release: root.show_calibration()
+    MyButton:
+        size_hint: (1, 0.1)
+        text: 'LEDs'
+    MyLabel:
+        text: 'Hardware'
+        size_hint: (1, 0.1)
+    Connections:
+        id: connections 
+        size_hint: (1,0.2)
+ 
+### Popup recording Settings
+<RecordingSettings>:
+    size: root.size
+    pos: root.pos
+    orientation: 'vertical'
+
+    Label: 
+        text: "    Press Enter after edited Duration or Framerate to update it's counterpart value."
+        text_size: root.width, None
+        size: self.texture_size
+        size_hint: (1, 0.3)
+        valign: 'top'
+        halign: 'left'
+        markup: True
+        font_size: 13
+        padding: [dp(10), dp(0), dp(10), dp(5)]
+
+    GridLayout:
+        cols : 2
+        padding: [dp(10), dp(5), dp(10), dp(10)]
+        spacing: [0, dp(15)]
+
+        Label: 
+            text: 'Framerate (1/s)'
+        Label:
+            text: str(root.framerate)
+
+        Label: 
+            text: 'Continuous Recording'
+        ContinuousSwitch:
+            id: continuousswitch
+            
+        Label: 
+            text: 'Duration (sec)'
+        TextInput:
+            id: duration
+            text: "{:.2f}".format(root.duration)
+            multiline: False
+            halign: 'center'
+            on_text_validate: root.duration = self.text
+            on_text_validate: root.nframes = int(float(self.text)*root.framerate)
+            disabled: app.config.getboolean('Experiment', 'iscontinuous')
+        
+        Label: 
+            text: 'Frames'
+        TextInput:
+            id: frames
+            text: str(root.nframes)
+            multiline: False
+            halign: 'center'
+            on_text_validate: root.nframes = self.text
+            on_text_validate: root.duration = float(self.text)/root.framerate
+            disabled: app.config.getboolean('Experiment', 'iscontinuous')
+
+        Label: 
+            text: 'Extension'
+        TextInput:
+            id: fileformat
+            text: root.fileformat
+            multiline: False
+            halign: 'center'
+            on_text_validate: root.fileformat = self.text
+
+        
+    BoxLayout:
+        size_hint_y: None
+        height: dp(30)
+        Button:
+            text: "OK"
+            on_release: root.ok()
+
+<ContinuousSwitch>:
+    size: root.size
+    pos: root.pos
+
+<MacroScriptWidgetPopup>:
+    # Define the properties for the DraggablePopup
+    drag_rectangle: self.x, self.y, self.width, self.height
+    drag_timeout: 10000000
+    drag_distance: 0
+    overlay_color: [0, 0, 0, 0]
+
+
+<MacroScriptWidget>:
+    size: root.size
+    pos: root.pos
+    
+    orientation: 'vertical'
+
+    BoxLayout:
+        orientation: 'horizontal'
+        size_hint_y: 0.1
+
+        TextInput:
+            id: macroscriptfile
+            text: app.config.get('MacroScript', 'recentscript')
+            size_hint_x: 0.8
+        
+        Button:
+            text: "Load"
+            on_release: root.openLoadMacroScriptWidget()
+            size_hint_x: None
+
+        Button:
+            text: "Save"
+            on_release: root.saveMacroScript()
+            size_hint_x: None
+
+    BoxLayout:
+        orientation: 'horizontal'
+
+        CodeInput:
+            id: macroscripttext
+            text: ''
+            size_hint_x: 0.9
+            do_wrap: False
+            auto_indent: True
+        
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_x: None
+            
+            BoxLayout:
+                # Filler
+                size_hint_y: 0.05
+                
+            Button:
+                id: runbutton
+                text: "[b]Run[/b]"
+                markup: True
+                on_release: root.runMacroScript()
+                size_hint_y: 0.2
+                background_color: [94/255, 190/255, 88/255, 1]
+                
+            BoxLayout:
+                # Filler
+                size_hint_y: 0.05
+
+            Button:
+                text: "[b]Stop[/b]"
+                markup: True
+                on_release: root.stopMacroScript()
+                size_hint_y: 0.2
+                background_color: [226/255, 54/255, 18/255, 1]
+            
+            BoxLayout:
+                # Filler
+                size_hint_y: 0.3
+            
+            Button:
+                text: "Wiki"
+                background_color: (0, 0, 0, 0)  # Transparent background
+                color: (0.5, 0.6, 1, 1)  # Blue text color
+                underline: True
+                size_hint_y: 0.1
+
+                on_release: 
+                    # importing webbrowser module 
+                    import webbrowser 
+                    # it will open google window in your browser 
+                    webbrowser.open('https://scholz-lab.github.io/GlowTracker/software/macro_script.html') 
+            
+            Button:
+                text: "Close"
+                on_release: root.closeCallback()
+                size_hint_y: 0.1
+                
+
+<LoadMacroScriptWidget>:
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        FileChooserListView:
+            id: filechooser
+            path: ''
+            # dirselect: True
+            # path: '/home'
+            on_submit: root.load(self.selection)
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+
+            Button:
+                text: "Load"
+                on_release: root.load(filechooser.selection)
+
+<CalibrationTabPanel>:
+    size: root.size
+    pos: root.pos
+    do_default_tab: False
+    tab_width: 260
+            
+    TabbedPanelItem:
+        text: 'Camera & Stage Calibration'
+
+        CameraAndStageCalibration:
+            id: stagecalibration
+
+    TabbedPanelItem:
+        text: 'Dual Color Calibration'
+        
+        DualColorCalibration:
+            id: dualcolorcalibration
+    
+    TabbedPanelItem:
+        text: 'Depth of Field Calibration'
+
+        DepthOfFieldCalibration:
+            id: depthoffieldcalibration
+
+
+<CameraAndStageCalibration>:
+    size: root.size
+    pos: root.pos
+    orientation: 'vertical'
+    spacing: 20
+
+    GridLayout:
+        cols: 4
+        spacing: 20
+
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Fixed'
+                size_hint_y: 0.1
+            Image:
+                id: fixedimage
+        
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Moving X'
+                size_hint_y: 0.1
+            Image:
+                id: movingimagex
+        
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Moving Y'
+                size_hint_y: 0.1
+            Image:
+                id: movingimagey
+        
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Calibrated Camera And Stage Axes'
+                size_hint_y: 0.1
+            Image:
+                id: cameraandstageaxes
+    
+    BoxLayout:
+        size_hint_y: .08
+
+        Label:
+            id: pxsize
+            size_hint_x: .25
+            text: f"Pixelsize ({app.config.get('Calibration', 'step_units')}/px)  {app.config.getfloat('Camera', 'pixelsize'):.2f}"
+        Label:
+            id: rotation
+            size_hint_x: .25
+            text: f"Rotation (rad)  {app.config.getfloat('Camera', 'rotation'):.3f}"
+        Button:
+            text: "Calibrate"
+            size_hint_x: .35
+            on_release: root.calibrate()
+        Button:
+            text: "Close"
+            size_hint_x: .15
+            on_release: root.closeCallback()
+
+
+<DualColorCalibration>:
+    size: root.size
+    pos: root.pos
+    orientation: 'vertical'
+    spacing: 20
+    
+    GridLayout:
+        cols: 3
+        spacing: 10
+        
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Main'
+                size_hint_y: 0.1
+            Image:
+                id: mainsideimage
+        
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Minor'
+                size_hint_y: 0.1
+            Image:
+                id: minorsideimage
+        
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Calibrated Minor to Main'
+                size_hint_y: 0.1
+            Image:
+                id: calibratedimage
+    
+    BoxLayout:
+        size_hint_y: .08
+        
+        Label:
+            id: translation
+            size_hint_x: .25
+            text: f"Translation (x,y): {app.config.getfloat('DualColor', 'translation_x'):.2f}, {app.config.getfloat('DualColor', 'translation_y'):.2f}"
+        Label:
+            id: rotation
+            size_hint_x: .25
+            text: f"Rotation (rad): {app.config.getfloat('DualColor', 'rotation'):.3f}"
+        Button:
+            text: "Calibrate"
+            size_hint_x: .35
+            on_release: root.calibrate()
+        Button:
+            text: "Close"
+            size_hint_x: .15
+            on_release: root.closeCallback()
+
+
+<DepthOfFieldCalibration>:
+    size: root.size
+    pos: root.pos
+    orientation: 'vertical'
+    spacing: 20
+
+    GridLayout:
+        cols: 2
+        spacing: 20
+
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_x: 0.4
+            Label:
+                text: 'Best focus image'
+                size_hint_y: 0.1
+            Image:
+                id: bestfocusimage
+
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_x: 0.6
+            Label:
+                text: 'Estimated Depth of Field plot'
+                size_hint_y: 0.1
+            Image:
+                id: estimateddofplot
+    
+    BoxLayout:
+        size_hint_y: .08
+
+        Label:
+            id: estimateddepthoffieldtext
+            # size_hint_x: .5
+            text: f"Estimated Depth of Field: {app.config.getfloat('Camera', 'depthoffield'):.5f} mm"
+        Button:
+            text: "Calibrate"
+            size_hint_x: .35
+            on_release: root.calibrate()
+        Button:
+            text: "Close"
+            size_hint_x: .15
+            on_release: root.closeCallback()
+
+
+### display if hardware is connected successfully     
+<Connections>:
+    orientation: 'vertical'
+    size_hint: (0.3, 1)
+    cam_connection: cam_connection
+    stage_connection: stage_connection
+    Label:
+        text: 'Camera'
+        size_hint: (1,0.5)
+    OnOffButton:
+        id: cam_connection
+        border: 0,0,0,0
+        size_hint_x: 0.3
+        size_hint_y: None
+        height: self.width 
+        pos_hint: {'center_x': .5, 'center_y': .5}
+        background_normal: 'icons/connection_off.png'
+        background_down: 'icons/connection_on.png'
+        on_state: root.connectCamera() if self.state=='down' else root.disconnectCamera()
+    Label:
+        text: 'Stage'
+        size_hint: (1,0.5)
+    OnOffButton:
+        id: stage_connection 
+        border: 0,0,0,0
+        size_hint_x: 0.3
+        size_hint_y: None
+        height: self.width 
+        pos_hint: {'center_x': .5, 'center_y': .5}
+        background_normal: 'icons/connection_off.png'
+        background_down: 'icons/connection_on.png'
+        on_state: root.connectStage() if self.state=='down' else root.disconnectStage()
+    
+        
+      
+#################################
+# Layout settings - custom
+#################################
+<MyButton@Button>:
+    #size: self.texture_size
+    size_hint: (0.5, 0.5)
+    font_size: 18
+    halign: 'center'
+    
+
+<MyLabel@Label>:
+    #size: self.texture_size
+    size_hint: (1, 1)
+    font_size: 18
+    halign: 'center'
+    color: '#8e0045ff'
+    
+    
+<MyLogo@Image>:
+    fit_mode: 'contain'
+    source: 'icons/scholz-lab_logo.png'
+    spacing: -10
+    border: 0,0,0,0
+    
+
+<OnOffButton@ToggleButton>  
+    background_normal: 'icons/connection_off.png'
+    background_down: 'icons/connection_on.png'
+    
+<MyCounter@Label>:
+    value: 0
+
+<LabelImage@BoxLayout>:
+    orientation: 'vertical'
+    image: image
+    label: label
+    Label:
+        id: label
+        size_hint: (1, 0.1)
+        text: ""
+    Image:
+        id: image
+        fit_mode: 'contain'
+        size_hint: (1,0.9)
+
+
+<WarningPopup>:
+    BoxLayout:
+        orientation: 'vertical'
+        
+        Label:
+			text: root.text
+			size_hint_y: 0.9
+			halign: 'center'
+            valign: 'center'
+        Button:
+            size_hint_x: 0.25
+            size_hint_y: None
+			height: sp(48)
+            text: root.ok_text
+            on_press: root.ok()
