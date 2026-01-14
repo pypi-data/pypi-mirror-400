@@ -1,0 +1,752 @@
+"""Source operations API."""
+
+import asyncio
+import logging
+import re
+from datetime import datetime
+from pathlib import Path
+from time import monotonic
+from typing import Any, Dict, List, Optional, Union
+
+import httpx
+
+from ._core import ClientCore
+from .rpc import RPCMethod, UPLOAD_URL
+from .rpc.types import SourceStatus
+from .types import (
+    Source,
+    SourceNotFoundError,
+    SourceProcessingError,
+    SourceTimeoutError,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SourcesAPI:
+    """Operations on NotebookLM sources.
+
+    Provides methods for adding, listing, getting, deleting, renaming,
+    and refreshing sources in notebooks.
+
+    Usage:
+        async with NotebookLMClient.from_storage() as client:
+            sources = await client.sources.list(notebook_id)
+            new_src = await client.sources.add_url(notebook_id, "https://example.com")
+            await client.sources.rename(notebook_id, new_src.id, "Better Title")
+    """
+
+    def __init__(self, core: ClientCore):
+        """Initialize the sources API.
+
+        Args:
+            core: The core client infrastructure.
+        """
+        self._core = core
+
+    async def list(self, notebook_id: str) -> list[Source]:
+        """List all sources in a notebook.
+
+        Args:
+            notebook_id: The notebook ID.
+
+        Returns:
+            List of Source objects.
+        """
+        # Get notebook data which includes sources
+        params = [notebook_id, None, [2], None, 0]
+        notebook = await self._core.rpc_call(
+            RPCMethod.GET_NOTEBOOK,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+        )
+
+        if not notebook or not isinstance(notebook, list) or len(notebook) == 0:
+            logger.debug("Empty or invalid notebook response when listing sources")
+            return []
+
+        nb_info = notebook[0]
+        if not isinstance(nb_info, list) or len(nb_info) <= 1:
+            logger.debug("Invalid notebook structure: expected list with sources at index 1")
+            return []
+
+        sources_list = nb_info[1]
+        if not isinstance(sources_list, list):
+            logger.debug("Sources list is not a list type: %s", type(sources_list))
+            return []
+
+        # Convert raw source data to Source objects
+        sources = []
+        for src in sources_list:
+            if isinstance(src, list) and len(src) > 0:
+                # Extract basic info from source structure
+                src_id = src[0][0] if isinstance(src[0], list) else src[0]
+                title = src[1] if len(src) > 1 else None
+
+                # Detect URL if present
+                url = None
+                source_type = "text"
+                if len(src) > 2 and isinstance(src[2], list) and len(src[2]) > 7:
+                    url_list = src[2][7]
+                    if isinstance(url_list, list) and len(url_list) > 0:
+                        url = url_list[0]
+                        # Detect YouTube vs other URLs
+                        if 'youtube.com' in url or 'youtu.be' in url:
+                            source_type = "youtube"
+                        else:
+                            source_type = "url"
+
+                # Extract file info if no URL
+                if not url and title:
+                    if title.endswith('.pdf'):
+                        source_type = "pdf"
+                    elif title.endswith(('.txt', '.md', '.doc', '.docx')):
+                        source_type = "text_file"
+                    elif title.endswith(('.xls', '.xlsx', '.csv')):
+                        source_type = "spreadsheet"
+
+                # Check for file upload indicator
+                if source_type == "text" and len(src) > 2 and isinstance(src[2], list) and len(src[2]) > 1:
+                    if isinstance(src[2][1], int) and src[2][1] > 0:
+                        source_type = "upload"
+
+                # Extract timestamp from src[2][2] - [seconds, nanoseconds]
+                created_at = None
+                if len(src) > 2 and isinstance(src[2], list) and len(src[2]) > 2:
+                    timestamp_list = src[2][2]
+                    if isinstance(timestamp_list, list) and len(timestamp_list) > 0:
+                        try:
+                            created_at = datetime.fromtimestamp(timestamp_list[0])
+                        except (TypeError, ValueError):
+                            pass
+
+                # Extract status from src[3][1]
+                # See SourceStatus enum for valid values
+                status = SourceStatus.READY  # Default to ready
+                if len(src) > 3 and isinstance(src[3], list) and len(src[3]) > 1:
+                    status_code = src[3][1]
+                    if status_code in (
+                        SourceStatus.PROCESSING,
+                        SourceStatus.READY,
+                        SourceStatus.ERROR,
+                    ):
+                        status = status_code
+
+                sources.append(Source(
+                    id=str(src_id),
+                    title=title,
+                    url=url,
+                    source_type=source_type,
+                    created_at=created_at,
+                    status=status,
+                ))
+
+        return sources
+
+    async def get(self, notebook_id: str, source_id: str) -> Optional[Source]:
+        """Get details of a specific source.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_id: The source ID.
+
+        Returns:
+            Source object with current status, or None if not found.
+        """
+        # GET_SOURCE RPC doesn't work, so filter from notebook data instead
+        sources = await self.list(notebook_id)
+        for source in sources:
+            if source.id == source_id:
+                return source
+        return None
+
+    async def wait_until_ready(
+        self,
+        notebook_id: str,
+        source_id: str,
+        timeout: float = 120.0,
+        initial_interval: float = 1.0,
+        max_interval: float = 10.0,
+        backoff_factor: float = 1.5,
+    ) -> Source:
+        """Wait for a source to become ready.
+
+        Polls the source status until it becomes READY or ERROR, or timeout.
+        Uses exponential backoff to reduce API load.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_id: The source ID to wait for.
+            timeout: Maximum time to wait in seconds (default: 120).
+            initial_interval: Initial polling interval in seconds (default: 1).
+            max_interval: Maximum polling interval in seconds (default: 10).
+            backoff_factor: Multiplier for polling interval (default: 1.5).
+
+        Returns:
+            The ready Source object.
+
+        Raises:
+            SourceTimeoutError: If timeout is reached before source is ready.
+            SourceProcessingError: If source processing fails (status=ERROR).
+            SourceNotFoundError: If source is not found in the notebook.
+
+        Example:
+            source = await client.sources.add_url(notebook_id, url)
+            # Source may still be processing...
+            ready_source = await client.sources.wait_until_ready(
+                notebook_id, source.id
+            )
+            # Now safe to use in chat/artifacts
+        """
+        start = monotonic()
+        interval = initial_interval
+        last_status: Optional[int] = None
+
+        while True:
+            # Check timeout before each poll
+            elapsed = monotonic() - start
+            if elapsed >= timeout:
+                raise SourceTimeoutError(source_id, timeout, last_status)
+
+            source = await self.get(notebook_id, source_id)
+
+            if source is None:
+                raise SourceNotFoundError(source_id)
+
+            last_status = source.status
+
+            if source.is_ready:
+                return source
+
+            if source.is_error:
+                raise SourceProcessingError(source_id, source.status)
+
+            # Don't sleep longer than remaining time
+            remaining = timeout - (monotonic() - start)
+            if remaining <= 0:
+                raise SourceTimeoutError(source_id, timeout, last_status)
+
+            sleep_time = min(interval, remaining)
+            await asyncio.sleep(sleep_time)
+            interval = min(interval * backoff_factor, max_interval)
+
+    async def wait_for_sources(
+        self,
+        notebook_id: str,
+        source_ids: List[str],
+        timeout: float = 120.0,
+        **kwargs: Any,
+    ) -> List[Source]:
+        """Wait for multiple sources to become ready in parallel.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_ids: List of source IDs to wait for.
+            timeout: Per-source timeout in seconds.
+            **kwargs: Additional arguments passed to wait_until_ready().
+
+        Returns:
+            List of ready Source objects in the same order as source_ids.
+
+        Raises:
+            SourceTimeoutError: If any source times out.
+            SourceProcessingError: If any source fails.
+            SourceNotFoundError: If any source is not found.
+
+        Example:
+            sources = [
+                await client.sources.add_url(nb_id, url1),
+                await client.sources.add_url(nb_id, url2),
+            ]
+            ready_sources = await client.sources.wait_for_sources(
+                nb_id, [s.id for s in sources]
+            )
+        """
+        tasks = [
+            self.wait_until_ready(notebook_id, sid, timeout=timeout, **kwargs)
+            for sid in source_ids
+        ]
+        return list(await asyncio.gather(*tasks))
+
+    async def add_url(
+        self,
+        notebook_id: str,
+        url: str,
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> Source:
+        """Add a URL source to a notebook.
+
+        Automatically detects YouTube URLs and uses the appropriate method.
+
+        Args:
+            notebook_id: The notebook ID.
+            url: The URL to add.
+            wait: If True, wait for source to be ready before returning.
+            wait_timeout: Maximum seconds to wait if wait=True (default: 120).
+
+        Returns:
+            The created Source object. If wait=False, status may be PROCESSING.
+
+        Example:
+            # Add and wait for processing
+            source = await client.sources.add_url(nb_id, url, wait=True)
+
+            # Or add without waiting (for batch operations)
+            source = await client.sources.add_url(nb_id, url)
+            # ... add more sources ...
+            await client.sources.wait_for_sources(nb_id, [s.id for s in sources])
+        """
+        video_id = self._extract_youtube_video_id(url)
+        if video_id:
+            result = await self._add_youtube_source(notebook_id, url)
+        else:
+            result = await self._add_url_source(notebook_id, url)
+        if result is None:
+            raise ValueError(f"Failed to add URL source: API returned no data for {url}")
+        source = Source.from_api_response(result)
+
+        if wait:
+            return await self.wait_until_ready(notebook_id, source.id, timeout=wait_timeout)
+
+        return source
+
+    async def add_text(
+        self,
+        notebook_id: str,
+        title: str,
+        content: str,
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> Source:
+        """Add a text source (copied text) to a notebook.
+
+        Args:
+            notebook_id: The notebook ID.
+            title: Title for the source.
+            content: Text content.
+            wait: If True, wait for source to be ready before returning.
+            wait_timeout: Maximum seconds to wait if wait=True (default: 120).
+
+        Returns:
+            The created Source object. If wait=False, status may be PROCESSING.
+        """
+        params = [
+            [[None, [title, content], None, None, None, None, None, None]],
+            notebook_id,
+            [2],
+            None,
+            None,
+        ]
+        result = await self._core.rpc_call(
+            RPCMethod.ADD_SOURCE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+        )
+        source = Source.from_api_response(result)
+
+        if wait:
+            return await self.wait_until_ready(notebook_id, source.id, timeout=wait_timeout)
+
+        return source
+
+    async def add_file(
+        self,
+        notebook_id: str,
+        file_path: Union[str, Path],
+        mime_type: Optional[str] = None,
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> Source:
+        """Add a file source to a notebook using resumable upload.
+
+        Uses Google's resumable upload protocol:
+        1. Register source intent with RPC → get SOURCE_ID
+        2. Start upload session with SOURCE_ID (get upload URL)
+        3. Stream upload file content (memory-efficient for large files)
+
+        Args:
+            notebook_id: The notebook ID.
+            file_path: Path to the file to upload.
+            mime_type: MIME type of the file (not used in current implementation).
+            wait: If True, wait for source to be ready before returning.
+            wait_timeout: Maximum seconds to wait if wait=True (default: 120).
+
+        Returns:
+            The created Source object. If wait=False, status may be PROCESSING.
+
+        Supported file types:
+            - PDF: application/pdf
+            - Text: text/plain
+            - Markdown: text/markdown
+            - Word: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        """
+        file_path = Path(file_path).resolve()
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        if not file_path.is_file():
+            raise ValueError(f"Not a regular file: {file_path}")
+
+        filename = file_path.name
+        # Get file size without loading into memory
+        file_size = file_path.stat().st_size
+
+        # Step 1: Register source intent with RPC → get SOURCE_ID
+        source_id = await self._register_file_source(notebook_id, filename)
+
+        # Step 2: Start resumable upload with the SOURCE_ID from step 1
+        upload_url = await self._start_resumable_upload(
+            notebook_id, filename, file_size, source_id
+        )
+
+        # Step 3: Stream upload file content (memory-efficient)
+        await self._upload_file_streaming(upload_url, file_path)
+
+        # Return source with the ID we got from registration
+        source = Source(id=source_id, title=filename, source_type="upload")
+
+        if wait:
+            return await self.wait_until_ready(notebook_id, source.id, timeout=wait_timeout)
+
+        return source
+
+    async def add_drive(
+        self,
+        notebook_id: str,
+        file_id: str,
+        title: str,
+        mime_type: str = "application/vnd.google-apps.document",
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> Source:
+        """Add a Google Drive document as a source.
+
+        Args:
+            notebook_id: The notebook ID.
+            file_id: The Google Drive file ID.
+            title: Display title for the source.
+            mime_type: MIME type of the Drive document. Common values:
+                - application/vnd.google-apps.document (Google Docs)
+                - application/vnd.google-apps.presentation (Slides)
+                - application/vnd.google-apps.spreadsheet (Sheets)
+                - application/pdf (PDF files in Drive)
+            wait: If True, wait for source to be ready before returning.
+            wait_timeout: Maximum seconds to wait if wait=True (default: 120).
+
+        Returns:
+            The created Source object. If wait=False, status may be PROCESSING.
+
+        Example:
+            from notebooklm.types import DriveMimeType
+
+            source = await client.sources.add_drive(
+                notebook_id,
+                file_id="1abc123xyz",
+                title="My Document",
+                mime_type=DriveMimeType.GOOGLE_DOC.value,
+                wait=True,  # Wait for processing
+            )
+        """
+        # Drive source structure: [[file_id, mime_type, 1, title], null x9, 1]
+        source_data = [
+            [file_id, mime_type, 1, title],
+            None, None, None, None, None, None, None, None, None,
+            1,
+        ]
+        params = [
+            [[source_data]],
+            notebook_id,
+            [2],
+            [1, None, None, None, None, None, None, None, None, None, [1]],
+        ]
+        result = await self._core.rpc_call(
+            RPCMethod.ADD_SOURCE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+            allow_null=True,
+        )
+        source = Source.from_api_response(result)
+
+        if wait:
+            return await self.wait_until_ready(notebook_id, source.id, timeout=wait_timeout)
+
+        return source
+
+    async def delete(self, notebook_id: str, source_id: str) -> bool:
+        """Delete a source from a notebook.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_id: The source ID to delete.
+
+        Returns:
+            True if deletion succeeded.
+        """
+        params = [[[source_id]]]
+        await self._core.rpc_call(
+            RPCMethod.DELETE_SOURCE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+            allow_null=True,
+        )
+        return True
+
+    async def rename(self, notebook_id: str, source_id: str, new_title: str) -> Source:
+        """Rename a source.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_id: The source ID to rename.
+            new_title: The new title.
+
+        Returns:
+            Updated Source object.
+        """
+        params = [None, [source_id], [[[new_title]]]]
+        result = await self._core.rpc_call(
+            RPCMethod.UPDATE_SOURCE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+            allow_null=True,
+        )
+        return Source.from_api_response(result) if result else Source(id=source_id, title=new_title)
+
+    async def refresh(self, notebook_id: str, source_id: str) -> bool:
+        """Refresh a source to get updated content (for URL/Drive sources).
+
+        Args:
+            notebook_id: The notebook ID.
+            source_id: The source ID to refresh.
+
+        Returns:
+            True if refresh was initiated.
+        """
+        params = [None, [source_id], [2]]
+        await self._core.rpc_call(
+            RPCMethod.REFRESH_SOURCE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+            allow_null=True,
+        )
+        return True
+
+    async def check_freshness(self, notebook_id: str, source_id: str) -> bool:
+        """Check if a source needs to be refreshed.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_id: The source ID to check.
+
+        Returns:
+            True if source is fresh, False if it needs refresh.
+        """
+        params = [None, [source_id], [2]]
+        result = await self._core.rpc_call(
+            RPCMethod.CHECK_SOURCE_FRESHNESS,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+            allow_null=True,
+        )
+        # False means stale, True means fresh
+        return result is True
+
+    async def get_guide(self, notebook_id: str, source_id: str) -> Dict[str, Any]:
+        """Get AI-generated summary and keywords for a specific source.
+
+        This is the "Source Guide" feature shown when clicking on a source
+        in the NotebookLM UI.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_id: The source ID to get guide for.
+
+        Returns:
+            Dictionary containing:
+                - summary: AI-generated summary with **bold** keywords (markdown)
+                - keywords: List of topic keyword strings
+        """
+        # Deeply nested source ID: [[[[source_id]]]]
+        params = [[[[source_id]]]]
+        result = await self._core.rpc_call(
+            RPCMethod.GET_SOURCE_GUIDE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+            allow_null=True,
+        )
+
+        # Parse response structure: [[null, [summary], [keywords]]]
+        summary = ""
+        keywords: list[str] = []
+
+        if result and isinstance(result, list) and len(result) > 0:
+            inner = result[0]
+            if isinstance(inner, list):
+                # Summary at [1][0]
+                if len(inner) > 1 and isinstance(inner[1], list) and len(inner[1]) > 0:
+                    summary = inner[1][0] if isinstance(inner[1][0], str) else ""
+                # Keywords at [2][0]
+                if len(inner) > 2 and isinstance(inner[2], list) and len(inner[2]) > 0:
+                    keywords = inner[2][0] if isinstance(inner[2][0], list) else []
+
+        return {"summary": summary, "keywords": keywords}
+
+    # =========================================================================
+    # Private helper methods
+    # =========================================================================
+
+    def _extract_youtube_video_id(self, url: str) -> Optional[str]:
+        """Extract YouTube video ID from various URL formats."""
+        # Short URLs: youtu.be/VIDEO_ID
+        match = re.match(r"https?://youtu\.be/([a-zA-Z0-9_-]+)", url)
+        if match:
+            return match.group(1)
+        # Standard watch URLs: youtube.com/watch?v=VIDEO_ID
+        match = re.match(
+            r"https?://(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)", url
+        )
+        if match:
+            return match.group(1)
+        # Shorts URLs: youtube.com/shorts/VIDEO_ID
+        match = re.match(
+            r"https?://(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]+)", url
+        )
+        if match:
+            return match.group(1)
+        return None
+
+    async def _add_youtube_source(self, notebook_id: str, url: str) -> Any:
+        """Add a YouTube video as a source."""
+        params = [
+            [[None, None, None, None, None, None, None, [url], None, None, 1]],
+            notebook_id,
+            [2],
+            [1, None, None, None, None, None, None, None, None, None, [1]],
+        ]
+        return await self._core.rpc_call(
+            RPCMethod.ADD_SOURCE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+            allow_null=True,
+        )
+
+    async def _add_url_source(self, notebook_id: str, url: str) -> Any:
+        """Add a regular URL as a source."""
+        params = [
+            [[None, None, [url], None, None, None, None, None]],
+            notebook_id,
+            [2],
+            None,
+            None,
+        ]
+        return await self._core.rpc_call(
+            RPCMethod.ADD_SOURCE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+        )
+
+    async def _register_file_source(self, notebook_id: str, filename: str) -> str:
+        """Register a file source intent and get SOURCE_ID."""
+        # Note: filename is double-nested: [[filename]], not triple-nested
+        params = [
+            [[filename]],
+            notebook_id,
+            [2],
+            [1, None, None, None, None, None, None, None, None, None, [1]],
+        ]
+
+        result = await self._core.rpc_call(
+            RPCMethod.ADD_SOURCE_FILE,
+            params,
+            source_path=f"/notebook/{notebook_id}",
+            allow_null=True,
+        )
+
+        # Parse SOURCE_ID from response - handle various nesting formats
+        # API returns different structures: [[[[id]]]], [[[id]]], [[id]], etc.
+        if result and isinstance(result, list):
+            def extract_id(data):
+                """Recursively extract first string from nested lists."""
+                if isinstance(data, str):
+                    return data
+                if isinstance(data, list) and len(data) > 0:
+                    return extract_id(data[0])
+                return None
+
+            source_id = extract_id(result)
+            if source_id:
+                return source_id
+
+        raise ValueError("Failed to get SOURCE_ID from registration response")
+
+    async def _start_resumable_upload(
+        self,
+        notebook_id: str,
+        filename: str,
+        file_size: int,
+        source_id: str,
+    ) -> str:
+        """Start a resumable upload session and get the upload URL."""
+        import json
+
+        url = f"{UPLOAD_URL}?authuser=0"
+
+        headers = {
+            "Accept": "*/*",
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "Cookie": self._core.auth.cookie_header,
+            "Origin": "https://notebooklm.google.com",
+            "Referer": "https://notebooklm.google.com/",
+            "x-goog-authuser": "0",
+            "x-goog-upload-command": "start",
+            "x-goog-upload-header-content-length": str(file_size),
+            "x-goog-upload-protocol": "resumable",
+        }
+
+        body = json.dumps({
+            "PROJECT_ID": notebook_id,
+            "SOURCE_NAME": filename,
+            "SOURCE_ID": source_id,
+        })
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, headers=headers, content=body)
+            response.raise_for_status()
+
+            upload_url = response.headers.get("x-goog-upload-url")
+            if not upload_url:
+                raise ValueError("Failed to get upload URL from response headers")
+
+            return upload_url
+
+    async def _upload_file_streaming(self, upload_url: str, file_path: Path) -> None:
+        """Stream upload file content to the resumable upload URL.
+
+        Uses streaming to avoid loading the entire file into memory,
+        which is important for large PDFs and documents.
+
+        Args:
+            upload_url: The resumable upload URL from _start_resumable_upload.
+            file_path: Path to the file to upload.
+        """
+        headers = {
+            "Accept": "*/*",
+            "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+            "Cookie": self._core.auth.cookie_header,
+            "Origin": "https://notebooklm.google.com",
+            "Referer": "https://notebooklm.google.com/",
+            "x-goog-authuser": "0",
+            "x-goog-upload-command": "upload, finalize",
+            "x-goog-upload-offset": "0",
+        }
+
+        # Stream the file content instead of loading it all into memory
+        async def file_stream():
+            with open(file_path, "rb") as f:
+                while chunk := f.read(65536):  # 64KB chunks
+                    yield chunk
+
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            response = await client.post(upload_url, headers=headers, content=file_stream())
+            response.raise_for_status()
