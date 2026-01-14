@@ -1,0 +1,175 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+  "setuptools>=77",
+]
+
+[project]
+name = "icu4py"
+version = "0.1.0"
+description = "Bindings to the ICU (International Components for Unicode) library (ICU4C)."
+readme = "README.rst"
+keywords = [
+  "i18n",
+  "icu",
+  "icu4c",
+  "internationalization",
+  "l10n",
+  "localization",
+  "unicode",
+]
+license = "MIT"
+license-files = [ "LICENSE" ]
+authors = [
+  { name = "Adam Johnson", email = "me@adamj.eu" },
+]
+requires-python = ">=3.10"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Framework :: Pytest",
+  "Intended Audience :: Developers",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+urls.Changelog = "https://icu4py.readthedocs.io/en/latest/changelog.html"
+urls.Documentation = "https://icu4py.readthedocs.io/"
+urls.Funding = "https://adamj.eu/books/"
+urls.Repository = "https://github.com/adamchainz/icu4py"
+
+[dependency-groups]
+test = [
+  "coverage[toml]",
+  "pytest",
+  "pytest-randomly",
+]
+docs = [
+  "furo>=2024.8.6",
+  "sphinx>=7.4.7",
+  "sphinx-build-compatibility",
+  "sphinx-copybutton>=0.5.2",
+]
+
+[tool.uv.sources]
+sphinx-build-compatibility = { git = "https://github.com/readthedocs/sphinx-build-compatibility", rev = "4f304bd4562cdc96316f4fec82b264ca379d23e0" }
+
+[tool.cibuildwheel]
+build = [
+  "cp314-*",
+  "cp314t-*",
+  "cp313-*",
+  "cp313t-*",
+  "cp312-*",
+  "cp311-*",
+  "cp310-*",
+]
+enable = [
+  # Enable free-threaded wheels on Python 3.13 (where it was experimental)
+  "cpython-freethreading",
+]
+
+# Install icu on all platforms
+linux.before-all = "yum install -y libicu-devel"
+macos.before-all = "brew install icu4c"
+macos.environment.CPPFLAGS = "-I/opt/homebrew/opt/icu4c/include -I/usr/local/opt/icu4c/include"
+macos.environment.LDFLAGS = "-L/opt/homebrew/opt/icu4c/lib -L/usr/local/opt/icu4c/lib"
+# Use architecture-specific ICU4C installations for Windows
+windows.environment.INCLUDE = "C:/icu4c-64/include;C:/icu4c-32/include"
+windows.environment.LIB = "C:/icu4c-64/lib64;C:/icu4c-32/lib"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux*"
+before-all = "apk add icu-dev"
+
+[tool.ruff]
+lint.select = [
+  # flake8-bugbear
+  "B",
+  # flake8-comprehensions
+  "C4",
+  # pycodestyle
+  "E",
+  # Pyflakes errors
+  "F",
+  # isort
+  "I",
+  # flake8-simplify
+  "SIM",
+  # flake8-tidy-imports
+  "TID",
+  # pyupgrade
+  "UP",
+  # Pyflakes warnings
+  "W",
+]
+lint.ignore = [
+  # flake8-bugbear opinionated rules
+  "B9",
+  # line-too-long
+  "E501",
+  # suppressible-exception
+  "SIM105",
+  # if-else-block-instead-of-if-exp
+  "SIM108",
+]
+lint.extend-safe-fixes = [
+  # non-pep585-annotation
+  "UP006",
+]
+lint.isort.required-imports = [ "from __future__ import annotations" ]
+
+[tool.pyproject-fmt]
+max_supported_python = "3.14"
+
+[tool.pytest.ini_options]
+addopts = """\
+    --strict-config
+    --strict-markers
+    -p pytester
+    """
+xfail_strict = true
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = [
+  "icu4py",
+  "tests",
+]
+
+[tool.coverage.paths]
+source = [
+  "src",
+  ".tox/**/site-packages",
+]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.mypy]
+enable_error_code = [
+  "ignore-without-code",
+  "redundant-expr",
+  "truthy-bool",
+]
+mypy_path = "src/"
+namespace_packages = false
+strict = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+allow_untyped_defs = true
+
+[tool.rstcheck]
+ignore_directives = [
+  "autoclass",
+  "autodata",
+]
+report_level = "ERROR"
