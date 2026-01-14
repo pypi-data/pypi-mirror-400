@@ -1,0 +1,1112 @@
+""" CumulusCI Tasks for running Apex Tests """
+
+import html
+import io
+import json
+import os
+import re
+from typing import Dict, List, Optional
+
+from cumulusci.core.config import TaskConfig
+from cumulusci.core.exceptions import (
+    ApexTestException,
+    CumulusCIException,
+    TaskOptionsError,
+)
+from cumulusci.core.utils import decode_to_unicode, determine_managed_mode
+from cumulusci.tasks.salesforce import BaseSalesforceApiTask
+from cumulusci.utils.http.requests_utils import safe_json_from_response
+from cumulusci.utils.options import (
+    CCIOptions,
+    Field,
+    ListOfStringsOption,
+    MappingOption,
+    PercentageOption,
+)
+from cumulusci.vcs.utils.list_modified_files import ListModifiedFiles
+
+APEX_LIMITS = {
+    "Soql": {
+        "Label": "TESTING_LIMITS: Number of SOQL queries",
+        "SYNC": 100,
+        "ASYNC": 200,
+    },
+    "Email": {
+        "Label": "TESTING_LIMITS: Number of Email Invocations",
+        "SYNC": 10,
+        "ASYNC": 10,
+    },
+    "AsyncCalls": {
+        "Label": "TESTING_LIMITS: Number of future calls",
+        "SYNC": 50,
+        "ASYNC": 50,
+    },
+    "DmlRows": {
+        "Label": "TESTING_LIMITS: Number of DML rows",
+        "SYNC": 10000,
+        "ASYNC": 10000,
+    },
+    "Cpu": {"Label": "TESTING_LIMITS: Maximum CPU time", "SYNC": 10000, "ASYNC": 60000},
+    "QueryRows": {
+        "Label": "TESTING_LIMITS: Number of query rows",
+        "SYNC": 50000,
+        "ASYNC": 50000,
+    },
+    "Dml": {
+        "Label": "TESTING_LIMITS: Number of DML statements",
+        "SYNC": 150,
+        "ASYNC": 150,
+    },
+    "MobilePush": {
+        "Label": "TESTING_LIMITS: Number of Mobile Apex push calls",
+        "SYNC": 10,
+        "ASYNC": 10,
+    },
+    "Sosl": {
+        "Label": "TESTING_LIMITS: Number of SOSL queries",
+        "SYNC": 20,
+        "ASYNC": 20,
+    },
+    "Callouts": {
+        "Label": "TESTING_LIMITS: Number of callouts",
+        "SYNC": 100,
+        "ASYNC": 100,
+    },
+}
+
+
+TEST_RESULT_QUERY = """
+SELECT Id,ApexClassId,TestTimestamp,
+       Message,MethodName,Outcome,
+       RunTime,StackTrace,
+       (SELECT
+          Id,Callouts,AsyncCalls,DmlRows,Email,
+          LimitContext,LimitExceptions,MobilePush,
+          QueryRows,Sosl,Cpu,Dml,Soql
+        FROM ApexTestResults)
+FROM ApexTestResult
+WHERE AsyncApexJobId='{}'
+"""
+
+
+class MappingIntOption(MappingOption):
+    """Parses a Mapping of Str->Int from a string in format a:b,c:d"""
+
+    @classmethod
+    def from_str(cls, v) -> Dict[str, int]:
+        """Validate and convert a value.
+        If its a string, parse it, else, just validate it.
+        """
+        try:
+            v = {
+                key: PercentageOption.from_str(value)
+                for key, value in super().from_str(v).items()
+            }
+        except ValueError:
+            raise TaskOptionsError(
+                "Value should be a percentage or integer (e.g. 90% or 90)"
+            )
+        return v
+
+
+class ListOfRegexPatternsOption(ListOfStringsOption):
+    @classmethod
+    def validate(cls, v):
+        """Validate and convert a value.
+        If its a string, parse it, else, just validate it.
+        """
+        regex_patterns: List[re.Pattern] = []
+        for regex in v:
+            try:
+                regex_patterns.append(re.compile(regex))
+            except re.error as e:
+                raise TaskOptionsError(
+                    "An invalid regular expression ({}) was provided ({})".format(
+                        regex, e
+                    )
+                )
+        v = regex_patterns
+        return v
+
+
+class RunApexTests(BaseSalesforceApiTask):
+    """Task to run Apex tests with the Tooling API and report results.
+
+    This task optionally supports retrying unit tests that fail due to
+    transitory issues or concurrency-related row locks. To enable retries,
+    add ones or more regular expressions to the list option `retry_failures`.
+
+    When a test run fails, if all of the failures' error messages or stack traces
+    match one of these regular expressions, each failed test will be retried by
+    itself. This is often useful when running Apex tests in parallel; row locks
+    may automatically be retried. Note that retries are supported whether or not
+    the org has parallel Apex testing enabled.
+
+    The ``retry_always`` option modifies this behavior: if a test run fails and
+    any (not all) of the failures match the specified regular expressions,
+    all of the failed tests will be retried in serial. This is helpful when
+    underlying row locking errors are masked by custom exceptions.
+
+    A useful base configuration for projects wishing to use retries is:
+
+    .. code-block:: yaml
+
+        retry_failures:
+            - "unable to obtain exclusive access to this record"
+            - "UNABLE_TO_LOCK_ROW"
+            - "connection was cancelled here"
+        retry_always: True
+
+    Some projects' unit tests produce so many concurrency errors that
+    it's faster to execute the entire run in serial mode than to use retries.
+    Serial and parallel mode are configured in the scratch org definition file."""
+
+    api_version = "38.0"
+    name = "RunApexTests"
+
+    class Options(CCIOptions):
+        test_name_match: Optional[ListOfStringsOption] = Field(
+            None,
+            description=(
+                "Pattern to find Apex test classes to run "
+                '("%" is wildcard).  Defaults to '
+                "project__test__name_match from project config. "
+                "Comma-separated list for multiple patterns."
+            ),
+        )
+        test_name_exclude: Optional[ListOfStringsOption] = Field(
+            None,
+            description=(
+                "Query to find Apex test classes to exclude "
+                '("%" is wildcard).  Defaults to '
+                "project__test__name_exclude from project config. "
+                "Comma-separated list for multiple patterns."
+            ),
+        )
+        namespace: Optional[str] = Field(
+            None,
+            description=(
+                "Salesforce project namespace.  Defaults to "
+                "project__package__namespace"
+            ),
+        )
+        managed: bool = Field(
+            False,
+            description=(
+                "If True, search for tests in the namespace " "only. Defaults to False"
+            ),
+        )
+        poll_interval: int = Field(
+            1,
+            description="Seconds to wait between polling for Apex test results.",
+        )
+        junit_output: Optional[str] = Field(
+            "test_results.xml",
+            description="File name for JUnit output.  Defaults to test_results.xml",
+        )
+        json_output: Optional[str] = Field(
+            "test_results.json",
+            description="File name for json output.  Defaults to test_results.json",
+        )
+        retry_failures: ListOfRegexPatternsOption = Field(
+            [],
+            description="A list of regular expression patterns to match against "
+            "test failures. If failures match, the failing tests are retried in "
+            "serial mode.",
+        )
+        retry_always: bool = Field(
+            False,
+            description="By default, all failures must match retry_failures to perform "
+            "a retry. Set retry_always to True to retry all failed tests if any failure matches.",
+        )
+        required_org_code_coverage_percent: PercentageOption = Field(
+            0,
+            description="Require at least X percent code coverage across the org following the test run.",
+        )
+        required_per_class_code_coverage_percent: PercentageOption = Field(
+            0,
+            description="Require at least X percent code coverage for every class in the org.",
+        )
+        required_individual_class_code_coverage_percent: MappingIntOption = Field(
+            {},
+            description="Mapping of class names to their minimum coverage percentage requirements. "
+            "Takes priority over required_per_class_code_coverage_percent for specified classes.",
+        )
+        verbose: bool = Field(
+            False,
+            description="By default, only failures get detailed output. "
+            "Set verbose to True to see all passed test methods.",
+        )
+        test_suite_names: ListOfStringsOption = Field(
+            [],
+            description="List of test suite names. Only runs test classes that are part of the test suites specified.",
+        )
+        dynamic_filter: Optional[str] = Field(
+            None,
+            description="Defines a dynamic filter to apply to test classes from the org that match test_name_match. Supported values: "
+            "'package_only' - only runs test classes that exist in the default package directory (force-app/ or src/),"
+            "'delta_changes' - only runs test classes that are affected by the delta changes in the current branch (force-app/ or src/),"
+            "Default is None, which means no dynamic filter is applied and all test classes from the org that match test_name_match are run."
+            "Setting this option, the org code coverage will not be calculated.",
+        )
+        base_ref: Optional[str] = Field(
+            None,
+            description="Git reference (branch, tag, or commit) to compare against for delta changes. "
+            "If not set, uses the default branch of the repository. Only used when dynamic_filter is 'delta_changes'.",
+        )
+
+    parsed_options: Options
+
+    def _init_options(self, kwargs):
+        super(RunApexTests, self)._init_options(kwargs)
+
+        # Set defaults from project config
+        if self.parsed_options.test_name_match is None:
+            self.parsed_options.test_name_match = ListOfStringsOption.from_str(
+                self.project_config.project__test__name_match
+            )
+        if self.parsed_options.test_name_exclude is None:
+            self.parsed_options.test_name_exclude = ListOfStringsOption.from_str(
+                self.project_config.project__test__name_exclude
+            )
+        if self.parsed_options.test_suite_names is None:
+            self.parsed_options.test_suite_names = ListOfStringsOption.from_str(
+                self.project_config.project__test__suite__names
+            )
+        if self.parsed_options.namespace is None:
+            self.parsed_options.namespace = (
+                self.project_config.project__package__namespace
+            )
+
+        self.verbose = self.parsed_options.verbose
+        self.counts = {}
+
+        self.code_coverage_level = (
+            self.parsed_options.required_org_code_coverage_percent
+        )
+
+        self.required_per_class_code_coverage_percent = (
+            self.parsed_options.required_per_class_code_coverage_percent
+        )
+
+        # Parse individual class coverage requirements
+        # Validator already converted values to int, so just use it directly
+        self.required_individual_class_code_coverage_percent = (
+            self.parsed_options.required_individual_class_code_coverage_percent
+        )
+
+        # Raises a TaskOptionsError when the user provides both test_suite_names and test_name_match.
+        if self.parsed_options.test_suite_names and not (
+            any(
+                pattern in ["%_TEST%", "%TEST%"]
+                for pattern in self.parsed_options.test_name_match
+            )
+        ):
+            raise TaskOptionsError(
+                "Both test_suite_names and test_name_match cannot be passed simultaneously"
+            )
+
+    # pylint: disable=W0201
+    def _init_class(self):
+        self.classes_by_id = {}
+        self.classes_by_name = {}
+        self.job_id = None
+        self.results_by_class_name = {}
+        self.result = None
+        self.retry_details = None
+
+    def _get_namespace_filter(self):
+
+        if self.parsed_options.managed:
+
+            namespace = self.parsed_options.namespace
+
+            if not namespace:
+                raise TaskOptionsError(
+                    "Running tests in managed mode but no namespace available."
+                )
+            namespace = "'{}'".format(namespace)
+        elif self.org_config.namespace:
+            namespace = self.org_config.namespace
+            namespace = "'{}'".format(namespace)
+        else:
+            namespace = "null"
+        return namespace
+
+    def _get_test_class_query(self):
+        namespace = self._get_namespace_filter()
+        # Split by commas to allow multiple class name matching options
+        included_tests = []
+        for pattern in self.parsed_options.test_name_match:
+            if pattern:
+                included_tests.append("Name LIKE '{}'".format(pattern))
+        # Add any excludes to the where clause
+        excluded_tests = []
+        for pattern in self.parsed_options.test_name_exclude:
+            if pattern:
+                excluded_tests.append("(NOT Name LIKE '{}')".format(pattern))
+        # Get all test classes for namespace
+        query = "SELECT Id, Name FROM ApexClass " + "WHERE NamespacePrefix = {}".format(
+            namespace
+        )
+
+        if included_tests:
+            query += " AND ({})".format(" OR ".join(included_tests))
+        if excluded_tests:
+            query += " AND {}".format(" AND ".join(excluded_tests))
+        return query
+
+    def _get_test_classes(self):
+        # If test_suite_names is provided, execute only tests that are a part of the list of test suites provided.
+        if self.parsed_options.test_suite_names:
+            test_classes_from_test_suite_names = (
+                self._get_test_classes_from_test_suite_names()
+            )
+            return test_classes_from_test_suite_names
+
+        # test_suite_names is not provided. Fetch all the test classes from the org.
+        else:
+            return self._get_all_test_classes()
+
+    def _get_all_test_classes(self):
+        # Fetches all the test classes from the org.
+        query = self._get_test_class_query()
+        self.logger.info("Fetching all the test classes...")
+        result = self.tooling.query_all(query)
+        self.logger.info("Found {} test classes".format(result["totalSize"]))
+        return result
+
+    def _get_comma_separated_string_of_items(self, itemlist):
+        # Accepts a list of strings. A formatted string is returned.
+        # Example: Input: ['TestSuite1', 'TestSuite2']      Output: ''TestSuite1','TestSuite2''
+        return ",".join([f"'{item}'" for item in itemlist])
+
+    def _get_test_suite_ids_from_test_suite_names_query(self, test_suite_names_arg):
+        # Returns a query string which when executed fetches the test suite ids of the list of test suite names.
+        test_suite_names = self._get_comma_separated_string_of_items(
+            test_suite_names_arg.split(",")
+        )
+        query1 = f"SELECT Id, TestSuiteName FROM ApexTestSuite WHERE TestSuiteName IN ({test_suite_names})"
+        return query1
+
+    def _get_test_classes_from_test_suite_ids_query(self, testSuiteIds):
+        # Returns a query string which when executed fetches Apex test classes for the given list of test suite ids.
+        # Apex test classes passed under test_name_exclude are ignored.
+        testSuiteIds_formatted = self._get_comma_separated_string_of_items(testSuiteIds)
+
+        if len(testSuiteIds_formatted) == 0:
+            testSuiteIds_formatted = "''"
+
+        condition = ""
+
+        # Check if test_name_exclude is provided. Append to query string if the former is specified.
+        if self.parsed_options.test_name_exclude:
+            test_name_exclude = self._get_comma_separated_string_of_items(
+                self.parsed_options.test_name_exclude
+            )
+            condition = f"AND Name NOT IN ({test_name_exclude})"
+
+        query = f"SELECT Id, Name FROM ApexClass WHERE Id IN (SELECT ApexClassId FROM TestSuiteMembership WHERE ApexTestSuiteId IN ({testSuiteIds_formatted})) {condition}"
+        return query
+
+    def _get_test_classes_from_test_suite_names(self):
+        # Returns a list of Apex test classes that belong to the test suite(s) specified. Test classes specified in test_name_exclude are excluded.
+        query1 = self._get_test_suite_ids_from_test_suite_names_query(
+            self.parsed_options.test_suite_names
+        )
+        self.logger.info("Fetching test suite metadata...")
+        result = self.tooling.query_all(query1)
+        testSuiteIds = []
+
+        for record in result["records"]:
+            testSuiteIds.append(str(record["Id"]))
+
+        query2 = self._get_test_classes_from_test_suite_ids_query(testSuiteIds)
+        self.logger.info("Fetching test classes belonging to the test suite(s)...")
+        result = self.tooling.query_all(query2)
+        self.logger.info("Found {} test classes".format(result["totalSize"]))
+        return result
+
+    def _class_exists_in_package(self, class_name):
+        """Check if an Apex class exists in the default package directory."""
+        package_path = self.project_config.default_package_path
+
+        # Walk through the package directory to find .cls files
+        for root, dirs, files in os.walk(package_path):
+            for file in files:
+                if file.endswith(".cls"):
+                    # Extract class name from filename (remove .cls extension)
+                    file_class_name = file[:-4]
+                    if file_class_name == class_name:
+                        return True
+        return False
+
+    def _filter_package_classes(self, test_classes):
+        """Filter test classes to only include those that exist in the package directory."""
+        if self.parsed_options.dynamic_filter is None:
+            return test_classes
+
+        filtered_records = []
+        match self.parsed_options.dynamic_filter:
+            case "package_only":
+                filtered_records = self._filter_test_classes_to_package_only(
+                    test_classes
+                )
+            case "delta_changes":
+                filtered_records = self._filter_test_classes_to_delta_changes(
+                    test_classes
+                )
+            case _:
+                raise TaskOptionsError(
+                    f"Unsupported dynamic filter: {self.parsed_options.dynamic_filter}"
+                )
+
+        # Update the result with filtered records
+        filtered_result = {
+            "totalSize": len(filtered_records),
+            "records": filtered_records,
+            "done": test_classes.get("done", True),
+        }
+
+        return filtered_result
+
+    def _filter_test_classes_to_package_only(self, test_classes):
+        """Filter test classes to only include those that exist in the package directory."""
+        filtered_records = []
+        excluded_count = 0
+
+        for record in test_classes["records"]:
+            class_name = record["Name"]
+            if self._class_exists_in_package(class_name):
+                filtered_records.append(record)
+            else:
+                excluded_count += 1
+                self.logger.debug(
+                    f"Excluding test class '{class_name}' - not found in package directory"
+                )
+
+        if excluded_count > 0:
+            self.logger.info(
+                f"Excluded {excluded_count} test class(es) not in package directory"
+            )
+        return filtered_records
+
+    def _filter_test_classes_to_delta_changes(self, test_classes):
+        """Filter test classes to only include those that are affected by the delta changes in the current branch."""
+        # Check if the current base folder has git. (project_config.repo)
+        if self.project_config.get_repo() is None:
+            self.logger.info("No git repository found. Returning all test classes.")
+            return test_classes["records"]
+
+        self.logger.info("")
+        self.logger.info("Getting the list of committed files in the current branch.")
+        # Get the list of modified files in the current branch.
+        task = ListModifiedFiles(
+            self.project_config,
+            TaskConfig(
+                {
+                    "options": {
+                        "base_ref": self.parsed_options.base_ref,
+                        "file_extensions": ["cls", "flow-meta.xml", "trigger"],
+                        "directories": ["force-app", "src"],
+                    }
+                }
+            ),
+            org_config=None,
+        )
+        task()
+
+        branch_return_values = task.return_values.copy()
+
+        # Get the list of modified files which are not yet committed.
+        self.logger.info("")
+        self.logger.info("Getting the list of uncommitted files in the current branch.")
+        task.parsed_options.base_ref = "HEAD"
+        task()
+        uncommitted_return_values = task.return_values.copy()
+
+        # Get the list of changed files.
+        branch_files = set(branch_return_values.get("files", []))
+        uncommitted_files = set(uncommitted_return_values.get("files", []))
+        changed_files = branch_files.union(uncommitted_files)
+
+        if not changed_files:
+            self.logger.info(
+                "No changed files found in package directories (force-app/ or src/)."
+            )
+            return []
+
+        # Extract class names from changed files
+        affected_class_names = branch_return_values.get("file_names", set()).union(
+            uncommitted_return_values.get("file_names", set())
+        )
+
+        if not affected_class_names:
+            self.logger.info("No file names found in changed files.")
+            return []
+
+        self.logger.info(
+            f"Found {len(affected_class_names)} affected class(es): {', '.join(sorted(affected_class_names))}"
+        )
+
+        # Filter test classes to only include those affected by the delta changes
+        filtered_records = []
+        excluded_count = 0
+
+        affected_class_names_lower = [name.lower() for name in affected_class_names]
+
+        for record in test_classes["records"]:
+            test_class_name = record["Name"]
+            if self._is_test_class_affected(
+                test_class_name.lower(), affected_class_names_lower
+            ):
+                filtered_records.append(record)
+            else:
+                excluded_count += 1
+                self.logger.debug(
+                    f"Excluding test class '{test_class_name}' - not affected by delta changes"
+                )
+
+        if excluded_count > 0:
+            self.logger.info(
+                f"Excluded {excluded_count} test class(es) not affected by delta changes"
+            )
+
+        if not filtered_records:
+            self.logger.info(
+                "No test classes found that are affected by delta changes."
+            )
+            return []
+
+        self.logger.info(
+            f"Running {len(filtered_records)} test class(es) that are affected by delta changes. Test classes: {', '.join([record['Name'] for record in filtered_records])}"
+        )
+
+        return filtered_records
+
+    def _is_test_class_affected(self, test_class_name, affected_class_names):
+        """Check if a test class is affected by the changed classes."""
+        # Direct match: test class name matches a changed class
+        if test_class_name in affected_class_names:
+            return True
+
+        # Check if test class name corresponds to an affected class
+        # Common patterns:
+        # - Account.cls changed -> AccountTest.cls should run
+        # - MyService.cls changed -> MyServiceTest.cls should run
+        # - AccountHandler.cls changed -> AccountHandlerTest.cls should run
+        for affected_class in affected_class_names:
+            # Check if test class name follows common test naming patterns
+            if (
+                test_class_name == f"{affected_class}test"
+                or test_class_name == f"test{affected_class}"
+                or test_class_name.startswith(f"{affected_class}_")
+                or test_class_name.startswith(f"test{affected_class}_")
+                or test_class_name == f"{affected_class.replace('_', '')}test"
+            ):
+                return True
+
+        return False
+
+    def _get_test_methods_for_class(self, class_name):
+        result = self.tooling.query(
+            f"SELECT SymbolTable FROM ApexClass WHERE Name='{class_name}'"
+        )
+        test_methods = []
+
+        try:
+            methods = result["records"][0]["SymbolTable"]["methods"]
+        except (TypeError, IndexError, KeyError):
+            raise CumulusCIException(
+                f"Unable to acquire symbol table for failed Apex class {class_name}"
+            )
+        for m in methods:
+            for a in m.get("annotations", []):
+                if a["name"].lower() in ["istest", "testmethod"]:
+                    test_methods.append(m["name"])
+                    break
+
+        return test_methods
+
+    def _is_retriable_error_message(self, error_message):
+        return any(
+            [reg.search(error_message) for reg in self.parsed_options.retry_failures]
+        )
+
+    def _is_retriable_failure(self, test_result):
+        return self._is_retriable_error_message(
+            test_result["Message"] or ""
+        ) or self._is_retriable_error_message(test_result["StackTrace"] or "")
+
+    def _get_test_results(self, allow_retries=True):
+        # We need to query at both the test result and test queue item level.
+        # Some concurrency problems manifest as all or part of the class failing,
+        # without leaving behind any visible ApexTestResult records.
+        # See https://salesforce.stackexchange.com/questions/262893/any-way-to-get-consistent-test-counts-when-parallel-testing-is-used
+
+        # First, gather the Ids of failed test classes.
+        test_classes = self.tooling.query_all(
+            "SELECT Id, Status, ExtendedStatus, ApexClassId FROM ApexTestQueueItem "
+            + "WHERE ParentJobId = '{}' AND Status = 'Failed'".format(self.job_id)
+        )
+        class_level_errors = {
+            each_class["ApexClassId"]: each_class["ExtendedStatus"]
+            for each_class in test_classes["records"]
+        }
+
+        result = self.tooling.query_all(TEST_RESULT_QUERY.format(self.job_id))
+
+        if allow_retries:
+            self.retry_details = {}
+
+        for test_result in result["records"]:
+            class_name = self.classes_by_id[test_result["ApexClassId"]]
+            self.results_by_class_name[class_name][
+                test_result["MethodName"]
+            ] = test_result
+            self.counts[test_result["Outcome"]] += 1
+
+        # If we have class-level failures that did not come with line-level
+        # failure details, report those as well.
+        for class_id, error in class_level_errors.items():
+            class_name = self.classes_by_id[class_id]
+
+            self.logger.error(
+                f"Class {class_name} failed to run some tests with the message {error}. Applying error to unit test results."
+            )
+
+            # In Spring '20, we cannot get symbol tables for managed classes.
+            if self.parsed_options.managed:
+                self.logger.error(
+                    f"Cannot access symbol table for managed class {class_name}. Failure will not be retried."
+                )
+                continue
+
+            # Get all the method names for this class
+            test_methods = self._get_test_methods_for_class(class_name)
+            for test_method in test_methods:
+                # If this method was not run due to a class-level failure,
+                # synthesize a failed result.
+                # If we're retrying and fail again, do the same.
+                if (
+                    test_method not in self.results_by_class_name[class_name]
+                    or self.results_by_class_name[class_name][test_method]["Outcome"]
+                    == "Fail"
+                ):
+                    self.results_by_class_name[class_name][test_method] = {
+                        "ApexClassId": class_id,
+                        "MethodName": test_method,
+                        "Outcome": "Fail",
+                        "Message": f"Containing class {class_name} failed with message {error}",
+                        "StackTrace": "",
+                        "RunTime": 0,
+                    }
+                    self.counts["Fail"] += 1
+
+        if allow_retries:
+            for class_name, results in self.results_by_class_name.items():
+                for test_result in results.values():
+                    # Determine whether this failure is retriable.
+                    if test_result["Outcome"] == "Fail" and allow_retries:
+                        can_retry_this_failure = self._is_retriable_failure(test_result)
+                        if can_retry_this_failure:
+                            self.counts["Retriable"] += 1
+
+                        # Even if this failure is not retriable per se,
+                        # persist its details if we might end up retrying
+                        # all failures.
+                        if self.parsed_options.retry_always or can_retry_this_failure:
+                            self.retry_details.setdefault(
+                                test_result["ApexClassId"], []
+                            ).append(test_result["MethodName"])
+
+    def _process_test_results(self):
+        test_results = []
+        class_names = list(self.results_by_class_name.keys())
+        class_names.sort()
+        for class_name in class_names:
+            self.retry_details = {}
+            method_names = list(self.results_by_class_name[class_name].keys())
+            # Added to process for the None methodnames
+
+            if None in method_names:
+                class_id = self.classes_by_name[class_name]
+                self.retry_details.setdefault(class_id, []).append(
+                    self._get_test_methods_for_class(class_name)
+                )
+                del self.results_by_class_name[class_name][None]
+                self.logger.info(
+                    f"Retrying class with id: {class_id} name:{class_name} due to `None` methodname"
+                )
+                self.counts["Retriable"] += len(self.retry_details[class_id])
+                self._attempt_retries()
+
+            has_failures = any(
+                result["Outcome"] in ["Fail", "CompileFail"]
+                for result in self.results_by_class_name[class_name].values()
+            )
+            if has_failures or self.verbose:
+                self.logger.info(f"Class: {class_name}")
+            method_names = list(self.results_by_class_name[class_name].keys())
+            method_names.sort()
+            for method_name in method_names:
+                result = self.results_by_class_name[class_name][method_name]
+                message = f"\t{result['Outcome']}: {result['MethodName']}"
+                duration = result["RunTime"]
+                result["stats"] = self._get_stats_from_result(result)
+                if duration:
+                    message += f" ({duration}ms)"
+                test_results.append(
+                    {
+                        "Children": result.get("children", None),
+                        "ClassName": decode_to_unicode(class_name),
+                        "Method": decode_to_unicode(result["MethodName"]),
+                        "Message": decode_to_unicode(result["Message"]),
+                        "Outcome": decode_to_unicode(result["Outcome"]),
+                        "StackTrace": decode_to_unicode(result["StackTrace"]),
+                        "Stats": result.get("stats", None),
+                        "TestTimestamp": result.get("TestTimestamp", None),
+                    }
+                )
+                if result["Outcome"] in ["Fail", "CompileFail"]:
+                    self.logger.info(message)
+                    self.logger.info(f"\tMessage: {result['Message']}")
+                    self.logger.info(f"\tStackTrace: {result['StackTrace']}")
+                elif self.verbose:
+                    self.logger.info(message)
+        self.logger.info("-" * 80)
+        self.logger.info(
+            "Pass: {}  Retried: {}  Fail: {}  CompileFail: {}  Skip: {}".format(
+                self.counts["Pass"],
+                self.counts["Retriable"],
+                self.counts["Fail"],
+                self.counts["CompileFail"],
+                self.counts["Skip"],
+            )
+        )
+        self.logger.info("-" * 80)
+        if self.counts["Fail"] or self.counts["CompileFail"]:
+            self.logger.error("-" * 80)
+            self.logger.error("Failing Tests")
+            self.logger.error("-" * 80)
+            counter = 0
+            for result in test_results:
+                if result["Outcome"] in ["Fail", "CompileFail"]:
+                    counter += 1
+                    self.logger.error(
+                        "{}: {}.{} - {}".format(
+                            counter,
+                            result["ClassName"],
+                            result["Method"],
+                            result["Outcome"],
+                        )
+                    )
+                    self.logger.error(f"\tMessage: {result['Message']}")
+                    self.logger.error(f"\tStackTrace: {result['StackTrace']}")
+
+        return test_results
+
+    def _get_stats_from_result(self, result):
+        stats = {"duration": result["RunTime"]}
+
+        if result.get("ApexTestResults", None):
+            for limit_name, details in APEX_LIMITS.items():
+                limit_use = result["ApexTestResults"]["records"][0][limit_name]
+                limit_allowed = details[
+                    result["ApexTestResults"]["records"][0]["LimitContext"]
+                ]
+                stats[details["Label"]] = {"used": limit_use, "allowed": limit_allowed}
+
+        return stats
+
+    def _enqueue_test_run(self, class_ids):
+        if isinstance(class_ids, dict):
+            body = {
+                "tests": [
+                    {"classId": class_id, "testMethods": class_ids[class_id]}
+                    for class_id in class_ids
+                ]
+            }
+        else:
+            body = {"classids": ",".join(class_ids)}
+
+        return safe_json_from_response(
+            self.tooling._call_salesforce(
+                method="POST",
+                url=self.tooling.base_url + "runTestsAsynchronous",
+                json=body,
+            )
+        )
+
+    def _init_task(self):
+        super()._init_task()
+
+        self.parsed_options.managed = determine_managed_mode(
+            self.options, self.project_config, self.org_config
+        )
+
+    def _run_task(self):
+        result = self._get_test_classes()
+
+        # Apply dynamic filters if enabled
+        if self.parsed_options.dynamic_filter:
+            result = self._filter_package_classes(result)
+
+        if result["totalSize"] == 0:
+            return
+        for test_class in result["records"]:
+            self.classes_by_id[test_class["Id"]] = test_class["Name"]
+            self.classes_by_name[test_class["Name"]] = test_class["Id"]
+            self.results_by_class_name[test_class["Name"]] = {}
+        self.logger.info("Queuing tests for execution...")
+
+        self.counts = {
+            "Pass": 0,
+            "Fail": 0,
+            "CompileFail": 0,
+            "Skip": 0,
+            "Retriable": 0,
+        }
+        self.job_id = self._enqueue_test_run(
+            (str(id) for id in self.classes_by_id.keys())
+        )
+
+        self._wait_for_tests()
+        self._get_test_results()
+
+        # Did we get back retriable test results? Check our retry policy,
+        # then enqueue new runs individually, until either (a) all retriable
+        # tests succeed or (b) a test fails.
+        able_to_retry = (
+            self.counts["Retriable"] and self.parsed_options.retry_always
+        ) or (
+            self.counts["Retriable"] and self.counts["Retriable"] == self.counts["Fail"]
+        )
+        if not able_to_retry:
+            self.counts["Retriable"] = 0
+        else:
+            self._attempt_retries()
+
+        test_results = self._process_test_results()
+        self._write_output(test_results)
+
+        if self.counts.get("Fail") or self.counts.get("CompileFail"):
+            raise ApexTestException(
+                "{} tests failed and {} tests failed compilation".format(
+                    self.counts.get("Fail"), self.counts.get("CompileFail")
+                )
+            )
+
+        if self.code_coverage_level or self.required_per_class_code_coverage_percent:
+            if self.parsed_options.managed:
+                self.logger.info(
+                    "This org contains a managed installation; not checking code coverage."
+                )
+            elif self.parsed_options.dynamic_filter is not None:
+                self.logger.info("Dynamic filter is set; not checking code coverage.")
+            else:
+                self._check_code_coverage()
+        else:
+            self.logger.info(
+                "No code coverage level specified; not checking code coverage."
+            )
+
+    def _check_code_coverage(self):
+        self.logger.info("Checking code coverage.")
+        class_level_coverage_failures = {}
+
+        # Query for Class level code coverage using the aggregate
+        if (
+            self.required_per_class_code_coverage_percent
+            or self.required_individual_class_code_coverage_percent
+        ):
+            test_classes = self.tooling.query(
+                "SELECT ApexClassOrTrigger.Name, ApexClassOrTriggerId, NumLinesCovered, NumLinesUncovered FROM ApexCodeCoverageAggregate ORDER BY ApexClassOrTrigger.Name ASC"
+            )["records"]
+
+            coverage_percentage = 0
+            for class_level in test_classes:
+                class_name = class_level["ApexClassOrTrigger"]["Name"]
+                total = (
+                    class_level["NumLinesCovered"] + class_level["NumLinesUncovered"]
+                )
+                # prevent division by 0 errors
+                if total:
+                    # calculate coverage percentage
+                    coverage_percentage = round(
+                        (class_level["NumLinesCovered"] / total) * 100,
+                        2,
+                    )
+
+                # Determine the required coverage for this class using fallback logic
+                required_coverage = None
+                if class_name in self.required_individual_class_code_coverage_percent:
+                    # Individual class requirement takes priority
+                    required_coverage = (
+                        self.required_individual_class_code_coverage_percent[class_name]
+                    )
+                elif self.required_per_class_code_coverage_percent:
+                    # Fall back to global per-class requirement
+                    required_coverage = self.required_per_class_code_coverage_percent
+
+                # Only check if a requirement is defined for this class
+                if (
+                    required_coverage is not None
+                    and coverage_percentage < required_coverage
+                ):
+                    class_level_coverage_failures[class_name] = {
+                        "actual": coverage_percentage,
+                        "required": required_coverage,
+                    }
+
+        # Query for OrgWide coverage
+        result = self.tooling.query("SELECT PercentCovered FROM ApexOrgWideCoverage")
+        coverage = result["records"][0]["PercentCovered"]
+
+        errors = []
+        if (
+            self.required_per_class_code_coverage_percent
+            or self.required_individual_class_code_coverage_percent
+        ):
+            if class_level_coverage_failures:
+                for class_name, coverage_info in class_level_coverage_failures.items():
+                    errors.append(
+                        f"{class_name}'s code coverage of {coverage_info['actual']}% is below required level of {coverage_info['required']}%."
+                    )
+            else:
+                # Build a message about what requirements were met
+                if (
+                    self.required_per_class_code_coverage_percent
+                    and self.required_individual_class_code_coverage_percent
+                ):
+                    self.logger.info(
+                        f"All classes meet code coverage expectations (global: {self.required_per_class_code_coverage_percent}%, individual class requirements also satisfied)."
+                    )
+                elif self.required_per_class_code_coverage_percent:
+                    self.logger.info(
+                        f"All classes meet code coverage expectations of {self.required_per_class_code_coverage_percent}%."
+                    )
+                elif self.required_individual_class_code_coverage_percent:
+                    self.logger.info(
+                        "All classes with individual coverage requirements meet their expectations."
+                    )
+
+        if coverage < self.code_coverage_level:
+            errors.append(
+                f"Organization-wide code coverage of {coverage}% is below required level of {self.code_coverage_level}"
+            )
+        else:
+            self.logger.info(
+                f"Organization-wide code coverage of {coverage}% meets expectations."
+            )
+
+        if errors:
+            error_message = "\n".join(errors)
+            self.logger.info(error_message)
+            raise ApexTestException(error_message)
+
+    def _attempt_retries(self):
+        total_method_retries = sum(
+            [len(test_list) for test_list in self.retry_details.values()]
+        )
+        self.logger.warning(
+            "Retrying {} failed methods from {} test classes".format(
+                total_method_retries, len(self.retry_details)
+            )
+        )
+        self.counts["Fail"] = 0
+
+        for class_id, test_list in self.retry_details.items():
+            for each_test in test_list:
+                self.logger.warning(
+                    "Retrying {}.{}".format(self.classes_by_id[class_id], each_test)
+                )
+                self.job_id = self._enqueue_test_run({class_id: [each_test]})
+                self._wait_for_tests()
+                self._get_test_results(allow_retries=False)
+
+        # If the retry failed, report the remaining failures.
+        if self.counts["Fail"]:
+            self.logger.error("Test retry failed.")
+
+    def _wait_for_tests(self):
+        self.poll_complete = False
+        self.poll_interval_s = self.parsed_options.poll_interval
+        self.poll_count = 0
+        self._poll()
+
+    def _poll_action(self):
+        self.result = self.tooling.query_all(
+            "SELECT Id, Status, ApexClassId FROM ApexTestQueueItem "
+            + "WHERE ParentJobId = '{}'".format(self.job_id)
+        )
+        counts = {
+            "Aborted": 0,
+            "Completed": 0,
+            "Failed": 0,
+            "Holding": 0,
+            "Preparing": 0,
+            "Processing": 0,
+            "Queued": 0,
+        }
+        processing_class_id = None
+        total_test_count = self.result["totalSize"]
+        for test_queue_item in self.result["records"]:
+            counts[test_queue_item["Status"]] += 1
+            if test_queue_item["Status"] == "Processing":
+                processing_class_id = test_queue_item["ApexClassId"]
+        processing_class = ""
+        if counts["Processing"] == 1:
+            processing_class = f" ({self.classes_by_id[processing_class_id]})"
+        self.logger.info(
+            "Completed: {}  Processing: {}{}  Queued: {}".format(
+                counts["Completed"],
+                counts["Processing"],
+                processing_class,
+                counts["Queued"],
+            )
+        )
+        if (
+            total_test_count
+            == counts["Completed"] + counts["Failed"] + counts["Aborted"]
+        ):
+            self.logger.info("Apex tests completed")
+            self.poll_complete = True
+
+    def _write_output(self, test_results):
+        junit_output = self.parsed_options.junit_output
+        if junit_output:
+            with io.open(junit_output, mode="w", encoding="utf-8") as f:
+                f.write('<testsuite tests="{}">\n'.format(len(test_results)))
+                for result in test_results:
+                    s = '  <testcase classname="{}" name="{}"'.format(
+                        result["ClassName"], result["Method"]
+                    )
+                    if (
+                        "Stats" in result
+                        and result["Stats"]
+                        and "duration" in result["Stats"]
+                    ):
+                        s += ' time="{}"'.format(result["Stats"]["duration"])
+                    if result["Outcome"] in ["Fail", "CompileFail"]:
+                        s += ">\n"
+                        s += '    <failure type="failed" '
+                        if result["Message"]:
+                            s += 'message="{}"'.format(html.escape(result["Message"]))
+                        s += ">"
+
+                        if result["StackTrace"]:
+                            s += "<![CDATA[{}]]>".format(
+                                html.escape(result["StackTrace"])
+                            )
+                        s += "</failure>\n"
+                        s += "  </testcase>\n"
+                    else:
+                        s += " />\n"
+                    f.write(str(s))
+                f.write("</testsuite>")
+
+        json_output = self.parsed_options.json_output
+        if json_output:
+            with io.open(json_output, mode="w", encoding="utf-8") as f:
+                f.write(str(json.dumps(test_results, indent=4)))
