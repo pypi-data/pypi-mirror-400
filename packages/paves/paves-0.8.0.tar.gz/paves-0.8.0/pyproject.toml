@@ -1,0 +1,119 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "paves"
+dynamic = ["version"]
+description = "PDF, Analyse et Visualisation avancÉS"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+keywords = ["pdf", "graphics"]
+authors = [
+    { name = "David Huggins-Daines", email = "dhd@ecolingui.ca" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.1",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    "playa-pdf>=0.9.0",
+    "pillow",
+]
+
+[project.optional-dependencies]
+detr = ["docling-ibm-models"]
+tatr = ["gmft"]
+
+[project.urls]
+Documentation = "https://github.com/dhdaines/paves#readme"
+Issues = "https://github.com/dhdaines/paves/issues"
+Source = "https://github.com/dhdaines/paves"
+
+[dependency-groups]
+dev = [ "mypy", "pytest", "pytest-xdist", "pdfminer.six", "pypdfium2", "docling-ibm-models", "gmft" ]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/paves/__about__.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.github",
+    "/tests/contrib",
+]
+
+[tool.hatch.envs.hatch-test]
+extra-dependencies = [ "pdfminer.six", "pypdfium2" ]
+
+[tool.hatch.envs.default]
+dependencies = [ "pytest", "pytest-xdist", "mypy", "pdfminer.six", "pypdfium2" ]
+
+[tool.hatch.envs.hatch-static-analysis]
+config-path = "none"  # Disable hatch's unreasonable ruff defaults
+
+[tool.hatch.envs.docs]
+dependencies = [
+    "mike",
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "mkdocs-include-markdown-plugin",
+]
+[tool.hatch.envs.docs.scripts]
+serve = "mkdocs serve --livereload"
+publish = "mike deploy --push --update-aliases $(playa --version) latest"
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+   "mypy>=1.0.0",
+   "transformers[torch]",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/paves tests}"
+[tool.hatch.envs.types.env-vars]
+# Avoid downloading gigabytes of CUDA junk
+PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cpu"
+UV_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cpu"
+
+[tool.hatch.envs.notebooks]
+extra-dependencies = [ "jupyterlab" ]
+
+[tool.coverage.run]
+source_pkgs = ["paves", "tests"]
+branch = true
+parallel = true
+omit = [
+    "src/paves/__about__.py",
+]
+
+[tool.coverage.paths]
+paves = ["src/paves", "*/paves/src/paves"]
+tests = ["tests", "*/paves/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "no cov",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.mypy]
+mypy_path = "stubs"
