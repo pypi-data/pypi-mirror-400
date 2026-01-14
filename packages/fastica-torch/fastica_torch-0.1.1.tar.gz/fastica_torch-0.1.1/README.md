@@ -1,0 +1,109 @@
+# fastica_torch
+
+A PyTorch implementation of the FastICA algorithm for Independent Component Analysis.
+
+This package provides a GPU-accelerated implementation that replicates `sklearn.decomposition.FastICA`, allowing seamless use with PyTorch tensors and CUDA acceleration.
+
+## Installation
+
+```bash
+pip install fastica_torch
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/RichieHakim/FastICA_torch.git
+cd FastICA_torch
+pip install -e .
+```
+
+## Quick Start
+
+```python
+import torch
+from fastica_torch import FastICA
+
+# Generate mixed signals
+n_samples, n_features = 1000, 5
+X = torch.randn(n_samples, n_features)
+
+# Fit FastICA and extract sources
+ica = FastICA(n_components=3, random_state=42)
+sources = ica.fit_transform(X)
+
+# Transform new data
+X_new = torch.randn(100, n_features)
+sources_new = ica.transform(X_new)
+
+# Reconstruct from sources
+X_reconstructed = ica.inverse_transform(sources)
+```
+
+## Features
+
+- **sklearn-compatible API**: Drop-in replacement for `sklearn.decomposition.FastICA`
+- **PyTorch tensors**: Native support for PyTorch tensors
+- **GPU acceleration**: Automatic CUDA support when tensors are on GPU
+- **Multiple algorithms**: Both `parallel` and `deflation` extraction methods
+- **Contrast functions**: `logcosh`, `exp`, `cube` for negentropy approximation
+
+## API Reference
+
+### FastICA
+
+```python
+FastICA(
+    n_components=None,      # Number of components (None = all)
+    algorithm="parallel",   # "parallel" or "deflation"
+    whiten="unit-variance", # "unit-variance", "arbitrary-variance", or False
+    fun="logcosh",          # "logcosh", "exp", "cube", or callable
+    fun_args=None,          # Dict of arguments for fun (e.g., {"alpha": 1.0})
+    max_iter=200,           # Maximum iterations
+    tol=1e-4,               # Convergence tolerance
+    w_init=None,            # Initial unmixing matrix
+    whiten_solver="svd",    # "svd" or "eigh"
+    random_state=None,      # Random seed for reproducibility
+)
+```
+
+### Methods
+
+| Method | Description |
+|--------|-------------|
+| `fit(X)` | Fit the model to X |
+| `fit_transform(X)` | Fit and return sources |
+| `transform(X)` | Apply unmixing to new data |
+| `inverse_transform(S)` | Reconstruct data from sources |
+
+### Attributes (after fitting)
+
+| Attribute | Description |
+|-----------|-------------|
+| `components_` | Unmixing matrix (n_components, n_features) |
+| `mixing_` | Mixing matrix (n_features, n_components) |
+| `mean_` | Feature means (only if whitening) |
+| `n_iter_` | Number of iterations to converge |
+
+## Comparison with sklearn
+
+This implementation aims to produce numerically equivalent results to sklearn's FastICA when using the same random seed and parameters. Minor differences may occur due to:
+
+- Floating-point precision differences between NumPy and PyTorch
+- Different SVD implementations
+- Sign/permutation ambiguity inherent to ICA
+
+## Requirements
+
+- Python >= 3.9
+- PyTorch >= 2.0
+- NumPy >= 1.20
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## References
+
+1. A. Hyvarinen and E. Oja, "Independent Component Analysis: Algorithms and Applications", Neural Networks, 13(4-5):411-430, 2000.
+2. A. Hyvarinen, "Fast and Robust Fixed-Point Algorithms for Independent Component Analysis", IEEE Trans. Neural Networks, 10(3):626-634, 1999.
