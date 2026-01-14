@@ -1,0 +1,103 @@
+# AutoPX — Automatic Preprocessing with eXplainability
+
+AutoPX is an intelligent Python library designed to **automatically preprocess raw text data** and transform it into **model-ready representations** while providing **complete explainability** for every preprocessing decision.
+
+The library eliminates the need for manually writing repetitive preprocessing logic by analyzing the input data, adapting preprocessing rules dynamically, and selecting the most suitable transformation strategy. Unlike traditional preprocessing tools that act as black boxes, AutoPX generates **human-readable reports** that explain what actions were applied, why they were chosen, and how they impact the final output.
+
+---
+
+## 🚀 Features
+
+- **Automatic Language Detection**: Support for English, Urdu, Roman Urdu, and more, with language-specific preprocessing rules.  
+- **Task Inference**: Automatically detects the intended NLP task (Sentiment Analysis, Topic Modeling, Chatbot/Dialog) based on text characteristics.  
+- **Adaptive Text Cleaning**: Intelligent lowercasing, symbol handling, emoji/URL preservation, and context-aware normalization.  
+- **Stopword & Token Management**: Decides stopword retention/removal and optimal tokenization automatically.  
+- **Vectorization & Output Preparation**: Chooses between TF-IDF, CountVectorizer, Word2Vec, FastText, or transformer embeddings; handles padding/truncation for ML/DL models.  
+- **Fail-Safe & Reliability**: Detects preprocessing failures and applies fallback strategies transparently.  
+- **Explainable Report Generation**: Generates step-by-step reasoning reports in JSON, Markdown, or PDF formats.  
+- **Real-Time Adaptive Learning**: Designed to improve task inference and preprocessing accuracy over repeated runs.
+- **Framework Compatibility**: Seamlessly integrates with scikit-learn, TensorFlow, PyTorch, and HuggingFace Transformers.
+
+---
+
+## 🛠 Installation
+
+You can install AutoPX directly from source (or via pip in the future):
+
+```bash
+pip install AutoPX==1.0.1
+```
+
+Or for development:
+```bash
+git clone https://github.com/MudassarGill/AutoPX.git
+cd AutoPX
+pip install -e .
+```
+
+---
+
+## 📖 Usage Example
+
+Preprocessing your text is as simple as one line:
+
+```python
+from autopx import AutoPX
+
+# Initialize AutoPX (automatically infers task and language)
+auto = AutoPX()
+
+# Multi-lingual raw data
+texts = [
+    "I absolutely love this product! 😄 Visit http://example.com for more info.",
+    "یہ ایک بہترین کتاب ہے!",
+    "Main bohat khush hoon today! 😄"
+]
+
+# Process data
+vectors = auto.fit_transform(texts)
+
+# Generate an explainable report
+report_path = auto.report(format="markdown")
+print(f"Report generated at: {report_path}")
+```
+
+---
+
+## 📁 Folder Structure
+
+```
+AutoPX/
+│
+├── autopx/                         # Main package
+│   ├── core/                       # Core decision-making logic (DataAnalysis, DecisionEngine)
+│   ├── preprocessing/              # Text preprocessing (Cleaner, Tokenizer, Stopwords)
+│   ├── vectorizers/                # Vectorization strategies (TF-IDF, Count, Embeddings)
+│   ├── reports/                    # Explainable reporting system (JSON, Markdown, PDF)
+│   ├── fallback/                   # Fail-safe logic
+│   ├── utils/                      # Helper utilities, constants, and logging
+│   └── config/                     # Configuration management
+│
+├── examples/                       # Usage examples
+├── tests/                          # Unit & integration tests
+├── setup.py                        # Package installation script
+└── README.md                       # Main documentation
+```
+
+---
+
+## 🤝 Contact Information
+
+For any queries, feedback, or collaboration, feel free to reach out:
+
+- **Author**: Mudassar Hussain
+- **Email**: [mudassarjutt65030@gmail.com](mailto:mudassarjutt65030@gmail.com)
+- **LinkedIn**: [Mudassar Hussain](https://www.linkedin.com/in/mudassar15)
+- **GitHub**: [Mudassar Hussion / AutoPX](https://github.com/MudassarGill/AutoPX)
+- **Project URL**: [https://github.com/MudassarGill/AutoPX](https://github.com/MudassarGill/AutoPX)
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
