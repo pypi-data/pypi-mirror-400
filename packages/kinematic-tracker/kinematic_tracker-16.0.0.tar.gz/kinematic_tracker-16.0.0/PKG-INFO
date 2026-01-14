@@ -1,0 +1,65 @@
+Metadata-Version: 2.4
+Name: kinematic-tracker
+Version: 16.0.0
+Summary: Tracker using kinematic Kalman filters.
+Author-email: Peter Koval <pkoval@vicomtech.org>
+License-Expression: MIT
+Requires-Python: >=3.10
+Requires-Dist: association-quality-clavia>=0.1.0
+Requires-Dist: binary-classification-ratios>=0.3.0
+Requires-Dist: numpy>=1.26.4; python_version <= '3.12'
+Requires-Dist: numpy>=2.4.0; python_version >= '3.13'
+Requires-Dist: opencv-python>=4.11.0.86
+Requires-Dist: scipy>=1.15.3
+Description-Content-Type: text/markdown
+
+# Kinematic Tracker
+
+📖 Live docs: https://kovalp.github.io/kinematic-tracker-docs/
+
+This tracker is based on kinematic Kalman filters. The system state can consist of multiple parts,
+each defined by its *kinematic order* and *dimensionality*. For example, to track cuboids
+aligned with Cartesian axes, we might decide for a constant-acceleration motion model
+for Cartesian coordinates and a constant-position motion model for the sizes of the cuboids.
+This choice encoded by `orders = [3, 1]`. The dimensionality of both parts (coordinates and sizes)
+is `3`. Therefore `dimensions = [3, 3]` in our example.
+
+The state of the cuboids aligned with Cartesian axis will have 12 variables.
+Internally, a block-diagonal states are used, i.e.
+
+```state = p_x, v_x, a_x, p_y, v_y, a_y, p_z, v_z, a_z, s_x, s_y, s_z```
+
+To simplify the input/output processing, one might find attractive a derivative-sorted order
+
+```state = p_x, p_y, p_z, s_x, s_y, s_z, v_x, v_y, v_z, a_x, a_y, a_z```
+
+This package provides utility classes for such conversion (block-diagonal ↔ derivative sorted).
+
+## Process noise models
+
+The tracker supports various process noise models, including a custom adaptive process noise model
+based on a white-noise assumption.
+
+## Association metrics
+
+A number of association metrics are implemented. Some of the metrics are experimental.
+
+  - Mahalanobis with a process-measurement noise sum covariance (HPH + R) -- **default**.
+  - 3D axes-aligned GIoU (volumetric GIoU for cuboids).
+  - Mahalanobis with size-modulated covariance (experimental)
+  - A dimension-averaged GIoU (experimental)
+
+## Installation
+
+```shell
+pip install kinematic-tracker
+```
+
+## Usage
+
+Simple examples are available in the `test/tutorials` folder.
+The `test` folder is available in the source package 
+
+```shell
+pip download kinematic-tracker --no-binary :all: --no-deps
+```

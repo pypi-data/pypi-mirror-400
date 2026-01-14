@@ -1,0 +1,34 @@
+# GitLab configuration script to run two jobs: unit test and lint check
+# for projects using *opencv-python* and managed by *uv* package manager.
+
+default:
+  image: python:3.10
+
+
+stages:          # List of stages for jobs, and their order of execution
+  - test
+
+unit-test-job:   # This job runs in the test stage.
+  stage: test    # It only starts when the job in the build stage completes successfully.
+  script:
+    - apt update
+    - apt install -y libgl1 xvfb
+    - pip install uv
+    - export UV_INDEX_GITLAB_USERNAME=gitlab-ci-token
+    - export UV_INDEX_GITLAB_PASSWORD=${CI_JOB_TOKEN}
+    - uv sync
+    - uv pip install -e .
+    - uv run pytest -s test --cov --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+
+
+lint-test-job:   # This job also runs in the test stage.
+  stage: test    # It can run at the same time as unit-test-job (in parallel).
+  script:
+    - pip install ruff
+    - ruff check
+
