@@ -1,0 +1,149 @@
+type: dict
+schema:
+  action:
+    type: string
+    allowed: ['mqtt', 'output', 'cover', 'output_over_mqtt', 'cover_over_mqtt', 'remote_output', 'remote_cover']
+    coerce: lower
+    case_insensitive: true
+  boneio_output:
+    type: string
+    required_if:
+      action: ['output', 'group', 'output_over_mqtt']
+    meta:
+      label: Output ID
+      description: |
+        ID of the output to control. This should match the id/boneio_output defined in your output configuration.
+  boneio_cover:
+    type: string
+    required_if:
+      action: ['cover', 'cover_over_mqtt']
+    meta:
+      label: Cover ID
+      description: |
+        ID of the cover to control. This should match the id defined in your cover configuration.
+  topic:
+    type: string
+    required_if:
+      action: ['mqtt']
+    forbidden_if:
+      action: ['output', 'cover', 'mqtt_output', 'cover_over_mqtt', 'remote_output', 'remote_cover']
+    meta:
+      label: If mqtt action then topic to send
+  action_cover:
+    type: string
+    required_if:
+      action: ['cover', 'cover_over_mqtt', 'remote_cover']
+    forbidden_if:
+      action: ['output', 'mqtt', 'mqtt_output', 'remote_output']
+    allowed: ['TOGGLE', 'OPEN', 'CLOSE', 'STOP', 'TOGGLE_OPEN', 'TOGGLE_CLOSE', 'TILT', 'TILT_OPEN', 'TILT_CLOSE']
+    coerce: action_field
+    default: TOGGLE
+    case_insensitive: true
+    meta:
+      label: If cover action chosen then what action to perform.
+  data:
+    type: dict
+    required: False
+    default: {}
+    meta:
+      label: Extra data to send to function. Currently used only for cover tilt.
+    schema:
+      position:
+        type: integer
+        required: False
+        meta:
+          label: Position to set cover to
+      tilt_position:
+        type: integer
+        required: False
+        meta:
+          label: Tilt position to set cover to. 0 means closed, 100 means opened.
+  action_output:
+    type: string
+    required_if:
+      action: ['output', 'output_over_mqtt', 'remote_output']
+    forbidden_if:
+      action: ['cover', 'mqtt', 'cover_over_mqtt', 'remote_cover']
+    allowed: ['TOGGLE', 'ON', 'OFF', 'BRIGHTNESS_UP', 'BRIGHTNESS_DOWN', 'SET_BRIGHTNESS']
+    coerce: action_field
+    default: TOGGLE
+    case_insensitive: true
+    meta:
+      label: If output action chosen then what action to perform.
+      description: |
+        For ESPHome lights, additional actions are available:
+        - BRIGHTNESS_UP: Increase brightness by 10%
+        - BRIGHTNESS_DOWN: Decrease brightness by 10%
+        - SET_BRIGHTNESS: Set specific brightness (requires brightness field)
+  action_mqtt_msg:
+    type: string
+    required_if:
+      action: ['mqtt', 'output_over_mqtt', 'cover_over_mqtt']
+    forbidden_if:
+      action: ['output', 'cover', 'remote_output', 'remote_cover']
+    meta:
+      label: What message to send to mqtt topic
+  boneio_id:
+    type: string
+    required_if:
+      action: ['output_over_mqtt', 'cover_over_mqtt']
+    forbidden_if:
+      action: ['output', 'cover', 'mqtt', 'remote_output', 'remote_cover']
+    meta:
+      label: boneIO id to perform action on. Use only with action type `output_over_mqtt` or `cover_over_mqtt`.
+  
+  # Remote device actions - control outputs/covers on remote devices (BoneIO MQTT or ESPHome API)
+  remote_device:
+    type: string
+    required_if:
+      action: ['remote_output', 'remote_cover']
+    forbidden_if:
+      action: ['output', 'cover', 'mqtt', 'output_over_mqtt', 'cover_over_mqtt']
+    meta:
+      label: Remote Device ID
+      description: |
+        ID of the remote device (from remote_devices section).
+        Works with both BoneIO (MQTT) and ESPHome (native API) devices.
+        Example: "salon_boneio", "garage_esp"
+  output_id:
+    type: string
+    required_if:
+      action: ['remote_output']
+    forbidden_if:
+      action: ['output', 'cover', 'mqtt', 'output_over_mqtt', 'cover_over_mqtt', 'remote_cover']
+    meta:
+      label: Remote Output ID
+      description: |
+        ID of the output/switch/light on the remote device.
+        For ESPHome: can be switch or light entity.
+        Example: "relay_1", "light_kitchen", "ceiling_light"
+  cover_id:
+    type: string
+    required_if:
+      action: ['remote_cover']
+    forbidden_if:
+      action: ['output', 'cover', 'mqtt', 'output_over_mqtt', 'cover_over_mqtt', 'remote_output']
+    meta:
+      label: Remote Cover ID
+      description: |
+        ID of the cover on the remote device.
+        Example: "cover_living_room", "blinds_bedroom"
+  
+  # Optional fields for ESPHome lights (used with remote_output when entity is a light)
+  brightness:
+    type: integer
+    required: False
+    min: 0
+    max: 255
+    meta:
+      label: Brightness (0-255)
+      description: |
+        Brightness level for SET_BRIGHTNESS action or initial brightness for ON action.
+        Only used for ESPHome light entities. 0 = off, 255 = full brightness.
+  transition:
+    type: float
+    required: False
+    default: 0.0
+    meta:
+      label: Transition Time (seconds)
+      description: "Time in seconds to transition to the new state. Only for ESPHome lights."
