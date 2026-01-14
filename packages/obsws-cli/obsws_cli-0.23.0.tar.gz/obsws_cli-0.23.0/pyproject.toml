@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "obsws-cli"
+dynamic = ["version"]
+description = 'A command line interface for the OBS WebSocket API.'
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["obs", "obs-websocket", "obs-websocket-api", "cli", "command-line"]
+authors = [{ name = "onyx-and-iris", email = "code@onyxandiris.online" }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = ["typer>=0.21.1", "obsws-python>=1.8.0", "python-dotenv>=1.1.0"]
+
+
+[project.urls]
+Documentation = "https://github.com/onyx-and-iris/obsws-cli#readme"
+Issues = "https://github.com/onyx-and-iris/obsws-cli/issues"
+Source = "https://github.com/onyx-and-iris/obsws-cli"
+
+[project.scripts]
+obsws-cli = "obsws_cli:app"
+
+[tool.hatch.version]
+path = "obsws_cli/__about__.py"
+
+[tool.hatch.envs.default]
+dependencies = ["click-man>=0.5.1"]
+
+[tool.hatch.envs.default.scripts]
+cli = "obsws-cli {args:}"
+man = "python man/generate.py --output=./man"
+
+[tool.hatch.envs.hatch-test]
+randomize = true
+
+[tool.hatch.envs.types]
+extra-dependencies = ["mypy>=1.0.0"]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:obsws_cli tests}"
