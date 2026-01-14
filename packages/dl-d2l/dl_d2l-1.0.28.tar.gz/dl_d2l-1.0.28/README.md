@@ -1,0 +1,107 @@
+# dl_d2l
+
+This repository contains PyTorch implementations of the Deep Learning book "Dive into Deep Learning" (D2L).   
+It provides code examples, tutorials, and exercises to help you learn deep learning concepts using PyTorch.
+
+## Installation
+
+```
+pip install dl_d2l
+```
+
+## Code Examples
+
+You can find the code examples in the `dl_d2l` package. Here is a simple example of how to use it:
+
+```python
+from dl_d2l import d2l_torch as d2l
+
+x = d2l.arange(4)
+print(x)
+```
+
+```python
+# enable_matplotlib_chinese
+from dl_d2l.util import matplotlib_util
+
+matplotlib_util.enable_chinese()
+
+# example plot with Chinese characters
+import numpy as np
+import matplotlib.pyplot as plt
+
+x = np.linspace(-10, 10, 100)
+y = x
+
+plt.plot(x, y)
+plt.title("中文标题：y = x")
+plt.xlabel("横轴（x）")
+plt.ylabel("纵轴（y）")
+plt.show()
+
+```
+
+```python
+# get_available_device
+from dl_d2l.util import device_util
+
+device = device_util.get_available_device()
+
+print(f"Available device: {device}")
+```
+
+```python
+# Check if running in Google Colab
+from dl_d2l.util import colab_util
+
+if colab_util.is_colab():
+    print("Running in Google Colab")
+else:
+    print("Not running in Google Colab")
+```
+
+```python
+# Get base data directory in Google Colab or local environment
+import os
+from dl_d2l.util import colab_util
+
+base_data_dir = colab_util.get_base_data_dir()
+print(f'base data dir: {base_data_dir}')
+
+datasets_dir = os.path.join(base_data_dir, 'ML', 'Datasets')
+os.makedirs(datasets_dir, exist_ok=True)
+print(f'datasets dir: {datasets_dir}')
+```
+
+
+```python
+# flush_drive in Google Colab
+from dl_d2l.util import colab_util
+
+colab_util.flush_drive()
+```
+
+
+
+## Build & upload to pypi (For Developers)
+
+prerequirement: twine is installed. If not, run the following command to install it:
+
+```bash
+pip install -U twine
+```
+
+build and upload:
+
+```bash
+## package
+python setup.py sdist
+
+## upload
+twine upload dist/*
+```
+
+## D2L
+For more information about the "Dive into Deep Learning" book, visit the [official website](https://d2l.ai/).
+
+
