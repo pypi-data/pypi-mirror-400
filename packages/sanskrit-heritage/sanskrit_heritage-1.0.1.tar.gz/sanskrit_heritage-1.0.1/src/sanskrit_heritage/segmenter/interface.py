@@ -1,0 +1,1101 @@
+#!/usr/bin/env python3
+# src/sanskrit_heritage/segmenter/interface.py
+#
+# Copyright (C) 2025 Sriram Krishnan
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import os
+import subprocess as sp
+import psutil
+import json
+import re
+import logging
+from itertools import product, islice
+
+import requests
+import devtrans as dt
+from tqdm import tqdm
+
+# Safer import to prevent circular dependency issues
+try:
+    from sanskrit_heritage import config
+except ImportError:
+    # Fallback for local testing without package install
+    import config  # type: ignore
+
+logger = logging.getLogger(__name__)
+
+# --- CONSTANTS ---
+INRIA_URL = "https://sanskrit.inria.fr/cgi-bin/SKT/interface2.cgi"
+
+# These act as both validation sets and conversion maps
+MAP_TEXT_MODE = {"word": "f", "sent": "t"}
+MAP_SEG_MODE = {"first": "s", "top10": "l"}
+MAP_METRICS = {"word": "w", "morph": "n"}
+MAP_UNSANDHIED = {
+    "sandhied": "f", "unsandhied": "t",
+    "f": "f", "t": "t",
+    # Since the Heritage Platform has the key 'unsandhied',
+    # we have to align the assignments with it as below
+    False: "f", True: "t"
+}
+MAP_OUT_ENC = {"DN": "deva", "RN": "roma", "WX": "WX"}
+
+VALID_LEX = {"MW", "SH"}
+VALID_IN_ENC = {"DN", "KH", "RN", "SL", "VH", "WX"}
+VALID_OUT_ENC = {"DN", "RN", "WX"}
+
+
+class HeritageSegmenter:
+    """
+    Main interface for the Sanskrit Heritage Platform.
+    Wraps the OCaml engine (or Web API) to provide Segmentation
+    and Morphological Analysis.
+    """
+
+    def __init__(self,
+                 lex="MW",
+                 input_encoding="DN",
+                 output_encoding="DN",
+                 mode="first",
+                 text_type="sent",
+                 unsandhied=False,
+                 metrics="word",
+                 timeout=30,
+                 binary_path=None):
+
+        # 1. Initialize Configuration (Using setters for validation)
+        self.lex = lex
+        self.input_encoding = input_encoding
+        self.output_encoding = output_encoding
+        self.mode = mode
+        self.text_type = text_type
+        self.unsandhied = unsandhied
+        self.metrics = metrics
+        self.timeout = timeout
+
+        # 2. Binary Resolution & Fallback Logic
+        self.cgi_path = config.resolve_binary_path(binary_path)
+        self.use_web_fallback = False
+
+        if not self.cgi_path:
+            logger.warning(
+                "Local binary not found. Switching to INRIA Web Server mode."
+            )
+            self.use_web_fallback = True
+            self.execution_cwd = None
+        else:
+            self.execution_cwd = config.get_data_path(self.cgi_path)
+            # Set permissions if bundled
+            if config.ASSETS_DIR in self.cgi_path.parents:
+                try:
+                    os.chmod(str(self.cgi_path), 0o755)
+                except OSError:
+                    pass
+
+        # 3. Internal Constants
+        self.svaras = [
+            # --- Devanagari Extended (Vedic Cantillation/Svaras) ---
+            # These are used for specific musical tones in Samaveda singing
+            '\uA8E1',  # ꣡  (COMBINING DEVANAGARI DIGIT ONE - Swara marker)
+            '\uA8E2',  # ꣢  (COMBINING DEVANAGARI DIGIT TWO - Swara marker)
+            '\uA8E3',  # ꣣  (COMBINING DEVANAGARI DIGIT THREE - Swara marker)
+            '\uA8E4',  # ꣤  (COMBINING DEVANAGARI DIGIT FOUR - Swara marker)
+            '\uA8E5',  # ꣥  (COMBINING DEVANAGARI DIGIT FIVE - Swara marker)
+            '\uA8E6',  # ꣦  (COMBINING DEVANAGARI DIGIT SIX - Swara marker)
+            '\uA8E7',  # ꣧  (COMBINING DEVANAGARI DIGIT SEVEN - Swara marker)
+            '\uA8E8',  # ꣨  (COMBINING DEVANAGARI DIGIT EIGHT - Swara marker)
+            '\uA8E9',  # ꣩  (COMBINING DEVANAGARI DIGIT NINE - Swara marker)
+            '\uA8E0',  # ꣠  (COMBINING DEVANAGARI DIGIT ZERO - Swara marker)
+
+            # --- More Vedic Marks ---
+            '\uA8EA',  # ꣪  (COMBINING DEVANAGARI LETTER A - Abhinihita)
+            '\uA8EB',  # ꣫  (COMBINING DEVANAGARI LETTER U - Udatta variant)
+            '\uA8EC',  # ꣬  (COMBINING DEVANAGARI LETTER KA - Kampana)
+            '\uA8EE',  # ꣮  (COMBINING DEVANAGARI LETTER RA - Ranga)
+            '\uA8EF',  # ꣯  (COMBINING DEVANAGARI LETTER VI - Vinata)
+
+            # --- Common Vedic Accents (Standard Devanagari) ---
+            # ◌̍   (COMBINING VERTICAL LINE ABOVE)
+            # (Svarita/Udatta in some traditions)
+            '\u030D',
+            # ◌॑   (DEVANAGARI STRESS SIGN UDATTA - Vertical line above)
+            '\u0951',
+            # ◌॒   (DEVANAGARI STRESS SIGN ANUDATTA - Horizontal line below)
+            '\u0952',
+            # ◌ Grave Accent (DEVANAGARI GRAVE ACCENT - Used for Svarita)
+            '\u0953',
+            # ◌ Acute Accent (DEVANAGARI ACUTE ACCENT - Used for Udatta)
+            '\u0954',
+
+            # --- Special Signs ---
+            # ◌ॅ  (DEVANAGARI VOWEL SIGN CANDRA E - Chandra Bindu variant)
+            '\u0945',
+        ]
+
+        self.special_characters = [
+            # --- Private Use Area (Legacy Font Artifacts) ---
+            # These often appear as boxes or '?' in modern fonts
+            '\uf15c',  #   (PUA: Legacy artifact)
+            '\uf193',  #   (PUA: Legacy artifact)
+            '\uf130',  #   (PUA: Legacy artifact)
+            '\uf1a3',  #   (PUA: Legacy artifact)
+            '\uf1a2',  #   (PUA: Legacy artifact)
+            '\uf195',  #   (PUA: Legacy artifact)
+            '\uf185',  #   (PUA: Legacy artifact)
+
+            # --- Zero Width Controls ---
+            '\u200d',  # [Invisible] (ZERO WIDTH JOINER - ZWJ)
+            '\u200c',  # [Invisible] (ZERO WIDTH NON-JOINER - ZWNJ)
+            '\u200b',  # [Invisible] (ZERO WIDTH SPACE)
+            '\ufeff',  # [Invisible] Zero Width No-Break Space
+
+            # --- Vedic Accents (Svaritas & VEDIC TONE) ---
+            '\u1CD6',  # ◌᳖  (YAJURVEDIC INDEPENDENT SVARITA)
+            '\u1CD5',  # ◌᳕  (YAJURVEDIC AGGRAVATED INDEPENDENT SVARITA)
+            '\u1CE1',  # ◌᳡  (ATHARVAVEDIC INDEPENDENT SVARITA)
+            '\u1CB5',  # ◌Ჵ  (YAJURVEDIC KATHAKA INDEPENDENT SVARITA)
+            '\u1CB6',  # ◌Ჶ (YAJURVEDIC KATHAKA INDEPENDENT SVARITA SCHROEDER)
+            '\u1CD1',  # ◌᳑  (SHARA - Single horizontal line above)
+
+            # --- Generic Combining Diacritics (Used for Accents) ---
+            '\u030E',  # ◌̎   (COMBINING DOUBLE VERTICAL LINE ABOVE)
+            '\u035B',  # ◌͛   (COMBINING ZIGZAG ABOVE)
+            '\u0324',  # ◌̤   (COMBINING DIAERESIS BELOW)
+            '\u0331',  # ◌̱   (COMBINING MACRON BELOW - Anudatta)
+            '\u032B',  # ◌̫   (COMBINING INVERTED DOUBLE ARCH BELOW)
+            '\u0308',  # ◌̈   (COMBINING DIAERESIS - Umlaut)
+            '\u030D',  # ◌̍   (COMBINING VERTICAL LINE ABOVE - Svarita)
+
+            # --- Devanagari Specifics ---
+            '\u093C',  # ◌़   (DEVANAGARI SIGN NUKTA - Dot below)
+
+            # --- More Private Use Area (Likely Garbage/Artifacts) ---
+            '\uF512',  #   (PUA: Legacy artifact)
+            '\uF693',  #   (PUA: Legacy artifact)
+            '\uF576',  #   (PUA: Legacy artifact)
+            '\uF11E',  #   (PUA: Legacy artifact)
+            '\uF697',  #   (PUA: Legacy artifact)
+            '\uF6AA',  #   (PUA: Legacy artifact)
+            '\uF692',  #   (PUA: Legacy artifact)
+        ]
+
+    # ==========================
+    # Getters & Setters (Validation)
+    # ==========================
+
+    @property
+    def lex(self):
+        return self._lex
+
+    @lex.setter
+    def lex(self, val):
+        if val not in VALID_LEX:
+            raise ValueError(f"Invalid lex: {val}")
+        self._lex = val
+
+    @property
+    def input_encoding(self):
+        return self._input_encoding
+
+    @input_encoding.setter
+    def input_encoding(self, value):
+        if value not in VALID_IN_ENC:
+            raise ValueError(
+                f"Invalid input encoding '{value}'. "
+                "Choices: {VALID_IN_ENC}"
+            )
+        self._input_encoding = value
+
+    @property
+    def output_encoding(self):
+        return self._output_encoding
+
+    @output_encoding.setter
+    def output_encoding(self, value):
+        # We allow 'DN', 'RN' broadly, mapping internally if needed
+        if value not in MAP_OUT_ENC:
+            raise ValueError(
+                f"Invalid output encoding '{value}'. "
+                f"Use: {list(MAP_OUT_ENC.keys())}"
+            )
+        self._output_encoding = value
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, val):
+        if val not in MAP_SEG_MODE:
+            raise ValueError(
+                f"Invalid mode: {val}. Use {list(MAP_SEG_MODE.keys())}"
+            )
+        self._mode = val
+
+    @property
+    def text_type(self):
+        return self._text_type
+
+    @text_type.setter
+    def text_type(self, val):
+        if val not in MAP_TEXT_MODE:
+            raise ValueError(
+                f"Invalid text_type: {val}. "
+                f"Use {list(MAP_TEXT_MODE.keys())}"
+            )
+        self._text_type = val
+
+    @property
+    def unsandhied(self):
+        return self._unsandhied
+
+    @unsandhied.setter
+    def unsandhied(self, val):
+        # 1. Handle actual Booleans
+        if isinstance(val, bool):
+            self._unsandhied = val
+            return
+
+        # 2. Handle Strings (case-insensitive)
+        if isinstance(val, str):
+            clean_val = val.strip().lower()
+            if clean_val == "true":
+                self._unsandhied = True
+                return
+            if clean_val == "false":
+                self._unsandhied = False
+                return
+
+    @property
+    def metrics(self):
+        return self._metrics
+
+    @metrics.setter
+    def metrics(self, val):
+        if val not in MAP_METRICS:
+            raise ValueError(
+                f"Invalid metrics: {val}. "
+                f"Use {list(MAP_METRICS.keys())}"
+            )
+        self._metrics = val
+
+    @property
+    def timeout(self):
+        return self._timeout
+
+    @timeout.setter
+    def timeout(self, val):
+        if not isinstance(val, int) or val <= 0:
+            raise ValueError("Timeout must be a positive integer")
+        if val > 300:
+            raise ValueError("Max timeout is 300s")
+        self._timeout = val
+
+    # ==========================
+    # 1. User-Friendly API
+    # ==========================
+
+    def segment(self, text):
+        """
+        Simple wrapper for segmentation.
+        Temporarily forces mode='first' for this call only,
+        to return a single string result (e.g. 'rAmaH vanam gacCawi').
+        This is the easiest entry point for Python developers.
+        """
+        # 1. Save state
+        original_mode = self.mode
+
+        try:
+            self.mode = "first"
+            logger.debug(
+                f"segment(): Temporarily switching mode to {self.mode}"
+            )
+
+            return self.process_text(
+                text,
+                process_mode="seg",
+                output_format="text"
+            )
+        finally:
+            logger.debug(
+                f"segment(): Restoring original mode ({original_mode})"
+            )
+            self.mode = original_mode
+
+    def analyze_word(self, word):
+        """
+        Simple wrapper for single word morphological analysis.
+        Temporarily forces text_type='word' for this call only.
+        """
+        # 1. Save current state
+        original_text_type = self.text_type
+
+        try:
+            # 2. Mutate state
+            self.text_type = "word"
+            logger.debug(
+                "analyze_word(): Temporarily "
+                f"Switching text_type to {self.text_type}"
+            )
+
+            # 3. Call engine
+            return self.process_text(
+                word,
+                process_mode="morph",
+                output_format="json"
+            )
+        finally:
+            # 4. Restore the original state
+            logger.debug(
+                "analyze_word(): Restoring original text_type: "
+                f"{original_text_type}"
+            )
+            self.text_type = original_text_type
+
+    def analyze(self, text):
+        """
+        Simple wrapper for full analysis (Segmentation + Morphology).
+        Returns the full dictionary object with metadata.
+        """
+        # 1. Save state
+        original_mode = self.mode
+        original_metrics = self.metrics
+
+        try:
+            self.mode = "first"
+            self.metrics = "morph"
+            logger.debug(
+                "segment(): Temporarily switching"
+                f" mode to '{self.mode}' and metrics to '{self.metrics}'"
+            )
+
+            return self.process_text(
+                text,
+                process_mode="seg-morph",
+                output_format="json"
+            )
+        finally:
+            logger.debug(
+                "segment(): Restoring original mode and metrics: "
+                f"{original_metrics} and {original_mode}"
+            )
+            self.mode = original_mode
+            self.metrics = original_metrics
+
+    # ==========================
+    # 2. System API (The Engine)
+    # ==========================
+
+    def process_text(self, text, process_mode="seg", output_format="text"):
+        """
+        Unified entry point for dynamic processing.
+        Useful for CLIs and batch jobs where the mode is a variable.
+
+        Args:
+            text (str): Input text.
+            process_mode (str): 'seg', 'morph', or 'seg-morph'.
+            output_format (str) : 'list', 'json' or 'text'
+                                  'list' and 'text' only for 'seg' mode
+        """
+        # 1. Centralized validation for output compatibility
+        output_format = self._validate_batch_args(process_mode, output_format)
+
+        # 2. Retrieve the results based on the process
+        result = self._run_pipeline(
+            text, process=process_mode
+        )
+
+        # 3. Format the output
+        # A. JSON Mode: Return immediately
+        if output_format == "json":
+            return result
+
+        # B. Text/List Mode: Determine the content
+        seg_result = []
+        if result.get("status") in ["Success", "Unrecognized"]:
+            seg_result = result.get("segmentation", [])
+
+        # If no valid result, use the error fallback
+        if not seg_result:
+            seg_result = [f"?? {text}"]
+
+        # C. Return the correct type
+        if output_format == "text":
+            return seg_result[0]
+        elif output_format == "list":
+            return seg_result
+        else:
+            return seg_result     # Default returns a List
+
+    # ==========================
+    # 3. Batch / Parallel Utilities
+    # ==========================
+
+    def process_list(
+        self, items, workers=None,
+        process_mode="seg", output_format="text"
+    ):
+        """
+        Process a list of strings in parallel in memory.
+        Calculates dynamic chunksize since total length is known.
+        """
+        from .batch import process_iterator
+
+        # 1. Validation and configuration
+        output_format = self._validate_batch_args(process_mode, output_format)
+        config = self._get_config_dict()
+
+        iterator = process_iterator(
+            input_iterable=items,
+            config=config,
+            process_mode=process_mode,
+            output_format=output_format,
+            total_items=len(items),
+            requested_workers=workers
+        )
+
+        return list(tqdm(
+            iterator,
+            total=len(items),
+            desc="Processing List",
+            unit="item"
+        ))
+
+    def process_file(
+        self, input_path, output_path, workers=None,
+        process_mode="seg", output_format="text",
+        total_lines=None
+    ):
+        """
+        Instance method to process a file using this object's configuration.
+        """
+        from .batch import process_iterator
+
+        # 1. Validation
+        output_format = self._validate_batch_args(process_mode, output_format)
+
+        # 2. Setup to capture THIS instance's state
+        config = self._get_config_dict()
+
+        if total_lines is None:
+            logger.info("Scanning input file to calculate progress...")
+            try:
+                # Fast line counting (generator based, low memory)
+                with open(input_path, 'r', encoding='utf-8') as f:
+                    total_lines = sum(1 for _ in f)
+                logger.info(f"Total lines: {total_lines}")
+            except Exception:
+                logger.warning(
+                    "Could not count lines."
+                    "Progress bar will be indeterminate."
+                )
+                pass  # Fail silently, batch.py will use default chunksize
+
+        logger.info(f"Batch Processing: {input_path} -> {output_path}")
+
+        try:
+            with open(input_path, "r", encoding="utf-8") as fin, \
+                 open(output_path, "w", encoding="utf-8") as fout:
+
+                # Delegate to the engine
+                results_generator = process_iterator(
+                    input_iterable=fin,
+                    config=config,
+                    process_mode=process_mode,
+                    output_format=output_format,
+                    total_items=total_lines,  # Pass count if available
+                    requested_workers=workers
+                )
+
+                for result_data in tqdm(
+                    results_generator, total=total_lines, desc="Processing"
+                ):
+                    out_str = HeritageSegmenter.serialize_result(
+                        result_data, output_format, indent=None
+                    )
+                    fout.write(out_str + "\n")
+                    fout.flush()
+
+        except FileNotFoundError:
+            logger.error(f"Input file not found: {input_path}")
+        except Exception as e:
+            logger.error(f"Batch processing failed: {e}")
+
+    def _validate_batch_args(self, process_mode, output_format):
+        """Helper to log warnings about incompatible modes."""
+
+        # 1. Morph mode cannot return a simple list
+        #    because we would lose the tags. Fallback to JSON.
+        if "morph" in process_mode and output_format in ["list", "text"]:
+            logger.warning(
+                f"Format 'list' incompatible with mode '{process_mode}'. "
+                "Returning full JSON to preserve analysis."
+            )
+            output_format = "json"
+
+        # 2. Top 10 solutions cannot be displayed using text
+        if self.mode == "top10" and output_format == "text":
+            logger.warning(
+                "Format 'text' supports only 1 solution. "
+                "Switching to 'list' to show all top 10 solutions."
+            )
+            output_format = "list"
+
+        return output_format
+
+    def _get_config_dict(self):
+        return {
+            "lex": self.lex, "input_encoding": self.input_encoding,
+            "output_encoding": self.output_encoding, "mode": self.mode,
+            "text_type": self.text_type, "metrics": self.metrics,
+            "unsandhied": self.unsandhied, "timeout": self.timeout,
+            "binary_path": self.cgi_path,
+        }
+
+    # ==========================
+    # Static Utilities
+    # ==========================
+
+    @staticmethod
+    def serialize_result(data, output_format, indent=None):
+        """
+        Helper to convert the Python Data (List/Dict) into a writable String.
+        Used by CLI and Batch writers to ensure consistent output formatting.
+        Args:
+            data (dict): Dictionary containing the result
+            output_format (str): 'list', 'text' or 'json'
+            indent (int): Json indentation level.
+                          Pass None for compact (Batch).
+                          Pass 2 for pretty (CLI).
+        """
+        # 1. Handle Empty Lines (Preserve alignment)
+        if data is None:
+            # Handle empty lines from input
+            if output_format == "text":
+                return ""
+            elif output_format == "list":
+                return "[]"
+            else:
+                return json.dumps(
+                    {"status": "Skipped", "error": "Empty Input"},
+                    ensure_ascii=False
+                )
+
+        # 2. Handle System Crashes (Passed from batch.py)
+        if isinstance(data, Exception):
+            error_msg = f"?? System Error: {str(data)}"
+            if output_format == "text":
+                return error_msg
+            elif output_format == "list":
+                return json.dumps([error_msg], ensure_ascii=False)
+            else:
+                # Create a JSON error object
+                return json.dumps(
+                    {"status": "Failure", "error": str(data)},
+                    ensure_ascii=False
+                )
+
+        # 3. Handle Normal Results
+        if output_format == "text":
+            # Unwrap the list for raw text output
+            if isinstance(data, list) and data:
+                return str(data[0])
+            elif isinstance(data, str):
+                return data  # Fallback if error string was passed directly
+            else:
+                return ""  # Fallback for unexpected types to prevent crash
+        else:
+            # For 'json' or 'list' format, dump the object to a JSON string
+            return json.dumps(data, ensure_ascii=False, indent=indent)
+
+    # ==========================
+    # Internal Wrappers
+    # ==========================
+
+    def get_segmentation(self, input_text):
+        """Wrapper for simple segmentation."""
+        return self._run_pipeline(
+            input_text, process="seg"
+        )
+
+    def get_morphological_analysis(self, input_text):
+        """Wrapper for morphological analysis."""
+        return self._run_pipeline(
+            input_text, process="seg-morph"
+        )
+
+    def get_analysis(self, input_text):
+        """Wrapper for segmentation and morphological analysis."""
+        return self.get_morphological_analysis(input_text)
+
+    # ==========================
+    # Core Pipeline Logic
+    # ==========================
+
+    def _run_pipeline(self, input_text, process):
+        """Orchestrates input cleaning, execution, and response parsing."""
+
+        logger.debug(
+            json.dumps(f"Orig text: {input_text}", ensure_ascii=False)
+        )
+
+        # 1. Clean and normalize input
+        cleaned_text = self._handle_input(input_text.strip())
+        logger.debug(
+            json.dumps(f"Cleaned text: {cleaned_text}", ensure_ascii=False)
+        )
+
+        # 2. Transliterate to WX for the segmenter
+        trans_input, trans_enc = self._input_transliteration(cleaned_text)
+
+        # 3. Handle multiple sentences (split by .)
+        # Note: Depending on input encoding,
+        # splitting by "." might be risky if not WX/SLP.
+        # Assuming trans_input is now WX or similar safe encoding.
+        sub_sent_list = [
+            item.strip()
+            for item in trans_input.split(".")
+            if item.strip()
+        ]
+
+        results = []
+        source_label = "SH-Web" if self.use_web_fallback else "SH-Local"
+
+        for sub_sent in sub_sent_list:
+            # 4. Execution (Local or Web)
+            if self.use_web_fallback:
+                raw_result, status, error = self._execute_web_request(
+                    sub_sent, trans_enc, process
+                )
+            else:
+                raw_result, status, error = self._execute_cgi(
+                    sub_sent, trans_enc, process
+                )
+
+            logger.debug(f"Raw Result: {raw_result}")
+
+            # 5. Parse the specific sentence result
+            processed = self._handle_result(
+                sub_sent, raw_result, status, self.output_encoding,
+                self.text_type, error, process, source_label
+            )
+
+            logger.debug(f"Processed Result: {processed}")
+            results.append(processed)
+
+        # 6. Merge results if multiple sentences
+        if len(results) == 1:
+            return results[0]
+        else:
+            return self._merge_sent_analyses(results, source_label)
+
+    # ==================================
+    # Execution Helpers: Local Binary
+    # ==================================
+
+    def _execute_cgi(self, text, current_enc, process):
+        """Executes the binary using subprocess with the correct CWD."""
+
+        env_vars, args = self._prepare_cgi_args(
+            text, current_enc, process
+        )
+
+        logger.debug(f"Running Local Binary: {self.cgi_path}")
+        logger.debug(f"CWD: {self.execution_cwd}")
+        logger.debug(f"Query: {env_vars['QUERY_STRING']}")
+
+        try:
+            p = sp.Popen(
+                [str(self.cgi_path)],
+                stdout=sp.PIPE,
+                stderr=sp.PIPE,
+                env=env_vars,
+                cwd=str(self.execution_cwd)
+            )
+
+            outs, errs = p.communicate(timeout=self.timeout)
+
+            if p.returncode != 0 and not outs:
+                return "", "Failure", errs.decode('utf-8', errors='ignore')
+
+            return outs.decode('utf-8', errors='replace'), "Success", ""
+
+        except sp.TimeoutExpired:
+            self._kill_process_tree(p.pid)
+            return "", "Timeout", ""
+        except Exception as e:
+            return "", "Failure", str(e)
+
+    def _kill_process_tree(self, pid):
+        try:
+            parent = psutil.Process(pid)
+            for child in parent.children(recursive=True):
+                child.terminate()
+            parent.terminate()
+        except psutil.NoSuchProcess:
+            pass
+
+    # ======================================================
+    # Execution Method 2: Web Server Fallback (Requests)
+    # ======================================================
+
+    def _execute_web_request(self, text, current_enc, process):
+        """Fetches results from the official INRIA server."""
+        _, query_params = self._prepare_cgi_args(
+            text, current_enc, process, as_dict=True
+        )
+
+        logger.debug(f"Requesting INRIA URL: {INRIA_URL}")
+        try:
+            response = requests.get(
+                INRIA_URL, params=query_params, timeout=self.timeout
+            )
+            response.raise_for_status()
+
+            # Passing 'pipeline=t' or 'stemmer=t' to INRIA's interface2.cgi
+            # produces results in JSON, behaving similar to the binary
+            return response.text, "Success", ""
+
+        except requests.Timeout:
+            return "", "Timeout", "Network request timed out"
+        except requests.ConnectionError:
+            return "", "Failure", "Network Connection Error (No Internet?)"
+        except requests.HTTPError as e:
+            return "", "Failure", f"HTTP Error: {e}"
+        except Exception as e:
+            return "", "Failure", str(e)
+
+    def _prepare_cgi_args(self, text, current_enc, process, as_dict=False):
+        """Shared logic to build query parameters."""
+
+        if "morph" in process:  # Segmentation and Morphological Analysis
+            cgi_process_key = "stemmer"
+        else:  # Default: Segmentation
+            cgi_process_key = "pipeline"
+
+        # Font logic
+        if self.output_encoding in ["DN", "RN"]:
+            out_enc = self.output_encoding
+        else:  # Falling back to Roman (IAST) in all other cases
+            out_enc = "RN"
+
+        params = {
+            "lex": self.lex,
+            "st": MAP_TEXT_MODE[self.text_type],
+            "us": MAP_UNSANDHIED[self.unsandhied],
+            "font": MAP_OUT_ENC[out_enc],
+            "t": current_enc,
+            "text": text,
+            "mode": MAP_SEG_MODE[self.mode],
+            "fmode": MAP_METRICS[self.metrics],
+            cgi_process_key: "t"
+        }
+
+        if as_dict:
+            return None, params
+
+        # For Local CGI, we need a query string in ENV
+        qs_parts = [f"{k}={v}" for k, v in params.items()]
+        env_vars = os.environ.copy()
+        env_vars["QUERY_STRING"] = "&".join(qs_parts)
+        return env_vars, None
+
+    # ==========================
+    # Text Processing Helpers
+    # ==========================
+
+    def _handle_input(self, input_text):
+        """Removes svaras and normalizes special characters."""
+
+        new_text = [
+            c for c in input_text
+            if c not in self.svaras + self.special_characters
+        ]
+        modified_input = "".join(new_text)
+
+        # Regex replacements
+        modified_input = re.sub(
+            r'[$@#%&*()\[\]=+:;"}{?/,\\]', ' ', modified_input
+        )
+
+        if self.input_encoding != "RN":
+            modified_input = modified_input.replace("'", " ")
+
+        # Chandrabindu logic
+        if self.input_encoding == "DN":
+            chandrabindu = "ꣳ"
+            ends_with_chandrabindu = modified_input.endswith(chandrabindu)
+            modified_input = modified_input.replace(chandrabindu, "ं")
+
+            if ends_with_chandrabindu:
+                modified_input = modified_input[:-1] + "म्"
+
+        modified_input = re.sub(r'M$', 'm', modified_input)
+        modified_input = re.sub(r'\.m$', '.m', modified_input)
+        return modified_input
+
+    def _input_transliteration(self, input_text):
+        """Converts input to WX."""
+        trans_input = ""
+        trans_enc = ""
+
+        if self.input_encoding == "DN":
+            trans_input = dt.slp2wx(dt.dev2slp(input_text))
+            trans_input = trans_input.replace("ळ्", "d").replace("ळ", "d") \
+                .replace("kdp", "kLp")
+            trans_enc = "WX"
+        elif self.input_encoding == "RN":
+            trans_input = dt.slp2wx(dt.iast2slp(input_text))
+            trans_enc = "WX"
+        elif self.input_encoding == "SL":
+            trans_input = dt.slp2wx(input_text)
+            trans_enc = "WX"
+        elif self.input_encoding == "VH":
+            trans_input = dt.slp2wx(dt.vel2slp(input_text))
+            trans_enc = "WX"
+        else:
+            trans_input = input_text
+            trans_enc = self.input_encoding
+
+        # Chandrabindu WX fix
+        if "z" in trans_input:
+            ends_with_cb = trans_input.endswith("z")
+            trans_input = trans_input.replace("z", "M")
+
+            if ends_with_cb:
+                trans_input = trans_input[:-1] + "m"
+
+        return trans_input, trans_enc
+
+    def _output_normalization(self, output_text, output_enc):
+        output_text = output_text.replace("#", "?")
+        return self._output_transliteration(output_text, output_enc)
+
+    def _output_transliteration(self, output_text, output_enc):
+        if output_enc == "DN":
+            t = dt.slp2dev(dt.wx2slp(output_text))
+            num_map = str.maketrans('०१२३४५६७८९', '0123456789')
+            return t.translate(num_map), "DN"
+        elif output_enc == "RN":
+            return dt.slp2iast(dt.wx2slp(output_text)), "RN"
+        else:
+            return output_text, output_enc
+
+    # ==========================
+    # JSON Parsing & Logic
+    # ==========================
+
+    def _handle_result(self, input_str, result_raw, status, out_enc,
+                       text_type, error, process, source_label):
+        """Parses raw CGI output into structured dict."""
+
+        final_status = "Failure"
+        message = ""
+
+        # Extract JSON from the raw output (usually the last line)
+        result_json = {}
+        if result_raw:
+            try:
+                lines = result_raw.strip().split("\n")
+                if lines:
+                    result_json = json.loads(lines[-1])
+            except Exception:
+                pass
+
+        # Determine Segmentation status
+        seg = list(dict.fromkeys(result_json.get("segmentation", [])))
+
+        if status == "Success" and seg:
+            first_seg = seg[0]
+            if "error" in first_seg:
+                final_status = "Error"
+                message = first_seg
+
+                # Check for wrong input cases
+                INPUT_ERROR = [
+                    "Wrong input",
+                    "wrong input",
+                    "Wrong character in input",
+                    "Phantom preverb",
+                    "Non consonant arg to homonasal"
+                ]
+                for err in INPUT_ERROR:
+                    if err in message:
+                        message = f"Please check Input: {message}"
+            # Check for SHP unrecognized marker (?) or Failure (#)
+            elif ("#" in seg[0] or "?" in seg[0]) and (
+                text_type == "word" or " " not in seg[0]
+            ):
+                final_status = "Unrecognized"
+                message = "SH could not recognize word"
+            else:
+                final_status = "Success"
+        elif status == "Timeout":
+            final_status = "Timeout"
+            message = f"Response timeout ({self.timeout}s)"
+        elif status == "Failure":
+            final_status = "Error"
+            message = error
+        else:
+            final_status = "Unknown Anomaly"
+            message = f"Error: {error}"
+
+        trans_input_display = self._output_normalization(input_str, out_enc)[0]
+
+        logger.debug(f"Result JSON: {result_json}")
+        logger.debug(f"Final status: {final_status}")
+
+        if final_status == "Success":
+            data = self._extract_final_result(
+                trans_input_display, result_json, out_enc, process
+            )
+            # Inject source info
+            data["source"] = source_label
+            return data
+        else:
+            return {
+                "input": trans_input_display,
+                "status": final_status,
+                "error": message,
+                "source": source_label,
+                "segmentation": [], "morph": []
+            }
+
+    def _extract_final_result(self, input_out_enc, result_json,
+                              out_enc, process):
+        """Constructs analayis json from the result json handling
+           various scenarios
+        """
+        analysis_json = {
+            "input": input_out_enc,
+            "status": "Success"
+        }
+
+        seg = list(dict.fromkeys(result_json.get("segmentation", [])))
+        segmentations = [
+            self._output_normalization(s, out_enc)[0]
+            for s in seg
+        ]
+
+        analysis_json["segmentation"] = segmentations
+
+        if "morph" in process:
+            morphs = result_json.get("morph", [])
+            if morphs:
+                new_morphs = []
+                for m in morphs:
+                    # Identify stems/roots
+                    d_stem = m.get("derived_stem", "")
+                    base = m.get("base", "")
+                    d_morph = m.get("derivational_morph", "")
+                    i_morphs = m.get("inflectional_morphs", [])
+
+                    root, stem = self._identify_stem_root(
+                        d_stem, base, d_morph, i_morphs
+                    )
+
+                    new_item = {
+                        "word": self._output_normalization(
+                            m.get("word", ""), out_enc
+                        )[0],
+                        "stem": self._output_transliteration(stem, out_enc)[0],
+                        "root": self._output_transliteration(root, out_enc)[0],
+                        "derivational_morph": d_morph,
+                        "inflectional_morphs": i_morphs
+                    }
+                    new_morphs.append(new_item)
+                analysis_json["morph"] = new_morphs
+            else:
+                analysis_json["status"] = "Failure"
+                analysis_json["error"] = "Morph Unavailable"
+        else:
+            analysis_json["morph"] = []
+
+        logger.debug(f"Analysis_json: {analysis_json}")
+
+        return analysis_json
+
+    def _identify_stem_root(self, d_stem, base, d_morph, i_morphs):
+        """Heuristic to separate Root from Stem."""
+        root = ""
+        stem = ""
+
+        verb_identifiers = [
+            "pr.", "imp.", "opt.", "impft.", "inj.", "subj.", "pft.",
+            "plp.", "fut.", "cond.", "aor.", "ben.", "abs.", "inf."
+        ]
+        noun_identifiers = [
+            "nom.", "acc.", "i.", "dat.", "abl.", "g.", "loc.", "voc.",
+            "iic.", "iiv.", "part.", "prep.", "conj.", "adv.", "tasil",
+            "ind."
+        ]
+
+        if d_morph:
+            root = base
+            stem = d_stem
+        else:
+            # Simple heuristic since 'roots' module is currently unavailable
+            morph_keys = " ".join(i_morphs).split(" ")
+            for m in morph_keys:
+                if m in verb_identifiers:
+                    root = d_stem
+                    break
+                if m in noun_identifiers:
+                    stem = d_stem
+                    break
+        return root, stem
+
+    def _merge_sent_analyses(self, sub_sent_analysis_lst, source_label):
+        """Combines multiple sentence results into one response."""
+        full_stop = " । " if self.output_encoding == "DN" else " . "
+
+        input_sent = []
+        status_list = []
+        all_segmentations = []
+        morph = []
+        errors = []
+
+        for idx, item in enumerate(sub_sent_analysis_lst, 1):
+            input_sent.append(item.get("input", ""))
+            status_list.append(item.get("status", ""))
+            all_segmentations.append(item.get("segmentation", []))
+            morph.extend(item.get("morph", []))
+
+            if item.get("error"):
+                errors.append(f"Error in {idx}: {item.get('error')}")
+
+        merged = {}
+        merged["input"] = full_stop.join(input_sent)
+        merged["status"] = (
+            "Success" if "Success" in status_list
+            else (status_list[0] if status_list else "Failure")
+        )
+
+        # Cartesian Product for combined segmentation
+        if all_segmentations and all(all_segmentations):
+            num_solutions = 1 if self.mode in ["s", "f", "first"] else 10
+            merged["segmentation"] = [
+                full_stop.join(comb)
+                for comb in islice(product(*all_segmentations), num_solutions)
+            ]
+        else:
+            merged["segmentation"] = []
+
+        merged["morph"] = morph
+        merged["error"] = "; ".join(errors)
+        merged["source"] = source_label
+
+        return merged
