@@ -1,0 +1,145 @@
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - 'v*'  # Release workflow handles version tags
+  pull_request:
+  schedule:
+    - cron:  '0 0 * * *'
+
+jobs:
+  #
+  # Verify the build and installation of SDB.
+  #
+  install:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python3 -m pip install --upgrade pip setuptools wheel
+      - run: python3 -m pip install .
+        #
+        # The statement below is used for debugging the Github job.
+        #
+      - run: python3 --version
+  #
+  # Verify "pylint" runs successfully.
+  #
+  # Note, we need to have "drgn" installed in order to run "pylint".
+  # Thus, prior to running "pylint" we have to clone, build, and install
+  # the "drgn" from source (there's no package currently available).
+  #
+  pylint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: ./.github/scripts/install-drgn.sh
+      - run: python3 -m pip install pylint pytest
+      - run: pylint -d duplicate-code -d invalid-name sdb
+      - run: pylint -d duplicate-code -d invalid-name tests
+  #
+  # Verify "pytest" runs successfully on unit tests.
+  #
+  # Note, we need to have "drgn" installed in order to run "pytest". Thus,
+  # prior to running "pytest" we have to clone, build, and install the
+  # "drgn" from source (there's no package currently available).
+  #
+  pytest-unit:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python3 -m pip install pytest pytest-cov
+      - run: ./.github/scripts/install-drgn.sh
+      - run: pytest -v --cov sdb --cov-report xml tests/unit
+      - uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+  #
+  # Verify "pytest" runs successfully on integration tests with crash dumps.
+  #
+  # Note, we need to have "drgn" and "libkdumpfile" installed to run pytest
+  # with crash dumps. We download both reference dumps for full integration testing.
+  #
+  pytest-integration:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.12']
+    env:
+      AWS_DEFAULT_REGION: 'us-west-2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python3 -m pip install pytest pytest-cov
+      - run: ./.github/scripts/install-libkdumpfile.sh
+      - run: ./.github/scripts/install-drgn.sh
+      - run: ./.github/scripts/download-dumps-from-gdrive.sh
+      - run: ./.github/scripts/extract-dump.sh dump.201912060006.tar.lzma
+      - run: ./.github/scripts/extract-dump.sh dump.202303131823.tar.gz
+      - run: pytest -v --cov sdb --cov-report xml tests/integration
+      - uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+  #
+  # Verify "yapf" runs successfully.
+  #
+  yapf:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: python3 -m pip install yapf
+      - run: yapf --diff --style google --recursive sdb
+      - run: yapf --diff --style google --recursive tests
+  #
+  # Verify "ruff" runs successfully.
+  #
+  ruff:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: python3 -m pip install ruff
+      - run: ruff check sdb tests
+  #
+  # Verify "mypy" runs successfully.
+  #
+  # Note, we need to have "drgn" installed in order to run "mypy".
+  # Thus, prior to running "mypy" we have to clone, build, and install
+  # the "drgn" from source (there's no package currently available).
+  #
+  # Also note that we supply --ignore-missing-imports to the tests package
+  # because pytest doesn't provide stubs on typeshed.
+  #
+  mypy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: ./.github/scripts/install-drgn.sh
+      - run: python3 -m pip install mypy pytest
+      - run: python3 -m mypy --strict --show-error-codes -p sdb
+      - run: python3 -m mypy --strict --ignore-missing-imports --show-error-codes -p tests
