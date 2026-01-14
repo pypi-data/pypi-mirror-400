@@ -1,0 +1,129 @@
+Metadata-Version: 2.4
+Name: arl-env
+Version: 0.1.3
+Summary: ARL Infrastructure - Python SDK for Kubernetes-based Agent Runtime Layer
+Project-URL: Homepage, https://github.com/Lincyaw/agent-env
+Project-URL: Repository, https://github.com/Lincyaw/agent-env
+Project-URL: Documentation, https://github.com/Lincyaw/agent-env/tree/main/docs
+Project-URL: Issues, https://github.com/Lincyaw/agent-env/issues
+Author: ARL Infrastructure Team
+License: Apache-2.0
+Keywords: agent,kubernetes,operator,runtime,sandbox,task-execution
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Requires-Dist: kubernetes>=28.0.0
+Requires-Dist: pydantic>=2
+Requires-Dist: python-dateutil>=2.8.2
+Requires-Dist: typing-extensions>=4.7.1
+Requires-Dist: urllib3<3.0.0,>=1.25.3
+Provides-Extra: dev
+Requires-Dist: mypy>=1.13.0; extra == 'dev'
+Requires-Dist: pytest-cov>=2.8.1; extra == 'dev'
+Requires-Dist: pytest>=7.2.1; extra == 'dev'
+Requires-Dist: ruff>=0.8.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# ARL Wrapper
+
+High-level Python wrapper for the ARL (Agent Runtime Layer) client providing simplified sandbox session management.
+
+## Features
+
+- **Context Manager Support**: Automatic sandbox lifecycle management
+- **Type-Safe API**: Full type hints with Pydantic models
+- **Kubernetes Integration**: Direct CRD interaction
+- **Error Handling**: Comprehensive error reporting and retry logic
+
+## Installation
+
+```bash
+uv add arl-wrapper
+```
+
+## Quick Start
+
+```python
+from arl import SandboxSession
+
+# Using context manager (recommended)
+with SandboxSession(pool_ref="python-39-std", namespace="default") as session:
+    result = session.execute([
+        {
+            "name": "hello",
+            "type": "Command",
+            "command": ["echo", "Hello, World!"],
+        }
+    ])
+    
+    # Access results
+    status = result["status"]
+    for step in status.get("steps", []):
+        print(f"Step: {step['name']}")
+        print(f"Exit Code: {step['exitCode']}")
+        print(f"Stdout: {step['stdout']}")
+```
+
+## Manual Lifecycle Management
+
+For long-running operations or sandbox reuse:
+
+```python
+session = SandboxSession(pool_ref="python-39-std", namespace="default", keep_alive=True)
+
+try:
+    session.create_sandbox()
+    
+    # Task 1
+    result1 = session.execute([...])
+    
+    # Task 2 (reuses same sandbox)
+    result2 = session.execute([...])
+    
+finally:
+    session.delete_sandbox()
+```
+
+## Task Step Types
+
+### Command Step
+
+```python
+{
+    "name": "run_script",
+    "type": "Command",
+    "command": ["python", "script.py"],
+    "env": {"DEBUG": "1"},  # optional
+    "workDir": "/workspace",  # optional
+}
+```
+
+### FilePatch Step
+
+```python
+{
+    "name": "create_config",
+    "type": "FilePatch",
+    "path": "/workspace/config.yaml",
+    "content": "key: value",
+}
+```
+
+## Architecture
+
+- **SandboxSession**: High-level API using Kubernetes CRDs for task execution
+- **Task CRD**: Operator watches and executes tasks via sidecar
+- **Auto-generated client**: `arl-client` package (CRD models)
+
+Task execution flow:
+1. Client creates Task CRD via Kubernetes API
+2. Operator watches for new tasks
+3. Operator communicates with sidecar to execute steps
+4. Client polls Task status for results
+
+This architecture ensures tasks can be executed from anywhere with cluster access.
