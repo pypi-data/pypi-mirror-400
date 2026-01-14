@@ -1,0 +1,116 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2022-2024 Andrew Rechnitzer
+    Copyright (C) 2022 Edith Coates
+    Copyright (C) 2023-2025 Colin B. Macdonald
+-->
+{% extends "base/base.html" %}
+{% block title %}
+    Manage classlist
+{% endblock title %}
+{% block page_heading %}
+    Manage classlist
+{% endblock page_heading %}
+{% block main_content %}
+    <div class="d-grid gap-2">
+        <div>
+            <a class="btn btn-primary" href="{% url 'prep_landing' %}">Return to assessment preparation page</a>
+        </div>
+        {% if have_papers_been_printed %}
+            <div class="alert alert-info">Papers have been printed, but you can still change the classlist.</div>
+        {% else %}
+            {% if prenaming %}
+                <div class="alert alert-warning">
+                    Prenaming is enabled, so a classlist is required
+                    <a class="btn btn-danger" hx-delete="{% url 'prep_prename' %}">Disable</a>
+                </div>
+            {% else %}
+                <div class="alert alert-primary">
+                    Prenaming is not enabled, so a classlist is not required
+                    <a class="btn btn-danger" hx-post="{% url 'prep_prename' %}">Enable</a>
+                </div>
+            {% endif %}
+        {% endif %}
+        {% if student_list_present %}
+            <div class="alert alert-primary">
+                <span>Classlist present with {{ student_list|length }} student{{ student_list|length|pluralize }}:</span>
+                <a href="{% url 'prep_classlist_download' %}" class="btn btn-info">download</a>
+                <button class="btn btn-danger"
+                        hx-delete="."
+                        hx-confirm="Are you sure you want to delete the classlist?"
+                        hx-target="body"
+                        hx-swap="outerHTML">delete whole classlist</button>
+            </div>
+            <div class="border p-2" style="overflow: auto;">
+                <table class="table table-striped">
+                    <thead>
+                        <th>Student ID</th>
+                        <th>Student Name</th>
+                        <th>
+                            Paper-number
+                            {% if prenaming %}
+                                (used if assigned &mdash; prenaming enabled)
+                            {% else %}
+                                (ignored &mdash; prenaming disabled)
+                            {% endif %}
+                        </th>
+                    </thead>
+                    {% for row in student_list %}
+                        <tr>
+                            <td>{{ row.student_id }}</td>
+                            <td>{{ row.student_name }}</td>
+                            <td>
+                                {% if row.paper_number %}
+                                    {{ row.paper_number }}
+                                {% else %}
+                                    ●
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="card-title">
+                        <h4>No classlist present &mdash; upload classlist</h4>
+                    </div>
+                    <div class="card-text">
+                        <form enctype="multipart/form-data"
+                              id="form"
+                              method="post"
+                              action="{% url 'prep_classlist' %}">
+                            {% csrf_token %}
+                            <div>
+                                <input type="file" accepts=".csv" name="classlist_csv" required />
+                                <button class="btn btn-primary" type="submit">upload</button>
+                            </div>
+                            <div class="form-check m-2">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       role="switch"
+                                       id="ignoreWarnings"
+                                       value="True"
+                                       name="ignoreWarnings">
+                                <label class="form-check-label mx-2" for="ignoreWarnings">Ignore warnings (not recommended)</label>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <p class="mb-1">
+                        Plom needs a classlist as a <tt>.csv</tt> file with three columns:
+                    </p>
+                    <ul>
+                        <li>"id" &mdash; the student id</li>
+                        <li>"name" &mdash; the student name as a single field</li>
+                        <li>"paper_number" &mdash; an optional field for prenaming papers</li>
+                    </ul>
+                    <p>The file must be UTF-8 encoded.</p>
+                    <!-- (the Microsoft &ldquo;utf-8-sig&rdquo; variant is acceptable) -->
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% endblock main_content %}

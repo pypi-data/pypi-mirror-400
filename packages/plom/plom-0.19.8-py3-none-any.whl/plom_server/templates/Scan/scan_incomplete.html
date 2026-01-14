@@ -1,0 +1,103 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2023 Andrew Rechnitzer
+    Copyright (C) 2023-2025 Colin B. Macdonald
+    Copyright (C) 2024 Aden Chan
+-->
+{% extends "base/base.html" %}
+{% block title %}
+    Incomplete pushed papers
+{% endblock title %}
+{% block page_heading %}
+    Incomplete pushed papers
+{% endblock page_heading %}
+{% block main_content %}
+    <div class="flex">
+        <a class="btn btn-primary" href="{% url 'scan_overview' %}">Bundle and paper overview</a>
+        <a class="btn btn-primary" href="{% url 'scan_list_complete' %}">Complete papers</a>
+        <a class="btn btn-primary" href="{% url 'scan_list_discard' %}">Discarded page images</a>
+    </div>
+    <div class="card my-2">
+        <div class="card-body">
+            <div class="row">
+                <div class="row">
+                    <h5>Incomplete papers: {{ number_of_incomplete_papers }}</h5>
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="overflow-auto" style="max-height:66vh;">
+                                    <table class="table table-striped table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Paper</th>
+                                                <th>Pages</th>
+                                            </tr>
+                                        </thead>
+                                        {% for pn,pages in incomplete_papers_list %}
+                                            <tr>
+                                                <td>{{ pn }}</td>
+                                                <td>
+                                                    {% for fp in pages.fixed|dictsort:"page_number" %}
+                                                        {% if fp.img_pk %}
+                                                            <button hx-get="{% url 'pushed_img_wrap' 'fixed' fp.page_pk %}"
+                                                                    hx-target="#incompleteImageHere"
+                                                                    hx-replace="innerHTML"
+                                                                    class="btn btn-outline-success">
+                                                                {{ fp.page_number }}
+                                                            </button>
+                                                        {% else %}
+                                                            <button class="btn btn-danger p-3"
+                                                                    data-bs-toggle="tooltip"
+                                                                    data-bs-placement="top"
+                                                                    data-bs-title="missing {{ pn }}.{{ fp.page_number }}"
+                                                                    hx-get="{% url 'substitute_img_wrap' pn fp.page_number %}"
+                                                                    hx-target="#incompleteImageHere"
+                                                                    hx-replace="innerHTML">
+                                                                {{ fp.page_number }}
+                                                            </button>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                    {% for mp in pages.mobile|dictsort:"question_idx" %}
+                                                        <button hx-get="{% url 'pushed_img_wrap' 'mobile' mp.page_pk %}"
+                                                                hx-target="#incompleteImageHere"
+                                                                hx-replace="incompletInnerHTML"
+                                                                class="btn btn-outline-info">
+                                                            {{ mp.page_label }}
+                                                        </button>
+                                                    {% endfor %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col p-2 border" id="pushedImageFragment">
+                        <h6>Page image</h6>
+                        <div class="p-2"
+                             style="justify-content: center;
+                                    display:flex;
+                                    align-items:center"
+                             id="incompleteImageHere">
+                            {% if forgive_errors %}
+                                <div class="alert alert-warning">
+                                    <p>Something went wrong when attempting to forgive the missing page:</p>
+                                    <ul>
+                                        {% for msg in forgive_errors %}<li>{{ msg }}</li>{% endfor %}
+                                    </ul>
+                                    <p>Likely another user is simultaneously working on this paper. We recommend refreshing this page.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- https://getbootstrap.com/docs/5.3/components/tooltips -->
+    <script>
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    </script>
+{% endblock main_content %}

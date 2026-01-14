@@ -1,0 +1,74 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2022 Andrew Rechnitzer
+    Copyright (C) 2023-2024 Colin B. Macdonald
+-->
+{% extends "base/base.html" %}
+{% block title %}
+    Manage classlist
+{% endblock title %}
+{% block page_heading %}
+    Manage classlist
+{% endblock page_heading %}
+{% block main_content %}
+    {% if success %}
+        {% if warn_err %}
+            <div class="alert alert-info">
+                <p>
+                    <span>Classlist has warnings</span>
+                    <span>
+                        <a class="btn btn-warning" href="{% url 'prep_classlist' %}">return to upload another file</a>
+                    </span>
+                </p>
+                <p>Note that you can set "Ignore warnings" on upload to ignore these warnings.</p>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <th>Warning or Error</th>
+                            <th>Line</th>
+                            <th>Message</th>
+                        </thead>
+                        {% for werr in warn_err %}
+                            <tr>
+                                <td>{{ werr.warn_or_err }}</td>
+                                <td>{{ werr.werr_line }}</td>
+                                <td>{{ werr.werr_text }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <!-- Should not reach here -->
+            <div class="alert alert-succcess">
+                <p>
+                    <span>Classlist uploaded successfully</span>
+                    <span>
+                        <a class="btn btn-primary" href="{% url 'prep_classlist' %}">return</a>
+                    </span>
+                </p>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-danger">Upload failed due to errors:</div>
+        <span>
+            <a class="btn btn-danger" href="{% url 'prep_classlist' %}">return to upload another file</a>
+        </span>
+        <table class="table table-striped">
+            <thead>
+                <th>Warning or Error</th>
+                <th>Line</th>
+                <th>Message</th>
+            </thead>
+            {% for werr in warn_err %}
+                <tr>
+                    <td>{{ werr.warn_or_err }}</td>
+                    <td>{{ werr.werr_line }}</td>
+                    <td>{{ werr.werr_text }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+{% endblock main_content %}

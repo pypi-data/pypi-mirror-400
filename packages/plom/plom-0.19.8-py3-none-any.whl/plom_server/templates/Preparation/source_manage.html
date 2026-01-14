@@ -1,0 +1,52 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2022 Andrew Rechnitzer
+    Copyright (C) 2022 Edith Coates
+    Copyright (C) 2022 Brennen Chiu
+    Copyright (C) 2023-2024 Colin B. Macdonald
+-->
+{% extends "base/base.html" %}
+{% block title %}
+    Manage source versions
+{% endblock title %}
+{% block page_heading %}
+    Manage source versions
+{% endblock page_heading %}
+{% block main_content %}
+    <div class="d-grid gap-2">
+        <div>
+            <a class="btn btn-primary" href="{% url 'prep_landing' %}">Return to assessment preparation page</a>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title" id="source_status">
+                    You have uploaded {{ num_uploaded_source_versions }} of {{ num_versions }} source pdfs
+                    {% if all_sources_uploaded %}
+                        <i class="bi bi-check-circle text-success"></i>
+                    {% else %}
+                        <i class="bi bi-exclamation-diamond-fill text-warning"></i>
+                    {% endif %}
+                </h4>
+                <div class="card-text">
+                    {% if not all_sources_uploaded %}<p>Each PDF must have exactly {{ number_of_pages }} pages</p>{% endif %}
+                    {% if duplicates %}
+                        <div class="alert alert-danger" role="alert">
+                            There appear to be duplicate PDFs - please check
+                            <ul>
+                                {% for hash,vers in duplicates.items %}
+                                    <li>
+                                        versions {{ vers }} have sha256
+                                        <span class="badge bg-dark">{{ hash }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% for src in uploaded_sources %}
+            {% include "Preparation/source_item_view.html" with src=src %}
+        {% endfor %}
+    </div>
+{% endblock main_content %}

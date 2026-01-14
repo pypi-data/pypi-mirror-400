@@ -1,0 +1,265 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2022 Edith Coates
+    Copyright (C) 2022 Brennen Chiu
+    Copyright (C) 2023-2025 Andrew Rechnitzer
+    Copyright (C) 2023, 2025 Colin B. Macdonald
+    Copyright (C) 2025 Aidan Murphy
+-->
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}
+    Reassemble Papers
+{% endblock title %}
+{% block page_heading %}
+    Reassemble Papers and Student Reports
+{% endblock page_heading %}
+{% block main_content %}
+    <div class="card w-75">
+        <div class="card-title">
+            <button hx-post="{% url 'reassemble_all_pdfs' %}"
+                    href=""
+                    class="btn btn-success m-2">Reassemble all (incl. outdated)</button>
+            <button hx-delete="{% url 'reassemble_cancel_queued' %}"
+                    class="btn btn-warning m-2">Cancel queued</button>
+            <button hx-delete="{% url 'reassemble_all_pdfs' %}"
+                    class="btn btn-danger m-2">Delete all</button>
+        </div>
+        <div class="card-body">
+            <ul>
+                {% if n_papers == 0 %}
+                    <li>There are no scanned papers</li>
+                {% else %}
+                    <li>Scanned papers: {{ n_papers }}</li>
+                    {% if n_not_ready %}
+                        <li>
+                            <i class="bi bi-exclamation-diamond-fill text-warning"></i> Not yet ready for reassembly: {{ n_not_ready }}  &mdash; papers that still require marking and/or id-ing
+                        </li>
+                    {% endif %}
+                    {% if n_ready %}
+                        <li>
+                            <i class="bi bi-play-circle text-success"></i> Ready for reassembly: {{ n_ready }} &mdash; papers that are marked and id-ed but not yet reassembled
+                            {% if n_queued %}&mdash; and {{ n_queued }} queued for reassembly{% endif %}
+                        </li>
+                    {% elif not n_queued %}
+                        <li>
+                            {% if n_complete %}
+                                <i class="bi bi-check-circle-fill text-success"></i> All papers that can be reassembled have been reassembled
+                            {% else %}
+                                No papers are ready for reassembly
+                            {% endif %}
+                        </li>
+                    {% else %}
+                        <!-- placeholder, nothing to write -->
+                    {% endif %}
+                    {% if n_complete %}
+                        <li>
+                            {% if n_complete == n_papers %}
+                                <i class="bi bi-check-circle-fill text-success"></i> All {{ n_complete }} papers reassembled
+                            {% else %}
+                                <i class="bi bi-circle-half text-info"></i> Papers reassembled: {{ n_complete }}
+                            {% endif %}
+                        </li>
+                    {% else %}
+                        <li>
+                            <i class="bi bi-exclamation-diamond-fill text-warning"></i> No papers reassembled (yet)
+                        </li>
+                    {% endif %}
+                    {% if n_queued %}
+                        <li>
+                            <i class="bi bi-clock-history text-info"></i>{{ n_queued }} paper(s) queued for reassembly
+                            <a href="{% url 'reassemble_pdfs' %}"
+                               class="btn btn-info"
+                               id="reload_button">reload page</a>
+                            (page will auto-reload after 30s)
+                        </li>
+                    {% endif %}
+                {% endif %}
+                {% if n_errors %}
+                    <li>
+                        <i class="bi bi-exclamation-diamond-fill text-danger"></i> {{ n_errors }} errors in reassembly
+                    </li>
+                {% endif %}
+                {% if partially_scanned_papers_abbrev_list %}
+                    <li>
+                        <i class="bi bi-question-diamond-fill text-warning"></i>
+                        paper{{ partially_scanned_papers|length|pluralize }} {{ partially_scanned_papers_abbrev_list }}
+                        may be missing page[s]
+                        (see <a href="{% url 'scan_list_incomplete' %}">'incomplete' papers</a>)
+                    </li>
+                {% endif %}
+            </ul>
+            {% if n_papers == 0 %}
+                <a href="{% url 'reassemble_all_pdfs' %}"
+                   class="btn btn-danger-outline disabled">Download zip of all reassembled papers</a> no papers yet
+            {% elif n_outdated %}
+                <a href="{% url 'reassemble_all_pdfs' %}" class="btn btn-danger">Download zip of all reassembled papers</a> some papers outdated
+            {% elif n_complete == n_papers %}
+                <a href="{% url 'reassemble_all_pdfs' %}" class="btn btn-success">Download zip of all reassembled papers</a>
+            {% elif n_complete %}
+                <a href="{% url 'reassemble_all_pdfs' %}" class="btn btn-warning">Download zip of all reassembled papers</a>
+                warning - not all papers reassembled
+            {% else %}
+                <a href="{% url 'reassemble_all_pdfs' %}"
+                   class="btn btn-warning-outline disabled">Download zip of all reassembled papers</a>
+                warning - no papers reassembled
+            {% endif %}
+            <!-- TODO: unpleasantly nested quotes by the_url: some way to fix that? -->
+            <details class="my-2"
+                     x-data="{first:{{ min_paper_number }}, last:{{ max_paper_number }}, the_url:'{% url "reassembled_range" %}' }">
+                <summary>Select range of reassembled papers to download</summary>
+                <div class="ms-4 my-2 w-75">
+                    <div class="input-group my-1"
+                         x-on:input.debounce="first=Math.min(first,last);">
+                        <span for="first-paper" class="input-group-text w-25">First paper</span>
+                        <input type="number"
+                               class="px-1 form-input form-control flex-grow-0 w-25"
+                               min="{{ min_paper_number }}"
+                               max="{{ max_paper_number }}"
+                               x-model="first">
+                        <input type="range"
+                               class="px-1 form-range form-control"
+                               style="height:auto"
+                               min="{{ min_paper_number }}"
+                               max="{{ max_paper_number }}"
+                               x-model="first"
+                               id="first-paper">
+                    </div>
+                    <div class="input-group my-1"
+                         x-on:input.debounce="last=Math.max(first,last);">
+                        <span for="last-paper" class="input-group-text w-25">Last paper</span>
+                        <input type="number"
+                               class="px-1 form-input form-control flex-grow-0 w-25"
+                               min="{{ min_paper_number }}"
+                               max="{{ max_paper_number }}"
+                               x-model="last">
+                        <input type="range"
+                               class="px-1 form-range form-control"
+                               style="height:auto"
+                               min="{{ min_paper_number }}"
+                               max="{{ max_paper_number }}"
+                               x-model="last"
+                               id="last-paper">
+                    </div>
+                    {% if n_complete %}
+                        <a x-bind:href="the_url + '?first_paper=' + first + '&last_paper=' + last"
+                           class="btn btn-warning">Download zip of reassembled papers from <span x-text="first"></span> to <span x-text="last"></span></a>
+                    {% else %}
+                        <a x-bind:href="the_url + '?first_paper=' + first + '&last_paper=' + last"
+                           class="btn btn-warning-outline disabled">Download zip of reassembled papers from <span x-text="first"></span> to <span x-text="last"></span></a> warning - no papers reassembled
+                    {% endif %}
+                </div>
+            </div>
+        </details>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <table class="table table-striped">
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Identified</th>
+                    <th scope="col">Marked</th>
+                    <th scope="col">Last updated</th>
+                    <th scope="col">Reassembly Status</th>
+                    <th scope="col">When reassembled</th>
+                    <th scope="col">Action</th>
+                </tr>
+                {% for row in papers %}
+                    {% if row.used %}
+                        <tr style="{% if row.obsolete %} text-decoration: line-through;
+                                   {% endif %}">
+                            <td>{{ row.paper_num }}</td>
+                            <td>
+                                {% if row.identified %}
+                                    <i class="bi bi-check-circle text-success"></i> {{ row.student_id }}
+                                {% else %}
+                                    <i class="bi bi-exclamation-diamond-fill text-warning"></i>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if row.marked %}
+                                    <i class="bi bi-check-circle text-success"></i> all
+                                {% else %}
+                                    {% if row.number_marked == 0 %}
+                                        <i class="bi bi-exclamation-diamond-fill text-danger"></i> none
+                                    {% else %}
+                                        <i class="bi bi-exclamation-diamond-fill text-warning"></i> {{ row.number_marked }}
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td>{{ row.last_update_humanised }}</td>
+                            <!-- Note: uses the symbolic constants defined in HueyTaskTracker -->
+                            <td>
+                                {% if row.identified and row.marked %}
+                                    {% if row.reassembled_status == "Starting" or row.reassembled_status == "Queued" or row.reassembled_status == "Running" %}
+                                        <i class="bi bi-clock-history text-info"></i>
+                                    {% elif row.reassembled_status == "Error" %}
+                                        <i class="bi bi-exclamation-diamond-fill text-danger"></i>
+                                    {% elif row.reassembled_status == "Complete" %}
+                                        <i class="bi bi-check-circle text-success"></i>
+                                    {% else %}
+                                        <i class="bi bi-dot"></i>
+                                    {% endif %}
+                                    {{ row.reassembled_status }}
+                                {% else %}
+                                    <i class="bi bi-exclamation-diamond-fill text-warning"></i> Not ready
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if row.reassembled_time %}
+                                    {% if row.outdated %}
+                                        <i class="bi bi-exclamation-diamond-fill text-danger"> Outdated </i>
+                                    {% else %}
+                                        {{ row.reassembled_time_humanised }}
+                                    {% endif %}
+                                {% else %}
+                                    <!-- n/a -->
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if row.reassembled_time %}
+                                    {% if row.outdated %}
+                                        <a href="{% url 'reassemble_one_paper' row.paper_num %}"
+                                           target="_blank"
+                                           class="btn btn-warning"><i class="bi bi-exclamation-diamond-fill">view</i></a>
+                                        <a href="{% url 'get_student_report' row.paper_num %}"
+                                           target="_blank"
+                                           class="btn btn-warning"><i class="bi bi-exclamation-diamond-fill">view report</i></a>
+                                        <button hx-put="{% url 'reassemble_one_paper' row.paper_num %}"
+                                                class="btn btn-warning">
+                                            <i class="bi bi-exclamation-diamond-fill">
+                                                re-reassemble
+                                            </i>
+                                        </button>
+                                        <button hx-delete="{% url 'reassemble_one_paper' row.paper_num %}"
+                                                class="btn btn-success">delete</button>
+                                    {% else %}
+                                        <a href="{% url 'reassemble_one_paper' row.paper_num %}"
+                                           target="_blank"
+                                           class="btn btn-success">view</a>
+                                        <a href="{% url 'get_student_report' row.paper_num %}"
+                                           target="_blank"
+                                           class="btn btn-info">view report</a>
+                                        <button hx-delete="{% url 'reassemble_one_paper' row.paper_num %}"
+                                                class="btn btn-warning">delete</button>
+                                    {% endif %}
+                                {% else %}
+                                    {% if row.identified and row.marked and row.reassembled_status != "Starting" and row.reassembled_status != "Queued" and row.reassembled_status != "Running" %}
+                                        <button hx-post="{% url 'reassemble_one_paper' row.paper_num %}"
+                                                class="btn btn-success">reassemble</button>
+                                    {% else %}
+                                        <!-- n/a -->
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+    {% if n_queued %}
+        <!-- reload page after 30s if any queued papers -->
+        <script>setTimeout("location.reload(true);",30000);</script>
+    {% endif %}
+{% endblock main_content %}

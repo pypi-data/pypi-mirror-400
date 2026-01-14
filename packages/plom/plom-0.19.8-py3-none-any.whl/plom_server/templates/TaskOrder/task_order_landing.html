@@ -1,0 +1,84 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2023 Julian Lapenna
+    Copyright (C) 2023-2025 Colin B. Macdonald
+    Copyright (C) 2024 Bryan Tanady
+-->
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}
+    Task Ordering
+{% endblock title %}
+{% block page_heading %}
+    Task Ordering
+{% endblock page_heading %}
+{% block main_content %}
+    {% include "../base/alert_messages.html" with messages=messages %}
+    <div class="row">
+        <div class="col">
+            <form action="{% url 'upload_task_priorities' %}"
+                  method="post"
+                  enctype="multipart/form-data">
+                {% csrf_token %}
+                {{ order_form.as_p }}
+                <ul>
+                    {{ upload_form.as_p }}
+                </ul>
+                <button class="btn btn-primary" type="submit">Update task order</button>
+            </form>
+            <form method="post" action="{% url 'download_priorities' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-success mt-1">Download priorities</button>
+            </form>
+        </div>
+        <div class="col">
+            <h4>Instructions:</h4>
+            <ol>
+                <li class="lh-sm mb-1">Select one of the options on the left.</li>
+                <li class="lh-sm mb-1">
+                    Click "Update task order" to change the order TAs receive questions to mark (they will receive tasks with higher priority values first)
+                </li>
+                <li class="lh-sm mb-1">
+                    To apply a custom order, a <tt>.csv</tt> file must be uploaded:
+                </li>
+                <ul class="lh-sm">
+                    <li>Click "Download priorities" for the current priorities as an example.</li>
+                    <li>
+                        Modify the <tt>.csv</tt>; it must have headers "Paper Number", "Question Index", "Priority Value";
+                        each row must have values for each of these.
+                    </li>
+                    <li>Questions that are not listed are ignored.</li>
+                </ul>
+            </ol>
+        </div>
+    </div>
+    <br>
+    <div>
+        <h4>Current Task Order</h4>
+        <p>Tip: click on a header to sort by that column.</p>
+        <div class="table-responsive">
+            <table class="table table-small sortable text-center align-middle">
+                <thead class="sticky-top">
+                    <th scope="col">Paper ID</th>
+                    {% for qi, qlabelstr, qlabelhtml in qlabels %}<th scope="col">{{ qlabelhtml|safe }}</th>{% endfor %}
+                </thead>
+                <tbody>
+                    {% for p, priority_status_list in paper_to_priority_dict.items %}
+                        <tr>
+                            <td class="w-25">{{ p }}</td>
+                            {% for priority_status in priority_status_list %}
+                                {% if priority_status.1 == "Complete" %}
+                                    <td class="table-success">{{ priority_status.0|floatformat:1 }}</td>
+                                {% elif priority_status.1 == "Missing" %}
+                                    <td class="table-danger">Missing</td>
+                                {% else %}
+                                    <td>{{ priority_status.0|floatformat:1 }}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock main_content %}

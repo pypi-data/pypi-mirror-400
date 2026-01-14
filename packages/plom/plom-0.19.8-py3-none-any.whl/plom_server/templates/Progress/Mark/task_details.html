@@ -1,0 +1,241 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2023 Divy Patel
+    Copyright (C) 2023-2025 Colin B. Macdonald
+    Copyright (C) 2023-2024 Andrew Rechnitzer
+-->
+{% extends "base/base.html" %}
+{% load static %}
+{% load humanize %}
+{% block title %}
+    Marking task info
+{% endblock title %}
+{% block page_heading %}
+    Marking task info
+    <a class="btn btn-primary"
+       href="{% url 'progress_marking_task_filter' %}?question={{ question_idx }}&version={{ version }}">browse marking</a>
+    <a class="btn btn-primary" href="{% url 'all_task_overview' %}">table of all tasks</a>
+{% endblock page_heading %}
+{% block main_content %}
+    <div class="container p-2 border rounded mx-0">
+        <div class="row m-2">
+            <div class="col">
+                <div>
+                    <!-- this is the target for any htmx error messages -->
+                    <!-- p-0 border-0 here tries to hide the div when its empty -->
+                    <div id="my-errors" class="p-0 border-0 alert alert-danger hide"></div>
+                </div>
+                {% if user_is_manager or user_is_lead_marker %}
+                    <p>
+                        <button class="btn btn-outline-danger"
+                                {% if status == "Out Of Date" %}disabled{% endif %}
+                                hx-confirm="This will reset the task and mark any current annotations as out of date. Are you sure you wish to proceed?"
+                                hx-put="{% url 'reset_marking_task' task_pk %}"
+                                hx-target-error="#my-errors">reset</button>
+                        &mdash; invalidates any existing marking and creates a new marking task.
+                    </p>
+                    <span class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                {% if not lead_markers or status == "Out Of Date" %}disabled{% endif %}
+                                aria-expanded="false">Reassign to lead marker</button>
+                        <ul class="dropdown-menu">
+                            {% for user in lead_markers %}
+                                <!--reassign to any lead marker except the current one-->
+                                {% if user.username != username %}
+                                    <li>
+                                        <!-- we add the vars here to get this hx-post to look like a form post -->
+                                        <a hx-post="{% url 'reassign_marking_task' task_pk %}"
+                                           hx-vars="newUser: '{{ user.username }}'"
+                                           hx-target-error="#my-errors"
+                                           class="dropdown-item">{{ user.username }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    </span>
+                    <span class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle"
+                                type="button"
+                                {% if status == "Out Of Date" %}disabled{% endif %}
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">Reassign to marker</button>
+                        <ul class="dropdown-menu">
+                            {% for user in all_markers %}
+                                <!--reassign to any marker except the current one-->
+                                {% if user.username != username and user not in lead_markers %}
+                                    <li>
+                                        <!-- we add the vars here to get this hx-post to look like a form post -->
+                                        <a hx-post="{% url 'reassign_marking_task' task_pk %}"
+                                           hx-vars="newUser: '{{ user.username }}'"
+                                           hx-target-error="#my-errors"
+                                           class="dropdown-item">{{ user.username }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    </span>
+                {% endif %}
+                <div class="py-2">
+                    <p>Paper: {{ paper_number }}</p>
+                    <p>Question: {{ question_label_html|safe }}</p>
+                    <p>Version: {{ version }}</p>
+                    <p>
+                        Status: {{ status }}
+                        {% if status == "Out Of Date" %}
+                            <a href="{% url 'progress_newest_marking_task_details' task_pk %}"
+                               class="btn btn-success">Go to newest</a>
+                        {% endif %}
+                    </p>
+                    {% if status == "Complete" %}
+                        <p>Score: {{ score_str }}</p>
+                        <p>Raw score: {{ score }}</p>
+                        <p>Edition: {{ edition }}</p>
+                        <p>User: {{ username }}</p>
+                        <p>Last update: {{ last_update|naturaltime }}</p>
+                        <p>Marking time: {{ marking_time }}s</p>
+                    {% elif status == "Out" %}
+                        <p>User: {{ username }}</p>
+                    {% elif status == "To Do" %}
+                    {% else %}
+                    {% endif %}
+                </div>
+                <p>
+                    <button hx-get="{% url 'progress_original_img_wrap' paper_number question_idx %}"
+                            hx-target="#imageHere"
+                            hx-replace="innerHTML"
+                            class="btn btn-outline-secondary">Show original images</button>
+                    {% if status == "Complete" %}
+                        <button hx-get="{% url 'progress_annotation_img_wrap' paper_number question_idx %}"
+                                hx-target="#imageHere"
+                                hx-replace="innerHTML"
+                                hx-trigger="load, click"
+                                class="btn btn-outline-secondary">Show annotation</button>
+                    {% endif %}
+                </p>
+                <span>
+                    <span class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle"
+                                type="button"
+                                {% if status == "Out Of Date" %}disabled{% endif %}
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">Add tag</button>
+                        <ul class="dropdown-menu">
+                            <li class="p-2">
+                                <button class="btn btn-outline-primary"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#newTagForm"
+                                        aria-expanded="false"
+                                        aria-controls="newTagForm">
+                                    <i class="bi bi-plus-circle-dotted"></i>
+                                    new tag
+                                </button>
+                            </li>
+                            {% for tag_pk, tag_text in addable_normal_tags.items %}
+                                <li class="p-2">
+                                    <span hx-patch="{% url 'marking_task_tag' task_pk tag_pk %}"
+                                          class="badge bg-success fs-6 align-middle dropdown-item py-2 text-start"><i class="bi bi-plus-square pe-1"></i>{{ tag_text }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </span>
+                    {% for tag_pk, tag_text in current_normal_tags.items %}
+                        <span class="badge bg-primary align-middle">{{ tag_text }}
+                            <button hx-delete="{% url 'marking_task_tag' task_pk tag_pk %}"
+                                    class="btn btn-primary p-0">
+                                <i class="bi bi-backspace"></i>
+                            </button>
+                        </span>
+                    {% endfor %}
+                </span>
+                <p>
+                    <div class="collapse border my-2 p-3" id="newTagForm">
+                        <form class="form validation was-validated"
+                              hx-post="{% url 'create_marking_task_tag' task_pk %}">
+                            <div class="form-floating m-2">
+                                <input type="text"
+                                       name="newTagText"
+                                       oninput="this.reportValidity()"
+                                       class="form-control"
+                                       pattern="{{ valid_tag_pattern }}"
+                                       id="floatingInput"
+                                       placeholder="New tag text"
+                                       title="Tag characters must consist of {{ valid_tag_description }}"
+                                       required>
+                                <label for="floatingInput">New tag text</label>
+                            </div>
+                            <p class="invalid-feedback">Tag characters must consist of {{ valid_tag_description }}</p>
+                            <button class="btn btn-primary" type="submit">create and add tag</button>
+                        </form>
+                    </div>
+                </p>
+                <span>
+                    <span class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle"
+                                type="button"
+                                {% if status == "Out Of Date" %}disabled{% endif %}
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">Flag to user</button>
+                        <ul class="dropdown-menu">
+                            {% for user in addable_attn_marker %}
+                                <li class="p-2">
+                                    <!-- we add the vars here to get this hx-post to look like a form post -->
+                                    <span hx-post="{% url 'create_marking_task_tag' task_pk %}"
+                                          hx-vars="newTagText: '@{{ user.username }}'"
+                                          class="badge text-bg-warning fs-6 align-middle dropdown-item py-2 text-start"><i class="bi bi-plus-square pe-2"></i>@{{ user.username }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </span>
+                    {% for tag_pk, tag_text in current_attn_tags.items %}
+                        <span class="badge text-bg-warning align-middle">{{ tag_text }}
+                            <button hx-delete="{% url 'marking_task_tag' task_pk tag_pk %}"
+                                    class="btn btn-warning p-0">
+                                <i class="bi bi-backspace"></i>
+                            </button>
+                        </span>
+                    {% endfor %}
+                </span>
+            </div>
+            <div class="col-auto">
+                <div id="imageHere"></div>
+            </div>
+        </div>
+        <div class="row m-2"></div>
+        {% if status == "Complete" %}
+            <div class="row m-2">
+                <h3>Rubrics used in latest annotation</h3>
+                <table class="table table-striped table-bordered sortable table-sm table-responsive w-auto">
+                    <thead>
+                        <tr>
+                            <th>Rubric-ID</th>
+                            <th>question idx</th>
+                            <th>Kind</th>
+                            <th>Display Delta</th>
+                            <th>Text</th>
+                            <th>revision</th>
+                            <th>More details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rubric in rubrics %}
+                            <tr>
+                                <td>{{ rubric.rid }}</td>
+                                <td>{{ rubric.question_index }}</td>
+                                <td>{{ rubric.kind }}</td>
+                                <td>{{ rubric.display_delta }}</td>
+                                <td>{{ rubric.text }}</td>
+                                <td>{{ rubric.revision }}</td>
+                                <td class="text-center">
+                                    <a class="btn btn-outline-primary"
+                                       href="{% url 'rubric_item' rubric.rid %}">info</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+{% endblock main_content %}

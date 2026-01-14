@@ -1,0 +1,196 @@
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+    Copyright (C) 2023 Divy Patel
+    Copyright (C) 2023 Colin B. Macdonald
+    Copyright (C) 2023 Julian Lapenna
+    Copyright (C) 2023-2025 Andrew Rechnitzer
+    Copyright (C) 2024 Bryan Tanady
+    Copyright (C) 2024 Elisa Pan
+    Copyright (C) 2025 Aden Chan
+-->
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}
+    Spreadsheets and Reports
+{% endblock title %}
+{% block page_heading %}
+    Spreadsheets and Reports
+{% endblock page_heading %}
+{% block main_content %}
+    {% if all_marked %}
+        <div class="alert alert-success">
+            All questions have been graded. Please confirm with your TAs that marking is complete.
+        </div>
+    {% else %}
+        <div class="alert alert-danger">
+            Marking is not complete. Any spreadsheet or report you download will be incomplete.
+        </div>
+    {% endif %}
+    <div class="card m-2">
+        <div class="card-body">
+            <h5 class="card-title">Download a .csv of student grades.</h5>
+            <form method="post" action="{% url 'marks_download' %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-auto">
+                        <button type="submit"
+                                class="btn {% if all_marked %}btn-primary{% else %}btn-warning{% endif %}">
+                            Download Grades
+                        </button>
+                    </div>
+                    <div class="col-auto">
+                        <input type="checkbox" name="warning_info" checked>
+                        <label for="check_warnings">warning info</label>
+                    </div>
+                    <div class="col-auto">
+                        <input type="checkbox" name="version_info" checked>
+                        <label for="check_versions">version info</label>
+                    </div>
+                    <div class="col-auto">
+                        <input type="checkbox" name="timing_info" checked>
+                        <label for="check_timing">timing info</label>
+                    </div>
+                    <div class="col-auto">
+                        <input type="checkbox" name="privacy_mode" id="privacy_mode">
+                        <label for="privacy_mode">privacy mode</label>
+                    </div>
+                    <div class="col-auto" id="privacy_mode_salt_div" style="display: none;">
+                        <input type="text" name="privacy_mode_salt">
+                        <label for="privacy_mode_salt">privacy mode salt</label>
+                    </div>
+                    <script>
+                        // Colin asks if whatever this javascript does can be replaced with htmx someday
+                        document.getElementById('privacy_mode').addEventListener('change', function() {
+                            var privacyModeSaltDiv = document.getElementById('privacy_mode_salt_div');
+                            if (this.checked) {
+                                privacyModeSaltDiv.style.display = 'block';
+                            } else {
+                                privacyModeSaltDiv.style.display = 'none';
+                            }
+                        });
+                    </script>
+                </div>
+            </form>
+            <p>
+                <ul>
+                    <li>This is a standard spreadsheet of student grading information</li>
+                    <li>We recommend that you include warning information - it will help you check that papers are ID'd and marked</li>
+                    <li>Download does not include incomplete grading actions (i.e. ungraded questions, grading in progress, etc.)</li>
+                    <li>
+                        Privacy mode replaces identifying information (name and student id) with an obfuscated code based on student ID.  Using the same salt will allow matching of students between assessments.
+                    </li>
+                </ul>
+            </p>
+        </div>
+    </div>
+    <div class="card m-2">
+        <div class="card-body">
+            <h5 class="card-title">Download a .csv of TA marking information.</h5>
+            <form method="post" action="{% url 'ta_info_download' %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-auto">
+                        <button type="submit"
+                                class="btn {% if all_marked %}btn-primary{% else %}btn-warning{% endif %}">
+                            Download marking information
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <p>
+                <ul>
+                    <li>Produces a csv of what questions were marked by which TA</li>
+                    <li>Includes username, paper, question, version, mark given, time spent grading, and last update time.</li>
+                    <li>Download does not include incomplete grading actions (i.e. ungraded questions, grading in progress, etc.)</li>
+                </ul>
+            </p>
+        </div>
+    </div>
+    <div class="card m-2">
+        <div class="card-body">
+            <h5 class="card-title">Download a .csv of annotation information.</h5>
+            <form method="post" action="{% url 'annotation_info_download' %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-auto">
+                        <button type="submit"
+                                class="btn {% if all_marked %}btn-primary{% else %}btn-warning{% endif %}">
+                            Download annotation information
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <p>
+                <ul>
+                    <li>Produces a csv of what comments were left on each paper</li>
+                </ul>
+            </p>
+        </div>
+    </div>
+    <div class="card m-2">
+        <div class="card-body">
+            <h5 class="card-title">Reports for students</h5>
+            <p>
+                These reports contain some minimal information about mark
+                distributions for each question and the total.  The reports are produced
+                when the papers are reassembled.
+            </p>
+            <p>
+                The reports are unique to each student as they also indicate
+                where the student's results appear in each distribution. If Question-Tags
+                are used then the report will also include a description of those tags
+                and information about how the student has performed in questions with
+                those tags.
+            </p>
+            <a class="btn btn-primary" href="{% url 'reassemble_pdfs' %}">go to reassembly page</a>
+        </div>
+    </div>
+    <div class="card m-2">
+        <div class="card-body">
+            <h5 class="card-title">Main Report</h5>
+            <p>
+                <ul>
+                    <li>Download the report with basic information and analysis.</li>
+                    <li>There are two reports: brief or full, please choose your graph options for brief</li>
+                    <li>By default, brief report will only include Histogram of total marks</li>
+                </ul>
+            </p>
+            <form method="post" action="{% url 'report_download' %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-auto">
+                        <button type="submit"
+                                class="btn {% if all_marked %}btn-primary{% else %}btn-warning{% endif %}"
+                                id="brief-report-btn"
+                                onclick="document.getElementById('report_type').value='brief';">
+                            Download Brief Report
+                        </button>
+                    </div>
+                    <div class="col-auto">
+                        <div class="form-check">
+                            {% for graph in graph_list %}
+                                <div class="mb-2">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="{{ graph.name }}"
+                                           id="{{ graph.name }}"
+                                           {% if graph.default %}checked{% endif %}>
+                                    <label class="form-check-label" for="{{ graph.name }}">{{ graph.title }}</label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit"
+                                class="btn {% if all_marked %}btn-primary{% else %}btn-warning{% endif %}"
+                                id="full-report-btn"
+                                onclick="document.getElementById('report_type').value='full';">
+                            Download Full Report
+                        </button>
+                    </div>
+                </div>
+                <input type="hidden" name="report_type" id="report_type" value="">
+            </form>
+        </div>
+    </div>
+{% endblock main_content %}
