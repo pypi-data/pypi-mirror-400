@@ -1,0 +1,178 @@
+Metadata-Version: 2.4
+Name: pyvcham
+Version: 1.0.0
+Summary: A scientific module for vibrational coupling Hamiltonian analysis.
+Author-email: Emilio Rodríguez Cuenca <emilioerc@gmail.com>
+Maintainer-email: Emilio Rodríguez Cuenca <emilioerc@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2025 Emilio Rodríguez Cuenca
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+Project-URL: Homepage, https://gitlab.com/tc-heidelberg/pyvcham
+Keywords: vibrational coupling,quantum chemistry,spectroscopy,Jahn-Teller
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Topic :: Scientific/Engineering :: Physics
+Requires-Python: <3.13,>=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE.md
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: tensorflow>=2.17.0
+Requires-Dist: matplotlib>=3.5
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=3.0; extra == "dev"
+Requires-Dist: ruff>=0.0.270; extra == "dev"
+Requires-Dist: mypy>=0.900; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: isort>=5.0; extra == "dev"
+Requires-Dist: pre-commit>=3.0; extra == "dev"
+Requires-Dist: sphinx>=5.0; extra == "dev"
+Requires-Dist: sphinx_rtd_theme>=1.0; extra == "dev"
+Requires-Dist: numpydoc>=1.0; extra == "dev"
+Provides-Extra: doc
+Requires-Dist: sphinx>=5.0; extra == "doc"
+Requires-Dist: sphinx_rtd_theme>=1.0; extra == "doc"
+Requires-Dist: numpydoc>=1.0; extra == "doc"
+Dynamic: license-file
+
+# PyVCHAM
+
+PyVCHAM is an open-source Python package designed to construct vibronic coupling (VC) Hamiltonians for complex molecular systems where the Born-Oppenheimer approximation fails. Leveraging machine learning techniques, specifically automatic differentiation via TensorFlow, PyVCHAM optimizes Hamiltonian parameters efficiently and accurately. It is built to integrate seamlessly with quantum chemistry tools, enabling high-dimensional nonadiabatic dynamics simulations with enhanced flexibility and precision.
+
+## Key Features
+
+* **Automatic Differentiation**: Uses TensorFlow to compute precise gradients of cost functions, improving optimization efficiency.
+* **Quantum Chemistry Integration**: Interfaces with tools such as [OpenMolcas](https://gitlab.com/Molcas/OpenMolcas) and [ADC-connect](https://github.com/adc-connect/adcc) for ab initio data input.
+* **Standardized JSON Format**: Proposes a structured JSON format for storing VC Hamiltonians, enhancing interoperability with dynamics software like [MCTDH](https://www.pci.uni-heidelberg.de/tc/mctdh.html).
+* **Modular Design**: Supports custom diabatic or coupling functions to adapt to specific research needs.
+* **Robust Optimization**: Employs the Adam algorithm for parameter fitting, with support for linear and higher-order vibronic coupling terms.
+* **Symmetry Handling**: Incorporates symmetry constraints to ensure physically meaningful coupling terms.
+
+## Installation
+
+PyVCHAM requires **Python 3.9+** (tested up to 3.12). We strongly recommend using a fresh Conda environment to manage dependencies like TensorFlow and NumPy.
+
+### Step 1: Create the Environment
+
+Choose the instructions matching your operating system:
+
+#### A. Linux / Windows / Intel Macs
+
+Standard installation for most users.
+
+```bash
+conda create --name pyvcham python=3.12
+conda activate pyvcham
+
+```
+
+#### B. Apple Silicon (M1/M2/M3) [Recommended]
+
+To ensure TensorFlow utilizes your Mac's GPU (Metal) and avoids architecture conflicts, force a native ARM environment:
+
+```bash
+# 1. Create a native arm64 environment
+CONDA_SUBDIR=osx-arm64 conda create -n pyvcham python=3.12
+
+# 2. Activate it
+conda activate pyvcham
+
+# 3. Permanently lock the architecture configuration
+conda config --env --set subdir osx-arm64
+
+# 4. Verify architecture (Output must be 'arm64')
+python -c "import platform; print(platform.machine())"
+
+```
+
+### Step 2: Install PyVCHAM
+
+Once your environment is active, ensure `pip` is up to date (crucial for resolving modern wheels) and then install the package.
+
+```bash
+# 1. Upgrade pip
+python -m pip install --upgrade pip
+
+# 2. Install PyVCHAM
+pip install pyvcham
+
+```
+
+#### For Developers
+
+If you want to modify the source code:
+
+```bash
+git clone https://gitlab.com/tc-heidelberg/pyvcham.git
+cd pyvcham
+pip install -e ".[dev]"
+
+```
+
+### Running Examples
+
+If you plan to run the tutorials or examples provided in the documentation, please install Pandas:
+
+```bash
+pip install pandas
+
+```
+
+## Usage
+
+PyVCHAM enables the construction of VC Hamiltonians using a multi-point approach, fitting ab initio data to analytical potential energy surfaces. A typical workflow includes:
+
+1. **Prepare Input Data**: Gather normal mode data, ab initio energies, symmetry information, and harmonic frequencies.
+2. **Build Database**: Create a Python object containing the input data.
+3. **Optimize Parameters**: Use PyVCHAM to fit the VC Hamiltonian parameters, starting with linear vibronic coupling (LVC) and adding higher-order terms as needed.
+4. **Export Results**: Save the optimized Hamiltonian in the standardized JSON format.
+
+For detailed examples and instructions, refer to the [documentation](https://gitlab.com/tc-heidelberg/pyvcham).
+
+## Standardized JSON Format
+
+PyVCHAM introduces a standardized JSON format to store VC Hamiltonians, promoting data exchange and compatibility with quantum dynamics tools. The format includes:
+
+* **General Data**: System-wide details, ab initio information, and custom functions.
+* **VC Hamiltonian**: Reference geometry, units, state and mode counts, symmetry data, vertical energies, dipole matrices, and LVC parameters.
+* **Interactions** (optional): Parameters for intermolecular interactions in multi-molecule systems.
+
+This structure ensures portability and usability across platforms. Explore examples in the repository (e.g., `Examples/li3/results/lvc_li3.json`).
+
+## License
+
+PyVCHAM is released under the MIT License.
+
+## Citations
+
+If you use PyVCHAM in your research, please cite our paper:
+
+[In preparation]
+
+PyVCHAM builds on foundational work in vibronic coupling, including:
+
+* Köppel, H.; Domcke, W.; Cederbaum, L. S. "Multimode Molecular Dynamics Beyond the Born-Oppenheimer Approximation," *Advances in Chemical Physics* **1984**, 57, 59–246.
