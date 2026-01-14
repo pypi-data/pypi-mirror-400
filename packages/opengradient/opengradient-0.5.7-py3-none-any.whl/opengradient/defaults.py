@@ -1,0 +1,12 @@
+# Default variables
+DEFAULT_RPC_URL = "https://eth-devnet.opengradient.ai"
+DEFAULT_API_URL = "https://sdk-devnet.opengradient.ai"
+DEFAULT_OG_FAUCET_URL = "https://faucet.opengradient.ai/?address="
+DEFAULT_HUB_SIGNUP_URL = "https://hub.opengradient.ai/signup"
+DEFAULT_INFERENCE_CONTRACT_ADDRESS = "0x8383C9bD7462F12Eb996DD02F78234C0421A6FaE"
+DEFAULT_SCHEDULER_ADDRESS = "0x7179724De4e7FF9271FA40C0337c7f90C0508eF6"
+DEFAULT_BLOCKCHAIN_EXPLORER = "https://explorer.opengradient.ai/tx/"
+DEFAULT_IMAGE_GEN_HOST = "18.217.25.69"
+DEFAULT_IMAGE_GEN_PORT = 5125
+DEFAULT_LLM_SERVER_URL = "http://35.225.197.84:8000"
+DEFAULT_OPENGRADIENT_LLM_SERVER_URL = "https://llm.opengradient.ai"
