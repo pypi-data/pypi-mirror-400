@@ -1,0 +1,109 @@
+---
+name: dist
+
+on:
+  pull_request:
+  push:
+    branches:
+    - main
+    tags:
+    - '*'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: psf/black@stable
+
+  check-mypy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
+    - name: Install requirements
+      run: |
+        pip --disable-pip-version-check install mypy
+        pip --disable-pip-version-check install -e .
+        pip --disable-pip-version-check install -r tests/requirements.txt
+    - name: Run mypy
+      uses: liskin/gh-problem-matcher-wrap@v2
+      with:
+        linters: mypy
+        run: mypy --show-column-numbers .
+  
+  #
+  # Build a wheel
+  #
+
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: 3.8
+
+    - run: pipx run build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist
+  
+  test:
+    needs: [build]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ["ubuntu-22.04", "macos-14", "windows-2022"]
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist
+
+    - name: Install
+      shell: bash
+      working-directory: dist
+      run: python -m pip --disable-pip-version-check install *.whl
+
+    - name: Install test dependencies
+      working-directory: tests
+      run: python -m pip --disable-pip-version-check install -r requirements.txt
+
+    - name: Test wheel
+      working-directory: tests
+      run: python run_tests.py
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [check, check-mypy, build, test]
+    permissions:
+      id-token: write
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
