@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+{% macro next_and_prev_button(next=True) %}
+<div class="col-12 d-flex justify-content-between">
+    <button type="button" class="btn btn-primary btn-next" data-next-target="#tab-import-data"
+        data-additional-button="#tab-group-project">
+        <i class="bi bi-chevron-left"></i> Back
+    </button>
+    {% if next %}
+    <button type="submit" class="btn btn-primary">
+        <i class="bi bi-chevron-right"></i>
+        <span>Next</span>
+    </button>
+    {% endif %}
+</div>
+{% endmacro %}
+<div class="container py-4">
+    <div class="row">
+        <!-- Form Title -->
+        <div class="col-12 text-center mb-4">
+            <h1 class="fs-3 fw-bold">Collection(s) - Select Data</h1>
+            <p class="text-muted">Choose folders containing TEI/XML documents.</p>
+        </div>
+        {% set selectable_folders = project.get_selectable_folders() %}
+
+        {% if selectable_folders|length == 0 %}
+        <div class="col-12 text-center">
+            <div class="alert alert-warning" role="alert">
+                <p>
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>No folders available!</strong>
+                </p>
+                <p>
+                    Please upload files in the previous step before continuing.
+                </p>
+            </div>
+        </div>
+        {{ next_and_prev_button(next=False) }}
+
+        {% else %}
+        <form class="js-tab-submit" method="POST"
+            action="{{ url_for('collection.tab_select_directories', projectname=project.path) }}"
+            data-next-target="#tab-set-collections">
+            <div class="row">
+                {% for folder in selectable_folders %}
+                <div class="col-md-4 mb-3">
+                    <div class="card {{ 'border-primary' if folder.path
+                                    in selected_directories else 'border-secondary' }}">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ folder.name }}</h5>
+                            <p class="card-text text-muted">{{ folder.relative_path }}</p>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_folder"
+                                    value="{{ folder.path }}" id="folder-{{ loop.index }}" {{ 'checked' if folder.path
+                                    in selected_directories else '' }}>
+                                <label class="form-check-label" for="folder-{{ loop.index }}">
+                                    Select this folder
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {{ next_and_prev_button() }}
+        </form>
+        {% endif %}
+    </div>
+</div>
