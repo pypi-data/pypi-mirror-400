@@ -1,0 +1,88 @@
+name: Tag
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  # ---- Quality Checks ----
+  pre-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - uses: pre-commit/action@v3.0.0
+
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Set up Python environment
+        run: uv sync --group test
+      - name: Run Tests
+        run: uv run pytest --junit-xml=testresults/test-client.xml
+
+  # ---- Publish ----
+  build-and-publish:
+    runs-on: ubuntu-latest
+    needs: ["unittest", "pre-commit"]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set version and build
+        run: |
+          uv build
+
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{secrets.PYPI_LIB_TOKEN}}
+        run: uv publish
+
+  publish-docs:
+    runs-on: ubuntu-latest
+    needs: ["build-and-publish"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Git Credentials
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Install dependencies for docs
+        run: uv sync
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+      - name: Deploy docs
+        run: uv run mkdocs gh-deploy --force
