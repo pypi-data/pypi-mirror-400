@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Pre-commit hook: Run linting, security, and freshness checks before committing
+#
+# This hook runs:
+# - Ruff: Python linting (pycodestyle, pyflakes, security rules)
+# - Bandit: Security-focused static analysis
+# - Schema check: Verify docs/schema.json is up-to-date with dataclasses
+#
+# To bypass this hook (not recommended): git commit --no-verify
+
+set -euo pipefail
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+echo "🔍 Running pre-commit checks..."
+
+# Require ruff
+if ! command -v ruff &> /dev/null; then
+    echo -e "${RED}✗ ruff not installed${NC}"
+    echo "  Install with: pip install ruff"
+    exit 1
+fi
+
+# Require bandit
+if ! command -v bandit &> /dev/null; then
+    echo -e "${RED}✗ bandit not installed${NC}"
+    echo "  Install with: pip install bandit"
+    exit 1
+fi
+
+# Run ruff
+echo -n "  Ruff (linting)... "
+if ruff check src/ tests/ --quiet 2>/dev/null; then
+    echo -e "${GREEN}✓${NC}"
+else
+    echo -e "${RED}✗${NC}"
+    echo ""
+    echo -e "${RED}Ruff found issues:${NC}"
+    ruff check src/ tests/
+    exit 1
+fi
+
+# Run bandit
+echo -n "  Bandit (security)... "
+if bandit -r src/ -c pyproject.toml --quiet 2>/dev/null; then
+    echo -e "${GREEN}✓${NC}"
+else
+    echo -e "${RED}✗${NC}"
+    echo ""
+    echo -e "${RED}Bandit found security issues:${NC}"
+    bandit -r src/ -c pyproject.toml
+    exit 1
+fi
+
+# Check schema freshness (fast check - just JSON comparison)
+echo -n "  Schema (freshness)... "
+if ./scripts/generate-schema --check >/dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC}"
+else
+    echo -e "${RED}✗${NC}"
+    echo ""
+    echo -e "${RED}Schema is out of date. Run:${NC}"
+    echo "  ./scripts/generate-schema"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Pre-commit checks passed${NC}"

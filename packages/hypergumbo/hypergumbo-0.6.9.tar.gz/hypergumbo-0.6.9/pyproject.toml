@@ -1,0 +1,145 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hypergumbo"
+version = "0.6.9"
+description = "Local-first repo behavior map generator (MVP)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Hypergumbo contributors" }]
+keywords = ["static-analysis", "code-graph", "cli", "local-first"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+  # All language analyzers included by default
+  "tree-sitter>=0.21",
+  "tree-sitter-javascript>=0.21",
+  "tree-sitter-typescript>=0.21",
+  "tree-sitter-php>=0.23",
+  "tree-sitter-c>=0.21",
+  "tree-sitter-java>=0.21",
+  "tree-sitter-rust>=0.21",
+  "tree-sitter-go>=0.21",
+  "tree-sitter-ruby>=0.21",
+  "tree-sitter-kotlin>=1.0",
+  "tree-sitter-swift>=0.0.1",
+  "tree-sitter-scala>=0.23",
+  "tree-sitter-lua>=0.0.14",
+  "tree-sitter-haskell>=0.21",
+  "tree-sitter-agda>=0.2.1",
+  "tree-sitter-ocaml>=0.21",
+  "tree-sitter-language-pack>=0.13",  # Elixir, COBOL, Dart, LaTeX, R
+  "tree-sitter-solidity>=0.0.1",
+  "tree-sitter-c-sharp>=0.21",
+  "tree-sitter-cpp>=0.22",
+  "tree-sitter-zig>=0.0.1",
+  "tree-sitter-groovy>=0.1",
+  "tree-sitter-julia>=0.23",
+  "tree-sitter-bash>=0.21",
+  "tree-sitter-objc>=3.0",
+  "tree-sitter-hcl>=1.2",
+  # Additional analyzers
+  "tree-sitter-cmake>=0.7",
+  "tree-sitter-css>=0.21",
+  "tree-sitter-cuda>=0.20",
+  "tree-sitter-dockerfile>=0.2",
+  "tree-sitter-fortran>=0.1",
+  "tree-sitter-glsl>=0.1",
+  "tree-sitter-graphql>=0.1",
+  "tree-sitter-html>=0.20",
+  "tree-sitter-json>=0.21",
+  "tree-sitter-make>=1.1",
+  "tree-sitter-nix>=0.1",
+  "tree-sitter-sql>=0.3",
+  "tree-sitter-toml>=0.6",
+  "tree-sitter-verilog>=1.0",
+  "tree-sitter-vhdl>=1.2",
+  "tree-sitter-wgsl>=0.0.1",
+  "tree-sitter-xml>=0.6",
+  "tree-sitter-yaml>=0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=5",
+  "openai>=1.0",  # For testing LLM-assisted plan generation
+  "ruff>=0.8",
+  "bandit>=1.8",
+  "pip-audit>=2.7",
+  "jsonschema>=4.18",  # For schema validation tests (4.18+ uses referencing)
+  # Note: sentence-transformers not in dev deps due to 1GB+ torch dependency
+  # Embedding tests skip gracefully when unavailable
+]
+llm-assist = [
+  "openai>=1.0",
+]
+llm-local = [
+  "llm>=0.19",
+]
+embeddings = [
+  "sentence-transformers>=2.2",  # For embedding-based config extraction
+]
+
+[project.scripts]
+hypergumbo = "hypergumbo.cli:main"
+
+[tool.pytest.ini_options]
+# Filter expected warnings from tests
+filterwarnings = [
+    # tree-sitter unavailability in fallback tests
+    "ignore:tree-sitter-.*not available:UserWarning",
+    "ignore:.*analysis skipped.*requires tree-sitter:UserWarning",
+    # tree-sitter deprecation warnings (older grammar packages)
+    "ignore:int argument support is deprecated:DeprecationWarning",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hypergumbo"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E",      # pycodestyle errors
+  "W",      # pycodestyle warnings
+  "F",      # pyflakes
+  "B",      # flake8-bugbear
+  "C4",     # flake8-comprehensions
+  "S",      # flake8-bandit (security rules)
+  "RUF",    # ruff-specific rules
+]
+ignore = [
+  "E501",     # Line too long (existing code has long lines)
+  "S101",     # Use of assert (fine for tests and internal checks)
+  "S105",     # Hardcoded password (false positives on PASS_ID, etc.)
+  "S106",     # Hardcoded password (false positives)
+  "S110",     # Try-except-pass (sometimes valid pattern)
+  "RUF059",   # Unused unpacked variable (intentional _var pattern)
+  "RUF005",   # Collection literal concatenation (stylistic, low priority)
+  "B028",     # No explicit stacklevel (TODO: fix in future PR)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use assert, hardcoded values, subprocess, temp paths
+"tests/**/*.py" = ["S101", "S105", "S106", "S603", "S108", "E741", "F841", "RUF005"]
+# Conditional imports for optional tree-sitter deps
+"src/hypergumbo/analyze/*.py" = ["E402"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+skips = [
+  "B101",  # assert_used - fine for production code assertions
+  "B105",  # hardcoded_password_string - false positives on PASS_ID, PASS_VERSION
+  "B110",  # try_except_pass - intentional pattern for optional analyzers
+]
