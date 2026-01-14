@@ -1,0 +1,256 @@
+# Grok Code
+
+[![PyPI version](https://img.shields.io/pypi/v/grokcode.svg)](https://pypi.org/project/grokcode/)
+[![Python versions](https://img.shields.io/pypi/pyversions/grokcode.svg)](https://pypi.org/project/grokcode/)
+[![Downloads](https://img.shields.io/pypi/dm/grokcode.svg)](https://pypi.org/project/grokcode/)
+[![License](https://img.shields.io/github/license/maximus242/grokcode)](https://github.com/maximus242/grokcode/blob/master/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/maximus242/grokcode)](https://github.com/maximus242/grokcode/stargazers)
+[![Homebrew](https://img.shields.io/badge/homebrew-available-orange)](https://github.com/maximus242/homebrew-tap)
+
+An agentic CLI coding assistant powered by xAI's Grok API or OpenRouter.
+
+## Quick Install
+
+```bash
+# pip (all platforms)
+pip install grokcode
+
+# Homebrew (macOS/Linux)
+brew install maximus242/tap/grokcode
+
+# pipx (isolated install)
+pipx install grokcode
+```
+
+Then add your API key:
+
+```bash
+# xAI (default)
+grokcode login
+# or
+export XAI_API_KEY='your-key'
+
+# OpenRouter (alternative)
+grokcode login --provider openrouter
+# or
+export OPENROUTER_API_KEY='your-key'
+```
+
+Get your API key from [xAI Console](https://console.x.ai/) or [OpenRouter](https://openrouter.ai/).
+
+## Features
+
+- **Multi-Provider Support** - Use xAI Grok or OpenRouter (Claude, GPT-4, Gemini, etc.)
+- **Dynamic Model Switching** - Switch models on the fly with `/models`
+- **Agentic Loop** - Multi-turn conversations with automatic tool use
+- **18 Built-in Tools** - File ops, git, search, web fetch, notebooks
+- **25+ Slash Commands** - Session management, git integration, theming
+- **Secure Storage** - API keys stored in system keychain
+- **Streaming** - Real-time response output
+- **Task Planning** - Ralph Wiggum Loop for complex tasks
+
+## Usage
+
+```bash
+# Interactive mode
+grokcode
+
+# With a prompt
+grokcode "fix the bug in main.py"
+
+# Use OpenRouter provider
+grokcode --provider openrouter
+
+# Use a specific model
+grokcode --model anthropic/claude-sonnet-4 --provider openrouter
+
+# Continue last session
+grokcode -c
+
+# Pipe input
+cat file.py | grokcode -p "review this code"
+```
+
+## Providers & Models
+
+Grok Code supports multiple AI providers:
+
+| Provider | Models | API Key |
+|----------|--------|---------|
+| **xAI** (default) | Grok 4.1, Grok 3, Grok 2 | `XAI_API_KEY` |
+| **OpenRouter** | Claude, GPT-4, Gemini, Llama, DeepSeek, etc. | `OPENROUTER_API_KEY` |
+
+### Switching Providers
+
+```bash
+# CLI flag
+grokcode --provider openrouter
+
+# Interactive
+> /provider openrouter
+```
+
+### Switching Models
+
+```bash
+# List available models
+grokcode --list-models
+
+# Refresh from API
+grokcode --list-models --refresh-models
+
+# Interactive
+> /models                           # list models
+> /models anthropic/claude-opus-4   # switch model
+> /models --refresh                 # refresh from API
+```
+
+## Tools
+
+The agent automatically uses these tools:
+
+| Category | Tools |
+|----------|-------|
+| **File** | `read_file`, `write_to_file`, `edit_file`, `list_files`, `glob_files` |
+| **Search** | `search_files` (grep-style) |
+| **Shell** | `execute_command` |
+| **Git** | `git_status`, `git_diff`, `git_log`, `git_add`, `git_commit`, `git_branch` |
+| **Web** | `web_fetch` |
+| **Notebook** | `notebook_edit` |
+| **Interactive** | `ask_user` |
+
+## Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show help |
+| `/clear` | Clear conversation |
+| `/compact` | Summarize old messages |
+| `/models` | List/switch models |
+| `/provider` | List/switch providers |
+| `/config` | Edit configuration |
+| `/doctor` | Health checks |
+| `/status` | Git status |
+| `/diff` | Git diff |
+| `/save` | Save session |
+| `/theme` | Switch theme |
+| `/update` | Check for updates |
+| `/exit` | Exit |
+
+## Installation Options
+
+### pip (recommended)
+
+```bash
+pip install grokcode
+```
+
+### Homebrew (macOS/Linux)
+
+```bash
+brew install maximus242/tap/grokcode
+```
+
+### From source
+
+```bash
+git clone https://github.com/maximus242/grokcode.git
+cd grokcode
+pip install -e .
+```
+
+### Standalone binaries
+
+Download from [GitHub Releases](https://github.com/maximus242/grokcode/releases):
+
+| Platform | Binary |
+|----------|--------|
+| Linux (x64) | `grokcode-linux-x64` |
+| macOS (Apple Silicon) | `grokcode-macos-arm64` |
+| macOS (Intel) | `grokcode-macos-x64` |
+| Windows | `grokcode-windows-x64.exe` |
+
+## Configuration
+
+Create `.grokcode/config.json`:
+
+```json
+{
+  "provider": "xai",
+  "model": "grok-4-1-fast-reasoning",
+  "theme": "default",
+  "hooks": {
+    "pre_tool": [],
+    "post_tool": [],
+    "on_error": []
+  }
+}
+```
+
+### Project memory
+
+Create `GROK.md` in your project root:
+
+```markdown
+# Project Overview
+
+Brief description of your project.
+
+## Build Commands
+
+npm install && npm test
+```
+
+## CLI Options
+
+```
+grokcode [PROMPT] [OPTIONS]
+
+Options:
+  -p, --prompt TEXT          Initial prompt
+  -c, --continue             Continue last session
+  -r, --resume FILE          Resume specific session
+  -m, --model MODEL          Model to use
+  --provider PROVIDER        API provider (xai, openrouter)
+  --list-models              List available models
+  --list-providers           List available providers
+  --refresh-models           Refresh models from API
+  --max-turns N              Max agent turns
+  --system-prompt TEXT       Override system prompt
+  --allowedTools TOOLS       Whitelist tools
+  --disallowedTools TOOLS    Blacklist tools
+  --output-format FORMAT     json or text
+  --verbose                  Debug output
+  --dangerously-skip-permissions  Skip confirmations
+  --version                  Show version
+```
+
+## Subcommands
+
+```bash
+grokcode update                      # Check for updates
+grokcode login                       # Store xAI API key
+grokcode login --provider openrouter # Store OpenRouter API key
+grokcode logout                      # Remove stored API key
+```
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest test_grok_code.py -v
+
+# Run with coverage
+pytest --cov=grok_code --cov-report=term-missing
+```
+
+## License
+
+MIT
+
+## Credits
+
+- Powered by [xAI Grok API](https://x.ai/) and [OpenRouter](https://openrouter.ai/)
