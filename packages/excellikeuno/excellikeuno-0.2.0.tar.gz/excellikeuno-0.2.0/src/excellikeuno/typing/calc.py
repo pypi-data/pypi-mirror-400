@@ -1,0 +1,531 @@
+from __future__ import annotations
+
+from enum import IntEnum
+from typing import Any, Protocol, runtime_checkable
+
+
+# UNO long alias for color values
+Color = int
+
+
+@runtime_checkable
+class XCell(Protocol):
+    def getValue(self) -> float:
+        ...
+
+    def setValue(self, value: float) -> None:
+        ...
+
+    def getFormula(self) -> str:
+        ...
+
+    def setFormula(self, formula: str) -> None:
+        ...
+
+
+@runtime_checkable
+class XPropertySet(Protocol):
+    def getPropertyValue(self, name: str) -> Any:
+        ...
+
+    def setPropertyValue(self, name: str, value: Any) -> None:
+        ...
+
+
+@runtime_checkable
+class XSpreadsheet(Protocol):
+    def getCellByPosition(self, column: int, row: int) -> Any:
+        ...
+
+    def getCellRangeByPosition(self, start_column: int, start_row: int, end_column: int, end_row: int) -> Any:
+        ...
+
+    def getRows(self) -> Any:
+        ...
+
+    def getColumns(self) -> Any:
+        ...
+
+
+@runtime_checkable
+class XCellRange(Protocol):
+    def getCellByPosition(self, column: int, row: int) -> Any:
+        ...
+
+    def getCellRangeByPosition(self, start_column: int, start_row: int, end_column: int, end_row: int) -> Any:
+        ...
+
+@runtime_checkable
+class XSheetCellRange(Protocol):
+    def getCells(self) -> Any:
+        ...
+    def getRangeAddressesAsString(self) -> Any:
+        ...
+    def getRangeAddresses (self) -> Any:
+        ...
+
+
+@runtime_checkable
+class XSheetCellRanges(Protocol):
+    def getCells(self) -> Any:
+        ...
+
+
+@runtime_checkable
+class XCellRangeAddressable(Protocol):
+    def getRangeAddress(self) -> Any:
+        ...
+
+@runtime_checkable
+class XColumnRowRange(Protocol):
+    def getColumns(self) -> Any:
+        ...
+
+    def getRows(self) -> Any:
+        ...
+
+@runtime_checkable
+class XTableRows(Protocol):
+    def getCount(self) -> int:
+        ...
+
+    def insertByIndex(self, index: int, count: int) -> None:
+        ...
+
+    def removeByIndex(self, index: int, count: int) -> None:
+        ...
+
+
+@runtime_checkable
+class XTableColumns(Protocol):
+    def getCount(self) -> int:
+        ...
+
+    def insertByIndex(self, index: int, count: int) -> None:
+        ...
+
+    def removeByIndex(self, index: int, count: int) -> None:
+        ...
+
+
+@runtime_checkable
+class XDrawPage(Protocol):
+    def getByIndex(self, index: int) -> Any:
+        ...
+
+    def getCount(self) -> int:
+        ...
+
+
+@runtime_checkable
+class XShapes(Protocol):
+    def getCount(self) -> int:
+        ...
+
+    def getByIndex(self, index: int) -> Any:
+        ...
+
+    def add(self, shape: Any) -> None:
+        ...
+
+    def remove(self, shape: Any) -> None:
+        ...
+
+
+@runtime_checkable
+class XDrawPageSupplier(Protocol):
+    def getDrawPage(self) -> XDrawPage:
+        ...
+
+
+@runtime_checkable
+class XShape(Protocol):
+    def getPosition(self) -> Any:
+        ...
+
+    def setPosition(self, position: Any) -> None:
+        ...
+
+    def getSize(self) -> Any:
+        ...
+
+    def setSize(self, size: Any) -> None:
+        ...
+
+
+@runtime_checkable
+class XNamed(Protocol):
+    def getName(self) -> str:
+        ...
+
+    def setName(self, name: str) -> None:
+        ...
+
+
+@runtime_checkable
+class XSpreadsheetDocument(Protocol):
+    def getSheets(self) -> Any:
+        ...
+
+@runtime_checkable
+class XMergeable(Protocol):
+    def merge(self, other: bool) -> None:
+        ...
+
+    def isMerged(self) -> bool:
+        ...
+@runtime_checkable
+class XMergeableCellRange(Protocol):
+    def merge(self, merged: bool) -> None:
+        ...
+    def isMerged(self) -> bool:
+        ...
+@runtime_checkable
+class XMergeableCell (Protocol):
+    def merge(self, merged: bool) -> None:
+        ...
+    def isMerged(self) -> bool:
+        ...
+
+
+@runtime_checkable
+class BorderLine(Protocol):
+    Color: int
+    InnerLineWidth: int
+    OuterLineWidth: int
+    LineDistance: int
+
+
+@runtime_checkable
+class TableBorder(Protocol):
+    TopLine: BorderLine
+    IsTopLineValid: bool
+    BottomLine: BorderLine
+    IsBottomLineValid: bool
+    LeftLine: BorderLine
+    IsLeftLineValid: bool
+    RightLine: BorderLine
+    IsRightLineValid: bool
+    HorizontalLine: BorderLine
+    IsHorizontalLineValid: bool
+    VerticalLine: BorderLine
+    IsVerticalLineValid: bool
+    Distance: int
+    IsDistanceValid: bool
+
+
+@runtime_checkable
+class BorderLine2(Protocol):
+    Color: int
+    InnerLineWidth: int
+    OuterLineWidth: int
+    LineDistance: int
+    LineStyle: int
+    LineWidth: int
+
+
+@runtime_checkable
+class TableBorder2(Protocol):
+    TopLine: BorderLine2
+    IsTopLineValid: bool
+    BottomLine: BorderLine2
+    IsBottomLineValid: bool
+    LeftLine: BorderLine2
+    IsLeftLineValid: bool
+    RightLine: BorderLine2
+    IsRightLineValid: bool
+    HorizontalLine: BorderLine2
+    IsHorizontalLineValid: bool
+    VerticalLine: BorderLine2
+    IsVerticalLineValid: bool
+    Distance: int
+    IsDistanceValid: bool
+
+
+@runtime_checkable
+class LineDash(Protocol):
+    Style: int
+    Dots: int
+    DotLen: int
+    Dashes: int
+    DashLen: int
+    Distance: int
+
+@runtime_checkable
+class XConnectorShape(Protocol):
+    def connectStart(self, xShape: Any, nPos: ConnectionType) -> Any:
+        ...
+    def connectEnd(self, xShape: Any, nPos: ConnectionType) -> Any:
+        ...
+    def disconnectBegin(self, xShape: ConnectionType) -> Any:
+        ...
+    def disconnectEnd(self, xShape: ConnectionType) -> Any:
+        ...
+
+class CellHoriJustify(IntEnum):
+    STANDARD = 0
+    LEFT = 1
+    CENTER = 2
+    RIGHT = 3
+    BLOCK = 4
+    REPEAT = 5
+
+
+class CellVertJustify(IntEnum):
+    STANDARD = 0
+    TOP = 1
+    CENTER = 2
+    BOTTOM = 3
+    BLOCK = 4
+
+
+class CellOrientation(IntEnum):
+    STANDARD = 0
+    TOPBOTTOM = 1
+    BOTTOMTOP = 2
+    STACKED = 3
+
+
+class ShadowLocation(IntEnum):
+    NONE = 0
+    TOP_LEFT = 1
+    TOP_RIGHT = 2
+    BOTTOM_LEFT = 3
+    BOTTOM_RIGHT = 4
+
+
+class LineStyle(IntEnum):
+    NONE = 0
+    SOLID = 1
+    DASH = 2
+    # Some runtimes expose 8/9 for ROUND/LONGROUND variants; keep strict per IDL here.
+
+
+class FontSlant(IntEnum):
+    NONE = 0
+    OBLIQUE = 1
+    ITALIC = 2
+    DONTKNOW = 3
+    REVERSE_OBLIQUE = 4
+    REVERSE_ITALIC = 5
+
+
+class FontUnderline(IntEnum):
+    NONE = 0
+    SINGLE = 1
+    DOUBLE = 2
+    DOTTED = 3
+    DONTKNOW = 4
+    DASH = 5
+    LONGDASH = 6
+    DASHDOT = 7
+    DASHDOTDOT = 8
+    SMALLWAVE = 9
+    WAVE = 10
+    DOUBLEWAVE = 11
+    BOLD = 12
+    BOLDDOTTED = 13
+    BOLDDASH = 14
+    BOLDLONGDASH = 15
+    BOLDDASHDOT = 16
+    BOLDDASHDOTDOT = 17
+    BOLDWAVE = 18
+
+
+class FontStrikeout(IntEnum):
+    NONE = 0
+    SINGLE = 1
+    DOUBLE = 2
+    BOLD = 3
+    SLASH = 4
+    X = 5
+
+class CellHoriJustify(IntEnum):
+    STANDARD = 0
+    LEFT = 1
+    CENTER = 2
+    RIGHT = 3
+    BLOCK = 4
+    REPEAT = 5
+
+class CellVertJustify(IntEnum):
+    STANDARD = 0
+    TOP = 1
+    CENTER = 2
+    BOTTOM = 3
+    BLOCK = 4
+
+class Colors(IntEnum):
+    ALICEBLUE = 0xF0F8FF
+    ANTIQUEWHITE = 0xFAEBD7
+    AQUA = 0x00FFFF
+    AQUAMARINE = 0x7FFFD4
+    AZURE = 0xF0FFFF
+    BEIGE = 0xF5F5DC
+    BISQUE = 0xFFE4C4
+    BLACK = 0x000000
+    BLANCHEDALMOND = 0xFFEBCD
+    BLUE = 0x0000FF
+    BLUEVIOLET = 0x8A2BE2
+    BROWN = 0xA52A2A
+    BURLYWOOD = 0xDEB887
+    CADETBLUE = 0x5F9EA0
+    CHARTREUSE = 0x7FFF00
+    CHOCOLATE = 0xD2691E
+    CORAL = 0xFF7F50
+    CORNFLOWERBLUE = 0x6495ED
+    CORNSILK = 0xFFF8DC
+    CRIMSON = 0xDC143C
+    CYAN = 0x00FFFF
+    DARKBLUE = 0x00008B
+    DARKCYAN = 0x008B8B
+    DARKGOLDENROD = 0xB8860B
+    DARKGRAY = 0xA9A9A9
+    DARKGREEN = 0x006400
+    DARKGREY = 0xA9A9A9
+    DARKKHAKI = 0xBDB76B
+    DARKMAGENTA = 0x8B008B
+    DARKOLIVEGREEN = 0x556B2F
+    DARKORANGE = 0xFF8C00
+    DARKORCHID = 0x9932CC
+    DARKRED = 0x8B0000
+    DARKSALMON = 0xE9967A
+    DARKSEAGREEN = 0x8FBC8F
+    DARKSLATEBLUE = 0x483D8B
+    DARKSLATEGRAY = 0x2F4F4F
+    DARKSLATEGREY = 0x2F4F4F
+    DARKTURQUOISE = 0x00CED1
+    DARKVIOLET = 0x9400D3
+    DEEPPINK = 0xFF1493
+    DEEPSKYBLUE = 0x00BFFF
+    DIMGRAY = 0x696969
+    DIMGREY = 0x696969
+    DODGERBLUE = 0x1E90FF
+    FIREBRICK = 0xB22222
+    FLORALWHITE = 0xFFFAF0
+    FORESTGREEN = 0x228B22
+    FUCHSIA = 0xFF00FF
+    GAINSBORO = 0xDCDCDC
+    GHOSTWHITE = 0xF8F8FF
+    GOLD = 0xFFD700
+    GOLDENROD = 0xDAA520
+    GRAY = 0x808080
+    GREEN = 0x008000
+    GREENYELLOW = 0xADFF2F
+    GREY = 0x808080
+    HONEYDEW = 0xF0FFF0
+    HOTPINK = 0xFF69B4
+    INDIANRED = 0xCD5C5C
+    INDIGO = 0x4B0082
+    IVORY = 0xFFFFF0
+    KHAKI = 0xF0E68C
+    LAVENDER = 0xE6E6FA
+    LAVENDERBLUSH = 0xFFF0F5
+    LAWNGREEN = 0x7CFC00
+    LEMONCHIFFON = 0xFFFACD
+    LIGHTBLUE = 0xADD8E6
+    LIGHTCORAL = 0xF08080
+    LIGHTCYAN = 0xE0FFFF
+    LIGHTGOLDENRODYELLOW = 0xFAFAD2
+    LIGHTGRAY = 0xD3D3D3
+    LIGHTGREEN = 0x90EE90
+    LIGHTGREY = 0xD3D3D3
+    LIGHTPINK = 0xFFB6C1
+    LIGHTSALMON = 0xFFA07A
+    LIGHTSEAGREEN = 0x20B2AA
+    LIGHTSKYBLUE = 0x87CEFA
+    LIGHTSLATEGRAY = 0x778899
+    LIGHTSLATEGREY = 0x778899
+    LIGHTSTEELBLUE = 0xB0C4DE
+    LIGHTYELLOW = 0xFFFFE0
+    LIME = 0x00FF00
+    LIMEGREEN = 0x32CD32
+    LINEN = 0xFAF0E6
+    MAGENTA = 0xFF00FF
+    MAROON = 0x800000
+    MEDIUMAQUAMARINE = 0x66CDAA
+    MEDIUMBLUE = 0x0000CD
+    MEDIUMORCHID = 0xBA55D3
+    MEDIUMPURPLE = 0x9370DB
+    MEDIUMSEAGREEN = 0x3CB371
+    MEDIUMSLATEBLUE = 0x7B68EE
+    MEDIUMSPRINGGREEN = 0x00FA9A
+    MEDIUMTURQUOISE = 0x48D1CC
+    MEDIUMVIOLETRED = 0xC71585
+    MIDNIGHTBLUE = 0x191970
+    MINTCREAM = 0xF5FFFA
+    MISTYROSE = 0xFFE4E1
+    MOCCASIN = 0xFFE4B5
+    NAVAJOWHITE = 0xFFDEAD
+    NAVY = 0x000080
+    OLDLACE = 0xFDF5E6
+    OLIVE = 0x808000
+    OLIVEDRAB = 0x6B8E23
+    ORANGE = 0xFFA500
+    ORANGERED = 0xFF4500
+    ORCHID = 0xDA70D6
+    PALEGOLDENROD = 0xEEE8AA
+    PALEGREEN = 0x98FB98
+    PALETURQUOISE = 0xAFEEEE
+    PALEVIOLETRED = 0xDB7093
+    PAPAYAWHIP = 0xFFEFD5
+    PEACHPUFF = 0xFFDAB9
+    PERU = 0xCD853F
+    PINK = 0xFFC0CB
+    PLUM = 0xDDA0DD
+    POWDERBLUE = 0xB0E0E6
+    PURPLE = 0x800080
+    REBECCAPURPLE = 0x663399
+    RED = 0xFF0000
+    ROSYBROWN = 0xBC8F8F
+    ROYALBLUE = 0x4169E1
+    SADDLEBROWN = 0x8B4513
+    SALMON = 0xFA8072
+    SANDYBROWN = 0xF4A460
+    SEAGREEN = 0x2E8B57
+    SEASHELL = 0xFFF5EE
+    SIENNA = 0xA0522D
+    SILVER = 0xC0C0C0
+    SKYBLUE = 0x87CEEB
+    SLATEBLUE = 0x6A5ACD
+    SLATEGRAY = 0x708090
+    SLATEGREY = 0x708090
+    SNOW = 0xFFFAFA
+    SPRINGGREEN = 0x00FF7F
+    STEELBLUE = 0x4682B4
+    TAN = 0xD2B48C
+    TEAL = 0x008080
+    THISTLE = 0xD8BFD8
+    TOMATO = 0xFF6347
+    TURQUOISE = 0x40E0D0
+    VIOLET = 0xEE82EE
+    WHEAT = 0xF5DEB3
+    WHITE = 0xFFFFFF
+    WHITESMOKE = 0xF5F5F5
+    YELLOW = 0xFFFF00
+    YELLOWGREEN = 0x9ACD32
+
+class ConnectionType(IntEnum):
+    AUTO = 0
+    LEFT = 1
+    TOP = 2
+    RIGHT = 3
+    BOTTOM = 4
+    SPECIAL = 5
+
+class BorderLineStyle(IntEnum):
+    NONE = 0x7FFF
+    SOLID = 0
+    DOTTED = 1
+    DASHED = 2
+    DOUBLE = 3
+class TextHorizontalAdjust(IntEnum):
+    LEFT = 0
+    CENTER = 1
+    RIGHT = 2
+    BLOCK = 3
+class TextVerticalAdjust(IntEnum):
+    TOP = 0
+    CENTER = 1
+    BOTTOM = 2
+    BLOCK = 3
