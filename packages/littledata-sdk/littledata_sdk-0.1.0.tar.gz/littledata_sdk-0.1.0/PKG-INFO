@@ -1,0 +1,317 @@
+Metadata-Version: 2.4
+Name: littledata-sdk
+Version: 0.1.0
+Summary: Python SDK for LittleData AI Risk & Governance Platform - Monitor, secure, and govern your AI applications
+Project-URL: Homepage, https://littledata.ai
+Project-URL: Documentation, https://littledata.ai/docs
+Project-URL: Repository, https://github.com/littledata-ai/littledata-sdk
+Project-URL: Changelog, https://github.com/littledata-ai/littledata-sdk/blob/main/CHANGELOG.md
+Project-URL: Issues, https://github.com/littledata-ai/littledata-sdk/issues
+Author-email: LittleData <support@littledata.ai>
+Maintainer-email: LittleData <support@littledata.ai>
+License: MIT
+License-File: LICENSE
+Keywords: ai,anthropic,dlp,gemini,governance,llm,monitoring,observability,openai,privacy,risk,security
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Monitoring
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Requires-Dist: httpx>=0.26.0
+Requires-Dist: pydantic>=2.5.0
+Provides-Extra: all
+Requires-Dist: starlette>=0.27.0; extra == 'all'
+Provides-Extra: dev
+Requires-Dist: mypy>=1.7.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.23.0; extra == 'dev'
+Requires-Dist: pytest-httpx>=0.30.0; extra == 'dev'
+Requires-Dist: pytest>=7.4.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Provides-Extra: middleware
+Requires-Dist: starlette>=0.27.0; extra == 'middleware'
+Description-Content-Type: text/markdown
+
+# LittleData SDK
+
+Python SDK for the [LittleData AI Risk & Governance Platform](https://littledata.ai) - Monitor, secure, and govern your AI applications.
+
+## Features
+
+- **Real-time Monitoring**: Track all AI/LLM interactions with <5ms latency overhead
+- **DLP Protection**: Pre-flight content scanning to block or redact sensitive data
+- **Privacy Detection**: Automatic PII detection in prompts and responses
+- **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, and more
+- **Async Batching**: Non-blocking event recording with automatic batching
+- **Circuit Breaker**: Built-in fault tolerance for production reliability
+
+## Installation
+
+```bash
+pip install littledata-sdk
+```
+
+For FastAPI/Starlette middleware support:
+
+```bash
+pip install littledata-sdk[middleware]
+```
+
+## Quick Start
+
+### 1. Get Your API Key
+
+Sign up at [littledata.ai](https://littledata.ai) to get your API key.
+
+### 2. Initialize the Client
+
+```python
+from ai_risk_sdk import AIRiskClient
+
+# Initialize the client
+client = AIRiskClient(
+    api_key="airisk_your_api_key_here",
+    endpoint="https://littledata.ai"
+)
+```
+
+### 3. Record AI Events
+
+```python
+import uuid
+
+# Generate a trace ID for the interaction
+trace_id = uuid.uuid4()
+
+# Record a complete AI interaction
+client.record_event(
+    event_type="llm_request",
+    trace_id=trace_id,
+    prompt="What is the capital of France?",
+    response="The capital of France is Paris.",
+    model_id="gpt-4",
+    model_provider="openai",
+    token_count_input=10,
+    token_count_output=8,
+    latency_ms=250,
+)
+
+# Don't forget to close the client when done
+client.close()
+```
+
+## Usage Patterns
+
+### Using as Context Manager
+
+```python
+from ai_risk_sdk import AIRiskClient
+
+with AIRiskClient(api_key="airisk_...", endpoint="https://littledata.ai") as client:
+    client.record_event(
+        event_type="llm_request",
+        prompt="Hello, world!",
+        response="Hello! How can I help you?",
+        model_id="claude-3-sonnet",
+        model_provider="anthropic",
+    )
+# Client automatically flushes and closes
+```
+
+### Using the Decorator
+
+```python
+from ai_risk_sdk import AIRiskClient, track_ai_call
+import openai
+
+client = AIRiskClient(api_key="airisk_...", endpoint="https://littledata.ai")
+
+@track_ai_call(client, model_id="gpt-4", model_provider="openai")
+def generate_response(prompt: str) -> str:
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
+
+# The decorator automatically tracks the prompt, response, and latency
+result = generate_response("Explain quantum computing in simple terms")
+```
+
+### Async Support
+
+```python
+from ai_risk_sdk import AIRiskClient, track_ai_call
+import anthropic
+
+client = AIRiskClient(api_key="airisk_...", endpoint="https://littledata.ai")
+
+@track_ai_call(client, model_id="claude-3-sonnet", model_provider="anthropic")
+async def generate_async(prompt: str) -> str:
+    client = anthropic.AsyncAnthropic()
+    message = await client.messages.create(
+        model="claude-3-sonnet-20240229",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return message.content[0].text
+
+# Works seamlessly with async functions
+result = await generate_async("What is machine learning?")
+```
+
+### DLP Pre-flight Checks
+
+Scan content for sensitive data before sending to an LLM:
+
+```python
+from ai_risk_sdk import AIRiskClient
+
+client = AIRiskClient(
+    api_key="airisk_...",
+    endpoint="https://littledata.ai",
+    enable_dlp=True,
+)
+
+# Check content before sending to LLM
+user_input = "My SSN is 123-45-6789 and email is john@example.com"
+
+dlp_result = client.evaluate_dlp_sync(content=user_input, direction="input")
+
+if dlp_result["action"] == "block":
+    print(f"Blocked: Sensitive data detected")
+elif dlp_result["action"] == "redact":
+    # Use the redacted content instead
+    safe_input = dlp_result["redacted_content"]
+    # Send safe_input to LLM
+else:
+    # Content is safe to send
+    pass
+```
+
+### FastAPI Middleware
+
+```python
+from fastapi import FastAPI
+from ai_risk_sdk.middleware import AIRiskMiddleware
+
+app = FastAPI()
+
+# Add middleware for automatic tracking
+app.add_middleware(
+    AIRiskMiddleware,
+    api_key="airisk_...",
+    endpoint="https://littledata.ai",
+)
+
+@app.post("/chat")
+async def chat(prompt: str):
+    # AI calls in this endpoint are automatically tracked
+    response = call_your_llm(prompt)
+    return {"response": response}
+```
+
+## Configuration Options
+
+```python
+from ai_risk_sdk import AIRiskClient
+
+client = AIRiskClient(
+    # Required
+    api_key="airisk_...",
+
+    # API endpoint (default: https://littledata.ai)
+    endpoint="https://littledata.ai",
+
+    # Batching settings
+    batch_size=100,           # Events per batch (default: 100)
+    flush_interval_ms=1000,   # Flush interval in ms (default: 1000)
+
+    # Features
+    enable_dlp=True,          # Enable DLP checks (default: True)
+    hash_prompts=False,       # Hash prompts instead of sending full text (default: True)
+
+    # Reliability
+    timeout_ms=5000,                    # Request timeout (default: 5000)
+    circuit_breaker_threshold=5,        # Failures before circuit opens (default: 5)
+    circuit_breaker_reset_ms=30000,     # Circuit reset time (default: 30000)
+)
+```
+
+## Global Client
+
+For convenience, you can use a global client instance:
+
+```python
+import ai_risk_sdk
+
+# Initialize once at startup
+ai_risk_sdk.init(api_key="airisk_...", endpoint="https://littledata.ai")
+
+# Use anywhere in your application
+client = ai_risk_sdk.get_client()
+client.record_event(...)
+```
+
+## Event Types
+
+The SDK supports various event types:
+
+| Event Type | Description |
+|------------|-------------|
+| `llm_request` | Complete LLM request/response pair |
+| `prompt` | Standalone prompt event |
+| `response` | Standalone response event |
+| `error` | Error during AI operation |
+
+## API Reference
+
+### AIRiskClient
+
+| Method | Description |
+|--------|-------------|
+| `record_event()` | Record a generic AI event |
+| `record_prompt()` | Record a prompt event |
+| `record_response()` | Record a response event |
+| `evaluate_dlp()` | Async DLP evaluation |
+| `evaluate_dlp_sync()` | Sync DLP evaluation |
+| `flush()` | Manually flush queued events |
+| `close()` | Close client and flush remaining events |
+
+### track_ai_call Decorator
+
+```python
+@track_ai_call(
+    client,                    # AIRiskClient instance
+    model_id="gpt-4",         # Model identifier
+    model_provider="openai",  # Provider name
+    capture_prompt=True,      # Capture first argument as prompt
+    capture_response=True,    # Capture return value as response
+)
+```
+
+## Dashboard
+
+View your AI monitoring data at [littledata.ai/dashboard](https://littledata.ai/dashboard):
+
+- Real-time event stream
+- DLP violation alerts
+- Risk score trends
+- Provider distribution
+- Privacy findings
+
+## Support
+
+- Documentation: [littledata.ai/docs](https://littledata.ai/docs)
+- Issues: [GitHub Issues](https://github.com/littledata-ai/littledata-sdk/issues)
+- Email: support@littledata.ai
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
