@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+{% extends 'layout.html' %}
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="text-center">Projects</h1>
+        <p class="text-center text-muted">Manage your projects here. You can create, edit, and delete projects.</p>
+    </div>
+</div>
+<div class="row row-cols-xxl-6 row-cols-lg-4 row-cols-md-2">
+    {% for project in get_projects() %}
+    <div class="card text-center m-1">
+        <div class="card-body">
+            <h5 class="card-title">{{ project.name }}</h5>
+            <a class="btn btn-secondary btn-forward" href="project/{{ project.path }}" title="Edit project">
+                <span class="bi bi-pencil-square"></span>
+            </a>
+            <a class="btn btn-danger load-modal" title="Delete project"
+                data-url="{{ url_for('project.modal_delete_project', projectname=project.path) }}">
+                <span class="bi bi-trash"></span>
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+    <div class="card text-center mx-1">
+        <div class="card-body">
+            <h5 class="card-title">New project</h5>
+            <a class="btn btn-secondary" id="createNewProject" title="Add a new project" data-bs-toggle="modal"
+                data-bs-target="#newProject">
+                <span class="bi-plus-circle"></span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="newProject" tabindex="-1" aria-labelledby="newProjectLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('project.new_project') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="newProjectLabel">Create new Project</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" id="projectNameInput" class="form-control" name="projectname"
+                            placeholder="Projectname" value="{{ projectname }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

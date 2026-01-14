@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<div class="row">
+    {% set tg_session_id = project.main_config.get_tg_session_id(instance) %}
+    {% set is_valid_session = project.get_tgp(instance).check_session() %}
+
+    <!-- Left column: Project management -->
+    {% set action = 'upload' %}
+    {% include 'includes/get_sessionid.html' %}
+
+    <div class="col-lg-7 mb-2 mb-lg-0">
+        <div class="bg-light rounded p-4 h-100">
+
+            {% include 'includes/set_sessionid.html' %}
+
+            {% if tg_session_id %}
+            <h5 class="border-top pt-3">New project:</h5>
+            <div class="row pb-1">
+                <form class="row tab-submit js-tab-submit" method="POST"
+                    action="{{ url_for('publication.create_tg_project', projectname=project.path, action=action, instance=instance) }}">
+                    <div class="col-8">
+                        <input type="text" class="form-control" name="tg_projectname" placeholder="TG Projectname"
+                            required>
+                    </div>
+                    <div class="col-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <span class="bi bi-pencil-square"></span>
+                            <span class="spinner-border spinner-border-sm" style="display:none;" role="status"
+                                aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <h5 class="my-3 border-top pt-3">Select from existing projects</h5>
+            <div class="row pb-1">
+                {% set tg_project_id = project.main_config.get_tg_project_id(instance) %}
+                {% for tg_project in project.get_tgp(instance).get_tg_projects() %}
+                <div class="col-md-6 mb-3">
+                    <div
+                        class="card h-100 {{'border-primary' if tg_project_id == tg_project.id else 'border-secondary'}}">
+                        <div class="card-body p-3">
+                            <div class="d-flex align-items-center flex-wrap gap-3">
+                                <span class="fw-bold d-flex align-items-center">
+                                    <i class="bi bi-folder2-open me-2"></i>{{ tg_project.name }}
+                                </span>
+                                <span class="" title="Project ID">{{ tg_project.id }}</span>
+                                <span class="badge bg-primary ms-auto" title="TEI Files">TEI: {{ tg_project.tei_count
+                                    }}</span>
+                                <span class="badge bg-success" title="Images">Img: {{ tg_project.img_count }}</span>
+                                <span class="badge bg-secondary" title="Other Files">Other: {{ tg_project.other_count
+                                    }}</span>
+                            </div>
+                        </div>
+                        <div class="card-footer d-flex justify-content-between align-items-center">
+                            <form method="POST" class="js-tab-submit"
+                                action="{{ url_for('publication.save_tg_project_id', projectname=project.path, action=action, instance=instance, tg_project_id=tg_project.id) }}">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                    {% if tg_project_id == tg_project.id %}
+                                    <span class="bi bi-check-circle-fill text-primary"></span> Selected
+                                    {% else %}
+                                    <span class="bi bi-circle"></span> Select
+                                    {% endif %}
+                                </button>
+                            </form>
+                            <form method="POST" class="js-tab-submit"
+                                action="{{ url_for('publication.clear_tg_project', projectname=project.path, action=action, instance=instance, tg_project_id=tg_project.id) }}">
+                                <button type="submit" class="btn btn-sm btn-outline-warning text-secondary"
+                                    title="Clear project">
+                                    <span class="bi bi-eraser"></span> Clear
+                                </button>
+                            </form>
+                            <form method="POST" class="js-tab-submit"
+                                action="{{ url_for('publication.delete_tg_project_id', projectname=project.path, action=action, instance=instance, tg_project_id=tg_project.id) }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete project">
+                                    <span class="bi bi-trash"></span> Delete
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Rechte Spalte: Upload -->
+    <div class="col-lg-5 border-start">
+        {% if is_valid_session %}
+        <div class="bg-light rounded p-4 h-100">
+            <div class="text-center mb-4">
+                <h4 class="mb-2"><i
+                        class="bi bi-cloud-upload {% if instance == 'test' %}text-primary{% else %}text-danger{% endif %} me-2"></i>Upload
+                    to {{ instance|capitalize }} Instance</h4>
+                {% if instance == 'test' %}
+                <span class="badge bg-warning text-dark mb-2">
+                    This upload is for <b>testing purposes</b>.
+                </span>
+                {% else %}
+                <span class="badge bg-danger text-light mb-2">
+                    This starts a <b>real publication</b>.
+                    <br />
+                    Please ensure all data is correct.
+                </span>
+                {% endif %}
+            </div>
+            {% if not tg_project_id %}
+            <div class="alert alert-warning mt-3 text-center" role="alert">
+                <p>
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>No TG Project selected!</strong>
+                </p>
+                <p>
+                    Please select a project from the list above or create a new one.
+                </p>
+            </div>
+            {% else %}
+            {% set p_validation = project.get_validation_results(refresh=False, file_attributes=True) %}
+            {% set tg_project = tg_project if tg_project else project.get_tgp(instance) %}
+            {% set all_tgp_contents = tg_project.get_project_contents() %}
+            {% for c_validation in p_validation["subprojects"] %}
+            <div class="card mb-3">
+                <div class="card-header fw-bold">
+                    {{c_validation.title}}
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr class="text-center">
+                                    <th class="w-25">
+                                    </th>
+                                    <th class="w-25">
+                                        <span class="bi bi-clipboard-check" title="Ready for upload"></span>
+                                    </th>
+                                    <th class="w-25">
+                                        <span class="bi bi-cloud-arrow-up" title="Uploaded"></span>
+                                    </th>
+                                    <th class="w-25">
+                                        <span class="bi bi-cloud-check" title="Published"></span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file_name, file_errors in c_validation.files.items() %}
+                                {% if 'file_attributes' in c_validation %}
+                                {% set title = c_validation.file_attributes[file_name]['work_title'] %}
+                                {% else %}
+                                {% set title = file_name %}
+                                {% endif %}
+                                <tr>
+                                    <td class="small text-truncate" style="max-width: 12em;"
+                                        title="{{title}} ({{file_name}})">
+                                        {{title}} ({{file_name}})
+                                    </td>
+                                    <td class="text-center">
+                                        {% if len(file_errors) == 0 %}
+                                        <span class="bi bi-check-circle-fill text-success" title="No errors"></span>
+                                        {% else %}
+                                        <span class="bi bi-x-circle-fill text-danger" title="Errors detected"></span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if all_tgp_contents[title] %}
+                                        <span class="bi bi-check-circle-fill text-success" title="Uploaded"></span>
+                                        {% else %}
+                                        <span class="bi bi-dash-circle" title="Not uploaded"></span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if all_tgp_contents[title] and all_tgp_contents[title]['published'] %}
+                                        <span class="bi bi-check-circle-fill text-success" title="Published"></span>
+                                        {% else %}
+                                        <span class="bi bi-dash-circle" title="Not published"></span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if c_validation.stats.error == 0 %}
+                    <form method="POST"
+                        action="{{ url_for('publication.upload_collection', projectname=project.path, action=action, collection=c_validation.title, instance=instance) }}"
+                        class="w-100 js-tab-submit">
+                        <button type="submit" class="btn btn-success w-100 py-3" style="font-size:1.25rem;">
+                            <i class="bi bi-rocket-takeoff me-2"></i>Upload
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-danger mt-2 mb-0 p-2 small">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Validation Errors detected – please fix before uploading.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            <div class="card mb-3">
+                <div class="card-header fw-bold">
+                    Other Files
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr class="text-center">
+                                    <th class="w-25">
+                                    </th>
+                                    <th class="w-25">&nbsp;</th>
+                                    <th class="w-25">
+                                        <span class="bi bi-cloud-arrow-up" title="Uploaded"></span>
+                                    </th>
+                                    <th class="w-25">
+                                        <span class="bi bi-cloud-check" title="Published"></span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for filename in project.project_config.other_files.get_all_files() %}
+                                <tr>
+                                    <td class="small text-truncate" style="max-width: 12em;" title="{{file_name}}">
+                                        {{filename}}
+                                    </td>
+                                    <td class="text-center">&nbsp;</td>
+                                    <td class="text-center">
+                                        {% if all_tgp_contents[filename] %}
+                                        <span class="bi bi-check-circle-fill text-success" title="Uploaded"></span>
+                                        {% else %}
+                                        <span class="bi bi-dash-circle" title="Not uploaded"></span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if all_tgp_contents[filename] and all_tgp_contents[filename]['published'] %}
+                                        <span class="bi bi-check-circle-fill text-success" title="Published"></span>
+                                        {% else %}
+                                        <span class="bi bi-dash-circle" title="Not published"></span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <form method="POST"
+                        action="{{ url_for('publication.upload_other_files', projectname=project.path, action=action, instance=instance) }}"
+                        class="w-100 js-tab-submit">
+                        <button type="submit" class="btn btn-success w-100 py-3" style="font-size:1.25rem;">
+                            <i class="bi bi-rocket-takeoff me-2"></i>Upload
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
