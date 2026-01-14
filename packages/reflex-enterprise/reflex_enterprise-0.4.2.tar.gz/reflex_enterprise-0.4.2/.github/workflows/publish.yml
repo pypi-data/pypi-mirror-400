@@ -1,0 +1,57 @@
+name: Build and Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          activate-environment: true
+      - run: uv build
+      - run: uv publish --trusted-publishing always
+
+  build-enterprise:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          python-version: "3.10"
+          activate-environment: true
+      - name: Build Enterprise Wheel
+        run: uv build --wheel
+        env:
+          REFLEX_NO_CALL_HOME: "True"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+      - name: Upload to AWS CodeArtifact
+        run: |
+          aws codeartifact login --tool twine --domain reflex --domain-owner ${{ vars.AWS_ACCOUNT_ID }} --repository reflex-enterprise
+          uv pip install twine
+          uv run twine upload --repository codeartifact dist/*.whl
+      - name: Upload Enterprise wheel artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.whl
