@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Visualizer</title>
+    <!-- Highlight.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;       /* VS Code Editor BG */
+            --bg-panel: #252526;      /* VS Code Sidebar BG */
+            --border: #3e3e42;
+            --accent: #0e639c;        /* VS Code Blue */
+            --accent-hover: #1177bb;
+            --text-main: #cccccc;
+            --text-muted: #858585;
+            --highlight-line: #3a3d41;
+            --highlight-border: #007acc;
+            --error-bg: #5a1d1d;
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- Toolbar --- */
+        .toolbar {
+            height: 50px;
+            background-color: #333333;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            gap: 15px;
+            user-select: none;
+        }
+
+        .brand { font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin-right: auto;}
+        
+        .controls { display: flex; gap: 5px; align-items: center; }
+        
+        button {
+            background-color: #383838;
+            border: 1px solid #484848;
+            color: #eee;
+            padding: 5px 12px;
+            border-radius: 3px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        button:hover:not(:disabled) { background-color: #4a4a4a; }
+        button:disabled { opacity: 0.5; cursor: default; }
+        button.primary { background-color: var(--accent); border-color: var(--accent); }
+        button.primary:hover { background-color: var(--accent-hover); }
+
+        .scrubber-group {
+            display: flex;
+            flex-direction: column; /* Vertical stack for markers */
+            align-items: stretch;
+            flex: 1;
+            max-width: 500px;
+            margin: 0 20px;
+            position: relative;
+        }
+
+        .scrubber-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .timeline-markers {
+            height: 8px;
+            position: relative;
+            margin-top: 2px;
+            width: 100%;
+        }
+
+        .marker {
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            top: 0;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+        .marker:hover { opacity: 1; height: 150%; top: -2px; z-index: 10;}
+        .marker.event-call { background-color: #4ec9b0; } /* green-ish */
+        .marker.event-return { background-color: #ce9178; } /* orange-ish */
+        .marker.event-exception { background-color: #f44336; width: 4px; } /* red */
+
+        input[type="range"] { flex: 1; cursor: pointer; accent-color: var(--accent); width: 100%; margin: 0;}
+        
+        .step-display { font-family: monospace; font-size: 12px; color: var(--text-muted); min-width: 60px; text-align: right;}
+
+        /* --- Main Area --- */
+        .main-split { display: flex; flex: 1; overflow: hidden; }
+
+        /* Left Split: Code + Terminal */
+        .left-col { flex: 6; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; }
+        
+        /* Code Editor */
+        .editor-container { flex: 2; overflow: auto; background-color: var(--bg-dark); position: relative; }
+        .code-table { width: 100%; border-collapse: collapse; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; line-height: 20px; }
+        
+        .line-num {
+            width: 45px;
+            text-align: right;
+            padding-right: 15px;
+            color: #6e7681;
+            border-right: 1px solid var(--border);
+            vertical-align: top;
+        }
+        .line-code { padding-left: 15px; white-space: pre; vertical-align: top; color: #d4d4d4; }
+        
+        .line-row.active { background-color: var(--highlight-line); }
+        .line-row.active .line-num { color: #fff; border-color: var(--highlight-border); }
+        .line-row.active .line-code { box-shadow: inset 2px 0 0 0 var(--highlight-border); }
+        
+        .line-row.exception { background-color: var(--error-bg); }
+
+        /* Terminal */
+        .terminal-container {
+            height: 180px;
+            background-color: #181818; /* Darker than editor */
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            padding: 5px 15px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            background-color: #252526;
+            border-bottom: 1px solid #2d2d2d;
+            display: flex; justify-content: space-between;
+        }
+        .terminal-content {
+            flex: 1;
+            padding: 10px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            color: #dcdcdc;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+
+        /* Right Split: Debug Info */
+        .right-col { flex: 4; display: flex; flex-direction: column; background-color: var(--bg-panel); min-width: 300px; }
+        
+        .debug-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 1px solid var(--border); }
+        .debug-section.stack { flex: 0 0 150px; } /* Fixed height for stack */
+
+        .debug-content { flex: 1; overflow: auto; padding: 0; }
+
+        /* Tree View */
+        .tree-row {
+            display: flex;
+            padding: 3px 10px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            align-items: flex-start;
+            border-bottom: 1px solid transparent;
+        }
+        .tree-row:hover { background-color: #2a2d2e; }
+        .tree-key { color: #9cdcfe; margin-right: 8px; }
+        .tree-val { color: #ce9178; word-break: break-all; }
+        .tree-type { color: #4ec9b0; margin-left: 6px; font-size: 0.9em; opacity: 0.7; }
+        
+        /* Stack Items */
+        .stack-entry { padding: 6px 12px; border-bottom: 1px solid #333; color: #aaa; font-size: 13px; font-family: sans-serif; }
+        .stack-entry.active { background-color: #37373d; color: #fff; border-left: 3px solid var(--accent); }
+        .stack-fn { font-family: 'Consolas', monospace; font-weight: bold; color: #dcdcaa; }
+
+        /* Error Banner */
+        .error-overlay {
+            background: #5a1d1d;
+            border-bottom: 1px solid #f00;
+            color: #fdd;
+            padding: 10px 15px;
+            font-size: 13px;
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <div class="brand"><span>⚡</span> Python Visualizer</div>
+    
+    <div class="scrubber-group">
+        <div class="scrubber-controls">
+            <button onclick="step(-1)">◀</button>
+            <button id="btnPlay" class="primary" onclick="togglePlay()">Play</button>
+            <button onclick="step(1)">▶</button>
+            <input type="range" id="scrubber" min="0" value="0" oninput="goToStep(this.value)">
+            <div class="step-display"><span id="currStep">0</span> / <span id="maxStep">0</span></div>
+        </div>
+        <div class="timeline-markers" id="timelineMarkers"></div>
+    </div>
+
+    <div style="margin-left:auto; display:flex; align-items:center; gap:5px; font-size:12px; color:#888;">
+        <span>Speed:</span>
+        <input type="range" id="speed" min="100" max="2000" value="1000">
+    </div>
+</div>
+
+<div id="errorBanner" class="error-overlay">
+    <strong id="errType">Error</strong>: <span id="errMsg">...</span>
+</div>
+
+<div class="main-split">
+    <!-- LEFT: Code + Terminal -->
+    <div class="left-col">
+        <div class="editor-container">
+            <table class="code-table">
+                <tbody>
+                    {% for line in code_lines %}
+                    <tr class="line-row" id="L{{ loop.index }}">
+                        <td class="line-num">{{ loop.index }}</td>
+                        <td class="line-code"><code class="python">{{ line }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="terminal-container">
+            <div class="panel-header">Terminal / Output</div>
+            <div class="terminal-content" id="terminal"></div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Variables + Stack -->
+    <div class="right-col">
+        <div class="debug-section">
+            <div class="panel-header">Variables</div>
+            <div class="debug-content" id="varsContent"></div>
+        </div>
+        <div class="debug-section stack">
+            <div class="panel-header">Call Stack</div>
+            <div class="debug-content" id="stackContent"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Init syntax highlight
+    hljs.highlightAll();
+
+    const trace = {{ trace_data | tojson }};
+    const lineCounts = {{ line_counts | tojson }};
+    
+    // Calculate Heatmap
+    const counts = Object.values(lineCounts);
+    const maxCount = counts.length > 0 ? Math.max(...counts) : 0;
+    
+    if (maxCount > 0) {
+        for (const [line, count] of Object.entries(lineCounts)) {
+            const row = document.getElementById('L' + line);
+            if (row) {
+                // Calculate intensity (0.0 to 0.5 opacity red)
+                // Using Log scale usually looks better for loops
+                const intensity = Math.min(0.6, (count / maxCount) * 0.8); 
+                // We apply to looking-glass or line-num background
+                // Let's color the line number column
+                const numCol = row.querySelector('.line-num');
+                if (numCol) {
+                    // Use HSLA for redish tint
+                    numCol.style.backgroundColor = `hsla(0, 70%, 50%, ${intensity})`;
+                    numCol.title = `Executed ${count} times`;
+                }
+            }
+        }
+    }
+
+    const totalSteps = trace.length - 1;
+    let currentStep = 0;
+    let isPlaying = false;
+    let playTimer;
+
+    // Init UI
+    document.getElementById('scrubber').max = totalSteps;
+    document.getElementById('maxStep').innerText = totalSteps;
+    
+    // Init Markers
+    initMarkers();
+
+    function initMarkers() {
+        const container = document.getElementById('timelineMarkers');
+        if (!container || totalSteps === 0) return;
+        
+        trace.forEach((step, idx) => {
+            if (['call', 'return', 'exception'].includes(step.event)) {
+                const mk = document.createElement('div');
+                mk.className = `marker event-${step.event}`;
+                // Calculate position percentage
+                const pct = (idx / totalSteps) * 100;
+                mk.style.left = `${pct}%`;
+                mk.title = `Step ${idx}: ${step.event} in ${step.func_name || '?'}`;
+                mk.onclick = () => goToStep(idx);
+                container.appendChild(mk);
+            }
+        });
+    }
+
+    function render(stepIdx) {
+        stepIdx = Math.max(0, Math.min(stepIdx, totalSteps));
+        currentStep = stepIdx;
+        const state = trace[stepIdx];
+
+        // 1. Update Controls
+        document.getElementById('scrubber').value = stepIdx;
+        document.getElementById('currStep').innerText = stepIdx;
+
+        // 2. Highlight Code
+        document.querySelectorAll('.line-row').forEach(Row => {
+            Row.className = 'line-row'; // reset
+        });
+        const activeRow = document.getElementById('L' + state.line_number);
+        if (activeRow) {
+            activeRow.classList.add(state.event === 'exception' ? 'exception' : 'active');
+            activeRow.scrollIntoView({ behavior: 'auto', block: 'center' });
+        }
+
+        // 3. Output
+        const term = document.getElementById('terminal');
+        term.innerText = state.stdout || '';
+        term.scrollTop = term.scrollHeight;
+
+        // 4. Variables (Globals + Locals merged or separate? Separate is better)
+        const varsDiv = document.getElementById('varsContent');
+        varsDiv.innerHTML = '';
+        
+        // Locals
+        renderSectionHeader(varsDiv, 'LOCALS');
+        renderVariables(varsDiv, state.locals);
+
+        // Globals (only if relevant)
+        if (state.globals && Object.keys(state.globals).length > 0) {
+            renderSectionHeader(varsDiv, 'GLOBALS');
+            renderVariables(varsDiv, state.globals);
+        }
+
+        // 5. Call Stack
+        const stackDiv = document.getElementById('stackContent');
+        stackDiv.innerHTML = '';
+        // Stack in trace: ['<module>', 'main', 'foo']
+        // We show reversed
+        const stackRev = [...state.stack].reverse();
+        stackRev.forEach((fn, idx) => {
+            const div = document.createElement('div');
+            div.className = 'stack-entry' + (idx === 0 ? ' active' : '');
+            div.innerHTML = `<span class="stack-fn">${fn}</span>`;
+            stackDiv.appendChild(div);
+        });
+
+        // 6. Error Banner
+        const errBanner = document.getElementById('errorBanner');
+        if (state.event === 'exception' && state.exception) {
+            errBanner.style.display = 'block';
+            document.getElementById('errType').innerText = state.exception.type;
+            document.getElementById('errMsg').innerText = state.exception.message;
+        } else {
+            errBanner.style.display = 'none';
+        }
+    }
+
+    function renderSectionHeader(container, title) {
+        const div = document.createElement('div');
+        div.style.padding = '4px 10px';
+        div.style.background = '#2a2a2a';
+        div.style.color = '#777';
+        div.style.fontSize = '11px';
+        div.style.borderTop = '1px solid #333';
+        div.style.borderBottom = '1px solid #333';
+        div.innerText = title;
+        container.appendChild(div);
+    }
+
+    // Simplified Variable Renderer for V2 aesthetics but robust nature
+    function renderVariables(container, vars) {
+        if (!vars || Object.keys(vars).length === 0) {
+            const empty = document.createElement('div');
+            empty.style.padding = '5px 10px';
+            empty.style.fontStyle = 'italic';
+            empty.style.color = '#555';
+            empty.innerText = 'empty';
+            container.appendChild(empty);
+            return;
+        }
+        for (const [key, val] of Object.entries(vars)) {
+             container.appendChild(createVarRow(key, val));
+        }
+    }
+
+    function createVarRow(key, val) {
+        const row = document.createElement('div');
+        row.className = 'tree-row';
+        
+        // Simple visualization for now to ensure robustness
+        let displayVal = String(val);
+        let typeInfo = '';
+
+        if (val === null) displayVal = 'None';
+        else if (typeof val === 'object') {
+             // Handle our serialized types
+             if (Array.isArray(val)) {
+                 displayVal = `[ ... ${val.length} items ]`;
+                 typeInfo = 'list';
+                 // TODO: Expandable logic could go here
+             } else if (val.__type === 'set') {
+                 displayVal = `{ ... ${val.items.length} items }`;
+                 typeInfo = 'set';
+             } else if (val.__id) {
+                 displayVal = val.repr || `<${val.__type}>`;
+                 typeInfo = val.__type;
+             } else {
+                 displayVal = '{ ... }';
+                 typeInfo = 'dict';
+             }
+             
+             // Quick fix for viewing content of simple lists/dicts for "V2" feel without full tree view complexity
+             // If it's small, show it JSONified
+             if (JSON.stringify(val).length < 50) {
+                 displayVal = JSON.stringify(val);
+             }
+        } else if (typeof val === 'string') {
+            displayVal = `"${val}"`;
+            typeInfo = 'str';
+        } else {
+            typeInfo = typeof val;
+        }
+
+        row.innerHTML = `
+            <span class="tree-key">${key}</span>
+            <span class="tree-val">${displayVal}</span>
+            <span class="tree-type">${typeInfo}</span>
+        `;
+        return row;
+    }
+
+    // Controls
+    function step(dir) {
+        if (isPlaying && dir !== 0) togglePlay();
+        render(currentStep + dir);
+    }
+    
+    function goToStep(val) {
+        render(parseInt(val));
+    }
+
+    function togglePlay() {
+        const btn = document.getElementById('btnPlay');
+        if (isPlaying) {
+            isPlaying = false;
+            clearInterval(playTimer);
+            btn.innerText = 'Play';
+            btn.classList.add('primary');
+        } else {
+            isPlaying = true;
+            btn.innerText = 'Pause';
+            btn.classList.remove('primary');
+            const speed = 2100 - document.getElementById('speed').value;
+            playTimer = setInterval(() => {
+                if (currentStep < totalSteps) render(currentStep + 1);
+                else togglePlay();
+            }, speed);
+        }
+    }
+
+    // Input bindings
+    document.addEventListener('keydown', e => {
+        if (e.key === 'ArrowRight') step(1);
+        if (e.key === 'ArrowLeft') step(-1);
+        if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    });
+
+    // Start
+    render(0);
+</script>
+
+</body>
+</html>
