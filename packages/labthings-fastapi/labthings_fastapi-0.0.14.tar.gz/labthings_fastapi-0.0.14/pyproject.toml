@@ -1,0 +1,175 @@
+[project]
+name = "labthings-fastapi"
+version = "0.0.14"
+authors = [
+  { name="Richard Bowman", email="richard.bowman@cantab.net" },
+]
+description = "An implementation of LabThings using FastAPI"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "pydantic ~= 2.10.6",
+  "numpy>=1.20",
+  "jsonschema",
+  "typing_extensions",
+  "anyio ~=4.0",
+  "httpx",
+  "fastapi[all]>=0.115.0",
+  "zeroconf >=0.28.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4.0",
+  "pytest-cov",
+  "pytest-mock",
+  "mypy>=1.6.1, <2",
+  "ruff>=0.1.3",
+  "types-jsonschema",
+  "Pillow",
+  "flake8",
+  "flake8-pyproject",
+  "flake8-rst",
+  "flake8-rst-docstrings",
+  "pydoclint[flake8]",
+  "sphinx-rtd-theme",
+  "sphinx>=7.2",
+  "sphinx-autoapi",
+  "sphinx-toolbox",
+  "codespell",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/labthings/labthings-fastapi"
+"Bug Tracker" = "https://github.com/labthings/labthings-fastapi/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src"
+]
+artifacts = ["src/*.json", "src/*.jinja"]
+
+[tool.hatch.build.targets.wheel]
+artifacts = ["src/*.json", "src/*.jinja"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--cov=labthings_fastapi",
+    "--cov-report=term",
+    "--cov-report=xml:coverage.xml",
+    "--cov-report=html:htmlcov",
+    "--cov-report=lcov",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+external = ["DOC401", "F824", "DOC101", "DOC103", "DOC503"]  # used via flake8/pydoclint
+select = [
+  "ANN",   # type annotations (ensuring they are present, complements mypy)
+  "ASYNC", # flake8 async rules
+  "B",     # flake8-bugbear
+  "BLE",   # don't catch Exception
+  "C4",    # flake8-comprehension rules
+  "E",     # flake8
+  "F",     # flake8
+  "FAST",  # FastAPI rules (mostly around dependencies)
+  "D",     # pydoclint (recommended by the developers over flake8 plugin)
+  "DOC",   # pydocstyle (limited support for sphinx style: see ignores)
+  "FAST",  # FastAPI rules
+  "S",     # flake8-bandit - notably, this disallows `assert`
+]
+ignore = [
+    "D203",  # incompatible with D204
+    "D213",  # incompatible with D212
+    "DOC402",  # doesn't work with sphinx-style docstrings, use flake8/pydoclint
+    "DOC201",  # doesn't work with sphinx-style docstrings, use flake8/pydoclint
+    "DOC501",  # doesn't work with sphinx-style docstrings, use flake8/pydoclint
+    "DOC502",  # doesn't work with sphinx-style docstrings, use flake8/pydoclint
+    "B008",  # This disallows function calls in default values.
+    # FastAPI Depends() breaks this rule, and FastAPI's response is "disable it".
+    # see https://github.com/fastapi/fastapi/issues/1522
+    "ANN401",  # ANN401 disallows Any. There are quite a few places where Any is
+    # needed for dynamically typed code.
+]
+preview = true
+
+[tool.ruff.lint.per-file-ignores]
+# Tests are currently not fully docstring-ed, we'll ignore this for now.
+"tests/*" = [
+    "D",      # Tests are not yet fully covered by docstrings
+    "DOC",    # Tests are not yet fully covered by docstrings
+    "ANN",    # We don't require type hints in test code.
+    "S101",   # S101 disallows assert. That's not appropriate for tests.
+]
+# Typing tests do have docstrings, but it's not helpful to insist on imperative
+# mood etc.
+"typing_tests/*" = ["D404", "D401"]
+# The docs config file is a python file, but doesn't conform to the usual rules.
+"docs/source/conf.py" = ["D", "DOC", "ANN"]
+
+[tool.ruff.lint.pydocstyle]
+# This lets the D401 checker understand that decorated thing properties and thing
+# settings act like properties so should be documented as such.
+property-decorators = [
+    "labthings_fastapi.property",
+    "labthings_fastapi.setting",
+]
+
+[tool.mypy]
+files = ["src/", "typing_tests/"]
+plugins = ["pydantic.mypy"]
+disallow_untyped_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_unused_ignores = true
+
+
+[tool.flake8]
+extend-ignore = [
+  "DOC301",  # allow class + __init__ docstrings
+  "F401",  # already implemented by ruff, which respects "import x as x"
+  "E301",  # leave this to ruff (blank lines)
+  "E302",  # leave this to ruff (blank lines)
+  "E501",  # leave this to ruff (line length), #noqa may exceed max line length.
+]
+max-line-length = 88
+rst-roles = [
+    "class",
+    "func",
+    "mod",
+    "ref",
+    "deco",
+    "doc",
+]
+rst-directives = [
+    "todo",
+]
+style = "sphinx"
+arg-type-hints-in-docstring = false
+skip-checking-short-docstrings = false
+allow-init-docstring = true
+check-style-mismatch = true
+show-filenames-in-every-violation-message = true
+check-return-types = false
+check-class-attributes = false  # prefer docstrings on the attributes
+check-yield-types = false  # use type annotations instead
+
+[project.scripts]
+labthings-server = "labthings_fastapi.server.cli:serve_from_cli"
