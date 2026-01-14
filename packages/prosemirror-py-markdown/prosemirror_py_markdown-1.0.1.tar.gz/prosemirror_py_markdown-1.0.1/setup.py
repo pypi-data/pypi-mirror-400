@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+# -*- coding:utf-8 _*-
+"""
+@file: setup
+@author: ghnjk
+@create: 2023/8/26
+"""
+from setuptools import setup, find_packages
+
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+    long_description = long_description.replace(
+        "[中文指引](README_CN.md)",
+        "[中文指引](https://github.com/big-camel/prosemirror-py-markdown/blob/main/README_CN.md)"
+    )
+    long_description = long_description.replace(
+        "(pmconverter/prose_mirror_std_models.py)",
+        "(https://github.com/big-camel/prosemirror-py-markdown/blob/main/pmconverter/prose_mirror_std_models.py)"
+    )
+    long_description = long_description.replace(
+        "(pmconverter/extensions/iwiki_models.py)",
+        "(https://github.com/big-camel/prosemirror-py-markdown/blob/main/pmconverter/extensions/iwiki_models.py)"
+    )
+
+setup(
+    name='prosemirror-py-markdown',
+    version='1.0.1',
+    author='YiYang',
+    author_email='me@aomao.com',
+    url='https://github.com/big-camel/prosemirror-py-markdown',
+    description=u'Python implementation of converting ProseMirror doc to markdown with TaskList support',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent"
+    ],
+    packages=find_packages(exclude=['tests', 'tests.*', '.venv', '.venv.*']),
+    package_data={
+        'pmconverter': ['extensions/*.py'],
+    },
+    install_requires=[],
+    license='MIT',
+    keywords='prosemirror markdown pmconverter html python-converter tasklist task-list'
+)
