@@ -1,0 +1,31 @@
+# Netlify configuration for Truthound Dashboard Demo
+
+[build]
+  # Build command
+  command = "npm run build:demo"
+  # Output directory
+  publish = "dist"
+
+[build.environment]
+  # Node version
+  NODE_VERSION = "20"
+  # Enable mock API for demo
+  VITE_MOCK_API = "true"
+
+# SPA fallback - redirect all routes to index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cache static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Cache service worker with short TTL
+[[headers]]
+  for = "/mockServiceWorker.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
