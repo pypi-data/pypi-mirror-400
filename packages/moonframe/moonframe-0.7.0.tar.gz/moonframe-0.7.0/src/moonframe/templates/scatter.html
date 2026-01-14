@@ -1,0 +1,1506 @@
+<html>
+
+<head>
+    <!-- d3 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- UI : bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fjalla+One&family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="container-fluid">
+        <br>
+        <div class="row">
+            <!-- START OF FORM -->
+            <div class="col-sm-2" style="margin-top:100px">
+                <form>
+                    <!-- X-axis selector -->
+                    <div id="x-all-div" class="allsection">
+                        <h5 id="x-title" class="sectiontitle">X-axis</h5>
+                        <div id="x-div" class="section">
+                            <select class="form-select" id="x-select"></select>
+                            <div class="form-check">
+                                <input id=log10_x class="form-check-input" type="checkbox" value="">
+                                <label id=checklabel class="form-check-label" for="log10_checkbox">Log10</label>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Y-axis selector -->
+                    <div id="y-all-div" class="allsection">
+                        <h5 id="y-title" class="sectiontitle">Y-axis</h5>
+                        <div id="y-div" class="section">
+                            <select class="form-select" id="y-select"></select>
+                            <div class="form-check">
+                                <input id=log10_y class="form-check-input" type="checkbox" value="">
+                                <label id=checklabel class="form-check-label" for="log10_checkbox">Log10</label>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Size selector -->
+                    <div id="s-all-div" class="allsection">
+                        <h5 id="s-title" class="sectiontitle">Size</h5>
+                        <div id="s-div" class="section">
+                            <select class="form-select" id="size-select"></select>
+                        </div>
+                    </div>
+
+                    <!-- Color selector -->
+                    <div id="c-all-div" class="allsection">
+                        <h5 id="c-title" class="sectiontitle">Color</h5>
+                        <div id="c-div" class="section">
+                            <select class="form-select" id="color-select"></select>
+                            <!-- palette selector -->
+                            <div class="form-check" style="margin-top:5px;">
+                                <input class="form-check-input" type="radio" name="radioColor" id="continuous"
+                                    value="continuous">
+                                <label class="form-check-label" for="continuous" style="margin-top:3px;">
+                                    Continuous
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="radioColor" id="categorical"
+                                    value="categorical" checked>
+                                <label class="form-check-label" for="categorical" style="margin-top:3px;">
+                                    Categorical
+                                </label>
+                            </div>
+                            <select style="margin-top:10px;" class="form-select" id="palette-select"></select>
+                        </div>
+                    </div>
+
+                    <!-- General checks -->
+                    <div id="g-all-div" class="allsection">
+                        <h5 id="g-title" class="sectiontitle">General</h5>
+                        <div id="g-div" class="section">
+                            <div class="form-check">
+                                <input id=gridcheck class="form-check-input" type="checkbox" value="" checked>
+                                <label id=checklabel class="form-check-label" for="grid">Grid</label>
+                            </div>
+                            <div class="form-check">
+                                <input id=hcolcheck class="form-check-input" type="checkbox" value="">
+                                <label id=checklabel class="form-check-label" for="hcolcheck">Highlight points sharing
+                                    the same color group when
+                                    hovering</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tooltip radios -->
+                    <div id="t-all-div" class="allsection">
+                        <h5 id="t-title" class="sectiontitle">Tooltip</h5>
+                        <div id="t-div" class="section">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="radioTooltip" value="1">
+                                <label id="checklabel" for="1">Hide</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="radioTooltip" value="2">
+                                <label id="checklabel" checked for="2">
+                                    All keys
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="radioTooltip" value="3" checked>
+                                <label id="checklabel" for="3">
+                                    Only scales
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="radioTooltip" value="4">
+                                <label id="checklabel" for="4">
+                                    Custom
+                                </label>
+                            </div>
+                            <div id="p_customTooltip">
+                                <div id="customTooltip">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- END OF FORM -->
+                </form>
+            </div>
+
+            <!-- SVG -->
+            <div class="col-sm-10">
+                <div class="row">
+                    <!-- <h2>Title of the graph</h2> -->
+                    <svg id="svg"></svg>
+                </div>
+                <div class="row">
+                    <div class="col-sm-8">
+                        <h6 style="margin-left:100px" id="colorTitle"></h6>
+                        <svg id="colorlegendsvg"></svg>
+                    </div>
+                    <div class="col-sm-2">
+                        <h6 id="sizeTitle"></h6>
+                        <svg id="sizelegendsvg"></svg>
+                    </div>
+                </div>
+                <!-- Tooltip -->
+                <div id="tooltip" class="tooltip">
+                    <div id="tooltip-content" style="color:black"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- END OF MAIN VIEW -->
+
+
+    <!-- HELP CARD -->
+    <div id="help">
+        <i class=" bi bi-question-circle"></i>
+    </div>
+    <div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="font-size:small">
+                    <p><i>This is an interactive scatter plot developed by the COOP team at <a
+                                href="https://cerfacs.fr">CERFACS</a>.
+                        </i></p>
+                    <p id="help-title">
+                        <b>How to use it</b>
+                    <p>
+                        Use the menu on the left to asign columns from your database to chart elements (X-axis,
+                        Y-axis, size and color).
+                    </p>
+                    <!-- <div style="text-align: center;"><img
+                            src="{{ url_for('static', filename='scatter/help_image.png') }}" width=100%></div> -->
+                    <p>
+                        View information about any point by hovering over it or selecting it with a click. By default,
+                        it shows information about the current keys in use. You can customize what appears through the
+                        Tooltip section in the menu.
+                    </p>
+                    <p>For more, keep a look at <a
+                            href="https://gitlab.com/cerfacs/moonframe/-/blob/main/docs/howto/howto_scatter.md?ref_type=heads">the
+                            full documentation.</a></p>
+                    <p id="help-title">
+                        <b>Shortcuts</b>
+                    </p>
+                    <p><kbd>h</kbd> : Hide point</p>
+                    <p><kbd>Shift</kbd> + <kbd>h</kbd> : Reveal all hidden points</p>
+                    <p><kbd>s</kbd> : Save graph as png</p>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- START OF JAVASCRIPT -->
+    <script type="module">
+        import { ramp } from "{{ url_for('static', filename='general/color_legend_cont.js') }}"
+        import { palettes, catPalettes, colorNames } from "{{ url_for('static', filename='general/palettes.js') }}"
+
+        const WWIDTH = window.innerWidth
+        const WHEIGHT = window.innerHeight
+        const WIDTH = WWIDTH * 0.8
+        const HEIGHT = WHEIGHT * 0.8
+        const marginTop = 25
+        const marginRight = 200
+        const marginBottom = 50
+        const marginLeft = 100
+        const sizeRange = [5, 20]
+        let xKey = undefined
+        let yKey = undefined
+        let cKey = undefined
+        let sKey = undefined
+        let isXLog = false
+        let isYLog = false
+        let onTooltip = {}
+        let gridOn = true
+        let hcolOn = false
+        let legendId = {}
+        let focusPoint = undefined
+        let isColorCont = false
+        let defaultColCont = undefined
+        let defaultColCat = undefined
+        let defaultCol = undefined
+
+        function change_axes(points) {
+            /**
+             * Should be called when xKey or yKey change : 
+             *      - Update axes
+             *      - Update grid
+             *      - Update points (x,y) coordinates
+             *      - Change tooltip
+             */
+
+            const duration = 200
+            const svg = d3.select("#svg")
+            const tooltipChoice = d3.select('input[name="radioTooltip"]:checked').property("value")
+
+            // change axes
+            const [x, y] = createXYscale(points)
+            svg.selectChild("g#x-axis").transition().duration(duration)
+                .call(d3.axisBottom(x).ticks(WIDTH / 80))
+                .selectChild("#x-label").text(xKey)
+            svg.selectChild("g#y-axis").transition().duration(duration)
+                .call(d3.axisLeft(y))
+
+            // wait for the animation to end to correctly place the y-label
+            // according to the tick's label position
+            requestAnimationFrame(() => {
+                const yaxisLeft = svg.select("#y-axis").selectAll(".tick").select("text").nodes().at(-1).getBBox().x
+                svg.select("#y-axis").select("text#y-label").attr("y", `${yaxisLeft - 10}px`)
+                    .attr("x", (-HEIGHT / 2))
+                    .text(yKey)
+            })
+
+            // change grid
+            svg.selectChild("g#grid").attr("stroke-opacity", gridOn ? 0.1 : 0)
+            svg.selectChild("g#grid").selectChild("g#grid-xline").selectAll("line").remove()
+            svg.selectChild("g#grid").selectChild("g#grid-xline")
+                .selectAll("line")
+                .data(x.ticks())
+                .join("line")
+                // .transition().duration(duration)
+                .attr("x1", d => 0.5 + x(d))
+                .attr("x2", d => 0.5 + x(d))
+                .attr("y1", marginTop)
+                .attr("y2", HEIGHT - marginBottom)
+            svg.selectChild("g#grid").selectChild("g#grid-yline").selectAll("line").remove()
+            svg.selectChild("g#grid").selectChild("g#grid-yline").selectAll("line")
+                .data(y.ticks())
+                .join("line")
+                // .transition().duration(duration)
+                .attr("y1", d => 0.5 + y(d))
+                .attr("y2", d => 0.5 + y(d))
+                .attr("x1", marginLeft)
+                .attr("x2", WIDTH - marginRight)
+
+            // hide tooltip during transition
+            const tooltip = d3.select("#tooltip")
+            tooltip.style("opacity", 0)
+
+            // change circle
+            if (focusPoint !== undefined) {
+                svg.selectAll(".dots").style("opacity", 1)
+            }
+            svg.selectAll(".dots").attr("hidden", function (d) {
+                const userHide = d3.select(this).attr("user-hide")
+                let cx = x(d[xKey])
+                let cy = y(d[yKey])
+                return (cx !== undefined && !Number.isNaN(cx))
+                    && (cy !== undefined && !Number.isNaN(cy))
+                    && userHide !== "true"
+                    ? null : true
+            })
+            svg.selectAll(".dots")
+                .filter(function () {
+                    return this.getAttribute("hidden") === null
+                })
+                .transition()
+                .duration(400)
+                .attr("cx", d => x(d[xKey]))
+                .attr("cy", d => y(d[yKey]))
+
+            setTimeout(() => {
+                if (focusPoint !== undefined) {
+                    const focusDom = d3.select(focusPoint)
+                    if (focusDom.attr("hidden") === "true") {
+                        offFocus()
+                        focusPoint = undefined
+                    }
+                    else {
+                        setTooltipPos(focusPoint)
+                        tooltip.style("opacity", 1)
+                        highlightFocus(focusPoint, points)
+                    }
+                }
+            }, 400)
+
+
+            // change Tooltip if on "only scales"
+            if (tooltipChoice == "3") {
+                setTooltip()
+            }
+
+        }
+
+        function change_pts_aspect(points) {
+            /**
+             * Should be called when sKey or cKey change : 
+             *      - Update size and color scales
+             *      - Update points (x,y) color and scale
+             *      - Change tooltip
+             */
+            const svg = d3.select("#svg")
+            const colorlegendsvg = d3.select("#colorlegendsvg")
+            const sizelegendsvg = d3.select("#sizelegendsvg")
+            const colorTitle = d3.select("#colorTitle")
+            const sizeTitle = d3.select("#sizeTitle")
+            const tooltipChoice = d3.select('input[name="radioTooltip"]:checked').property("value")
+            const size_selector = d3.select("#size-select")
+
+            let size = d3.scaleSqrt()
+                .domain([d3.min(points, d => d[sKey]), d3.max(points, d => d[sKey])])
+                .range(sizeRange)
+
+            if (size_selector.node().selectedOptions[0].textContent == "None") {
+                size = d3.scaleSqrt()
+                    .domain([1, 1])
+                    .range(sizeRange)
+            }
+
+            const color = createColorScale(points)
+
+            // change circle
+            if (focusPoint !== undefined) {
+                svg.selectAll(".dots").style("opacity", 1)
+            }
+            svg.selectAll(".dots")
+                .filter(function () {
+                    return this.getAttribute("hidden") === null
+                })
+                .transition()
+                .duration(400)
+                .attr("fill", d => d[cKey] == null && cKey !== "None" ? "none" : color(d[cKey]))
+                .style("stroke", d => d[cKey] == null && cKey !== "None" ? null : "white")
+                .attr("r", d => size(d[sKey]))
+
+
+            setTimeout(() => {
+                if (focusPoint !== undefined) {
+                    const focusDom = d3.select(focusPoint)
+                    if (focusPoint !== undefined && (focusDom.attr("fill") === "none" || focusDom.attr("r") === null)) {
+                        offFocus()
+                        focusPoint = undefined
+                    }
+                    else {
+                        setTooltipStyle(focusPoint, points, color)
+                        highlightFocus(focusPoint, points)
+                        if (tooltipChoice == "3") {
+                            setTooltipContent(focusPoint, points)
+                        }
+                    }
+                }
+            }, 400)
+
+
+            // Update tooltip if users want to view only scales
+            if (tooltipChoice == "3") {
+                setTooltip()
+            }
+            // If the tooltip is currently open -> update its style in case the color has changed.
+            if (focusPoint) {
+                const tooltip = d3.select("#tooltip")
+                const index = d3.select(focusPoint).attr("index")
+                tooltip.style("border-color", color(points[index][cKey]))
+            }
+
+            colorlegendsvg.selectAll("#otherlegend").selectAll("*").remove()
+            sizelegendsvg.selectAll("#otherlegend").selectAll("*").remove()
+            colorTitle.html("")
+            sizeTitle.html("")
+            createSizeLegend(points, size)
+            createColorLegend(points, color)
+        }
+
+        function setPaletteSelector() {
+            /*
+             * Switches the palette selector between continuous palette, categorical palette and single colors.
+             * The defaultCol* variables are used to remember the user's last selected palette
+             * for each type (continuous, single color and categorical)
+             * 
+             * /!\ This function don't evaluate the previous state of the palette selector.
+             * It should only be called when there is a change (e.g. an event)
+             */
+            const palette_selector = d3.select("#palette-select")
+            palette_selector.selectAll("*").remove()
+
+            if (cKey !== "None") {
+                if (isColorCont) {
+                    for (let pal in palettes) {
+                        palette_selector.append("option").html(pal).attr("value", pal)
+                    }
+                    palette_selector.property("value", defaultColCont)
+                }
+                else {
+                    for (let pal in catPalettes) {
+                        palette_selector.append("option").html(pal).attr("value", pal)
+                    }
+                    palette_selector.property("value", defaultColCat)
+                }
+            }
+            else {
+                for (let pal in colorNames) {
+                    palette_selector.append("option").html(pal).attr("value", pal)
+                }
+                palette_selector.property("value", defaultCol)
+            }
+
+        }
+
+        function updateColRadio(points) {
+            /**
+             * Called when the color metric is changed.
+             * 
+             * The available palette options (continuous or categorical) depend heavily 
+             * on the selected color metric. This function ensures that the palette options 
+             * remain consistent and relevant to the data type of the selected metric.
+             * Specifically:
+             * - If the data is non-numerical:
+             *   - The continuous palette option is disabled.
+             *   - The selector switches to a categorical palette (if not already set).
+             *
+             * - If the data is numerical:
+             *   - All palette options (continuous and categorical) are enabled.
+             *
+             * - If the color metric is set to 'None':
+             *   - All palette options are disabled.
+             *   - The color selector switches to single colors.
+             *
+             * - If switching from 'None' to any valid metric:
+             *   - All palette options are re-enabled.
+             *   - The selector switches from single colors back to the previously selected palette.
+            * 
+            */
+            const radioCont = d3.select("#continuous")
+            const radioCat = d3.select("#categorical")
+
+            // a valid color metric is selected
+            if (cKey !== "None") {
+                const wasContBefore = radioCont.property("checked")
+                const wasNoneBefore = radioCat.attr("disabled")
+                const sampleValue = points[0][cKey]
+
+                // ensure categorical option is enabled (in case it was disabled before)
+                radioCat.attr("disabled", null)
+
+                // data type = string = categorical scale
+                if (typeof sampleValue === "string") {
+                    radioCont.attr("disabled", true)
+                    // if needed, switch to categorical
+                    if (wasContBefore || wasNoneBefore) {
+                        const hcolcheck = d3.select("#hcolcheck")
+                        hcolcheck.attr("disabled", null)
+                        isColorCont = false
+                        radioCat.property("checked", true)
+                        setPaletteSelector()
+                    }
+                }
+                // data type = numerical = any scale
+                else {
+                    // enable continuous palette option (in case it was disabled before)
+                    radioCont.attr("disabled", null)
+
+                    // if transitioning from 'None', enable both options and reset palette
+                    if (wasNoneBefore) {
+                        radioCat.attr("disabled", null)
+                        radioCont.attr("disabled", null)
+                        setPaletteSelector()
+                    }
+                }
+            }
+            // color metric is 'None' -> disable both palette options and update selector
+            else {
+                radioCat.attr("disabled", true)
+                radioCont.attr("disabled", true)
+                setPaletteSelector()
+            }
+        }
+
+
+        async function scatterPlot(path, delimiter, skip) {
+            /**
+             *  Main function : 
+             *      - Get input data
+             *      - Init selectors (x-axis, y-axis, size, color and cstm tooltip)
+             *      - Init scales
+             *      - Init svg (create x-axis, y-axis, grid, dots)
+             *      - Add listeners
+             */
+
+            // get data
+            let text = await d3.text(path)
+            if (skip) {
+                // skip the N first rows
+                const textSplit = text.split("\n")
+                text = textSplit.slice(skip).join("\n")
+            }
+            const dsv = d3.dsvFormat(delimiter)
+            const points = dsv.parse(text, d3.autoType)
+
+            const svg = d3.select("#svg")
+                .attr("viewBox", `0 0 ${WIDTH} ${HEIGHT}`)
+                .attr("style", "max-width: 100%; height: auto; font: 10px sans-serif;")
+
+            const colorlegendsvg = d3.select("#colorlegendsvg")
+            // set selector
+            const x_selector = d3.select("#x-select")
+            const y_selector = d3.select("#y-select")
+            const size_selector = d3.select("#size-select")
+            const color_selector = d3.select("#color-select")
+            const palette_selector = d3.select("#palette-select")
+            const tooltip_radio = d3.selectAll('input[name="radioTooltip"]')
+            const color_radio = d3.selectAll('input[name="radioColor"]')
+            const customTooltip = d3.select("#customTooltip")
+            const log10x = d3.select("#log10_x")
+            const log10y = d3.select("#log10_y")
+            const gridcheck = d3.select("#gridcheck")
+            const hcolcheck = d3.select("#hcolcheck")
+            const help = d3.select("#help")
+
+            for (let key of Object.entries(points[0])) {
+                const new_check = customTooltip.append("g").attr("class", "form-check").style("margin-top", "-6px").attr("id", "div_")
+                new_check.append("input")
+                    .attr("class", "form-check-input")
+                    .attr("id", key[0])
+                    .attr("value", key[0])
+                    .attr("type", "checkbox")
+                    .on("change", function () {
+                        onTooltip[this.value] = !onTooltip[this.value]
+                        if (focusPoint !== undefined) {
+                            setTooltipContent(focusPoint, points)
+                        }
+                    })
+                new_check.append("label")
+                    .html(key[0])
+                    .attr("class", "form-check-label")
+                    .attr("for", key[0])
+                    .style("margin-top", "-2px")
+                onTooltip[key[0]] = undefined
+
+                const cleanPoints = points.map(d => d[key[0]]).filter(d => (d !== undefined && d !== null))
+
+                if (typeof cleanPoints[0] !== "string") {
+                    x_selector.append("option").html(key[0]).attr("value", key[0])
+                    y_selector.append("option").html(key[0]).attr("value", key[0])
+                    size_selector.append("option").html(key[0]).attr("value", key[0])
+                    color_selector.append("option").html(key[0]).attr("value", key[0])
+                }
+                else {
+                    color_selector.append("option").html(key[0]).attr("value", key[0])
+                }
+            }
+            color_selector.append("option").html("None").attr("value", undefined)
+            size_selector.append("option").html("None").attr("value", size_selector.property("value"))
+
+            xKey = x_selector.property("value")
+            yKey = y_selector.property("value")
+            sKey = size_selector.property("value")
+            cKey = color_selector.property("value")
+            setTooltip()
+
+            // palettes
+            defaultColCat = Object.keys(catPalettes)[0]
+            defaultColCont = Object.keys(palettes)[0]
+            defaultCol = Object.keys(colorNames)[0]
+            setPaletteSelector()
+
+
+            // scales
+            const [x, y] = createXYscale(points)
+
+            const size = d3.scaleSqrt()
+                .domain([d3.min(points, d => d[sKey]), d3.max(points, d => d[sKey])])
+                .range(sizeRange)
+
+            const color = createColorScale(points)
+
+            // x-axis
+            svg.append("g")
+                .attr("transform", `translate(0,${HEIGHT - marginBottom})`)
+                .attr("id", "x-axis")
+                .call(d3.axisBottom(x).ticks(WIDTH / 80))
+                // .call(g => g.select(".domain").remove())
+                .call(g => g.append("text")
+                    .attr("id", "x-label")
+                    .attr("x", WIDTH / 2)
+                    .attr("y", marginBottom - 10)
+                    .attr("fill", "currentColor")
+                    .attr("text-anchor", "end")
+                    .style("font-size", "13px")
+                    .style("font-weight", "bold")
+                    .style("font-family", "Public Sans")
+                    .text(xKey))
+
+            // y-axis
+            svg.append("g")
+                .attr("transform", `translate(${marginLeft},0)`)
+                .attr("id", "y-axis")
+                .call(d3.axisLeft(y))
+
+            // correctly place the y-label with Bbox 
+            const yaxisLeft = svg.select("#y-axis").selectAll(".tick").select("text").nodes().at(-1).getBBox().x
+            svg.select("#y-axis").call(g => g.append("text")
+                .attr("id", "y-label")
+                .attr("x", -(HEIGHT / 2))
+                .attr("y", `${yaxisLeft - 10}px`)
+                .attr("fill", "currentColor")
+                .attr("text-anchor", "start")
+                .attr("transform", "rotate(-90)")
+                .style("font-size", "13px")
+                .style("font-weight", "bold")
+                .style("font-family", "Public Sans")
+                .text(yKey))
+
+            // grid
+            svg.append("g")
+                .attr("id", "grid")
+                .attr("stroke", "currentColor")
+                .attr("stroke-opacity", gridOn ? 0.1 : 0)
+                .call(g => g.append("g")
+                    .attr("id", "grid-xline")
+                    .selectAll("line")
+                    .data(x.ticks())
+                    .join("line")
+                    .attr("x1", d => 0.5 + x(d))
+                    .attr("x2", d => 0.5 + x(d))
+                    .attr("y1", marginTop)
+                    .attr("y2", HEIGHT - marginBottom))
+                .call(g => g.append("g")
+                    .attr("id", "grid-yline")
+                    .selectAll("line")
+                    .data(y.ticks())
+                    .join("line")
+                    .attr("y1", d => 0.5 + y(d))
+                    .attr("y2", d => 0.5 + y(d))
+                    .attr("x1", marginLeft)
+                    .attr("x2", WIDTH - marginRight))
+
+
+            // Dots
+            const circles = svg.append("g")
+                .selectAll("circle")
+                .data(points)
+                .join("circle")
+                .attr("class", "dots")
+                .attr("cx", d => x(d[xKey]))
+                .attr("cy", d => y(d[yKey]))
+                .attr("fill", d => color(d[cKey]))
+                .attr("r", d => size(d[sKey]))
+                .attr("index", (d, i) => i)
+                .style("stroke", "white")
+                .style("stroke-width", ".5px")
+                // events on dots
+                .on("mouseenter", function (event, d) {
+                    if (focusPoint == undefined) {
+                        onFocus(event, d, points)
+                    }
+                })
+                .on("mouseleave", function (event, d) {
+                    if (focusPoint == undefined) {
+                        offFocus()
+                    }
+                })
+                .on("keydown", function (event, d) {
+                    // accessibility : keyboard navigation
+                    if (event.key === "Enter" || event.key === " ") {
+                        selectPoint(this)
+                    }
+                    else {
+                        onFocus(event, d, points)
+                    }
+                }
+                )
+                .on("click", function (event, d) {
+                    selectPoint(this)
+                })
+                // accessibility : keyboard navigation
+                .attr("tabindex", 0)
+                .on("focus", (event, d) => onFocus(event, d, points))
+
+            // create legend
+            createSizeLegend(points, size)
+            createColorLegend(points, color)
+
+            // menu
+            setMenu("x")
+            setMenu("y")
+            setMenu("s")
+            setMenu("c")
+            setMenu("g")
+            setMenu("t")
+
+            // Events
+            x_selector.on("change", function () {
+                xKey = this.value
+                change_axes(points)
+            })
+            y_selector.on("change", function () {
+                yKey = this.value
+                change_axes(points)
+            })
+            size_selector.on("change", function () {
+                sKey = this.value
+                change_pts_aspect(points)
+            })
+            color_selector.on("change", function () {
+                cKey = this.value
+                updateColRadio(points)
+                change_pts_aspect(points)
+            })
+            log10x.on("change", function () {
+                isXLog = this.checked
+                change_axes(points)
+            })
+            log10y.on("change", function () {
+                isYLog = this.checked
+                change_axes(points)
+            })
+            gridcheck.on("change", () => {
+                gridOn = !gridOn
+                change_axes(points)
+            })
+            hcolcheck.on("change", () => {
+                hcolOn = !hcolOn
+                change_axes(points)
+            })
+            tooltip_radio.on("change", () => {
+                setTooltip()
+                // update 
+                if (focusPoint !== undefined) {
+                    setTooltipContent(focusPoint, points)
+                }
+            })
+            color_radio.on("change", function () {
+                const hcolcheck = d3.select("#hcolcheck")
+                if (this.value === "continuous") {
+                    isColorCont = true
+                    hcolcheck.attr("disabled", true)
+                    hcolcheck.property("checked", false)
+                    hcolOn = false
+                }
+                else {
+                    isColorCont = false
+                    hcolcheck.attr("disabled", null)
+                }
+                setPaletteSelector()
+                change_pts_aspect(points)
+            })
+            palette_selector.on("change", function () {
+                change_pts_aspect(points)
+                // defaultCol* is used as a memory 
+                if (cKey !== "None") {
+                    if (isColorCont) {
+                        defaultColCont = this.value
+                    }
+                    else {
+                        defaultColCat = this.value
+                    }
+                }
+                else {
+                    defaultCol = this.value
+                }
+            }
+            )
+            document.addEventListener("keydown", function (event) {
+                // hide point on "h"
+                if (event.key == "h") {
+                    if (focusPoint != undefined) {
+                        d3.select(focusPoint).attr("hidden", true)
+                        d3.select(focusPoint).attr("user-hide", true)
+                        focusPoint = undefined
+                        offFocus()
+                    }
+                }
+                // show all points on "shift+h" or... "H" 
+                else if (event.key == "H" && event.shiftKey) {
+                    d3.selectAll(".dots").attr("hidden", null)
+                    d3.select(focusPoint).attr("user-hide", false)
+                }
+                else if (event.key == "s") {
+                    downloadImg()
+                }
+
+            })
+            // reset focusPoint if click on the bg
+            svg.on("click", function (event) {
+                if (event.target == svg.node()) {
+                    focusPoint = undefined
+                    offFocus()
+                }
+            })
+            help.on("click", function () {
+                const modalElement = document.getElementById('helpModal');
+                const modalInstance = new bootstrap.Modal(modalElement);
+                modalInstance.show();
+            })
+
+        }
+
+        function createXYscale(points) {
+            /**
+             *  Set X-axis and Y-axis scales
+             */
+
+            let x, y, min
+            if (isXLog) {
+                min = d3.min(points, d => d[xKey])
+                if (min <= 0) {
+                    min = 1
+                }
+                x = d3.scaleLog()
+                    .domain([min, d3.max(points, d => d[xKey])])
+                    .range([marginLeft, WIDTH - marginRight]).nice()
+            }
+            else {
+                x = d3.scaleLinear()
+                    .domain([d3.min(points, d => d[xKey]), d3.max(points, d => d[xKey])])
+                    .range([marginLeft, WIDTH - marginRight]).nice()
+
+            }
+
+            if (isYLog) {
+                min = d3.min(points, d => d[yKey])
+                if (min <= 0) {
+                    min = 1
+                }
+                y = d3.scaleLog()
+                    .domain([min, d3.max(points, d => d[yKey])])
+                    .range([HEIGHT - marginBottom, marginTop]).nice()
+            }
+            else {
+                y = d3.scaleLinear()
+                    .domain([d3.min(points, d => d[yKey]), d3.max(points, d => d[yKey])])
+                    .range([HEIGHT - marginBottom, marginTop]).nice()
+
+            }
+
+            return [x, y]
+        }
+
+        function openMenu(div, divall, title, opacitylvl, color) {
+            d3.selectAll(".section").attr("hidden", true)
+            d3.selectAll(".allsection").style("border-left", null)
+            d3.selectAll(".sectiontitle").style("opacity", opacitylvl)
+            title.style("opacity", 1)
+            title.style("color", color)
+            div.attr("hidden", null)
+            divall.style("border-left", "solid")
+            divall.style("border-left-width", "3px")
+            divall.style("border-left-color", color)
+        }
+
+        function setMenu(id) {
+            const title = d3.select(`#${id}-title`)
+            const div = d3.select(`#${id}-div`)
+            const divall = d3.select(`#${id}-all-div`)
+            const opacitylvl = 0.8
+            const color = {
+                'x': '#235789',
+                'y': '#0C8888CC',
+                's': '#5D8731CC',
+                'c': '#D05A2FCC',
+                'g': '#c1292e',
+                't': '#555555'
+            }
+
+            div.attr("hidden", true)
+            title.style("margin-left", "15px")
+            title.style("color", color[id])
+            title.style("opacity", opacitylvl)
+            div.style("margin-left", "15px")
+
+            title.attr("tabindex", 0)
+                .on("keydown", function () {
+                    openMenu(div, divall, title, opacitylvl, color[id])
+                })
+
+            title.on("click", function () {
+                if (div.attr("hidden") == "true") {
+                    openMenu(div, divall, title, opacitylvl, color[id])
+                }
+                else {
+                    div.attr("hidden", true)
+                    divall.style("border-left", null)
+                }
+            })
+
+            title.on("mouseenter", () => title.style("opacity", 1))
+            title.on("mouseleave", () => { if (div.attr("hidden") == "true") { title.style("opacity", opacitylvl) } })
+
+        }
+
+
+        function selectPoint(thispoint) {
+            /**
+             *  Focus/unfocus a point
+             */
+            if (focusPoint == thispoint) {
+                focusPoint = undefined
+            }
+            else {
+                focusPoint = thispoint
+            }
+
+        }
+        function onFocus(event, ref, points) {
+            /**
+             *  Event mouseenter :
+             *      - Set tooltip according to user's choice
+             *      - Show tooltip
+             *      - Highlight focus
+             */
+            setTooltipContent(event.target, points)
+            setTooltipStyle(event.target, points)
+            highlightFocus(event.target, points)
+        }
+
+
+
+        function setTooltipPos(focus) {
+            /**
+             *  Set tooltip position
+             */
+            const svg = d3.select("#svg")
+            const tooltipContent = d3.select("#tooltip-content")
+            const tooltip = d3.select("#tooltip")
+            // set the tooltip pos
+            // need to convert svg coords (cx & cy) to screen cords.
+            const svgpoint = svg.node().createSVGPoint()
+            svgpoint.x = parseFloat(focus.getAttribute("cx"))
+            svgpoint.y = parseFloat(focus.getAttribute("cy")) - parseFloat(focus.getAttribute("r"))
+            const screenpoint = svgpoint.matrixTransform(focus.getScreenCTM())
+            // left = cx - tooltip Width/2
+            // top = cy - r - tooltip Height - offset 
+            tooltip.style("top", `${screenpoint.y - tooltipContent.node().clientHeight - 23}px`)
+                .style("left", `${screenpoint.x - tooltipContent.node().clientWidth / 2}px`)
+
+            // if out of screen (top only)
+            if (parseInt(tooltip.style("top")) < 0) {
+                svgpoint.y = parseFloat(focus.getAttribute("cy")) + parseFloat(focus.getAttribute("r"))
+                const screenpoint = svgpoint.matrixTransform(focus.getScreenCTM())
+                tooltip.style("top", `${screenpoint.y + 10}px`)
+            }
+
+        }
+        function setTooltipStyle(focus, points, color = undefined) {
+            /**
+             *  Set tooltip color
+             */
+
+            const ref = points[d3.select(focus).attr("index")]
+            if (color == undefined) {
+                color = createColorScale(points)
+            }
+            const tooltip = d3.select("#tooltip")
+            tooltip
+                .style("box-shadow", `0px 4px 10px rgba(0, 0, 0, 0.1)`)
+                .style("background-color", "white")
+                .style("border-left", "solid")
+                .style("border-width", "O.5px")
+                .style("border-left-width", "3px")
+                .style("border-color", color(ref[cKey]))
+        }
+
+        function setTooltipContent(focus, points) {
+            /**
+             *  Set tooltip content 
+             *  /!\ change the position ( = call SetTooltipPos())
+             */
+            const ref = points[d3.select(focus).attr("index")]
+            const tooltip = d3.select("#tooltip")
+            const colorlegendsvg = d3.select("#colorlegendsvg")
+            const tooltipContent = d3.select("#tooltip-content")
+            const tooltipData = Object.keys(ref)
+                .filter(key => onTooltip[key] === true)
+                .reduce((acc, key) => {
+                    acc[key] = ref[key]
+                    return acc
+                }, {})
+
+            const maxKeyWidth = Math.max(...Object.keys(tooltipData).map(getTextWidth))
+            const maxValueWidth = Math.max(...Object.values(tooltipData).map(getTextWidth))
+
+            // reboot tooltip 
+            tooltipContent.html("")
+            if (maxKeyWidth + maxValueWidth + 20 > 400) {
+                tooltipContent.style("max-width", `400px`)
+            }
+            else {
+                tooltipContent.style("min-width", `${maxKeyWidth + maxValueWidth + 20}px`)
+            }
+
+            // create as row as keys in the data
+            // two cols for each row -> key : value
+            for (let key of Object.entries(tooltipData)) {
+                // onTooltip filters which keys go into tooltip
+                // set setTooltip() function for more details
+                const row = tooltipContent.append("div").style("display", "flex")
+                row.append("div")
+                    .html(key[0])
+                    .style("flex", `0 0 ${maxKeyWidth + 15}px`)
+                    .style("font-size", "11px")
+                    .style("overflow", "hidden")
+                    .style("text-overflow", "ellipsis")
+                    .style("white-space", "nowrap")
+                row.append("div")
+                    .html(key[1])
+                    .style("flex", "1")
+                    .style("font-weight", "bold")
+                    .style("font-size", "11px")
+                    .style("overflow", "hidden")
+                    .style("text-overflow", "ellipsis")
+                    .style("white-space", "nowrap")
+            }
+
+            // if there is something => show tooltip
+            tooltip.style("opacity", tooltipContent.node().children.length === 0 ? 0 : 1)
+                .style("pointer-events", "auto")
+
+            // mandatory
+            setTooltipPos(focus)
+
+        }
+
+        function highlightFocus(focus, points) {
+            const ref = points[d3.select(focus).attr("index")]
+            const svg = d3.select("#svg")
+            const colorlegendsvg = d3.select("#colorlegendsvg")
+            // highlight focus
+            if (hcolOn && !isColorCont) {
+                svg.selectAll("circle").style("opacity", d => d[cKey] == ref[cKey] ? 1 : 0.2)
+                if (!isColorCont) {
+                    colorlegendsvg.select(legendId[ref[cKey]]).style("font-weight", "bold")
+                }
+            }
+            else {
+                svg.selectAll(".dots").style("opacity", d => d == ref ? 1 : 0.2)
+            }
+
+        }
+
+        function offFocus() {
+            /**
+             *  Event mouseleave :
+             *       - hide tooltip 
+             *       - bring back opacity to 1
+             */
+            const tooltip = d3.select("#tooltip")
+            const colorlegendsvg = d3.select("#colorlegendsvg")
+            const svg = d3.select("#svg")
+
+            tooltip.style("opacity", 0)
+                .style("pointer-events", "none")
+            svg.selectAll(".dots").style("opacity", 1)
+            if (!isColorCont) {
+                colorlegendsvg.selectAll("[id^='legend-']").style("font-weight", null)
+            }
+        }
+
+        function setTooltip() {
+            /**
+             *  Set onTooltip object according to user's choice.
+             *  onTooltip = {key : bool}
+             *      - If a key == true -> will be on Tooltip
+             *      - If a key == false -> will not
+             */
+
+            d3.select(`label[for="4"]`).style("font-weight", undefined)
+            const userChoice = d3.select('input[name="radioTooltip"]:checked').property("value")
+            const customTooltip = d3.select("#customTooltip")
+
+            // by default hide custom tooltip settings
+            customTooltip.attr("hidden", true)
+
+            // no tooltip = everything to false
+            if (userChoice === "1") {
+                for (let key of Object.keys(onTooltip)) {
+                    onTooltip[key] = false
+                }
+
+            }
+            // all keys = everything to true
+            else if (userChoice === "2") {
+                for (let key of Object.keys(onTooltip)) {
+                    onTooltip[key] = true
+                }
+            }
+            // only scales = xKey, yKey, sKey and cKey on true. Else on false.
+            else if (userChoice === "3") {
+                for (let key of Object.keys(onTooltip)) {
+                    if (key == xKey || key == yKey || key == sKey || key == cKey) {
+                        onTooltip[key] = true
+                    }
+                    else {
+                        onTooltip[key] = false
+                    }
+                }
+            }
+            // custom = show custom settings
+            else {
+                for (let key of Object.keys(onTooltip)) {
+                    onTooltip[key] = false
+                    d3.select("#customTooltip").select(`input[id="${key}"]`).property("checked", false)
+                }
+                customTooltip.attr("hidden", null)
+                d3.select(`label[for="${userChoice}"]`).style("font-weight", "bold")
+            }
+        }
+
+        function createSizeLegend(points, size) {
+            /**
+             *  Set size legend (at the bottom right of the graph)
+             *  Should be call at each size key change
+             */
+
+            // if there is a key for the size ( = not None)
+            if (d3.select("#size-select").node().selectedOptions[0].textContent != "None") {
+                const svg = d3.select("#sizelegendsvg")
+                const ticks = size.ticks(2)
+                const maxValue = ticks[ticks.length - 1]
+                const diameter = size(maxValue) * 2
+                const dashWidth = diameter / 2 + 10
+
+                // set title
+                d3.select("#sizeTitle").html(sKey)
+
+                const legendGroup = svg.append("g")
+                    .attr("id", "otherlegend")
+                    .attr("transform", `translate(5,10)`);
+
+                ticks.map((d, i) => {
+                    const xCenter = diameter / 2;
+                    const yCircleTop = diameter - 2 * size(d);
+                    const yCircleCenter = diameter - size(d);
+                    legendGroup.append("circle")
+                        .attr("cx", xCenter)
+                        .attr("cy", yCircleCenter)
+                        .attr("r", size(d))
+                        .attr("fill", "none")
+                        .attr("stroke", "#555");
+
+                    legendGroup.append("line")
+                        .attr("x1", xCenter)
+                        .attr("x2", xCenter + dashWidth)
+                        .attr("y1", yCircleTop)
+                        .attr("y2", yCircleTop)
+                        .attr("stroke", "#999")
+                        .attr("stroke-dasharray", "2,2");
+
+                    legendGroup.append("text")
+                        .attr("x", xCenter + dashWidth + 4)
+                        .attr("y", yCircleTop)
+                        .text(d)
+                        .style("font-size", "8px")
+                        .style("fill", "#333");
+                })
+            }
+
+        }
+
+        function getTextWidth(text) {
+            /**
+             * Compute the width of the text rendered on the screen
+             */
+            const svg = d3.select("#svg")
+            const tempText = svg.append("text")
+                .style("visibility", "hidden")
+                .style("font-size", "12px")
+                .text(text)
+            const width = tempText.node().getBBox().width
+            tempText.remove()
+
+            return width
+        }
+
+        function createColorLegend(points, color) {
+            /**
+             * Set color legend
+             * Should be call at each color key change. 
+            */
+            if (cKey != "None") {
+
+                d3.select("#colorTitle").html(cKey)
+                const legend = d3.select("#colorlegendsvg")
+                    .attr("width", WIDTH - marginLeft - marginRight)
+                    .attr("style", `max-width: 100%; height: auto; font: 10px sans-serif;margin-top:5px;`)
+
+                // continuous scale 
+                if (isColorCont) {
+                    const tickSize = 2
+                    const svgMarginTop = 1
+                    const svgMarginRight = 0 + tickSize
+                    const svgMarginBottom = 16
+                    const svgMarginLeft = marginLeft
+                    const svgHeight = 30 + tickSize
+                    const svgWidth = 500
+                    const svgTicks = svgWidth / 64
+                    let tickValues = undefined
+
+                    const group = legend.append("g").attr("id", "otherlegend")
+
+                    let tickAdjust = g => g.selectAll(".tick line").attr("y1", svgMarginTop + svgMarginBottom - svgHeight)
+                    let x;
+
+                    x = Object.assign(color.copy()
+                        .interpolator(d3.interpolateRound(svgMarginLeft, svgWidth - svgMarginRight)), {
+                        range() {
+                            return [svgMarginLeft, svgWidth - svgMarginRight];
+                        }
+                    })
+
+                    group.append("image")
+                        .attr("x", svgMarginLeft)
+                        .attr("y", svgMarginTop)
+                        .attr("width", svgWidth - svgMarginLeft - svgMarginRight)
+                        .attr("height", svgHeight - svgMarginTop - svgMarginBottom)
+                        .attr("preserveAspectRatio", "none")
+                        .attr("xlink:href", ramp(color.interpolator(), false).toDataURL())
+                        .style("margin-left", marginLeft)
+
+                    if (!x.ticks) {
+                        const n = Math.round(svgTicks + 1);
+                        tickValues = d3.range(n).map(i => d3.quantile(color.domain(), i / (n - 1)));
+
+                    }
+
+                    group.append("g")
+                        .attr("transform", `translate(0,${svgHeight - svgMarginBottom})`)
+                        .call(d3.axisBottom(x)
+                            .ticks(svgTicks, typeof tickFormat === "string" ? tickFormat : undefined)
+                            .tickFormat(typeof tickFormat === "function" ? tickFormat : undefined)
+                            .tickSize(tickSize)
+                            .tickValues(tickValues))
+                        .call(tickAdjust)
+                        .call(g => g.select(".domain").remove())
+                }
+                // cat scale
+                else {
+                    const padding = 20
+                    const itemHeight = 20
+                    const maxWidth = (WIDTH / 2)
+
+                    legend.style("margin-left", marginLeft)
+                        .append("g")
+                        .attr("transform", `translate(0, 0)`)
+
+                    const uniqueCol = Array.from(new Set(points.map(d => d[cKey]).filter(v => v != null)))
+                    const itemWidth = [...[0], ...uniqueCol.map(getTextWidth)]
+
+                    let col = - padding
+                    let row = 0
+                    uniqueCol.forEach((cat, i) => {
+                        col += itemWidth[i] + padding
+                        if (col > maxWidth) {
+                            col = 0
+                            row += 1
+                        }
+
+                        const group = legend.append("g")
+                            .attr("id", "otherlegend")
+                            .attr("transform", `translate(${col}, ${row * itemHeight})`)
+
+                        group.append("rect")
+                            .attr("width", 10)
+                            .attr("height", 10)
+                            .attr("fill", color(cat))
+
+                        group.append("text")
+                            .attr("x", 14)
+                            .attr("y", 9)
+                            .attr("id", `legend-${i}`)
+                            .text(cat)
+                            .style("font-size", "11px")
+                            .style("fill", "#333")
+
+                        legendId[cat] = `#legend-${i}`
+
+                    })
+                }
+
+            }
+        }
+
+        function createColorScale(points) {
+            /**
+             *  Create the color scale
+             */
+            let color = undefined
+            const paletteChoice = d3.select("#palette-select").property("value")
+            const domain = [...new Set(points.map(d => d[cKey]))]
+
+            if (cKey != "None") {
+                if (isColorCont) {
+                    let range = palettes[paletteChoice]
+                    if (range === undefined) { // security
+                        range = d3.interpolatePlasma
+                    }
+                    color = d3.scaleSequential(d3.extent(domain), range)
+                }
+                else {
+                    let range = catPalettes[paletteChoice]
+                    if (range === undefined) { // security
+                        range = d3.schemeObservable10
+                    }
+                    if (paletteChoice == "Colorblind-safe") {
+                        const coldomain = Object.keys(range)
+                        range = Array.from({ length: domain.length }, (_, i) => coldomain[i % coldomain.length])
+                    }
+                    color = d3.scaleOrdinal()
+                        .domain(domain)
+                        .range(range)
+                }
+            }
+            else {
+                let range = colorNames[paletteChoice]
+                if (range === undefined) { // security
+                    range = ["black"]
+                }
+                color = d3.scaleOrdinal(d3.extent(domain), range)
+            }
+
+            return color
+        }
+
+        function downloadImg() {
+            /**
+             *  Download d3js graph + legends as png
+             */
+            const target = document.querySelector(".col-sm-10")
+            htmlToImage.toPng(target)
+                .then(function (dataUrl) {
+                    // create a "a" = link type and simulate a click on it
+                    const link = document.createElement("a")
+                    link.download = 'scatter.png'
+                    link.href = dataUrl
+                    link.click()
+                })
+                .catch(function (error) {
+                    console.error('oops, something went wrong!', err)
+                })
+        }
+
+        // flask
+        const path = "/data"
+        const delimiter = "{{ delimiter }}"
+        const skip = parseInt("{{ skip }}")
+        scatterPlot(path, delimiter, skip)
+
+
+    </script>
+    <style>
+        body {
+            font-family: "Public Sans";
+            color: #001D3D
+        }
+
+        h2 {
+            font-family: "Fjalla One";
+            color: #001D3D;
+            text-align: center;
+            font-style: bold;
+            margin-top: 10;
+            margin-bottom: 1;
+        }
+
+        p {
+            /* line-height: 8px;*/
+            margin-bottom: 8px;
+        }
+
+        h5 {
+            text-align: left;
+            margin-top: 20;
+            margin-left: 5;
+            font-size: 20px;
+            color: #002E5B;
+            font-weight: bold;
+        }
+
+        h6 {
+            text-align: left;
+            margin-bottom: 5;
+            margin-left: 5;
+            margin-top: 20;
+            line-height: 1.2;
+            font-size: 13px;
+            color: #002E5B;
+            /* font-weight: bold; */
+        }
+
+        .form-select.form-select-sm {
+            max-width: 150;
+            margin-right: auto;
+            display: block;
+            margin-bottom: 16;
+        }
+
+        #checklabel {
+            font-size: small;
+            color: #002E5B;
+            margin-top: 4px;
+            margin-left: 0px;
+            font-weight: normal;
+        }
+
+        .form-check-label {
+            font-size: small;
+            color: #002E5B;
+            font-weight: normal;
+        }
+
+        .form-check {
+            margin-left: 2px
+        }
+
+        form {
+            margin-top: 70px;
+        }
+
+        #p_customTooltip {
+            font-size: x-small;
+            margin-left: 8px;
+            margin-top: 10px;
+            font-style: italic;
+            border-left: solid;
+            border-left-width: 2px;
+            border-left-color: #0d6efd;
+
+        }
+
+        #customTooltip {
+            margin-left: 10px;
+        }
+
+        .tooltip {
+            position: absolute;
+            opacity: 0;
+            color: white;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        .sectiontitle {
+            cursor: pointer;
+        }
+
+        .table-responsive {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        #help {
+            cursor: pointer;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            margin-left: 10px;
+        }
+
+        #help-title {
+            font-size: 17px;
+            /* margin-bottom: 10px; */
+        }
+    </style>
+</body>
+
+</html>

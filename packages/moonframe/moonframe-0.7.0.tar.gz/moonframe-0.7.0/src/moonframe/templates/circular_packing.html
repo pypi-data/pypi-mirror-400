@@ -1,0 +1,191 @@
+<html data-bs-theme="auto">
+
+<head>
+    <!-- d3 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- UI : bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- fonts -->
+    <!-- <link rel="preconnect" href="https://fonts.googleapis.com">
+       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet"> -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fjalla+One&family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap"
+        rel="stylesheet">
+    <!-- css style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='circular_packing/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='general/MMAP/common_style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='general/general_style.css') }}">
+    <!-- one part of the legend -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
+
+</head>
+
+<body>
+    <!-- SVG -->
+    <svg class="tree" id="svg"></svg>
+    <!-- SEARCH BAR -->
+    <div id="searchbar" class="search-bar"
+        style="position: absolute; z-index: 11; margin-left:10px;top: 20px; right: 30px;">
+        <div class="input-group mb-3">
+            <input id="searchInput" class="form-control" type="search" placeholder="Search by name">
+            <span class="input-group-text" id="inputGroupPrepend3">
+                <i id="searchButton" class="bi bi-search"></i>
+            </span>
+        </div>
+        <!-- table for searching data -->
+        <div class="table-responsive">
+            <table class="table table-hover table-sm bg-body-tertiary rounded shadow-sm"
+                style="font-size: x-smal;max-height: 10px; overflow-y: auto;">
+                <tbody id="tablebody"></tbody>
+            </table>
+        </div hidden>
+    </div>
+
+    <div style="position: absolute; top: 20px; left: 10px; z-index: 10; margin-left:10px; pointer-events: none;">
+        <h2 id="repo-name"></h2>
+        <!-- LEFT MENU -->
+        <div id="menu">
+            <!-- color -->
+            <h3>Color scale</h3>
+            <select class="form-select form-select-sm" id="cselect" style="max-width:150px;">
+            </select>
+            <svg style="margin-left:2px; pointer-events: auto; cursor:pointer;" id="legend"
+                data-bs-toggle="popover"></svg>
+            <div style="position:relative">
+                <div class="form-check" id="log10">
+                    <input id=log10_checkbox class="form-check-input" type="checkbox" value="">
+                    <label id=log10label class="form-check-label" for="log10_checkbox"> Log10
+                    </label>
+                </div>
+                <!-- worst -->
+                <h3 id="worst-title">Worst performers
+                    <!-- <button id="reverse" class="btn btn-outline-secondary" style="--bs-btn-padding-y: 0.1rem; --bs-btn-padding-x: 0.3rem;"><i class="bi bi-arrow-down-up"></i></button> -->
+                </h3>
+                <div id="worst"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- card -->
+    <div class="card" id="card" hidden>
+        <div id="cardheader" class="card-header d-flex align-items-center"></div>
+        <div id="cardbody" class="card-body">
+            <div class="accordion accordion-flush" id="accordionCard"></div>
+        </div>
+    </div>
+
+    <!-- view setting -->
+    <div id="bottom-right-menu">
+        <div id="settings" class="border" title="Settings">
+            <i class="bi bi-eye"></i>
+        </div>
+        <!-- Light/dark mode switch -->
+        <div class="theme-toggle border" id="themeToggle" title="Switch theme">
+            <i class="bi bi-moon"></i>
+            <i class="bi bi-sun"></i>
+        </div>
+        <!-- help button -->
+        <div id="help" class="border" title="Help">
+            <i class=" bi bi-question"></i>
+        </div>
+    </div>
+
+    <!-- HELP CARD -->
+    <div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="font-size:small">
+                    <p><i>This is an interactive circular packing graph developed at <a
+                                href="https://cerfacs.fr">CERFACS</a> in
+                            order to explore the nested hierarchical organization of complex codes.
+                        </i></p>
+                    <p id="help-title">
+                        <b>How to use it</b>
+                    </p>
+                    <p>Each circle represents a code component, such as a file, function, or subroutine.</p>
+                    Circle sizes are proportional to the number of lines in the code. Clicking on a circle will zoom
+                    in
+                    on it. </p>
+                    <p>If you hold <kbd>Ctrl</kbd> or <kbd>&#8984;</kbd> while clicking a circle, it will open the
+                        corresponding code file in VSCode (if you have it).</p>
+                    <p>For more, keep a look at <a
+                            href="https://gitlab.com/cerfacs/maraudersmap/-/blob/main/docs/howto/howto-treeshowjs.md?ref_type=heads">the
+                            full documentation.</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTING VIEW CARD -->
+    <div class="modal fade" id="settingModal" tabindex="-1" aria-labelledby="settingModal" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4>View settings</h4>
+                    <button type="button" id="settingModalClose" class="btn-close" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-label">
+                        <label for="zoom-input">Zoom</label>
+                        <input id="zoom-input" type="range" class="form-range" max="3.5" , min="2" value="3"
+                            step="0.01">
+                    </div>
+                    <div class="form-label">
+                        <label for="padding-input">Padding</label>
+                        <input id="padding-input" type="range" class="form-range" min="0" step="0.1">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="sameSize">
+                        <label class="form-check-label" for="sameSize" id="sameSizeLabel">
+                            Set to same size.
+                        </label>
+                    </div>
+
+
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="resetDefault">Reset
+                        default</button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" id="applyChanges">Apply
+                        changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- palette selector -->
+    <template id="palette-popover">
+        <div id="popover-container">
+            <label class="form-label mb-2"><b>Select a new color palette</b></label>
+            <select class="form-select" id="paletteSelect">
+            </select>
+        </div>
+    </template>
+
+    <script type="module">
+        import { circularPacking } from "{{ url_for('static', filename='circular_packing/main.js') }}"
+
+        const repo_name = "{{ repo_name }}"
+        const repo_path = "{{ repo_path }}"
+        const color_rules = JSON.parse('{{ color_rules | safe }}')
+        const isSummary = {{ is_summary | tojson }}
+
+
+        circularPacking(repo_name, repo_path, color_rules, isSummary)
+
+
+    </script>
+</body>
+
+</html>
