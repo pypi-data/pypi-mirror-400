@@ -1,0 +1,90 @@
+[project]
+name = "notebooklm-py"
+version = "0.1.1"
+description = "Unofficial Python client for Google NotebookLM API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Teng Lin", email = "teng.lin@gmail.com"}
+]
+keywords = ["notebooklm", "google", "ai", "automation", "rpc", "client", "api"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "httpx>=0.27.0",
+    "click>=8.0.0",
+    "rich>=13.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/teng-lin/notebooklm-py"
+Repository = "https://github.com/teng-lin/notebooklm-py"
+Documentation = "https://github.com/teng-lin/notebooklm-py#readme"
+Issues = "https://github.com/teng-lin/notebooklm-py/issues"
+
+[project.optional-dependencies]
+browser = ["playwright>=1.40.0"]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-httpx>=0.30.0",
+    "pytest-cov>=4.0.0",
+    "python-dotenv>=1.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.4.0",
+]
+all = ["notebooklm-py[browser,dev]"]
+
+[project.scripts]
+notebooklm = "notebooklm.notebooklm_cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/notebooklm"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--ignore=tests/e2e"
+markers = [
+    "variants: parameter variant tests (skip to save quota)",
+    "readonly: read-only tests against user's test notebook",
+]
+
+[tool.coverage.run]
+source = ["src/notebooklm"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 70
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_ignores = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+files = ["src/notebooklm"]
+exclude = ["tests/"]
+
+# Key check: catch attribute access on wrong types (would have caught our bugs)
+[[tool.mypy.overrides]]
+module = "notebooklm.cli.*"
+warn_return_any = false
+strict_optional = true
