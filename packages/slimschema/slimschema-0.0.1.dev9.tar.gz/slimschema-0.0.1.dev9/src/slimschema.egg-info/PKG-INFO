@@ -1,0 +1,213 @@
+Metadata-Version: 2.4
+Name: slimschema
+Version: 0.0.1.dev9
+Summary: Token-efficient schema language for LLMs with fast Zig backend
+Author: BotAssembly
+License: MIT
+Project-URL: Homepage, https://github.com/botassembly/slimschema
+Project-URL: Repository, https://github.com/botassembly/slimschema
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: jsonschema>=4.20.0
+Provides-Extra: pydantic
+Requires-Dist: pydantic>=2.0.0; extra == "pydantic"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: mktestdocs>=0.2; extra == "dev"
+Requires-Dist: coverage>=7.0.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Provides-Extra: all
+Requires-Dist: slimschema[pydantic]; extra == "all"
+
+# SlimSchema
+
+SlimSchema is a schema toolkit with **two entry points**:
+
+- **SlimSchema YAML (Zig-first):** a compact, YAML-shaped schema language for token-efficient prompts and interop.
+- **Spec API (typed-first):** derive JSON Schema + validation from language types:
+  - Python: `@spec` decorator on dataclasses
+  - Zig: `Spec(T)` for comptime schema generation
+
+Both surfaces are intended to share the same core concepts (constraints, formats, defaults, error paths) while targeting different workflows.
+
+## Python Quickstart (`@spec`)
+
+```bash
+uv pip install slimschema
+pip install slimschema
+```
+
+```python
+from typing import Annotated
+
+from slimschema import Alias, Len, Range, spec
+
+
+@spec
+class User:
+    user_name: Annotated[str, Alias("userName"), Len(1, 50)]
+    age: Annotated[int, Range(0, 120)]
+
+# Load from JSON (mirrors json.loads)
+user = User.loads('{"userName": "Alice", "age": 30}')
+assert user.user_name == "Alice"
+assert user.age == 30
+
+# Dump to JSON (mirrors json.dumps)
+json_str = user.dumps()
+
+# Load from dict (mirrors json.load)
+user2 = User.load({"userName": "Bob", "age": 25})
+
+# Dump to dict (mirrors dataclasses.asdict)
+data = user2.dump()
+assert data == {"userName": "Bob", "age": 25}
+```
+
+## Zig Quickstart (YAML + `Spec(T)`)
+
+YAML DSL:
+
+```zig
+const slimschema = @import("slimschema");
+
+const yaml =
+    \\name: str{1..50}
+    \\age: 0..120
+;
+```
+
+Typed spec:
+
+```zig
+const slimschema = @import("slimschema");
+
+const User = struct { name: []const u8, age: i64 };
+pub const user_json_schema = slimschema.jsonSchemaFromType(User);
+```
+
+## SlimSchema YAML (Full Spec)
+
+```yaml
+# Primitives
+name: str                    # string
+age: int                     # integer
+score: float                 # floating point number
+active: bool                 # boolean (true/false)
+meta: obj                    # any object/dict
+anything: any                # any JSON value
+
+# Format types (validated)
+email: email                 # email address
+website: url                 # URL (http/https)
+birthday: date               # date (YYYY-MM-DD)
+timestamp: datetime          # ISO datetime
+user_id: uuid                # UUID format
+
+# Constraints
+username: str{3..50}         # string length 3-50 chars
+age_range: 18..120           # integer range 18-120
+code: /^[A-Z]{3}$/           # regex pattern match
+
+# Collections
+tags: list[str]              # array of strings
+unique_ids: set[int]         # array of unique integers
+coords: tuple[float, float]  # fixed-length tuple [x, y]
+scores: dict[str, int]       # object with string keys, int values
+
+# Enums and Unions
+status: active | pending     # enum: one of these values
+value: str | int             # union: string OR integer
+
+# Optional vs Nullable
+?nickname: str               # ? prefix: field can be omitted
+rating: float?               # ? suffix: value can be null
+?notes: str?                 # both: omittable AND nullable
+
+# Hidden fields (excluded from LLM prompts)
+_internal_id: str            # _ prefix: hidden field
+_?debug_info: str            # hidden + optional
+
+# Default values
+count: int = 0               # literal default
+role: str = "user"           # quoted string default
+items: list = []             # empty list default
+config: dict = {}            # empty dict default
+
+# Default generators (auto-generated if omitted)
+id: uuid = uuid              # UUID v4
+id_v7: uuid = uuid7          # UUID v7 (time-ordered)
+id_ulid: str = ulid          # ULID (sortable, 26 chars)
+id_xid: str = xid            # XID (compact, 20 chars)
+id_nano: str = nanoid        # NanoID (URL-safe, 21 chars)
+created: datetime = now      # current UTC datetime
+day: date = today            # current UTC date
+ts: int = epoch              # unix timestamp (seconds)
+
+# Nested objects (indentation-based)
+user:                        # parent field with nested structure
+  name: str                  # child field
+  age: int
+  address:                   # deeply nested
+    street: str
+    city: str
+    zip: str{5..10}
+
+# Inline objects (single-line syntax)
+point: {x: float, y: float}  # compact object definition
+
+# YAML list syntax (array of objects)
+issues:                      # parent field becomes array
+  - file: str                # first field on dash line
+    line: int                # additional fields indented
+    severity: str
+    message: str
+
+# Complex example: API response schema
+response:
+  success: bool
+  data:
+    total: int
+    page: 1..100
+    items:                   # nested list
+      - id: uuid
+        name: str{1..100}
+        ?tags: list[str]
+        created: datetime
+  ?error: str
+```
+
+## Documentation
+
+- `docs/README.md` (start here)
+- `docs/WHY.md` (architecture decisions: Python/Zig split, when to use each API)
+- `docs/python/README.md` (Python `@spec`)
+- `docs/zig/README.md` (Zig YAML + `Spec(T)`)
+- `docs/dev-guide.md` (development workflow)
+- `DOCS_INVENTORY.md` (doc gaps + migration plan)
+
+## Development
+
+```bash
+make build
+make test
+make coverage
+```
+
+Zig tests:
+
+```bash
+cd zig && zig build test
+```
+
+## License
+
+MIT
