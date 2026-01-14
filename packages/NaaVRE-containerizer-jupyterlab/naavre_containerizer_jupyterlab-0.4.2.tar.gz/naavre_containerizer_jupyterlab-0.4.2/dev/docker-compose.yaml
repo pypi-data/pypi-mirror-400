@@ -1,0 +1,35 @@
+name: naavre-containerizer-jl-dev
+
+services:
+  containerizer-service:
+    image: ghcr.io/naavre/naavre-containerizer-service:v0.4
+    ports:
+      - '127.0.0.1:41918:8000'
+    environment:
+      VERIFY_SSL: false
+      DISABLE_AUTH: true
+      CONFIG_FILE_URL: "/configuration.json"
+    volumes:
+      - ./containerizer-config.json:/configuration.json
+
+  catalogue-service:
+    image: ghcr.io/naavre/naavre-catalogue-service:v0.4.0-alpha.1
+    ports:
+      - '127.0.0.1:19036:8000'
+    environment:
+      DEV_MODE: true
+      VERIFY_SSL: false
+      DISABLE_AUTH: true
+      DJANGO_SUPERUSER_USERNAME: admin
+      DJANGO_SUPERUSER_PASSWORD: admin
+      DJANGO_SUPERUSER_EMAIL: example@example.org
+      DB_HOST: catalogue-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres-password
+      DB_NAME: postgres
+
+  catalogue-db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres-password
