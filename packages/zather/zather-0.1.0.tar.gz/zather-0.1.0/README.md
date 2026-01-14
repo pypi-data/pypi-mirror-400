@@ -1,0 +1,51 @@
+# zather
+
+`zather/` generates **Path Packs**: zethis-style procedural docs that teach a coding agent how to *recreate the context-building pathway* from an excellent Claude Code / Codex CLI session.
+
+Unlike compaction systems that try to reproduce the final patch, **zather compacts the path**: the ordered set of reads/searches/commands and intermediate “what we learned” checkpoints that got the agent to a useful semantic state.
+
+## Install (editable)
+
+From this repo root:
+
+```bash
+uv pip install -e zather/
+```
+
+## Quick start
+
+Generate a Path Pack from a Codex CLI session file:
+
+```bash
+zather build --source codex --session-file ~/.codex/sessions/.../rollout-...jsonl --out path-pack.md
+```
+
+Generate from a Claude Code session:
+
+```bash
+zather build --source claude --project . --session <session-id> --out path-pack.md
+```
+
+Inspect the rendered prompts without calling the LLM:
+
+```bash
+zather build --source codex --session-file ~/.codex/sessions/...jsonl --out /tmp/zather_dry.md --dry-run
+```
+
+## Prompting
+
+`zather` uses a YAML prompt template (default: `zather/zather/prompts/path_pack.yaml`) to turn a parsed trajectory into a Path Pack markdown document.
+
+Override with:
+
+```bash
+zather build ... --prompt zather/zather/prompts/path_pack.yaml --model gpt-5-mini
+```
+
+## Checkpoints
+
+To target a “checkpoint” inside a longer session, use timestamp filters:
+
+```bash
+zather build ... --since 2026-01-07T20:04:00Z --until 2026-01-07T20:10:00Z
+```
