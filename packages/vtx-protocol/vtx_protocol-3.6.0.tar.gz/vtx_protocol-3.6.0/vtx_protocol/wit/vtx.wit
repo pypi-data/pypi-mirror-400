@@ -1,0 +1,204 @@
+package vtx:api@1.2.6;
+
+interface sql {
+    variant db-value {
+        text(string),
+        integer(s64),
+        real(f64),
+        null-val,
+    }
+
+    execute: func(
+        statement: string,
+        params: list<db-value>,
+    ) -> result<u64, string>;
+
+    query-json: func(
+        statement: string,
+        params: list<db-value>,
+    ) -> result<string, string>;
+}
+
+interface stream-io {
+    resource buffer {
+        size: func() -> u64;
+
+        read: func(
+            offset: u64,
+            max-bytes: u64,
+        ) -> list<u8>;
+
+        write: func(
+            data: list<u8>,
+        ) -> u64;
+    }
+
+    open-file: func(
+        uuid: string,
+    ) -> result<buffer, string>;
+
+    create-memory-buffer: func(
+        data: list<u8>,
+    ) -> buffer;
+}
+
+interface auth-types {
+    record user-context {
+        user-id: string,
+        username: string,
+        groups: list<string>,
+        metadata: string,
+    }
+
+    record current-user {
+        user-id: string,
+        username: string,
+        groups: list<string>,
+    }
+}
+
+interface types {
+    use stream-io.{buffer};
+    use auth-types.{user-context};
+
+    record http-request {
+        method: string,
+        path: string,
+        query: string,
+    }
+
+    record http-response {
+        status: u16,
+        body: option<buffer>,
+    }
+
+    record http-client-request {
+        method: string,
+        url: string,
+        headers: list<tuple<string, string>>,
+        body: option<buffer>,
+    }
+
+    record http-client-response {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        body: option<buffer>,
+    }
+
+    record http-allow-rule {
+        scheme: string,
+        host: string,
+        port: option<u16>,
+        path: option<string>,
+        methods: option<list<string>>,
+        allow-headers: option<list<string>>,
+        max-request-bytes: option<u64>,
+        max-response-bytes: option<u64>,
+        follow-redirects: option<bool>,
+        redirect-policy: option<string>,
+    }
+
+    record capabilities {
+        subscriptions: list<string>,
+        permissions: list<string>,
+        http: option<list<http-allow-rule>>,
+    }
+
+    record manifest {
+        id: string,
+        name: string,
+        version: string,
+        description: string,
+        entrypoint: string,
+    }
+}
+
+interface ffmpeg {
+    use stream-io.{buffer};
+
+    record ffmpeg-option {
+        key: string,
+        value: option<string>,
+    }
+
+    record transcode-profile {
+        profile: string,
+        input-id: string,
+        options: list<ffmpeg-option>,
+    }
+
+    execute: func(
+        params: transcode-profile,
+    ) -> result<buffer, string>;
+}
+
+interface events {
+    record event-context {
+        user-id: option<string>,
+        username: option<string>,
+        request-id: option<string>,
+    }
+
+    record vtx-event {
+        id: string,
+        topic: string,
+        source: string,
+        payload: string,
+        context: event-context,
+        occurred-at: u64,
+    }
+}
+
+interface context {
+    use auth-types.{current-user};
+
+    get-current-user: func() -> option<current-user>;
+}
+
+interface event-bus {
+    publish-event: func(
+        topic: string,
+        payload: string,
+    ) -> result<_, string>;
+}
+
+interface http-client {
+    use types.{http-client-request, http-client-response};
+
+    request: func(
+        req: http-client-request,
+    ) -> result<http-client-response, string>;
+}
+
+world plugin {
+    use types.{capabilities, http-request, http-response, manifest};
+    use auth-types.{user-context};
+    use events.{vtx-event};
+
+    import stream-io;
+    import sql;
+    import ffmpeg;
+    import context;
+    import event-bus;
+    import http-client;
+
+    export handle: func(
+        req: http-request,
+    ) -> http-response;
+
+    export handle-event: func(
+        event: vtx-event,
+    ) -> result<_, string>;
+
+    export get-migrations: func() -> list<string>;
+
+    export get-manifest: func() -> manifest;
+
+    export get-resources: func() -> list<string>;
+
+    export get-capabilities: func() -> capabilities;
+
+    export authenticate: func(
+        headers: list<tuple<string, string>>,
+    ) -> result<user-context, u16>;
+}
