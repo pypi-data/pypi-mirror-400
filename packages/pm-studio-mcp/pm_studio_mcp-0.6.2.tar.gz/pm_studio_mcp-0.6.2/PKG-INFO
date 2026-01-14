@@ -1,0 +1,94 @@
+Metadata-Version: 2.4
+Name: pm-studio-mcp
+Version: 0.6.2
+Summary: PM Studio MCP Server - A Model Context Protocol server for product managers
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: fastmcp
+Requires-Dist: matplotlib
+Requires-Dist: seaborn
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: markdown
+Requires-Dist: markitdown[docx,pdf,pptx,xls]
+Requires-Dist: praw>=7.7.0
+Requires-Dist: crawl4ai>=0.6.2
+Requires-Dist: msal[broker]<2,>=1.33
+Requires-Dist: azure-identity<2.0.0,>=1.15.0
+Requires-Dist: google-auth-oauthlib>=1.2.2
+Requires-Dist: google-ads>=28.0.0
+Requires-Dist: pysocks>=1.7.1
+Requires-Dist: plotly>=5.14.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: sqlalchemy<2.0.0,>=1.4.0
+Requires-Dist: pyhive[presto]>=0.6.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: beautifulsoup4>=4.12.0
+Requires-Dist: pillow>=10.0.0
+
+# PM Studio MCP
+
+PM Studio MCP is a Model Context Protocol (MCP) server for product management tasks. It provides a suite of tools and utilities to help product managers analyze user feedback, perform competitive analysis, generate data visualizations, and access structured data sources.
+
+## Available Tools
+
+| Category & Description | Tools |
+|-----------------------|-------|
+| 🔍 **Search & Web**<br>Google web search, website crawling | `google_web_tool`<br>`crawl_website_tool` |
+| 📊 **Data & Analytics**<br>Product insights, SQL querying, charts & visualizations | `fetch_product_insights`<br>`titan_query_data_tool`<br>`titan_search_table_metadata_tool`<br>`titan_generate_sql_from_template_tool`<br>`generate_data_visualization` |
+| 💼 **M365 Graph**<br>Teams messaging, email, calendar integration | `send_message_to_chat_tool`<br>`send_message_to_channel_tool`<br>`send_mail_tool`<br>`get_calendar_events` |
+| 🔧 **Utilities**<br>Document conversion, report publishing, greeting | `convert_to_markdown_tool`<br>`publish_html_to_github_pages_tool`<br>`greeting_with_pm_studio` |
+
+
+## Quick Start
+
+### Prerequisites
+- **Windows**: [Download uv](https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_2) and ensure it's in your PATH
+- **macOS**: `brew install uv` ([Install Homebrew](https://brew.sh) first if needed)
+
+### MCP Server Configuration
+
+[<img src="https://img.shields.io/badge/VS_Code-VS_Code?style=for-the-badge&label=Install%20Server&color=0098FF&labelColor=2C2C32&logoColor=white&logo=visualstudiocode" alt="Install in VS Code" width="160">](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522pm-studio-mcp-online%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522pm-studio-mcp%2522%252C%2522--python%253Dpython3.10%2522%255D%257D)
+
+Add the following to MCP configuration file (`mcp.json` in vscode):
+
+```js
+{
+  "servers": {
+    "pm-studio-mcp": {
+      "command": "uvx",
+      "args": ["pm-studio-mcp", "--python=python3.10"],
+      "env": {
+          "WORKING_PATH": "{YOUR_WORKSPACE_PATH}/working_dir/"
+          // Add additional variables here, refer to Environment Settings below
+      }
+    }
+  }
+}
+```
+
+#### Development Mode (Local source)
+For local development, modify the configuration:
+```js
+{
+  "command": "uv",
+  "args": ["--directory", "{PATH_TO_CLONED_REPO}/src/", "run", "-m", "pm_studio_mcp"]
+}
+```
+
+**Path Examples:**
+- Windows: `C:\\Users\\username\\Documents\\pm-studio-mcp`
+- macOS: `/Users/username/Documents/pm-studio-mcp`
+
+### Environment Settings
+Add these environment variables to the `env` section of your MCP configuration when the relevant connection is needed.
+
+
+| Variable | Description |
+|----------|------------|
+| `WORKING_PATH` (required) | A writable Directory where output files will be stored.|
+| `GRAPH_CLIENT_ID` | Microsoft Graph API authentication for Teams/Email/Calendar. |
+| `REDDIT_CLIENT_ID` | Reddit API access for Reddit data analysis tools. |
+| `REDDIT_CLIENT_SECRET` | Reddit API authentication. Must be paired with Reddit Client ID. |
+| `DATA_AI_API_KEY` | Access to Data.ai analytics for app store data and reviews. |
+| `UNWRAP_ACCESS_TOKEN` | Unwrap AI API access for sentiment analysis features. |
