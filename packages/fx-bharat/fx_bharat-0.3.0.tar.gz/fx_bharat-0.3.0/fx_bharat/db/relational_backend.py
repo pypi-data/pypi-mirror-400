@@ -1,0 +1,412 @@
+"""Shared logic for SQL (Postgres/MySQL) backends."""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Any, Sequence, SupportsFloat, SupportsIndex, cast
+
+from fx_bharat.db.base_backend import BackendStrategy
+from fx_bharat.db.sqlite_manager import PersistenceResult
+from fx_bharat.ingestion.models import ForexRateRecord, LmeRateRecord
+from fx_bharat.utils.logger import get_logger
+
+try:  # pragma: no cover - optional dependency
+    from sqlalchemy import create_engine, text
+except ModuleNotFoundError:  # pragma: no cover - handled at runtime
+    create_engine = None  # type: ignore[assignment]
+    text = None  # type: ignore[assignment]
+
+if TYPE_CHECKING:  # pragma: no cover - type checker helper
+    from sqlalchemy.engine import Engine
+else:  # pragma: no cover - fallback type used at runtime
+    Engine = Any
+
+LOGGER = get_logger(__name__)
+
+SCHEMA_SQL_RBI = """
+CREATE TABLE IF NOT EXISTS forex_rates_rbi (
+    rate_date DATE NOT NULL,
+    currency_code VARCHAR(3) NOT NULL,
+    rate NUMERIC(18, 6) NOT NULL,
+    base_currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(rate_date, currency_code)
+);
+"""
+
+SCHEMA_SQL_SBI = """
+CREATE TABLE IF NOT EXISTS forex_rates_sbi (
+    rate_date DATE NOT NULL,
+    currency_code VARCHAR(3) NOT NULL,
+    rate NUMERIC(18, 6) NOT NULL,
+    base_currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+    tt_buy NUMERIC(18, 6) NULL,
+    tt_sell NUMERIC(18, 6) NULL,
+    bill_buy NUMERIC(18, 6) NULL,
+    bill_sell NUMERIC(18, 6) NULL,
+    travel_card_buy NUMERIC(18, 6) NULL,
+    travel_card_sell NUMERIC(18, 6) NULL,
+    cn_buy NUMERIC(18, 6) NULL,
+    cn_sell NUMERIC(18, 6) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(rate_date, currency_code)
+);
+"""
+
+SCHEMA_SQL_LME_COPPER = """
+CREATE TABLE IF NOT EXISTS lme_copper_rates (
+    rate_date DATE NOT NULL,
+    price NUMERIC(18, 6) NULL,
+    price_3_month NUMERIC(18, 6) NULL,
+    stock NUMERIC(18, 6) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(rate_date)
+);
+"""
+
+SCHEMA_SQL_LME_ALUMINUM = """
+CREATE TABLE IF NOT EXISTS lme_aluminum_rates (
+    rate_date DATE NOT NULL,
+    price NUMERIC(18, 6) NULL,
+    price_3_month NUMERIC(18, 6) NULL,
+    stock NUMERIC(18, 6) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(rate_date)
+);
+"""
+
+DELETE_RBI_SQL = (
+    "DELETE FROM forex_rates_rbi WHERE rate_date = :rate_date " "AND currency_code = :currency_code"
+)
+DELETE_SBI_SQL = (
+    "DELETE FROM forex_rates_sbi WHERE rate_date = :rate_date " "AND currency_code = :currency_code"
+)
+INSERT_RBI_SQL = """
+INSERT INTO forex_rates_rbi(rate_date, currency_code, rate, base_currency, created_at)
+VALUES(:rate_date, :currency_code, :rate, :base_currency, :created_at)
+"""
+INSERT_SBI_SQL = """
+INSERT INTO forex_rates_sbi(
+    rate_date,
+    currency_code,
+    rate,
+    base_currency,
+    tt_buy,
+    tt_sell,
+    bill_buy,
+    bill_sell,
+    travel_card_buy,
+    travel_card_sell,
+    cn_buy,
+    cn_sell,
+    created_at
+)
+VALUES(
+    :rate_date,
+    :currency_code,
+    :rate,
+    :base_currency,
+    :tt_buy,
+    :tt_sell,
+    :bill_buy,
+    :bill_sell,
+    :travel_card_buy,
+    :travel_card_sell,
+    :cn_buy,
+    :cn_sell,
+    :created_at
+)
+"""
+
+INSERT_LME_COPPER_SQL = """
+INSERT INTO lme_copper_rates(rate_date, price, price_3_month, stock, created_at)
+VALUES(:rate_date, :price, :price_3_month, :stock, :created_at)
+"""
+
+INSERT_LME_ALUMINUM_SQL = """
+INSERT INTO lme_aluminum_rates(rate_date, price, price_3_month, stock, created_at)
+VALUES(:rate_date, :price, :price_3_month, :stock, :created_at)
+"""
+
+DELETE_LME_COPPER_SQL = "DELETE FROM lme_copper_rates WHERE rate_date = :rate_date"
+DELETE_LME_ALUMINUM_SQL = "DELETE FROM lme_aluminum_rates WHERE rate_date = :rate_date"
+
+
+class RelationalBackend(BackendStrategy):
+    """Base class that encapsulates SQLAlchemy powered interactions."""
+
+    def __init__(self, url: str) -> None:
+        if create_engine is None or text is None:  # pragma: no cover - defensive guard
+            raise ModuleNotFoundError("SQLAlchemy is required for relational backends")
+        self.url = url
+        self._engine_instance: Engine | None = None
+
+    def _get_engine(self) -> Engine:
+        if self._engine_instance is None:
+            if create_engine is None:  # pragma: no cover - defensive guard
+                raise ModuleNotFoundError("SQLAlchemy is required for relational backends")
+            self._engine_instance = create_engine(self.url, future=True)
+        return self._engine_instance
+
+    @staticmethod
+    def _resolve_lme_statements(metal: str) -> tuple[str, str, str]:
+        normalised = metal.upper()
+        if normalised in {"CU", "COPPER"}:
+            return "COPPER", INSERT_LME_COPPER_SQL, DELETE_LME_COPPER_SQL
+        if normalised in {"AL", "ALUMINUM", "ALUMINIUM"}:
+            return "ALUMINUM", INSERT_LME_ALUMINUM_SQL, DELETE_LME_ALUMINUM_SQL
+        raise ValueError(f"Unsupported LME metal: {metal}")
+
+    def ensure_schema(self) -> None:
+        engine = self._get_engine()
+        if text is None:  # pragma: no cover - defensive guard
+            raise ModuleNotFoundError("SQLAlchemy is required for relational backends")
+        with engine.begin() as connection:
+            LOGGER.info("Ensuring forex_rates schema exists")
+            connection.execute(text("SELECT 1"))
+            connection.execute(text(SCHEMA_SQL_RBI))
+            connection.execute(text(SCHEMA_SQL_SBI))
+            connection.execute(text(SCHEMA_SQL_LME_COPPER))
+            connection.execute(text(SCHEMA_SQL_LME_ALUMINUM))
+            self._ensure_lme_schema(connection)
+
+    def _ensure_lme_schema(self, connection) -> None:
+        """Patch older schemas missing LME columns."""
+
+        if text is None:  # pragma: no cover - defensive guard
+            raise ModuleNotFoundError("SQLAlchemy is required for relational backends")
+        dialect = connection.engine.dialect.name
+        lme_columns = {
+            "price": "NUMERIC(18, 6)",
+            "price_3_month": "NUMERIC(18, 6)",
+            "stock": "NUMERIC(18, 6)",
+            "created_at": "TIMESTAMP",
+        }
+        for table in ("lme_copper_rates", "lme_aluminum_rates"):
+            if dialect == "postgresql":
+                result = connection.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = current_schema() AND table_name = :table"
+                    ),
+                    {"table": table},
+                )
+                existing = {row[0] for row in result}
+            elif dialect in {"mysql", "mariadb"}:
+                result = connection.execute(text("SELECT DATABASE()"))
+                schema_name = result.scalar()
+                result = connection.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = :schema AND table_name = :table"
+                    ),
+                    {"schema": schema_name, "table": table},
+                )
+                existing = {row[0] for row in result}
+            elif dialect == "sqlite":
+                result = connection.execute(text(f"PRAGMA table_info({table})"))
+                existing = {row[1] for row in result}
+            else:  # pragma: no cover - unknown dialect
+                continue
+
+            missing = [name for name in lme_columns if name not in existing]
+            if not missing:
+                continue
+            for column_name in missing:
+                connection.execute(
+                    text(
+                        f"ALTER TABLE {table} "
+                        f"ADD COLUMN {column_name} {lme_columns[column_name]}"
+                    )
+                )
+
+    def insert_rates(self, rows: Sequence[ForexRateRecord]) -> PersistenceResult:
+        result = PersistenceResult()
+        if not rows:
+            return result
+        engine = self._get_engine()
+        if text is None:  # pragma: no cover - defensive guard
+            raise ModuleNotFoundError("SQLAlchemy is required for relational backends")
+        with engine.begin() as connection:
+            for row in rows:
+                is_sbi = (row.source or "RBI").upper() == "SBI"
+                params = {
+                    "rate_date": row.rate_date,
+                    "currency_code": row.currency,
+                    "rate": row.rate,
+                    "base_currency": "INR",
+                    "created_at": datetime.utcnow(),
+                }
+                if is_sbi:
+                    params.update(
+                        {
+                            "tt_buy": row.tt_buy,
+                            "tt_sell": row.tt_sell,
+                            "bill_buy": row.bill_buy,
+                            "bill_sell": row.bill_sell,
+                            "travel_card_buy": row.travel_card_buy,
+                            "travel_card_sell": row.travel_card_sell,
+                            "cn_buy": row.cn_buy,
+                            "cn_sell": row.cn_sell,
+                        }
+                    )
+                    connection.execute(text(DELETE_SBI_SQL), params)
+                    connection.execute(text(INSERT_SBI_SQL), params)
+                else:
+                    connection.execute(text(DELETE_RBI_SQL), params)
+                    connection.execute(text(INSERT_RBI_SQL), params)
+                result.inserted += 1
+        return result
+
+    def insert_lme_rates(self, metal: str, rows: Sequence[LmeRateRecord]) -> PersistenceResult:
+        result = PersistenceResult()
+        if not rows:
+            return result
+        _, insert_sql, delete_sql = self._resolve_lme_statements(metal)
+        engine = self._get_engine()
+        if text is None:  # pragma: no cover - defensive guard
+            raise ModuleNotFoundError("SQLAlchemy is required for relational backends")
+        with engine.begin() as connection:
+            for row in rows:
+                params = {
+                    "rate_date": row.rate_date,
+                    "price": row.price,
+                    "price_3_month": row.price_3_month,
+                    "stock": row.stock,
+                    "created_at": datetime.utcnow(),
+                }
+                connection.execute(text(delete_sql), params)
+                connection.execute(text(insert_sql), params)
+                result.inserted += 1
+        return result
+
+    def fetch_range(
+        self,
+        start: date | None = None,
+        end: date | None = None,
+        *,
+        source: str | None = None,
+    ) -> list[ForexRateRecord]:
+        engine = self._get_engine()
+        if text is None:  # pragma: no cover - defensive guard
+            raise ModuleNotFoundError("SQLAlchemy is required for relational backends")
+
+        def _build_query(table: str) -> tuple[str, dict[str, object]]:
+            where_clauses: list[str] = []
+            params: dict[str, object] = {}
+            if start is not None:
+                where_clauses.append("rate_date >= :start_date")
+                params["start_date"] = start
+            if end is not None:
+                where_clauses.append("rate_date <= :end_date")
+                params["end_date"] = end
+            query = f"SELECT * FROM {table} ORDER BY rate_date"
+            if where_clauses:
+                query = (
+                    f"SELECT * FROM {table} WHERE "
+                    + " AND ".join(where_clauses)
+                    + " ORDER BY rate_date"
+                )
+            return query, params
+
+        records: list[ForexRateRecord] = []
+        with engine.connect() as connection:
+            if source is None or source.upper() == "SBI":
+                query, params = _build_query("forex_rates_sbi")
+                for row in connection.execute(text(query), params):
+                    mapping = row._mapping
+                    records.append(
+                        ForexRateRecord(
+                            rate_date=_normalise_rate_date(mapping["rate_date"]),
+                            currency=mapping["currency_code"],
+                            rate=float(mapping["rate"]),
+                            source="SBI",
+                            tt_buy=mapping["tt_buy"],
+                            tt_sell=mapping["tt_sell"],
+                            bill_buy=mapping["bill_buy"],
+                            bill_sell=mapping["bill_sell"],
+                            travel_card_buy=mapping["travel_card_buy"],
+                            travel_card_sell=mapping["travel_card_sell"],
+                            cn_buy=mapping["cn_buy"],
+                            cn_sell=mapping["cn_sell"],
+                        )
+                    )
+            if source is None or source.upper() == "RBI":
+                query, params = _build_query("forex_rates_rbi")
+                for row in connection.execute(text(query), params):
+                    mapping = row._mapping
+                    records.append(
+                        ForexRateRecord(
+                            rate_date=_normalise_rate_date(mapping["rate_date"]),
+                            currency=mapping["currency_code"],
+                            rate=float(mapping["rate"]),
+                            source="RBI",
+                        )
+                    )
+        return records
+
+    def fetch_lme_range(
+        self, metal: str, start: date | None = None, end: date | None = None
+    ) -> list[LmeRateRecord]:
+        engine = self._get_engine()
+        if text is None:  # pragma: no cover - defensive guard
+            raise ModuleNotFoundError("SQLAlchemy is required for relational backends")
+        normalised, _, _ = self._resolve_lme_statements(metal)
+        table = "lme_copper_rates" if normalised == "COPPER" else "lme_aluminum_rates"
+
+        def _build_query() -> tuple[str, dict[str, object]]:
+            clauses: list[str] = []
+            params: dict[str, object] = {}
+            if start is not None:
+                clauses.append("rate_date >= :start_date")
+                params["start_date"] = start
+            if end is not None:
+                clauses.append("rate_date <= :end_date")
+                params["end_date"] = end
+            query = f"SELECT * FROM {table} ORDER BY rate_date"
+            if clauses:
+                query = (
+                    f"SELECT * FROM {table} WHERE " + " AND ".join(clauses) + " ORDER BY rate_date"
+                )
+            return query, params
+
+        query, params = _build_query()
+        records: list[LmeRateRecord] = []
+        with engine.connect() as connection:
+            for row in connection.execute(text(query), params):
+                mapping = row._mapping
+                stock_value = casting_float(mapping.get("stock"))
+                records.append(
+                    LmeRateRecord(
+                        rate_date=_normalise_rate_date(mapping["rate_date"]),
+                        price=casting_float(mapping.get("price")),
+                        price_3_month=casting_float(mapping.get("price_3_month")),
+                        stock=int(stock_value) if stock_value is not None else None,
+                        metal=normalised,
+                    )
+                )
+        return records
+
+    def close(self) -> None:  # pragma: no cover - trivial resource cleanup
+        if self._engine_instance is not None:
+            self._engine_instance.dispose()
+
+
+def _normalise_rate_date(value: object) -> date:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    return date.fromisoformat(str(value))
+
+
+def casting_float(value: object | None) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(cast("SupportsFloat | SupportsIndex | str | bytes | bytearray", value))
+    except (TypeError, ValueError):  # pragma: no cover - defensive parsing guard
+        return None
+
+
+__all__ = ["RelationalBackend"]
