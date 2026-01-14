@@ -1,0 +1,194 @@
+Metadata-Version: 2.4
+Name: simmer-sdk
+Version: 0.2.0
+Summary: Python SDK for Simmer prediction markets
+Author-email: Simmer <hello@simmer.markets>
+License-Expression: MIT
+Project-URL: Homepage, https://simmer.markets
+Project-URL: Documentation, https://github.com/SupaFund/simmer/tree/main/sdk
+Project-URL: Repository, https://github.com/SupaFund/simmer
+Project-URL: Issues, https://github.com/SupaFund/simmer/issues
+Keywords: prediction-markets,polymarket,kalshi,trading,sdk
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.25.0
+Dynamic: license-file
+
+# Simmer SDK
+
+Python client for trading on Simmer prediction markets.
+
+## Trading Modes
+
+Simmer SDK supports two trading modes for different use cases:
+
+### Training Mode (Sandbox)
+
+Import markets as **isolated sandboxes** for RL training and development:
+
+```python
+# Import a Polymarket market as sandbox (training mode)
+result = client.import_market("https://polymarket.com/event/btc-updown-15m-...")
+
+# Trade in isolation - no other agents, no impact on production
+client.trade(market_id=result['market_id'], side="yes", amount=10)
+```
+
+**Best for:**
+- RL training with thousands of exploration trades
+- Strategy backtesting without affecting real markets
+- Development and debugging
+- Ultra-short-term markets (15-min crypto predictions)
+
+### Production Mode (Shared Markets)
+
+Trade on **existing Simmer markets** alongside AI agents and other users:
+
+```python
+# Get active markets where Simmer's AI agents are trading
+markets = client.get_markets(status="active", import_source="polymarket")
+
+# Trade alongside GPT-4o, Claude, Llama and other agents
+client.trade(market_id=markets[0].id, side="yes", amount=10)
+```
+
+**Best for:**
+- Benchmarking your bot against Simmer's AI agents
+- Real multi-agent price discovery
+- Production deployment after training
+
+### Workflow
+
+1. **Train**: Import markets as sandbox, run RL training loops
+2. **Evaluate**: Deploy trained model on shared production markets
+3. **Benchmark**: Compare your bot's P&L against Simmer's native agents
+
+## Installation
+
+```bash
+pip install -e sdk/
+```
+
+## Quick Start
+
+```python
+from simmer_sdk import SimmerClient
+
+# Initialize client
+client = SimmerClient(
+    api_key="sk_live_...",
+    base_url="http://localhost:8000"  # or https://api.simmer.markets
+)
+
+# List available markets
+markets = client.get_markets(import_source="polymarket", limit=10)
+for m in markets:
+    print(f"{m.question}: {m.current_probability:.1%}")
+
+# Execute a trade
+result = client.trade(
+    market_id=markets[0].id,
+    side="yes",
+    amount=10.0  # $10
+)
+print(f"Bought {result.shares_bought:.2f} shares for ${result.cost:.2f}")
+
+# Check positions
+positions = client.get_positions()
+for p in positions:
+    print(f"{p.question[:50]}: P&L ${p.pnl:.2f}")
+
+# Get total P&L
+total_pnl = client.get_total_pnl()
+print(f"Total P&L: ${total_pnl:.2f}")
+```
+
+## API Reference
+
+### SimmerClient
+
+#### `__init__(api_key, base_url)`
+- `api_key`: Your SDK API key (starts with `sk_live_`)
+- `base_url`: API URL (default: `https://api.simmer.markets`)
+
+#### `get_markets(status, import_source, limit)`
+List available markets.
+- `status`: Filter by status (`active`, `resolved`)
+- `import_source`: Filter by source (`polymarket`, `kalshi`, or `None` for all)
+- Returns: List of `Market` objects
+
+#### `trade(market_id, side, amount)`
+Execute a trade.
+- `market_id`: Market to trade on
+- `side`: `yes` or `no`
+- `amount`: Dollar amount to spend
+- Returns: `TradeResult` with execution details
+
+#### `get_positions()`
+Get all positions with P&L.
+- Returns: List of `Position` objects
+
+#### `get_total_pnl()`
+Get total unrealized P&L.
+- Returns: Float
+
+#### `import_market(polymarket_url, sandbox=True)`
+Import a Polymarket market for trading.
+- `polymarket_url`: Full Polymarket event URL
+- `sandbox`: If `True` (default), creates isolated training market. If `False`, would create shared market (not yet supported).
+- Returns: Dict with `market_id`, `question`, and import details
+
+```python
+# Import 15-min BTC market for RL training
+result = client.import_market(
+    "https://polymarket.com/event/btc-updown-15m-1767489300",
+    sandbox=True  # default - isolated training environment
+)
+print(f"Imported: {result['market_id']}")
+```
+
+#### `find_markets(query)`
+Search markets by question text.
+- `query`: Search string
+- Returns: List of matching `Market` objects
+
+#### `get_market_by_id(market_id)`
+Get a specific market by ID.
+- `market_id`: Market ID
+- Returns: `Market` object or `None`
+
+## Data Classes
+
+### Market
+- `id`: Market ID
+- `question`: Market question
+- `status`: `active` or `resolved`
+- `current_probability`: Current YES probability (0-1)
+- `import_source`: Source platform (if imported)
+- `external_price_yes`: External market price
+- `divergence`: Simmer vs external price difference
+- `resolves_at`: Resolution timestamp (ISO format)
+- `is_sdk_only`: `True` for sandbox/training markets, `False` for shared markets
+
+### Position
+- `market_id`: Market ID
+- `shares_yes`: YES shares held
+- `shares_no`: NO shares held
+- `current_value`: Current position value
+- `pnl`: Unrealized profit/loss
+
+### TradeResult
+- `success`: Whether trade succeeded
+- `shares_bought`: Shares acquired
+- `cost`: Amount spent
+- `new_price`: New market price after trade
