@@ -1,0 +1,754 @@
+#!/usr/bin/env python3
+"""
+Plugin Base Classes for OpenSSL Encrypt
+
+This module provides the foundational base classes for the secure plugin system.
+All plugins must inherit from these classes to ensure security boundaries are
+maintained and sensitive data is never exposed to third-party code.
+
+Security Architecture:
+- Zero-trust design: plugins never access passwords, keys, or plaintext
+- Capability-based security model with explicit permissions
+- Sandboxed execution environment with restricted operations
+- Type-safe interfaces with validation and sanitization
+"""
+
+import abc
+import enum
+import logging
+import time
+from typing import Any, Dict, List, Optional, Set, Union
+
+logger = logging.getLogger(__name__)
+
+
+class PluginCapability(enum.Enum):
+    """
+    Security capabilities that plugins can request.
+    Each capability grants specific, limited permissions.
+    """
+
+    # File system access (read-only, specific paths)
+    READ_FILES = "read_files"
+
+    # Metadata manipulation (non-sensitive only)
+    MODIFY_METADATA = "modify_metadata"
+
+    # Configuration access (plugin-specific config only)
+    ACCESS_CONFIG = "access_config"
+
+    # Logging capabilities (filtered, no sensitive data)
+    WRITE_LOGS = "write_logs"
+
+    # Network access (disabled by default for security)
+    NETWORK_ACCESS = "network_access"
+
+    # Process execution (highly restricted)
+    EXECUTE_PROCESSES = "execute_processes"
+
+    # Telemetry event reception (receives filtered telemetry events)
+    TELEMETRY = "telemetry"
+
+    # Keyserver access (fetch public keys from remote server)
+    KEYSERVER = "keyserver"
+
+
+class PluginType(enum.Enum):
+    """
+    Plugin types defining where in the pipeline plugins can hook.
+    Each type has specific interfaces and security boundaries.
+    """
+
+    # Pre-processing plugins (work with input files before encryption)
+    PRE_PROCESSOR = "pre_processor"
+
+    # Post-processing plugins (work with output files after encryption)
+    POST_PROCESSOR = "post_processor"
+
+    # Metadata plugins (manipulate non-sensitive metadata)
+    METADATA_HANDLER = "metadata_handler"
+
+    # Format plugins (handle input/output format conversions)
+    FORMAT_CONVERTER = "format_converter"
+
+    # Analysis plugins (analyze encrypted files without decrypting)
+    ANALYZER = "analyzer"
+
+    # Utility plugins (provide helper functions)
+    UTILITY = "utility"
+
+    # HSM plugins (hardware security module integration)
+    HSM = "hsm"
+
+    # Telemetry plugins (collect anonymous usage statistics)
+    TELEMETRY = "telemetry"
+
+    # Keyserver plugins (fetch public keys from remote server)
+    KEYSERVER = "keyserver"
+
+
+class PluginSecurityContext:
+    """
+    Security context passed to plugins containing safe, sanitized data.
+    This is the ONLY data interface plugins can access.
+    """
+
+    def __init__(self, plugin_id: str, capabilities: Set[PluginCapability], plugin_file_directory: str = None):
+        self.plugin_id = plugin_id
+        self.capabilities = capabilities
+        self.metadata = {}  # Only non-sensitive metadata
+        self.file_paths = []  # Only paths to encrypted files or safe temp files
+        self.config = {}  # Plugin-specific configuration only
+        self.timestamp = time.time()
+        self.plugin_file_directory = plugin_file_directory  # Directory where plugin code is located
+
+    def has_capability(self, capability: PluginCapability) -> bool:
+        """Check if plugin has specific capability."""
+        return capability in self.capabilities
+
+    def add_metadata(self, key: str, value: Any) -> None:
+        """Add non-sensitive metadata that plugins can access."""
+        if self._is_sensitive_key(key):
+            logger.warning(
+                f"Plugin {self.plugin_id}: Attempted to add sensitive metadata key: {key}"
+            )
+            return
+        self.metadata[key] = value
+
+    def get_safe_temp_path(self, suffix: str = "") -> str:
+        """Generate safe temporary file path for plugin use."""
+        import tempfile
+
+        return tempfile.mktemp(suffix=suffix, prefix=f"plugin_{self.plugin_id}_")
+
+    @staticmethod
+    def _is_sensitive_key(key: str) -> bool:
+        """
+        Check if metadata key contains sensitive information.
+
+        Uses word boundary matching to avoid false positives like "safe_key"
+        triggering on the word "key".
+        """
+        import re
+
+        key_lower = key.lower()
+
+        # Check for exact matches of common sensitive keys
+        exact_sensitive = {
+            "password",
+            "passphrase",
+            "secret",
+            "token",
+            "auth",
+            "credential",
+            "private",
+            "api_key",
+            "private_key",
+            "secret_key",
+            "access_key",
+            "auth_token",
+            "salt",
+            "iv",
+            "nonce",
+            "seed",
+        }
+
+        if key_lower in exact_sensitive:
+            return True
+
+        # Check for sensitive patterns with word boundaries
+        # This prevents "safe_key" from matching "key"
+        sensitive_patterns = [
+            r"\bpassword\b",
+            r"\bsecret\b",
+            r"\btoken\b",
+            r"\bauth\b",
+            r"\bcredential\b",
+            r"\bprivate_key\b",
+            r"\bapi_key\b",
+            r"\baccess_key\b",
+            r"\bsecret_key\b",
+            r"\bsalt\b",
+            r"\b(iv|nonce|seed)\b",
+        ]
+
+        for pattern in sensitive_patterns:
+            if re.search(pattern, key_lower):
+                return True
+
+        return False
+
+
+class PluginResult:
+    """
+    Result object returned by plugin operations.
+    Provides standardized success/failure reporting and safe data return.
+    """
+
+    def __init__(
+        self, success: bool = True, message: str = "", data: Optional[Dict[str, Any]] = None
+    ):
+        self.success = success
+        self.message = message
+        self.data = data or {}
+        self.timestamp = time.time()
+
+    def add_data(self, key: str, value: Any) -> None:
+        """Add data to result, with security validation."""
+        if PluginSecurityContext._is_sensitive_key(key):
+            logger.warning(f"Plugin result: Attempted to add sensitive data key: {key}")
+            return
+        self.data[key] = value
+
+    @classmethod
+    def success_result(
+        cls,
+        message: str = "Operation completed successfully",
+        data: Optional[Dict[str, Any]] = None,
+    ) -> "PluginResult":
+        """Create successful result."""
+        return cls(success=True, message=message, data=data)
+
+    @classmethod
+    def error_result(cls, message: str, data: Optional[Dict[str, Any]] = None) -> "PluginResult":
+        """Create error result."""
+        return cls(success=False, message=message, data=data)
+
+
+class BasePlugin(abc.ABC):
+    """
+    Abstract base class for all plugins in the OpenSSL Encrypt system.
+
+    Security Design:
+    - Plugins NEVER receive sensitive data (passwords, keys, plaintext)
+    - All operations work with encrypted files or safe metadata only
+    - Capabilities must be explicitly declared and granted
+    - Execution is sandboxed with resource limits
+    """
+
+    def __init__(self, plugin_id: str, name: str, version: str):
+        self.plugin_id = plugin_id
+        self.name = name
+        self.version = version
+        self.enabled = True
+        self.logger = logging.getLogger(f"plugin.{plugin_id}")
+
+    def __getstate__(self):
+        """
+        Support pickling for multiprocessing.
+
+        Logger objects cannot be pickled, so we exclude them from the state.
+        The logger will be recreated when unpickling.
+        """
+        state = self.__dict__.copy()
+        # Remove the unpicklable logger
+        state.pop("logger", None)
+        return state
+
+    def __setstate__(self, state):
+        """
+        Support unpickling for multiprocessing.
+
+        Recreate the logger after unpickling.
+        """
+        self.__dict__.update(state)
+        # Recreate logger
+        self.logger = logging.getLogger(f"plugin.{self.plugin_id}")
+
+    @abc.abstractmethod
+    def get_plugin_type(self) -> PluginType:
+        """Return the type of this plugin."""
+        pass
+
+    @abc.abstractmethod
+    def get_required_capabilities(self) -> Set[PluginCapability]:
+        """Return set of capabilities this plugin requires."""
+        pass
+
+    @abc.abstractmethod
+    def get_description(self) -> str:
+        """Return human-readable description of plugin functionality."""
+        pass
+
+    def get_metadata(self) -> Dict[str, Any]:
+        """Return plugin metadata (non-sensitive information only)."""
+        return {
+            "id": self.plugin_id,
+            "name": self.name,
+            "version": self.version,
+            "type": self.get_plugin_type().value,
+            "capabilities": [cap.value for cap in self.get_required_capabilities()],
+            "description": self.get_description(),
+            "enabled": self.enabled,
+        }
+
+    def validate_security_context(self, context: PluginSecurityContext) -> bool:
+        """Validate that security context meets plugin requirements."""
+        required_caps = self.get_required_capabilities()
+        for cap in required_caps:
+            if not context.has_capability(cap):
+                self.logger.error(f"Missing required capability: {cap.value}")
+                return False
+        return True
+
+    @abc.abstractmethod
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """
+        Execute the plugin with given security context.
+        This is the main entry point for plugin execution.
+        """
+        pass
+
+    def initialize(self, config: Dict[str, Any]) -> PluginResult:
+        """Initialize plugin with configuration (optional override)."""
+        return PluginResult.success_result("Plugin initialized successfully")
+
+    def cleanup(self) -> PluginResult:
+        """Cleanup resources when plugin is unloaded (optional override)."""
+        return PluginResult.success_result("Plugin cleaned up successfully")
+
+
+class PreProcessorPlugin(BasePlugin):
+    """
+    Base class for pre-processing plugins.
+    These plugins work with input files BEFORE encryption begins.
+    """
+
+    def get_plugin_type(self) -> PluginType:
+        return PluginType.PRE_PROCESSOR
+
+    @abc.abstractmethod
+    def process_file(self, file_path: str, context: PluginSecurityContext) -> PluginResult:
+        """
+        Process input file before encryption.
+
+        Args:
+            file_path: Path to input file (unencrypted)
+            context: Security context with capabilities and metadata
+
+        Returns:
+            PluginResult with processing status and any modifications
+        """
+        pass
+
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """Execute pre-processing for files in context."""
+        if not context.file_paths:
+            return PluginResult.error_result("No files provided for pre-processing")
+
+        results = []
+        for file_path in context.file_paths:
+            result = self.process_file(file_path, context)
+            results.append(result)
+            if not result.success:
+                return result  # Fail fast on first error
+
+        return PluginResult.success_result(
+            f"Pre-processed {len(results)} files successfully", {"processed_files": len(results)}
+        )
+
+
+class PostProcessorPlugin(BasePlugin):
+    """
+    Base class for post-processing plugins.
+    These plugins work with output files AFTER encryption is complete.
+    """
+
+    def get_plugin_type(self) -> PluginType:
+        return PluginType.POST_PROCESSOR
+
+    @abc.abstractmethod
+    def process_encrypted_file(
+        self, encrypted_file_path: str, context: PluginSecurityContext
+    ) -> PluginResult:
+        """
+        Process encrypted output file.
+
+        Args:
+            encrypted_file_path: Path to encrypted file
+            context: Security context with capabilities and metadata
+
+        Returns:
+            PluginResult with processing status and any modifications
+        """
+        pass
+
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """Execute post-processing for encrypted files in context."""
+        if not context.file_paths:
+            return PluginResult.error_result("No encrypted files provided for post-processing")
+
+        results = []
+        for file_path in context.file_paths:
+            result = self.process_encrypted_file(file_path, context)
+            results.append(result)
+            if not result.success:
+                return result  # Fail fast on first error
+
+        return PluginResult.success_result(
+            f"Post-processed {len(results)} encrypted files successfully",
+            {"processed_files": len(results)},
+        )
+
+
+class MetadataHandlerPlugin(BasePlugin):
+    """
+    Base class for metadata handling plugins.
+    These plugins work ONLY with non-sensitive metadata.
+    """
+
+    def get_plugin_type(self) -> PluginType:
+        return PluginType.METADATA_HANDLER
+
+    @abc.abstractmethod
+    def process_metadata(
+        self, metadata: Dict[str, Any], context: PluginSecurityContext
+    ) -> PluginResult:
+        """
+        Process non-sensitive metadata.
+
+        Args:
+            metadata: Dictionary of non-sensitive metadata
+            context: Security context with capabilities
+
+        Returns:
+            PluginResult with modified metadata or processing status
+        """
+        pass
+
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """Execute metadata processing."""
+        return self.process_metadata(context.metadata.copy(), context)
+
+
+class FormatConverterPlugin(BasePlugin):
+    """
+    Base class for format conversion plugins.
+    These plugins handle input/output format conversions.
+    """
+
+    def get_plugin_type(self) -> PluginType:
+        return PluginType.FORMAT_CONVERTER
+
+    @abc.abstractmethod
+    def get_supported_input_formats(self) -> List[str]:
+        """Return list of supported input formats (e.g., ['txt', 'doc'])."""
+        pass
+
+    @abc.abstractmethod
+    def get_supported_output_formats(self) -> List[str]:
+        """Return list of supported output formats (e.g., ['pdf', 'html'])."""
+        pass
+
+    @abc.abstractmethod
+    def convert_format(
+        self,
+        input_path: str,
+        output_path: str,
+        input_format: str,
+        output_format: str,
+        context: PluginSecurityContext,
+    ) -> PluginResult:
+        """
+        Convert file from input format to output format.
+
+        Args:
+            input_path: Path to input file
+            output_path: Path for output file
+            input_format: Source format
+            output_format: Target format
+            context: Security context
+
+        Returns:
+            PluginResult with conversion status
+        """
+        pass
+
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """Execute format conversion based on context metadata."""
+        input_format = context.metadata.get("input_format")
+        output_format = context.metadata.get("output_format")
+
+        if not input_format or not output_format:
+            return PluginResult.error_result("Input and output formats must be specified")
+
+        if not context.file_paths:
+            return PluginResult.error_result("No files provided for format conversion")
+
+        input_path = context.file_paths[0]
+        output_path = context.get_safe_temp_path(f".{output_format}")
+
+        return self.convert_format(input_path, output_path, input_format, output_format, context)
+
+
+class AnalyzerPlugin(BasePlugin):
+    """
+    Base class for file analysis plugins.
+    These plugins analyze encrypted files without decrypting them.
+    """
+
+    def get_plugin_type(self) -> PluginType:
+        return PluginType.ANALYZER
+
+    @abc.abstractmethod
+    def analyze_file(self, file_path: str, context: PluginSecurityContext) -> PluginResult:
+        """
+        Analyze encrypted file without decrypting.
+
+        Args:
+            file_path: Path to encrypted file
+            context: Security context
+
+        Returns:
+            PluginResult with analysis results
+        """
+        pass
+
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """Execute analysis for files in context."""
+        if not context.file_paths:
+            return PluginResult.error_result("No files provided for analysis")
+
+        analysis_results = []
+        for file_path in context.file_paths:
+            result = self.analyze_file(file_path, context)
+            if result.success:
+                analysis_results.append(result.data)
+            else:
+                return result  # Fail fast on analysis error
+
+        return PluginResult.success_result(
+            f"Analyzed {len(analysis_results)} files successfully",
+            {"analysis_results": analysis_results},
+        )
+
+
+class UtilityPlugin(BasePlugin):
+    """
+    Base class for utility plugins.
+    These plugins provide helper functions and services.
+    """
+
+    def get_plugin_type(self) -> PluginType:
+        return PluginType.UTILITY
+
+    @abc.abstractmethod
+    def get_utility_functions(self) -> Dict[str, callable]:
+        """
+        Return dictionary of utility functions this plugin provides.
+
+        Returns:
+            Dict mapping function names to callable functions
+        """
+        pass
+
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """Execute utility function based on context."""
+        function_name = context.metadata.get("function_name")
+        if not function_name:
+            return PluginResult.error_result("No utility function specified")
+
+        functions = self.get_utility_functions()
+        if function_name not in functions:
+            return PluginResult.error_result(f"Unknown utility function: {function_name}")
+
+        try:
+            function = functions[function_name]
+            function_args = context.metadata.get("function_args", {})
+            result = function(**function_args)
+            return PluginResult.success_result(
+                f"Utility function '{function_name}' executed successfully", {"result": result}
+            )
+        except Exception as e:
+            return PluginResult.error_result(f"Utility function failed: {str(e)}")
+
+
+class HSMPlugin(BasePlugin):
+    """
+    Base class for Hardware Security Module (HSM) plugins.
+
+    HSM plugins enhance key derivation by providing hardware-bound pepper values.
+    They operate during the key derivation process, transforming the salt into
+    a hardware-specific pepper value.
+
+    Security Design:
+    - HSM plugins receive the salt (challenge) as input
+    - They return an hsm_pepper value derived from hardware
+    - The pepper is NOT stored - it must be recalculated on each operation
+    - Hardware must be present for both encryption and decryption
+
+    Use Cases:
+    - Yubikey Challenge-Response
+    - TPM 2.0 key derivation
+    - Hardware security tokens
+    - Smart cards
+    """
+
+    def get_plugin_type(self) -> PluginType:
+        return PluginType.HSM
+
+    @abc.abstractmethod
+    def get_hsm_pepper(self, salt: bytes, context: PluginSecurityContext) -> PluginResult:
+        """
+        Derive HSM pepper from salt using hardware security module.
+
+        This method performs a challenge-response operation with the HSM hardware,
+        transforming the salt (challenge) into a pepper value (response) that is
+        unique to the hardware device.
+
+        Args:
+            salt: The encryption salt (16 bytes) to use as challenge
+            context: Security context with HSM configuration (slot, timeout, etc.)
+
+        Returns:
+            PluginResult with:
+                success: True if hardware operation succeeded
+                message: Status message or error description
+                data: {'hsm_pepper': bytes} - the derived pepper value
+
+        Raises:
+            Should NOT raise exceptions - return PluginResult.error_result() instead
+
+        Security Notes:
+            - The hsm_pepper MUST be deterministic (same salt -> same pepper)
+            - The pepper should be cryptographically strong (e.g., HMAC-SHA1 or stronger)
+            - Hardware availability is REQUIRED - return error if device not present
+            - Never log or expose the pepper value
+        """
+        pass
+
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """
+        Execute HSM pepper derivation based on context.
+
+        The salt should be provided in context.metadata['salt'] as bytes.
+        """
+        salt = context.metadata.get("salt")
+        if not salt:
+            return PluginResult.error_result("No salt provided for HSM pepper derivation")
+
+        if not isinstance(salt, bytes):
+            return PluginResult.error_result("Salt must be bytes")
+
+        return self.get_hsm_pepper(salt, context)
+
+
+class TelemetryPlugin(BasePlugin):
+    """
+    Base class for telemetry plugins.
+
+    SECURITY:
+    - Receives ONLY TelemetryEvent objects (already filtered by TelemetryDataFilter)
+    - Has NO access to:
+      - Passwords, keys (public/private/symmetric), salts
+      - Filenames, file sizes, file paths
+      - Fingerprints, key IDs
+      - IP addresses, user identifiers
+      - Plaintext or ciphertext data
+
+    PRIVACY:
+    - Opt-in by default (disabled unless explicitly enabled)
+    - User can inspect all pending events before upload
+    - Full opt-out with complete data deletion
+    - Anonymous usage statistics only
+
+    Telemetry plugins collect anonymous algorithm usage statistics to help
+    prioritize future development. All data collection is strictly controlled
+    through TelemetryDataFilter whitelisting.
+    """
+
+    def get_plugin_type(self) -> PluginType:
+        return PluginType.TELEMETRY
+
+    def get_required_capabilities(self) -> Set[PluginCapability]:
+        """Telemetry plugins require network access and logging."""
+        return {
+            PluginCapability.TELEMETRY,
+            PluginCapability.NETWORK_ACCESS,
+            PluginCapability.ACCESS_CONFIG,
+            PluginCapability.WRITE_LOGS,
+        }
+
+    @abc.abstractmethod
+    def on_telemetry_event(self, event: "TelemetryEvent") -> None:
+        """
+        Called after each encrypt/decrypt operation with filtered telemetry data.
+
+        SECURITY GUARANTEE: The event has already been filtered by
+        TelemetryDataFilter and contains ONLY whitelisted, non-sensitive data.
+
+        Args:
+            event: TelemetryEvent instance (immutable, already filtered)
+
+        Implementation Notes:
+            - This method should be non-blocking (buffer locally, upload async)
+            - Should NOT raise exceptions (catch and log errors internally)
+            - Should NOT block the main encryption/decryption operation
+        """
+        pass
+
+    @abc.abstractmethod
+    def flush(self) -> PluginResult:
+        """
+        Sends all buffered telemetry events to the server immediately.
+
+        Returns:
+            PluginResult indicating success/failure of the flush operation
+
+        Implementation Notes:
+            - This is called by the CLI command "telemetry flush"
+            - Should attempt to upload all pending events
+            - Should return success if most/all events uploaded
+            - Failed events should be kept in buffer for retry
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_status(self) -> Dict[str, Any]:
+        """
+        Returns plugin status for CLI display.
+
+        Returns:
+            Dictionary with status information:
+                - enabled: bool (whether telemetry is active)
+                - pending_events: int (number of buffered events)
+                - server_url: str (telemetry server URL)
+                - has_api_key: bool (whether registered with server)
+                - upload_interval: int (seconds between uploads)
+                - last_upload: Optional[str] (ISO 8601 timestamp)
+
+        Implementation Notes:
+            - Called by CLI command "telemetry status"
+            - Should be fast (no network calls)
+            - Should provide useful info for debugging
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_pending_events(self) -> List[Dict[str, Any]]:
+        """
+        Returns all buffered events for user inspection (transparency).
+
+        Returns:
+            List of event dictionaries (serialized TelemetryEvents)
+
+        Implementation Notes:
+            - Called by CLI command "telemetry show-pending"
+            - Allows user to see what data would be sent before upload
+            - Critical for transparency and user trust
+            - Should return events in chronological order
+        """
+        pass
+
+    def execute(self, context: PluginSecurityContext) -> PluginResult:
+        """
+        Execute telemetry plugin (called by plugin manager).
+
+        For telemetry plugins, the main execution happens via on_telemetry_event()
+        callbacks rather than through execute(). This method exists to satisfy
+        the BasePlugin interface.
+
+        Returns:
+            PluginResult indicating plugin is active
+        """
+        return PluginResult.success_result("Telemetry plugin active")
