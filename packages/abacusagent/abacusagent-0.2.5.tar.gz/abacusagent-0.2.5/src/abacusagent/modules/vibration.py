@@ -1,0 +1,34 @@
+from typing import Dict, List, Optional, Any, Literal
+from pathlib import Path
+
+from abacusagent.init_mcp import mcp
+from abacusagent.modules.submodules.vibration import abacus_vibration_analysis as _abacus_vibration_analysis
+
+@mcp.tool()
+def abacus_vibration_analysis(abacus_inputs_dir: Path,
+                              selected_atoms: Optional[List[int]] = None,
+                              stepsize: float = 0.01,
+                              temperature: Optional[float] = 298.15):
+    """
+    Performing vibrational analysis using finite displacement method.
+    This tool function is usually followed by a relax calculation (`calculation` is set to `relax`).
+    Args:
+        abacus_inputs_dir (Path): Path to the ABACUS input files directory.
+        selected_atoms (Optional[List[int]]): Indices (started from 1) of atoms included in the vibrational analysis. If this
+            parameter are not given, all atoms in the structure will be included.
+        stepsize (float): Step size to displace cartesian coordinates of atoms during the vibrational analysis.
+            Units in Angstrom. The default value (0.01 Angstrom) is generally OK.
+        temperature (float): Temperature used to calculate thermodynamic quantities. Units in Kelvin.
+    Returns:
+        A dictionary containing the following keys:
+        - 'frequencies': List of real frequencies from vibrational analysis. Imaginary frequencies are represented by negative 
+            values. Units in cm^{-1}.
+        - 'zero_point_energy': Zero-point energy summed over all modes. Units in eV.
+        - 'vib_analysis_work_path': Path to directory performing vibrational analysis. Containing animation of normal modes 
+            with non-zero frequency in ASE traj format and `vib` directory containing collected forces.
+        - 'thermo_corr': Corrections to entropy and free energy from vibrations using harmonic approximation. Keys are temperatures.
+           For each temperature, contaning 2 quantities:
+           - 'entropy':  Vibrational entropy using harmonic approximation. Units in eV/K.
+           - 'free_energy': Free energy using harmonic approximation. Units in eV.
+    """
+    return _abacus_vibration_analysis(abacus_inputs_dir, selected_atoms, stepsize, temperature)
