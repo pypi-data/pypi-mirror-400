@@ -1,0 +1,10 @@
+- Test 'suite'
+  - config: tests
+  - config: expected_failed_tests
+  - --all
+  - multiple test on command line
+  - status: OK/FAIL/...
+- Add test for `read-only`. 
+- Include documentation in binary distribution.
+- Allow running on multiple tests.
+- Allow quotes in `description`.

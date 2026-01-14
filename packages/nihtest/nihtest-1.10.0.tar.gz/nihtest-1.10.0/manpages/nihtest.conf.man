@@ -1,0 +1,274 @@
+.\" Automatically generated from an mdoc input file.  Do not edit.
+.\" nihtest.conf.mdoc -- nihtest config file format
+.\" Copyright (C) 2020-2023 Dieter Baron and Thomas Klausner
+.\"
+.\" This file is part of nihtest, a testing framework.
+.\" The authors can be contacted at <nihtest@nih.at>
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in
+.\"    the documentation and/or other materials provided with the
+.\"    distribution.
+.\" 3. The names of the authors may not be used to endorse or promote
+.\"    products derived from this software without specific prior
+.\"    written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS
+.\" OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+.\" WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
+.\" DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+.\" GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+.\" IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+.\" OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+.\" IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\"
+.TH "NIHTEST.CONF" "5" "January 20, 2025" "NiH" "File Formats Manual"
+.nh
+.if n .ad l
+.SH "NAME"
+\fBnihtest.conf\fR
+\- testing tool configuration file format
+.SH "DESCRIPTION"
+nihtest(1)
+is a testing tool.
+It reads a configuration file to get its default settings.
+The default path for the file is
+\fInihtest.conf\fR
+in the current directory; this can be overridden with
+nihtest(1)'s
+\fB\-C\fR
+flag.
+This man page describes the format of this configuration file.
+.SH "FILE FORMAT"
+The configuration file consists of multiple sections, which are started with
+[\fIsection-name\fR].
+The supported sections are
+\fBsettings\fR,
+\fBenvironment\fR,
+and
+\fBcomparators\fR.
+.PP
+Each section consists of variable assignments in the format
+\fIname =\fR
+\fIvalue\fR,
+one per line.
+.PP
+Multiple values for the same variable can be specified, one per line, where subsequent lines must be indented with spaces.
+.SH "SETTINGS"
+In the
+\fBsettings\fR
+section, the following variables are recognized:
+.TP 22n
+\fBdefault-program =\fR \fIprogram\fR
+Test
+\fIprogram\fR
+if no
+\fBprogram\fR
+directive is found in the test.
+.TP 22n
+\fBdefault-stderr-replace =\fR \fIpattern replacement ...\fR
+Each line consists of two values,
+\fIpattern\fR
+is a regular expression and
+\fIreplacement\fR
+the corresponding replacement string.
+These are used for test cases without
+\fBstderr-replace\fR
+directives.
+See
+nihtest-case(5)
+for details on
+\fBstderr-replace\fR.
+.TP 22n
+\fBdefault-working-directory =\fR \fIdirectory\fR
+Use
+\fIdirectory\fR
+as the working directory if no
+\fBworking-directory\fR
+directive is found in the test.
+.TP 22n
+\fBenvironment-clear = true\fR
+If
+\fBenvironment-clear\fR
+is set to
+\fRtrue\fR,
+only variables explicitly set or passed through are included in the environment passed to the tested program.
+.TP 22n
+\fBenvironment-passthrough =\fR \fIvariable ...\fR
+The named environment variables are passed through from the environment
+nihtest(1)
+is run in to the environment passed to the tested program.
+.TP 22n
+\fBenvironment-unset =\fR \fIvariable ...\fR
+The named environment variables are removed from the environment passed to the tested program.
+.TP 22n
+\fBfeatures-files =\fR \fIfile ...\fR
+Specifies the files to search for feature defines.
+This is used in the
+\fBfeatures\fR
+directive in test cases.
+.TP 22n
+\fBkeep-sandbox =\fR \fIwhen\fR
+Describe when to keep the sandbox (i.e., not delete it) after running the test.
+The following values are supported:
+.RS 30n
+.PD 0
+.TP 8n
+\fRnever\fR
+Never keep the sandbox.
+.TP 8n
+\fRfailed\fR
+Keep the sandbox when the test failed.
+.TP 8n
+\fRalways\fR
+Always keep the sandbox.
+.RE
+.RS 22n
+This can be overridden with the
+nihtest(1)
+flags \fB\-\-keep-broken\fR \fB\-=\fR \fIwhen\fR
+or \fB\-\-no-cleanup\fR.
+The default is
+\fRnever\fR.
+.RE
+.PD
+.TP 22n
+\fBprint-results =\fR \fIwhen\fR
+Describe when to print the test results verbosely.
+The following values are supported:
+.RS 30n
+.PD 0
+.TP 8n
+\fRnever\fR
+Quiet mode.
+.TP 8n
+\fRfailed\fR
+Print details when the test failed.
+.TP 8n
+\fRalways\fR
+Verbose mode.
+.RE
+.RS 22n
+This can be overridden with the
+nihtest(1)
+flags \fB\-\-quiet\fR
+or \fB\-\-verbose\fR.
+The default is
+\fRfailed\fR.
+.RE
+.PD
+.TP 22n
+\fBprogram-directories =\fR \fIdirectory ...\fR
+Specifies the directories programs are searched for.
+They are prepended to
+\fRPATH\fR.
+.TP 22n
+\fBsandbox-directories =\fR \fIdirectory ...\fR
+Create sandboxes in
+\fIdirectory\fR.
+By default, the sandboxes will be created in the current directory.
+A random directory of the pattern
+\fIsandbox_*\fR
+will be used.
+.TP 22n
+\fBtest-input-directories =\fR \fIdirectory ...\fR
+nihtest(1)
+searches the current directory and
+\fIdirectory\fR
+for test cases, input and output files.
+.SH "ENVIRONMENT"
+The
+\fBenvironment\fR
+section contains variable and values that will be added as environment variables when the test program is run.
+.SH "COMPARATORS"
+The
+\fBcomparators\fR
+section specifies programs to use to compare files of certain types.
+The variable names have the format
+\fIgot-extension\fR. \fIexpected-extension\fR,
+the value specifies the command line to use to compare these files.
+The command will be run with the two files as arguments, the file in the sandbox first and the expected last.
+.PP
+The command is expected to exit with code 0 if the two files are considered equal, any other exit code if not.
+The command output will be displayed if verbose test results are enabled (see
+\fBprint-results\fR
+above).
+.PP
+For example, with comparators containing
+.RS 6n
+zip.zip = zipcmp -v
+.RE
+and the test case containing
+.RS 6n
+file got.zip expected.zip
+.RE
+the command
+.RS 6n
+zipcmp -v got.zip expected.zip
+.RE
+will be run to compare the files.
+.SH "COMPARATOR-PREPROCESSORS"
+The
+\fBcomparator-preprocessors\fR
+section specifies programs to use to preprocess certain file types for comparison.
+The variable names have the format
+\fIgot-extension\fR. \fIexpected-extension\fR,
+the value specifies the command line to use to preprocess the file in the sandbox.
+The command will be run with the file in the sandbox first as argument.
+The command's output will be compared to the expected file.
+.PP
+If the command doesn't exit with code 0, the test will fail.
+.SH "COPIERS"
+The
+\fBcopiers\fR
+section specifies programs to use to copy certain file types into the sandbox.
+The variable names have the format
+\fIsandbox-extension\fR. \fIsource-extension\fR,
+the value specifies the command line to use to copy the file into the sandbox.
+The command will be run with the two files as arguments, the source file first and the file in the sandbox last.
+.PP
+If the command doesn't exit with code 0, the test will fail.
+.SH "SUITE"
+The optional
+\fBsuite\fR
+can be used to define a suite of tests to be run with the
+\fI--all\fR
+command line option.
+.TP 22n
+\fBtests =\fR \fItests\fR
+This specifies the tests to run. It can contain names or shell globs.
+\fI.test\fR
+will be appended if not present, and files will be searched for in
+\fRtest-input-directories\fR.
+.TP 22n
+\fBexpected-failing-tests =\fR \fItests\fR
+This specifies the tests that are expected to fail.
+Tests are searched in the same way as for
+\fBtests\fR.
+.SH "EXAMPLES"
+.nf
+.RS 0n
+[settings]
+default-program = program_to_test
+program-directories = bin
+    tests
+[environment]
+LC_ALL=en_US.UTF-8
+[comparators]
+zip.zip = zipcmp -v
+[suite]
+tests = *.test
+expected_failing_tests = *-broken.test
+    completely_broken_test.test
+.RE
+.fi
+.SH "SEE ALSO"
+nihtest(1)

@@ -1,0 +1,244 @@
+.\" nihtest.conf.mdoc -- nihtest config file format
+.\" Copyright (C) 2020-2023 Dieter Baron and Thomas Klausner
+.\"
+.\" This file is part of nihtest, a testing framework.
+.\" The authors can be contacted at <nihtest@nih.at>
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in
+.\"    the documentation and/or other materials provided with the
+.\"    distribution.
+.\" 3. The names of the authors may not be used to endorse or promote
+.\"    products derived from this software without specific prior
+.\"    written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS
+.\" OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+.\" WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
+.\" DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+.\" GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+.\" IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+.\" OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+.\" IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd January 20, 2025
+.Dt NIHTEST.CONF 5
+.Os
+.Sh NAME
+.Nm nihtest.conf
+.Nd testing tool configuration file format
+.Sh DESCRIPTION
+.Xr nihtest 1
+is a testing tool.
+It reads a configuration file to get its default settings.
+The default path for the file is
+.Pa nihtest.conf
+in the current directory; this can be overridden with
+.Xr nihtest 1 Ap s
+.Fl C
+flag.
+This man page describes the format of this configuration file.
+.Sh FILE FORMAT
+The configuration file consists of multiple sections, which are started with
+.Ar [ section-name ] .
+The supported sections are
+.Ic settings ,
+.Ic environment ,
+and
+.Ic comparators .
+.Pp
+Each section consists of variable assignments in the format
+.Ar name =
+.Ar value ,
+one per line.
+.Pp
+Multiple values for the same variable can be specified, one per line, where subsequent lines must be indented with spaces.
+.Sh SETTINGS
+In the
+.Ic settings
+section, the following variables are recognized:
+.Bl -tag -width 20n
+.It Ic default-program = Ar program
+Test
+.Ar program
+if no
+.Ic program
+directive is found in the test.
+.It Ic default-stderr-replace = Ar pattern replacement ...
+Each line consists of two values,
+.Ar pattern
+is a regular expression and
+.Ar replacement
+the corresponding replacement string.
+These are used for test cases without
+.Ic stderr-replace
+directives.
+See
+.Xr nihtest-case 5
+for details on
+.Ic stderr-replace .
+.It Ic default-working-directory = Ar directory
+Use
+.Ar directory
+as the working directory if no
+.Ic working-directory
+directive is found in the test.
+.It Ic environment-clear = true
+If
+.Ic environment-clear
+is set to
+.Dv true ,
+only variables explicitly set or passed through are included in the environment passed to the tested program.
+.It Ic environment-passthrough = Ar variable ...
+The named environment variables are passed through from the environment
+.Xr nihtest 1
+is run in to the environment passed to the tested program.
+.It Ic environment-unset = Ar variable ...
+The named environment variables are removed from the environment passed to the tested program.
+.It Ic features-files = Ar file ...
+Specifies the files to search for feature defines.
+This is used in the
+.Ic features
+directive in test cases.
+.It Ic keep-sandbox = Ar when
+Describe when to keep the sandbox (i.e., not delete it) after running the test.
+The following values are supported:
+.Bl -tag -width 6n -compact -offset 8n
+.It Dv never
+Never keep the sandbox.
+.It Dv failed
+Keep the sandbox when the test failed.
+.It Dv always
+Always keep the sandbox.
+.El
+This can be overridden with the
+.Xr nihtest 1
+flags
+.Fl Fl keep-broken = Ar when
+or
+.Fl Fl no-cleanup .
+The default is
+.Dv never .
+.It Ic print-results = Ar when
+Describe when to print the test results verbosely.
+The following values are supported:
+.Bl -tag -width 6n -compact -offset 8n
+.It Dv never
+Quiet mode.
+.It Dv failed
+Print details when the test failed.
+.It Dv always
+Verbose mode.
+.El
+This can be overridden with the
+.Xr nihtest 1
+flags
+.Fl Fl quiet
+or
+.Fl Fl verbose .
+The default is
+.Dv failed .
+.It Ic program-directories = Ar directory ...
+Specifies the directories programs are searched for.
+They are prepended to
+.Ev PATH .
+.It Ic sandbox-directories = Ar directory ...
+Create sandboxes in
+.Ar directory .
+By default, the sandboxes will be created in the current directory.
+A random directory of the pattern
+.Pa sandbox_*
+will be used.
+.It Ic test-input-directories = Ar directory ...
+.Xr nihtest 1
+searches the current directory and
+.Ar directory
+for test cases, input and output files.
+.El
+.Sh ENVIRONMENT
+The
+.Ic environment
+section contains variable and values that will be added as environment variables when the test program is run.
+.Sh COMPARATORS
+The
+.Ic comparators
+section specifies programs to use to compare files of certain types.
+The variable names have the format
+.Ar got-extension . expected-extension ,
+the value specifies the command line to use to compare these files.
+The command will be run with the two files as arguments, the file in the sandbox first and the expected last.
+.Pp
+The command is expected to exit with code 0 if the two files are considered equal, any other exit code if not.
+The command output will be displayed if verbose test results are enabled (see
+.Ic print-results
+above).
+.Pp
+For example, with comparators containing
+.Dl zip.zip = zipcmp -v
+and the test case containing
+.Dl file got.zip expected.zip
+the command
+.Dl zipcmp -v got.zip expected.zip
+will be run to compare the files.
+.Sh COMPARATOR-PREPROCESSORS
+The
+.Ic comparator-preprocessors
+section specifies programs to use to preprocess certain file types for comparison.
+The variable names have the format
+.Ar got-extension . expected-extension ,
+the value specifies the command line to use to preprocess the file in the sandbox.
+The command will be run with the file in the sandbox first as argument.
+The command's output will be compared to the expected file.
+.Pp
+If the command doesn't exit with code 0, the test will fail.
+.Sh COPIERS
+The
+.Ic copiers
+section specifies programs to use to copy certain file types into the sandbox.
+The variable names have the format
+.Ar sandbox-extension . source-extension ,
+the value specifies the command line to use to copy the file into the sandbox.
+The command will be run with the two files as arguments, the source file first and the file in the sandbox last.
+.Pp
+If the command doesn't exit with code 0, the test will fail.
+.Sh SUITE
+The optional
+.Ic suite
+can be used to define a suite of tests to be run with the
+.Ar --all
+command line option.
+.Bl -tag -width 20n
+.It Ic tests = Ar tests
+This specifies the tests to run. It can contain names or shell globs.
+.Pa .test
+will be appended if not present, and files will be searched for in
+.Dv test-input-directories .
+.It Ic expected-failing-tests = Ar tests
+This specifies the tests that are expected to fail.
+Tests are searched in the same way as for
+.Ic tests .
+.Sh EXAMPLES
+.Bd -literal
+[settings]
+default-program = program_to_test
+program-directories = bin
+    tests
+[environment]
+LC_ALL=en_US.UTF-8
+[comparators]
+zip.zip = zipcmp -v
+[suite]
+tests = *.test
+expected_failing_tests = *-broken.test
+    completely_broken_test.test
+.Ed
+.Sh SEE ALSO
+.Xr nihtest 1
