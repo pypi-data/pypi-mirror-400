@@ -1,0 +1,148 @@
+Metadata-Version: 2.4
+Name: muuk-test-repair-mcp
+Version: 0.1.5
+Summary: MCP server for analyzing and repairing E2E test failures
+Author-email: MuukTest <support@muuktest.com>
+Project-URL: Homepage, https://muuktest.com
+Project-URL: Repository, https://github.com/muuktest/test-repair-mcp
+Keywords: mcp,testing,playwright,e2e,test-repair,ai
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: requests>=2.28.0
+
+# MuukTest Repair MCP
+
+MCP server for analyzing and repairing E2E test failures (Playwright, Cypress, Selenium, etc).
+
+## Requirements
+
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv)
+
+## Configuration
+
+### VS Code / GitHub Copilot
+
+Open User MCP Configuration (`Cmd+Shift+P` → "MCP: Open User Configuration"):
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "muuk_api_key",
+      "description": "MuukTest API Key",
+      "password": true
+    },
+    {
+      "type": "promptString",
+      "id": "aws_access_key",
+      "description": "AWS Access Key ID",
+      "password": true
+    },
+    {
+      "type": "promptString",
+      "id": "aws_secret_key",
+      "description": "AWS Secret Access Key",
+      "password": true
+    }
+  ],
+  "servers": {
+    "muuk-test-repair": {
+      "command": "uvx",
+      "args": ["muuk-test-repair-mcp"],
+      "env": {
+        "MUUK_API_KEY": "${input:muuk_api_key}",
+        "AWS_ACCESS_KEY_ID": "${input:aws_access_key}",
+        "AWS_SECRET_ACCESS_KEY": "${input:aws_secret_key}"
+      }
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+Edit `~/.config/claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "muuk-test-repair": {
+      "command": "uvx",
+      "args": ["muuk-test-repair-mcp"],
+      "env": {
+        "MUUK_API_KEY": "your-api-key",
+        "AWS_ACCESS_KEY_ID": "your-aws-access-key",
+        "AWS_SECRET_ACCESS_KEY": "your-aws-secret-key"
+      }
+    }
+  }
+}
+```
+
+## Usage
+
+Ask your AI agent:
+
+```
+Analyze the test failure in my project.
+The test file is in ./test-files/ and failure data is in ./failure-data/
+```
+
+## Required Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `workspace_path` | Absolute path to project root (agent provides this automatically) |
+| `test_file_path` | Path to test file or directory |
+| `failure_info_path` | Path to failure info JSON |
+| `dom_elements_path` | Path to DOM elements JSON |
+| `screenshot_path` | Path to failure screenshot |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `MUUK_API_KEY` | Your MuukTest API key |
+| `AWS_ACCESS_KEY_ID` | AWS access key for API authentication |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key for API authentication |
+| `AWS_REGION` | AWS region (default: us-east-2) |
+
+## Available AI Presets
+
+- `claude` (default)
+- `openai`
+- `gemini`
+
+## Troubleshooting
+
+### "The command uvx needed to run muuk-test-repair was not found"
+
+VS Code can't find `uvx` in the PATH. Run in terminal:
+
+```bash
+which uvx
+```
+
+Then add the path to your shell profile (`~/.zshrc` or `~/.bashrc`):
+
+```bash
+export PATH="$PATH:/path/from/which/uvx"
+```
+
+Restart VS Code after making changes.
+
+## API Key
+
+Request your credentials from R&D Team.
