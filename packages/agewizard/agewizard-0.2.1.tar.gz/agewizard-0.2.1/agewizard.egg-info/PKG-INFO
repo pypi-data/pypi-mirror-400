@@ -1,0 +1,223 @@
+Metadata-Version: 2.4
+Name: agewizard
+Version: 0.2.1
+Summary: A powerful age calculator library
+Home-page: https://github.com/KamranProjects/agewizard
+Author: Kamran Hussain
+Author-email: contact.kamrankami@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+Dynamic: summary
+
+# 🧙‍♂️ Agewizard: The Absolute Age & DOB Powerhouse for Python
+
+**Agewizard** is a premium, developer-first Python library designed to handle all aspects of age calculation, date of birth (DOB) analysis, and life-stage classification. Built with a focus on **strict validation**, **global compatibility**, and **magic-like simplicity**, it provides the most comprehensive toolset for modern Python applications.
+
+Whether you're building a simple registration form with 18+ verification or a complex fintech app requiring precise date metrics, Agewizard ensures your logic is bulletproof and your code remains clean.
+
+---
+
+## 🚀 Key Value Propositions
+
+- **Total Reliability**: Strict internal validation catches "fake dates" (like month 13 or Feb 30) before they reach your database.
+- **Global Ready**: Native support for any date format (`DD-MM-YYYY`, `MM.DD.YYYY`, `YYYY/MM/DD`).
+- **Developer Experience**: A fluent API that follows the **Zen of Python**—it just works.
+- **Micro-Services Ready**: Zero external dependencies. Just pure Python power.
+
+---
+
+## 🛠 Installation
+
+Install the latest version directly from PyPI:
+
+```bash
+pip install -U agewizard
+```
+
+---
+
+## 📖 Comprehensive Feature Guide
+
+### 1. Robust Date Parsing & Strict Validation
+Most libraries crash when they see an invalid date. Agewizard validates everything. It automatically normalizes separators (`-`, `.`, `/`, or spaces).
+
+```python
+from agewizard import Age
+
+# --- Example: Catching Invalid Input ---
+try:
+    # Agewizard knows February doesn't have 30 days
+    user = Age("2021-02-30") 
+except ValueError as e:
+    print(f"Wizard Alert: {e}") # Output: Invalid date components in '2021-02-30': day is out of range for month
+```
+
+---
+
+### 2. Global Format Support (Locales)
+Handle users from any country by specifying their preferred date format.
+
+```python
+# UK/London Format (Day First)
+uk_person = Age("31-12-1995", date_format="DD-MM-YYYY")
+
+# US/New York Format (Month First)
+us_person = Age("12.31.1995", date_format="MM.DD.YYYY")
+
+# Standard Format (Auto-detected if it looks like YYYY-MM-DD or DD-MM-YYYY)
+standard_person = Age("1995-15-05") # Automatically handles it
+```
+
+---
+
+### 3. One-Line Age Verification (18+/21+)
+Built-in methods for the most common use case in web development: account eligibility.
+
+```python
+person = Age("2010-01-01")
+
+# The "One-Word" Verification
+if person.is_adult():
+    print("Welcome home!")
+else:
+    print(f"Denied! Come back in {18 - person.years} years.")
+
+# Custom thresholds (e.g., for Alcohol/Tobacco laws or Senior discounts)
+print(person.is_adult(min_age=21)) # False
+print(person.is_over(65))         # False
+```
+
+---
+
+### 4. Deep Metrics (Days, Weeks, Months)
+Go beyond just years. Get the exact weight of a person's life in various units.
+
+```python
+p = Age("1990-05-15")
+
+print(f"Life in Days: {p.days}")      # Total days since birth
+print(f"Life in Weeks: {p.weeks}")    # Total weeks since birth
+print(f"Life in Months: {p.months}")  # Total months since birth
+print(f"Human Format: {p.readable}") # Output: "34 years, 7 months, 24 days"
+```
+
+---
+
+### 5. Zodiac & Magic Insights
+Add personality to your app with automatic star sign detection.
+
+```python
+p = Age("1985-08-23")
+
+print(f"Star Sign: {p.zodiac}") # Output: Virgo
+print(f"Next Birthday Weekday: {p.next_birthday_weekday}") # What day is the party?
+print(f"Days to B-Day: {p.next_birthday_days}") # The countdown
+```
+
+---
+
+### 6. Life Stage Classification
+Agewizard can automatically categorize a person based on their age.
+
+| Age Range | Category |
+|-----------|----------|
+| 0 - 2     | Infant   |
+| 3 - 12    | Child    |
+| 13 - 19   | Teen     |
+| 20 - 64   | Adult    |
+| 65+       | Senior   |
+
+```python
+print(Age("2022-01-01").category) # Infant
+print(Age("2005-01-01").category) # Teen
+```
+
+---
+
+## 🖥 Production Examples
+
+### Interactive Form with Error Recovery
+```python
+from agewizard import Age
+
+def register_user():
+    print("=== Welcome to the Magic Portal ===")
+    dob_input = input("Enter your Birthday (DD-MM-YYYY): ")
+    
+    try:
+        user = Age(dob_input, date_format="DD-MM-YYYY")
+        
+        if not user.is_adult():
+            print(f"❌ Error: You are a {user.category}. This portal is for Adults only.")
+            return
+
+        print(f"✅ Success! You are {user.years} years old.")
+        print(f"Fun Fact: You were born on a {user.birth_date.strftime('%A')}.")
+        print(f"Your star sign is: {user.zodiac} 🌌")
+        
+    except ValueError as e:
+        print(f"💥 Invalid Input: {e}")
+
+if __name__ == "__main__":
+    register_user()
+```
+
+---
+
+### Comparing Two Dates
+```python
+from agewizard import compare_ages
+
+# Who is older?
+story = compare_ages("1990-01-01", "1995-05-15")
+print(story) # "Person 1 is older by approx 5 years (1960 days)."
+```
+
+---
+
+## 💎 The API Reference
+
+### `Age` Class
+| Attribute | Description |
+|-----------|-------------|
+| `.years` | Age in full solar years. |
+| `.days` | Total days lived. |
+| `.months` | Total months lived. |
+| `.zodiac` | Star sign based on birth date. |
+| `.readable` | Human-readable string (Y years, M months, D days). |
+| `.is_today` | Boolean. True if today is the user's birth anniversary. |
+| `.category` | Life stage string (e.g., "Adult"). |
+| `.next_birthday_days` | Countdown to the next birthday. |
+
+### Utility Functions
+- `calculate_age(dob, date_format=None)`
+- `zodiac_sign(dob, date_format=None)`
+- `is_leap_year(year_or_dob)`
+- `age_hijri(dob)` (Approximate lunar age)
+
+---
+
+## 👨‍💻 Author & Community
+**Kamran Hussain**  
+A dedicated software engineer focused on building tools that simplify complex logic for everyone.
+
+- **GitHub**: [@KamranProjects](https://github.com/KamranProjects)
+- **Email**: [contact.kamrankami@gmail.com](mailto:contact.kamrankami@gmail.com)
+- **Repo**: [https://github.com/KamranProjects/agewizard](https://github.com/KamranProjects/agewizard)
+
+---
+
+## 📜 License
+Agewizard is open-source software licensed under the **MIT License**.
