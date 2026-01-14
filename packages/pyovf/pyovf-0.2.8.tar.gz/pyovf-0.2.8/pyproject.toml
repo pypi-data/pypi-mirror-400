@@ -1,0 +1,117 @@
+[build-system]
+requires = [
+    "setuptools>=80.9.0",
+    "setuptools-scm>=9.2.2",
+    "wheel",
+    "pybind11>=3.0.1",
+    "cmake>=4.2.1",
+    "numpy>=2.0.2",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyovf"
+dynamic = ["version"]
+description = "Python library for reading and writing OVF (OOMMF Vector Field) files"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Flavio Abreu Araujo", email = "flavio.abreuaraujo@uclouvain.be"}
+]
+maintainers = [
+    {name = "Flavio Abreu Araujo", email = "flavio.abreuaraujo@uclouvain.be"}
+]
+keywords = [
+    "ovf",
+    "oommf",
+    "mumax3",
+    "micromagnetics",
+    "magnetism",
+    "scientific-computing"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=2.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "black>=25.12.0",
+    "isort>=7.0.0",
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+]
+docs = [
+    "sphinx>=9.1.0",
+    "sphinx-rtd-theme>=3.0.2",
+    "myst-parser>=4.0.1",
+]
+
+[project.urls]
+Homepage = "https://gitlab.flavio.be/flavio/pyovf"
+Documentation = "https://gitlab.flavio.be/flavio/pyovf/-/blob/main/README.md"
+Repository = "https://gitlab.flavio.be/flavio/pyovf.git"
+Issues = "https://gitlab.flavio.be/flavio/pyovf/-/issues"
+
+[tool.setuptools]
+packages = ["pyovf"]
+
+[tool.setuptools.package-data]
+pyovf = ["*.so", "*.pyd", "*.dylib"]
+
+[tool.setuptools_scm]
+write_to = "pyovf/_version.py"
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+fallback_version = "0.0.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=pyovf --cov-report=term-missing"
+
+[tool.coverage.run]
+# Keep coverage focused on the pyovf package (wherever it is imported from), even if pytest is invoked with a bare --cov
+source_pkgs = ["pyovf"]
+omit = ["tests/*", "*/site-packages/*", "*/dist-packages/*", "*/lib/python*/*"]
+
+[tool.coverage.report]
+skip_covered = true
+skip_empty = true
+show_missing = true
+precision = 1
+sort = "Cover"
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313', 'py314']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true

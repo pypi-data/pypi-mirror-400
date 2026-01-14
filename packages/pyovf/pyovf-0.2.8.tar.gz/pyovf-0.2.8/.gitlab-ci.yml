@@ -1,0 +1,521 @@
+# GitLab CI/CD for pyovf
+# (c) 2021-2026 Prof. Flavio ABREU ARAUJO. All rights reserved.
+#
+# Repository: https://gitlab.flavio.be/flavio/pyovf
+# ovf-rw dependency: https://gitlab.flavio.be/flavio/ovf-rw
+#
+# To skip CI: git push -o ci.skip or add [ci skip] to commit message
+
+stages:
+  - validate
+  - prepare
+  - build
+  - test
+  - deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  OVF_RW_REPO: "https://gitlab.flavio.be/flavio/ovf-rw.git"
+
+# Cache pip dependencies between jobs
+cache:
+  paths:
+    - .cache/pip/
+
+# =============================================================================
+# VALIDATE STAGE - Ensure commit is tagged with production version
+# =============================================================================
+
+validate:production-tag:
+  stage: validate
+  tags:
+    - bash
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: always
+    - when: never
+  script:
+    - |
+      echo "Validating production tag on current commit..."
+      
+      TAG="${CI_COMMIT_TAG}"
+      echo "✓ Found tag: $TAG"
+      
+      # Check for pre-release markers (.dev, a, b, rc)
+      if [[ "$TAG" =~ \.dev[0-9]+ ]]; then
+        echo "❌ Error: Pre-release tag detected: $TAG (.dev)"
+        echo "Cannot deploy development versions to production"
+        echo "Only stable versions (e.g., v1.0.0, v2.1.3) are allowed"
+        exit 1
+      fi
+      
+      if [[ "$TAG" =~ a[0-9]+ ]]; then
+        echo "❌ Error: Pre-release tag detected: $TAG (alpha)"
+        echo "Cannot deploy alpha versions to production"
+        exit 1
+      fi
+      
+      if [[ "$TAG" =~ b[0-9]+ ]]; then
+        echo "❌ Error: Pre-release tag detected: $TAG (beta)"
+        echo "Cannot deploy beta versions to production"
+        exit 1
+      fi
+      
+      if [[ "$TAG" =~ rc[0-9]+ ]]; then
+        echo "❌ Error: Pre-release tag detected: $TAG (release candidate)"
+        echo "Cannot deploy release candidates to production"
+        exit 1
+      fi
+      
+      echo "✓ Production tag validated: $TAG"
+      echo "✓ Pipeline will proceed with all stages"
+
+# =============================================================================
+# PREPARE STAGE - Clone ovf-rw and prepare sources
+# =============================================================================
+
+prepare:sources:
+  stage: prepare
+  tags:
+    - bash
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: always
+    - when: never
+  script:
+    - echo "Cloning ovf-rw repository..."
+    - git clone --depth 1 ${OVF_RW_REPO} ovf-rw-src || git -C ovf-rw-src pull
+    - mkdir -p src/pyovf/ovf-rw/src_c++
+    - cp ovf-rw-src/src_c++/OVF_File.cpp src/pyovf/ovf-rw/src_c++/
+    - cp ovf-rw-src/src_c++/OVF_File.h src/pyovf/ovf-rw/src_c++/
+    - echo "ovf-rw sources prepared successfully"
+  artifacts:
+    paths:
+      - src/pyovf/ovf-rw/
+    expire_in: 1 day
+
+# =============================================================================
+# BUILD STAGE - Build wheels for multiple Python versions
+# =============================================================================
+
+.build_template: &build_template
+  stage: build
+  tags:
+    - bash
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: always
+    - when: never
+  needs:
+    - prepare:sources
+  script:
+    - echo "Building for Python ${PYTHON_VERSION}..."
+    - ${PYTHON_CMD} -m venv venv_build_${PYTHON_VERSION}
+    - source venv_build_${PYTHON_VERSION}/bin/activate
+    - pip install --upgrade pip setuptools wheel build
+    - pip install pybind11 cmake numpy auditwheel
+    - python -m build --wheel
+    # On Linux, repair wheel to use manylinux2014 tag for PyPI compatibility
+    - |
+      if [[ "$OSTYPE" == "linux"* ]]; then
+        echo "Repairing wheel for manylinux2014 compliance..."
+        mkdir -p dist_repaired
+        for wheel in dist/*.whl; do
+          echo "Repairing $wheel..."
+          if auditwheel repair "$wheel" -w dist_repaired/; then
+            rm "$wheel"
+            echo "✓ Successfully repaired: $wheel"
+          else
+            echo "⚠ Repair failed or already compliant, keeping original"
+          fi
+        done
+        # Move repaired wheels back to dist/
+        if [ -d dist_repaired ] && [ "$(ls -A dist_repaired)" ]; then
+          mv dist_repaired/* dist/
+        fi
+        rmdir dist_repaired 2>/dev/null || true
+        echo "Final wheels in dist/:"
+        ls -lh dist/*.whl
+      fi
+    - deactivate
+  artifacts:
+    paths:
+      - dist/*.whl
+    expire_in: 1 week
+
+build:python3.9:
+  <<: *build_template
+  variables:
+    PYTHON_VERSION: "3.9"
+    PYTHON_CMD: "python3.9"
+  allow_failure: true
+
+# build:python3.10:
+#   <<: *build_template
+#   variables:
+#     PYTHON_VERSION: "3.10"
+#     PYTHON_CMD: "python3.10"
+
+# build:python3.11:
+#   <<: *build_template
+#   variables:
+#     PYTHON_VERSION: "3.11"
+#     PYTHON_CMD: "python3.11"
+
+# build:python3.12:
+#   <<: *build_template
+#   variables:
+#     PYTHON_VERSION: "3.12"
+#     PYTHON_CMD: "python3.12"
+
+# build:python3.13:
+#   <<: *build_template
+#   variables:
+#     PYTHON_VERSION: "3.13"
+#     PYTHON_CMD: "python3.13"
+
+# build:python3.14:
+#   <<: *build_template
+#   variables:
+#     PYTHON_VERSION: "3.14"
+#     PYTHON_CMD: "python3.14"
+#   allow_failure: true  # Python 3.14 is still in development and may not be available on all runners
+
+build:sdist:
+  stage: build
+  tags:
+    - bash
+  needs:
+    - prepare:sources
+  script:
+    - echo "Building source distribution..."
+    - python3 -m venv venv_sdist
+    - source venv_sdist/bin/activate
+    - pip install --upgrade pip setuptools wheel build
+    - python -m build --sdist
+    - deactivate
+  artifacts:
+    paths:
+      - dist/*.tar.gz
+    expire_in: 1 week
+
+# =============================================================================
+# TEST STAGE - Run tests for each Python version
+# =============================================================================
+
+.test_template: &test_template
+  stage: test
+  tags:
+    - bash
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: always
+    - when: never
+  script:
+    - echo "Testing with Python ${PYTHON_VERSION}..."
+    - ${PYTHON_CMD} -m venv venv_test_${PYTHON_VERSION}
+    - source venv_test_${PYTHON_VERSION}/bin/activate
+    - pip install --upgrade pip
+    - pip install pytest pytest-cov numpy
+    - pip install dist/*cp${PYTHON_VERSION/./}*.whl || pip install dist/*.tar.gz
+    - pytest tests/ -v --cov=pyovf --cov-report=term-missing --cov-report=xml
+    - deactivate
+  coverage: '/TOTAL.*\s+(\d+%)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 1 week
+
+test:python3.9:
+  <<: *test_template
+  needs:
+    - build:python3.9
+    - build:sdist
+  variables:
+    PYTHON_VERSION: "3.9"
+    PYTHON_CMD: "python3.9"
+
+# test:python3.10:
+#   <<: *test_template
+#   needs:
+#     - build:python3.10
+#     - build:sdist
+#   variables:
+#     PYTHON_VERSION: "3.10"
+#     PYTHON_CMD: "python3.10"
+
+# test:python3.11:
+#   <<: *test_template
+#   needs:
+#     - build:python3.11
+#     - build:sdist
+#   variables:
+#     PYTHON_VERSION: "3.11"
+#     PYTHON_CMD: "python3.11"
+
+# test:python3.12:
+#   <<: *test_template
+#   needs:
+#     - build:python3.12
+#     - build:sdist
+#   variables:
+#     PYTHON_VERSION: "3.12"
+#     PYTHON_CMD: "python3.12"
+
+# test:python3.13:
+#   <<: *test_template
+#   needs:
+#     - build:python3.13
+#     - build:sdist
+#   variables:
+#     PYTHON_VERSION: "3.13"
+#     PYTHON_CMD: "python3.13"
+
+# test:python3.14:
+#   <<: *test_template
+#   needs:
+#     - build:python3.14
+#     - build:sdist
+#   variables:
+#     PYTHON_VERSION: "3.14"
+#     PYTHON_CMD: "python3.14"
+#   allow_failure: true
+
+# =============================================================================
+# DEPLOY STAGE - Publish to PyPI
+# =============================================================================
+
+deploy:pypi:
+  stage: deploy
+  tags:
+    - bash
+  needs:
+    - build:python3.9
+    # - build:python3.10
+    # - build:python3.11
+    # - build:python3.12
+    # - build:python3.13
+    - build:sdist
+    - test:python3.9
+    # - test:python3.10
+    # - test:python3.11
+    # - test:python3.12
+    # - test:python3.13
+  script:
+    - echo "Publishing to PyPI..."
+    - python3 -m venv venv_deploy
+    - source venv_deploy/bin/activate
+    - export TOKEN_PYPI="${TOKEN_PYPI}"  # Make it available to subprocess
+    - pip install --upgrade pip twine requests
+    - |
+        python3 << PYPI_SCRIPT
+        import os
+        import sys
+        import requests
+        import subprocess
+        from pathlib import Path
+
+        package = os.environ.get("CI_PROJECT_NAME", "pyovf")
+        version_tag = os.environ.get("CI_COMMIT_TAG", "")
+        version = version_tag[1:] if version_tag.startswith("v") else version_tag
+        token = os.environ.get("PYPI_TOKEN")
+
+        dist_dir = Path("dist")
+        files = sorted(dist_dir.glob("*"))
+
+        if not files:
+            print("Error: no distribution files found in dist/")
+            sys.exit(1)
+
+        if not token:
+            print("Error: PYPI_TOKEN is required for PyPI upload")
+            sys.exit(1)
+
+        existing = set()
+        try:
+            resp = requests.get(f"https://pypi.org/pypi/{package}/json", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                releases = data.get("releases", {})
+                existing = {Path(f["filename"]).name for f in releases.get(version, []) if "filename" in f}
+                print(f"Found {len(existing)} existing files on PyPI for version {version}")
+            else:
+                print(f"Warning: could not fetch PyPI metadata (status {resp.status_code})")
+        except Exception as exc:
+            print(f"Warning: skipping existing-file check due to error: {exc}")
+
+        # Filter out linux_x86_64 wheels (PyPI rejects them; users will build from source)
+        files_to_upload = [
+            str(f) for f in files 
+            if f.name not in existing and "linux_x86_64" not in f.name
+        ]
+        
+        # Warn about skipped linux wheels
+        linux_wheels = [f.name for f in files if "linux_x86_64" in f.name]
+        if linux_wheels:
+            print(f"⚠ Skipping linux_x86_64 wheels (PyPI rejects unsupported platform tag):")
+            for w in linux_wheels:
+                print(f"   - {w}")
+            print("  Users on Linux will install from source distribution (.tar.gz)")
+
+        if not files_to_upload:
+            print("All suitable artifacts for this version are already on PyPI; nothing to upload")
+            sys.exit(0)
+
+        print(f"Uploading {len(files_to_upload)} files to PyPI...")
+        env = os.environ.copy()
+        env.update({
+            "TWINE_USERNAME": "__token__",
+            "TWINE_PASSWORD": token,
+            "TWINE_REPOSITORY_URL": "https://upload.pypi.org/legacy/",
+            "KEYRING_PROVIDER": "fail",
+        })
+
+        cmd = ["twine", "upload", "--non-interactive", "--verbose"] + files_to_upload
+        result = subprocess.run(cmd, env=env)
+        sys.exit(result.returncode)
+        PYPI_SCRIPT
+    - deactivate
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: on_success
+    - when: never
+  environment:
+    name: production
+    url: https://pypi.org/project/pyovf/
+
+# deploy:gitlab-package:
+#   stage: deploy
+#   tags:
+#     - bash
+#   rules:
+#     - if: $CI_COMMIT_TAG
+#       when: on_success
+#     - when: never
+#   needs:
+#     - build:python3.9
+#     # - build:python3.10
+#     # - build:python3.11
+#     # - build:python3.12
+#     # - build:python3.13
+#     - build:sdist
+#     - test:python3.9
+#     # - test:python3.10
+#     # - test:python3.11
+#     # - test:python3.12
+#     # - test:python3.13
+#   script:
+#     - echo "Publishing to GitLab Package Registry..."
+#     - python3 -m venv venv_deploy_gitlab
+#     - source venv_deploy_gitlab/bin/activate
+#     - pip install --upgrade pip twine requests
+#     - |
+#       python3 << 'PYTHON_SCRIPT'
+#       import os
+#       import sys
+#       import requests
+#       import subprocess
+#       from pathlib import Path
+      
+#       gitlab_token = os.environ.get('CI_JOB_TOKEN')
+#       gitlab_url = os.environ.get('CI_API_V4_URL')
+#       project_id = os.environ.get('CI_PROJECT_ID')
+#       pypi_url = f"{gitlab_url}/projects/{project_id}/packages/pypi"
+      
+#       print(f"Checking for existing packages at {pypi_url}")
+      
+#       # Get existing packages
+#       headers = {"PRIVATE-TOKEN": gitlab_token}
+#       try:
+#           response = requests.get(f"{pypi_url}/simple/pyovf/", headers=headers, timeout=10)
+#           existing_html = response.text if response.status_code == 200 else ""
+#       except Exception as e:
+#           print(f"Warning: Could not fetch existing packages: {e}")
+#           existing_html = ""
+      
+#       # Check each file
+#       dist_dir = Path("dist")
+#       files_to_upload = []
+      
+#       for file_path in sorted(dist_dir.glob("*")):
+#           filename = file_path.name
+          
+#           # Check if file exists in registry
+#           if filename in existing_html or f'href="{filename}"' in existing_html:
+#               print(f"  ✓ {filename} already exists, skipping")
+#               file_path.unlink()  # Delete the file
+#           else:
+#               print(f"  + {filename} is new, will upload")
+#               files_to_upload.append(str(file_path))
+      
+#       if files_to_upload:
+#           print(f"\nUploading {len(files_to_upload)} new packages...")
+#           # Use subprocess with environment variables for twine
+#           env = os.environ.copy()
+#           # GitLab recommends gitlab-ci-token + CI_JOB_TOKEN for PyPI auth
+#           env['TWINE_USERNAME'] = 'gitlab-ci-token'
+#           env['TWINE_PASSWORD'] = gitlab_token
+#           env['TWINE_REPOSITORY_URL'] = pypi_url
+#           env['KEYRING_PROVIDER'] = 'fail'  # Disable keyring to prevent interactive prompts
+          
+#           cmd = ['twine', 'upload', '--non-interactive', '--verbose'] + files_to_upload
+#           result = subprocess.run(cmd, env=env)
+#           sys.exit(result.returncode)
+#       else:
+#           print("\nAll packages already exist in registry, nothing to upload")
+#       PYTHON_SCRIPT
+#     - deactivate
+#   environment:
+#     name: gitlab-packages
+#     url: https://gitlab.flavio.be/flavio/pyovf/-/packages
+
+# =============================================================================
+# MANUAL JOBS
+# =============================================================================
+
+build:manual:all:
+  stage: build
+  tags:
+    - bash
+  needs:
+    - prepare:sources
+  script:
+    - echo "Building all wheels manually..."
+    - |
+      for PYVER in 3.9 3.10 3.11 3.12 3.13; do
+        PYCMD="python${PYVER}"
+        if command -v ${PYCMD} &> /dev/null; then
+          echo "Building for Python ${PYVER}..."
+          ${PYCMD} -m venv venv_manual_${PYVER}
+          source venv_manual_${PYVER}/bin/activate
+          pip install --upgrade pip setuptools wheel build pybind11 cmake numpy
+          python -m build --wheel || echo "Failed to build for Python ${PYVER}"
+          deactivate
+          rm -rf venv_manual_${PYVER}
+        else
+          echo "Python ${PYVER} not available, skipping..."
+        fi
+      done
+    - echo "Building source distribution..."
+    - python3 -m venv venv_manual_sdist
+    - source venv_manual_sdist/bin/activate
+    - pip install --upgrade pip setuptools wheel build
+    - python -m build --sdist
+    - deactivate
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 month
+  when: manual
+
+clean:
+  stage: .pre
+  tags:
+    - bash
+  script:
+    - rm -rf dist/ build/ *.egg-info venv_* .cache/
+    - find . -type d -name "__pycache__" -exec rm -rf {} + || true
+    - find . -type f -name "*.pyc" -delete || true
+  when: manual

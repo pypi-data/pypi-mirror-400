@@ -1,0 +1,61 @@
+#!/bin/zsh
+# Quick access to pyovf build tools
+
+PYOVF_DIR="/Users/flavio/ownCloud/MyPythonLib/pyovf"
+
+case "$1" in
+    env|check)
+        # Check environment
+        "$PYOVF_DIR/check_env.sh" "$2"
+        ;;
+    install)
+        # Auto-install missing tools
+        "$PYOVF_DIR/check_env.sh" --install
+        ;;
+    verify)
+        # Verify wheel architectures
+        "$PYOVF_DIR/verify_architecture.sh"
+        ;;
+    test)
+        # Run tests
+        shift
+        "$PYOVF_DIR/run_tests.sh" "$@"
+        ;;
+    build)
+        # Build wheels
+        "$PYOVF_DIR/build_all_architectures.sh" "$@"
+        ;;
+    release)
+        # Release process
+        "$PYOVF_DIR/release.sh"
+        ;;
+    help|--help|-h)
+        cat << 'EOF'
+pyovf build tools - Quick access to pyovf scripts
+
+Usage: pyovf-build <command> [options]
+
+Commands:
+  env              Check environment status
+  install          Auto-install missing build tools
+  verify           Verify wheel architectures
+  test             Run unit tests
+  build [opts]     Build wheels (see: build_all_architectures.sh --help)
+  release          Release workflow
+  help             Show this help message
+
+Examples:
+  pyovf-build env              # Check environment
+  pyovf-build install          # Install missing dependencies
+  pyovf-build test             # Run unit tests
+  pyovf-build build --arm64    # Build ARM64 wheels only
+  pyovf-build verify           # Verify wheel architectures
+
+EOF
+        ;;
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'pyovf-build help' for usage"
+        exit 1
+        ;;
+esac
