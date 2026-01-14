@@ -1,0 +1,321 @@
+# SigninID Python SDK
+
+Python SDK for the SigninID sandbox email testing API. Capture and inspect test emails with automatic OTP detection.
+
+[Homepage](https://app.signinid.com) | [Documentation](https://app.signinid.com/docs)
+
+## Installation
+
+```bash
+pip install signinid
+```
+
+## Quick Start
+
+```python
+from signinid import SigninID
+
+# Set SIGNINID_SECRET_KEY environment variable
+client = SigninID()
+
+# Wait for a new verification email to arrive
+email = client.inbox.wait_for_new(to="user@test.com")
+
+# Extract the OTP
+if email:
+    print("Verification code:", email.detected_otp)
+```
+
+## Async Support
+
+```python
+import asyncio
+from signinid import AsyncSigninID
+
+async def main():
+    async with AsyncSigninID() as client:
+        email = await client.inbox.wait_for_new(to="user@test.com")
+        if email:
+            print("Verification code:", email.detected_otp)
+
+asyncio.run(main())
+```
+
+## Features
+
+- Full type annotations for IDE autocompletion
+- Automatic OTP detection
+- Polling support for E2E tests (`wait_for_new`)
+- Filter emails by sender, recipient, subject, and date
+- Page-based pagination
+- Sync and async clients
+
+## API Reference
+
+### Constructor
+
+```python
+from signinid import SigninID
+
+client = SigninID(secret_key=None, timeout=30000)
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `secret_key` | str | `os.environ["SIGNINID_SECRET_KEY"]` | API secret key (must start with `sk_live_`) |
+| `timeout` | int | `30000` | Request timeout in milliseconds |
+
+### Inbox Methods
+
+#### `inbox.wait_for_new(to=, timeout=)`
+
+Wait for a new email to arrive. Polls until a new email arrives or timeout is reached.
+
+```python
+email = client.inbox.wait_for_new(
+    to="user@test.com",
+    timeout=30  # 30 seconds (default)
+)
+
+if email:
+    print("OTP:", email.detected_otp)
+```
+
+#### `inbox.latest(to=, after=)`
+
+Get the most recent inbox email.
+
+```python
+email = client.inbox.latest()
+
+# With filters
+email = client.inbox.latest(
+    to="user@test.com",
+    after=datetime(2024, 1, 1)
+)
+```
+
+#### `inbox.get(email_id)`
+
+Get a single email by ID.
+
+```python
+email = client.inbox.get("550e8400-e29b-41d4-a716-446655440000")
+```
+
+#### `inbox.list(page=, per_page=, from_=, to=, subject=, before=, after=)`
+
+List inbox email IDs with pagination.
+
+```python
+response = client.inbox.list(
+    page=1,
+    per_page=10,
+    to="user@test.com",
+    from_="noreply@app.com",
+    subject="verification",
+    after=datetime(2024, 1, 1),
+    before=datetime(2024, 12, 31)
+)
+
+# Fetch full details for each email
+for email_id in response.data:
+    email = client.inbox.get(email_id)
+    print(email.subject)
+
+# Check pagination
+print("Has more:", response.pagination.has_more)
+```
+
+### Sent Methods
+
+#### `sent.latest(to=)`
+
+Get the most recent sent email.
+
+```python
+email = client.sent.latest()
+```
+
+#### `sent.get(email_id)`
+
+Get a single sent email by ID.
+
+```python
+email = client.sent.get("550e8400-e29b-41d4-a716-446655440000")
+```
+
+#### `sent.list(page=, per_page=, from_=, to=, subject=, before=, after=)`
+
+List sent email IDs with pagination.
+
+```python
+response = client.sent.list(
+    page=1,
+    per_page=10,
+    to="user@example.com"
+)
+```
+
+### Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | int | Page number (default: 1) |
+| `per_page` | int | Results per page (1-100, default: 10) |
+| `from_` | str | Filter by sender (partial match) |
+| `to` | str | Filter by recipient (partial match) |
+| `subject` | str | Filter by subject (partial match) |
+| `before` | datetime \| str | Emails before this date |
+| `after` | datetime \| str | Emails after this date |
+
+## Types
+
+### InboxEmail
+
+```python
+@dataclass(frozen=True)
+class InboxEmail:
+    email_id: str
+    from_address: str
+    from_name: str | None
+    to_addresses: tuple[str, ...]
+    cc_addresses: tuple[str, ...] | None
+    subject: str | None
+    received_at: datetime
+    message_id: str | None
+    has_attachments: bool
+    attachment_count: int
+    spam_score: float | None
+    spam_verdict: Literal["PASS", "FAIL", "GRAY"] | None
+    virus_verdict: str | None
+    spf_verdict: str | None
+    dkim_verdict: str | None
+    dmarc_verdict: str | None
+    detected_otp: str | None
+    html_body: str | None
+    text_body: str | None
+```
+
+### SentEmail
+
+```python
+@dataclass(frozen=True)
+class SentEmail:
+    email_id: str
+    from_address: str
+    from_name: str | None
+    to_addresses: tuple[str, ...]
+    cc_addresses: tuple[str, ...] | None
+    bcc_addresses: tuple[str, ...] | None
+    subject: str | None
+    sent_at: datetime
+    message_id: str | None
+    has_attachments: bool
+    attachment_count: int
+    spam_score: float | None
+    spam_verdict: Literal["PASS", "FAIL", "GRAY"] | None
+    detected_otp: str | None
+    html_body: str | None
+    text_body: str | None
+```
+
+## Error Handling
+
+```python
+from signinid import (
+    SigninID,
+    SigninIDError,
+    AuthenticationError,
+    ValidationError,
+    NetworkError,
+    TimeoutError,
+    RateLimitError,
+)
+
+try:
+    email = client.inbox.latest()
+except AuthenticationError as e:
+    print("Invalid API key")
+except ValidationError as e:
+    print("Invalid parameters:", e.details)
+except RateLimitError as e:
+    print("Rate limited. Retry after:", e.retry_after, "seconds")
+except NetworkError as e:
+    print("Network error:", e.message)
+except TimeoutError as e:
+    print("Request timed out")
+```
+
+### Error Types
+
+| Error | Status | Description |
+|-------|--------|-------------|
+| `AuthenticationError` | 401 | Invalid or missing API key |
+| `ValidationError` | 400 | Invalid request parameters |
+| `RateLimitError` | 429 | Too many requests |
+| `NetworkError` | - | Network connectivity issue |
+| `TimeoutError` | - | Request timeout exceeded |
+
+## Examples
+
+See the [examples](./examples) directory for runnable examples:
+
+```bash
+cd examples/basic
+pip install -e ../..
+pip install -r requirements.txt
+
+# Run examples
+python inbox_latest.py
+python inbox_wait.py test@your-server.signinid.com
+python inbox_list.py
+python sent_latest.py
+python error_handling.py
+```
+
+## E2E Testing Example
+
+```python
+from playwright.sync_api import sync_playwright
+from signinid import SigninID
+import time
+
+def test_signup_with_email_verification():
+    client = SigninID()
+    test_email = f"test-{int(time.time())}@your-server.signinid.com"
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+
+        # Fill signup form
+        page.goto("/signup")
+        page.fill('[name="email"]', test_email)
+        page.click('button[type="submit"]')
+
+        # Wait for verification email
+        email = client.inbox.wait_for_new(
+            to=test_email,
+            timeout=30
+        )
+
+        assert email is not None
+        assert email.detected_otp is not None
+
+        # Enter OTP
+        page.fill('[name="otp"]', email.detected_otp)
+        page.click('button[type="submit"]')
+
+        assert page.url.endswith("/dashboard")
+
+        browser.close()
+```
+
+## Requirements
+
+- Python 3.10 or later
+
+## License
+
+MIT
