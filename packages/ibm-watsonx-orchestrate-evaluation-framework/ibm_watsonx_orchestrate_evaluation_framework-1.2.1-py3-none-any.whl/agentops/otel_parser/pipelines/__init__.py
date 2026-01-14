@@ -1,0 +1,1 @@
+from agentops.otel_parser.pipelines.arize_pipeline import ArizePipeline
