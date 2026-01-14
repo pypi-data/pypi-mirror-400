@@ -1,0 +1,54 @@
+import datetime
+from prodsys.models.production_system_data import ProductionSystemData
+from prodsys.models.scenario_data import ReconfigurationEnum
+from prodsys.optimization.adapter_manipulation import add_transformation_operation
+from prodsys.optimization.evolutionary_algorithm import (
+    EvolutionaryAlgorithmHyperparameters,
+)
+from prodsys.optimization.optimizer import FileSystemSaveOptimizer
+
+
+def main():
+    hyper_parameters = EvolutionaryAlgorithmHyperparameters(
+        seed=0,
+        number_of_generations=40,
+        population_size=8,
+        mutation_rate=0.15,
+        crossover_rate=0.1,
+        number_of_seeds=2,
+        number_of_processes=4,
+    )
+
+    def new_transformation(adapter: ProductionSystemData) -> bool:
+        print("Mutation function called.")
+
+    add_transformation_operation(
+        transformation=ReconfigurationEnum.PRODUCTION_CAPACITY,
+        operation=new_transformation,
+    )
+
+    base_configuration = ProductionSystemData.read(
+        "examples/optimization/optimization_example/base_scenario.json",
+    )
+    base_configuration.read_scenario(
+                "examples/optimization/optimization_example/scenario.json",
+    )
+
+    optimizer = FileSystemSaveOptimizer(
+        adapter=base_configuration,
+        hyperparameters=hyper_parameters,
+        save_folder=f"data/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}",
+        full_save=True,
+        smart_initial_solutions=True,
+        # initial_solutions=[base_configuration]
+    )
+    # optimizer = InMemoryOptimizer(
+    #     adapter=base_configuration,
+    #     hyperparameters=hyper_parameters,
+    # )
+
+    optimizer.optimize()
+
+
+if __name__ == "__main__":
+    main()
