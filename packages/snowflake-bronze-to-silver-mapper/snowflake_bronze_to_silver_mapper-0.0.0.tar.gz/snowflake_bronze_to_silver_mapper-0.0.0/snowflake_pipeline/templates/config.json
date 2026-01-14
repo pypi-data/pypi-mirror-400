@@ -1,0 +1,288 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "created_by": "Data Engineering Team",
+    "created_date": "2025-08-08",
+    "last_modified": "2025-08-08",
+    "description": "Data transformation pipeline configuration for procurement and product master data processing",
+    "environment": "production",
+    "schema_version": "v1"
+  },
+  "transformation_templates": {
+    "dimension_table": {
+      "type": "dimension",
+      "description": "Template for slowly changing dimension tables with merge capability",
+      "write_mode": "merge",
+      "merge_key": "id",
+      "retention_policy": "7_years",
+      "data_quality_checks": true,
+      "audit_columns": {
+        "created_date": "CURRENT_TIMESTAMP",
+        "updated_date": "CURRENT_TIMESTAMP",
+        "created_by": "${USER:-system}",
+        "is_active": true
+      },
+      "performance_hints": {
+        "partitioning": "recommended",
+        "clustering": "on_merge_key"
+      }
+    },
+    "fact_table": {
+      "type": "fact",
+      "description": "Template for transactional fact tables with append-only writes",
+      "write_mode": "append",
+      "retention_policy": "10_years",
+      "data_quality_checks": true,
+      "audit_columns": {
+        "created_date": "CURRENT_TIMESTAMP",
+        "created_by": "${USER:-system}"
+      },
+      "performance_hints": {
+        "partitioning": "by_date",
+        "compression": "snappy"
+      }
+    }
+  },
+  "pipelines": [
+    {
+      "name": "vendor_transformations",
+      "description": "Transform vendor master data to standardized supplier dimension",
+      "business_purpose": "Standardize supplier information for procurement analytics",
+      "data_owner": "Procurement Team",
+      "execution_frequency": "daily",
+      "estimated_runtime": "5_minutes",
+      "priority": "high",
+      "dependencies": [],
+      "notifications": {
+        "on_success": ["procurement-team@company.com"],
+        "on_failure": ["data-engineering@company.com", "procurement-team@company.com"]
+      },
+      "transformations": [
+        {
+          "type": "rename_columns",
+          "description": "Rename vendor columns to supplier standard naming convention",
+          "dataset": "vendor_master",
+          "mapping_columns": ["vendor_code - supplier_id", "vendor_name - supplier_name", "vendor_country  - country"]
+        }
+      ],
+      "sink": {
+        "format": "iceberg",
+        "table_name": "dim_supplier_master",
+        "table_properties": {
+          "write.format.default": "parquet",
+          "write.target-file-size-bytes": "134217728"
+        }
+      },
+      "data_lineage": {
+        "source_systems": ["vendor_master"],
+        "downstream_consumers": ["procurement_analytics", "supplier_scorecards"]
+      }
+    },
+    {
+      "name": "material_transformations",
+      "description": "Transform material master data with sustainability attributes",
+      "business_purpose": "Enable sustainability tracking and reporting for materials",
+      "data_owner": "Product Management Team",
+      "execution_frequency": "daily",
+      "estimated_runtime": "3_minutes",
+      "priority": "medium",
+      "dependencies": [],
+      "notifications": {
+        "on_success": ["product-team@company.com"],
+        "on_failure": ["data-engineering@company.com"]
+      },
+      "transformations": [
+        {
+          "type": "rename_columns",
+          "description": "Standardize material column names and sustainability flags",
+          "dataset": "material_master",
+          "mapping_columns": ["material_code - material_id", "sustainable_flag - sustainable_material_flag", "sustainability_cert_code - sustainability_cert_id"]
+        }
+      ],
+      "sink": {
+        "format": "iceberg",
+        "table_name": "dim_material_master",
+        "table_properties": {
+          "write.format.default": "parquet",
+          "write.target-file-size-bytes": "134217728"
+        }
+      },
+      "data_lineage": {
+        "source_systems": ["material_master"],
+        "downstream_consumers": ["sustainability_reports", "product_analytics"]
+      }
+    },
+    {
+      "name": "product_transformations",
+      "description": "Transform product master data with derived audit columns",
+      "business_purpose": "Create comprehensive product dimension for sales and inventory analytics",
+      "data_owner": "Product Management Team",
+      "execution_frequency": "daily",
+      "estimated_runtime": "8_minutes",
+      "priority": "high",
+      "dependencies": [],
+      "notifications": {
+        "on_success": ["product-team@company.com"],
+        "on_failure": ["data-engineering@company.com", "product-team@company.com"]
+      },
+      "transformations": [
+        {
+          "type": "rename_columns",
+          "description": "Standardize product column names to dimensional model convention",
+          "dataset": "product_master",
+          "mapping_columns": ["item_code , product_id", "item_name , product_name", "brand_code , brand", "category_code , category", "cost , unit_cost", "launch_date, created_date"]
+        },
+        {
+          "type": "derived_column",
+          "description": "Add updated_date column based on created_date for audit trail",
+          "dataset": "product_master",
+          "expression": "created_date",
+          "output_column": "updated_date",
+          "select_columns": ["product_id", "product_name", "brand", "category", "size", "packaging", "launch_date", "unit_cost", "recycling_code", "shelf_life", "is_active", "created_date", "updated_date"]
+        }
+      ],
+      "sink": {
+        "format": "iceberg",
+        "table_name": "dim_product_master",
+        "table_properties": {
+          "write.format.default": "parquet",
+          "write.target-file-size-bytes": "134217728"
+        }
+      },
+      "data_lineage": {
+        "source_systems": ["product_master"],
+        "downstream_consumers": ["sales_analytics", "inventory_management", "pricing_analytics"]
+      }
+    },
+    {
+      "name": "purchase_order_header_transformations",
+      "description": "Create purchase order header fact table with supplier enrichment",
+      "business_purpose": "Enable procurement analytics and supplier performance tracking",
+      "data_owner": "Procurement Team",
+      "execution_frequency": "hourly",
+      "estimated_runtime": "12_minutes",
+      "priority": "high",
+      "dependencies": ["vendor_transformations"],
+      "notifications": {
+        "on_success": ["procurement-team@company.com"],
+        "on_failure": ["data-engineering@company.com", "procurement-team@company.com"]
+      },
+      "transformations": [
+        {
+          "type": "join",
+          "description": "Enrich purchase orders with supplier dimension data",
+          "condition": [
+            "purchase_order.vendor_code = dim_supplier_master.supplier_id"
+          ],
+          "join_type": "inner"
+        },
+        {
+          "type": "rename_columns",
+          "description": "Standardize purchase order header column names",
+          "dataset": "purchase_order",
+          "mapping_columns": ["id - po_id", "po_order_date - order_date", "expected_date - planned_delivery_date"],
+          "select_columns": ["po_id", "supplier_id", "po_type", "po_status", "order_date", "currency", "created_by", "planned_delivery_date", "payment_terms"]
+        }
+      ],
+      "sink": {
+        "format": "iceberg",
+        "table_name": "fact_purchase_order_header",
+        "table_properties": {
+          "write.format.default": "parquet",
+          "write.target-file-size-bytes": "268435456"
+        }
+      },
+      "data_lineage": {
+        "source_systems": ["purchase_order", "dim_supplier_master"],
+        "downstream_consumers": ["procurement_dashboard", "supplier_analytics", "spend_analysis"]
+      }
+    },
+    {
+      "name": "purchase_order_line_transformations",
+      "description": "Create detailed purchase order line items with product and material enrichment",
+      "business_purpose": "Enable detailed procurement analytics and material tracking",
+      "data_owner": "Procurement Team",
+      "execution_frequency": "hourly",
+      "estimated_runtime": "15_minutes",
+      "priority": "high",
+      "dependencies": ["purchase_order_header_transformations", "product_transformations"],
+      "notifications": {
+        "on_success": ["procurement-team@company.com"],
+        "on_failure": ["data-engineering@company.com", "procurement-team@company.com"]
+      },
+      "transformations": [
+        {
+          "type": "join",
+          "description": "Enrich purchase order lines with header, product, and material data",
+          "condition": [
+            "purchase_order.id = fact_purchase_order_header.po_id",
+            "purchase_order.item_code = dim_product_master.product_id",
+            "purchase_order.item_code = product_master.item_code"
+          ],
+          "join_type": "inner"
+        },
+        {
+          "type": "rename_columns",
+          "description": "Standardize purchase order line column names",
+          "dataset": "purchase_order",
+          "mapping_columns": [
+            "po_line - line_item_no",
+            "material_code - material_id",
+            "expected_date - expected_delivery_date",
+            "plant_code - plant_id",
+            "unit_price - price_per_unit",
+            "ordered_quantity - ordered_qty"
+          ],
+          "select_columns": [
+            "po_id",
+            "line_item_no",
+            "material_id",
+            "product_id",
+            "ordered_qty",
+            "price_per_unit",
+            "unit_of_measure",
+            "expected_delivery_date",
+            "plant_id",
+            "line_status",
+            "change_flag"
+          ]
+        }
+      ],
+      "sink": {
+        "format": "iceberg",
+        "table_name": "fact_purchase_order_line",
+        "table_properties": {
+          "write.format.default": "parquet",
+          "write.target-file-size-bytes": "268435456"
+        }
+      },
+      "data_lineage": {
+        "source_systems": ["purchase_order", "fact_purchase_order_header", "dim_product_master", "product_master"],
+        "downstream_consumers": ["procurement_dashboard", "material_analytics", "cost_analysis", "delivery_tracking"]
+      }
+    }
+  ],
+  "global_settings": {
+    "error_handling": {
+      "max_retries": 3,
+      "retry_delay_seconds": 300,
+      "failure_notification_delay": 900
+    },
+    "monitoring": {
+      "enable_metrics": true,
+      "enable_logging": true,
+      "log_level": "INFO",
+      "metrics_retention_days": 90
+    },
+    "security": {
+      "encryption_at_rest": true,
+      "encryption_in_transit": true,
+      "access_control": "RBAC"
+    },
+    "performance": {
+      "default_parallelism": 200,
+      "max_memory_per_task": "2g",
+      "adaptive_query_execution": true
+    }
+  }
+}

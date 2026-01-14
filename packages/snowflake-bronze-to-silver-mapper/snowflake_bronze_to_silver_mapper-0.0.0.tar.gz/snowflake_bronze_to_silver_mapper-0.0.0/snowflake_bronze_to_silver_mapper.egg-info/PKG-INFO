@@ -1,0 +1,349 @@
+Metadata-Version: 2.4
+Name: snowflake-bronze-to-silver-mapper
+Version: 0.0.0
+Summary: Transform Bronze to Silver layer data in Snowflake
+Author-email: Brunda V <brunda8496@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/brundavadiga/snowflake-bronze-to-silver-mapper
+Project-URL: Documentation, https://snowflake-mapper.readthedocs.io
+Project-URL: Repository, https://github.com/brundavadiga/snowflake-bronze-to-silver-mapper
+Project-URL: Bug Tracker, https://github.com/brundavadiga/snowflake-bronze-to-silver-mapper/issues
+Keywords: snowflake,data-engineering,etl,bronze-to-silver,cpg
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: docker>=6.0.0
+Requires-Dist: snowflake-connector-python>=3.0.0
+Requires-Dist: python-dotenv>=0.19.0
+Requires-Dist: click>=8.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: requests>=2.28.0
+Dynamic: license-file
+
+# Snowflake Bronze-to-Silver Mapper
+
+AA comprehensive Docker-based tool for mapping and transforming data from Bronze layer to Silver layer in Snowflake with domain-specific transformations (CPG, BFSI, HOSPITAL).
+
+## Features
+
+- **Automated Transformations**: Rename columns, joins, derived columns, and more
+- **Domain-Specific Modules**: Pre-built transformations for CPG, BFSI, Healthcare
+- **Validation**: Built-in table and transformation validation
+- **Modern React UI**: Intuitive interface for pipeline creation and management
+- **REST API**: Complete API for programmatic access and automation
+- **Visual Pipeline Builder**: Create transformations with drag-and-drop simplicity
+- **Execution Monitoring**: Track pipeline runs, view history, and monitor performance
+- **Export/Import**: Save and share pipeline configurations
+
+
+## Features
+
+- **Domain-Specific Templates**: Pre-built transformations for CPG, BFSI, and Hospital domains
+- **Zero-Config Docker Setup**: Fully containerized - no complex dependencies
+- **Modern React UI**: Intuitive interface for pipeline creation and management
+- **REST API**: Complete API for programmatic access and automation
+- **Visual Pipeline Builder**: Create transformations with drag-and-drop simplicity
+- **Multiple Transformation Types**: Renames, joins, derived columns, data quality rules
+- **Execution Monitoring**: Track pipeline runs, view history, and monitor performance
+- **Export/Import**: Save and share pipeline configurations
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install snowflake-bronze-to-silver-mapper
+```
+
+### Initialize Your Project
+
+```bash
+# Create a new project with CPG domain
+bronze-to-silver init --domain cpg
+
+# Or choose from other domains
+bronze-to-silver init --domain bfsi
+bronze-to-silver init --domain hospital
+bronze-to-silver init --domain custom
+```
+
+### Configure Snowflake Credentials
+
+Edit the generated `.env` file:
+
+```env
+SNOWFLAKE_ACCOUNT=your-account.region
+SNOWFLAKE_USERNAME=your-username
+SNOWFLAKE_PASSWORD=your-password
+SNOWFLAKE_WAREHOUSE=COMPUTE_WH
+SNOWFLAKE_DATABASE=BRONZE_DB
+SNOWFLAKE_SCHEMA=RAW_DATA
+```
+
+### Start the Application
+
+```bash
+bronze-to-silver start
+
+# Or run in detached mode
+bronze-to-silver start -d
+```
+
+### Access Your Application
+
+- **Frontend UI**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+
+## Prerequisites
+
+- **Python**: 3.8 or higher
+- **Docker**: 20.10 or higher
+- **Docker Compose**: 2.0 or higher
+- **Snowflake**: Active account with database access
+
+## Supported Domains
+
+View all available domains:
+
+```bash
+bronze-to-silver domains
+```
+
+### CPG
+
+Consumer Packaged Goods domain with vendor/supplier master data transformations, product catalog standardization, and sales data quality and enrichment.
+
+### BFSI
+
+Banking & Financial Services domain with financial transaction processing, document tracking systems, and compliance data management.
+
+### Hospital
+
+Healthcare Management domain with patient data standardization, medical records transformations, and healthcare system integrations.
+
+### Custom
+
+Build your own domain-specific transformations with full flexibility for any use case.
+
+## CLI Commands
+
+### Project Management
+
+```bash
+# Initialize new project
+bronze-to-silver init [--domain cpg|bfsi|hospital|custom]
+
+# Show project information
+bronze-to-silver info
+
+# List available domains
+bronze-to-silver domains
+```
+
+### Service Management
+
+```bash
+# Start services
+bronze-to-silver start [-d]
+
+# Stop services
+bronze-to-silver stop
+
+# Restart services
+bronze-to-silver restart
+
+# Remove containers
+bronze-to-silver down [--volumes]
+
+# Check service status
+bronze-to-silver status
+```
+
+### Monitoring
+
+```bash
+# View logs
+bronze-to-silver logs [-f] [--tail 100]
+
+# Check health
+bronze-to-silver health
+```
+
+## Example: CPG Vendor Transformation
+
+### 1. Create Bronze Table in Snowflake
+
+```sql
+-- Bronze layer (raw data)
+CREATE TABLE bronze.vendor_master (
+    vendor_code VARCHAR(50),
+    vendor_name VARCHAR(200),
+    vendor_country VARCHAR(100),
+    vendor_category VARCHAR(50),
+    sustainable_flag BOOLEAN
+);
+
+INSERT INTO bronze.vendor_master VALUES
+('V001', 'ABC Supplies Inc', 'USA', 'Electronics', TRUE),
+('V002', 'XYZ Manufacturing', 'China', 'Raw Materials', FALSE);
+```
+
+### 2. Create Pipeline in UI
+
+1. Open http://localhost:3000
+2. Go to "Pipelines" tab
+3. Click "Create Pipeline"
+4. Configure:
+   - **Source**: `vendor_master`
+   - **Target**: `dim_supplier_master`
+   - **Transformations**:
+     - Rename: `vendor_code` to `supplier_id`
+     - Rename: `vendor_name` to `supplier_name`
+     - Rename: `vendor_country` to `country`
+
+### 3. Execute Pipeline
+
+Click "Run Pipeline" and view the transformed data in your Silver layer.
+
+```sql
+-- Silver layer (curated data)
+SELECT * FROM silver.dim_supplier_master;
+```
+
+## Architecture
+
+### Medallion Layers
+
+```
+Bronze Layer (Raw)          Silver Layer (Curated)
+├── vendor_master      →    ├── dim_supplier_master
+├── product_master     →    ├── dim_product
+└── sales_data         →    └── fact_sales
+```
+
+### Components
+
+- **Frontend**: React + Tailwind CSS
+- **Backend**: FastAPI + Python
+- **Database**: SQLite (metadata) + Snowflake (data)
+- **Orchestration**: Docker Compose
+
+## Advanced Usage
+
+### API Integration
+
+```python
+import requests
+
+# Create pipeline programmatically
+response = requests.post('http://localhost:8000/api/pipelines', json={
+    "name": "vendor_to_supplier",
+    "domain": "CPG",
+    "source_table": "vendor_master",
+    "target_table": "dim_supplier_master",
+    "transformations": [
+        {
+            "type": "rename",
+            "mappings": {
+                "vendor_code": "supplier_id",
+                "vendor_name": "supplier_name"
+            }
+        }
+    ]
+})
+
+pipeline_id = response.json()['id']
+
+# Execute pipeline
+requests.post(f'http://localhost:8000/api/pipelines/{pipeline_id}/execute')
+```
+
+### Export Configuration
+
+```bash
+# Export all pipeline configurations
+curl http://localhost:8000/api/pipelines/export/config > pipelines.json
+```
+
+## Transformation Types
+
+### Supported Transformations
+
+1. **Rename Columns**: Map source columns to target column names
+2. **Derived Columns**: Create new columns with SQL expressions
+3. **Join Tables**: Combine data from multiple bronze tables
+4. **Filter Rows**: Apply WHERE conditions
+5. **Data Quality**: Add validation rules and constraints
+6. **Type Casting**: Convert data types
+7. **Standardization**: Apply domain-specific standards
+
+## Troubleshooting
+
+### Services Won't Start
+
+```bash
+# Check Docker status
+docker ps
+
+# View logs
+bronze-to-silver logs -f
+
+# Restart services
+bronze-to-silver restart
+```
+
+### Cannot Connect to Snowflake
+
+```bash
+# Verify credentials in .env file
+cat .env
+
+# Test backend health
+bronze-to-silver health
+```
+
+### Database Issues
+
+```bash
+# Remove containers and volumes
+bronze-to-silver down --volumes
+
+# Restart fresh
+bronze-to-silver start
+```
+
+## Documentation
+
+Full documentation available at: [https://snowflake-mapper.readthedocs.io](https://snowflake-mapper.readthedocs.io)
+
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+## Author
+
+**Brunda V**  
+Data Engineering Team  
+Email: brunda8496@gmail.com
+
+## Support
+
+For issues and questions:
+- Email: brunda8496@gmail.com
+- Issues: [GitHub Issues](https://github.com/yourusername/snowflake-bronze-to-silver-mapper/issues)
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.

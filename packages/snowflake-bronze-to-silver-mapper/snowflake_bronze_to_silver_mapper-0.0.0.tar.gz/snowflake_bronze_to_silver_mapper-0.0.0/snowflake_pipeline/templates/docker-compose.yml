@@ -1,0 +1,46 @@
+services:
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: snowflake-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - SNOWFLAKE_ACCOUNT=${SNOWFLAKE_ACCOUNT}
+      - SNOWFLAKE_USERNAME=${SNOWFLAKE_USERNAME}
+      - SNOWFLAKE_PASSWORD=${SNOWFLAKE_PASSWORD}
+      - SNOWFLAKE_WAREHOUSE=${SNOWFLAKE_WAREHOUSE}
+      - SNOWFLAKE_DATABASE=${SNOWFLAKE_DATABASE}
+      - SNOWFLAKE_SCHEMA=${SNOWFLAKE_SCHEMA}
+      - DB_PATH=/data/pipeline_metadata.db
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+    networks:
+      - snowflake-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: snowflake-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - snowflake-network
+    restart: unless-stopped
+
+networks:
+  snowflake-network:
+    driver: bridge
