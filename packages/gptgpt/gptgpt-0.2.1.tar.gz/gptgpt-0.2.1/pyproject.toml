@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gptgpt"
+version = "0.2.1"
+description = "A lightweight GPT-based language model framework for training custom question-answering models on any domain"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Sanjog Sigdel", email = "sigdelsanjog@gmail.com"}
+]
+maintainers = [
+    {name = "Sanjog Sigdel", email = "sigdelsanjog@gmail.com"}
+]
+keywords = ["nlp", "language-model", "transformer", "gpt", "pytorch", "qa", "question-answering", "training", "deep-learning", "custom-model"]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "sentencepiece>=0.1.99",
+    "numpy>=1.24.0",
+    "tqdm>=4.65.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+]
+training = [
+    "tensorboard>=2.10.0",
+    "wandb>=0.13.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/sigdelsanjog/gptgpt"
+Documentation = "https://github.com/sigdelsanjog/gptgpt#readme"
+Repository = "https://github.com/sigdelsanjog/gptgpt"
+Issues = "https://github.com/sigdelsanjog/gptgpt/issues"
+
+[project.scripts]
+gptgpt-generate = "gptgpt.inference.generator:main"
+gptgpt-train = "gptgpt.training.train:main"
+
+[tool.setuptools]
+packages = [
+    "gptgpt",
+    "gptgpt.model",
+    "gptgpt.model.architecture",
+    "gptgpt.model.configs",
+    "gptgpt.inference",
+    "gptgpt.training",
+    "gptgpt.utils",
+    "gptgpt.configs",
+    "gptgpt.data",
+    "gptgpt.data.parsers",
+    "gptgpt.tokenizer",
+]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.yaml", "*.txt"]
+# Include pre-trained tokenizer model and vocabulary (~240KB total)
+# These are required for text tokenization without needing to retrain
+"llm_med.tokenizer" = ["*.model", "*.vocab"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
