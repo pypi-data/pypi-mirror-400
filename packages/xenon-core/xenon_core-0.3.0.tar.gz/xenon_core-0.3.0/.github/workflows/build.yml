@@ -1,0 +1,75 @@
+name: Build and Publish
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: PyO3/maturin-action@v1
+      with:
+        manylinux: auto
+        command: build
+        args: --release --sdist --out dist --find-interpreter
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels-linux
+        path: dist
+
+  windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: PyO3/maturin-action@v1
+      with:
+        command: build
+        args: --release --out dist --find-interpreter
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels-windows
+        path: dist
+
+  macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: PyO3/maturin-action@v1
+      with:
+        command: build
+        args: --release --out dist --find-interpreter --target universal2-apple-darwin
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels-macos
+        path: dist
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: [linux, windows, macos]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
