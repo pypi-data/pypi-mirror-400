@@ -1,0 +1,128 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-beta"
+      - "[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
+
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [
+          "windows-py39",
+          "windows-py310",
+          "windows-py311",
+          "windows-py312",
+          "windows-py313",
+          "windows-py314",
+
+          "ubuntu-py39",
+          "ubuntu-py310",
+          "ubuntu-py311",
+          "ubuntu-py312",
+          "ubuntu-py313",
+          "ubuntu-py314",
+
+          "macos-py39",
+          "macos-py310",
+          "macos-py311",
+          "macos-py312",
+          "macos-py313",
+          "macos-py314",
+        ]
+
+        include:
+          - name: "windows-py39"
+            python: "3.9"
+            os: windows-latest
+          - name: "windows-py310"
+            python: "3.10"
+            os: windows-latest
+          - name: "windows-py311"
+            python: "3.11"
+            os: windows-latest
+          - name: "windows-py312"
+            python: "3.12"
+            os: windows-latest
+          - name: "windows-py313"
+            python: "3.13"
+            os: windows-latest
+          - name: "windows-py314"
+            python: "3.14"
+            os: windows-latest
+
+          - name: "ubuntu-py39"
+            python: "3.9"
+            os: ubuntu-latest
+          - name: "ubuntu-py310"
+            python: "3.10"
+            os: ubuntu-latest
+          - name: "ubuntu-py311"
+            python: "3.11"
+            os: ubuntu-latest
+          - name: "ubuntu-py312"
+            python: "3.12"
+            os: ubuntu-latest
+          - name: "ubuntu-py313"
+            python: "3.13"
+            os: ubuntu-latest
+          - name: "ubuntu-py314"
+            python: "3.14"
+            os: ubuntu-latest
+
+          - name: "macos-py39"
+            python: "3.9"
+            os: macos-latest
+          - name: "macos-py310"
+            python: "3.10"
+            os: macos-latest
+          - name: "macos-py311"
+            python: "3.11"
+            os: macos-latest
+          - name: "macos-py312"
+            python: "3.12"
+            os: macos-latest
+          - name: "macos-py313"
+            python: "3.13"
+            os: macos-latest
+          - name: "macos-py314"
+            python: "3.14"
+            os: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Set up Python ${{ matrix.python }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Install package
+      run: |
+        pip install .
+    - name: Test
+      run: "pytest tests"
