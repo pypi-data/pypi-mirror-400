@@ -1,0 +1,662 @@
+Metadata-Version: 2.4
+Name: zerojs
+Version: 0.1.0
+Summary: A web framework for Python developers who don't want to learn React
+Author: Kenny Lajara
+Author-email: Kenny Lajara <kennylajara@gmail.com>
+License-Expression: Apache-2.0
+Requires-Dist: email-validator>=2.3.0
+Requires-Dist: fastapi>=0.128.0
+Requires-Dist: jinja2>=3.1.6
+Requires-Dist: python-multipart>=0.0.21
+Requires-Dist: uvicorn>=0.40.0
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+
+# ZeroJS
+
+**A web framework for Python developers who don't want to learn React.**
+
+ZeroJS is a FastAPI wrapper that provides file-based routing, Jinja2 templating, and seamless HTMX integration. Build modern, interactive web applications using only Python and HTML.
+
+## Features
+
+- **File-based routing** - Pages map directly to URLs (`pages/about.html` → `/about`)
+- **Dynamic routes** - Use `[param]` syntax for URL parameters (`pages/users/[id].html` → `/users/{id}`)
+- **Jinja2 templating** - Full template inheritance with `{% extends %}` and `{% include %}`
+- **Form handling** - Automatic validation with Pydantic models
+- **HTMX integration** - Partial page updates without writing JavaScript
+- **SPA-like navigation** - `hx-boost` enabled for smoother page transitions
+- **PyScript support** - Run Python in the browser with MicroPython/Pyodide
+- **Shadow Components** - Style-encapsulated components with `.shadow.html`
+- **Hot reload** - Automatic refresh on file changes during development
+- **Static files** - Built-in serving of CSS, JS, and other assets
+- **Custom error pages** - Configurable 404 and 500 pages
+
+## Installation
+
+```bash
+pip install zerojs
+```
+
+## Quick Start
+
+### 1. Create your project structure
+
+```
+my-app/
+├── pages/
+│   └── index.html
+├── components/
+│   └── base.html
+└── main.py
+```
+
+### 2. Create a base template
+
+Extend the framework's base template which includes HTMX and `hx-boost` automatically:
+
+```html
+<!-- components/base.html -->
+{% extends 'zerojs/base.html' %}
+
+{% block title %}My App{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/style.css">
+{% endblock %}
+```
+
+Or create your own from scratch:
+
+```html
+<!-- components/base.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}My App{% endblock %}</title>
+</head>
+<body>
+    {% block content %}{% endblock %}
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</body>
+</html>
+```
+
+### 3. Create your first page
+
+```html
+<!-- pages/index.html -->
+{% extends 'base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<h1>Welcome to ZeroJS!</h1>
+{% endblock %}
+```
+
+### 4. Run the app
+
+```python
+# main.py
+from zerojs import ZeroJS
+
+app = ZeroJS()
+
+if __name__ == "__main__":
+    app.start(reload=True)
+```
+
+```bash
+python main.py
+```
+
+Visit `http://localhost:3000` to see your app.
+
+## File-Based Routing
+
+Pages in the `pages/` directory automatically become routes:
+
+| File                              | URL                     |
+|-----------------------------------|-------------------------|
+| `pages/index.html`                | `/`                     |
+| `pages/about.html`                | `/about`                |
+| `pages/users/index.html`          | `/users`                |
+| `pages/users/[id].html`           | `/users/{id}`           |
+| `pages/blog/[slug]/comments.html` | `/blog/{slug}/comments` |
+
+### Dynamic Routes
+
+Use brackets `[param]` in filenames to capture URL parameters:
+
+```html
+<!-- pages/users/[id].html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>User {{ id }}</h1>
+{% endblock %}
+```
+
+The `id` parameter is automatically available in the template.
+
+## Handlers
+
+Create a Python file alongside your template to add server-side logic. Name it with an underscore prefix matching the template name:
+
+| Template                | Handler              |
+|-------------------------|----------------------|
+| `pages/about.html`      | `pages/_about.py`    |
+| `pages/users/[id].html` | `pages/users/_id.py` |
+
+### HTTP Methods
+
+Define functions named after HTTP methods:
+
+```python
+# pages/users/_id.py
+
+def get(id: str) -> dict:
+    """Handle GET requests."""
+    user = get_user_from_db(id)
+    return {"user": user}
+
+def post(id: str, data: UserForm) -> dict:
+    """Handle POST requests."""
+    update_user(id, data)
+    return {"user": data, "success": True}
+
+def delete(id: str) -> str:
+    """Handle DELETE requests."""
+    delete_user(id)
+    return "/users"  # Redirect to users list
+```
+
+### Return Types
+
+Handlers can return:
+
+| Return Type             | Behavior                     |
+|-------------------------|------------------------------|
+| `dict`                  | Render template with context |
+| `str` starting with `/` | Redirect to URL              |
+| `str` (other)           | Return as HTML content       |
+| `Response`              | Return as-is (full control)  |
+
+## Form Handling
+
+### Pydantic Validation
+
+Use Pydantic models for automatic form validation:
+
+```python
+# pages/contact/_form.py
+from pydantic import BaseModel, EmailStr, field_validator
+
+class ContactForm(BaseModel):
+    name: str
+    email: EmailStr
+    message: str
+
+    @field_validator("name")
+    @classmethod
+    def name_required(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Name is required")
+        return v.strip()
+
+def post(data: ContactForm) -> dict:
+    send_email(data)
+    return {"success": True}
+```
+
+### Handling Errors in Templates
+
+When validation fails, `errors` and `values` are automatically passed to the template:
+
+```html
+<form method="POST" hx-post="/contact" hx-target="this" hx-swap="outerHTML">
+    <div>
+        <input name="name" value="{{ values.name if values else '' }}"
+               class="{{ 'error' if errors and errors.name else '' }}">
+        {% if errors and errors.name %}
+            <span class="error-message">{{ errors.name }}</span>
+        {% endif %}
+    </div>
+
+    {% if success %}
+        <div class="success">Message sent!</div>
+    {% endif %}
+
+    <button type="submit">Send</button>
+</form>
+```
+
+### Custom Error Messages
+
+Use Pydantic validators to customize error messages:
+
+```python
+from pydantic import BaseModel, EmailStr, field_validator
+from typing import Any
+
+class ContactForm(BaseModel):
+    email: EmailStr
+
+    @field_validator("email", mode="wrap")
+    @classmethod
+    def custom_email_error(cls, v: Any, handler: Any) -> str:
+        if not v:
+            raise ValueError("Email is required")
+        try:
+            return handler(v)
+        except Exception:
+            raise ValueError("Please enter a valid email address")
+```
+
+### Automatic Form Rendering
+
+Use `render_form()` to automatically generate HTML forms from Pydantic models:
+
+```html
+{{ render_form(ContactForm, values, errors, submit_text="Send") }}
+```
+
+This replaces 40+ lines of manual HTML with a single line. The form class is passed from the handler:
+
+```python
+# forms/contact.py
+from pydantic import BaseModel, EmailStr, Field
+from typing import Literal
+
+class ContactForm(BaseModel):
+    name: str = Field(title="Your Name")
+    email: EmailStr = Field(title="Email Address")
+    subject: Literal["general", "support", "sales"] = Field(
+        title="Subject",
+        json_schema_extra={
+            "choices": {
+                "general": "General Inquiry",
+                "support": "Technical Support",
+                "sales": "Sales Question",
+            }
+        },
+    )
+    message: str = Field(title="Message", json_schema_extra={"textarea": True})
+```
+
+```python
+# pages/_contact.py
+from forms import ContactForm
+
+def get() -> dict:
+    return {"ContactForm": ContactForm}
+
+def post(data: ContactForm) -> dict:
+    return {"ContactForm": ContactForm, "success": True}
+```
+
+#### Field Type Mapping
+
+| Python Type | HTML Element |
+|-------------|--------------|
+| `str` | `<input type="text">` |
+| `EmailStr` | `<input type="email">` |
+| `int` | `<input type="number">` |
+| `float` | `<input type="number" step="any">` |
+| `bool` | `<input type="checkbox">` |
+| `Literal["a", "b"]` | `<select>` |
+| `Field(json_schema_extra={"textarea": True})` | `<textarea>` |
+
+#### Select with Custom Labels
+
+```python
+language: Literal["en", "es", "fr"] = Field(
+    json_schema_extra={
+        "choices": {"en": "English", "es": "Spanish", "fr": "French"}
+    }
+)
+```
+
+#### Full Options
+
+```html
+{{ render_form(
+    ContactForm,
+    values,
+    errors,
+    method="POST",
+    action="/contact",
+    submit_text="Send Message",
+    form_id="contact-form",
+    hx_post="/contact",
+    hx_target="#contact-form",
+    hx_swap="outerHTML"
+) }}
+```
+
+## Components
+
+Reusable components live in the `components/` directory:
+
+```html
+<!-- components/button.html -->
+<button class="btn {{ variant or 'primary' }}">
+    {{ text }}
+</button>
+```
+
+Include components in your pages:
+
+```html
+{% include 'button.html' with context %}
+```
+
+### Component Handlers
+
+Components can have their own handlers for dynamic loading:
+
+```python
+# components/_search.py
+
+def get(query: str = "") -> dict:
+    results = search(query)
+    return {"results": results}
+```
+
+Access via `/components/search?query=...`
+
+### Shadow Components
+
+For style encapsulation, use `.shadow.html` suffix. These components are wrapped in [Declarative Shadow DOM](https://web.dev/articles/declarative-shadow-dom):
+
+```html
+<!-- components/badge.shadow.html -->
+<style>
+    .badge {
+        padding: 0.25rem 0.5rem;
+        background: blue;
+        color: white;
+    }
+</style>
+<span class="badge">{{ text }}</span>
+```
+
+The component is automatically wrapped:
+
+```html
+<pf-badge>
+    <template shadowrootmode="open">
+        <style>.badge { ... }</style>
+        <span class="badge">New</span>
+    </template>
+</pf-badge>
+```
+
+**Benefits:**
+- Styles don't leak out or in
+- Class names can't collide with other components
+- CSS variables (`--var`) still work across shadow boundary
+
+**Use when:**
+- Building reusable component libraries
+- Need guaranteed style isolation
+
+## HTMX Integration
+
+ZeroJS is designed to work seamlessly with HTMX. The framework's base template (`zerojs/base.html`) includes HTMX automatically with `hx-boost` enabled for SPA-like navigation.
+
+**What `hx-boost` does:**
+- Converts regular links to AJAX requests
+- Only swaps `<body>` content instead of full page reload
+- Keeps CSS/JS in memory for faster transitions
+- Falls back to normal navigation without JavaScript
+
+If you create your own base template, include HTMX manually:
+
+```html
+<script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+```
+
+### Partial Updates
+
+When a form uses `hx-target`, ZeroJS automatically renders only the targeted component:
+
+```html
+<form hx-post="/users/1" hx-target="#user-form" hx-swap="outerHTML">
+    <!-- Form fields -->
+</form>
+```
+
+On submission:
+- **Validation error**: Re-renders form with `errors` and `values`
+- **Success**: Re-renders form with handler's return context
+- **Redirect**: Navigates to the returned URL
+
+## PyScript Integration
+
+ZeroJS supports running Python directly in the browser using [PyScript](https://pyscript.net/) with MicroPython (lightweight, ~300KB) or Pyodide (full CPython, ~11MB).
+
+### Setup
+
+Enable PyScript in `settings.py`:
+
+```python
+# settings.py
+PYSCRIPT_ENABLED = True
+PYSCRIPT_RUNTIME = "micropython"  # or "pyodide" for NumPy/Pandas
+PYSCRIPT_VERSION = "2025.10.1"
+```
+
+The `{{ pyscript_head() }}` function is already included in `zerojs/base.html`. If using a custom base template, add it to your `<head>`:
+
+```html
+<head>
+    {{ pyscript_head() }}
+</head>
+```
+
+### Client-Side Python
+
+Place Python files in `static/py/`:
+
+```python
+# static/py/counter.py
+from pyscript import document, when
+
+@when("click", "#btn-increment")
+def increment(event):
+    el = document.querySelector("#count")
+    el.innerText = str(int(el.innerText) + 1)
+```
+
+Use in templates with element IDs that match the `@when` selectors:
+
+```html
+<!-- pages/counter.html -->
+<button id="btn-increment">+1</button>
+<span id="count">0</span>
+
+<!-- type="mpy" for MicroPython, type="py" for Pyodide -->
+<script type="mpy" src="/static/py/counter.py"></script>
+```
+
+### Runtime Comparison
+
+| Runtime       | Size   | Startup | Best For                    |
+|---------------|--------|---------|-----------------------------|
+| `micropython` | ~300KB | < 100ms | UI interactions, mobile     |
+| `pyodide`     | ~11MB  | Slower  | NumPy, Pandas, data science |
+
+## Static Files
+
+Place static files in the `static/` directory:
+
+```
+my-app/
+├── static/
+│   ├── css/
+│   │   └── style.css
+│   └── js/
+│       └── app.js
+```
+
+Reference in templates:
+
+```html
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/app.js"></script>
+```
+
+## Error Pages
+
+Create custom error pages in the `errors/` directory:
+
+```html
+<!-- errors/404.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Page Not Found</h1>
+<p>The page you're looking for doesn't exist.</p>
+<a href="/">Go Home</a>
+{% endblock %}
+```
+
+Supported error pages:
+- `errors/404.html` - Not Found
+- `errors/500.html` - Server Error
+
+## Caching
+
+ZeroJS supports HTML response caching with multiple strategies. Configure caching in a `settings.py` file:
+
+```python
+# settings.py
+
+# Cache strategy: "none" | "ttl" | "incremental"
+CACHE_STRATEGY = "ttl"
+
+# Default cache TTL in seconds
+CACHE_TTL = 60
+
+# Per-route cache configuration overrides
+CACHE_ROUTES = {
+    "/": {"strategy": "ttl", "ttl": 3600},           # Home page: TTL, 1 hour
+    "/about": {"strategy": "ttl", "ttl": 86400},     # About page: TTL, 1 day
+    "/users/{id}": {"strategy": "incremental", "ttl": 30},  # User pages: ISR, 30s
+}
+```
+
+### Cache Strategies
+
+| Strategy      | Behavior                                                         |
+|---------------|------------------------------------------------------------------|
+| `none`        | No caching (default)                                             |
+| `ttl`         | Cache expires after TTL seconds. Next request re-renders.        |
+| `incremental` | Serves stale content immediately, re-renders in background (ISR) |
+
+### How It Works
+
+**TTL Strategy:**
+- First request renders the page and caches the HTML
+- Subsequent requests return cached HTML until TTL expires
+- After TTL expires, next request waits for re-render
+
+**Incremental Strategy (ISR):**
+- First request renders and caches the page
+- After TTL expires, next request returns stale HTML immediately
+- Background task re-renders the page for future requests
+- Users never wait for re-renders
+
+### Cache Invalidation
+
+You can programmatically clear the cache:
+
+```python
+app = ZeroJS()
+
+# Clear all cached pages
+app.clear_cache()
+
+# Clear specific URL
+app.invalidate_cache("/users/1")
+```
+
+### When to Use Each Strategy
+
+| Content Type                    | Recommended Strategy                   |
+|---------------------------------|----------------------------------------|
+| Static pages (about, terms)     | `ttl` with high TTL (3600+)            |
+| Listing pages                   | `incremental` with medium TTL (60-300) |
+| Dynamic content (user profiles) | `incremental` with low TTL (30-60)     |
+| Form pages                      | `none`                                 |
+
+**Note:** POST, PUT, PATCH, DELETE requests are never cached.
+
+## Configuration
+
+```python
+from zerojs import ZeroJS
+
+app = ZeroJS(
+    pages_dir="pages",           # Directory for page templates
+    components_dir="components", # Directory for reusable components
+    static_dir="static",         # Directory for static files
+    static_url="/static",        # URL prefix for static files
+    errors_dir="errors",         # Directory for error pages
+    components_url="/components",# URL prefix for dynamic components (None to disable)
+    settings_file="settings.py", # Path to settings file (optional)
+
+    # Any additional kwargs are passed to FastAPI
+    title="My App",
+    version="1.0.0",
+)
+```
+
+## Development Server
+
+```python
+app.start(
+    host="127.0.0.1",  # Host to bind
+    port=3000,         # Port number
+    reload=True,       # Enable hot reload
+)
+```
+
+Hot reload watches for changes in:
+- `*.py` - Python files
+- `*.html` - Templates
+- `*.css` - Stylesheets
+- `*.js` - JavaScript
+
+## Production Deployment
+
+For production, use the ASGI app with a production server:
+
+```python
+# main.py
+from zerojs import ZeroJS
+
+app = ZeroJS(title="My App")
+
+# For ASGI servers
+asgi_app = app.asgi_app
+```
+
+With Uvicorn:
+
+```bash
+uvicorn main:asgi_app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+With Gunicorn + Uvicorn:
+
+```bash
+gunicorn main:asgi_app -w 4 -k uvicorn.workers.UvicornWorker
+```
+
+## License
+
+Apache 2.0
