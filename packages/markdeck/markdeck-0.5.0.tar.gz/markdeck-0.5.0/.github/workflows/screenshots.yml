@@ -1,0 +1,88 @@
+name: Generate Screenshots
+
+on:
+  workflow_dispatch: # Allow manual trigger
+  push:
+    paths:
+      - 'markdeck/static/**'
+      - 'examples/**'
+  pull_request: # Generate screenshots on PRs
+    paths:
+      - 'markdeck/static/**'
+      - 'examples/**'
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Needed to commit and push screenshots
+      pull-requests: write # Needed to push to PR branches
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # For PRs: checkout the PR branch so we can commit to it
+          # For push/manual: use default ref
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Install uv
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # Install MarkDeck with screenshot dependencies
+      - name: Install MarkDeck dependencies
+        run: |
+          uv pip install --system -e ".[screenshots]"
+
+      # Install Playwright browsers
+      - name: Install Playwright browsers
+        run: |
+          playwright install --with-deps chromium
+
+      # Start server in background
+      - name: Start MarkDeck server
+        run: |
+          markdeck present examples/features.md --port 8888 --no-browser &
+          sleep 5
+          curl -f http://127.0.0.1:8888/ || exit 1
+
+      # Run screenshot capture (grid view, themes, and two-column layout)
+      - name: Capture screenshots
+        run: |
+          python capture_screenshots.py
+
+      # Upload screenshots as artifacts
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdeck-screenshots
+          path: screenshots/
+          retention-days: 90
+
+      # Commit screenshots back to repo
+      # - Always on manual trigger
+      # - On PRs only if from same repo (can't push to forks)
+      # - Fork PRs will only have artifacts uploaded
+      - name: Commit screenshots
+        if: |
+          github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.head.repo.full_name == github.repository)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add screenshots/
+          git diff --staged --quiet || git commit -m "Update screenshots (grid view, themes, and two-column layout) [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

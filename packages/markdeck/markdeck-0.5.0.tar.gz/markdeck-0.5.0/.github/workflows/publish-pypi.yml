@@ -1,0 +1,143 @@
+name: Publish to PyPI
+
+# Only allow manual trigger and release tags
+on:
+  workflow_dispatch:
+    inputs:
+      test_pypi:
+        description: 'Publish to TestPyPI instead of PyPI'
+        required: false
+        type: boolean
+        default: false
+  release:
+    types: [published]
+
+# Only run on main repository (not forks)
+# This prevents accidental publishes from forks
+jobs:
+  publish:
+    # Only run if:
+    # 1. It's the main repository (not a fork)
+    # 2. Actor is repository owner or has admin permissions
+    if: github.repository_owner == 'orangewise' && github.repository == 'orangewise/markdeck'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write  # Required for trusted publishing to PyPI
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for proper versioning
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install build dependencies
+        run: |
+          uv pip install --system build twine
+
+      - name: Verify version in pyproject.toml
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "Package version: $VERSION"
+          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build distribution
+        run: |
+          python -m build
+          ls -lh dist/
+
+      - name: Check distribution
+        run: |
+          twine check dist/*
+
+      - name: Verify package contents
+        run: |
+          echo "=== Checking wheel contents ==="
+          python -m zipfile -l dist/*.whl
+
+          echo "=== Checking tarball contents ==="
+          tar -tzf dist/*.tar.gz
+
+      # Publish to TestPyPI (manual trigger with test_pypi=true)
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.test_pypi == true
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: |
+          echo "Publishing to TestPyPI..."
+          twine upload --repository testpypi dist/*
+          echo "✅ Successfully published to TestPyPI"
+          echo "Install with: pip install --index-url https://test.pypi.org/simple/ markdeck==$PACKAGE_VERSION"
+
+      # Publish to Production PyPI (manual trigger with test_pypi=false or release)
+      - name: Publish to PyPI
+        if: |
+          (github.event_name == 'workflow_dispatch' && inputs.test_pypi == false) ||
+          github.event_name == 'release'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          echo "Publishing to Production PyPI..."
+          twine upload dist/*
+          echo "✅ Successfully published to PyPI"
+          echo "Install with: pip install markdeck==$PACKAGE_VERSION"
+
+      # Upload artifacts for verification
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          retention-days: 90
+
+      - name: Create release summary
+        if: success()
+        run: |
+          echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`$PACKAGE_VERSION\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.test_pypi }}" == "true" ]; then
+            echo "**Published to:** TestPyPI" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Install with:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "pip install --index-url https://test.pypi.org/simple/ markdeck==$PACKAGE_VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Published to:** Production PyPI" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Install with:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "pip install markdeck==$PACKAGE_VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "# or with uv" >> $GITHUB_STEP_SUMMARY
+            echo "uv pip install markdeck==$PACKAGE_VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+
+          for file in dist/*; do
+            size=$(ls -lh "$file" | awk '{print $5}')
+            name=$(basename "$file")
+            echo "| \`$name\` | $size |" >> $GITHUB_STEP_SUMMARY
+          done
