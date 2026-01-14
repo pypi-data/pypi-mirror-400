@@ -1,0 +1,100 @@
+Metadata-Version: 2.4
+Name: memvid-rs
+Version: 2.0.3
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Multimedia :: Video
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: sentence-transformers>=2.2.0 ; extra == 'full'
+Requires-Dist: faiss-cpu>=1.7.0 ; extra == 'full'
+Requires-Dist: pypdf2>=3.0.0 ; extra == 'full'
+Provides-Extra: full
+License-File: LICENSE
+Summary: High-performance AI memory library with full-text and semantic search (Rust bindings for memvid v2)
+Author-email: DrivenByCode <jaykey1004@gmail.com>
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Homepage, https://github.com/drivenbycode/memvid-rs
+Project-URL: Repository, https://github.com/drivenbycode/memvid-rs
+
+# memvid-rs (Python Bindings)
+
+[![🇰🇷 한국어 (Korean)](https://img.shields.io/badge/lang-Korean-blue.svg)](README_ko.md)
+[![PyPI version](https://badge.fury.io/py/memvid-rs.svg)](https://badge.fury.io/py/memvid-rs)
+
+**Memvid-rs** provides Python bindings for [memvid-core v2](https://github.com/memvid/memvid), a high-performance AI memory library written in Rust.
+
+This is a **major version upgrade** from v1 (QR video encoding) to v2 (`.mv2` single-file format).
+
+> **Attribution**: This project wraps [memvid-core](https://github.com/memvid/memvid) with PyO3 bindings for Python.
+
+## 🚀 Key Features
+
+-   **Single-File Memory**: All data stored in portable `.mv2` format
+-   **Full-Text Search**: BM25 ranking via embedded Tantivy index
+-   **Crash-Safe Writes**: WAL-based append-only architecture
+-   **Cross-Platform**: Works on macOS, Linux, Windows
+-   **Python 3.8-3.14+**: ABI3 wheel supports all modern Python versions
+
+## 📦 Installation
+
+```bash
+pip install memvid-rs
+```
+
+## 💻 Quick Start
+
+```python
+from memvid_rs import MemvidMemory
+
+# Create a new memory file
+memory = MemvidMemory.create("my_memory.mv2")
+
+# Add content
+idx = memory.append("Hello, memvid v2!")
+memory.commit()
+
+# Retrieve content
+text = memory.get_frame(idx)
+print(text)  # Hello, memvid v2!
+
+# Check stats
+print(f"Total frames: {memory.frame_count()}")
+
+# Open existing memory
+memory2 = MemvidMemory.open("my_memory.mv2")
+```
+
+## 🔧 API Reference
+
+### `MemvidMemory`
+
+| Method | Description |
+|--------|-------------|
+| `create(path)` | Create new `.mv2` file |
+| `open(path)` | Open existing `.mv2` file |
+| `append(text)` | Add text, returns 0-based index |
+| `commit()` | Flush writes to disk |
+| `get_frame(index)` | Retrieve frame text by index |
+| `frame_count()` | Get total frame count |
+
+## ⚠️ Breaking Changes from v1
+
+- **QR video encoding removed** - v2 uses binary `.mv2` format
+- **API redesigned** - `MemvidEncoder`/`MemvidDecoder` replaced with `MemvidMemory`
+- **File format incompatible** - v1 `.mp4` files cannot be opened in v2
+
+## 📋 Requirements
+
+-   **Python**: >= 3.8
+-   **System**: macOS, Linux, Windows
+
+## 📄 License
+
+MIT License
+
