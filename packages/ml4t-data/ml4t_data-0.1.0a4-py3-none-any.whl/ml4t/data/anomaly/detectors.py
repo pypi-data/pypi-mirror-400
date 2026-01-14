@@ -1,0 +1,456 @@
+"""Anomaly detector implementations."""
+
+from __future__ import annotations
+
+import polars as pl
+import structlog
+
+from ml4t.data.anomaly.base import Anomaly, AnomalyDetector, AnomalySeverity, AnomalyType
+from ml4t.data.anomaly.config import (
+    PriceStalenessConfig,
+    ReturnOutlierConfig,
+    VolumeSpikeConfig,
+)
+
+logger = structlog.get_logger()
+
+
+class ReturnOutlierDetector(AnomalyDetector):
+    """Detect return outliers using MAD or z-score methods."""
+
+    def __init__(self, config: ReturnOutlierConfig | None = None):
+        """
+        Initialize return outlier detector.
+
+        Args:
+            config: Detector configuration
+        """
+        self.config = config or ReturnOutlierConfig()
+        super().__init__(enabled=self.config.enabled)
+
+    @property
+    def name(self) -> str:
+        """Return detector name."""
+        return "return_outliers"
+
+    def detect(self, df: pl.DataFrame, symbol: str) -> list[Anomaly]:
+        """
+        Detect return outliers in the data.
+
+        Args:
+            df: DataFrame with OHLCV data
+            symbol: Symbol being analyzed
+
+        Returns:
+            List of detected anomalies
+        """
+        if not self.enabled or len(df) < self.config.min_samples:
+            return []
+
+        anomalies = []
+
+        # Calculate returns
+        df_with_returns = df.with_columns(pl.col("close").pct_change().alias("returns"))
+
+        # Remove first row (no return) and filter out nulls
+        df_with_returns = df_with_returns.filter(pl.col("returns").is_not_null())
+
+        if self.config.method == "mad":
+            anomalies.extend(self._detect_mad(df_with_returns, symbol))
+        elif self.config.method == "zscore":
+            anomalies.extend(self._detect_zscore(df_with_returns, symbol))
+        elif self.config.method == "iqr":
+            anomalies.extend(self._detect_iqr(df_with_returns, symbol))
+
+        return anomalies
+
+    def _detect_mad(self, df: pl.DataFrame, symbol: str) -> list[Anomaly]:
+        """Detect outliers using Median Absolute Deviation."""
+        returns = df["returns"]
+
+        # Calculate MAD
+        median = returns.median()
+        mad = (returns - median).abs().median()
+
+        # Handle case where MAD is 0
+        if mad == 0 or mad is None:
+            mad = 1.4826 * returns.abs().median()
+
+        if mad == 0 or mad is None:  # Still 0, no variation
+            return []
+
+        # Modified z-score using MAD
+        # 0.6745 is the scaling factor for normal distribution
+        modified_z = 0.6745 * (returns - median) / mad
+
+        # Find outliers
+        outliers = modified_z.abs() > self.config.threshold
+
+        anomalies = []
+        for idx in range(len(df)):
+            if outliers[idx]:
+                row = df[idx]
+                z_score = modified_z[idx]
+
+                # Determine severity based on z-score
+                if abs(z_score) > 5:
+                    severity = AnomalySeverity.CRITICAL
+                elif abs(z_score) > 4:
+                    severity = AnomalySeverity.ERROR
+                elif abs(z_score) > 3:
+                    severity = AnomalySeverity.WARNING
+                else:
+                    severity = AnomalySeverity.INFO
+
+                anomalies.append(
+                    Anomaly(
+                        timestamp=row["timestamp"][0],
+                        symbol=symbol,
+                        type=AnomalyType.RETURN_OUTLIER,
+                        severity=severity,
+                        value=row["returns"][0] * 100,  # Convert to percentage
+                        expected_range=(
+                            float(median - self.config.threshold * mad),
+                            float(median + self.config.threshold * mad),
+                        ),
+                        threshold=self.config.threshold,
+                        message=(
+                            f"Unusual return of {row['returns'][0] * 100:.2f}% "
+                            f"(MAD z-score: {z_score:.2f})"
+                        ),
+                        metadata={
+                            "method": "mad",
+                            "z_score": float(z_score),
+                            "close_price": float(row["close"][0]),
+                        },
+                    )
+                )
+
+        return anomalies
+
+    def _detect_zscore(self, df: pl.DataFrame, symbol: str) -> list[Anomaly]:
+        """Detect outliers using standard z-score."""
+        returns = df["returns"]
+
+        # Calculate z-scores
+        mean = returns.mean()
+        std = returns.std()
+
+        if std == 0:  # No variation
+            return []
+
+        z_scores = (returns - mean) / std
+
+        # Find outliers
+        outliers = z_scores.abs() > self.config.threshold
+
+        anomalies = []
+        for idx in range(len(df)):
+            if outliers[idx]:
+                row = df[idx]
+                z_score = z_scores[idx]
+
+                # Determine severity
+                if abs(z_score) > 4:
+                    severity = AnomalySeverity.CRITICAL
+                elif abs(z_score) > 3:
+                    severity = AnomalySeverity.ERROR
+                else:
+                    severity = AnomalySeverity.WARNING
+
+                anomalies.append(
+                    Anomaly(
+                        timestamp=row["timestamp"][0],
+                        symbol=symbol,
+                        type=AnomalyType.RETURN_OUTLIER,
+                        severity=severity,
+                        value=row["returns"][0] * 100,
+                        expected_range=(
+                            float(mean - self.config.threshold * std),
+                            float(mean + self.config.threshold * std),
+                        ),
+                        threshold=self.config.threshold,
+                        message=(
+                            f"Unusual return of {row['returns'][0] * 100:.2f}% "
+                            f"(z-score: {z_score:.2f})"
+                        ),
+                        metadata={
+                            "method": "zscore",
+                            "z_score": float(z_score),
+                            "close_price": float(row["close"][0]),
+                        },
+                    )
+                )
+
+        return anomalies
+
+    def _detect_iqr(self, df: pl.DataFrame, symbol: str) -> list[Anomaly]:
+        """Detect outliers using Interquartile Range."""
+        returns = df["returns"]
+
+        # Calculate IQR
+        q1 = returns.quantile(0.25)
+        q3 = returns.quantile(0.75)
+        iqr = q3 - q1
+
+        if iqr == 0:  # No variation
+            return []
+
+        # Define outlier bounds
+        lower_bound = q1 - self.config.threshold * iqr
+        upper_bound = q3 + self.config.threshold * iqr
+
+        # Find outliers
+        outliers = (returns < lower_bound) | (returns > upper_bound)
+
+        anomalies = []
+        for idx in range(len(df)):
+            if outliers[idx]:
+                row = df[idx]
+                return_val = row["returns"][0]
+
+                # Determine severity
+                extreme_lower = q1 - 3 * iqr
+                extreme_upper = q3 + 3 * iqr
+
+                if return_val < extreme_lower or return_val > extreme_upper:
+                    severity = AnomalySeverity.CRITICAL
+                else:
+                    severity = AnomalySeverity.WARNING
+
+                anomalies.append(
+                    Anomaly(
+                        timestamp=row["timestamp"][0],
+                        symbol=symbol,
+                        type=AnomalyType.RETURN_OUTLIER,
+                        severity=severity,
+                        value=return_val * 100,
+                        expected_range=(float(lower_bound), float(upper_bound)),
+                        threshold=self.config.threshold,
+                        message=f"Unusual return of {return_val * 100:.2f}% (outside IQR bounds)",
+                        metadata={
+                            "method": "iqr",
+                            "iqr": float(iqr),
+                            "close_price": float(row["close"][0]),
+                        },
+                    )
+                )
+
+        return anomalies
+
+
+class VolumeSpikeDetector(AnomalyDetector):
+    """Detect unusual volume spikes."""
+
+    def __init__(self, config: VolumeSpikeConfig | None = None):
+        """
+        Initialize volume spike detector.
+
+        Args:
+            config: Detector configuration
+        """
+        self.config = config or VolumeSpikeConfig()
+        super().__init__(enabled=self.config.enabled)
+
+    @property
+    def name(self) -> str:
+        """Return detector name."""
+        return "volume_spikes"
+
+    def detect(self, df: pl.DataFrame, symbol: str) -> list[Anomaly]:
+        """
+        Detect volume spikes in the data.
+
+        Args:
+            df: DataFrame with OHLCV data
+            symbol: Symbol being analyzed
+
+        Returns:
+            List of detected anomalies
+        """
+        if not self.enabled or len(df) < self.config.window + 1:
+            return []
+
+        anomalies = []
+
+        # Calculate rolling statistics
+        df_with_stats = df.with_columns(
+            [
+                pl.col("volume").rolling_mean(self.config.window).alias("volume_mean"),
+                pl.col("volume").rolling_std(self.config.window).alias("volume_std"),
+            ]
+        )
+
+        # Calculate z-scores
+        df_with_stats = df_with_stats.with_columns(
+            ((pl.col("volume") - pl.col("volume_mean")) / pl.col("volume_std")).alias(
+                "volume_zscore"
+            )
+        )
+
+        # Filter for minimum volume
+        df_with_stats = df_with_stats.filter(pl.col("volume") > self.config.min_volume)
+
+        # Find spikes
+        spikes = df_with_stats.filter(
+            (pl.col("volume_zscore").abs() > self.config.threshold)
+            & pl.col("volume_zscore").is_not_null()
+            & pl.col("volume_zscore").is_not_nan()
+        )
+
+        for row in spikes.iter_rows(named=True):
+            z_score = row["volume_zscore"]
+
+            # Determine severity
+            if abs(z_score) > 5:
+                severity = AnomalySeverity.ERROR
+            elif abs(z_score) > 4:
+                severity = AnomalySeverity.WARNING
+            else:
+                severity = AnomalySeverity.INFO
+
+            # Calculate percentage change
+            pct_change = ((row["volume"] - row["volume_mean"]) / row["volume_mean"]) * 100
+
+            anomalies.append(
+                Anomaly(
+                    timestamp=row["timestamp"],
+                    symbol=symbol,
+                    type=AnomalyType.VOLUME_SPIKE,
+                    severity=severity,
+                    value=float(row["volume"]),
+                    expected_range=(
+                        float(row["volume_mean"] - self.config.threshold * row["volume_std"]),
+                        float(row["volume_mean"] + self.config.threshold * row["volume_std"]),
+                    ),
+                    threshold=self.config.threshold,
+                    message=(
+                        f"Volume spike: {row['volume']:,.0f} "
+                        f"({pct_change:+.1f}% vs {self.config.window}-day avg)"
+                    ),
+                    metadata={
+                        "z_score": float(z_score),
+                        "average_volume": float(row["volume_mean"]),
+                        "window": self.config.window,
+                    },
+                )
+            )
+
+        return anomalies
+
+
+class PriceStalenessDetector(AnomalyDetector):
+    """Detect stale/unchanged prices."""
+
+    def __init__(self, config: PriceStalenessConfig | None = None):
+        """
+        Initialize price staleness detector.
+
+        Args:
+            config: Detector configuration
+        """
+        self.config = config or PriceStalenessConfig()
+        super().__init__(enabled=self.config.enabled)
+
+    @property
+    def name(self) -> str:
+        """Return detector name."""
+        return "price_staleness"
+
+    def detect(self, df: pl.DataFrame, symbol: str) -> list[Anomaly]:
+        """
+        Detect stale prices in the data.
+
+        Args:
+            df: DataFrame with OHLCV data
+            symbol: Symbol being analyzed
+
+        Returns:
+            List of detected anomalies
+        """
+        if not self.enabled or len(df) < 2:
+            return []
+
+        anomalies = []
+
+        if self.config.check_close_only:
+            # Check only close prices
+            df_with_changes = df.with_columns(pl.col("close").diff().alias("close_change"))
+
+            # Find consecutive unchanged prices
+            df_with_groups = df_with_changes.with_columns(
+                (pl.col("close_change") != 0).cum_sum().alias("change_group")
+            )
+        else:
+            # Check if all OHLC prices are unchanged
+            df_with_changes = df.with_columns(
+                [
+                    pl.col("open").diff().alias("open_change"),
+                    pl.col("high").diff().alias("high_change"),
+                    pl.col("low").diff().alias("low_change"),
+                    pl.col("close").diff().alias("close_change"),
+                ]
+            )
+
+            df_with_changes = df_with_changes.with_columns(
+                (
+                    (pl.col("open_change") == 0)
+                    & (pl.col("high_change") == 0)
+                    & (pl.col("low_change") == 0)
+                    & (pl.col("close_change") == 0)
+                ).alias("all_unchanged")
+            )
+
+            # Group consecutive unchanged periods
+            df_with_groups = df_with_changes.with_columns(
+                (~pl.col("all_unchanged")).cum_sum().alias("change_group")
+            )
+
+        # Find stale periods
+        group_sizes = df_with_groups.group_by("change_group").agg(
+            [
+                pl.col("timestamp").min().alias("start_date"),
+                pl.col("timestamp").max().alias("end_date"),
+                pl.col("close").first().alias("stale_price"),
+                pl.len().alias("days_unchanged"),
+            ]
+        )
+
+        # Filter for periods exceeding threshold
+        # (subtract 1 since the first occurrence doesn't count)
+        stale_periods = group_sizes.filter(
+            (pl.col("days_unchanged") - 1) > self.config.max_unchanged_days
+        )
+
+        for row in stale_periods.iter_rows(named=True):
+            days = row["days_unchanged"] - 1  # Adjust for actual unchanged days
+
+            # Determine severity based on staleness duration
+            if days > 20:
+                severity = AnomalySeverity.CRITICAL
+            elif days > 10:
+                severity = AnomalySeverity.ERROR
+            elif days > 5:
+                severity = AnomalySeverity.WARNING
+            else:
+                severity = AnomalySeverity.INFO
+
+            anomalies.append(
+                Anomaly(
+                    timestamp=row["end_date"],
+                    symbol=symbol,
+                    type=AnomalyType.PRICE_STALE,
+                    severity=severity,
+                    value=float(row["stale_price"]),
+                    threshold=float(self.config.max_unchanged_days),
+                    message=f"Price unchanged for {days} days at {row['stale_price']:.2f}",
+                    metadata={
+                        "start_date": row["start_date"].isoformat(),
+                        "end_date": row["end_date"].isoformat(),
+                        "days_unchanged": days,
+                        "stale_price": float(row["stale_price"]),
+                    },
+                )
+            )
+
+        return anomalies
