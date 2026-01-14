@@ -1,0 +1,1 @@
+from randomize_songs.__about__ import __version__
