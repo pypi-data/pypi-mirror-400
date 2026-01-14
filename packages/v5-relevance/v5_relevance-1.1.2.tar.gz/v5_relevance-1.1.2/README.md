@@ -1,0 +1,114 @@
+# V5相关度算法
+
+基于jieba的V5版中文文本相关度计算算法，提供精确的文本匹配和相关性评分。
+
+## 功能特性
+
+- ✅ 基于jieba的中文分词和词性标注
+- ✅ 智能分词过滤，支持专业术语识别
+- ✅ 多维度相关度评分算法
+- ✅ 批量处理支持
+- ✅ 自动用户词典创建
+- ✅ 完全封装的类设计
+
+## 安装
+
+### 基础安装
+```bash
+pip install v5-relevance
+```
+
+### 完整安装（包含所有依赖）
+```bash
+pip install v5-relevance[full]
+```
+
+## 快速开始
+
+```python
+from v5 import V5Relev
+
+# 创建算法实例
+v5 = V5Relev()
+
+# 计算单个文本的相关度
+content = "这是一个关于AI软件前端设计哲学的测试内容"
+query = "AI软件前端设计"
+score = v5.calculate_relevance_score(content, query)
+print(f"相关度分数: {score}")
+
+# 批量处理
+notes = [
+    (1, "AI软件前端设计哲学", "2025-10-30"),
+    (2, "AI软件设计白皮书", "2025-10-29"), 
+    (3, "从AI软件控件设计", "2025-10-28")
+]
+
+top_notes = v5.get_top_relevant_notes(notes, query, limit=2)
+print("前2条相关笔记:")
+for note in top_notes:
+    print(f"  ID: {note[0]}, 分数: {note[3]}")
+```
+
+## 算法原理
+
+V5相关度算法基于以下维度计算总匹配度：
+
+1. **LIKE匹配** - 精确匹配、标题开头匹配、连续关键词匹配
+2. **标题关键词匹配** - 标题区域的关键词匹配计数
+3. **关键词紧密度** - 关键词在标题中的位置距离
+4. **内容匹配平均占比** - 基于词性权重的加权匹配占比
+
+## 用户词典
+
+算法会自动创建用户词典文件 `user_dict.txt`，包含：
+
+- 人名地名（元龙居士、北京、上海等）
+- 专业术语（LLM、API_KEY、BASE_URL等）
+- 技术名词（Python、JavaScript、Docker等）
+- 时间相关词（今天、明天、本周等）
+- 常见问题关键词
+
+## API文档
+
+### V5Relev 类
+
+#### 初始化
+```python
+v5 = V5Relev(user_dict_path="user_dict.txt", debug=False)
+```
+
+#### 方法
+
+**calculate_relevance_score(content, query, user_id=None)**
+- 计算单个文本的相关度分数
+- 返回：浮点数相关度评分
+
+**get_top_relevant_notes(notes, query, limit=10)**
+- 批量计算相关度并排序
+- 返回：按相关度降序排列的笔记列表
+
+**extract_core_keywords(tokens)**
+- 提取核心关键词，过滤停用词
+
+**extract_content_words(tokens)**
+- 提取内容关键词（名词、动词等实词）
+
+## 依赖
+
+- Python >= 3.7
+- jieba >= 0.42.1
+
+## 许可证
+
+MIT License
+
+## 贡献
+
+欢迎提交Issue和Pull Request！
+
+## 联系方式
+
+- 作者：元龙居士
+- 邮箱：415135222@qq.com
+- GitHub：https://github.com/bifu123/v5-relevance
