@@ -1,0 +1,175 @@
+[project]
+name = "jentic-openapi-tools"
+version = "1.0.0-alpha.33"
+description = "Workspace root for Jentic OpenAPI Tools"
+readme = "README.md"
+authors = [{ name = "Jentic", email = "hello@jentic.com" }]
+license = {text = "Apache-2.0"}
+requires-python = ">=3.11"
+dependencies = [
+  "jentic-openapi-common~=1.0.0-alpha.33",
+  "jentic-openapi-datamodels~=1.0.0-alpha.33",
+  "jentic-openapi-parser~=1.0.0-alpha.33",
+  "jentic-openapi-transformer~=1.0.0-alpha.33",
+  "jentic-openapi-transformer-redocly~=1.0.0-alpha.33",
+  "jentic-openapi-traverse~=1.0.0-alpha.33",
+  "jentic-openapi-validator~=1.0.0-alpha.33",
+  "jentic-openapi-validator-redocly~=1.0.0-alpha.33",
+  "jentic-openapi-validator-spectral~=1.0.0-alpha.33"
+]
+
+[project.urls]
+Homepage = "https://github.com/jentic/jentic-openapi-tools"
+
+
+# Development-only dependencies (will not be published)
+[dependency-groups]
+dev = [
+  "pre-commit~=4.3.0",
+  "ruff~=0.14.1",
+  "pyright~=1.1.407",
+  "pytest~=8.4.2",
+  "python-semantic-release~=10.4.1",
+  "poethepoet~=0.37.0",
+]
+
+[tool.poe.tasks]
+[tool.poe.tasks.lint]
+sequence = [
+  { shell = "ruff check ${GITHUB_ACTIONS:+--output-format=github}" },
+  { cmd = "ruff format --check --diff"}
+]
+[tool.poe.tasks."lint:fix"]
+sequence = [
+  { cmd = "ruff check --fix" },
+  { cmd = "ruff format" },
+]
+[tool.poe.tasks.typecheck]
+sequence = [
+  { cmd = "pyright" }
+]
+[tool.poe.tasks.test]
+sequence = [
+  { cmd = "uv run --all-packages pytest --import-mode=importlib" }
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+jentic-openapi-common = { workspace = true }
+jentic-openapi-datamodels = { workspace = true }
+jentic-openapi-parser = { workspace = true }
+jentic-openapi-transformer = { workspace = true }
+jentic-openapi-transformer-redocly = { workspace = true }
+jentic-openapi-traverse = { workspace = true }
+jentic-openapi-validator = { workspace = true }
+jentic-openapi-validator-redocly = { workspace = true }
+jentic-openapi-validator-spectral = { workspace = true }
+
+[build-system]
+requires = ["setuptools~=75.8.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []
+license-files = ["LICENSE", "NOTICE"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = [
+  "packages/jentic-openapi-common/src",
+  "packages/jentic-openapi-datamodels/src",
+  "packages/jentic-openapi-parser/src",
+  "packages/jentic-openapi-traverse/src",
+  "packages/jentic-openapi-transformer/src",
+  "packages/jentic-openapi-transformer-redocly/src",
+  "packages/jentic-openapi-validator/src",
+  "packages/jentic-openapi-validator-spectral/src",
+  "packages/jentic-openapi-validator-redocly/src",
+]
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+
+[tool.pyright]
+include = ["packages/*/src/**", "packages/*/tests/**"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+
+# Python Semantic Release Configuration
+[tool.semantic_release]
+# Enable monorepo mode
+monorepo = true
+# Use conventional commits
+commit_parser = "conventional"
+# Version variables to update in files
+version_variables = []
+# Create changelog
+build_command = ""
+# Don't build here, we'll build separately
+upload_to_vcs_release = true
+# Enable GitHub releases
+# Use semantic versioning
+major_on_zero = true
+# Branch configuration
+branch = "main"
+# Tag format
+tag_format = "v{version}"
+# Allow first release from current version
+allow_zero_version = true
+# Version files to update (using version_toml for TOML parsing)
+version_toml = [
+    "pyproject.toml:project.version",
+    "packages/jentic-openapi-common/pyproject.toml:project.version",
+    "packages/jentic-openapi-datamodels/pyproject.toml:project.version",
+    "packages/jentic-openapi-parser/pyproject.toml:project.version",
+    "packages/jentic-openapi-traverse/pyproject.toml:project.version",
+    "packages/jentic-openapi-transformer/pyproject.toml:project.version",
+    "packages/jentic-openapi-transformer-redocly/pyproject.toml:project.version",
+    "packages/jentic-openapi-validator/pyproject.toml:project.version",
+    "packages/jentic-openapi-validator-spectral/pyproject.toml:project.version",
+    "packages/jentic-openapi-validator-redocly/pyproject.toml:project.version",
+]
+
+# Commit author for version commits
+commit_author = "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+# Commit message template for version commits
+commit_message = "chore(release): cut the v{version} release"
+
+# Define what constitutes breaking changes, features, and fixes
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    "^docs:",
+    "^style:",
+    "^refactor:",
+    "^test:",
+    "^build:",
+    "^ci:",
+]
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+# Remote configuration
+[tool.semantic_release.remote]
+name = "origin"
+type = "github"
+
+# Branches configuration
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = true
+prerelease_token = "alpha"
+
+# Publishing configuration - disable built-in publishing since we use uv
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*.whl", "dist/*.tar.gz"]
+upload_to_vcs_release = true
