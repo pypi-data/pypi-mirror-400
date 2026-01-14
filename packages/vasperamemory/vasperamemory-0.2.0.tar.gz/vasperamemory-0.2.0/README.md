@@ -1,0 +1,360 @@
+# VasperaMemory Python SDK
+
+Universal AI memory layer for development tools. Give your AI agents persistent memory across sessions.
+
+[![PyPI version](https://badge.fury.io/py/vasperamemory.svg)](https://pypi.org/project/vasperamemory/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Why VasperaMemory?
+
+- **Persistent Memory** — Your AI remembers decisions, patterns, and fixes across sessions
+- **Error Fix Memory** — Save error fixes once, get suggestions automatically next time
+- **Change Impact Analysis** — Understand what code changes will affect before making them
+- **Entity Intelligence** — Track relationships between code entities across your codebase
+- **Pattern Library** — Access and contribute to community-shared coding patterns
+- **Framework Ready** — Works with LangChain, LlamaIndex, and more
+
+## Installation
+
+```bash
+pip install vasperamemory
+```
+
+With framework integrations:
+
+```bash
+# LangChain support
+pip install vasperamemory[langchain]
+
+# LlamaIndex support
+pip install vasperamemory[llamaindex]
+
+# All integrations
+pip install vasperamemory[all]
+```
+
+## Quick Start
+
+```python
+from vasperamemory import VasperaMemory
+
+# Initialize client
+vm = VasperaMemory(
+    api_key="vm_your_api_key",
+    project_id="your_project_id"
+)
+
+# Capture a decision
+vm.capture_decision(
+    category="architectural",
+    title="Use Redis for caching",
+    content="Chose Redis over Memcached for its data structure support",
+    reasoning="Need sorted sets for leaderboards"
+)
+
+# Search memories
+results = vm.search("caching strategy", limit=5)
+for result in results:
+    print(f"[{result.score:.2f}] {result.item.content}")
+
+# Capture an error fix
+vm.capture_error_fix(
+    error_message="TypeError: Cannot read property 'map' of undefined",
+    root_cause="Array was not initialized before use",
+    fix_description="Added null check and default empty array",
+    prevention_rule="Always initialize arrays before mapping"
+)
+
+# Find fix for an error
+fix = vm.find_error_fix("TypeError: Cannot read property 'map'")
+if fix:
+    print(f"Fix: {fix.fix_description}")
+```
+
+## New in v0.2.0
+
+### Change Impact Analysis
+
+Understand what will be affected before making code changes:
+
+```python
+# Analyze impact before modifying code
+impact = vm.analyze_change_impact(
+    file_to_change="src/auth/handler.py",
+    symbols_to_modify=["validate_token", "refresh_session"]
+)
+print(f"Affected files: {impact.affected_files}")
+print(f"Risk level: {impact.risk_level}")
+
+# Estimate risk for a set of changes
+risk = vm.estimate_change_risk(
+    files_to_change=["src/auth/handler.py", "src/middleware/auth.py"],
+    change_type="refactor"
+)
+print(f"Risk score: {risk.risk_score}")
+print(f"Recommendations: {risk.recommendations}")
+
+# Find similar code implementations
+similar = vm.find_similar_code('''
+def validate_token(token: str) -> dict:
+    decoded = jwt.decode(token, secret, algorithms=["HS256"])
+    return decoded
+''')
+for match in similar:
+    print(f"{match.file_path}:{match.start_line} - {match.similarity_score:.2f}")
+```
+
+### Entity Intelligence
+
+Track and query code entities across your codebase:
+
+```python
+# Search for entities
+entities = vm.search_entities("auth", entity_type="function", limit=10)
+for entity in entities:
+    print(f"{entity.entity_type}: {entity.value} ({entity.mention_count} mentions)")
+
+# Get relationships between entities
+relationships = vm.get_entity_relationships(
+    entity_value="UserService",
+    direction="both",
+    predicate_filter="uses"
+)
+for rel in relationships:
+    print(f"{rel.source} --{rel.predicate}--> {rel.target}")
+
+# Track entity evolution over time
+evolution = vm.get_entity_evolution("src/services/auth.py", entity_name="validate_user")
+print(f"Stability score: {evolution.stability_score}")
+print(f"Version count: {evolution.version_count}")
+```
+
+### Export & Import
+
+Migrate or backup your project memory:
+
+```python
+# Export memories
+export_result = vm.export_memory(
+    format="json",
+    include_decisions=True,
+    include_errors=True
+)
+print(f"Download URL: {export_result.download_url}")
+
+# Import memories
+import_result = vm.import_memory(memory_data, merge_strategy="append")
+print(f"Imported: {import_result.imported_count}")
+```
+
+### Pattern Library
+
+Access community patterns and share your own:
+
+```python
+# Get pattern suggestions based on context
+suggestions = vm.suggest_patterns(
+    context="implementing authentication middleware",
+    file_path="src/middleware/auth.py"
+)
+for suggestion in suggestions:
+    print(f"{suggestion.pattern.name}: {suggestion.reason}")
+
+# Search community patterns
+patterns = vm.search_patterns("error handling", category="python")
+for pattern in patterns:
+    print(f"{pattern.name} - {pattern.adoption_rate:.1%} adoption")
+
+# Contribute a pattern
+vm.contribute_pattern(
+    name="Repository Pattern",
+    description="Abstract data access layer for database operations",
+    category="architecture",
+    code_example='''
+class UserRepository:
+    async def find_by_id(self, id: str) -> User:
+        ...
+'''
+)
+```
+
+## Async Support
+
+```python
+from vasperamemory import AsyncVasperaMemory
+
+async with AsyncVasperaMemory(api_key="vm_xxx", project_id="proj_xxx") as vm:
+    results = await vm.search("authentication patterns")
+
+    await vm.capture_decision(
+        category="pattern",
+        title="Use JWT for auth",
+        content="Implementing JWT-based authentication",
+    )
+```
+
+## LangChain Integration
+
+```python
+from vasperamemory import VasperaMemory
+from vasperamemory.integrations.langchain import VasperaMemoryRetriever
+
+vm = VasperaMemory(api_key="vm_xxx", project_id="proj_xxx")
+retriever = VasperaMemoryRetriever(vasperamemory=vm, k=5)
+
+# Use with RetrievalQA
+from langchain.chains import RetrievalQA
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(model="gpt-4")
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    retriever=retriever,
+)
+
+response = qa_chain.invoke("What caching patterns do we use?")
+```
+
+### Chat History
+
+```python
+from vasperamemory.integrations.langchain import VasperaMemoryChatHistory
+from langchain.memory import ConversationBufferMemory
+
+history = VasperaMemoryChatHistory(vasperamemory=vm, session_id="chat_123")
+memory = ConversationBufferMemory(chat_memory=history)
+```
+
+## LlamaIndex Integration
+
+```python
+from vasperamemory import VasperaMemory
+from vasperamemory.integrations.llamaindex import VasperaMemoryVectorStore
+from llama_index.core import VectorStoreIndex
+
+vm = VasperaMemory(api_key="vm_xxx", project_id="proj_xxx")
+vector_store = VasperaMemoryVectorStore(vasperamemory=vm)
+
+index = VectorStoreIndex.from_vector_store(vector_store)
+query_engine = index.as_query_engine()
+
+response = query_engine.query("What patterns are used in this project?")
+```
+
+## API Reference
+
+### Core Methods
+
+| Method | Description |
+|--------|-------------|
+| `search(query, limit?, threshold?)` | Search memories by semantic similarity |
+| `capture_memory(content, type?, reasoning?, confidence?)` | Save a new memory |
+| `capture_decision(category, title, content, ...)` | Record an architectural decision |
+| `capture_error_fix(error_message, root_cause, fix_description, ...)` | Save an error fix |
+| `find_error_fix(error_message)` | Find a fix for a known error |
+| `get_session_context(query?, open_files?)` | Get comprehensive session context |
+| `fuse_context(sources?, max_tokens?)` | Merge context from multiple sources |
+
+### Change Analysis Methods (v0.2.0)
+
+| Method | Description |
+|--------|-------------|
+| `analyze_change_impact(file_to_change, symbols_to_modify)` | Analyze impact of modifying code |
+| `predict_change_impact(file_path, change_type?, symbol_name?)` | Predict ripple effects |
+| `estimate_change_risk(files_to_change, change_type?)` | Assess risk before making changes |
+| `find_similar_code(code, threshold?, limit?)` | Find similar implementations |
+
+### Entity Methods (v0.2.0)
+
+| Method | Description |
+|--------|-------------|
+| `search_entities(query, entity_type?, limit?)` | Search code entities |
+| `get_entity_relationships(entity_value, direction?, predicate_filter?)` | Get entity dependencies |
+| `get_entity_evolution(file_path, entity_name?)` | Track entity history |
+
+### Export/Import Methods (v0.2.0)
+
+| Method | Description |
+|--------|-------------|
+| `export_memory(format?, include_decisions?, include_errors?)` | Export to JSON/markdown/YAML |
+| `import_memory(data, merge_strategy?)` | Import from external sources |
+
+### Pattern Methods (v0.2.0)
+
+| Method | Description |
+|--------|-------------|
+| `suggest_patterns(context?, file_path?, limit?)` | Get context-aware pattern suggestions |
+| `search_patterns(query, category?, limit?)` | Search community patterns |
+| `contribute_pattern(name, description, category, code_example?)` | Share a pattern |
+
+## Configuration
+
+### Environment Variables
+
+```bash
+export VASPERAMEMORY_API_KEY=vm_your_api_key
+export VASPERAMEMORY_PROJECT_ID=your_project_id
+```
+
+```python
+import os
+from vasperamemory import VasperaMemory
+
+vm = VasperaMemory(
+    api_key=os.environ["VASPERAMEMORY_API_KEY"],
+    project_id=os.environ["VASPERAMEMORY_PROJECT_ID"]
+)
+```
+
+### Custom Base URL
+
+```python
+# For self-hosted or staging
+vm = VasperaMemory(
+    api_key="vm_xxx",
+    project_id="proj_xxx",
+    base_url="https://your-server.com",
+    timeout=60.0
+)
+```
+
+## Error Handling
+
+```python
+from vasperamemory import (
+    VasperaMemory,
+    AuthenticationError,
+    RateLimitError,
+    ProjectNotFoundError,
+    ValidationError,
+    ServerError,
+    NetworkError,
+)
+
+try:
+    vm = VasperaMemory(api_key="vm_xxx", project_id="proj_xxx")
+    vm.search("test")
+except AuthenticationError:
+    print("Invalid API key")
+except RateLimitError as e:
+    print(f"Rate limited. Retry after {e.retry_after} seconds")
+except ProjectNotFoundError:
+    print("Project not found")
+except ValidationError as e:
+    print(f"Invalid request: {e}")
+except ServerError as e:
+    print(f"Server error ({e.status_code}): {e}")
+except NetworkError as e:
+    print(f"Network error: {e}")
+```
+
+## Links
+
+- **Website**: https://vasperamemory.com
+- **Documentation**: https://docs.vasperamemory.com
+- **GitHub**: https://github.com/RCOLKITT/VasperaMemory
+- **npm package**: https://www.npmjs.com/package/vasperamemory
+
+## License
+
+MIT
