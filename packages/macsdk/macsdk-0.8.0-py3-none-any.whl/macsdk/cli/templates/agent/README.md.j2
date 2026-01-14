@@ -1,0 +1,158 @@
+# {{ name }}
+
+{{ description }}
+
+## Installation
+
+```bash
+uv sync
+```
+
+## Configuration
+
+Before running the agent, you need to configure your Google API key.
+
+### Option 1: Environment file (recommended)
+
+```bash
+cp .env.example .env
+# Edit .env and add your GOOGLE_API_KEY
+```
+
+### Option 2: Export directly
+
+```bash
+export GOOGLE_API_KEY=your_key_here
+```
+
+### Option 3: YAML configuration (standalone mode)
+
+```bash
+cp config.yml.example config.yml
+```
+
+**Note:** When registered with a chatbot, the agent uses the chatbot's
+configuration. The agent's `config.yml` is only used in standalone mode.
+
+## Usage
+
+### Show Commands
+
+```bash
+uv run {{ script_name }}
+```
+
+### Interactive Chat
+
+```bash
+uv run {{ script_name }} chat
+```
+
+### List Available Tools
+
+```bash
+uv run {{ script_name }} tools
+```
+
+### Show Agent Info
+
+```bash
+uv run {{ script_name }} info
+```
+
+### Logging
+
+Logs are written to `./logs/` by default. Each execution creates a new log file with a timestamp (e.g., `{{ agent_slug }}-2026-01-04-15-30-45.log`):
+
+```bash
+# Show LLM prompts and responses (clean, without HTTP noise)
+uv run {{ script_name }} chat --show-llm-calls
+
+# Verbose mode (INFO level)
+uv run {{ script_name }} chat -v
+
+# Very verbose (DEBUG level, technical logs)
+uv run {{ script_name }} chat -vv
+
+# Show LLM calls with DEBUG logs
+uv run {{ script_name }} chat -vv --show-llm-calls
+
+# Quiet mode (only errors)
+uv run {{ script_name }} chat -q
+
+# Custom log file
+uv run {{ script_name }} chat --log-file ./my-logs/debug.log
+
+# Explicit log level
+uv run {{ script_name }} chat --log-level DEBUG
+```
+
+**⚠️ Security Warning:** When using `--show-llm-calls`, full LLM prompts and responses (including user inputs and tool outputs) are logged to disk. This may include sensitive information such as:
+- User queries containing personal data
+- Tool outputs with API responses or private information
+- System prompts with business logic
+
+**Recommendations:**
+- Only enable `--show-llm-calls` during development/debugging
+- Never enable in production environments with user data
+- Review and sanitize log files before sharing
+- Consider log file permissions and secure storage
+- Rotate or delete logs containing sensitive data after debugging
+
+Configure logging in `config.yml`:
+
+```yaml
+log_level: INFO        # DEBUG, INFO, WARNING, ERROR
+log_dir: ./logs        # Directory for log files
+```
+
+Or via environment variables:
+
+```bash
+export LOG_LEVEL=DEBUG
+export LOG_DIR=./my-logs
+```
+
+## Development
+
+```bash
+uv run pytest
+uv run ruff check src/
+uv run ruff format src/
+```
+
+## Integration
+
+Register this agent with your chatbot:
+
+```python
+from {{ agent_slug }} import {{ agent_class }}
+from macsdk.core import register_agent
+
+register_agent({{ agent_class }}())
+```
+
+Or use the MACSDK CLI:
+
+```bash
+macsdk add-agent . --path ./{{ name }}
+```
+
+## Customization
+
+### Adding Tools
+
+Edit `src/{{ agent_slug }}/tools.py` to add new tools.
+Remember to also update the `TOOLS` list in `cli.py`.
+
+### Modifying the Prompt
+
+Edit `src/{{ agent_slug }}/prompts.py` to change agent behavior.
+
+### Structured Responses
+
+By default, the agent uses `BaseAgentResponse` which provides `response_text`
+and `tools_used`. For most use cases, this is sufficient.
+
+If you need custom structured fields (for advanced inter-agent coordination),
+edit `src/{{ agent_slug }}/models.py` and uncomment the custom class.
