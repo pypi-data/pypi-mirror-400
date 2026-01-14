@@ -1,0 +1,83 @@
+Metadata-Version: 2.4
+Name: devqubit-engine
+Version: 0.1.0
+Summary: Internal core runtime for devqubit
+Author: devqubit
+License-Expression: Apache-2.0
+License-File: LICENSE
+Keywords: experiment-tracking,quantum
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: <3.14,>=3.11
+Requires-Dist: click<9,>=8.2
+Requires-Dist: jsonschema<5,>=4.25.1
+Requires-Dist: numpy<3,>=2.2
+Requires-Dist: py-ulid>=1.0.3
+Provides-Extra: gcs
+Requires-Dist: google-cloud-storage>=3.7.0; extra == 'gcs'
+Provides-Extra: s3
+Requires-Dist: boto3>=1.42.10; extra == 's3'
+Description-Content-Type: text/markdown
+
+# devqubit-engine
+
+Core engine for devqubit experiment tracking. Provides storage, registry, run management, comparison, and CLI.
+
+> **Note**: Users should install `devqubit` (the meta-package) instead, which includes this package plus convenient extras.
+
+## Installation
+
+```bash
+pip install devqubit-engine
+```
+
+## What's Included
+
+- **Run tracking** — `track()` context manager, parameter/metric/artifact logging
+- **Storage** — Content-addressable object store with SHA-256 deduplication
+- **Registry** — Run indexing, search, baselines, groups
+- **Comparison** — `diff()`, `diff_runs()`, TVD analysis, calibration drift detection
+- **Verification** — `verify()` for CI/CD baseline checks
+- **Bundles** — Portable run export/import
+- **CLI** — `devqubit list`, `show`, `diff`, `verify`, `pack`, `unpack`
+
+## Usage
+
+```python
+from devqubit import track
+
+with track(project="my-experiment") as run:
+    run.log_param("shots", 1000)
+    run.log_metric("fidelity", 0.95)
+    run.log_json(name="counts", obj={"00": 502, "11": 498}, role="results")
+```
+
+## Adapters
+
+Circuit capture requires SDK-specific adapters (separate packages):
+
+```bash
+pip install devqubit-qiskit         # Qiskit + Aer
+pip install devqubit-qiskit-runtime # IBM Quantum Runtime
+pip install devqubit-braket         # Amazon Braket
+pip install devqubit-cirq           # Google Cirq
+pip install devqubit-pennylane      # PennyLane
+```
+
+## Configuration
+
+```bash
+export DEVQUBIT_HOME=~/.devqubit
+export DEVQUBIT_CAPTURE_GIT=true
+export DEVQUBIT_CAPTURE_PIP=true
+```
+
+## License
+
+Apache 2.0
