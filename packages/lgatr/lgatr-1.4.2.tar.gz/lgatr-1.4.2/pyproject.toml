@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm>=8", "wheel>=0.42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lgatr"
+dynamic = ["version"] # comes from setuptools-scm
+description = "Lorentz-Equivariant Geometric Algebra Transformer for High-Energy Physics"
+requires-python = ">=3.10"
+readme = "README.md"
+authors = [
+  { name = "Jonas Spinner", email = "j.spinner@thphys.uni-heidelberg.de" },
+  { name = "Víctor Bresó", email = "breso@thphys.uni-heidelberg.de" },
+]
+dependencies = [
+    "torch>=2.0",
+    "numpy",
+    "einops",
+    "opt_einsum",
+]
+
+[project.optional-dependencies]
+xformers-attention = ["xformers"]
+flex-attention = ["torch>=2.7"]  # experimental in torch 2.5, 2.6
+flash-attention = ["flash-attn"]  # non-trivial, check https://deepwiki.com/Dao-AILab/flash-attention/1.1-installation-and-setup for build instructions
+dev = [
+    # unit tests
+    "pytest",
+    "pytest-cov",
+    "clifford>=1.5.0", # for lgatr equivariance tests
+    "lloca", # for lgatr_slim equivariance tests
+    # docs
+    "sphinx<9.0",
+    "sphinx-autodoc-typehints",
+    "sphinx-rtd-theme",
+]
+
+[project.entry-points."lgatr.primitives.attention_backends"]
+native = "lgatr.primitives.attention_backends.native"
+xformers = "lgatr.primitives.attention_backends.xformers"
+flex = "lgatr.primitives.attention_backends.flex"
+flash = "lgatr.primitives.attention_backends.flash"
+
+[project.urls]
+homepage = "https://heidelberg-hepml.github.io/lgatr"
+repository = "https://github.com/heidelberg-hepml/lgatr"
+
+[tool.setuptools]
+packages = { find =  { include = ["lgatr", "lgatr.*"] } }
+
+[tool.setuptools.package-data]
+"lgatr" = ["primitives/*.pt"]
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "no-local-version"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["data/", "runs/", "notebooks/"]
+
+[tool.ruff.lint]
+select = ["E","F","I","B","UP"]
+ignore = [
+    "E501", # no complaints from line length
+    "B006", # allow mutable default function arguments
+]
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
