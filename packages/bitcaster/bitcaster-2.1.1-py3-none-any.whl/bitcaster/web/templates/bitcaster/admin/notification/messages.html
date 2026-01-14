@@ -1,0 +1,54 @@
+{% extends "admin_extra_buttons/action_page.html" %}
+{% load i18n %}
+{% block content %}
+    <div class="grid grid-cols-2 gap-4 p-2 mb-4">
+        <div>
+            Notification
+        </div>
+        <div>
+            {{ original }}
+        </div>
+        <div>
+            Event
+        </div>
+        <div>
+            <a href="{% url "admin:bitcaster_event_change" original.event.pk %}">{{ original.event }}</a>
+        </div>
+        <div>
+            Distribution
+        </div>
+        <div>
+            {{ original.distribution }}
+        </div>
+    </div>
+    <div class="border rounded border-gray-500">
+        {{ form.non_field_errors }}
+        <form method="post" id="messageForm">
+            <div class="flex w-full gap-4 p-2">
+                {% csrf_token %}
+                {{ form }}
+            </div>
+            <div class="form-submit-row">
+                <input class="button button-primary" type="submit" value="{% translate "Create" %}" />
+            </div>
+        </form>
+    </div>
+    {% if message_templates %}
+        <div class="grid grid-cols-2 gap-4 p-2 mb-4">
+            <div>
+                {% translate "Name" %}
+            </div>
+            <div>
+                {% translate "Channel" %}
+            </div>
+            {% for msg in message_templates %}
+                <div {% if msg.pk == message_created.pk %}style="background-color: #2bc06a" {% endif %}>
+                    <a href="{% url "admin:bitcaster_messagetemplate_change" msg.pk %}">{{ msg }}</a>
+                </div>
+                <div>
+                    {{ msg.channel }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endblock content %}
