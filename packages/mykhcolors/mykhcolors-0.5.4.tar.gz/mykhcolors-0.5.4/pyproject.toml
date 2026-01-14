@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mykhcolors"                   # nazwa pakietu (używana na PyPI/TestPyPI)
+dynamic = ["version"]                 # wersja wczytywana z pliku __about__.py
+description = "Studying github CI/CD"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+    { name = "khaz", email = "pykhaz@o2.pl" },
+]
+keywords = ["github", "CI", "CD", "terminal", "ansi codes"]
+
+# linki do repo/issue/docs
+[project.urls]
+Documentation = "https://github.com/khtestingo/testing_cicd#readme"
+Issues = "https://github.com/khtestingo/testing_cicd"
+Source = "https://github.com/khtestingo/testing_cicd/mykhcolors"
+
+# wersjonowanie dynamiczne w pliku __about__.py
+[tool.hatch.version]
+path = "src/mykhcolors/__about__.py"
+
+# entry point aplikacji CLI
+[project.scripts]
+mykhcolors = "mykhcolors.colors:main"
+
+# Hatch environments (typy i testy)
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:tests}"
+test = "pytest {args:tests}"
+
+# domyślne środowisko (opcjonalnie)
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+
+# publikacja na TestPyPI
+[tool.hatch.publish.indexes.test]
+url = "https://test.pypi.org/legacy/"
+username = "__token__"
+password = "{env:TEST_PYPI_API_TOKEN}"

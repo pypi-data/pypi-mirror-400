@@ -1,0 +1,119 @@
+# mykhcolors
+
+[![Python Versions](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12-blue)](#)
+[![Lint](https://github.com/khtestingo/testing_cicd/actions/workflows/ci.yml/badge.svg)](https://github.com/khtestingo/testing_cicd/actions/workflows/ci.yml)
+[![Tests](https://github.com/khtestingo/testing_cicd/actions/workflows/ci.yml/badge.svg)](https://github.com/khtestingo/testing_cicd/actions/workflows/ci.yml)
+[![Type Check](https://github.com/khtestingo/testing_cicd/actions/workflows/ci.yml/badge.svg)](https://github.com/khtestingo/testing_cicd/actions/workflows/ci.yml)
+
+A minimal Python package providing **ANSI colored text functions** for terminal output, designed to study GitHub CI/CD workflows, Hatch dev environments, testing with pytest, linting with Ruff, and type checking with Mypy.
+
+---
+
+## Features
+
+- Red, Green, Yellow text functions for terminal output
+- Compatible with `src/` layout
+- Editable install for development
+- Tested with pytest
+- Linted with Ruff
+- Type-checked with Mypy
+
+---
+
+## Installation
+
+### From GitHub
+
+Clone the repository and install editable:
+
+```bash
+git clone git@github.com:khtestingo/testing_cicd.git
+cd testing_cicd
+pip install -e .
+```
+
+Now you can use the command:
+
+```bash
+mykhcolors
+```
+
+Or import functions in Python:
+
+```python
+from mykhcolors import red, green, yellow
+
+print(red("Hello"))
+print(green("World"))
+print(yellow("!"))
+```
+
+From PyPI
+Once uploaded to PyPI:
+
+```bash
+pip install mykhcolors
+```
+
+## Development
+
+### Run Tests
+
+Using Hatch:
+
+```bash
+hatch run test
+```
+
+Or directly:
+
+```bash
+python -m pytest
+```
+
+### Linting
+
+```bash
+ruff check src tests
+```
+
+### Type Checking
+
+```bash
+mypy src tests
+```
+
+## CI/CD Workflow
+
+GitHub Actions workflow includes:
+
+- Ruff (linting)
+- Mypy (type checking)
+- pytest (tests)
+
+Supports multiple Python versions:
+
+3.8, 3.9, 3.10, 3.11, 3.12
+
+Workflow uses Hatch editable environment so src/ layout works seamlessly.
+
+## Project Layout
+
+```markdown
+Skopiuj kod
+testing_cicd/
+├── src/
+│   └── mykhcolors/
+│       ├── __init__.py
+│       ├── colors.py
+│       └── __about__.py
+├── tests/
+│   └── test_colors.py
+├── pyproject.toml
+├── README.md
+└── .github/workflows/ci.yml
+```
+
+## License
+
+MIT License © khaz
