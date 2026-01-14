@@ -1,0 +1,201 @@
+Metadata-Version: 2.4
+Name: simple-resume
+Version: 0.1.9
+Summary: Generate PDF resumes from YAML data using HTML templates
+Author-email: Alex Thola <alexthola@gmail.com>
+Maintainer-email: Alex Thola <alexthola@gmail.com>
+License: MIT
+License-File: LICENSE
+Requires-Python: >=3.10
+Requires-Dist: jinja2<4.0,>=3.0
+Requires-Dist: markdown<4.0,>=3.7
+Requires-Dist: oyaml<2.0,>=1.0
+Requires-Dist: palettable<4.0,>=3.3.3
+Requires-Dist: weasyprint<63.0,>=62.1
+Provides-Extra: utils
+Requires-Dist: mypy<2.0,>=1.11.0; extra == 'utils'
+Requires-Dist: pytest-cov<6.0,>=5.0.0; extra == 'utils'
+Requires-Dist: pytest-mock<4.0,>=3.14.0; extra == 'utils'
+Requires-Dist: pytest<9.0,>=8.3.3; extra == 'utils'
+Requires-Dist: pytype>=2024.10.11; (python_version >= '3.10') and extra == 'utils'
+Requires-Dist: ruff<1.0,>=0.7.0; extra == 'utils'
+Requires-Dist: ty>=0.0.1a23; extra == 'utils'
+Requires-Dist: types-markdown<4.0,>=3.7.2; extra == 'utils'
+Description-Content-Type: text/markdown
+
+![Simple-Resume preview screenshot](assets/preview.png)
+
+_Generate polished PDF and HTML resumes from a single YAML file._
+
+[![PyPI Downloads](https://img.shields.io/pypi/dm/simple-resume?style=flat-square)](https://pypi.org/project/simple-resume/)
+[![MIT License](https://img.shields.io/github/license/athola/simple-resume?style=flat-square)](https://github.com/athola/simple-resume/blob/main/LICENSE)
+[![Code Quality](https://github.com/athola/simple-resume/workflows/Code%20Quality/badge.svg)](https://github.com/athola/simple-resume/actions/workflows/code-quality.yml)
+[![Linting](https://github.com/athola/simple-resume/workflows/Linting/badge.svg)](https://github.com/athola/simple-resume/actions/workflows/lint.yml)
+[![Test Suite](https://github.com/athola/simple-resume/workflows/Test%20Suite/badge.svg)](https://github.com/athola/simple-resume/actions/workflows/test.yml)
+[![Code Coverage](https://codecov.io/gh/athola/simple-resume/branch/main/graph/badge.svg)](https://codecov.io/gh/athola/simple-resume)
+[![PyPI Version](https://img.shields.io/pypi/v/simple-resume.svg)](https://pypi.org/project/simple-resume/)
+
+# simple-resume
+
+`simple-resume` is a Python 3.10+ CLI and library for converting structured YAML (or JSON Resume) into production-ready resumes (PDF, HTML, or LaTeX). Templates and static assets ship with the package such that users can render without needing to create additional content.
+
+## Supported platforms
+
+- Python: 3.10+ (tested in CI)
+- OS: Linux, macOS, Windows. PDF output uses WeasyPrint; ensure Cairo/Pango/GTK are available on your platform (see [Usage Guide](wiki/Usage-Guide.md#system-dependencies)).
+
+## Installation
+
+```bash
+# With uv (recommended)
+uv add simple-resume
+
+# With pip
+pip install simple-resume
+```
+
+## Why Simple-Resume
+
+- Keep your resume version-controlled as plain YAML.
+- Swap templates, palettes, and formats without rewriting content.
+- Pure-Python core with shell adapters; effects are testable and side-effect aware.
+- Bundled HTML templates and static assets prevent "TemplateNotFound" errors in wheels/editable installs.
+
+## Feature Comparison
+
+| Feature | simple-resume | JSON Resume | HackMyResume | Resume.io |
+|---------|---------------|-------------|---------------|-----------|
+| **Open Source** | Yes | Yes | Yes | No |
+| **Data Format** | YAML + JSON Resume | JSON | JSON/FRESH | Proprietary |
+| **Version Control** | Yes (Git-friendly) | Yes (Git-friendly) | Yes (Git-friendly) | No (Cloud-only) |
+| **Local Processing** | Yes (100% private) | Yes (100% private) | Yes (100% private) | No (Cloud storage) |
+| **Template System** | HTML + Jinja2 | JSON themes | Multiple formats | Web builder |
+| **LaTeX Support** | Yes (Professional) | No | No | No |
+| **Python API** | Yes (Native) | No | No | No |
+| **CLI Tools** | Yes | Yes | Yes | No |
+| **Real-time Preview** | Yes (HTML + auto-reload) | No | No | Yes |
+| **Custom Themes** | Yes (Unlimited) | Limited | Limited | Limited (Paid only) |
+| **Color Palettes** | Yes (Professional) | No | Limited (Basic) | Limited |
+| **Privacy** | Yes | Yes | Yes | No (Data stored on servers) |
+| **Setup Time** | 5 min | 10 min | 15 min | 2 min |
+| **Learning Curve** | Moderate | Easy | Easy | Easiest |
+
+### Key Advantages
+
+**Best for Developers**: Version control, automation, Python integration, privacy
+**Best for Privacy**: 100% local processing with no data exposure
+**Most Flexible**: HTML templates + unlimited customization
+**Professional Output**: LaTeX typesetting for academic/technical resumes
+
+*See [Detailed Comparison](wiki/Comparison.md) for full analysis and use case recommendations.*
+
+### Development setup
+
+```bash
+git clone https://github.com/athola/simple-resume.git
+cd simple-resume
+uv sync --dev --extra utils   # or: pip install -e .[dev,utils]
+```
+
+## Quick start (CLI)
+
+Create a minimal YAML in `resume_private/input/my_resume.yaml`:
+
+> Note: JSON Resume (`*.json` from https://jsonresume.org) is also supported —
+> drop it into your `input/` folder and `simple-resume` will auto-convert it at load time.
+>
+> Tip: Editor autocomplete is available via JSON Schema at
+> `src/simple_resume/shell/assets/static/schema.json` (VS Code YAML extension supports schema association).
+
+```yaml
+template: resume_no_bars
+full_name: Jane Doe
+email: jane.doe@example.com
+body:
+  Experience:
+    - title: Senior Engineer
+      company: TechCorp
+      start: 2022
+      end: Present
+      description: |
+        - Lead microservices migration
+        - Improved latency by 40%
+```
+
+Generate output:
+
+```bash
+uv run simple-resume generate --format pdf         # PDF
+uv run simple-resume generate --format html --open # HTML + open in browser
+```
+
+Built-in templates: `resume_no_bars`, `resume_with_bars`, `demo` (see `src/simple_resume/shell/assets/templates/html/`). Static assets are stored in `.../assets/static/`.
+
+## Python API
+
+```python
+from simple_resume import generate, preview
+
+# Generate with format overrides
+results = generate("resume_private/input/my_resume.yaml", formats=["pdf", "html"])
+print(results["pdf"].output_path)
+
+# Browser preview with live reload
+preview("resume_private/input/my_resume.yaml")
+```
+
+For batch operations:
+
+```python
+from simple_resume import ResumeSession
+
+with ResumeSession(data_dir="resume_private") as session:
+    session.generate_all(format="pdf")
+```
+
+## Customization
+
+- **Palettes**: `--palette "Professional Blue"` or `--palette path/to/palette.yaml`.
+- **Custom templates**: `--template custom.html` with `--templates-dir /path/to/templates`.
+- **LaTeX**: set `config.output_mode: latex` and compile with your TeX toolchain (see [Usage Guide](wiki/Usage-Guide.md#latex-output)).
+- **Color utilities**: `simple_resume.core.colors.get_contrasting_text_color` for accessibility checks.
+
+## Release workflow
+
+Releases are automated via GitHub Actions. To create a new release:
+
+```bash
+# Tag the version (must start with 'v')
+git tag v0.1.2
+git push origin v0.1.2
+```
+
+The workflow builds the package, generates a changelog from commit history, and publishes a GitHub release with distribution artifacts.
+
+## Workflows & docs
+
+- **Guides**: [Getting Started](wiki/Getting-Started.md), [Usage](wiki/Usage-Guide.md), [Workflows](wiki/Workflows.md), [Path Handling](wiki/Path-Handling-Guide.md).
+- **API Docs**: [API Reference](wiki/API-Reference.md), [API Stability Policy](wiki/API-Stability-Policy.md), [Shell Layer APIs](wiki/Shell-Layer-APIs.md).
+- **Architecture**: [Architecture Guide](wiki/Architecture-Guide.md) and `wiki/architecture/`.
+- **Migration**: [Migration Guide](wiki/Migration-Guide.md) plus [Generate module migration](wiki/Migration-Guide-Generate-Module.md).
+- **Development**: [Development Guide](wiki/Development-Guide.md), [Contributing](wiki/Contributing.md), [PDF renderer evaluation](wiki/PDF-Renderer-Evaluation.md).
+- **Samples**: `sample/` directory; `sample_dark_sidebar.html` preview.
+
+## Troubleshooting
+
+- `TemplateNotFound`: confirm installation includes packaged assets (bundled in wheels/editable installs); custom templates require `--templates-dir`.
+- PDF on Linux: install system libs `cairo`, `pango`, `gdk-pixbuf` (WeasyPrint requirement).
+
+## Contributing
+
+1. Follow the [Development Guide](wiki/Development-Guide.md) to set up tools.
+2. Run `make lint` and `make test` (or `make check-all validate`) before opening a PR.
+3. Submit issues or ideas in [GitHub Issues](https://github.com/athola/simple-resume/issues) or discussions.
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=athola/simple-resume&type=date&legend=top-left)](https://www.star-history.com/#athola/simple-resume&type=date&legend=top-left)
