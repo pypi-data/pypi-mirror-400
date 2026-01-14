@@ -1,0 +1,173 @@
+# PyRePrint Development Commands
+
+# Default recipe
+default:
+    @just --list
+
+# ============================================================================
+# INSTALLATION
+# ============================================================================
+
+# Install package in development mode
+install:
+    pip install -e .
+
+# Install with all development dependencies
+dev:
+    pip install -e ".[dev]"
+
+# Install dependencies from requirements.txt
+deps:
+    pip install -r requirements.txt
+
+# ============================================================================
+# TESTING
+# ============================================================================
+
+# Run all tests
+test:
+    pytest tests/ -v
+
+# Run tests with coverage
+test-cov:
+    pytest tests/ -v --cov=pyreprint --cov-report=term-missing
+
+# Run tests with coverage and HTML report
+test-html:
+    pytest tests/ -v --cov=pyreprint --cov-report=html
+    @echo "Coverage report: htmlcov/index.html"
+
+# Run a specific test file
+test-file file:
+    pytest {{file}} -v
+
+# ============================================================================
+# LINTING & FORMATTING
+# ============================================================================
+
+# Run all linting checks
+lint:
+    ruff check pyreprint/
+    mypy pyreprint/ --ignore-missing-imports
+
+# Run ruff linter
+ruff:
+    ruff check pyreprint/
+
+# Run ruff and fix issues
+ruff-fix:
+    ruff check pyreprint/ --fix
+
+# Run type checking
+types:
+    mypy pyreprint/ --ignore-missing-imports
+
+# Format code with black
+format:
+    black pyreprint/ tests/ examples/
+
+# Check formatting without changes
+format-check:
+    black pyreprint/ tests/ examples/ --check
+
+# ============================================================================
+# DOCUMENTATION
+# ============================================================================
+
+# Serve documentation locally
+docs-serve:
+    mkdocs serve
+
+# Build documentation
+docs-build:
+    mkdocs build
+
+# Deploy documentation to GitHub Pages
+docs-deploy:
+    mkdocs gh-deploy --force
+
+# ============================================================================
+# BUILD & PUBLISH
+# ============================================================================
+
+# Build package
+build:
+    python -m build
+
+# Clean build artifacts
+clean:
+    rm -rf dist/ build/ *.egg-info/
+    rm -rf .pytest_cache/ .mypy_cache/ .ruff_cache/
+    rm -rf htmlcov/ .coverage coverage.xml
+    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
+# Check package before upload
+check:
+    twine check dist/*
+
+# Publish to TestPyPI
+publish-test:
+    python -m build
+    twine upload --repository testpypi dist/*
+
+# Publish to PyPI
+publish:
+    python -m build
+    twine upload dist/*
+
+# ============================================================================
+# DEVELOPMENT
+# ============================================================================
+
+# Run example script
+example name="basic_usage":
+    python examples/{{name}}.py
+
+# Start interactive Python with package loaded
+repl:
+    python -c "from pyreprint import *; print('PyRePrint loaded. Try: reprint(\"Hello\", style=\"banner\")')" -i
+
+# Show package version
+version:
+    python -c "from pyreprint import __version__; print(__version__)"
+
+# Create a new release (updates version, tags, etc.)
+release version:
+    @echo "Update version to {{version}} in pyreprint/_version.py"
+    @echo "Then run: git tag v{{version}} && git push --tags"
+
+# ============================================================================
+# CI/CD
+# ============================================================================
+
+# Run full CI pipeline locally
+ci: lint test-cov docs-build build check
+    @echo "All CI checks passed!"
+
+# Quick check before commit
+pre-commit: format lint test
+    @echo "Ready to commit!"
+
+# ============================================================================
+# GITHUB ACTIONS (LOCAL TESTING WITH ACT)
+# ============================================================================
+
+# Run tests workflow locally with act
+act-tests:
+    act workflow_dispatch -W .github/workflows/tests.yml -j test-quick
+
+# Run docs build locally with act (no deploy)
+act-docs:
+    act workflow_dispatch -W .github/workflows/docs.yml --job deploy -s GITHUB_TOKEN="" 2>&1 | head -100
+
+# Run publish build job locally with act
+act-build:
+    act workflow_dispatch -W .github/workflows/publish.yml -j build
+
+# List all available workflows for act
+act-list:
+    act -l
+
+# Run act with verbose output for debugging
+act-debug workflow:
+    act workflow_dispatch -W .github/workflows/{{workflow}}.yml -v
