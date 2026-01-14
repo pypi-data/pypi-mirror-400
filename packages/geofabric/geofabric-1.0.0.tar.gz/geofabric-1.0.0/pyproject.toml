@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "geofabric"
+dynamic = ["version"]
+description = "Query geospatial sources, analyze at scale, and publish results with a consistent API."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Marcos Tulio Fermin Lopez" }]
+keywords = ["gis", "geospatial", "duckdb", "geopandas", "geoarrow", "geoparquet", "stac", "pmtiles"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Typing :: Typed",
+]
+dependencies = [
+  "duckdb>=1.0.0",
+  "pyarrow>=14.0.0",
+  "pandas>=2.0.0",
+  "shapely>=2.0.0",
+  "typer>=0.12.0",
+  "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+viz = [
+  "geopandas>=0.14.0",
+  "lonboard>=0.10.0",
+]
+stac = [
+  "pystac>=1.10.0",
+  "pystac-client>=0.7.0",
+]
+tiles = [
+  "geopandas>=0.14.0",
+]
+dev = [
+  "pre-commit>=3.7.0",
+  "mkdocs>=1.6.0",
+  "mkdocs-material>=9.5.0",
+  "pdoc>=14.0.0",
+  "build>=1.2.0",
+  "twine>=5.1.0",
+]
+all = [
+  "geopandas>=0.14.0",
+  "lonboard>=0.10.0",
+  "pystac>=1.10.0",
+  "pystac-client>=0.7.0",
+]
+
+[project.scripts]
+gf = "geofabric.cli.app:main"
+
+[project.entry-points."geofabric.sources"]
+files = "geofabric.sources.files:FilesSourceFactory"
+overture = "geofabric.sources.overture:OvertureSourceFactory"
+s3 = "geofabric.sources.cloud:S3SourceFactory"
+gcs = "geofabric.sources.cloud:GCSSourceFactory"
+azure = "geofabric.sources.cloud:AzureSourceFactory"
+postgis = "geofabric.sources.postgis:PostGISSourceFactory"
+stac = "geofabric.sources.stac:STACSourceFactory"
+
+[project.entry-points."geofabric.engines"]
+duckdb = "geofabric.engines.duckdb_engine:DuckDBEngineFactory"
+
+[project.entry-points."geofabric.sinks"]
+pmtiles = "geofabric.sinks.pmtiles:PMTilesSinkFactory"
+
+[tool.hatch.version]
+path = "src/geofabric/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/geofabric"]

@@ -1,0 +1,65 @@
+name: Render Mermaid from README
+
+on:
+  workflow_call:
+    inputs:
+      commit:
+        description: "Whether to commit rendered outputs back to the repository"
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit rendered outputs back to the repository"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+
+    # Prevent infinite loop if this workflow commits
+    if: ${{ github.actor != 'github-actions[bot]' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Mermaid CLI
+        run: |
+          npm install -g @mermaid-js/mermaid-cli
+
+      - name: Render diagrams from README
+        run: |
+          node scripts/render-mermaid-from-readme.mjs
+
+      - name: Commit changes (when enabled)
+        if: ${{ inputs.commit }}
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add README.md || true
+          git add docs || true
+          git add scripts/puppeteer.json || true
+
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "ci: render mermaid diagrams from README"
+            git push
+          else
+            echo "No changes to commit"
+          fi
