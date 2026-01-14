@@ -1,0 +1,87 @@
+name: Publish to PyPI
+
+on:
+  # Trigger when a new release is published
+  release:
+    types: [published]
+  
+  # Also allow manual trigger
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (should match pyproject.toml)'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for trusted publishing
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Install build dependencies
+      run: |
+        uv pip install --system build twine
+
+    - name: Verify version matches (for manual triggers)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        TOML_VERSION=$(grep -m1 'version = ' pyproject.toml | cut -d'"' -f2)
+        echo "Version in pyproject.toml: $TOML_VERSION"
+        echo "Requested version: ${{ github.event.inputs.version }}"
+        if [ "$TOML_VERSION" != "${{ github.event.inputs.version }}" ]; then
+          echo "ERROR: Version mismatch!"
+          exit 1
+        fi
+
+    - name: Clean old builds
+      run: |
+        rm -rf dist/ build/ *.egg-info
+
+    - name: Build package
+      run: uv build
+
+    - name: Check package
+      run: uv run twine check dist/*
+
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: uv run twine upload dist/*
+
+    - name: Create GitHub Release Summary
+      run: |
+        echo "## 🚀 Published to PyPI" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Package: **tropiflo**" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ github.event_name }}" = "release" ]; then
+          VERSION=${{ github.event.release.tag_name }}
+          VERSION=${VERSION#v}
+        else
+          VERSION=${{ github.event.inputs.version }}
+        fi
+        echo "Version: **${VERSION}**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Install with:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "pip install tropiflo==${VERSION}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "View on PyPI: https://pypi.org/project/tropiflo/${VERSION}/" >> $GITHUB_STEP_SUMMARY
+
