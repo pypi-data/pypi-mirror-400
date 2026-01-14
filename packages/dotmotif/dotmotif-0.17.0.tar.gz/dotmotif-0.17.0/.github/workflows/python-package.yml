@@ -1,0 +1,52 @@
+name: Test and lint
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache virtual environment
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            venv-${{ matrix.python-version }}-
+
+      - name: Set up uv venv and install dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv pip install ruff pytest pytest-cov pytest-codspeed
+          uv pip install -e .
+
+      - name: Lint with ruff
+        run: |
+          source .venv/bin/activate
+          ruff check dotmotif
+
+      - name: Test with pytest
+        run: |
+          source .venv/bin/activate
+          pytest

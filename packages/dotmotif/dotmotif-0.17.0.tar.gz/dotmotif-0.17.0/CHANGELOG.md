@@ -1,0 +1,148 @@
+# Changelog
+
+-   **0.17.0** (January 08, 2026) **Unreleased**
+    -   Features:
+        -   Added ImpossibleConstraintValidator to catch logically impossible constraints during motif validation.
+-   **0.16.0** (January 08, 2026)
+    -   Housekeeping:
+        -   Migrated from Poetry to uv for package management
+        -   Updated GitHub Actions workflows to use uv and added testing for Python 3.12 through 3.14
+        -   Upgraded from `lark-parser` to `lark` for parsing
+        -   Updated copyright years
+-   **0.15.0** (August 21 2024)
+    -   Backwards-incompatible changes:
+        -   Removed the Docker container provisioning functionality from the `Neo4jExecutor` class. To continue using this functionality, please use the `tamarind` package directly, or install `dotmotif==0.14.0`
+    -   Housekeeping:
+        -   Removed codecov from CI
+        -   Added Python 3.11 to the test matrix
+-   **0.14.0** (May 16 2023)
+    -   Housekeeping:
+        -   Upgraded the package manager to Poetry, with version-pinning now handled by the `pyproject.toml` file.
+-   **0.13.0** (October 11 2022)
+    -   Features:
+        -   Introduced propagation of constraints when nodes are explicitly marked as automorphic to one another.
+        -   Nested lookup support for JSON attributes of neuPrint datasets ([thanks @jakobtroidl!](https://github.com/aplbrain/dotmotif/pull/128))
+        -   Allow users to specify EdgelistIngest column data types
+-   **0.12.0** (June 7 2022)
+    -   Housekeeping:
+        -   Removed old, deprecated code like the v1 parser (deprecated in `v0.5.0`) and some unused ingest tools (#113)
+    -   Features:
+        -   Added edge aliases and inter-edge attribute constraints
+-   **0.11.0** (April 12 2022)
+    -   Features:
+        -   Added support for attributes that include spaces and other non-word/variable characters, and updated Cypher syntax for these attributes when searching with Neo4j and neuPrint (#112)
+-   **0.10.1** (January 26 2022)
+    -   Bugfixes: Fixed compatibility with grandiso 2.1 and up
+-   **0.10.0** (September 30 2021)
+    -   Features:
+        -   `GrandIsoExecutor` and `NetworkXExecutor`: Support for `networkx.MultiGraph` and `networkx.MultiDiGraph` search through the use of the `multigraph_edge_match` executor argument (#107).
+    -   Deprecations:
+        -   Removed `dotmotif.dotmotif` method-style API (#107).
+-   **0.9.2** (May 28 2021)
+    -   Features:
+        -   `GrandIsoExecutor`: Utilizes the node attribute matching flow available in grandiso≥2.0.0 to reduce complexity of attribute-heavy searches (#104)
+-   **0.9.1** (May 6 2021)
+    -   Features:
+        -   `GrandIsoExecutor`: Adds support for the `grandiso.find_motifs_iter` generator API in grandiso v1.2.0; this reduces the runtime of queries with nonzero `limit` (#102)
+-   **0.9.0** (March 23 2021)
+    -   Features:
+        -   `Neo4jExecutor#create_index`. This function call adds an index to the database on the node attribute specified, in order to improve query performance (#95)
+        -   `dotmotif.ingest.EdgelistConverter` now supports importing from a dask or pandas dataframe edgelist in addition to files on disk (#99)
+    -   Chores:
+        -   Put lingering top-level tests into their own directory (#100)
+-   **0.8.1**
+    -   Chores:
+        -   Upgraded to the latest version of Tamarind, with Neo4j v4.2 support (#93)
+        -   Upgraded to the latest version of GrandIso, v1.1.0
+-   **0.8.0** (January 12 2021)
+    -   Features:
+        -   Add `!contains` and `!in` attribute constraints to the parser. (#88)
+        -   Neo4j and NeuPrintExecutors now support custom node/edge labels (#91)
+    -   Bugfixes:
+        -   Fix issue where lark grammar file is excluded from pip-based installs (#89)
+        -   Fix an issue introduced in 0.8.0 where !contains/!in operators failed to parse for Neo4j/NeuPrint executors. If you are installing DotMotif from pip/pypi, this issue is already fixed. (#92)
+-   **0.7.0** (October 14 2020)
+    -   Executors:
+        -   Add new `NeuPrintExecutor` with motif-search support for neuPrint databases (#76)
+        -   Add new `GrandIsoExecutor` as a Python-only drop-in replacement for `NetworkXExecutor` (#80). If you're still using `NetworkXExecutor`, you should really switch!
+    -   Features:
+        -   Improve `utils.draw_motif` rendering style
+        -   Improve networkx import for Neo4j databases to use better datatype inference
+        -   New `dotmotif.Motif` class. This is just a naming thing; all your old `dotmotif.dotmotif` code will still work! (#84)
+        -   Short motifs can now be written on a single line, with semicolons to delimit commands (#84)
+    -   Bugfixes:
+        -   Improve pip-installation process by including EBNF grammar definitions
+    -   Documentation:
+        -   Moved documentation from `docs/` to [the wiki](https://github.com/aplbrain/dotmotif/wiki) for a more permanent and organized home (#81)
+-   **0.6.0** (July 23 2020)
+    -   Features:
+        -   Add dynamic node constraints for comparisons at runtime (#74)
+    -   DSL:
+        -   Add dynamic node constraints with `Node.key [op] Node.key` syntax (#74)
+    -   Executors:
+        -   `NetworkXExecutor`: Support dynamic node constraints
+        -   `Neo4jExecutor`: Support dynamic node constraints
+    -   Housekeeping:
+        -   Add GitHub actions for Python 3.6, 3.7, and 3.8 tests
+-   **0.5.1**
+    -   Features:
+        -   Better search-operator support in `NetworkXExecutor`
+    -   Housekeeping:
+        -   Upgrade to networkx v2.4
+        -   Include `Neo4jExecutor` in default package imports
+-   **0.5.0** (April 07 2020)
+    -   Features:
+        -   Add `Executor#count()` function call to return only a motif count rather than a complete result set.
+        -   Improve speed response of automorphism detection (use internal Neo4j IDs)
+        -   Add optional wait when creating a `Neo4jExecutor`
+    -   Bugfixes:
+        -   Fix indexing of automorphisms to better jive with Neo4j's internal result ordering.
+        -   Fix issue where `NetworkXExecutor` would fail to identify all isomorphisms. This was due to a nomenclature mismatch between NetworkX and other executors. More details [here](https://github.com/aplbrain/dotmotif/issues/64).
+        -   Automatically add `exists=True` condition to edges added using `dotmotif#from_nx()`.
+    -   Deprecations:
+        -   Warnings:
+            -   `dotmotif.parsers.v1.ParserV1`
+            -   `dotmotif.from_nx`
+-   **0.4.2**
+    -   Features:
+        -   Add `dotmotif#save` and `dotmotif#load` to save and load configuration files.
+        -   Add `dotmotif` constructor flag to automatically detect automorphisms ([#47](https://github.com/aplbrain/dotmotif/pull/47))
+    -   DSL:
+        -   Full support for [attributes inside macros](https://github.com/aplbrain/dotmotif/pull/38)
+        -   Add notation for manual indication of automorphisms ([#45](https://github.com/aplbrain/dotmotif/pull/45))
+    -   Parsers:
+        -   Fix [#35](https://github.com/aplbrain/dotmotif/issues/35), wherein a `WHERE` clause was omitted from the cypher query constructed from the `Neo4jExecutor` under certain conditions
+    -   Bugfixes:
+        -   Fix #26 by raising an explanatory error message when graphs with integer IDs are imported.
+        -   Fix #25 to allow pip-installability outside of edit-mode
+-   **0.4.1** (April 13, 2019)
+    -   Backend [tamarind](https://github.com/fitmango/tamarind) for provisioning Docker containers.
+    -   Resolved issue with improper tokenization of variables in DSL
+    -   Resolved failure to wait the appropriate amount of time before failing to connect to a `Neo4jExecutor` provisioned container
+-   [**0.4.0**](https://github.com/aplbrain/dotmotif/releases/tag/v0.4.0) (February 26, 2019)
+    -   DSL:
+        -   Support for node and edge attributes in non-template contexts
+    -   Executors:
+        -   `NetworkxExecutor`
+            -   Support for node and edge constraints
+        -   `Neo4jExecutor`
+            -   Support for node and edge constraints
+-   **0.3.0**
+    -   Overhaul of DotMotif Parsers
+        -   Implement EBNF spec of language, and complete parser (`lark`)
+        -   Support for macros (templating engine)
+        -   Inline validation
+    -   Faster motif construction
+    -   `Executor`s (`dotmotif.executors`)
+        -   `Neo4jExecutor` automatically spins up/down docker containers for out-of-RAM search
+        -   `NetworkXExecutor` for small-scale subgraph isomorphism
+    -   Comprehensive test suite
+    -   Base implementations of `Validator`s
+    -   Move query generators to the appropriate `Executor`s for separation of responsibility
+-   **0.2.1**
+    -   Remove CSV support
+    -   Abstract parser syntax to `dotmotif.parsers`
+    -   Abstract validator to `dotmotif.validators`
+-   **0.2.0** (May 7 2018)
+    -   Negative-edge support
+-   **0.1.0**
