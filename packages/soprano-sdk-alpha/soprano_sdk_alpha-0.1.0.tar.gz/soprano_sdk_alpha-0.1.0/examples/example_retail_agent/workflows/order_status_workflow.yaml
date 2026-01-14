@@ -1,0 +1,94 @@
+name: "Order Status Inquiry"
+description: "AI-powered workflow for checking order status and tracking information"
+version: "1.0"
+
+data:
+  - name: order_id
+    type: text
+    description: "Customer's order ID"
+  - name: order_status
+    type: dict
+    description: "Order status details from lookup"
+
+steps:
+  # Step 1: Collect Order ID
+  - id: collect_order_id
+    action: collect_input_with_agent
+    field: order_id
+    retry_limit: 3
+    agent:
+      name: "OrderIdCollector"
+      model: "gpt-4o-mini"
+      description: "Collects customer's order ID for status inquiry"
+      initial_message: "Hello! I can help you check your order status. Could you please provide your order ID?"
+      instructions: |
+        Your ONLY job is to capture the customer's order ID. Do NOT ask about anything else.
+
+        If the user provides something that looks like an order ID (alphanumeric string):
+        - Respond with ONLY: 'ORDER_ID_CAPTURED: [order_id]'
+
+        If the user says they don't know their order ID or provides invalid input:
+        - Ask again politely
+        - Suggest they check their confirmation email
+        - Only use 'ORDER_ID_FAILED:' after multiple failed attempts
+
+        Examples:
+        - User says 'ORD-12345' -> respond: 'ORDER_ID_CAPTURED: ORD-12345'
+        - User says '12345' -> respond: 'ORDER_ID_CAPTURED: 12345'
+        - User says 'my order is #1234' -> respond: 'ORDER_ID_CAPTURED: 1234'
+        - User says '' (empty) -> "I didn't catch that. What's your order ID? You can find it in your confirmation email."
+    transitions:
+      - pattern: "ORDER_ID_CAPTURED:"
+        next: lookup_status
+      - pattern: "ORDER_ID_FAILED:"
+        next: failed
+
+  # Step 2: Look up Order Status
+  - id: lookup_status
+    action: call_function
+    function: "functions.order_functions.lookup_order_status"
+    output: order_status
+    transitions:
+      - condition: true
+        ref: found
+        next: success
+      - condition: false
+        ref: found
+        next: not_found
+
+outcomes:
+  - id: success
+    type: success
+    message: |
+      Here's the status of your order {{ order_id }}:
+
+      Status: {{ order_status.status | upper }}
+      {% if order_status.status == 'delivered' %}
+      Delivered on: {{ order_status.delivered_date }}
+      Shipped on: {{ order_status.shipped_date }}
+      Carrier: {{ order_status.carrier }}
+      Tracking: {{ order_status.tracking_number }}
+      {% elif order_status.status == 'shipped' %}
+      Shipped on: {{ order_status.shipped_date }}
+      Estimated delivery: {{ order_status.estimated_delivery }}
+      Carrier: {{ order_status.carrier }}
+      Tracking: {{ order_status.tracking_number }}
+      Last location: {{ order_status.last_location }}
+      {% else %}
+      Order placed: {{ order_status.order_date }}
+      Estimated ship date: {{ order_status.estimated_ship_date }}
+      Estimated delivery: {{ order_status.estimated_delivery }}
+      {% endif %}
+
+      Is there anything else I can help you with?
+
+  - id: not_found
+    type: failure
+    message: |
+      I'm sorry, I couldn't find an order with ID {{ order_id }}.
+
+      Please double-check the order ID and try again, or contact customer service for assistance.
+
+  - id: failed
+    type: failure
+    message: "Sorry, I couldn't complete the order status lookup. Please contact customer service for assistance."
