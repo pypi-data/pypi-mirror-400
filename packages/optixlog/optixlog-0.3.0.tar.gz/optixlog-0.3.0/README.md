@@ -1,0 +1,206 @@
+# OptixLog SDK
+
+Experiment tracking for photonic simulations with automatic MPI support.
+
+## 🚀 Quick Start
+
+```bash
+pip install optixlog
+```
+
+```python
+from optixlog import Optixlog
+
+# Create client with your API key
+client = Optixlog("your_api_key")
+
+# Get or create a project
+project = client.project("my_project")
+
+# Create a run
+run = project.run("experiment_1")
+
+# Add configuration
+run.add_config({"lr": 0.001, "epochs": 100})
+
+# Log metrics
+run.log(step=0, loss=0.5, accuracy=0.9)
+
+# Log matplotlib plots
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots()
+ax.plot([1, 2, 3], [1, 4, 9])
+run.log_matplotlib("my_plot", fig)
+```
+
+That's it! View your results at [optixlog.com](https://optixlog.com)
+
+## 📚 API Structure
+
+```python
+from optixlog import Optixlog
+
+# Initialize client
+client = Optixlog(api_key)
+
+# Get project (creates automatically if doesn't exist)
+project = client.project("project_name_or_id")
+
+# Create a run
+run = project.run("run_name")
+
+# Available methods on run:
+run.add_config({"key": "value"})      # Add configuration
+run.log(step=0, metric=value)         # Log metrics
+run.log_image("key", pil_image)       # Log PIL image
+run.log_file("key", "path/to/file")   # Log file
+run.log_matplotlib("key", fig)         # Log matplotlib figure
+run.log_plot("key", x, y)             # Create and log simple plot
+run.log_array_as_image("key", array)  # Log numpy array as heatmap
+run.log_histogram("key", data)        # Create and log histogram
+run.log_scatter("key", x, y)          # Create and log scatter plot
+run.log_batch([...])                  # Log multiple metrics in parallel
+```
+
+## 🎯 Common Use Cases
+
+### Parameter Sweep
+
+```python
+from optixlog import Optixlog
+
+client = Optixlog(api_key)
+
+for lr in [0.001, 0.01, 0.1]:
+    for batch_size in [16, 32, 64]:
+        run = client.project("sweep").run(f"lr={lr}_bs={batch_size}")
+        run.add_config({"lr": lr, "batch_size": batch_size})
+        
+        # Your training code here
+        for step in range(100):
+            loss = train_step(lr, batch_size)
+            run.log(step=step, loss=loss)
+```
+
+### Training Loop
+
+```python
+client = Optixlog(api_key)
+run = client.project("training").run("experiment_v1")
+
+run.add_config({
+    "model": "resnet50",
+    "optimizer": "adam",
+    "lr": 0.001
+})
+
+for epoch in range(100):
+    train_loss = train_epoch()
+    val_loss = validate()
+    run.log(step=epoch, train_loss=train_loss, val_loss=val_loss)
+```
+
+### Log Matplotlib Plots
+
+```python
+import matplotlib.pyplot as plt
+
+run = client.project("analysis").run("plots")
+
+# Simple way
+fig, ax = plt.subplots()
+ax.plot(x, y)
+run.log_matplotlib("my_plot", fig)
+
+# Even simpler - create and log in one call
+run.log_plot("loss_curve", steps, losses, title="Training Loss", ylabel="Loss")
+```
+
+### Log Field Data (Numpy Arrays)
+
+```python
+import numpy as np
+
+run = client.project("simulation").run("field_sweep")
+
+field = np.random.rand(100, 100)
+run.log_array_as_image("field", field, cmap='hot', title="E-field intensity")
+```
+
+### Context Manager Support
+
+```python
+with client.project("experiment").run("run_1") as run:
+    run.add_config({"param": 1})
+    for step in range(100):
+        run.log(step=step, loss=compute_loss())
+# Automatically prints completion status
+```
+
+## 🔧 Installation
+
+### From PyPI
+```bash
+pip install optixlog
+```
+
+### From Source
+```bash
+git clone https://github.com/yourusername/optixlog-sdk.git
+cd optixlog-sdk
+pip install -e .
+```
+
+## 🔑 Setup
+
+1. Get your API key from [optixlog.com](https://optixlog.com)
+2. Use directly:
+```python
+client = Optixlog("your_api_key")
+```
+
+3. Or set environment variable:
+```bash
+export OPTIX_API_KEY="your_api_key"
+```
+```python
+import os
+client = Optixlog(os.getenv("OPTIX_API_KEY"))
+```
+
+## ✨ Key Features
+
+- **Fluent API:** Chain methods naturally: `client.project().run().log()`
+- **Zero Boilerplate:** Log matplotlib plots in one line
+- **Auto Project Creation:** Projects created automatically if they don't exist
+- **Context Managers:** Clean `with` statement support
+- **Input Validation:** Catches NaN/Inf and invalid data
+- **Rich Output:** Colored console feedback
+- **MPI Support:** Automatic detection and rank 0 logging
+- **Batch Operations:** Fast parallel uploads
+- **Return Values:** Get URLs and status for everything
+
+## 🛠️ Requirements
+
+- Python 3.8+
+- requests
+- pillow
+- rich (optional, for colored output)
+- numpy (optional, for array logging)
+- matplotlib (optional, for plot logging)
+
+## 🚀 What's New in v0.2.0
+
+- ✨ **New fluent API:** `Optixlog` → `Project` → `Run` structure
+- ✨ **Simplified interface:** All logging methods on `Run` object
+- ✨ **Auto project creation:** No need to create projects manually
+- ✨ **Chaining support:** `client.project("x").run("y").add_config({...})`
+
+## 📝 License
+
+MIT License - see LICENSE file for details
+
+---
+
+**Version:** 0.2.0  
+Made with ⚡ for photonic simulation tracking
