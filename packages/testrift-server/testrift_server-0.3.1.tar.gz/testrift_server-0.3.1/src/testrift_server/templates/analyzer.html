@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Results Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Compensate for Bootstrap 3 to 5 migration: restore original font sizes and link colors */
+        :root {
+            font-size: 14px; /* Bootstrap 3 used 14px base, Bootstrap 5 uses 16px */
+        }
+
+        a {
+            color: #337ab7; /* Bootstrap 3 link color */
+        }
+
+        a:hover {
+            color: #23527c; /* Bootstrap 3 link hover color */
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.428571429; /* Bootstrap 3 line-height */
+        }
+
+        .main-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .header-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header-section h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header-section .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+
+        .content-section {
+            padding: 30px;
+        }
+
+        .filter-section {
+            background-color: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-outline-secondary {
+            border-color: #667eea;
+            color: #667eea;
+            border-radius: 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-outline-secondary:hover {
+            background-color: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .results-grid {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .table {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .table thead th {
+            background-color: #f8f9fa;
+            color: #495057;
+            border: none;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.9em;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .table tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        .table tbody tr:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .test-run-row {
+            transition: background-color 0.2s;
+        }
+
+        .test-run-row:hover {
+            background-color: #f8f9fa;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-weight: 600;
+            font-size: 0.75em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-passed {
+            background: #28a745;
+            color: white;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+        }
+
+        .status-failed {
+            background: #dc3545;
+            color: white;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2);
+        }
+
+        .status-skipped {
+            background: #ffc107;
+            color: #000;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+        }
+
+        .status-aborted {
+            background: #6c757d;
+            color: white;
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.2);
+        }
+
+        .status-finished {
+            background: #28a745;
+            color: white;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+        }
+
+        .status-finished-passed {
+            background: #28a745;
+            color: white;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+        }
+
+        .status-finished-failed {
+            background: #dc3545;
+            color: white;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2);
+        }
+
+        /* Result badges for test counts - matching index.html styling */
+        .result-badges-container {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .result-badge {
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .result-passed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .result-skipped {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .result-failed {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .result-aborted {
+            background-color: #e2e3e5;
+            color: #6c757d;
+        }
+
+        .result-error {
+            background-color: #e2e3e5;
+            color: #6c757d;
+        }
+
+        .status-error {
+            background: #6c757d;
+            color: white;
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.2);
+        }
+
+        .chart-container {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border-left: 4px solid #667eea;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-container h5 {
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+
+        .chart-container canvas {
+            flex: 1;
+            min-height: 300px;
+            max-height: 400px;
+            cursor: pointer;
+        }
+
+        /* Responsive chart adjustments */
+        @media (max-width: 768px) {
+            .chart-container {
+                min-height: 350px;
+                margin-bottom: 15px;
+            }
+
+            .chart-container canvas {
+                min-height: 250px;
+                max-height: 300px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .chart-container {
+                min-height: 300px;
+                padding: 15px;
+            }
+
+            .chart-container canvas {
+                min-height: 200px;
+                max-height: 250px;
+            }
+
+            /* Make charts stack vertically on small screens */
+            .charts-row .col-md-6 {
+                margin-bottom: 20px;
+            }
+        }
+
+        .metadata-filter {
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #dee2e6;
+        }
+
+        .trend-indicator {
+            font-size: 0.8em;
+            margin-left: 5px;
+        }
+
+        .trend-up {
+            color: #dc3545;
+        }
+
+        .trend-down {
+            color: #198754;
+        }
+
+        .trend-stable {
+            color: #6c757d;
+        }
+
+        .group-link {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+
+        .group-banner {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .group-banner-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .group-title-label {
+            font-size: 0.85em;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 6px;
+        }
+
+        .group-banner h2 {
+            margin: 0;
+            color: #495057;
+            font-size: 1.5em;
+            font-weight: 600;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+
+        .group-banner-links {
+            display: inline-flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .group-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .group-info-item {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            text-align: left;
+        }
+
+        .group-info-item strong {
+            display: block;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            color: #667eea;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .group-info-item span {
+            color: #212529;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header-section">
+            <h1><i class="fas fa-chart-line"></i> Test Results Analyzer</h1>
+            <div class="subtitle">Analyze test results over time with advanced filtering</div>
+        </div>
+
+        <div class="content-section">
+        <div id="groupContextBanner" class="group-banner" style="display: none;">
+            <div class="group-banner-header">
+                <div>
+                    <div class="group-title-label">Group</div>
+                    <h2 id="groupBannerTitle"></h2>
+                </div>
+                <div class="group-banner-links">
+                    <a id="groupRunsLink" href="#" class="btn btn-outline-primary btn-sm">
+                        <i class="fa fa-list"></i> Test Runs
+                    </a>
+                    <a id="groupMatrixLink" href="#" class="btn btn-outline-primary btn-sm">
+                        <i class="fa fa-table"></i> Matrix
+                    </a>
+                    <a id="groupFailuresLink" href="#" class="btn btn-outline-primary btn-sm">
+                        <i class="fa fa-bug"></i> Failures
+                    </a>
+                </div>
+            </div>
+            <div class="group-info-grid" id="groupBannerMetadata"></div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <div class="filter-section">
+                    <h5 class="mb-3">
+                        <i class="fas fa-filter me-2"></i>Filters
+                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="clearFilters()">
+                            <i class="fas fa-times me-1"></i>Clear All
+                        </button>
+                    </h5>
+
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="statusFilter" class="form-label">Status</label>
+                            <select class="form-select" id="statusFilter" onchange="applyFilters()">
+                                <option value="">All Statuses</option>
+                                <option value="finished">Finished</option>
+                                <option value="running">Running</option>
+                                <option value="aborted">Aborted</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="daysBackFilter" class="form-label">Time Range</label>
+                            <select class="form-select" id="daysBackFilter" onchange="applyFilters()">
+                                <option value="7">Last 7 days</option>
+                                <option value="30" selected>Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                                <option value="365">Last year</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Metadata Filters</label>
+                            <div id="metadataFilters">
+                                <!-- Dynamic metadata filters will be added here -->
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="addMetadataFilter()">
+                                <i class="fas fa-plus me-1"></i>Add Filter
+                            </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+            <div class="row charts-row">
+            <div class="col-md-6">
+                <div class="chart-container">
+                    <h5 class="mb-3">
+                        <i class="fas fa-chart-line me-2"></i>Test Results Over Time
+                        <small class="text-muted ms-2">(Click on chart to view run details)</small>
+                        <button class="btn btn-sm btn-outline-secondary float-end" onclick="refreshCharts()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </h5>
+                    <canvas id="trendsChart" height="200"></canvas>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="chart-container">
+                    <h5 class="mb-3">
+                        <i class="fas fa-chart-pie me-2"></i>Overall Results Distribution
+                        <button class="btn btn-sm btn-outline-secondary float-end" onclick="refreshCharts()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </h5>
+                    <canvas id="distributionChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Grid -->
+        <div class="row">
+            <div class="col-12">
+                <div class="results-grid">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">
+                            <i class="fas fa-table me-2"></i>Test Runs
+                            <span id="resultsCount" class="badge bg-secondary ms-2">0</span>
+                        </h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshResults()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="exportResults()">
+                                <i class="fas fa-download me-1"></i>Export
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="loadingIndicator" class="loading" style="display: none;">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading test results...
+                    </div>
+
+                    <div id="emptyState" class="empty-state" style="display: none;">
+                        <i class="fas fa-search"></i>
+                        <h4>No test results found</h4>
+                        <p>Try adjusting your filters or check back later.</p>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Run</th>
+                                    <th>Status</th>
+                                    <th>Start Time</th>
+                                    <th>Duration</th>
+                                    <th>Tests</th>
+                                    <th>Results</th>
+                                    <th>Metadata</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsTableBody">
+                                <!-- Results will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="pagination" class="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary" id="prevPageBtn" onclick="changePage(-1)" disabled>
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </button>
+                            <span id="pageInfo" class="mx-3">Page 1 of 1</span>
+                            <button class="btn btn-sm btn-outline-secondary" id="nextPageBtn" onclick="changePage(1)" disabled>
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div>
+                            <label for="pageSize" class="form-label me-2">Per page:</label>
+                            <select class="form-select form-select-sm d-inline-block w-auto" id="pageSize" onchange="changePageSize()">
+                                <option value="25">25</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global state
+        let currentPage = 1;
+        let pageSize = 50;
+        let totalPages = 1;
+        let trendsChart = null;
+        let distributionChart = null;
+        let metadataKeys = [];
+        let groupHash = null;
+        let groupDetails = null;
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            groupHash = urlParams.get('group');
+            await loadMetadataKeys();
+            if (groupHash) {
+                await loadGroupContext(groupHash);
+            }
+            loadFiltersFromURL();
+            applyFilters();
+        });
+
+        // Load filters from URL parameters
+        function loadFiltersFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            console.log('Loading filters from URL:', window.location.search);
+
+            // Load basic filters
+            const status = urlParams.get('status');
+            const daysBack = urlParams.get('days');
+
+            if (status) {
+                document.getElementById('statusFilter').value = status;
+                console.log('Set status filter to:', status);
+            }
+            if (daysBack) {
+                document.getElementById('daysBackFilter').value = daysBack;
+                console.log('Set days filter to:', daysBack);
+            }
+
+            // Load metadata filters
+            const metadataFilters = [];
+            for (const [key, value] of urlParams.entries()) {
+                if (key.startsWith('metadata.')) {
+                    const metadataKey = key.substring(9); // Remove 'metadata.' prefix
+                    metadataFilters.push({ key: metadataKey, value: value });
+                }
+            }
+
+            console.log('Found metadata filters in URL:', metadataFilters);
+            console.log('Available metadata keys:', metadataKeys);
+
+            // Clear existing metadata filters
+            document.getElementById('metadataFilters').innerHTML = '';
+
+            // Add metadata filters from URL
+            metadataFilters.forEach(filter => {
+                console.log('Adding metadata filter from URL:', filter);
+                addMetadataFilterFromURL(filter.key, filter.value);
+            });
+        }
+
+        function appendGroupParam(params) {
+            if (groupHash) {
+                params.set('group', groupHash);
+            }
+        }
+
+        // Add metadata filter from URL (without triggering value loading)
+        function addMetadataFilterFromURL(key, value) {
+            const container = document.getElementById('metadataFilters');
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'metadata-filter';
+            filterDiv.innerHTML = `
+                <div class="input-group">
+                    <select class="form-select" onchange="loadMetadataValues(this)">
+                        <option value="">Select metadata key</option>
+                        ${metadataKeys.map(k => `<option value="${k}" ${k === key ? 'selected' : ''}>${k}</option>`).join('')}
+                    </select>
+                    <select class="form-select" ${key ? '' : 'disabled'} onchange="applyFilters()">
+                        <option value="">Select value</option>
+                        ${key && value ? `<option value="${value}" selected>${value}</option>` : ''}
+                    </select>
+                    <button class="btn btn-outline-danger" type="button" onclick="removeMetadataFilter(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(filterDiv);
+
+            // If we have a key, load its values
+            if (key) {
+                const keySelect = filterDiv.querySelector('select:first-of-type');
+                const valueSelect = filterDiv.querySelector('select:last-of-type');
+                loadMetadataValues(keySelect, value);
+            }
+        }
+
+        // Update URL with current filter settings
+        function updateURLWithFilters() {
+            const url = new URL(window.location);
+            url.search = ''; // Clear existing parameters
+
+            // Add basic filters
+            const status = document.getElementById('statusFilter').value;
+            const daysBack = document.getElementById('daysBackFilter').value;
+
+            if (status) {
+                url.searchParams.set('status', status);
+            }
+            if (daysBack && daysBack !== '30') { // Only add if not default
+                url.searchParams.set('days', daysBack);
+            }
+
+            // Add metadata filters
+            const metadataFilters = document.querySelectorAll('.metadata-filter');
+            metadataFilters.forEach(filter => {
+                const keySelect = filter.querySelector('select:first-of-type');
+                const valueSelect = filter.querySelector('select:last-of-type');
+
+                if (keySelect.value && valueSelect.value) {
+                    url.searchParams.set(`metadata.${keySelect.value}`, valueSelect.value);
+                }
+            });
+
+            if (groupHash) {
+                url.searchParams.set('group', groupHash);
+            }
+
+            // Update URL without reloading page
+            window.history.replaceState({}, '', url);
+        }
+
+        // Load available metadata keys
+        async function loadMetadataKeys() {
+            try {
+                const response = await fetch('/api/metadata/keys');
+                const result = await response.json();
+                if (result.success) {
+                    metadataKeys = result.data;
+                    console.log('Loaded metadata keys:', metadataKeys);
+                }
+            } catch (error) {
+                console.error('Error loading metadata keys:', error);
+            }
+        }
+
+        async function loadGroupContext(hash) {
+            try {
+                const response = await fetch(`/api/groups/${hash}`);
+                const result = await response.json();
+                if (!result.success) {
+                    console.warn('Group lookup failed:', result.error);
+                    return;
+                }
+                groupDetails = result.data;
+                const banner = document.getElementById('groupContextBanner');
+                const title = document.getElementById('groupBannerTitle');
+                const metaContainer = document.getElementById('groupBannerMetadata');
+                const runsLink = document.getElementById('groupRunsLink');
+                const matrixLink = document.getElementById('groupMatrixLink');
+                const failuresLink = document.getElementById('groupFailuresLink');
+
+                if (!banner || !title || !metaContainer) return;
+
+                const name = groupDetails.name || `Group ${groupDetails.hash}`;
+                title.innerText = name;
+                runsLink.href = `/groups/${groupDetails.hash}`;
+                matrixLink.href = `/matrix?group=${groupDetails.hash}`;
+                if (failuresLink) failuresLink.href = `/failures?group=${groupDetails.hash}`;
+
+                const metadata = groupDetails.metadata || {};
+                metaContainer.innerHTML = '';
+                const entries = Object.entries(metadata);
+                if (entries.length === 0) {
+                    metaContainer.innerHTML = '<div class="group-info-item"><span>No metadata defined for this group.</span></div>';
+                } else {
+                    entries.forEach(([key, value]) => {
+                        const item = document.createElement('div');
+                        item.className = 'group-info-item';
+                        const label = document.createElement('strong');
+                        label.textContent = key;
+                        const span = document.createElement('span');
+                        if (value && value.url) {
+                            const link = document.createElement('a');
+                            link.href = value.url;
+                            link.target = '_blank';
+                            link.textContent = value.value;
+                            span.appendChild(link);
+                        } else {
+                            span.textContent = value ? value.value : '';
+                        }
+                        item.appendChild(label);
+                        item.appendChild(span);
+                        metaContainer.appendChild(item);
+                    });
+                }
+
+                banner.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading group context:', error);
+            }
+        }
+
+        // Add a new metadata filter
+        function addMetadataFilter() {
+            const container = document.getElementById('metadataFilters');
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'metadata-filter';
+            filterDiv.innerHTML = `
+                <div class="input-group">
+                    <select class="form-select" onchange="loadMetadataValues(this)">
+                        <option value="">Select metadata key</option>
+                        ${metadataKeys.map(key => `<option value="${key}">${key}</option>`).join('')}
+                    </select>
+                    <select class="form-select" disabled onchange="applyFilters()">
+                        <option value="">Select value</option>
+                    </select>
+                    <button class="btn btn-outline-danger" type="button" onclick="removeMetadataFilter(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(filterDiv);
+        }
+
+        // Remove a metadata filter
+        function removeMetadataFilter(button) {
+            button.closest('.metadata-filter').remove();
+            applyFilters();
+        }
+
+        // Load values for a metadata key
+        async function loadMetadataValues(keySelect, preselectedValue = null) {
+            const valueSelect = keySelect.parentElement.querySelector('select:last-of-type');
+            const key = keySelect.value;
+
+            if (!key) {
+                valueSelect.disabled = true;
+                valueSelect.innerHTML = '<option value="">Select value</option>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/metadata/values?key=${encodeURIComponent(key)}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    valueSelect.innerHTML = '<option value="">All values</option>' +
+                        result.data.map(value => `<option value="${value}" ${preselectedValue && value === preselectedValue ? 'selected' : ''}>${value}</option>`).join('');
+                    valueSelect.disabled = false;
+
+                    // If we have a preselected value, apply filters
+                    if (preselectedValue) {
+                        applyFilters();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading metadata values:', error);
+            }
+        }
+
+        // Clear all filters
+        function clearFilters() {
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('daysBackFilter').value = '30';
+            document.getElementById('metadataFilters').innerHTML = '';
+            currentPage = 1;
+            applyFilters();
+        }
+
+        // Apply filters and refresh results
+        async function applyFilters() {
+            updateURLWithFilters(); // Update URL with current filters
+            currentPage = 1;
+            await Promise.all([
+                loadResults(),
+                loadTrendsChart(),
+                loadDistributionChart()
+            ]);
+        }
+
+        // Load test results
+        async function loadResults() {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const emptyState = document.getElementById('emptyState');
+            const tableBody = document.getElementById('resultsTableBody');
+            const resultsCount = document.getElementById('resultsCount');
+
+            loadingIndicator.style.display = 'block';
+            emptyState.style.display = 'none';
+            tableBody.innerHTML = '';
+
+            try {
+                const params = new URLSearchParams({
+                    limit: pageSize,
+                    offset: (currentPage - 1) * pageSize,
+                    status: document.getElementById('statusFilter').value,
+                    days_back: document.getElementById('daysBackFilter').value
+                });
+
+                // Add metadata filters
+                const metadataFilters = document.querySelectorAll('.metadata-filter');
+                metadataFilters.forEach(filter => {
+                    const keySelect = filter.querySelector('select');
+                    const valueSelect = filter.querySelector('select:last-of-type');
+                    if (keySelect.value && valueSelect.value) {
+                        params.append(`metadata.${keySelect.value}`, valueSelect.value);
+                    }
+                });
+                appendGroupParam(params);
+
+                const response = await fetch(`/api/test-runs?${params}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const runs = result.data;
+                    resultsCount.textContent = runs.length;
+
+                    if (runs.length === 0) {
+                        emptyState.style.display = 'block';
+                    } else {
+                        displayResults(runs);
+                        updatePagination(result.pagination);
+                    }
+                } else {
+                    console.error('Error loading results:', result.error);
+                    emptyState.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading results:', error);
+                emptyState.style.display = 'block';
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        // Display results in the table
+        function displayResults(runs) {
+            const tableBody = document.getElementById('resultsTableBody');
+            tableBody.innerHTML = '';
+
+            runs.forEach(run => {
+                const row = createRunRow(run);
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Create a row for a test run
+        function createRunRow(run) {
+            const row = document.createElement('tr');
+            row.className = 'test-run-row';
+            row.setAttribute('data-run-id', run.run_id);
+
+            const startTime = new Date(run.start_time);
+            const endTime = run.end_time ? new Date(run.end_time) : null;
+            const duration = endTime ? formatDuration(endTime - startTime) : 'Running...';
+
+            const statusBadge = getStatusBadge(run.status, run);
+            const resultsBadges = getResultsBadges(run);
+
+            row.innerHTML = `
+                <td>
+                    <a href="/testRun/${run.run_id}/index.html">
+                        ${run.run_name}
+                    </a>
+                </td>
+                <td>${statusBadge}</td>
+                <td>${startTime.toLocaleString()}</td>
+                <td>${duration}</td>
+                <td>
+                    <span class="badge bg-info">${run.test_case_count || 0}</span>
+                </td>
+                <td>${resultsBadges}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showMetadata('${run.run_id}')">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                </td>
+            `;
+
+            return row;
+        }
+
+
+        // Get status badge HTML
+        function getStatusBadge(status, run) {
+            if (status === 'finished') {
+                const hasFailures = (run.failed_count > 0) || (run.aborted_count > 0);
+                const hasPassed = run.passed_count > 0;
+                const hasSkipped = run.skipped_count > 0;
+                const hasError = run.error_count > 0;
+
+                // If ALL tests are skipped (and no passed/failed/error)
+                if (hasSkipped && !hasPassed && !hasFailures && !hasError) {
+                    return '<span class="status-badge status-skipped">SKIPPED</span>';
+                } else if (hasError) {
+                    return '<span class="status-badge status-error">ERROR</span>';
+                } else if (hasFailures) {
+                    return '<span class="status-badge status-finished-failed">FAILED</span>';
+                } else {
+                    return '<span class="status-badge status-finished-passed">PASSED</span>';
+                }
+            } else if (status === 'running') {
+                return '<span class="status-badge status-running">RUNNING</span>';
+            } else if (status === 'aborted') {
+                return '<span class="status-badge status-aborted">ABORTED</span>';
+            } else {
+                return `<span class="status-badge status-finished">${status.toUpperCase()}</span>`;
+            }
+        }
+
+        // Get results badges HTML
+        function getResultsBadges(run) {
+            const badges = [];
+            if (run.passed_count > 0) {
+                badges.push(`<span class="result-badge result-passed">PASSED: ${run.passed_count}</span>`);
+            }
+            if (run.failed_count > 0) {
+                badges.push(`<span class="result-badge result-failed">FAILED: ${run.failed_count}</span>`);
+            }
+            if (run.skipped_count > 0) {
+                badges.push(`<span class="result-badge result-skipped">SKIPPED: ${run.skipped_count}</span>`);
+            }
+            if (run.error_count > 0) {
+                badges.push(`<span class="result-badge result-error">ERROR: ${run.error_count}</span>`);
+            }
+            return badges.length > 0 ? `<div class="result-badges-container">${badges.join('')}</div>` : '<span class="text-muted">No results</span>';
+        }
+
+        // Get result badge HTML
+        function getResultBadge(result) {
+            const badges = {
+                'passed': '<span class="result-badge result-passed">PASSED</span>',
+                'failed': '<span class="result-badge result-failed">FAILED</span>',
+                'skipped': '<span class="result-badge result-skipped">SKIPPED</span>',
+                'error': '<span class="result-badge result-error">ERROR</span>'
+            };
+            return badges[result] || '<span class="text-muted">-</span>';
+        }
+
+        // Format duration
+        function formatDuration(milliseconds) {
+            const seconds = Math.floor(milliseconds / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+
+            if (hours > 0) {
+                return `${hours}h ${minutes % 60}m`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${seconds % 60}s`;
+            } else {
+                return `${seconds}s`;
+            }
+        }
+
+        // Update pagination controls
+        function updatePagination(pagination) {
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+            const pageInfo = document.getElementById('pageInfo');
+
+            totalPages = Math.ceil(pagination.count / pageSize);
+            prevBtn.disabled = currentPage <= 1;
+            nextBtn.disabled = currentPage >= totalPages;
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+        }
+
+        // Change page
+        function changePage(direction) {
+            const newPage = currentPage + direction;
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                loadResults();
+            }
+        }
+
+        // Change page size
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('pageSize').value);
+            currentPage = 1;
+            loadResults();
+        }
+
+        // Refresh results
+        function refreshResults() {
+            loadResults();
+        }
+
+        // Show metadata modal
+        async function showMetadata(runId) {
+            try {
+                console.log('Loading metadata for run:', runId);
+                const response = await fetch(`/api/test-runs/${runId}`);
+                const result = await response.json();
+
+                console.log('API response:', result);
+
+                if (result.success) {
+                    const metadata = result.data.user_metadata || {};
+                    const group = result.data.group || {};
+                    let metadataHtml = '<div class="row">';
+
+                    if (Object.keys(metadata).length === 0) {
+                        metadataHtml += '<div class="col-12"><p class="text-muted">No metadata available for this test run.</p></div>';
+                    } else {
+                    Object.entries(metadata).forEach(([key, value]) => {
+                        metadataHtml += `
+                            <div class="col-md-6 mb-3">
+                                <strong>${key}:</strong><br>
+                                    <span>${value.value || value}</span>
+                                ${value.url ? `<br><a href="${value.url}" target="_blank" class="btn btn-sm btn-outline-primary mt-1">View</a>` : ''}
+                            </div>
+                        `;
+                    });
+                    }
+
+                    metadataHtml += '</div>';
+
+                    if (group && (group.name || (group.metadata && Object.keys(group.metadata).length > 0))) {
+                        metadataHtml += '<hr>';
+                        const groupLabel = group.name || `Group ${group.hash || ''}`;
+                        metadataHtml += `<p><strong>Group:</strong> ${group.hash ? `<a href="/groups/${group.hash}" target="_blank">${groupLabel}</a>` : groupLabel}</p>`;
+                        const groupMetadata = group.metadata || {};
+                        if (Object.keys(groupMetadata).length === 0) {
+                            metadataHtml += '<p class="text-muted">No group metadata defined.</p>';
+                        } else {
+                            metadataHtml += '<div class="row">';
+                            Object.entries(groupMetadata).forEach(([key, value]) => {
+                                metadataHtml += `
+                                    <div class="col-md-6 mb-3">
+                                        <strong>${key}:</strong><br>
+                                        <span>${value.value || value}</span>
+                                        ${value.url ? `<br><a href="${value.url}" target="_blank" class="btn btn-sm btn-outline-primary mt-1">View</a>` : ''}
+                                    </div>
+                                `;
+                            });
+                            metadataHtml += '</div>';
+                        }
+                    }
+
+                    // Create and show modal
+                    const runName = result.data.run.run_name;
+                    const modalHtml = `
+                        <div class="modal fade" id="metadataModal" tabindex="-1" aria-labelledby="metadataModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="metadataModalLabel">Metadata for ${runName}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        ${metadataHtml}
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Remove existing modal
+                    const existingModal = document.getElementById('metadataModal');
+                    if (existingModal) {
+                        existingModal.remove();
+                    }
+
+                    // Add new modal
+                    document.body.insertAdjacentHTML('beforeend', modalHtml);
+                    const modalElement = document.getElementById('metadataModal');
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+
+                    console.log('Modal should be showing now');
+                } else {
+                    alert('Error loading metadata: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error loading metadata:', error);
+                alert('Error loading metadata: ' + error.message);
+            }
+        }
+
+        // Load trends chart
+        async function loadTrendsChart() {
+            try {
+                const params = new URLSearchParams({
+                    days_back: document.getElementById('daysBackFilter').value
+                });
+
+                // Add metadata filters
+                const metadataFilters = document.querySelectorAll('.metadata-filter');
+                metadataFilters.forEach(filter => {
+                    const keySelect = filter.querySelector('select');
+                    const valueSelect = filter.querySelector('select:last-of-type');
+                    if (keySelect.value && valueSelect.value) {
+                        params.append(`metadata.${keySelect.value}`, valueSelect.value);
+                    }
+                });
+
+                appendGroupParam(params);
+
+                const response = await fetch(`/api/test-results/over-time?${params}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const data = result.data;
+                    updateTrendsChart(data);
+                }
+            } catch (error) {
+                console.error('Error loading trends chart:', error);
+            }
+        }
+
+        // Update trends chart
+        function updateTrendsChart(data) {
+            const ctx = document.getElementById('trendsChart').getContext('2d');
+
+            if (trendsChart) {
+                trendsChart.destroy();
+            }
+
+            // Sort data by start time to ensure proper chronological order
+            data.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+            // Debug: log the data to see what we're getting
+            console.log('Trends chart data:', data);
+
+            // Store run data for click handling
+            window.trendsChartData = data;
+
+            // Create labels for individual test runs (using run ID or index)
+            const labels = data.map((d, index) => `Run ${index + 1}`);
+
+            // Calculate cumulative Y values for proper stacking
+            const passedData = data.map(d => d.passed_tests || 0);
+            const skippedData = data.map(d => {
+                const passed = d.passed_tests || 0;
+                const skipped = d.skipped_tests || 0;
+                return passed + skipped;
+            });
+            const errorData = data.map(d => {
+                const passed = d.passed_tests || 0;
+                const skipped = d.skipped_tests || 0;
+                const error = d.error_tests || 0;
+                return passed + skipped + error;
+            });
+            const failedData = data.map(d => {
+                const passed = d.passed_tests || 0;
+                const skipped = d.skipped_tests || 0;
+                const error = d.error_tests || 0;
+                const failed = d.failed_tests || 0;
+                return passed + skipped + error + failed;
+            });
+
+            trendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Passed',
+                            data: passedData,
+                            borderColor: '#198754',
+                            backgroundColor: 'rgba(25, 135, 84, 0.8)',
+                            fill: 'origin',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Skipped',
+                            data: skippedData,
+                            borderColor: '#ffc107',
+                            backgroundColor: 'rgba(255, 193, 7, 0.8)',
+                            fill: 'origin',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Error',
+                            data: errorData,
+                            borderColor: '#6c757d',
+                            backgroundColor: 'rgba(108, 117, 125, 0.8)',
+                            fill: 'origin',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Failed',
+                            data: failedData,
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                            fill: 'origin',
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    resizeDelay: 100,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Test Run'
+                            },
+                            ticks: {
+                                maxTicksLimit: 20
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Total Executed Tests'
+                            },
+                            ticks: {
+                                stepSize: data.length > 0 ? Math.max(1, Math.ceil(Math.max(...data.map(d => Math.max(d.passed_tests || 0, d.failed_tests || 0, d.skipped_tests || 0))) / 10)) : 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    const runData = window.trendsChartData[context[0].dataIndex];
+                                    if (runData && runData.run_name) {
+                                        return runData.run_name;
+                                    }
+                                    return `Run ${context[0].dataIndex + 1}`;
+                                },
+                                label: function(context) {
+                                    const runData = window.trendsChartData[context.dataIndex];
+                                    if (!runData) return context.dataset.label + ': ' + context.parsed.y;
+
+                                    let value;
+                                    if (context.dataset.label === 'Passed') {
+                                        value = runData.passed_tests || 0;
+                                    } else if (context.dataset.label === 'Skipped') {
+                                        value = runData.skipped_tests || 0;
+                                    } else if (context.dataset.label === 'Error') {
+                                        value = runData.error_tests || 0;
+                                    } else if (context.dataset.label === 'Failed') {
+                                        value = runData.failed_tests || 0;
+                                    } else {
+                                        value = context.parsed.y;
+                                    }
+
+                                    return context.dataset.label + ': ' + value;
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const elementIndex = elements[0].index;
+                            const runData = window.trendsChartData[elementIndex];
+                            if (runData && runData.run_id) {
+                                // Navigate to the test run page
+                                window.location.href = `/testRun/${runData.run_id}/index.html`;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load distribution chart
+        async function loadDistributionChart() {
+            try {
+                const params = new URLSearchParams({
+                    limit: 1000,
+                    days_back: document.getElementById('daysBackFilter').value
+                });
+
+                // Add metadata filters
+                const metadataFilters = document.querySelectorAll('.metadata-filter');
+                metadataFilters.forEach(filter => {
+                    const keySelect = filter.querySelector('select');
+                    const valueSelect = filter.querySelector('select:last-of-type');
+                    if (keySelect.value && valueSelect.value) {
+                        params.append(`metadata.${keySelect.value}`, valueSelect.value);
+                    }
+                });
+
+                appendGroupParam(params);
+
+                const response = await fetch(`/api/test-runs?${params}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const runs = result.data;
+                    updateDistributionChart(runs);
+                }
+            } catch (error) {
+                console.error('Error loading distribution chart:', error);
+            }
+        }
+
+        // Update distribution chart
+        function updateDistributionChart(runs) {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+
+            if (distributionChart) {
+                distributionChart.destroy();
+            }
+
+            // Calculate totals
+            const totals = runs.reduce((acc, run) => {
+                acc.passed += run.passed_count || 0;
+                acc.failed += run.failed_count || 0;
+                acc.skipped += run.skipped_count || 0;
+                acc.error += run.error_count || 0;
+                return acc;
+            }, { passed: 0, failed: 0, skipped: 0, error: 0 });
+
+            const total = totals.passed + totals.failed + totals.skipped + totals.error;
+
+            if (total === 0) {
+                // Show empty state
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('No test data available', ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+
+            distributionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Passed', 'Failed', 'Error', 'Skipped'],
+                    datasets: [{
+                        data: [totals.passed, totals.failed, totals.error, totals.skipped],
+                        backgroundColor: ['#198754', '#dc3545', '#6c757d', '#ffc107'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    resizeDelay: 100,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${context.label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 10,
+                            bottom: 10,
+                            left: 10,
+                            right: 10
+                        }
+                    },
+                    elements: {
+                        arc: {
+                            borderWidth: 2
+                        }
+                    }
+                }
+            });
+        }
+
+        // Refresh charts
+        function refreshCharts() {
+            loadTrendsChart();
+            loadDistributionChart();
+        }
+
+        // Export results
+        function exportResults() {
+            // Simple CSV export
+            const rows = document.querySelectorAll('#resultsTableBody tr');
+            let csv = 'Run,Status,Start Time,Duration,Tests,Passed,Failed,Error,Skipped\n';
+
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length > 1) {
+                    const runId = cells[1].textContent.trim();
+                    const status = cells[2].textContent.trim();
+                    const startTime = cells[3].textContent.trim();
+                    const duration = cells[4].textContent.trim();
+                    const tests = cells[5].textContent.trim();
+                    const results = cells[6].textContent.trim();
+
+                    // Extract counts from results badges
+                    const passed = (results.match(/(\d+) Passed/) || [0, 0])[1];
+                    const failed = (results.match(/(\d+) Failed/) || [0, 0])[1];
+                    const skipped = (results.match(/(\d+) Skipped/) || [0, 0])[1];
+                    const error = (results.match(/(\d+) Error/) || [0, 0])[1];
+
+                    csv += `"${runId}","${status}","${startTime}","${duration}","${tests}","${passed}","${failed}","${error}","${skipped}"\n`;
+                }
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `test-results-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
