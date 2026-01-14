@@ -1,0 +1,132 @@
+Metadata-Version: 2.4
+Name: finlens
+Version: 0.1.11
+Summary: High-performance Python client for the FinLens financial data platform.
+Author: FinLens Team
+Project-URL: Homepage, https://finlens.vn
+Project-URL: Documentation, https://finlens.vn/docs/finlenspy/
+Keywords: finlens,finance,market-data,api-client,vietnam
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Financial and Insurance Industry
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Office/Business :: Financial
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.1.2
+Requires-Dist: requests>=2.31.0
+Requires-Dist: pydantic>=2.4.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: cibuildwheel>=2.17.0; extra == "dev"
+Requires-Dist: twine>=5.0.0; extra == "dev"
+Requires-Dist: python-dotenv>=1.0.0; extra == "dev"
+
+# 🐍 FinLens Python SDK
+
+> **FinLens** mang tới bộ **client Python hiệu năng cao** để truy cập **hệ sinh thái dữ liệu tài chính Việt Nam**.  
+> Thư viện được thiết kế **an toàn**, **linh hoạt** và **tối ưu cho ba nền tảng:**  
+> 🪟 Windows | 🐧 Linux | 🍎 macOS
+
+---
+
+## 🚀 Cài đặt
+
+Cài đặt trực tiếp từ [PyPI](https://pypi.org/project/finlens/):
+
+```bash
+pip install finlens
+```
+
+Yêu cầu:
+
+- Python ≥ 3.10  
+- pandas ≥ 2.1.2  
+- requests
+
+📘 [Tài liệu hướng dẫn](https://finlens.vn/docs/finlenspy/)
+
+---
+
+## ⚙️ Khởi tạo nhanh
+
+Ví dụ cơ bản để lấy dữ liệu giá đóng cửa của cổ phiếu **HPG** | chỉ số **VNINDEX** | ngành **Ngân hàng** trong năm 2023:
+
+```python
+import finlens as fn
+
+client = fn.client(apiKey="YOUR_API_KEY")
+# Dữ liệu cổ phiếu
+Stock = client.eod.stock
+data = Stock.ohlcv(symbol="HPG", start="2023-01-01", end="2023-12-31")
+
+# Dữ liệu chỉ số index
+Market = client.eod.market
+data = Market.ohlcv(symbol="VNINDEX", start="2023-01-01", end="2023-12-31")
+
+# Dữ liệu ngành
+Sector = client.eod.sector
+data = Sector.ohlcv(symbol="Ngân hàng", start="2023-01-01", end="2023-12-31")
+print(data)
+```
+
+📘 **Kết quả trả về** là `pandas.DataFrame` gồm các cột: `Date`, `Open`, `High`, `Low`, `Close`, `Volume`.
+
+---
+
+## 🧩 Cấu trúc thư viện
+
+FinLens được chia thành nhiều **client module** riêng biệt, mỗi module phụ trách một mảng dữ liệu:
+
+| Module | Mô tả | Ví dụ truy cập |
+|:--------|:------|:---------------|
+| `client.eod` | Dữ liệu cuối ngày (EOD) | `client.eod.stock.ohlcv(symbol="HPG")`<br>`client.eod.stock.flow(symbol="HPG", group='local_individual')`<br><br> **Các nhóm `group` phổ biến:** <br> - `"foreign"` — Nhà đầu tư nước ngoài (tổng hợp)<br> - `"proprietary"` — Tự doanh công ty chứng khoán<br> - `"local_institutional"` — Tổ chức trong nước<br> - `"local_individual"` — Cá nhân trong nước<br> - `"foreign_institutional"` — Tổ chức nước ngoài<br> - `"foreign_individual"` — Cá nhân nước ngoài |
+| `client.info` | Thông tin doanh nghiệp & cổ phiếu | `client.info.overview("VNM")` *(đang phát triển)* |
+| `client.financials` | Báo cáo tài chính | `client.financials.statement("HPG")` *(đang phát triển)* |
+
+
+
+Tất cả đều trả về **DataFrame** hoặc **dict** để dễ dàng xử lý trong phân tích định lượng.
+
+---
+
+## 🔐 Bảo mật & hiệu năng
+
+- Tự động xác thực bằng `apiKey`  
+- Kết nối HTTP được tối ưu hóa với `requests.Session`  
+- Tuân thủ chuẩn [PEP 561](https://peps.python.org/pep-0561/) – hỗ trợ gợi ý kiểu (type hints)
+
+---
+
+## 📚 Bắt đầu khám phá
+
+👉 Tiếp tục đọc tại:
+
+- [**Tổng quan API**](https://finlens.vn/docs/finlenspy/api/)  
+- [**Clients: EOD, Info, Financials, Index**](https://finlens.vn/docs/finlenspy/api/clients/eod/)  
+
+
+Hoặc tra cứu chi tiết từng hàm trong **sidebar bên trái**.
+
+---
+
+## 🧠 Giấy phép & Liên hệ
+
+- **License:** MIT  
+- **Tác giả:** FinLens Development Team  
+- **Website:** [https://finlens.vn](https://finlens.vn)  
+- **Liên hệ hỗ trợ:** [client@finlens.vn](mailto:client@finlens.vn)
+- **SĐT:** Zalo - 035.905.2501
+
+---
+
+> 💡 _FinLens – Nền tảng dữ liệu mở, giúp nhà đầu tư, doanh nghiệp và lập trình viên tiếp cận dữ liệu tài chính Việt Nam một cách nhanh chóng và hiệu quả._
