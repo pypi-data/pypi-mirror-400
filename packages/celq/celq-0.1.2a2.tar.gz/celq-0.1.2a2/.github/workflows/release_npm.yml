@@ -1,0 +1,125 @@
+# Release workflow to publish NPM packages
+# Courtesy of: https://github.com/orhun/packaging-rust-for-npm/blob/4640d8a33491cc68cddc257b5966c8caa3b4e8c8/.github/workflows/cd.yml#L1
+name: Publish to NPM
+
+on:
+  workflow_dispatch:  # Manual trigger only
+  push:
+    tags:
+      - "v[0-9]*"      # Trigger on version tags like v1.0.0
+
+permissions:
+  # IMPORTANT: this permission is mandatory for Trusted Publishing
+  id-token: write
+  contents: read
+
+jobs:
+  publish-npm-binaries:
+    name: Publish NPM packages
+    runs-on: ${{ matrix.build.os }}
+    environment: npm_release
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - {
+              NAME: linux-x64-musl,
+              OS: ubuntu-24.04,
+              TOOLCHAIN: stable,
+              TARGET: x86_64-unknown-linux-musl,
+            }
+          - {
+              NAME: linux-arm64-musl,
+              OS: ubuntu-24.04-arm,
+              TOOLCHAIN: stable,
+              TARGET: aarch64-unknown-linux-musl,
+            }
+          - {
+              NAME: win32-x64-msvc,
+              OS: windows-2025,
+              TOOLCHAIN: stable,
+              TARGET: x86_64-pc-windows-msvc,
+            }
+          - {
+              NAME: win32-arm64-msvc,
+              OS: windows-2025,
+              TOOLCHAIN: stable,
+              TARGET: aarch64-pc-windows-msvc,
+            }
+          - {
+              NAME: darwin-x64,
+              OS: macos-15,
+              TOOLCHAIN: stable,
+              TARGET: x86_64-apple-darwin,
+            }
+          - {
+              NAME: darwin-arm64,
+              OS: macos-15,
+              TOOLCHAIN: stable,
+              TARGET: aarch64-apple-darwin,
+            }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.build.TARGET }}
+      
+      - name: Install musl tools (for musl targets)
+        if: contains(matrix.build.TARGET, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.build.TARGET }}
+
+      - name: Install node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Make publish script executable
+        shell: bash
+        run: chmod +xw ./.github/scripts/publish-npm-binary.sh
+
+      - name: Publish to NPM
+        shell: bash
+        run: |
+          ./.github/scripts/publish-npm-binary.sh \
+            "${{ matrix.build.NAME }}" \
+            "${{ matrix.build.OS }}" \
+            "${{ matrix.build.TARGET }}"
+
+  publish-npm-base:
+    name: Publish the base NPM package
+    needs: publish-npm-binaries
+    environment: npm_release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish the package
+        continue-on-error: true
+        shell: bash
+        run: |
+          STABLE_OR_NOT=$(cargo run -- --from-file ./.github/scripts/stable_or_not.cel  < "npm/celq/package.json")
+          STABLE_OR_NOT=${STABLE_OR_NOT#\"}
+          STABLE_OR_NOT=${STABLE_OR_NOT%\"}
+          cp README.md npm/celq/README.md
+          cp LICENSE-APACHE npm/celq/LICENSE-APACHE
+          cp LICENSE-MIT npm/celq/LICENSE-MIT
+          cd npm/celq
+          yarn install # requires optional dependencies to be present in the registry
+          yarn build
+          npm publish --access public --tag "$STABLE_OR_NOT"

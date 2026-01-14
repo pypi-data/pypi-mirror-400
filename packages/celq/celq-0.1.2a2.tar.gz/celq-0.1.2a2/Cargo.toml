@@ -1,0 +1,50 @@
+[package]
+name = "celq"
+description = "A CEL command-line query tool for JSON data"
+version = "0.1.2-alpha.2"
+edition = "2024"
+rust-version = "1.90"
+authors = ["Ivan Carvalho <ivancarvalho@gatech.edu>"]
+repository = "https://github.com/IvanIsCoding/celq"
+license = "MIT OR Apache-2.0"
+keywords = ["cel", "query", "json"]
+categories = ["command-line-utilities"]
+documentation = "https://docs.rs/celq"
+readme = "README.md"
+
+[[bin]]
+name = "celq"
+path = "src/main.rs"
+
+# celq is not a library. This is merely a trick for docs.rs to build the manual.
+[lib]
+name = "celq"
+path = "src/documentation.rs"
+
+[features]
+default = ["mimalloc"]
+
+[dependencies]
+anyhow = "1"
+cel = { version = "0.12.0", features = ["bytes", "json", "regex", "chrono"] }
+clap = { version = ">= 4.5.0, < 5.0.0", features = ["derive"] }
+serde = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+rayon = "1.11"
+mimalloc = { version = ">=0.1.40, <0.2.0", default-features = false, optional = true }
+json5 = "0.4"
+
+[dev-dependencies]
+tempfile = "3"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }"
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+disabled-strategies = ["quick-install", "compile"]
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
