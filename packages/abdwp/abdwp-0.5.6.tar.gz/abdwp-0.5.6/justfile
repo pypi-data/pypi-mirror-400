@@ -1,0 +1,48 @@
+test:
+    uv run pytest
+
+test-fast:
+    uv run pytest -m "not slow"
+
+build-sdist:
+    @echo "Building sdist..."
+    uvx --from build pyproject-build --sdist --installer uv
+
+build-wheel:
+    @echo "Building wheel..."
+    uvx --from build pyproject-build --wheel --installer uv
+
+build: build-sdist build-wheel
+
+publish-new-version:
+    #!/usr/bin/env zsh
+    if ! git diff-index --quiet HEAD --; then
+        echo "Error: You have uncommitted changes."
+        exit 1
+    fi
+    if [ "$(git rev-parse HEAD)" != "$(git rev-parse @{u})" ]; then
+        echo "Local branch is not in sync with remote."
+        exit 1
+    fi
+    current_version=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+    echo "Version from pyproject.toml: $current_version"
+    echo "Creating git tag v$current_version..."
+    git tag "v$current_version"
+    git push origin "v$current_version"
+    echo "Successfully created and pushed tag v$current_version"
+
+# lint code
+lint:
+    uv run ruff check
+
+# auto-fix lint issues
+fix:
+    uv run ruff check --fix
+
+# format code
+format:
+    uv run ruff format
+
+# check formatting without changes
+format-check:
+    uv run ruff format --check
