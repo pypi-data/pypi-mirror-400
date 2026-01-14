@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g., v0.5.14)"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - name: Resolve tag
+        id: vars
+        run: |
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ]; then
+            tag="${{ github.ref_name }}"
+          fi
+          if [ -z "$tag" ]; then
+            echo "Tag is required to publish."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.vars.outputs.tag }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Validate tag matches package version
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+          tag = "${{ steps.vars.outputs.tag }}"
+          version_file = Path("src/pycityvisitorparking/_version.py").read_text(encoding="utf-8")
+          match = re.search(r'__version__\s*=\s*"([^"]+)"', version_file)
+          if not match:
+            print("Could not read __version__ from _version.py")
+            sys.exit(1)
+          version = match.group(1)
+          if tag != f"v{version}":
+            print(f"Tag {tag} does not match package version {version}.")
+            sys.exit(1)
+          print(f"Tag {tag} matches package version {version}.")
+          PY
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install hatch==1.16.2 twine==6.2.0
+
+      - name: Build
+        run: |
+          hatch build
+          python -m twine check dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
