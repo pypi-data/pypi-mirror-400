@@ -1,0 +1,157 @@
+Metadata-Version: 2.4
+Name: endstone-nicebackup
+Version: 1.0.0
+Summary: A simple backup scheduler plugin for Endstone.
+Project-URL: Homepage, https://github.com/kapdap/endstone-nicebackup
+Author-email: Kapdap <kapdap@pm.me>
+License: MIT License
+        
+        Copyright (c) 2026 Kapdap
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Keywords: automation,backup,cron,endstone,nicebackup,plugin,scheduler,snapshot
+Requires-Dist: croniter
+Description-Content-Type: text/markdown
+
+# Nice Backup - Minecraft World Backup Plugin for Endstone
+
+Nice Backup is a plugin for [Endstone](https://github.com/EndstoneMC/endstone) enabled Minecraft Bedrock Dedicated Servers that provides live automated world backup without the need to stop the server. It allows server administrators to schedule regular backups of their hosted Minecraft Bedrock worlds with zero downtime. Backup files are stored as `.mcworld` files to allow easy importing into Minecraft Bedrock Edition clients.
+
+## Features
+
+- Automated periodic backups with cron scheduling.
+- Backups saved in `.mcworld` format for portability.
+- Enable/disable compression of backup files.
+- Configurable backup retention policy.
+
+## Usage
+
+How to install and use the Nice Backup plugin.
+
+### Installation
+
+Download the latest `.whl` file from the [releases](https://github.com/kapdap/endstone-nicebackup/releases) page and save it to the `bedrock_server/plugins` directory under the Endstone root folder. Restart the server to load the plugin.
+
+### Backups
+
+Backups are automatically created daily at 3 AM. The schedule can be customized using cron expressions (see [Scheduling](#scheduling)).
+
+The last 3 backups are retained by default. Old backups are automatically deleted based on the [retention policy](#retention) configuration.
+
+Backups can be manually triggered using the `/nice_backup` command in the server console or in-game (must have `op` permissions).
+
+Backups are saved in the `bedrock_server/backups` directory. Each backup file is named with the world name and timestamp, e.g., `MyWorld_20231010_153000.mcworld`.
+
+### Restoring
+
+To restore a world from a backup:
+
+1. Stop the Minecraft Bedrock Dedicated Server.
+2. (Optional) Rename the existing world folder (e.g. `MyWorld` to `MyWorld_old`).
+3. Locate the backup file to restore in the `bedrock_server/backups` directory.
+4. Extract the contents of the `.mcworld` file using an archive tool (e.g., 7-Zip, WinRAR, etc.) into a folder with the same name as the world (e.g., `MyWorld`).
+5. Start the server. The world should now be restored to the state of the backup.
+
+> [!IMPORTANT]
+>
+> The extracted folder name should exactly match the `level-name` property in `server.properties`.
+
+> [!TIP]
+>
+> The `.mcworld` file can be imported directly into Minecraft Bedrock Edition on a client device by double-clicking the file on desktop or opening via a file manager on mobile devices.
+
+## Configuration
+
+Customize the plugin by modifying the `config.toml` file in the `bedrock_server/plugins/nicebackup` directory. See the `config.toml` file for all available options and their descriptions.
+
+### Scheduling
+
+The backup schedule can be customized by modifying the `schedule` option in `config.toml`. `schedule` uses cron expressions to define when backups should occur.
+
+Examples:
+
+- Every hour: `0 * * * *`
+- Every 6 hours: `0 */6 * * *`
+- Daily at 3 AM: `0 3 * * *`
+- Weekly on Sundays at 5 AM: `0 5 * * 0`
+
+### Retention
+
+Retention policies are configured under the `[retention]` section of `config.toml`.
+
+- Set a value to `0` to disable that rule.
+- Rules are combined (OR): a backup is kept if **any** enabled rule selects it.
+- Retention is based on the backup file's modification time.
+- Only the latest backup per time period is kept.
+
+Options:
+
+- `keep_last`: Keep the **most recent** **_N_** backups, regardless of age.
+- `keep_days`: Keep **all** backups from the last **_X_** days.
+- `keep_hourly`: Keep **one backup per hour** for the last **_X_** hours.
+- `keep_daily`: Keep **one backup per day** for the last **_X_** days.
+- `keep_weekly`: Keep **one backup per week** for the last **_X_** weeks.
+- `keep_monthly`: Keep **one backup per month** for the last **_X_** months.
+
+> [!NOTE]
+>
+> `keep_days` and `keep_daily` are different: `keep_days` keeps **all backups** from the last X days, while `keep_daily` keeps **only one backup per day** for the last X days.
+
+## How It Works
+
+Nice Backup utilizes the `save hold`, `save query`, and `save resume` ([minecraft.wiki](https://minecraft.wiki/w/Commands/save#save)) console commands to create consistent and robust backups without stopping the server.
+
+1. When a backup is initiated, the plugin sends the `save hold` command. This flushes all pending data to disk and places the server in a state ready for backup.
+2. The `save query` command is polled until the server confirms the data is ready. On success, it returns a list of files and the exact size in bytes to be copied for each one.
+3. All world files are copied to the `backups/.tmp` directory; if a file exists in the list from the previous step, the plugin only copies the specified bytes to ensure data consistency.
+4. The `save resume` command is sent to the server to resume normal operations.
+5. The temporary directory is compressed (zipped) into a **.mcworld** file and saved to the `backups` directory.
+
+All files under the world directory are backed up, including resource packs, behavior packs, and other files not included in the `save query` file list.
+
+> [!WARNING]
+>
+> Players may experience a brief lag spike during the backup process. It may be preferable to schedule backups during low player activity periods to minimize impact.
+
+## Troubleshooting
+
+### Timeout Issues
+
+For larger worlds, backups may take longer than the default timeout period (60 seconds). Adjust the `timeout` option in `config.toml` if you encounter timeout errors during backup. Also, consider only running backups during off-peak hours as users may experience increased lag during the backup process.
+
+> [!WARNING]
+>
+> This plugin has not been extensively tested with very large worlds (multiple GBs). Any issues or feedback are appreciated.
+
+## Ideas
+
+Some potential features for future releases:
+
+- Notify players in-game when a backup is starting/completing with a configurable message.
+- External notifications (e.g., Discord, email) on backup success/failure.
+- Support for cloud storage (e.g., AWS S3, Google Drive).
+
+## Contributing
+
+Contributions are welcome! Please open issues for bug reports or feature requests. Pull requests for improvements or new features are appreciated.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
