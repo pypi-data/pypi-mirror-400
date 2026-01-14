@@ -1,0 +1,204 @@
+# Hereco AI SDK 🤖
+
+Official Python SDK for the Hereco AI API.
+
+## Installation
+
+```bash
+pip install hereco
+```
+
+## Quick Start
+
+```python
+from hereco import Hereco
+
+client = Hereco()
+
+response = client.chat.create(
+    message="Write a short bedtime story about a unicorn."
+)
+
+print(response.output_text)
+```
+
+## Setup
+
+Set your API key as an environment variable:
+
+```bash
+export HERECO_API_KEY="hrc_xxxxxxxxxxxx"
+```
+
+Or pass it directly:
+
+```python
+client = Hereco(api_key="hrc_xxxxxxxxxxxx")
+```
+
+## Usage Examples
+
+### Simple One-Liner
+
+```python
+from herecobot import Hereco
+
+client = Hereco()
+print(client.ask("What is 2+2?"))
+```
+
+### Chat Completions (OpenAI-style)
+
+```python
+from herecobot import Hereco
+
+client = Hereco()
+
+response = client.chat.create(
+    message="Explain quantum computing in simple terms",
+    temperature=0.7,
+    max_tokens=512
+)
+
+print(response.output_text)
+print(f"Tokens used: {response.usage}")
+```
+
+### Async Usage
+
+```python
+import asyncio
+from herecobot import Hereco
+
+async def main():
+    client = Hereco()
+    
+    # Async chat
+    response = await client.chat.create_async("Tell me a joke!")
+    print(response.output_text)
+    
+    # Or simple async
+    answer = await client.ask_async("What's the capital of France?")
+    print(answer)
+
+asyncio.run(main())
+```
+
+## CLI Usage
+
+```bash
+# Interactive chat
+herecobot chat --space https://your-space.hf.space
+
+# Ask a single question
+herecobot ask "What is the meaning of life?" --space https://your-space.hf.space
+
+# Check if space is online
+herecobot ping --space https://your-space.hf.space
+
+# Using environment variable
+export HERECO_SPACE="https://your-space.hf.space"
+herecobot chat
+herecobot ask "Hello"
+```
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `herecobot` | Start interactive chat |
+| `herecobot chat` | Interactive chat mode |
+| `herecobot chat -m "msg"` | Send single message |
+| `herecobot ask "question"` | Ask a single question |
+| `herecobot ping` | Check if space is online |
+| `herecobot test-key` | Test if API key is valid |
+| `herecobot --version` | Show version |
+
+### Test API Key
+
+```bash
+# Test with environment variable
+export HERECO_API_KEY="hrc_xxxxxxxxxxxx"
+herecobot test-key
+
+# Test with flag
+herecobot test-key --key hrc_xxxxxxxxxxxx
+
+# Output:
+# Testing API key: hrc_xxxxxxxx... ✅ Valid!
+#   Key ID:      abc-123-def
+#   Permissions: read, chat
+#   Rate Limit:  60/min
+#   Remaining:   58
+```
+
+## Response Object
+
+```python
+response = client.chat.create("Hello")
+
+response.output_text  # The AI response text
+response.model        # Model name
+response.usage        # Token usage dict
+str(response)         # Same as output_text
+```
+
+## Error Handling
+
+```python
+from herecobot import Hereco
+
+client = Hereco(timeout=10.0, max_retries=3)
+
+try:
+    response = client.chat.create("Hello!")
+    print(response.output_text)
+except ConnectionError:
+    print("Failed to connect to HF Space")
+except TimeoutError:
+    print("Request timed out")
+except RuntimeError as e:
+    print(f"Error: {e}")
+```
+
+## Test API Key (Programmatic)
+
+```python
+from herecobot import Hereco
+
+client = Hereco(api_key="hrc_xxxxxxxxxxxx")
+
+result = client.test_key()
+
+if result.valid:
+    print(f"✅ Key is valid!")
+    print(f"   Permissions: {result.permissions}")
+    print(f"   Rate limit: {result.rate_limit}/min")
+    print(f"   Remaining: {result.remaining}")
+else:
+    print(f"❌ Invalid key: {result.error}")
+```
+
+## Configuration
+
+```python
+from herecobot import Hereco
+
+client = Hereco(
+    space_url="https://your-space.hf.space",  # HF Space URL (required)
+    api_key="your-api-key",                    # Optional API key
+    timeout=30.0,                              # Request timeout (seconds)
+    max_retries=3,                             # Retry attempts on failure
+)
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `HERECO_SPACE` | HuggingFace Space URL |
+| `HERECO_API_KEY` | Optional API key |
+
+## License
+
+MIT License
