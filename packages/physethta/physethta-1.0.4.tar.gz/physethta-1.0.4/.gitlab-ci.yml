@@ -1,0 +1,40 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  GIT_DEPTH: 0
+  TWINE_USERNAME: "__token__"
+  TWINE_PASSWORD: $PYPI_TOKEN 
+
+build_package:
+  stage: build
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends git
+  script:
+    - python -m venv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip build setuptools setuptools-scm
+    - python -m build --no-isolation
+  artifacts:
+    paths:
+      - dist
+    expire_in: 1 day
+
+
+deploy_to_pypi:
+  stage: deploy
+  only:
+    - tags
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends git
+    - python -m venv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip twine build setuptools setuptools-scm
+    - echo $PYPI_API_TOKEN
+  script:
+    - rm -rf dist/
+    - python -m build --no-isolation
+    - twine upload dist/*
