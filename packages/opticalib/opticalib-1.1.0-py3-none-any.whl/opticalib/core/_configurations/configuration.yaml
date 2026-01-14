@@ -1,0 +1,147 @@
+######################################
+## Configuration file for Opticalib ##
+######################################
+
+SYSTEM:
+  data_path: ''
+  simulated.devices:
+    dm: true
+    interferometer: true
+
+## Devices configuration ##
+# In this section you can add the configuration of your devices.
+# Follow the examples provided below, as they show the type of
+# devices implemented as of now.
+DEVICES:
+  INTERFEROMETER:
+    PhaseCamX:
+      ip: 
+      port: 
+      Paths:
+        settings: 
+        copied_settings: 
+        capture_4dpc: 
+        produce_4dpc: 
+        produce: 
+    AccuFizX:
+      ip: 
+      port: 
+      Paths:
+        settings: 
+        copied_settings: 
+        capture_4dpc: 
+        produce_4dpc: 
+        produce: 
+    4DProcesser1:
+      ip: 
+      port:
+      Paths:
+        settings:        
+        copied_settings: 
+        capture_4dpc: 
+        produce_4dpc: 
+        produce: 
+  DEFORMABLE.MIRRORS:
+    AlpaoXXX:
+      ip:
+      port:
+      diameter:
+    PetalDM:
+      ip0:   
+      ip1: 
+      ip2: 
+      ip3: 
+      ip4: 
+      ip5: 
+
+  CAMERAS:
+    AVT_MANTA_5G: # example camera
+      id: DEV_000F314DE425
+      ip: 
+
+## Influence functions configuration ##
+# Here you can set the parameters for the influence functions
+# data acquisition and processing.
+INFLUENCE.FUNCTIONS:
+  DM:
+    nacts: 88
+    slaveIds: []
+    borderIds: []
+    timing: 1
+    delay: 0.0
+    triggeredMode: # if not using triggerMode, put false and comment next 2 lines (for Microgate DMs)
+      frequency: 5.
+      cmdDelay: 0.0
+  TRIGGER:
+    numberofzeros: 0
+    modeid: []
+    modeamp: 0.05
+    template: []
+    modalbase: hadamard
+  REGISTRATION:
+    numberofzeros: 0
+    modeid: []
+    modeamp: 0.1
+    template: []
+    modalbase: zonal
+  IFFUNC:
+    numberofzeros: 0
+    paddingZeros: 5
+    modeid: np.arange(0,88,1)
+    modeamp: 0.05
+    template: [1, -1, 1]
+    modalbase: zonal
+
+## Stitching configuration ##
+# Here you can set the parameters for the stitching procedure.
+STITCHING:
+  pixel_scale: 0.09095 # mm/px
+  alpha: 0 # degrees
+  starting_coords: [0, 0] # motors position in mm
+  home_coords: [0, 0] # motors position in mm
+
+## System alignment configuration ##
+# Here you can set the parameters for the system optical 
+# alignment procedure.
+# Filled, as example, with M4 OTT configuration
+SYSTEM.ALIGNMENT:
+  names:
+  - Parabola
+  - Reference Mirror
+  - M4 Exapode
+
+  devices_move_calls:
+  - parabola.setPosition
+  - referenceMirror.setPosition
+  - m4Exapode.setPosition
+
+  devices_read_calls:
+  - parabola.getPosition
+  - referenceMirror.getPosition
+  - m4Exapode.getPosition
+
+  ccd_acquisition:
+  - acquire_map
+
+  devices_dof: 6
+
+  dof:
+  - [2, 3, 4]        # Parabola DoF
+  - [3, 4]           # Reference Mirror DoF
+  - [3, 4]           # M4 Exapode DoF
+
+  slices:
+    # Parabola
+  - start: 0
+    stop: 3
+    # Reference Mirror
+  - start: 3
+    stop: 5
+    # M4 Exapode
+  - start: 5
+    stop: 7
+
+  zernike_to_use: [1, 2, 3, 6, 7]
+  push_pull_template: [1, -2, 1]
+  commandMatrix: ottCmdMat.fits
+  fitting_surface: ''
