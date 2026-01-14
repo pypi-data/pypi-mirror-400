@@ -1,0 +1,335 @@
+Metadata-Version: 2.4
+Name: tinysdk
+Version: 0.1.0
+Summary: Shared services for TinyAI microservices platform
+Author: Synapze GmbH
+Maintainer: Synapze GmbH
+License: MIT
+Project-URL: Homepage, https://github.com/SynapzeGmbH/TinySDK
+Project-URL: Repository, https://github.com/SynapzeGmbH/TinySDK
+Project-URL: Issues, https://github.com/SynapzeGmbH/TinySDK/issues
+Keywords: microservices,mongodb,minio,rabbitmq,tinyai
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pymongo>=4.6.3
+Requires-Dist: pika>=1.3.0
+Requires-Dist: minio>=7.0.0
+Requires-Dist: urllib3
+Requires-Dist: certifi
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: build>=1.0.0; extra == "dev"
+Requires-Dist: twine>=4.0.0; extra == "dev"
+Dynamic: license-file
+
+# TinySDK
+
+Shared services for the TinyAI microservices platform. Provides unified MongoDB, MinIO, and RabbitMQ clients with consistent interfaces across all services.
+
+## Features
+
+- **TinyDBService**: MongoDB client with CRUD operations and automatic index management
+- **TinyStorageHandler**: MinIO/S3-compatible storage client with file and folder operations
+- **TinyMessageService**: Async (event-driven) RabbitMQ client using SelectConnection
+- **TinyMessageServiceSync**: Sync (blocking) RabbitMQ client using BlockingConnection
+- Consistent error handling with retry logic and exponential backoff
+- Environment variable configuration with optional parameter overrides
+- Full type hints for better IDE support
+
+## Installation
+
+\`\`\`bash
+pip install tinysdk
+\`\`\`
+
+## Quick Start
+
+### TinyDBService (MongoDB)
+
+\`\`\`python
+from tinysdk import TinyDBService
+
+# Initialize with environment variables (DB_LINK, DB_NAME)
+db = TinyDBService()
+
+# Or provide credentials explicitly
+db = TinyDBService(
+    db_link="mongodb://localhost:27017",
+    db_name="mydb"
+)
+
+# Create a document
+result = db.create({
+    "collection": "users",
+    "document": {"name": "John", "email": "john@example.com"}
+})
+
+# Read documents with filtering, sorting, and paging
+result = db.read({
+    "collection": "users",
+    "filter": {"name": "John"},
+    "sort": {"field": "email", "direction": 1},
+    "paging": {"page": 0, "limit": 10}
+})
+
+# Update documents
+db.update({
+    "collection": "users",
+    "filter": {"name": "John"},
+    "data": {"$set": {"email": "newemail@example.com"}}
+})
+
+# Delete documents
+db.delete({
+    "collection": "users",
+    "filter": {"name": "John"}
+})
+\`\`\`
+
+### TinyStorageHandler (MinIO)
+
+\`\`\`python
+from tinysdk import TinyStorageHandler
+import io
+
+# Initialize with environment variables (MINIO_ENDPOINT, MINIO_ACCESSKEY, MINIO_SECRETKEY)
+storage = TinyStorageHandler()
+
+# Or provide credentials explicitly
+storage = TinyStorageHandler(
+    endpoint="localhost:9000",
+    access_key="minioadmin",
+    secret_key="minioadmin"
+)
+
+# Upload a file from buffer
+file_buffer = io.BytesIO(b"file contents")
+storage.upload_file("my-bucket", "path/to/file.txt", file_buffer, file_buffer.getbuffer().nbytes)
+
+# Download a file (returns tuple of buffer and object name)
+file_buffer, object_name = storage.download_file("my-bucket", "path/to/file.txt")
+
+# List objects
+objects = storage.list_objects("my-bucket", prefix="path/")
+
+# Check if object exists
+exists = storage.object_exists("my-bucket", "path/to/file.txt")
+
+# Delete a file
+storage.delete_file("my-bucket", "path/to/file.txt")
+\`\`\`
+
+### TinyMessageService (Async RabbitMQ)
+
+\`\`\`python
+from tinysdk import TinyMessageService
+
+def process_message(msg: dict):
+    print(f"Received: {msg}")
+
+# Initialize with environment variables (RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASS)
+queue_settings = [
+    ("my-queue", process_message),
+]
+msg_service = TinyMessageService(queue_settings)
+
+# Or provide credentials explicitly
+msg_service = TinyMessageService(
+    queue_settings=queue_settings,
+    host="localhost",
+    port=5672,
+    user="guest",
+    password="guest"
+)
+
+# Publish a message
+msg_service.publish("my-queue", {"task": "process_data", "id": 123})
+
+# Start consuming (blocks)
+msg_service.run()
+\`\`\`
+
+### TinyMessageServiceSync (Sync RabbitMQ)
+
+\`\`\`python
+from tinysdk import TinyMessageServiceSync
+
+# Initialize
+msg_service = TinyMessageServiceSync()
+
+# Publish a message
+msg_service.publish("my-queue", {"task": "process_data"})
+
+# Consume messages (blocks)
+def process_message(msg: dict):
+    print(f"Received: {msg}")
+
+msg_service.consume("my-queue", process_message)
+\`\`\`
+
+## Environment Variables
+
+TinySDK reads credentials from environment variables by default:
+
+### MongoDB (TinyDBService)
+- \`DB_LINK\` - MongoDB connection string (e.g., \`mongodb://mongo-server:27017\`)
+- \`DB_NAME\` - Database name (e.g., \`tinyDatabase\`)
+
+### MinIO (TinyStorageHandler)
+- \`MINIO_ENDPOINT\` - MinIO server endpoint (e.g., \`minio-server:9000\`)
+- \`MINIO_ACCESSKEY\` - Access key
+- \`MINIO_SECRETKEY\` - Secret key
+
+### RabbitMQ (TinyMessageService + TinyMessageServiceSync)
+- \`RABBITMQ_HOST\` - RabbitMQ server hostname (e.g., \`rabbitmq-server\`)
+- \`RABBITMQ_PORT\` - RabbitMQ port (default: \`5672\`)
+- \`RABBITMQ_USER\` - Username (e.g., \`myuser\`)
+- \`RABBITMQ_PASS\` - Password
+
+## Advanced Usage
+
+### Custom Index Configuration
+
+\`\`\`python
+from pymongo import ASCENDING, DESCENDING
+
+custom_indexes = {
+    "users": [
+        [("email", ASCENDING), {"unique": True}],
+        [("created_at", DESCENDING)]
+    ],
+    "orders": [
+        [("user_id", ASCENDING)],
+        [("status", ASCENDING), ("created_at", DESCENDING)]
+    ]
+}
+
+db = TinyDBService(index_config=custom_indexes)
+\`\`\`
+
+### Custom HTTP Client for MinIO
+
+\`\`\`python
+from urllib3 import PoolManager
+from urllib3.util.retry import Retry
+from urllib3.util import Timeout
+from datetime import timedelta
+
+http = PoolManager(
+    timeout=Timeout(connect=timedelta(minutes=5).seconds, read=timedelta(minutes=5).seconds),
+    maxsize=100,
+    retries=Retry(total=5, backoff_factor=0.2, status_forcelist=[500, 502, 503, 504]),
+)
+
+storage = TinyStorageHandler(http_client=http)
+\`\`\`
+
+### Utility Functions
+
+\`\`\`python
+from tinysdk.utils import get_date, is_valid, exception_logger, retry
+
+# Get current UTC timestamp
+timestamp = get_date()  # Returns ISO 8601 format
+
+# Validate dictionary keys
+data = {"name": "John", "email": "john@example.com"}
+if is_valid(data, ["name", "email"]):
+    print("All required fields present")
+
+# Use decorators
+@exception_logger
+def my_function():
+    # Automatically logs exceptions
+    pass
+
+@retry(exceptions=(ConnectionError,), tries=3, delay=2)
+def flaky_operation():
+    # Retries on ConnectionError with exponential backoff
+    pass
+\`\`\`
+
+## Migration from Duplicated Code
+
+If you're migrating from duplicated service files:
+
+1. **Install TinySDK**:
+   \`\`\`bash
+   pip install tinysdk
+   \`\`\`
+
+2. **Update imports**:
+   \`\`\`python
+   # Before:
+   from src.tiny_db_service import TinyDBService
+   from src.storage_handler import TinyStorageHandler
+   from src.msg_service import TinyMessageService
+
+   # After:
+   from tinysdk import TinyDBService, TinyStorageHandler, TinyMessageService
+   # Or for sync messaging:
+   from tinysdk import TinyMessageServiceSync
+   \`\`\`
+
+3. **Remove old files**:
+   \`\`\`bash
+   rm src/tiny_db_service.py src/storage_handler.py src/msg_service.py
+   \`\`\`
+
+4. **Update requirements.txt**:
+   \`\`\`
+   tinysdk>=0.1.0
+   \`\`\`
+
+## Development
+
+### Setup
+
+\`\`\`bash
+git clone https://github.com/SynapzeGmbH/TinySDK.git
+cd TinySDK
+python3 -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
+\`\`\`
+
+### Running Tests
+
+\`\`\`bash
+pytest tests/ -v
+\`\`\`
+
+### Code Formatting
+
+\`\`\`bash
+ruff format src/ tests/
+ruff check src/ tests/ --fix
+\`\`\`
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+- Code follows the existing style (ruff formatting)
+- All tests pass
+- New features include tests and documentation
+
+## Support
+
+For issues and questions, please open an issue on [GitHub](https://github.com/SynapzeGmbH/TinySDK/issues).
