@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReplaceText | Batch Text Replacement with Dictionaries</title>
+    <meta name="description" content="Replace text in files based on dictionaries. Bidirectional replacement, configurable ignore patterns, Python CLI tool.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #030014;
+            --text: #ffffff;
+            --accent-1: #0ea5e9;
+            --accent-2: #6366f1;
+            --accent-3: #8b5cf6;
+            --card-bg: rgba(14, 165, 233, 0.08);
+            --card-border: rgba(14, 165, 233, 0.2);
+        }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Space Grotesk', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        code, pre { font-family: 'JetBrains Mono', monospace; }
+        .bg-gradient {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+        }
+        .bg-gradient::before {
+            content: ''; position: absolute; width: 150%; height: 150%; top: -25%; left: -25%;
+            background:
+                radial-gradient(ellipse at 20% 30%, rgba(14, 165, 233, 0.25) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 50%, rgba(99, 102, 241, 0.2) 0%, transparent 50%),
+                radial-gradient(ellipse at 40% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+            animation: gradient-shift 20s ease-in-out infinite;
+        }
+        @keyframes gradient-shift {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            50% { transform: translate(2%, 2%) rotate(1deg); }
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+        /* Header */
+        .site-header {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            padding: 16px 24px;
+            background: rgba(3, 0, 20, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .site-header .container {
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .site-header a { text-decoration: none; color: inherit; }
+        .site-header .brand {
+            font-weight: 600; font-size: 1rem; color: rgba(255,255,255,0.9);
+            transition: color 0.2s;
+        }
+        .site-header .brand:hover { color: var(--accent-1); }
+        .site-header .nav-links {
+            display: flex; align-items: center; gap: 24px;
+        }
+        .site-header .nav-link {
+            color: rgba(255,255,255,0.7); font-size: 0.9rem; transition: color 0.2s;
+        }
+        .site-header .nav-link:hover { color: white; }
+        .site-header .github-link {
+            color: rgba(255,255,255,0.6); transition: color 0.2s;
+        }
+        .site-header .github-link:hover { color: white; }
+
+        .hero {
+            min-height: 70vh; display: flex; flex-direction: column; justify-content: center;
+            padding: 120px 0 60px; text-align: center;
+        }
+        .logo { font-size: 4rem; margin-bottom: 16px; }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 700; margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .hero .tagline {
+            font-size: 1.25rem; color: rgba(255,255,255,0.7); max-width: 600px; margin: 0 auto 32px;
+        }
+        .badges { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+        .badge {
+            padding: 8px 16px; background: var(--card-bg); border: 1px solid var(--card-border);
+            border-radius: 999px; font-size: 0.85rem; color: var(--accent-1);
+        }
+        .badge-highlight {
+            background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.3);
+            color: #a78bfa;
+        }
+        .buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px;
+            border-radius: 12px; font-size: 1rem; font-weight: 600; text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 20px 40px rgba(14, 165, 233, 0.3); }
+        .btn-secondary {
+            background: var(--card-bg); color: white; border: 1px solid var(--card-border);
+        }
+        .btn-secondary:hover { border-color: var(--accent-1); }
+        .btn svg { width: 20px; height: 20px; }
+
+        .install {
+            background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px;
+            padding: 20px 24px; margin-bottom: 60px; display: flex; align-items: center;
+            justify-content: space-between; gap: 16px; flex-wrap: wrap;
+        }
+        .install code { font-size: 1.1rem; color: var(--accent-1); }
+        .install button {
+            background: rgba(255,255,255,0.1); border: none; padding: 8px 16px;
+            border-radius: 8px; color: white; cursor: pointer; font-size: 0.9rem;
+        }
+        .install button:hover { background: rgba(255,255,255,0.2); }
+
+        .features { padding: 60px 0; }
+        .section-title { font-size: 2rem; font-weight: 700; text-align: center; margin-bottom: 48px; }
+        .feature-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px;
+        }
+        .feature {
+            background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px;
+            padding: 24px; transition: all 0.3s ease;
+        }
+        .feature:hover { border-color: var(--accent-1); transform: translateY(-4px); }
+        .feature-icon { font-size: 2rem; margin-bottom: 12px; }
+        .feature h3 { font-size: 1.1rem; margin-bottom: 8px; }
+        .feature p { font-size: 0.9rem; color: rgba(255,255,255,0.7); }
+
+        .code-section { padding: 60px 0; }
+        .code-block {
+            background: #0d1117; border: 1px solid #30363d; border-radius: 12px; overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .code-header {
+            background: #161b22; padding: 12px 16px; border-bottom: 1px solid #30363d;
+            font-size: 0.85rem; color: rgba(255,255,255,0.6);
+        }
+        .code-block pre { padding: 20px; overflow-x: auto; font-size: 0.9rem; line-height: 1.6; }
+        .code-block code { color: #e6edf3; }
+        .comment { color: #8b949e; }
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        .key { color: #7ee787; }
+
+        footer {
+            padding: 40px 0; text-align: center; border-top: 1px solid var(--card-border); margin-top: 60px;
+        }
+        footer p { color: rgba(255,255,255,0.5); font-size: 0.9rem; }
+        footer a { color: var(--accent-1); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            .hero { padding: 80px 0 40px; min-height: auto; }
+            .install { flex-direction: column; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-gradient"></div>
+
+    <header class="site-header">
+        <div class="container">
+            <a href="https://cainky.github.io/" class="brand">Kyle Cain</a>
+            <nav class="nav-links">
+                <a href="https://cainky.github.io/#projects" class="nav-link">Projects</a>
+                <a href="https://github.com/cainky" target="_blank" rel="noopener" class="github-link">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <div class="logo">🔄</div>
+            <h1>ReplaceText</h1>
+            <p class="tagline">Batch text replacement powered by dictionaries. Replace keys with values or values with keys across entire directories.</p>
+            <div class="badges">
+                <span class="badge">Python 3.8+</span>
+                <span class="badge">Poetry</span>
+                <span class="badge badge-highlight">Bidirectional</span>
+                <span class="badge">GPL-3.0</span>
+            </div>
+            <div class="buttons">
+                <a href="https://github.com/cainky/ReplaceText" target="_blank" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    View on GitHub
+                </a>
+                <a href="https://github.com/cainky/ReplaceText#usage" target="_blank" class="btn btn-secondary">
+                    Documentation
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+        <div class="install">
+            <code>git clone https://github.com/cainky/ReplaceText.git && cd ReplaceText && poetry install</code>
+            <button onclick="navigator.clipboard.writeText('git clone https://github.com/cainky/ReplaceText.git && cd ReplaceText && poetry install')">Copy</button>
+        </div>
+    </div>
+
+    <section class="features">
+        <div class="container">
+            <h2 class="section-title">Features</h2>
+            <div class="feature-grid">
+                <div class="feature">
+                    <div class="feature-icon">🔁</div>
+                    <h3>Bidirectional Replacement</h3>
+                    <p>Replace keys with values or values with keys. Perfect for encoding/decoding or reversible transformations.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📚</div>
+                    <h3>Multiple Dictionaries</h3>
+                    <p>Define multiple replacement dictionaries in one config file and switch between them easily.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🚫</div>
+                    <h3>Smart Ignore Patterns</h3>
+                    <p>Skip files by extension, prefix, or entire directories. Never accidentally modify binaries or dependencies.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📁</div>
+                    <h3>Batch Processing</h3>
+                    <p>Process entire directories at once. Recursively replace text across all matching files.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚙️</div>
+                    <h3>JSON Configuration</h3>
+                    <p>Simple JSON config file for dictionaries and ignore patterns. Easy to version control.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Auto-Select Dictionary</h3>
+                    <p>If only one dictionary exists, it's automatically selected. No extra prompts needed.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="code-section">
+        <div class="container">
+            <h2 class="section-title">Quick Start</h2>
+            <div class="code-block">
+                <div class="code-header">config.json</div>
+                <pre><code>{
+  <span class="key">"dictionaries"</span>: {
+    <span class="key">"obfuscate"</span>: {
+      <span class="string">"password"</span>: <span class="string">"p4ssw0rd"</span>,
+      <span class="string">"admin"</span>: <span class="string">"4dm1n"</span>,
+      <span class="string">"secret"</span>: <span class="string">"s3cr3t"</span>
+    }
+  },
+  <span class="key">"ignore_extensions"</span>: [<span class="string">".exe"</span>, <span class="string">".dll"</span>, <span class="string">".bin"</span>],
+  <span class="key">"ignore_directories"</span>: [<span class="string">"node_modules"</span>, <span class="string">"venv"</span>, <span class="string">".git"</span>],
+  <span class="key">"ignore_file_prefixes"</span>: [<span class="string">"."</span>, <span class="string">"_"</span>]
+}</code></pre>
+            </div>
+            <div class="code-block">
+                <div class="code-header">Terminal</div>
+                <pre><code><span class="comment"># Run the replacement tool</span>
+$ poetry run python replace_text/replace_text.py
+
+<span class="comment"># Select direction:</span>
+<span class="string">Enter '1' for keys-to-values</span>
+<span class="string">Enter '2' for values-to-keys</span>
+
+<span class="comment"># Enter folder path and dictionary name</span>
+<span class="comment"># All matching files will be processed!</span></code></pre>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>Built by <a href="https://cainky.github.io/">Kyle Cain</a> &middot; <a href="https://github.com/cainky/ReplaceText">GitHub</a></p>
+        </div>
+    </footer>
+</body>
+</html>
