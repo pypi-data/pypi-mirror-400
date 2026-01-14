@@ -1,0 +1,101 @@
+Metadata-Version: 2.4
+Name: proliferate-ai
+Version: 0.2.2
+Summary: Proliferate Error Monitoring SDK for Python
+Project-URL: Homepage, https://proliferate.dev
+Project-URL: Documentation, https://docs.proliferate.dev/sdk/python
+Project-URL: Repository, https://github.com/proliferate-ai/proliferate-python
+Project-URL: Issues, https://github.com/proliferate-ai/proliferate-python/issues
+Author-email: Proliferate <support@proliferate.dev>
+License-Expression: MIT
+Keywords: error-monitoring,error-tracking,exception-handling,proliferate
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Monitoring
+Requires-Python: >=3.9
+Requires-Dist: httpx>=0.25.0
+Provides-Extra: dev
+Requires-Dist: build>=1.0.0; extra == 'dev'
+Requires-Dist: mypy>=1.0.0; extra == 'dev'
+Requires-Dist: pytest-asyncio>=0.21.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Requires-Dist: twine>=4.0.0; extra == 'dev'
+Provides-Extra: fastapi
+Requires-Dist: starlette>=0.27.0; extra == 'fastapi'
+Description-Content-Type: text/markdown
+
+# proliferate-ai
+
+Python SDK for Proliferate Error Monitoring.
+
+## Installation
+
+```bash
+pip install proliferate-ai
+```
+
+## Quick Start
+
+```python
+import proliferate
+
+# Initialize the SDK
+proliferate.init(
+    api_key="pk_your_api_key",
+    environment="production",
+    release="1.0.0",
+)
+
+# Set user context (optional)
+proliferate.set_user(id="user_123", email="user@example.com")
+```
+
+## Automatic Error Capture
+
+After initialization, the SDK automatically captures:
+
+- Uncaught exceptions (`sys.excepthook`)
+- Unhandled exceptions in threads (`threading.excepthook`)
+
+## Manual Error Capture
+
+```python
+try:
+    risky_operation()
+except Exception as e:
+    proliferate.capture_exception(e)
+```
+
+## FastAPI Integration
+
+```bash
+pip install proliferate-ai[fastapi]
+```
+
+```python
+from fastapi import FastAPI
+import proliferate
+from proliferate.integrations.fastapi import ProliferateMiddleware
+
+proliferate.init(
+    api_key="pk_your_api_key",
+    environment="production",
+    release="1.0.0",
+)
+
+app = FastAPI()
+app.add_middleware(ProliferateMiddleware)
+```
+
+## Documentation
+
+See [docs.proliferate.dev/sdk/python](https://docs.proliferate.dev/sdk/python) for full documentation.
