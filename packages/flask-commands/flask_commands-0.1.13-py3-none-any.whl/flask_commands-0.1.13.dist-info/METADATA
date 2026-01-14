@@ -1,0 +1,135 @@
+Metadata-Version: 2.4
+Name: flask-commands
+Version: 0.1.13
+Summary: A set of command line tools that help you scaffold out your flask application quickly.
+License: MIT
+License-File: LICENSE
+Author: Drew Butcher
+Author-email: drewlbutcher@gmail.com
+Requires-Python: >=3.10
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Provides-Extra: docs
+Requires-Dist: click (>=8.3.1,<9.0.0)
+Requires-Dist: myst-parser (>=4.0.1,<5.0.0) ; extra == "docs"
+Requires-Dist: sphinx (<9) ; extra == "docs"
+Requires-Dist: sphinx-autodoc-typehints (<3) ; extra == "docs"
+Requires-Dist: sphinx-copybutton ; extra == "docs"
+Requires-Dist: sphinx-rtd-theme (>=3.0.2,<4.0.0) ; extra == "docs"
+Description-Content-Type: text/markdown
+
+# <img src="docs/source/_static/flask-commands-logo.svg" alt="Flask-Commands logo" width="200" style="display:inline-block; vertical-align:middle;"> Flask-Commands
+
+[![pypi](https://img.shields.io/pypi/v/flask-commands.svg?cacheSeconds=300)](https://pypi.org/project/flask-commands/)
+[![tests](https://img.shields.io/github/actions/workflow/status/drewbutcher/flask-commands/tests.yml?branch=main)](https://github.com/drewbutcher/flask-commands/actions)
+[![docs](https://img.shields.io/readthedocs/flask-commands/latest)](https://flask-commands.readthedocs.io/)
+[![license](https://img.shields.io/pypi/l/flask-commands.svg)](https://github.com/drewbutcher/flask-commands/blob/main/LICENSE)
+
+**Flask-Commands** is a local-first CLI tool that scaffolds Flask projects and keeps generating views, routes, controllers, and models for you so you can stay in flow. This is still very much in a beta stage, so try it out at your own risk.
+
+## Getting Started
+
+Flask-Commands bundles a few opinionated conveniences:
+
+- `flask new` bootstraps a ready-to-run Flask project with virtualenv, dotenv, Tailwind wiring, and optional SQLite + migrations.
+- `flask make:view` generates HTML views and can optionally add controllers, routes/blueprints, and SQLAlchemy models to match.
+
+The goal is to remove the repetitive setup work while keeping everything local and transparent.
+
+## Installation
+
+Flask-Commands is designed to be installed globally so you can create new Flask apps anywhere on your machine.
+
+```bash
+pip install Flask-Commands
+```
+
+> The published console script is `flask`. If you have a clash with Flask’s own CLI, run with `python -m flask_commands.cli ...` or rename the script in `pyproject.toml`.
+
+## Quick Start
+
+```bash
+flask new myproject          # add --no-db if you want to skip SQLite/migrations
+cd myproject
+source venv/bin/activate
+flask run --debug            # or ./run.sh on macOS to open terminals + Tailwind watcher
+```
+
+Add a first page with controller and route wiring:
+
+```bash
+flask make:view posts.index -cr
+flask make:view admin.users.show -cr   # nested example
+```
+
+Tailwind is installed automatically when `npm` is available; otherwise the tool skips it with a warning.
+
+## Commands
+
+### flask new
+
+After installing Flask-Commands globally, you’ll have access to a new command called `flask`, which lets you quickly scaffold Flask applications from the terminal.
+
+```bash
+flask new myproject
+```
+
+Once the command completes, you’ll see a new directory called `myproject/` that contains everything you need to get a Flask application up and running.
+
+What you get:
+
+- A Python virtual environment `venv/` with core Flask dependencies pre-installed and listed in `requirements.txt`.
+- When using `--db` (enabled by default unless `--no-db` is specified), the following are also included:
+  - Flask-Migrate
+  - Flask-SQLAlchemy
+  - A seeded SQLite database with a users table
+  - An initial migration already applied
+- A blueprint-based application skeleton under `app/`, organized by responsibility:
+  - **Model** `app/models/` defining all your application’s data models/structure along with their methods.
+  - **View** `app/templates/` containing all HTML templates (including macros/components) used by the application.
+  - **Controller** `app/controllers/` housing controller classes responsible for the logic to gather and serve the requested data.
+  - **URL** `app/routes/` declaring URL paths and connecting them to controllers.
+- The project entry point at `run.py`.
+- Centralized configuration files under `config/`.
+- If `npm` is installed, a Tailwind-ready static asset pipeline at `app/static/src/`, including npm scripts for watching and building CSS.
+- Environment configuration files:
+  - `.env`
+  - `.env.example`
+- A default blueprint named `mains`, defined in `app/__init__.py`:
+  - Routes at `app/routes/mains`
+  - A controller at `app/controllers/main_controller` named `MainController`
+  - A starter “Hello World” template at `app/templates/mains/index.html`
+- A macOS-friendly helper script `run.sh` for starting the application with a single command:
+
+```bash
+./run.sh
+```
+
+You can review this structure directly in the Flask-Commands source under `flask_commands/project`.
+
+### flask make:view
+
+Generates template files under `app/templates/` from dotted paths (for example, `posts.index` maps to `app/templates/posts/index.html`). Optional flags wire up matching components:
+
+- `-c/--generate-controller` or `--controller NAME` creates or extends the controller class.
+- `-r/--generate-route` or `--route PATH` adds blueprint routes (CRUD verbs inferred when possible).
+- `-m/--generate-model` or `--model NAME` seeds a SQLAlchemy model and import stub.
+
+Examples:
+
+```bash
+flask make:view button                    # view-only snippet
+flask make:view posts.index -crm          # view + controller + route + model
+flask make:view posts.show --route /posts/<int:post_id> --controller PostController
+```
+
+## Contributing
+
+I’m keeping development closed for now, but feedback is welcome.
+Please open an issue for bugs or ideas. License: MIT.
+
