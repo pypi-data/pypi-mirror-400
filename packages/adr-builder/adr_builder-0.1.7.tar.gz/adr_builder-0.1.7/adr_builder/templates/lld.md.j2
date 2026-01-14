@@ -1,0 +1,173 @@
+# ADR: {{ title }}
+
+**ADR #:** {{ adr_number or "ADR-YYYYMMDD-XX" }}
+**Status:** {{ status }}
+**Date:** {{ date or "" }}
+**Author / Owner:** {{ authors | join(", ") if authors else "TBD" }}
+{% if parent_adr %}
+**Parent ADR:** {{ parent_adr }}
+{% endif %}
+{% if reviewers %}
+**Reviewers:** {{ reviewers | join(", ") }}
+{% endif %}
+{% if tags %}
+**Tags:** {{ tags | join(", ") }}
+{% endif %}
+
+## Context
+{% if context and context.background %}
+{{ context.background }}
+{% else %}
+This ADR captures the implementation patterns and concrete operational decisions for the system. It implements and realizes the High-Level ADR referenced above.
+{% endif %}
+{% if context and context.constraints %}
+
+**Constraints:**
+{% for c in context.constraints %}
+- {{ c }}
+{% endfor %}
+{% endif %}
+
+## Decision (Summary)
+{% if decision %}
+{{ decision.rationale if decision.rationale else "Describe the implementation approach and key technical decisions." }}
+{% else %}
+Describe the implementation approach and key technical decisions.
+{% endif %}
+{% if options %}
+
+**Implementation Choices:**
+{% for opt in options %}
+- **{{ opt.name }}:** {% if opt.pros %}{{ opt.pros | join("; ") }}{% endif %}
+
+{% endfor %}
+{% endif %}
+
+## Detailed Rationale
+{% if rationale %}
+{% for r in rationale %}
+{% if r is mapping %}
+- **{{ r.name if r.name else "Rationale" }}**: {{ r.description }}
+{% else %}
+- {{ r }}
+{% endif %}
+{% endfor %}
+{% else %}
+- Explain why specific technologies and patterns were chosen.
+- Reference alignment with HLD principles and organizational standards.
+{% endif %}
+
+## Component Design & Diagrams
+{% if components %}
+{% for comp in components %}
+
+### {{ comp.name }}
+{% if comp.responsibilities %}
+**Responsibilities:** {{ comp.responsibilities | join(", ") if comp.responsibilities is iterable and comp.responsibilities is not string else comp.responsibilities }}
+{% endif %}
+{% if comp.services %}
+**Suggested Components:** {{ comp.services | join(", ") if comp.services is iterable and comp.services is not string else comp.services }}
+{% endif %}
+{% if comp.diagram %}
+**Diagram:** {{ comp.diagram }}
+{% else %}
+**Diagram:** *[Attach logical & deployment diagrams]*
+{% endif %}
+{% endfor %}
+{% else %}
+
+### Component A
+**Responsibilities:** Describe what this component handles.
+**Suggested Components:** List services, APIs, or infrastructure.
+**Diagram:** *[Attach logical & deployment diagrams]*
+
+### Component B
+**Responsibilities:** Describe what this component handles.
+**Suggested Components:** List services, APIs, or infrastructure.
+**Diagram:** *[Attach logical & deployment diagrams]*
+{% endif %}
+
+## Configuration & Operational Details
+{% if operations %}
+- **Regions & Availability:** {{ operations.regions | join(", ") if operations.regions is iterable and operations.regions is not string else operations.regions if operations.regions else "Define primary region and replication strategy." }}
+- **Networking:** {{ operations.networking | join("; ") if operations.networking is iterable and operations.networking is not string else operations.networking if operations.networking else "Describe subnet layout, security groups, and connectivity." }}
+- **Scaling & Capacity:** {{ operations.scaling | join("; ") if operations.scaling is iterable and operations.scaling is not string else operations.scaling if operations.scaling else "Define baseline capacity and autoscaling rules." }}
+- **Monitoring:** {{ operations.monitoring | join("; ") if operations.monitoring is iterable and operations.monitoring is not string else operations.monitoring if operations.monitoring else "Specify SLOs, metrics, and alerting thresholds." }}
+- **Backup & DR:** {{ operations.backup | join("; ") if operations.backup is iterable and operations.backup is not string else operations.backup if operations.backup else "Document backup schedules and disaster recovery procedures." }}
+{% else %}
+- **Regions & Availability:** Define primary region and replication strategy.
+- **Networking:** Describe subnet layout, security groups, and connectivity.
+- **Scaling & Capacity:** Define baseline capacity and autoscaling rules.
+- **Monitoring:** Specify SLOs, metrics, and alerting thresholds.
+- **Backup & DR:** Document backup schedules and disaster recovery procedures.
+{% endif %}
+
+## Security Considerations
+{% if security %}
+- **Threat Model & Mitigations:** {{ security.threat_model if security.threat_model else "Document threats and security controls." }}
+- **Secrets Management:** {{ security.secrets if security.secrets else "Define secrets storage and rotation policies." }}
+- **Compliance:** {{ security.compliance | join(", ") if security.compliance is iterable and security.compliance is not string else security.compliance if security.compliance else "List regulatory requirements (PII, HIPAA, SOC2, etc.)." }}
+- **Review Requirements:** {{ security.review if security.review else "Security review required before production." }}
+{% else %}
+- **Threat Model & Mitigations:** Document threats and security controls.
+- **Secrets Management:** Define secrets storage and rotation policies.
+- **Compliance:** List regulatory requirements (PII, HIPAA, SOC2, etc.).
+- **Review Requirements:** Security review required before production.
+{% endif %}
+
+## Testing / Validation
+{% if testing %}
+{% for t in testing %}
+- {{ t }}
+{% endfor %}
+{% else %}
+- Unit and integration tests for all services.
+- Load/performance testing with defined SLO targets.
+- Staging environment must mirror production.
+- Smoke tests and SLO verification before promotion.
+{% endif %}
+
+## Rollout & Rollback Plan
+{% if rollout %}
+- **Rollout Strategy:** {{ rollout.strategy if rollout.strategy else "Define deployment approach (canary, blue-green, etc.)." }}
+- **Rollback Plan:** {{ rollout.rollback if rollout.rollback else "Define rollback procedures per component." }}
+- **Feature Flags:** {{ rollout.feature_flags | join(", ") if rollout.feature_flags is iterable and rollout.feature_flags is not string else rollout.feature_flags if rollout.feature_flags else "List feature flags for gradual rollout." }}
+{% else %}
+- **Rollout Strategy:** Canary deployments for APIs and services.
+- **Rollback Plan:** Image rollback + infrastructure rollback via IaC.
+- **Feature Flags:** Use feature flags for gradual UI rollout.
+{% endif %}
+
+## Dependencies
+{% if dependencies %}
+{% for dep in dependencies %}
+- {{ dep }}
+{% endfor %}
+{% elif references %}
+{% if references.related_adrs %}
+{% for adr in references.related_adrs %}
+- {{ adr }}
+{% endfor %}
+{% endif %}
+{% if references.links %}
+{% for link in references.links %}
+- {{ link }}
+{% endfor %}
+{% endif %}
+{% else %}
+- Parent HLD ADR (diagrams and business context).
+- Platform/infrastructure team setup.
+- Security approvals for identity and key management.
+{% endif %}
+
+## Owner / Next Steps
+{% if next_steps %}
+{% for step in next_steps %}
+{{ loop.index }}. {{ step }}
+{% endfor %}
+{% else %}
+1. Attach deployment diagrams and finalize service choices.
+2. Create IaC templates and CI/CD pipeline.
+3. Submit implementation PRs for review.
+4. Upon approval, mark ADR as `Accepted` and track rollout.
+{% endif %}
