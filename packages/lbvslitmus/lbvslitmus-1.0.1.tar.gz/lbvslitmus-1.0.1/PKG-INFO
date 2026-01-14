@@ -1,0 +1,484 @@
+Metadata-Version: 2.4
+Name: LBVSLitmus
+Version: 1.0.1
+Summary: A modern platform for benchmarking ligand-based virtual screening methods with automated data processing, ML training, and evaluation. Supports molecular fingerprints, neural embeddings, similarity search, and ML classifiers.
+License-File: LICENSE
+Author: Kacper Szot
+Author-email: kacperszot1@gmail.com
+Requires-Python: >=3.10,<3.14
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Topic :: Scientific/Engineering :: Medical Science Apps.
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Dist: fastparquet (>=2024.11.0)
+Requires-Dist: hf-xet
+Requires-Dist: huggingface-hub
+Requires-Dist: joblib (>=1.4.2)
+Requires-Dist: lightgbm (>=4,<5)
+Requires-Dist: matplotlib
+Requires-Dist: notebook (>=7.4.7,<8.0.0)
+Requires-Dist: numba (>=0.61.2)
+Requires-Dist: numpy (>=1.20.0,<3)
+Requires-Dist: pandas (<3)
+Requires-Dist: pyarrow (>=16.1.0)
+Requires-Dist: rdkit (<=2024.9.5)
+Requires-Dist: requests (>=2.32.3)
+Requires-Dist: scikit-fingerprints (>=1.15.0)
+Requires-Dist: scikit-learn (>=1.0.0,<2)
+Requires-Dist: scipy (>=1.0.0,<2)
+Requires-Dist: seaborn
+Requires-Dist: tqdm (>=4.0.0,<5)
+Description-Content-Type: text/markdown
+
+# Litmus
+
+>Ligand-based virtual screening is one of the most popular chemoinformatics approaches to screening for bioactive compounds in large molecular databases. It utilizes molecule vectorization approaches and machine learning (ML) models to identify potential bioactive molecules for novel problems. It poses a significant challenge due to extreme data imbalance (often <1% positive class), large datasets, and frequency of false positives. There is a pressing need for modern benchmark for evaluating algorithms in this area, with the most popular software published in 2013 and based on Python 2. The created platform should have an extendible, modular structure, allowing usage of many benchmarking datasets, molecular embedding algorithms, and evaluation methods. In particular, it should automate the data downloading, preprocessing, training of ML algorithms, evaluation, and statistical analysis of results. Practical tests of created software should include benchmarking multiple molecular fingerprints. Embedding from pretrained neural networks can also be analyzed. Bioactive search should support both efficient similarity searching based on appropriate distance metrics and ML classifiers like logistic regression and boosted ensembles.
+
+A comprehensive platform for benchmarking ligand-based virtual screening methods with scikit-learn compatible interfaces.
+
+## Features
+
+- Standardized benchmarking protocols for virtual screening methods
+- Scikit-learn compatible API
+- Built-in dataset loaders and metrics
+- Comprehensive documentation and examples
+
+## Glossary
+* **Dataset**
+A single protein-ligand pairing task, consisting of one target protein (y) and a set of associated ligands (X). It represents one learning or prediction unit, typically used in structure-based drug discovery workflows.
+
+* **Benchmark**
+A curated collection of datasets proposed in the literature to evaluate models across a range of protein-ligand tasks. Benchmarks often represent a standard suite of datasets used to compare algorithmic performance under consistent conditions.
+
+* **Platform**
+An overarching collection of datasets, possibly post-processed (e.g., deduplicated, filtered) to meet certain criteria such as target uniqueness. A platform is designed to serve as a consistent, reusable foundation for large-scale experimentation and model development.
+
+## Available datasets
+
+All datasets are hosted on HuggingFace Hub and are automatically downloaded when used:
+- [x] **MUV** - 17 targets, Parquet format
+- [x] **LIT-PCBA** - 15 targets, Parquet format
+- [x] **WelQrate** - 9 targets, Parquet format, 5 seeds for cross-validation
+- [x] **DUD-AD** - 55 targets, CSV format
+
+Datasets are available at: https://huggingface.co/datasets/scikit-fingerprints/litmus
+
+## How to use this benchmark?
+
+All datasets are automatically downloaded from HuggingFace Hub when first used.
+The example below demonstrates how to use the `Benchmark` class to evaluate the performance
+of an embedding method. In this case, we will benchmark the ECFPFingerprint from the `skfp` library.
+
+**Note:** For WelQrate dataset, the benchmark automatically runs cross-validation across all 5 seeds
+and reports both per-seed results and averaged results.
+
+```python
+from skfp.fingerprints import ECFPFingerprint
+from skfp.preprocessing import MolFromSmilesTransformer
+from sklearn.pipeline import make_pipeline
+
+from litmus.benchmarking.benchmark import Benchmark
+
+# Define a pipeline that transforms SMILES strings into numerical vectors.
+# The pipeline must expose a `fit_transform` method.
+pipeline = make_pipeline(
+    MolFromSmilesTransformer(suppress_warnings=True), ECFPFingerprint()
+)
+
+# Create a Benchmark object and provide the pipline to the benchmark
+benchmark = Benchmark(pipeline=pipeline)
+
+# Run the benchmark
+results = benchmark.run()
+
+# Print a summary of the results
+print(results.summary)
+```
+## Dataset Splitting
+
+Litmus provides advanced dataset splitting capabilities for virtual screening experiments, ensuring proper train/test separation while maintaining class balance and molecular diversity.
+
+### Max-Min Splitting Algorithm
+
+The platform implements a **max-min splitting algorithm** that:
+- Separates active and inactive compounds independently
+- Maintains class balance in both train and test sets
+- Ensures molecular diversity through maximum dissimilarity selection
+- Supports reproducible splits with configurable random seeds
+- Handles extreme class imbalance common in virtual screening datasets
+
+### Working with Dataset Splits
+
+#### Loading Pre-generated Splits
+
+All datasets come with pre-generated train/test splits that are automatically downloaded
+from HuggingFace Hub. These splits are generated using the max-min algorithm to ensure
+molecular diversity and class balance.
+
+Access pre-generated splits for reproducible experiments:
+
+```python
+from litmus.datasets import LITPCBADownloader, MUVDownloader, WelQrateDownloader
+
+# Load full dataset
+lit_pcba_downloader = LITPCBADownloader()
+df = lit_pcba_downloader.load(target="OPRK1")
+
+# Get split indices (automatically downloaded from HuggingFace)
+splits = lit_pcba_downloader.get_splits(target="OPRK1")
+
+# Create train and test subsets
+train_df = df.iloc[splits["train"]].copy()
+test_df = df.iloc[splits["test"]].copy()
+
+# For WelQrate, you can specify a seed for cross-validation (1-5)
+welqrate_downloader = WelQrateDownloader()
+df = welqrate_downloader.load(target="AID2258")
+splits = welqrate_downloader.get_splits(target="AID2258", seed=1)  # Use seed 1
+```
+
+#### Custom Split Generation (Not Recommended)
+
+⚠️ **Warning**: Generating custom splits is **not recommended** for reproducible research. Use pre-generated splits whenever possible to ensure consistent benchmarking across studies.
+
+However, if you need custom splits for specific research requirements:
+
+```python
+from litmus.model_selection.splitters.maxmin_split import maxmin_train_test_split
+
+# Load your dataset
+df = lit_pcba_downloader.load(target="OPRK1")
+
+# Separate active and inactive compounds
+active_smiles = df[df["OPRK1"] == 1]["SMILES"].tolist()
+inactive_smiles = df[df["OPRK1"] == 0]["SMILES"].tolist()
+
+# Generate custom splits with different parameters
+train_active, test_active = maxmin_train_test_split(
+    data=active_smiles,
+    train_size=0.8,  # 80% for training (different from default 75%)
+    random_state=123,  # Custom random seed
+    show_progress=True
+)
+
+train_inactive, test_inactive = maxmin_train_test_split(
+    data=inactive_smiles,
+    train_size=0.8,
+    random_state=123,
+    show_progress=True
+)
+
+# Combine indices
+train_idx = train_active + train_inactive
+test_idx = test_active + test_inactive
+
+# Save custom splits (optional)
+import numpy as np
+np.save("custom_train_idx.npy", train_idx)
+np.save("custom_test_idx.npy", test_idx)
+```
+
+**Important considerations for custom splits:**
+- Document your splitting parameters and random seed
+- Ensure class balance is maintained
+- Consider molecular diversity in your split
+- Validate split quality before proceeding with experiments
+
+### Supported File Formats
+
+- **Parquet**: High-performance columnar format (MUV, LIT-PCBA, WelQrate)
+- **CSV**: Standard comma-separated values format (DUD-AD)
+- **NumPy arrays**: All splits are provided as `.npy` files with train/test indices
+
+All datasets and splits are automatically downloaded from HuggingFace Hub when first accessed.
+
+### Example Scripts
+
+Check out the example scripts in the `examples/` directory:
+- `work_with_dataset_splits.py`: Comprehensive example of working with dataset splits
+- `download_muv_dataset.py`: Example of downloading and using MUV dataset
+- `download_lit_pcba_dataset.py`: Example of downloading and using LIT-PCBA dataset
+- `download_welqrate_dataset.py`: Example of downloading and using WelQrate dataset with seeds
+- `benchmarking_example.py`: Example of running benchmarks (includes WelQrate cross-validation)
+
+## Visualization Guide
+
+Litmus provides comprehensive visualization tools for analyzing and interpreting benchmark results. This section describes each chart type, what it shows, and how to interpret the results.
+
+### Quick Start
+
+```python
+from litmus.visualization import plot_all, plot_model_comparison, plot_top_targets
+
+# Generate all plots at once
+plot_all(results, output_dir="plots")
+
+# Or generate specific plots
+plot_model_comparison(results, output_dir="plots")
+plot_top_targets(results, n_targets=15, output_dir="plots")
+```
+
+### Available Charts
+
+#### 1. Model Comparison (`model_comparison.png`)
+
+**What it shows:** Boxplots comparing the distribution of metric scores (AUROC, AUPRC, BEDROC) across different models.
+
+**How to interpret:**
+- Each subplot represents one metric (e.g., AUROC, AUPRC, BEDROC)
+- The box shows the interquartile range (IQR) - middle 50% of scores
+- The horizontal line inside the box is the median score
+- Whiskers extend to 1.5× IQR; points beyond are outliers
+- Mean values are annotated on top of each box
+- **Higher and tighter boxes indicate better and more consistent performance**
+- Compare boxes side-by-side to see which model performs better overall
+
+**Use case:** Quick comparison of overall model performance across all targets and datasets.
+
+---
+
+#### 2. Benchmark Performance (`benchmark_performance.png`)
+
+**What it shows:** Grouped bar charts showing average metric scores for each model across different benchmarks/datasets.
+
+**How to interpret:**
+- Each subplot represents one metric (AUROC, AUPRC)
+- X-axis shows different benchmarks (MUV, LIT-PCBA, DUD-AD, WELQRATE)
+- Y-axis shows the average score
+- Bars are grouped by model, using consistent colors
+- **Taller bars indicate better performance on that benchmark**
+- Compare bar heights within each benchmark to see relative model performance
+
+**Use case:** Understanding how models perform on different types of datasets and identifying dataset-specific strengths/weaknesses.
+
+---
+
+#### 3. Benchmark Heatmap (`benchmark_heatmap.png`)
+
+**What it shows:** Heatmaps displaying average scores for each benchmark-metric combination, with separate heatmaps per model.
+
+**How to interpret:**
+- Rows represent benchmarks (datasets)
+- Columns represent different metrics
+- Color intensity indicates score magnitude (darker = higher for YlOrRd colormap)
+- Numerical values are annotated in each cell
+- **Look for patterns:** consistent high scores across metrics indicate robust performance
+- **Red/orange cells** indicate strong performance; **yellow cells** indicate weaker performance
+
+**Use case:** Comprehensive overview of model performance across all dimensions; identifying which metrics a model excels at.
+
+---
+
+#### 4. Violin Grid (`violin_grid.png`)
+
+**What it shows:** A grid of violin plots where rows are datasets and columns are metrics, showing the full distribution of scores.
+
+**How to interpret:**
+- Each cell shows the score distribution for one dataset-metric combination
+- Violin width indicates density of scores at that value (wider = more common)
+- Red diamond markers show the mean value
+- Inner points show individual data points
+- **Wider violins at high values indicate consistently good performance**
+- **Bimodal distributions** (two peaks) may indicate different behavior on different targets
+
+**Use case:** Detailed analysis of score distributions; understanding variance and identifying potential outliers or subgroups.
+
+---
+
+#### 5. Metric Bars (`metric_bars.png`)
+
+**What it shows:** Grouped bar charts for each benchmark, showing average scores for different metrics side-by-side.
+
+**How to interpret:**
+- Each subplot represents one benchmark/dataset
+- X-axis shows different metrics
+- Bars are grouped by model
+- **Compare bar heights** to see which model performs better on each metric
+- **Compare across subplots** to see how the same model-metric combination varies by dataset
+
+**Use case:** Detailed metric-by-metric comparison within each benchmark.
+
+---
+
+#### 6. Distribution Violins (`distribution_violins.png`)
+
+**What it shows:** A 2×2 grid of violin plots showing how metric scores are distributed across different benchmarks.
+
+**How to interpret:**
+- Each subplot shows one metric (AUROC, AUPRC, BEDROC, RIE)
+- X-axis shows different benchmarks
+- Split violins (when 2 models) or grouped violins show model comparison
+- **Overlapping violins** indicate similar performance
+- **Non-overlapping violins** indicate significant performance differences
+- **Long tails** indicate high variance in performance
+
+**Use case:** Comparing model performance distributions across benchmarks; statistical significance assessment.
+
+---
+
+#### 7. Enrichment Factors (`enrichment_factors.png`)
+
+**What it shows:** Bar chart showing Enrichment Factor (EF) values at 1% and 5% thresholds for each benchmark-model combination.
+
+**How to interpret:**
+- EF measures how much better than random the model is at ranking actives
+- **EF 1%:** How enriched are actives in the top 1% of ranked compounds
+- **EF 5%:** How enriched are actives in the top 5% of ranked compounds
+- EF = 1 means random performance; EF = 10 means 10× better than random
+- **Higher bars indicate better early enrichment** (more actives found early)
+- EF 1% is more stringent; EF 5% captures broader early enrichment
+
+**Use case:** Virtual screening applications where only top-ranked compounds will be tested experimentally.
+
+---
+
+#### 8. Metric Correlation (`metric_correlation.png`)
+
+**What it shows:** Correlation heatmaps showing how different metrics correlate with each other, with separate heatmaps per model.
+
+**How to interpret:**
+- Values range from -1 (perfect negative correlation) to +1 (perfect positive correlation)
+- **Red cells** indicate positive correlation (metrics move together)
+- **Blue cells** indicate negative correlation (metrics move oppositely)
+- Diagonal is always 1.0 (perfect self-correlation)
+- **High correlations** between metrics suggest they measure similar aspects
+- **Low correlations** indicate the metrics capture different information
+
+**Use case:** Understanding metric relationships; identifying redundant metrics; validating that chosen metrics provide diverse evaluation.
+
+---
+
+#### 9. Metric Histograms (`metric_histograms.png`)
+
+**What it shows:** Overlapping histograms with kernel density estimation (KDE) curves showing the frequency distribution of metric scores.
+
+**How to interpret:**
+- X-axis shows score values
+- Y-axis shows frequency (count of targets with that score)
+- Bars show histogram bins; curves show smoothed density estimates
+- **Non-overlapping distributions** indicate clear performance differences between models
+- **Right-shifted distributions** indicate overall better performance
+- **Narrow, tall peaks** indicate consistent performance
+- **Wide, flat distributions** indicate high variance
+
+**Use case:** Understanding the overall score distribution; identifying whether differences are statistically meaningful.
+
+---
+
+#### 10. Top Targets (`top_targets.png`)
+
+**What it shows:** Horizontal bar charts showing the top N best-performing targets for each metric, with target labels including the dataset name.
+
+**How to interpret:**
+- Y-axis shows target names with dataset in parentheses, e.g., "OPRK1 (LIT-PCBA)"
+- X-axis shows the score value
+- Bars are grouped by model for each target
+- **Longer bars indicate higher scores**
+- **Similar bar lengths** for both models indicate comparable performance on that target
+- **Large differences** highlight targets where one model significantly outperforms the other
+
+**Use case:** Identifying which specific protein targets are easiest/hardest to predict; finding model-specific strengths on particular targets.
+
+---
+
+### Customizing Plots
+
+All plot functions accept the following common parameters:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `output_dir` | `"plots"` | Directory to save the plot |
+| `style` | `"whitegrid"` | Seaborn style (`whitegrid`, `darkgrid`, `white`, `dark`) |
+| `figure_dpi` | `100` | DPI for figure display |
+| `savefig_dpi` | `300` | DPI for saved figures (higher = better quality) |
+| `font_size` | `10` | Base font size for labels |
+
+Some plots have additional parameters:
+
+```python
+# Customize number of top targets
+plot_top_targets(results, n_targets=20)
+
+# Customize histogram bins
+plot_metric_histograms(results, bins=20)
+
+# Customize which metrics to show
+plot_violin_grid(results, metrics=["AUROC", "AUPRC"])
+```
+
+### Color Consistency
+
+All plots use a consistent color palette (`MODEL_PALETTE`) to ensure models are represented with the same colors across all visualizations:
+
+- **Model 1:** Teal (`#66c2a5`)
+- **Model 2:** Orange (`#fc8d62`)
+- **Model 3:** Blue (`#8da0cb`)
+- **Model 4:** Pink (`#e78ac3`)
+- **Model 5:** Green (`#a6d854`)
+
+This consistency makes it easy to track model performance across different chart types.
+
+## Development
+
+### Setup
+
+1. Install Poetry (package manager):
+   ```bash
+   pip install poetry
+   ```
+
+2. Install dependencies:
+   ```bash
+   poetry install
+   ```
+
+3. Install pre-commit hooks:
+   ```bash
+   poetry run pre-commit install
+   ```
+
+### Code Quality
+
+This project uses Ruff for code formatting and linting. To format your code:
+
+```bash
+# Format and lint all files
+poetry run ruff format .
+poetry run ruff check . --fix
+
+# Format and lint specific files
+poetry run ruff format path/to/file.py
+poetry run ruff check path/to/file.py --fix
+```
+
+The code formatting will also run automatically when you commit changes, thanks to pre-commit hooks.
+
+### Running Tests
+
+To run the tests:
+
+```bash
+# Run all tests
+poetry run pytest
+
+# Run specific test file
+poetry run pytest tests/test_specific.py
+
+# Run tests with coverage report
+poetry run pytest --cov=litmus --cov-report=term-missing
+```
+
+## License
+
+MIT License
+
