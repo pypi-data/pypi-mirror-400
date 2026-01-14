@@ -1,0 +1,137 @@
+# WTFork 🤌🤌
+
+**Pinning to SHA isn't the silver bullet you think it is.**
+
+This tool detects if your GitHub Actions are vulnerable to the **Fork Network** exploit (a.k.a. "The Invisible Network"), verifying that the commits you pin actually belong to the repositories you trust.
+
+This project is inspired by this Aikido’s write-up on how fork networks work, and how Sai-Hulud was abusing it:
+
+> [The Fork Awakens: Why GitHub’s invisible networks break package security](https://www.aikido.dev/blog/the-fork-awakens-why-githubs-invisible-networks-break-package-security)
+---
+
+## 🚩 The Problem: "Invisible Networks"
+
+Security best practices tell us to pin GitHub Actions to a full commit SHA (`uses: owner/repo@<sha>`). The assumption is simple: **"If I pin the SHA, I trust code I'm running."** Strict immutability usually equals strict trust
+
+**That assumption is wrong.**
+
+GitHub's architecture creates a loophole. It resolves SHAs across the entire **fork network**, not just the target repository.
+
+This means `uses: owner/repo@<sha>` guarantees the *code* (the SHA), but **it does not guarantee the source**. A commit might resolve successfully from any fork, even if it **never existed** in the trusted `owner/repo`, effectively pulling unreviewed code from an obscure or malicious fork while appearing to come from upstream.
+
+**The Worst Case Scenario:**
+1. Your workflow defines: `uses: trusted-owner/action@<sha>`
+2. That `<sha>` **does not exist** in `trusted-owner/action`.
+3. However, GitHub resolves it to a malicious commit in an obscure fork.
+4. You unknowingly execute `untrusted-owner/action@<sha>` from a different owner you never agreed to trust.
+
+---
+
+## 🛡️ How WTFork works
+
+`wtfork` audits your repository’s GitHub Actions workflow files to validate that every referenced SHA is legitimate.
+
+It scans:
+- `.github/workflows/*.yml`
+- `.github/workflows/*.yaml`
+
+For every `uses: owner/repo@<sha>` found, `wtfork` performs a sanity check: **Does this commit actually live inside `owner/repo`?**
+
+If the SHA is missing from the origin repo (but resolving due to the fork network quirk), `wtfork` flags it immediately so you can fix the pin before it becomes a supply-chain attack vector.
+
+## 🚀 Usage
+
+### 📦 Installation
+
+Install `wtfork` directly from PyPI:
+
+```bash
+pip install wtfork
+```
+
+### 🤖 GitHub Actions Integration (Recommended)
+
+The most effective way to use `wtfork` is to run it automatically in your CI/CD pipeline. This blocks any Pull Request that introduces a vulnerable pin.
+
+Create a file named `.github/workflows/wtfork-scan.yml`:
+
+```yaml
+name: WTFork Security Scan 🤌
+
+on: [push, pull_request]
+
+jobs:
+  wtfork_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install WTFork
+        run: pip install wtfork
+
+      - name: Run Scan
+        run: wtfork
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### 💻 Running Locally
+
+To run `wtfork` locally, you **must** provide a GitHub Token (`GITHUB_TOKEN`) so the tool can query the API. The token needs `repo` scope (for private repos) or public access (for public repos).
+
+**1. Set the token:**
+
+* **Linux / macOS:**
+  ```bash
+  export GITHUB_TOKEN=your_personal_access_token
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  $env:GITHUB_TOKEN="your_personal_access_token"
+  ```
+
+**2. Run the tool:**
+
+```bash
+# Run with default settings (scans .github/workflows against all refs)
+wtfork
+
+# Run on a specific directory
+wtfork --path ./my-project/.github/workflows
+```
+
+---
+
+## ⚙️ CLI Arguments & Configuration
+
+
+```bash
+wtfork [--path PATH] [--mode MODE]
+```
+
+| Argument | Default | Description |
+| :--- | :--- | :--- |
+| `--path` | `.github/workflows` | Path to the directory containing your `.yml` or `.yaml` workflow files. |
+| `--mode` | `all` | **Comparison Strategy:**<br>• `default`: Checks if the SHA exists in the repo's **default branch** (Fastest, but more relaxed).<br>• `tags`: Checks if the SHA belongs to any **tag**.<br>• `branches`: Checks if the SHA belongs to any **branch**.<br>• `all`: Checks everywhere (Safest, but slightly slower). |
+
+**Examples:**
+
+```bash
+# Fast check: Only allow SHAs that are present on the default branch (e.g., main/master)
+wtfork --mode default
+
+# Comprehensive check: Allow SHAs if they exist anywhere (tags or branches)
+wtfork --mode all
+```
+
+---
+
+## License
+
+MIT
