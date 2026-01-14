@@ -1,0 +1,78 @@
+import re
+import unicodedata
+from math import acos, cos, radians, sin
+
+from django.utils.encoding import force_str as force_text
+from django.utils.functional import keep_lazy
+from django.utils.safestring import SafeText, mark_safe
+
+from .conf import CONTINENT_DATA
+
+# GEO DISTANCE
+
+earth_radius_km = 6371.009
+
+
+def geo_distance(a, b):
+    """Distance between two geo points in km. (p.x = long, p.y = lat)"""
+    a_y = radians(a.y)
+    b_y = radians(b.y)
+    delta_x = radians(a.x - b.x)
+    cos_x = sin(a_y) * sin(b_y) + cos(a_y) * cos(b_y) * cos(delta_x)
+    return acos(cos_x) * earth_radius_km
+
+
+# ADD CONTINENTS FUNCTION
+
+
+def add_continents(continent_model):
+    for ccode, cdata in CONTINENT_DATA.items():
+        try:
+            c = continent_model.objects.get(code=ccode)
+        except continent_model.DoesNotExist:
+            c = continent_model()
+        c.id = cdata[1]
+        c.name = cdata[0]
+        c.code = ccode
+        c.slug = c.name
+        c.save()
+
+
+# SLUGIFY REGEXES
+
+to_und_rgx = re.compile(r"[']", re.UNICODE)
+slugify_rgx = re.compile(r"[^-\w._~]", re.UNICODE)
+multi_dash_rgx = re.compile(r"-{2,}", re.UNICODE)
+dash_und_rgx = re.compile(r"[-_]_", re.UNICODE)
+und_dash_rgx = re.compile(r"[-_]-", re.UNICODE)
+starting_chars_rgx = re.compile(r"^[-._]*", re.UNICODE)
+ending_chars_rgx = re.compile(r"[-._]*$", re.UNICODE)
+
+
+def default_slugify(obj, value):
+    if value is None:
+        return None
+
+    value = force_text(str(value))
+    value = unicodedata.normalize("NFKC", value.strip())
+    value = re.sub(to_und_rgx, "_", value)
+    value = re.sub(slugify_rgx, "-", value)
+    value = re.sub(multi_dash_rgx, "-", value)
+    value = re.sub(dash_und_rgx, "_", value)
+    value = re.sub(und_dash_rgx, "_", value)
+    value = re.sub(starting_chars_rgx, "", value)
+    value = re.sub(ending_chars_rgx, "", value)
+    return mark_safe(value)
+
+
+default_slugify = keep_lazy(str, SafeText)(default_slugify)
+
+
+# DJANGO BACKWARDS-COMPATIBLE PATTERNS
+
+
+def patterns(prefix, *args):
+    if prefix != "":
+        raise Exception("You need to update your URLConf to be a list of URL " "objects")
+    else:
+        return list(args)
