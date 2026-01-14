@@ -1,0 +1,1092 @@
+Metadata-Version: 2.4
+Name: azcrawlerpy
+Version: 0.2.1
+Summary: Agentic Crawler Discovery Framework.
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: <3.12,>=3.11.10
+Description-Content-Type: text/markdown
+Requires-Dist: playwright==1.48.0
+Requires-Dist: pydantic>=2.11.10
+Provides-Extra: dev
+Requires-Dist: pytest==8.4.2; extra == "dev"
+Requires-Dist: pytest-asyncio==1.0.0; extra == "dev"
+Requires-Dist: pytest-mock==3.14.1; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: playwright==1.48.0; extra == "dev"
+
+# azcrawlerpy
+
+A Playwright-based framework for navigating and filling multi-step web forms programmatically. The framework uses JSON instruction files to define form navigation workflows, making it ideal for automated form submission, web scraping, and AI agent-driven web interactions.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+- [Instructions Schema](#instructions-schema)
+  - [Top-Level Structure](#top-level-structure)
+  - [Browser Configuration](#browser-configuration)
+  - [Cookie Consent Handling](#cookie-consent-handling)
+  - [Step Definitions](#step-definitions)
+  - [Field Types](#field-types)
+  - [Action Types](#action-types)
+  - [Final Page Configuration](#final-page-configuration)
+  - [Data Extraction Configuration](#data-extraction-configuration)
+- [Data Points (input_data)](#data-points-input_data)
+- [Element Discovery](#element-discovery)
+- [AI Agent Guidance](#ai-agent-guidance)
+- [Error Handling and Diagnostics](#error-handling-and-diagnostics)
+- [Examples](#examples)
+
+## Installation
+
+```bash
+uv add azcrawlerpy
+```
+
+Or install from source:
+
+```bash
+uv pip install -e .
+```
+
+## Quick Start
+
+```python
+import asyncio
+from pathlib import Path
+from azcrawlerpy import FormCrawler, DebugMode
+
+async def main():
+    crawler = FormCrawler(headless=True)
+
+    instructions = {
+        "url": "https://example.com/form",
+        "browser_config": {
+            "viewport_width": 1920,
+            "viewport_height": 1080
+        },
+        "steps": [
+            {
+                "name": "step_1",
+                "wait_for": "input[name='email']",
+                "timeout_ms": 30000,
+                "fields": [
+                    {
+                        "type": "text",
+                        "selector": "input[name='email']",
+                        "data_key": "email"
+                    }
+                ],
+                "next_action": {
+                    "type": "click",
+                    "selector": "button[type='submit']"
+                }
+            }
+        ],
+        "final_page": {
+            "wait_for": ".success-message",
+            "timeout_ms": 60000
+        }
+    }
+
+    input_data = {
+        "email": "user@example.com"
+    }
+
+    result = await crawler.crawl(
+        url=instructions["url"],
+        input_data=input_data,
+        instructions=instructions,
+        output_dir=Path("./output"),
+        debug_mode=DebugMode.ALL,
+    )
+
+    print(f"Final URL: {result.final_url}")
+    print(f"Steps completed: {result.steps_completed}")
+    print(f"Screenshot saved: {result.screenshot_path}")
+    print(f"Extracted data: {result.extracted_data}")
+
+asyncio.run(main())
+```
+
+## Core Concepts
+
+The framework operates on two primary inputs:
+
+1. **Instructions (instructions.json)**: Defines the form structure, selectors, navigation flow, and field types
+2. **Data Points (input_data)**: Contains the actual values to fill into form fields
+
+The crawler processes each step sequentially:
+1. Wait for the step's `wait_for` selector to become visible
+2. Fill all fields defined in the step using values from `input_data`
+3. Execute the `next_action` to navigate to the next step
+4. Repeat until all steps are complete
+5. Wait for and capture the final page
+
+## Instructions Schema
+
+### Top-Level Structure
+
+```json
+{
+  "url": "https://example.com/form",
+  "browser_config": { ... },
+  "cookie_consent": { ... },
+  "steps": [ ... ],
+  "final_page": { ... },
+  "data_extraction": { ... }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Starting URL for the form |
+| `browser_config` | object | No | Browser viewport and user agent settings |
+| `cookie_consent` | object | No | Cookie banner handling configuration |
+| `steps` | array | Yes | Ordered list of form steps |
+| `final_page` | object | Yes | Configuration for the result page |
+| `data_extraction` | object | No | Configuration for extracting data from final page |
+
+### Browser Configuration
+
+```json
+{
+  "browser_config": {
+    "viewport_width": 1920,
+    "viewport_height": 1080,
+    "user_agent": "Mozilla/5.0 ..."
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `viewport_width` | integer | Yes | Browser viewport width in pixels |
+| `viewport_height` | integer | Yes | Browser viewport height in pixels |
+| `user_agent` | string | No | Custom user agent string |
+
+### Cookie Consent Handling
+
+The framework supports two modes for handling cookie consent banners:
+
+**Standard Mode** (regular DOM elements):
+```json
+{
+  "cookie_consent": {
+    "banner_selector": "dialog:has-text('cookies')",
+    "accept_selector": "button:has-text('Accept')"
+  }
+}
+```
+
+**Shadow DOM Mode** (for Usercentrics, OneTrust, etc.):
+```json
+{
+  "cookie_consent": {
+    "banner_selector": "#usercentrics-cmp-ui",
+    "shadow_host_selector": "#usercentrics-cmp-ui",
+    "accept_button_texts": ["Accept All", "Alle akzeptieren"]
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `banner_selector` | string | Yes | CSS selector for the banner container |
+| `accept_selector` | string | No | CSS selector for accept button (standard mode) |
+| `shadow_host_selector` | string | No | CSS selector for shadow DOM host |
+| `accept_button_texts` | array | No | Text patterns to match accept buttons in shadow DOM |
+| `banner_settle_delay_ms` | integer | No | Wait time before checking for banner |
+| `banner_visible_timeout_ms` | integer | No | Timeout for banner visibility |
+| `accept_button_timeout_ms` | integer | No | Timeout for accept button visibility |
+| `post_consent_delay_ms` | integer | No | Wait time after handling consent |
+
+### Step Definitions
+
+Each step represents a form page or section:
+
+```json
+{
+  "name": "personal_info",
+  "wait_for": "input[name='firstName']",
+  "timeout_ms": 30000,
+  "fields": [ ... ],
+  "next_action": { ... }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier for the step |
+| `wait_for` | string | Yes | CSS selector to wait for before processing |
+| `timeout_ms` | integer | Yes | Timeout in milliseconds for wait condition |
+| `fields` | array | Yes | List of field definitions (can be empty) |
+| `next_action` | object | Yes | Action to navigate to next step |
+
+### Field Types
+
+#### TEXT
+
+For text inputs, email fields, phone numbers, and similar:
+
+```json
+{
+  "type": "text",
+  "selector": "input[name='email']",
+  "data_key": "email"
+}
+```
+
+#### TEXTAREA
+
+For multi-line text areas:
+
+```json
+{
+  "type": "textarea",
+  "selector": "textarea[name='message']",
+  "data_key": "message"
+}
+```
+
+#### DROPDOWN / SELECT
+
+For native `<select>` elements:
+
+```json
+{
+  "type": "dropdown",
+  "selector": "select[name='country']",
+  "data_key": "country",
+  "select_by": "text"
+}
+```
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `select_by` | `text`, `value`, `index` | How to match the option |
+
+#### RADIO
+
+For radio button groups:
+
+```json
+{
+  "type": "radio",
+  "selector": "input[type='radio'][value='${value}']",
+  "data_key": "payment_method"
+}
+```
+
+**Pattern A - Value-driven selector**: Use `${value}` placeholder in selector, data provides the value:
+```json
+{
+  "type": "radio",
+  "selector": "input[type='radio'][value='${value}']",
+  "data_key": "gender"
+}
+// data: { "gender": "male" }
+```
+
+**Pattern B - Boolean flags**: Use explicit selectors with boolean data values:
+```json
+{
+  "type": "radio",
+  "selector": "[role='radio']:has-text('Yes')",
+  "data_key": "accept_terms",
+  "force_click": true
+}
+// data: { "accept_terms": true }  // clicks if true, skips if null/false
+```
+
+#### CHECKBOX
+
+For checkbox inputs:
+
+```json
+{
+  "type": "checkbox",
+  "selector": "input[type='checkbox'][name='newsletter']",
+  "data_key": "subscribe_newsletter"
+}
+```
+
+Data value `true` checks the box, `false` or `null` leaves it unchanged.
+
+#### DATE
+
+For date inputs with format conversion:
+
+```json
+{
+  "type": "date",
+  "selector": "input[name='birthdate']",
+  "data_key": "birthdate",
+  "format": "DD.MM.YYYY"
+}
+```
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| `DD.MM.YYYY` | 15.06.1985 | Day.Month.Year |
+| `MM.YYYY` | 06.1985 | Month.Year |
+| `YYYY-MM-DD` | 1985-06-15 | ISO format |
+| `%d.%m.%Y` | 15.06.1985 | Python strftime format |
+
+Data should be provided in ISO format (`YYYY-MM-DD`) and will be converted to the specified format.
+
+#### SLIDER
+
+For range inputs:
+
+```json
+{
+  "type": "slider",
+  "selector": "input[type='range'][name='coverage']",
+  "data_key": "coverage_amount"
+}
+```
+
+#### FILE
+
+For file upload fields:
+
+```json
+{
+  "type": "file",
+  "selector": "input[type='file']",
+  "data_key": "document_path"
+}
+```
+
+Data value should be the absolute file path.
+
+#### COMBOBOX
+
+For autocomplete/typeahead inputs:
+
+```json
+{
+  "type": "combobox",
+  "selector": "input[aria-label='City']",
+  "data_key": "city",
+  "option_selector": ".autocomplete-option",
+  "type_delay_ms": 50,
+  "wait_after_type_ms": 500,
+  "press_enter": true
+}
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `option_selector` | CSS selector for dropdown options |
+| `type_delay_ms` | Delay between keystrokes (simulates human typing) |
+| `wait_after_type_ms` | Wait time for options to appear |
+| `press_enter` | Press Enter after selecting option |
+| `clear_before_type` | Clear field before typing |
+
+#### CLICK_SELECT
+
+For custom dropdowns requiring click-then-select:
+
+```json
+{
+  "type": "click_select",
+  "selector": ".custom-dropdown-trigger",
+  "data_key": "option_value",
+  "option_selector": ".dropdown-item:has-text('${value}')",
+  "post_click_delay_ms": 300
+}
+```
+
+#### CLICK_ONLY
+
+For elements that only need clicking (no data input):
+
+```json
+{
+  "type": "click_only",
+  "selector": "button.expand-section"
+}
+```
+
+With conditional clicking based on data:
+
+```json
+{
+  "type": "click_only",
+  "selector": "button:has-text('${value}')",
+  "data_key": "selected_option"
+}
+```
+
+#### IFRAME_FIELD
+
+For fields inside iframes (alternative to `iframe_selector`):
+
+```json
+{
+  "type": "iframe_field",
+  "selector": "input[name='card_number']",
+  "iframe_selector": "iframe#payment-frame",
+  "data_key": "card_number"
+}
+```
+
+### Common Field Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `data_key` | string | Key in input_data to get value from |
+| `selector` | string | CSS/Playwright selector for the element |
+| `iframe_selector` | string | Selector for parent iframe if field is embedded |
+| `field_visible_timeout_ms` | integer | Timeout for field to become visible |
+| `post_click_delay_ms` | integer | Wait after clicking the field |
+| `skip_verification` | boolean | Skip value verification after filling |
+| `force_click` | boolean | Use force click (bypasses overlays) |
+
+### Action Types
+
+#### CLICK
+
+Click a button or link:
+
+```json
+{
+  "type": "click",
+  "selector": "button[type='submit']"
+}
+```
+
+With iframe support:
+
+```json
+{
+  "type": "click",
+  "selector": "button:has-text('Next')",
+  "iframe_selector": "iframe#form-frame"
+}
+```
+
+#### WAIT
+
+Wait for an element to appear:
+
+```json
+{
+  "type": "wait",
+  "selector": ".loading-complete"
+}
+```
+
+#### WAIT_HIDDEN
+
+Wait for an element to disappear:
+
+```json
+{
+  "type": "wait_hidden",
+  "selector": ".loading-spinner"
+}
+```
+
+#### SCROLL
+
+Scroll to an element:
+
+```json
+{
+  "type": "scroll",
+  "selector": "#section-bottom"
+}
+```
+
+#### DELAY
+
+Wait for a fixed time:
+
+```json
+{
+  "type": "delay",
+  "delay_ms": 2000
+}
+```
+
+#### CONDITIONAL
+
+Execute actions based on conditions:
+
+```json
+{
+  "type": "conditional",
+  "condition": {
+    "type": "element_visible",
+    "selector": ".error-message"
+  },
+  "actions": [
+    {
+      "type": "click",
+      "selector": "button.dismiss-error"
+    }
+  ]
+}
+```
+
+Condition types:
+- `element_visible`: Check if element is visible
+- `element_exists`: Check if element exists in DOM
+- `data_equals`: Check if data value matches
+
+### Common Action Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `selector` | string | Target element selector |
+| `iframe_selector` | string | Selector for parent iframe |
+| `pre_action_delay_ms` | integer | Wait before executing action |
+| `post_action_delay_ms` | integer | Wait after executing action |
+
+### Final Page Configuration
+
+```json
+{
+  "final_page": {
+    "wait_for": ".result-container, .confirmation",
+    "timeout_ms": 60000,
+    "screenshot_selector": ".result-panel"
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `wait_for` | string | Yes | Selector to confirm final page loaded |
+| `timeout_ms` | integer | Yes | Timeout for final page |
+| `screenshot_selector` | string | No | Element to screenshot (null for full page) |
+
+### Data Extraction Configuration
+
+Extract structured data from the final page using CSS selectors:
+
+```json
+{
+  "data_extraction": {
+    "fields": {
+      "tier_prices": {
+        "selector": ".price-value",
+        "attribute": null,
+        "regex": "([0-9]+[.,][0-9]{2})",
+        "multiple": true,
+        "iframe_selector": "iframe#form-frame"
+      },
+      "selected_price": {
+        "selector": "#total-amount",
+        "attribute": "data-value",
+        "regex": null,
+        "multiple": false
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `selector` | string | Yes | CSS selector to locate element(s) |
+| `attribute` | string | No | Element attribute to extract (null for text content) |
+| `regex` | string | No | Regex pattern to apply (uses first capture group if present) |
+| `multiple` | boolean | Yes | True for list of all matches, False for first match only |
+| `iframe_selector` | string | No | CSS selector for iframe if element is inside one |
+
+Extracted data is available in the crawl result:
+
+```python
+result = await crawler.crawl(...)
+print(result.extracted_data)
+# {'tier_prices': ['32,28', '35,26', '50,34'], 'selected_price': '35,26'}
+```
+
+## Data Points (input_data)
+
+The `input_data` dictionary provides values for form fields. Keys must match `data_key` values in the instructions.
+
+### Structure
+
+```json
+{
+  "email": "user@example.com",
+  "first_name": "John",
+  "last_name": "Doe",
+  "birthdate": "1985-06-15",
+  "country": "Germany",
+  "accept_terms": true,
+  "newsletter": false,
+  "premium_option": null
+}
+```
+
+### Value Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| String | Text values, dropdown selections | `"John"` |
+| Boolean | Checkbox/radio toggle | `true`, `false` |
+| Null | Skip this field | `null` |
+| Integer/Float | Numeric inputs, sliders | `12000`, `99.99` |
+
+### Radio Button Patterns
+
+**Pattern A - Mutually exclusive options with value selector**:
+```json
+{
+  "gender": "male"
+}
+```
+Selector uses `${value}` placeholder: `input[value='${value}']`
+
+**Pattern B - Boolean flags for each option**:
+```json
+{
+  "option_a": true,
+  "option_b": null,
+  "option_c": null
+}
+```
+Only the option with `true` gets clicked.
+
+### Date Handling
+
+Dates in input_data should use ISO format (`YYYY-MM-DD`):
+```json
+{
+  "birthdate": "1985-06-15",
+  "start_date": "2024-01-01"
+}
+```
+
+The framework converts to the format specified in the field definition.
+
+## Element Discovery
+
+The `ElementDiscovery` class scans web pages to identify interactive elements, helping build instructions.json files.
+
+```python
+from pathlib import Path
+from azcrawlerpy import ElementDiscovery
+
+async def discover_elements():
+    discovery = ElementDiscovery(headless=False)
+
+    report = await discovery.discover(
+        url="https://example.com/form",
+        output_dir=Path("./discovery_output"),
+        cookie_consent={
+            "banner_selector": "#cookie-banner",
+            "accept_selector": "button.accept"
+        },
+        explore_iframes=True,
+        screenshot=True,
+    )
+
+    print(f"Found {report.total_elements} elements")
+
+    for text_input in report.text_inputs:
+        print(f"Text input: {text_input.selector}")
+        print(f"  Suggested type: {text_input.suggested_field_type}")
+
+    for dropdown in report.selects:
+        print(f"Dropdown: {dropdown.selector}")
+        print(f"  Options: {dropdown.options}")
+
+    for radio_group in report.radio_groups:
+        print(f"Radio group: {radio_group.name}")
+        for option in radio_group.options:
+            print(f"  - {option.label}: {option.selector}")
+```
+
+### Discovery Report Contents
+
+- `text_inputs`: Text, email, phone, password fields
+- `textareas`: Multi-line text areas
+- `selects`: Native dropdown elements with options
+- `radio_groups`: Grouped radio buttons
+- `checkboxes`: Checkbox inputs
+- `buttons`: Clickable buttons
+- `links`: Anchor elements
+- `date_inputs`: Date picker fields
+- `file_inputs`: File upload fields
+- `sliders`: Range inputs
+- `custom_components`: Non-standard interactive elements
+- `iframes`: Discovered iframes with their elements
+
+## AI Agent Guidance
+
+This section provides instructions for AI agents tasked with creating `instructions.json` and `input_data` files.
+
+### Workflow for Creating Instructions
+
+1. **Discovery Phase**: Use `ElementDiscovery` to scan each page/step of the form
+2. **Mapping Phase**: Map discovered elements to field definitions
+3. **Flow Definition**: Define step transitions and actions
+4. **Data Schema**: Create the input_data structure
+
+### Step-by-Step Process
+
+#### 1. Analyze the Form Structure
+
+- Identify how many pages/steps the form has
+- Note the URL pattern changes (if any)
+- Identify what element appears when each step loads
+
+#### 2. For Each Step, Define:
+
+```json
+{
+  "name": "<descriptive_step_name>",
+  "wait_for": "<selector_that_confirms_step_loaded>",
+  "timeout_ms": 30000,
+  "fields": [...],
+  "next_action": {...}
+}
+```
+
+**Naming conventions**:
+- Use snake_case for step names: `personal_info`, `payment_details`
+- Use descriptive data_keys: `first_name`, `email_address`, `accepts_terms`
+
+#### 3. Selector Priority
+
+When choosing selectors, prefer in order:
+1. `[data-testid='...']` or `[data-cy='...']` - Most stable
+2. `[aria-label='...']` or `[aria-labelledby='...']` - Accessible and stable
+3. `input[name='...']` - Form field names
+4. `:has-text('...')` - Text content (use for buttons/labels)
+5. CSS class selectors - Least stable, avoid if possible
+
+#### 4. Handle Dynamic Content
+
+For AJAX-loaded content:
+- Use `wait` action before interacting
+- Add `field_visible_timeout_ms` to field definitions
+- Use `post_click_delay_ms` for fields that trigger updates
+
+#### 5. Radio Button Strategy
+
+**Option A - When radio values are meaningful**:
+```json
+{
+  "type": "radio",
+  "selector": "input[type='radio'][value='${value}']",
+  "data_key": "payment_type"
+}
+// data: { "payment_type": "credit_card" }
+```
+
+**Option B - When you need individual control**:
+```json
+{
+  "type": "radio",
+  "selector": "[role='radio']:has-text('Credit Card')",
+  "data_key": "payment_credit_card",
+  "force_click": true
+},
+{
+  "type": "radio",
+  "selector": "[role='radio']:has-text('PayPal')",
+  "data_key": "payment_paypal",
+  "force_click": true
+}
+// data: { "payment_credit_card": true, "payment_paypal": null }
+```
+
+#### 6. Iframe Handling
+
+When elements are inside iframes:
+```json
+{
+  "type": "text",
+  "selector": "input[name='card_number']",
+  "iframe_selector": "iframe#payment-iframe",
+  "data_key": "card_number"
+}
+```
+
+### Creating input_data
+
+#### 1. Analyze Required Fields
+
+From the instructions, extract all unique `data_key` values:
+```python
+data_keys = set()
+for step in instructions["steps"]:
+    for field in step["fields"]:
+        if field.get("data_key"):
+            data_keys.add(field["data_key"])
+```
+
+#### 2. Determine Value Types
+
+| Field Type | Data Type | Example |
+|------------|-----------|---------|
+| text, textarea | string | `"John Doe"` |
+| dropdown | string | `"Germany"` |
+| radio (value-driven) | string | `"option_a"` |
+| radio (boolean) | boolean/null | `true` or `null` |
+| checkbox | boolean | `true` / `false` |
+| date | string (ISO) | `"1985-06-15"` |
+| slider | number | `50000` |
+| file | string (path) | `"/path/to/file.pdf"` |
+
+#### 3. Handle Mutually Exclusive Options
+
+For radio groups with boolean flags, only ONE should be `true`:
+```json
+{
+  "employment_fulltime": true,
+  "employment_parttime": null,
+  "employment_selfemployed": null,
+  "employment_unemployed": null
+}
+```
+
+#### 4. Date Format
+
+Always provide dates in ISO format in input_data:
+```json
+{
+  "birthdate": "1985-06-15",
+  "policy_start": "2024-01-01"
+}
+```
+
+The instructions specify the output format for the specific form.
+
+### Common Patterns
+
+#### Multi-Step Wizard
+```json
+{
+  "steps": [
+    {
+      "name": "step_1_personal",
+      "wait_for": "input[name='firstName']",
+      "fields": [...],
+      "next_action": { "type": "click", "selector": "button:has-text('Next')" }
+    },
+    {
+      "name": "step_2_address",
+      "wait_for": "input[name='street']",
+      "fields": [...],
+      "next_action": { "type": "click", "selector": "button:has-text('Next')" }
+    }
+  ]
+}
+```
+
+#### Form with Loading States
+```json
+{
+  "next_action": {
+    "type": "click",
+    "selector": "button[type='submit']",
+    "post_action_delay_ms": 1000
+  }
+}
+```
+
+#### Conditional Fields
+```json
+{
+  "type": "conditional",
+  "condition": {
+    "type": "data_equals",
+    "data_key": "has_additional_driver",
+    "value": true
+  },
+  "actions": [
+    {
+      "type": "click",
+      "selector": "button:has-text('Add Driver')"
+    }
+  ]
+}
+```
+
+## Error Handling and Diagnostics
+
+The framework provides detailed error information when failures occur.
+
+### Exception Types
+
+| Exception | When Raised |
+|-----------|-------------|
+| `FieldNotFoundError` | Selector doesn't match any element |
+| `FieldInteractionError` | Element found but interaction failed |
+| `CrawlerTimeoutError` | Wait condition not met within timeout |
+| `NavigationError` | Navigation action failed |
+| `MissingDataError` | Required data_key not in input_data |
+| `InvalidInstructionError` | Malformed instructions JSON |
+| `UnsupportedFieldTypeError` | Unknown field type specified |
+| `UnsupportedActionTypeError` | Unknown action type specified |
+| `IframeNotFoundError` | Specified iframe not found |
+| `DataExtractionError` | Data extraction from final page failed |
+
+### Debug Mode
+
+Enable debug mode to capture screenshots at various stages:
+
+```python
+from azcrawlerpy import DebugMode
+
+result = await crawler.crawl(
+    ...,
+    debug_mode=DebugMode.ALL,  # Capture all screenshots
+)
+```
+
+| Mode | Description |
+|------|-------------|
+| `NONE` | No debug screenshots |
+| `START` | Screenshot at form start |
+| `END` | Screenshot at form end |
+| `ALL` | Screenshots after every field and action |
+
+### AI Diagnostics
+
+When errors occur with debug mode enabled, the framework captures:
+
+- Current page URL and title
+- Available `data-cy` and `data-testid` selectors
+- Visible buttons and input fields
+- Similar selectors (fuzzy matching suggestions)
+- Console errors and warnings
+- Failed network requests
+- HTML snippet of the form area
+
+This information is included in the exception message and saved to `error_diagnostics.json`.
+
+## Examples
+
+### Insurance Quote Form
+
+**instructions.json**:
+```json
+{
+  "url": "https://insurance.example.com/quote",
+  "browser_config": {
+    "viewport_width": 1920,
+    "viewport_height": 1080
+  },
+  "cookie_consent": {
+    "banner_selector": "#cookie-banner",
+    "accept_selector": "button:has-text('Accept')"
+  },
+  "steps": [
+    {
+      "name": "vehicle_info",
+      "wait_for": "input[name='hsn']",
+      "timeout_ms": 30000,
+      "fields": [
+        {
+          "type": "text",
+          "selector": "input[name='hsn']",
+          "data_key": "vehicle_hsn"
+        },
+        {
+          "type": "text",
+          "selector": "input[name='tsn']",
+          "data_key": "vehicle_tsn"
+        },
+        {
+          "type": "date",
+          "selector": "input[name='registration_date']",
+          "data_key": "first_registration",
+          "format": "MM.YYYY"
+        }
+      ],
+      "next_action": {
+        "type": "click",
+        "selector": "button:has-text('Continue')"
+      }
+    },
+    {
+      "name": "personal_info",
+      "wait_for": "input[name='birthdate']",
+      "timeout_ms": 30000,
+      "fields": [
+        {
+          "type": "date",
+          "selector": "input[name='birthdate']",
+          "data_key": "birthdate",
+          "format": "DD.MM.YYYY"
+        },
+        {
+          "type": "text",
+          "selector": "input[name='zipcode']",
+          "data_key": "postal_code"
+        }
+      ],
+      "next_action": {
+        "type": "click",
+        "selector": "button:has-text('Get Quote')"
+      }
+    }
+  ],
+  "final_page": {
+    "wait_for": ".quote-result",
+    "timeout_ms": 60000,
+    "screenshot_selector": ".quote-panel"
+  }
+}
+```
+
+**data_row.json**:
+```json
+{
+  "vehicle_hsn": "0603",
+  "vehicle_tsn": "AKZ",
+  "first_registration": "2020-03-15",
+  "birthdate": "1985-06-20",
+  "postal_code": "80331"
+}
+```
+
+### Form with Iframes
+
+```json
+{
+  "steps": [
+    {
+      "name": "embedded_form",
+      "wait_for": "iframe#form-frame",
+      "timeout_ms": 30000,
+      "fields": [
+        {
+          "type": "text",
+          "selector": "input[name='email']",
+          "iframe_selector": "iframe#form-frame",
+          "data_key": "email"
+        },
+        {
+          "type": "dropdown",
+          "selector": "select[name='plan']",
+          "iframe_selector": "iframe#form-frame",
+          "data_key": "selected_plan",
+          "select_by": "text"
+        }
+      ],
+      "next_action": {
+        "type": "click",
+        "selector": "button:has-text('Submit')",
+        "iframe_selector": "iframe#form-frame"
+      }
+    }
+  ]
+}
+```
+
+## License
+
+MIT
