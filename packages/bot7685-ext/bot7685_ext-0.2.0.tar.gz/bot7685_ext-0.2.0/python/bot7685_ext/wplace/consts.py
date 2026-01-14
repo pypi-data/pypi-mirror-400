@@ -1,0 +1,77 @@
+from typing import Literal, TypeAlias
+
+from bot7685_ext._ext import WPLACE_COLORS_MAP
+
+ColorName: TypeAlias = Literal[
+    "Black",
+    "Dark Gray",
+    "Gray",
+    "Light Gray",
+    "White",
+    "Deep Red",
+    "Red",
+    "Orange",
+    "Gold",
+    "Yellow",
+    "Light Yellow",
+    "Dark Green",
+    "Green",
+    "Light Green",
+    "Dark Teal",
+    "Teal",
+    "Light Teal",
+    "Dark Blue",
+    "Blue",
+    "Cyan",
+    "Indigo",
+    "Light Indigo",
+    "Dark Purple",
+    "Purple",
+    "Light Purple",
+    "Dark Pink",
+    "Pink",
+    "Light Pink",
+    "Dark Brown",
+    "Brown",
+    "Beige",
+    "Medium Gray",
+    "Dark Red",
+    "Light Red",
+    "Dark Orange",
+    "Light Tan",
+    "Dark Goldenrod",
+    "Goldenrod",
+    "Light Goldenrod",
+    "Dark Olive",
+    "Olive",
+    "Light Olive",
+    "Dark Cyan",
+    "Light Cyan",
+    "Light Blue",
+    "Dark Indigo",
+    "Dark Slate Blue",
+    "Slate Blue",
+    "Light Slate Blue",
+    "Light Brown",
+    "Dark Beige",
+    "Light Beige",
+    "Dark Peach",
+    "Peach",
+    "Light Peach",
+    "Dark Tan",
+    "Tan",
+    "Dark Slate",
+    "Slate",
+    "Light Slate",
+    "Dark Stone",
+    "Stone",
+    "Light Stone",
+]
+
+COLORS_ID: dict[ColorName, int] = {
+    name: idx for idx, (name, _) in enumerate(WPLACE_COLORS_MAP, 1)
+}
+COLORS_NAME: dict[int, ColorName] = {idx: name for name, idx in COLORS_ID.items()}
+ALL_COLORS = dict(WPLACE_COLORS_MAP)
+FREE_COLORS: list[ColorName] = [name for name, _ in WPLACE_COLORS_MAP[:31]]
+PAID_COLORS: list[ColorName] = [name for name, _ in WPLACE_COLORS_MAP[31:]]
