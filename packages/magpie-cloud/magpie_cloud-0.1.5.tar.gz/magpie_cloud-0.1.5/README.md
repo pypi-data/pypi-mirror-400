@@ -1,0 +1,345 @@
+# Magpie Python SDK
+
+The official Python SDK for Magpie Cloud. Create runtime workers and code sandboxes with a simple, intuitive API. Build ephemeral batch jobs, long-lived development environments, or stateful workflows without managing infrastructure yourself.
+
+Visit [magpiecloud.com](https://magpiecloud.com) for more information.
+
+---
+
+## Installation
+
+```bash
+pip install magpie-cloud
+```
+
+The package targets Python 3.9+. Install it inside a virtual environment when possible.
+
+---
+
+## Getting Started
+
+```python
+from magpie import Magpie
+
+client = Magpie(api_key="YOUR_API_KEY")
+```
+
+All SDK methods return plain data classes (`pydantic` models) or Python dictionaries. The `jobs` resource is central for launching workloads and inspecting their lifecycle.
+
+---
+
+## Job Modes at a Glance
+
+| Flag | Default | What it controls | Typical use cases |
+| ---- | ------- | ---------------- | ----------------- |
+| `persist` | `False` | Keeps the VM alive after the script exits | Interactive/dev shells, long-running services |
+| `stateful` | `False` | Mounts a reusable `/workspace` disk between runs | CI caches, incremental builds |
+| `ip_lease` | `False` | Allocates a routable IPv6 address for SSH/http access | Remote editors, port forwarding, health checks |
+
+**Choosing the right combination**
+
+- **Ephemeral jobs (`persist=False`, `stateful=False`)** — fast one-shot tasks such as CI steps, data transforms, smoke tests.
+- **Stateful batches (`stateful=True`)** — pipelines that reuse build artifacts or cached data stored in `/workspace` between runs.
+- **Persistent VMs (`persist=True`)** — development sandboxes or services that must continue running (often together with `ip_lease=True` for remote access).
+
+You can mix `stateful` with `persist` if you want a long-lived VM and a durable disk.
+
+---
+
+## Example: Ephemeral Job (default flags)
+
+```python
+from magpie import Magpie
+
+client = Magpie(api_key="YOUR_API_KEY")
+
+response = client.jobs.create(
+    name="hello-world",
+    script="echo 'Hello from Magpie!'",
+    vcpus=2,
+    memory_mb=512,
+)
+
+request_id = response["request_id"]
+
+# Poll until the job finishes
+status = client.jobs.wait_for_completion(request_id, timeout=180)
+print(status.status, status.exit_code)
+
+# Fetch logs
+logs = client.jobs.get_logs(request_id)
+for entry in logs:
+    print(entry.timestamp, entry.message)
+
+# Summarise the result
+result = client.jobs.get_result(request_id)
+print(result.success, result.logs)
+```
+
+Use this mode for short jobs that can start fresh every time.
+
+---
+
+## Example: Persistent VM with IPv6 + SSH
+
+Persistent VMs keep running after the initial script exits. Combine `persist=True` and `ip_lease=True` to receive an IPv6 address and execute SSH commands. The backend manages authentication so your users only need the job ID.
+
+```python
+from magpie import Magpie
+
+client = Magpie(api_key="YOUR_API_KEY")
+
+handle = client.jobs.create_persistent_vm(
+    name="dev-shell",
+    script="echo ready",
+    poll_timeout=180,
+    poll_interval=3,
+)
+
+print("Job ID:", handle.request_id)
+print("Assigned IPv6:", handle.ip_address)
+
+# Run ssh commands
+result = client.jobs.ssh(handle.request_id, "uname -a")
+print("exit:", result.exit_code)
+print("stdout:\n", result.stdout)
+
+# Execute another command (commands can run concurrently from your client)
+client.jobs.ssh(handle.request_id, "mkdir -p /workspace/app && ls -la /workspace")
+```
+
+**When to use this pattern**
+- Remote development environments
+- Always-on demos and staging servers
+- Long-running background jobs where you need to periodically run maintenance commands
+
+`client.jobs.ssh` returns only after the remote command finishes (or the timeout is reached). Issue parallel SSH commands from separate coroutines/threads to run them concurrently.
+
+---
+
+## Public Proxy URLs
+
+Expose your persistent VM to the internet via a public HTTPS URL. This is useful for web apps, APIs, webhooks, or any service that needs to be accessible externally.
+
+### Getting a Proxy URL
+
+```python
+from magpie import Magpie
+
+client = Magpie(api_key="YOUR_API_KEY")
+
+# Option 1: Create a persistent VM with proxy URL
+handle = client.jobs.create_persistent_vm(
+    name="web-server",
+    script="python -m http.server 8080",
+    register_proxy=True,  # Enable proxy URL generation
+    proxy_port=8080,      # Port your app listens on (default: 8080)
+)
+
+print("Public URL:", handle.proxy_url)
+# Example: https://abc123def456.app.lfg.run
+```
+
+### Getting Proxy URL from an Existing Job
+
+```python
+# Option 2: Get proxy URL for any job by request_id
+proxy_url = client.jobs.get_proxy_url("req_abc123def456")
+print(proxy_url)  # https://req_abc123def.app.lfg.run
+
+# Option 3: Proxy URL is included in job results
+result = client.jobs.run_and_wait(
+    name="api-server",
+    script="python app.py",
+    persist=True,
+    ip_lease=True,
+)
+print(result.proxy_url)  # Automatically populated if IPv6 is assigned
+```
+
+### Using Helper Functions Directly
+
+```python
+from magpie import generate_proxy_url, generate_subdomain, PROXY_DOMAIN
+
+# Generate URL from request_id
+url = generate_proxy_url("req_abc123def456")
+# Returns: https://req_abc123def.app.lfg.run
+
+# Get just the subdomain
+subdomain = generate_subdomain("req_abc123def456")
+# Returns: req_abc123def
+
+# Check the proxy domain
+print(PROXY_DOMAIN)  # app.lfg.run
+```
+
+### How It Works
+
+1. Your VM runs a service on a port (default: 8080)
+2. The proxy URL maps to your VM's IPv6 address
+3. Requests to `https://<subdomain>.app.lfg.run` are proxied to your VM
+4. SSL termination is handled automatically
+
+**Requirements:**
+- Job must have `persist=True` and `ip_lease=True`
+- Your application must listen on the specified port (default 8080)
+- The VM must be in a running state
+
+---
+
+## Custom Proxy Targets
+
+Register any IPv6 address (not just jobs) to get a public proxy URL. This is useful for:
+- Services running on VMs not created through jobs
+- External services you want to expose
+- Custom deployments
+
+### Creating a Custom Proxy Target
+
+```python
+from magpie import Magpie
+
+client = Magpie(api_key="YOUR_API_KEY")
+
+# Register an IPv6 address
+target = client.proxy_targets.create(
+    ipv6_address="2001:db8::1",
+    port=8080,
+    name="My Web Server",  # Optional friendly name
+    subdomain="my-app",    # Optional - auto-generated if not provided
+)
+
+print(target.proxy_url)      # https://my-app.app.lfg.run
+print(target.subdomain)      # my-app
+print(target.ipv6_address)   # 2001:db8::1
+```
+
+### Managing Proxy Targets
+
+```python
+# List all your proxy targets
+targets = client.proxy_targets.list()
+for t in targets:
+    print(f"{t.name}: {t.proxy_url}")
+
+# Get a specific target
+target = client.proxy_targets.get("target-id-here")
+
+# Update a target (change IPv6 or port)
+target = client.proxy_targets.update(
+    "target-id-here",
+    ipv6_address="2001:db8::2",
+    port=3000,
+)
+
+# Delete a target
+client.proxy_targets.delete("target-id-here")
+```
+
+---
+
+## Example: Stateful Workspace (persisting `/workspace`)
+
+Stateful jobs attach a named block device mounted at `/workspace`. The disk survives between runs as long as you reuse the same `workspace_id`.
+
+```python
+client = Magpie(api_key="YOUR_API_KEY")
+
+# First run creates the workspace
+initial = client.jobs.run_and_wait(
+    name="init-cache",
+    script="echo 'counter=0' > /workspace/state.txt",
+    vcpus=2,
+    memory_mb=512,
+    stateful=True,
+    workspace_size_gb=5,
+)
+
+workspace_id = initial.request_id
+
+# Subsequent run reuses the disk
+second = client.jobs.run_and_wait(
+    name="increment",
+    script="""
+    source /workspace/state.txt
+    counter=$((counter + 1))
+    echo "counter=${counter}" > /workspace/state.txt
+    echo "Counter is now ${counter}"
+    """,
+    stateful=True,
+    workspace_id=workspace_id,
+)
+print(second.logs)
+```
+
+Use stateful workspaces for build caches, dependency layers, or any workflow that benefits from keeping files between job runs without holding the VM open.
+
+---
+
+## Inspecting Jobs
+
+- `client.jobs.get_status(request_id)` — lightweight status poller.
+- `client.jobs.get_vm_info(request_id)` — returns VM metadata (IDs, IPv6/IPv4) for persistent jobs.
+- `client.jobs.get_logs(request_id)` — grabs the accumulated log buffer.
+- `client.jobs.stream_logs(request_id)` — generator that streams logs in real time (useful from a CLI or TUI).
+- `client.jobs.cancel(request_id)` — best-effort cancellation for running jobs.
+
+---
+
+## Job Templates
+
+Templates let you save a script definition, then launch runs with custom environments or parameters.
+
+```python
+template = client.templates.create(
+    name="csv-to-parquet",
+    description="Convert uploaded CSV to Parquet",
+    script="""
+    python3 <<'PY'
+    import pandas as pd
+    df = pd.read_csv('/workspace/input.csv')
+    df.to_parquet('/workspace/output.parquet')
+    PY
+    """,
+    vcpus=4,
+    memory_mb=2048,
+)
+
+run = client.templates.run(
+    template.id,
+    environment={"SOURCE_URL": "https://example.com/data.csv"},
+)
+print(run.id, run.status)
+```
+
+Templates are great for self-service portals or repeating scheduled workloads.
+
+---
+
+## Advanced Tips
+
+- **Environment variables** — pass a dict via the `environment` field to inject secrets or parameters into the VM.
+- **File uploads** — upload artifacts using the `/api/v1/jobs/files` endpoints (see SDK helpers or Postman collection) and consume them inside the job.
+- **Combining modes** — you can run a persistent VM *and* make it stateful by setting both `persist=True` and `stateful=True` with a `workspace_id`.
+- **Timeouts** — `jobs.wait_for_completion` takes `timeout` and `poll_interval`; `jobs.ssh` accepts `timeout` per command.
+- **Concurrency** — Magpie Cloud processes API requests in parallel. Fire multiple `jobs.ssh` calls or even launch several jobs at once from your client code.
+
+---
+
+## Where Magpie Fits In
+
+- **CI / automation** — ephemeral jobs with `persist=False` for isolated build or test steps.
+- **Data pipelines** — stateful jobs to reuse bulky datasets without re-downloading every run.
+- **Interactive dev boxes** — persistent, IP-leased VMs that you reach over SSH or Web IDEs.
+- **Fleet management / maintenance** — trigger commands on persistent VMs using `jobs.ssh` for backups, package upgrades, or ad-hoc diagnostics.
+
+---
+
+## Further Reading
+
+- [STATEFUL_JOBS.md](STATEFUL_JOBS.md) — deeper walkthrough of `stateful=True` workloads.
+- API docs and the Postman collection in the repository for endpoints not yet wrapped by the SDK.
+- Examples under `sdk/python/` (`test_ssh.py`, `test_persistent_vm.py`, `modify_nextjs_app.py`) for real-world scripts.
+
+Have questions or ideas? Open an issue or pull request and we’ll keep improving the SDK together.
