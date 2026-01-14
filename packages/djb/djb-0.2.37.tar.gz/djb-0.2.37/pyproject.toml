@@ -1,0 +1,123 @@
+[project]
+name = "djb"
+version = "0.2.37"
+description = "Django + Bun deployment platform"
+readme = "README.md"
+# Python 3.14+ for latest features. Docker builds GDAL from source against libgdal-dev.
+requires-python = ">=3.14"
+dependencies = [
+  "django>=6.0.0",
+  "click>=8.1.8",
+  "cryptography>=44.0.0",
+  "filelock>=3.11",
+  "hcloud>=2.0.0",
+  "jinja2>=3.1.0",
+  "pyyaml>=6.0.2",
+  "requests>=2.32.0",
+  "attrs>=25.4.0",
+  "tomlkit>=0.13.0",
+]
+authors = [
+  {name = "kajicom"}
+]
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.scripts]
+djb = "djb.cli.djb:main"
+
+[project.urls]
+Homepage = "https://github.com/kajicom/djb"
+Repository = "https://github.com/kajicom/djb"
+
+[build-system]
+requires = ["setuptools>=77.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+djb = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ["py314"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+# Enable PLC0415 for import-outside-toplevel (inline imports)
+# Enable F401 for unused import detection (auto-fixable with --fix)
+# Enable F841 for unused variable detection
+# Enable PGH003 to disallow blanket type: ignore without error codes
+# Enable TID251 to ban direct subprocess imports in CLI code
+select = ["PLC0415", "F401", "F841", "PGH003", "TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"subprocess".msg = "Use CmdRunner instead of subprocess directly"
+"djb.secrets.protected".msg = "Use SecretsManager which handles GPG protection automatically"
+"djb.secrets.gpg".msg = "GPG module is internal. Use SecretsManager or djb.secrets barrel exports"
+"click.get_current_context".msg = "Pass CmdRunner/CliContext explicitly. Only allowed in signal handlers (protected.py) and djb_pass_context decorator (context.py)"
+
+[tool.ruff.lint.per-file-ignores]
+# Central subprocess wrapper - the ONLY production code allowed to use subprocess directly
+"src/djb/core/cmd_runner.py" = ["TID251"]
+# protected.py uses click.get_current_context for signal handler cleanup
+"src/djb/secrets/protected.py" = ["TID251"]
+# Internal secrets module files import from protected.py (internal coupling, not CLI usage)
+"src/djb/secrets/__init__.py" = ["TID251"]
+"src/djb/secrets/core.py" = ["TID251"]
+"src/djb/secrets/init.py" = ["TID251"]
+"src/djb/secrets/django.py" = ["TID251"]
+# The djb_pass_context decorator uses get_current_context by design
+"src/djb/cli/context.py" = ["TID251"]
+# The secrets CLI imports from djb.secrets.protected for protect/unprotect commands
+"src/djb/cli/secrets.py" = ["TID251"]
+# Unit tests need subprocess for mocking and testing SubprocessError handling
+"src/djb/cli/tests/test_db.py" = ["TID251"]
+"src/djb/cli/utils/tests/test_run.py" = ["TID251"]
+"src/djb/secrets/tests/test_core.py" = ["TID251"]
+"src/djb/secrets/tests/test_gpg.py" = ["TID251"]
+# Secrets tests need to import from protected/gpg for testing GPG protection
+"src/djb/secrets/tests/test_protected.py" = ["TID251"]
+"src/djb/cli/tests/e2e/test_protected_concurrency.py" = ["TID251"]
+"src/djb/cli/tests/e2e/test_gpg.py" = ["TID251"]
+"src/djb/cli/tests/e2e/test_secrets.py" = ["TID251"]
+# Test fixtures need subprocess for PTY handling and process-based testing
+"src/djb/testing/fixtures.py" = ["TID251"]
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "django-stubs>=5.0.0",
+    "py-spy>=0.4.1",
+    "pyright>=1.1.0",
+    "pytest>=9.0.2",
+    "pytest-cov>=6.0.0",
+    "pytest-order>=1.2.0",
+    "pytest-xdist>=3.6.0",
+]
+
+[tool.coverage.run]
+source = ["djb"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
