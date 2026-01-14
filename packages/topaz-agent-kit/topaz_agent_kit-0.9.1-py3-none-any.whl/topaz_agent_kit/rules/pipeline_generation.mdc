@@ -1,0 +1,242 @@
+---
+alwaysApply: false
+---
+# Pipeline Generation Workflow
+
+When the user requests to create a new pipeline (or says "follow the pipeline generation workflow"), execute this workflow systematically.
+
+## Quick Reference: Files to Generate
+
+| # | Type | Template | Location |
+|---|------|----------|----------|
+| 1 | Pipeline config | `{id}.yml` | `config/pipelines/` |
+| 2 | Agent configs (×N) | `{id}_{role}.yml` | `config/agents/` |
+| 3 | Prompt templates (×N) | `{id}_{role}.jinja` | `config/prompts/` |
+| 4 | UI manifest | `{id}.yml` | `config/ui_manifests/` |
+| 5 | Pipeline icon | `{id}.svg` | `ui/static/assets/` |
+| 6 | Agent icons (×N) | `{id}_{role}.svg` | `ui/static/assets/` |
+| 7 | HITL templates | `{gate_id}.jinja` | `config/hitl/` (if any) |
+
+**Update existing files:**
+- `config/pipeline.yml` — Add pipeline entry
+- `config/ui_manifest.yml` — Add UI manifest entry
+- `config/prompts/assistant_intent_classifier.jinja` — Add to pipelines list
+
+---
+
+## Base Path
+
+**🔍 FIRST**: Ask user for base path or use default: `src/topaz_agent_kit/templates/starters/ensemble/`
+
+All file paths are relative to this base path.
+
+---
+
+## Workflow Steps
+
+Execute these steps IN ORDER. Do not skip steps. Pause at checkpoints (🔍).
+
+### Step 1: Requirements Gathering
+📄 **Reference**: `docs/workflows/pipeline_generation/step1_requirements.md`
+
+**Collect systematically:**
+1. Use case description, pipeline name, purpose
+2. Generate pipeline ID (snake_case from name)
+3. Confirm agent prefix with user (usually same as pipeline ID)
+4. Identify all agents (roles, inputs, outputs, dependencies)
+5. Check for agent ID conflicts with existing files
+6. Define execution pattern (sequential/parallel/loop/conditional/switch/handoff/group_chat)
+7. Define HITL gates (approval/input/selection) if any
+8. Define MCP tool requirements
+9. Define output structure (final + intermediate)
+10. Ask about icon preferences (or defer to Step 4)
+11. Identify mock data requirements (if pipeline needs database/scripts)
+
+**🔍 CHECKPOINT 1**: Present requirements summary using template. Wait for user approval before proceeding.
+
+---
+
+### Step 2: Workflow Design
+📄 **Reference**: `docs/workflows/pipeline_generation/step2_design.md`
+
+**Design:**
+1. Finalize agent list with protocols (A2A for remote, IN-PROC for local)
+2. Analyze MCP tool requirements per agent
+3. Design execution pattern structure (YAML representation)
+4. Design HITL gate configurations with placement
+5. Design output transformations
+6. Create workflow proposal document
+
+**🔍 CHECKPOINT 2**: Present workflow proposal with visual flow. Wait for user approval.
+
+---
+
+### Step 3: Interactive Refinement
+📄 **Reference**: `docs/workflows/pipeline_generation/step3_refinement.md`
+
+1. Review and incorporate user feedback
+2. Make adjustments to design
+3. Resolve any conflicts or issues
+4. Document final decisions
+
+**🔍 CHECKPOINT 3**: Final confirmation before file generation. Explicit "proceed" required.
+
+---
+
+### Step 4: File Generation
+📄 **Reference**: `docs/workflows/pipeline_generation/step4_generation.md`
+
+**Generate files in this order:**
+
+1. **Pipeline config** → `config/pipelines/{pipeline_id}.yml`
+2. **Agent configs** → `config/agents/{agent_id}.yml` (for each agent)
+3. **Prompt templates** → `config/prompts/{agent_id}.jinja` (for each agent)
+4. **HITL templates** → `config/hitl/{gate_id}.jinja` (if any gates)
+5. **UI manifest** → `config/ui_manifests/{pipeline_id}.yml`
+6. **SVG Icons** → `ui/static/assets/{pipeline_id}.svg` + `{agent_id}.svg` for each agent
+7. **Update pipeline.yml** → Add pipeline entry
+8. **Update ui_manifest.yml** → Add UI manifest entry
+9. **Update assistant_intent_classifier.jinja** → Add pipeline to list
+
+**🔍 CHECKPOINT 4**: Review generated files with user. Ask if any changes needed.
+
+---
+
+### Step 5: Validation & Summary
+📄 **Reference**: `docs/workflows/pipeline_generation/step5_validation.md`
+
+1. Validate all context variables are accessible (upstream dependencies)
+2. Validate HITL gate configurations
+3. Validate file paths and references
+4. Generate completion summary
+5. Provide testing instructions
+
+**🔍 CHECKPOINT 5**: Final review and completion confirmation.
+
+---
+
+## Critical Rules
+
+### Naming Conventions
+| Type | Format | Example |
+|------|--------|---------|
+| Pipeline ID | `snake_case` | `contract_analyzer` |
+| Agent ID | `{pipeline_id}_{role}` | `contract_analyzer_extractor` |
+| Gate ID | `{pipeline_id}_{purpose}` | `contract_analyzer_review` |
+| Files | Match IDs exactly | `contract_analyzer_extractor.yml` |
+
+### Icon Generation (Step 4)
+**Generate actual SVG files**, not just suggestions:
+- Use 24×24 viewBox, stroke-based, single color (`currentColor`)
+- Save to `ui/static/assets/{id}.svg`
+- See `docs/workflows/pipeline_generation/reference_icons.md` for templates
+
+### Variable Syntax
+| Syntax | When to Use |
+|--------|-------------|
+| `{{agent_id.field}}` | Explicit (preferred) - always works |
+| `{{field}}` | Simple - only when field name is unique |
+| ❌ `{{context.get('field')}}` | Never use this syntax |
+
+### Context Access Rules
+- Agents can ONLY access outputs from **upstream** agents in the pattern
+- Pattern descriptions are rendered BEFORE agents execute (can't use agent outputs)
+- Use `accumulate_results: true` for loop patterns to access all iterations
+- Use `{agent_id}_instances` to access repeat pattern results
+
+---
+
+## Reference Documents
+
+| Document | Contents |
+|----------|----------|
+| `reference_patterns.md` | All 9 execution patterns with YAML examples |
+| `reference_hitl.md` | Gate types, placement strategies, flow control |
+| `reference_jinja.md` | Variable syntax, filters, whitespace rules |
+| `reference_icons.md` | SVG templates and generation guidelines |
+
+---
+
+## State Tracking
+
+Fill in as you progress through the workflow:
+
+```
+Pipeline Generation State
+─────────────────────────
+Base Path:        [ ]
+Pipeline ID:      [ ]
+Pipeline Name:    [ ]
+Agent Prefix:     [ ]
+─────────────────────────
+Agents (count):   [ ]
+Pattern Type:     [ ]
+HITL Gates:       [ ]
+Mock Data Script: [ ]
+─────────────────────────
+Step 1 Complete:  [ ]
+Step 2 Complete:  [ ]
+Step 3 Complete:  [ ]
+Step 4 Complete:  [ ]
+Step 5 Complete:  [ ]
+─────────────────────────
+Files Generated:  [ ]
+Validation:       [ ]
+```
+
+---
+
+## Troubleshooting
+
+**Reference**: `docs/workflows/pipeline_generation/reference_troubleshooting.md`
+
+### Quick Reference: Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| Agent ID conflict | Add suffix or use more specific role name |
+| Variable not found | Check upstream agent outputs, verify dependency order |
+| HITL not triggering | Verify `after` placement and condition syntax |
+| Icon not showing | Check file path matches UI manifest entry |
+| Path not found | Use `project_dir` for absolute paths in file/DB operations |
+| `id` in intermediate outputs | Remove `id` field - only `node`, `selectors`, `transform` allowed |
+| Python-style conditionals | Use `{% if %}{% endif %}` not `{{var if var else default}}` |
+
+### Testing Commands
+
+```bash
+# Regenerate project
+topaz-agent-kit init --starter ensemble projects/ensemble
+
+# Test via CLI
+topaz-agent-kit serve cli --project projects/ensemble
+
+# Test via UI
+topaz-agent-kit serve fastapi --project projects/ensemble
+```
+
+---
+
+## Reference Documents
+
+| Document | Content |
+|----------|---------|
+| `reference_patterns.md` | All 9 execution patterns with examples |
+| `reference_hitl.md` | HITL gate types and configurations |
+| `reference_jinja.md` | Variable syntax, filters, table formatting |
+| `reference_icons.md` | SVG icon templates and generation |
+| `reference_troubleshooting.md` | Common errors and fixes |
+
+---
+
+## Completion Checklist
+
+Before marking workflow complete, verify:
+
+- [ ] All files generated and saved
+- [ ] Pipeline entry added to `pipeline.yml`
+- [ ] UI manifest entry added to `ui_manifest.yml`
+- [ ] Pipeline added to `assistant_intent_classifier.jinja`
+- [ ] All SVG icons generated (pipeline + agents)
+- [ ] Context variables validated
+- [ ] User has received testing instructions
