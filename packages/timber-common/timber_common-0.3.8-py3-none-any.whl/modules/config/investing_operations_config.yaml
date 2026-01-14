@@ -1,0 +1,182 @@
+version: "1.0"
+
+# Configuration-driven business logic for stock and index operations
+
+operations:
+  # ===================================================================
+  # SIMPLE STOCK OPERATIONS 
+  # ===================================================================
+  
+  get_stock_info:
+    type: simple
+    description: "Retrieves comprehensive information for a given stock symbol"
+    operation: fetch_stock_info
+    inputs:
+      symbol: "{{ symbol }}"
+  
+  get_stock_news:
+    type: simple
+    description: "Retrieves recent news articles for a given stock symbol"
+    operation: fetch_stock_news
+    inputs:
+      symbol: "{{ symbol }}"
+      limit: "{{ limit | default(10) }}"
+  
+  get_stock_values_by_period:
+    type: simple
+    description: "Retrieves historical stock prices by period"
+    operation: fetch_stock_data_by_period
+    inputs:
+      symbol: "{{ symbol }}"
+      period: "{{ period }}"
+  
+  get_stock_values:
+    type: simple
+    description: "Retrieves historical stock prices within a date range"
+    operation: fetch_stock_data_by_date_range
+    inputs:
+      symbol: "{{ symbol }}"
+      start_date_str: "{{ start_date }}"
+      end_date_str: "{{ end_date | default(none) }}"
+  
+  # ===================================================================
+  # SIMPLE INDEX OPERATIONS
+  # ===================================================================
+  
+  get_major_indices:
+    type: simple
+    description: "Returns the curated list of major world indices"
+    operation: get_major_indices
+    inputs: {}
+  
+  get_index_news:
+    type: simple
+    description: "Fetches recent news for a given index symbol"
+    operation: fetch_index_news
+    inputs:
+      symbol: "{{ symbol }}"
+      limit: "{{ limit | default(20) }}"
+  
+  get_index_components:
+    type: simple
+    description: "Fetches constituent companies for a given index"
+    operation: fetch_index_components
+    inputs:
+      index_name: "{{ index_name }}"
+  
+  get_index_info:
+    type: simple
+    description: "Fetches general information for a given index"
+    operation: fetch_index_info
+    inputs:
+      symbol: "{{ symbol }}"
+  
+  # ===================================================================
+  # PIPELINE OPERATIONS FOR STOCKS AND INDICES
+  # ===================================================================
+  
+  get_index_performance:
+    type: pipeline
+    description: "Fetches and processes historical performance data for a given index"
+    steps:
+      - operation: fetch_stock_data_by_period
+        inputs:
+          symbol: "{{ symbol }}"
+          period: "{{ period }}"
+        output_var: raw_data
+        on_error: return_error
+      
+      - operation: standardize_dataframe
+        inputs:
+          df: "{{ raw_data[0] }}"  # First element of tuple (df, error)
+        output_var: standardized
+        condition: "{{ raw_data[1] is none }}"  # Only if no error
+      
+      - operation: calculate_returns
+        inputs:
+          df: "{{ standardized }}"
+        output_var: with_returns
+      
+      - operation: calculate_cumulative_returns
+        inputs:
+          df: "{{ with_returns[0] }}"
+        output_var: with_cum_returns
+      
+      - operation: calculate_wealth_index
+        inputs:
+          df: "{{ with_cum_returns[0] }}"
+          initial_investment: 1000
+        output_var: with_wealth
+      
+      - operation: calculate_drawdown
+        inputs:
+          df: "{{ with_wealth[0] }}"
+        output_var: final_data
+    
+    return: final_data
+  
+  # ===================================================================
+  # ADVANCED PIPELINE: MULTI-STOCK COMPARISON
+  # ===================================================================
+  
+  compare_stock_performance:
+    type: pipeline
+    description: "Compare performance of multiple stocks over a period"
+    steps:
+      - operation: fetch_stock_data_by_period
+        inputs:
+          symbol: "{{ symbols[0] }}"
+          period: "{{ period }}"
+        output_var: stock1_data
+      
+      - operation: fetch_stock_data_by_period
+        inputs:
+          symbol: "{{ symbols[1] }}"
+          period: "{{ period }}"
+        output_var: stock2_data
+      
+      - operation: calculate_returns
+        inputs:
+          df: "{{ stock1_data[0] }}"
+        output_var: stock1_returns
+      
+      - operation: calculate_returns
+        inputs:
+          df: "{{ stock2_data[0] }}"
+        output_var: stock2_returns
+    
+    return: 
+      stock1: stock1_returns
+      stock2: stock2_returns
+  
+  # ===================================================================
+  # CONDITIONAL PIPELINE: FETCH WITH FALLBACK
+  # ===================================================================
+  
+  get_stock_data_with_fallback:
+    type: pipeline
+    description: "Fetch stock data with fallback to different periods if needed"
+    steps:
+      - operation: fetch_stock_data_by_period
+        inputs:
+          symbol: "{{ symbol }}"
+          period: "1y"
+        output_var: yearly_data
+        on_error: continue
+      
+      - operation: fetch_stock_data_by_period
+        inputs:
+          symbol: "{{ symbol }}"
+          period: "6mo"
+        output_var: halfyear_data
+        condition: "{{ yearly_data[1] is not none }}"  # Only if yearly failed
+        on_error: continue
+      
+      - operation: fetch_stock_data_by_period
+        inputs:
+          symbol: "{{ symbol }}"
+          period: "1mo"
+        output_var: monthly_data
+        condition: "{{ halfyear_data is defined and halfyear_data[1] is not none }}"
+    
+    return: yearly_data if yearly_data[1] is none else (halfyear_data if halfyear_data is defined and halfyear_data[1] is none else monthly_data)

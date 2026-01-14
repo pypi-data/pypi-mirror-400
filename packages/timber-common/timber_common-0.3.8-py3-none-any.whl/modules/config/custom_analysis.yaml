@@ -1,0 +1,30 @@
+version: '1.0'
+operations:
+  tech_stock_analysis:
+    type: pipeline
+    steps:
+    - operation: fetch_stock_data_by_period
+      inputs:
+        symbol: '{{ symbol }}'
+        period: 6mo
+      output_var: raw_data
+    - operation: standardize_dataframe
+      inputs:
+        df: '{{ raw_data[0] }}'
+      output_var: clean_data
+    - operation: calculate_returns
+      inputs:
+        df: '{{ clean_data }}'
+      output_var: with_returns
+    - operation: calculate_volatility
+      inputs:
+        df: '{{ with_returns[0] }}'
+        window: 20
+      output_var: with_volatility
+    - operation: calculate_sharpe_ratio
+      inputs:
+        df: '{{ with_volatility[0] }}'
+        window: 120
+      output_var: final_data
+    return: final_data
+    description: Comprehensive analysis for tech stocks
