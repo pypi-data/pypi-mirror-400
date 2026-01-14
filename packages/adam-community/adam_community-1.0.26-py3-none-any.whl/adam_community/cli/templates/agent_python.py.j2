@@ -1,0 +1,334 @@
+from adam_community.tool import Tool
+from adam_community.util import runCmd
+import json
+import datetime
+
+
+# 输出处理常量
+MAX_OUTPUT_LENGTH = 10000
+TRUNCATE_PREFIX_LENGTH = 5000
+TRUNCATE_SUFFIX_LENGTH = 5000
+SUMMARY_STDOUT_LENGTH = 300
+SUMMARY_STDERR_LENGTH = 200
+
+
+def truncate_output(text):
+    """截断过长的输出文本。
+    
+    Args:
+        text (str): 需要截断的文本
+        
+    Returns:
+        str: 截断后的文本
+    """
+    if len(text) <= MAX_OUTPUT_LENGTH:
+        return text
+    return (text[:TRUNCATE_PREFIX_LENGTH] + 
+            "\n...输出太长已省略...\n" + 
+            text[-TRUNCATE_SUFFIX_LENGTH:])
+
+
+def get_status_info(exit_code):
+    """获取执行状态信息。
+    
+    Args:
+        exit_code (int): 退出码
+        
+    Returns:
+        tuple: (状态图标, 状态文本) 元组
+    """
+    if exit_code == 0:
+        return "✅", "成功"
+    return "❌", "失败"
+
+
+def format_output_display(stdout, stderr, exit_code, tool_display_name):
+    """格式化输出显示文本。
+    
+    Args:
+        stdout (str): 标准输出
+        stderr (str): 错误输出
+        exit_code (int): 退出码
+        tool_display_name (str): 工具显示名称
+        
+    Returns:
+        str: 格式化的Markdown文本
+    """
+    status_icon, status_text = get_status_info(exit_code)
+    
+    display_parts = [
+        f"## {status_icon} {tool_display_name}处理{status_text}",
+        "",
+        "### 📋 处理结果",
+        f"- 退出码: {exit_code}",
+        "- 标准输出:",
+        "```",
+        stdout,
+        "```"
+    ]
+    
+    if stderr:
+        display_parts.extend([
+            "",
+            "### ⚠️ 错误/警告信息",
+            "```",
+            stderr,
+            "```"
+        ])
+    
+    return "\n".join(display_parts)
+
+
+def generate_summary(stdout, stderr, exit_code, tool_name):
+    """生成执行结果摘要。
+    
+    Args:
+        stdout (str): 标准输出
+        stderr (str): 错误输出
+        exit_code (int): 退出码
+        tool_name (str): 工具名称
+        
+    Returns:
+        str: 执行摘要文本
+    """
+    if exit_code != 0:
+        summary = f"{tool_name}执行失败（退出码: {exit_code}）。"
+        if stderr:
+            summary += f" 错误信息: {stderr[:SUMMARY_STDERR_LENGTH]}"
+        return summary
+    
+    if stderr:
+        summary = f"{tool_name}执行完成但有警告。"
+        summary += f" 输出: {stdout[:SUMMARY_STDERR_LENGTH]}"
+        summary += f" 警告: {stderr[:SUMMARY_STDERR_LENGTH]}"
+        return summary
+    
+    summary = f"{tool_name}执行成功。"
+    summary += f" 输出摘要: {stdout[:SUMMARY_STDOUT_LENGTH]}"
+    return summary
+
+
+class {{ name.replace("-", "_") }}_tool(Tool):
+    """
+    {{ description }}
+    
+    Args:
+        input_text (str): 输入的文本内容
+        mode (str, optional): 处理模式，可选值：basic、advanced
+    """
+    DISPLAY_NAME = "{{ display_name }}工具"
+    NETWORK = False
+    CPU = 1
+    GPU = 0
+    SIF = "adam-base:1.0.0"
+    
+    # 输出文件配置
+    OUTPUT_FILE = "output.txt"
+
+    def inputShow(self, **kwargs):
+        """AI决定使用该工具时调用，用于向用户展示当前调用的工具信息。
+        
+        Args:
+            kwargs (dict): 包含args、message、files、user、task_id等参数的字典。
+        
+        Returns:
+            str: 给用户显示的字符串（可使用markdown渲染）。
+        """
+        args = kwargs['args']
+        input_text = args['input_text']
+        mode = args.get('mode', 'basic')
+        
+        show_text = f"正在使用 {{ display_name }} 工具处理文本内容"
+        if mode == 'advanced':
+            show_text += "（高级模式）"
+        
+        return Tool.markdown_terminal(
+            show_text,
+            workdir=kwargs.get("task_id", ""),
+            user=kwargs.get("user", "Adam"),
+            conda_env=getattr(self, "CONDA_ENV", "base")
+        )
+
+    def call(self, kwargs):
+        """Tool 逻辑实现函数"""    
+        args = kwargs['args']
+        input_text = args['input_text']
+        mode = args.get('mode', 'basic')
+        
+        # TODO: 在这里实现你的主要逻辑
+        if mode == 'advanced':
+            result = f"高级模式处理: {input_text}"
+        else:
+            result = f"基础模式处理: {input_text}"
+        
+        # 生成bash命令
+        bash_script = f'''# {{ display_name }} 处理脚本
+echo "开始处理: {input_text}"
+echo "处理模式: {mode}"
+
+# TODO: 在这里添加实际的处理命令
+echo "{result}"
+
+# 生成输出文件
+echo "处理完成" > {self.OUTPUT_FILE}
+echo "结果: {result}" >> {self.OUTPUT_FILE}
+
+echo "处理完成，结果已保存到 {self.OUTPUT_FILE}"
+'''
+        
+        return runCmd(bash_script)
+    
+    def outputShow(self, kwargs):
+        """任务结束时调用，用于向用户展示工具执行结果。
+        
+        Args:
+            kwargs (dict): 包含stdout、stderr、exit_code等执行结果的字典。
+        
+        Returns:
+            tuple: (用户显示字符串, 文件列表) 元组。
+                - 用户显示字符串 (str): 格式化的显示文本
+                - 文件列表 (list): 生成的文件列表，会在前端提供下载
+        """
+        stdout = truncate_output(kwargs.get('stdout', ''))
+        stderr = truncate_output(kwargs.get('stderr', ''))
+        exit_code = kwargs.get('exit_code', 0)
+        
+        display_text = format_output_display(
+            stdout, stderr, exit_code, "{{ display_name }} "
+        )
+        
+        # 根据执行结果判断生成的文件
+        file_list = []
+        if exit_code == 0 or self.OUTPUT_FILE in kwargs.get('stdout', ''):
+            file_list.append(self.OUTPUT_FILE)
+        
+        return display_text, file_list
+    
+    def summary(self, kwargs):
+        """任务结束时调用，用于向AI提供执行结果摘要。
+        
+        Args:
+            kwargs (dict): 包含stdout、stderr、exit_code等执行结果的字典。
+        
+        Returns:
+            str: 给AI的文本摘要，应简洁明了，避免上下文过长。
+        """
+        stdout = truncate_output(kwargs.get('stdout', ''))
+        stderr = truncate_output(kwargs.get('stderr', ''))
+        exit_code = kwargs.get('exit_code', 0)
+        
+        return generate_summary(
+            stdout, stderr, exit_code, "{{ display_name }}工具"
+        )
+
+
+class {{ name.replace("-", "_") }}_advanced_tool(Tool, calltype="python"):    
+    """{{ description }} - 高级功能
+    
+    Args:
+        input_file (str): 输入文件路径
+        output_format (str): 输出格式，可选值：json、csv、txt
+    """    
+    DISPLAY_NAME = "{{ display_name }}高级工具"
+    NETWORK = False
+    CPU = 1
+    GPU = 0
+    SIF = "adam-base:1.0.0"
+    CONDA_ENV = "base"
+    
+    # 输出文件配置
+    OUTPUT_FILE = "result.json"
+    DEFAULT_OUTPUT_FORMAT = "json"
+
+    def inputShow(self, **kwargs):
+        """AI决定使用该工具时调用，用于向用户展示当前调用的工具信息。
+        
+        Args:
+            kwargs (dict): 包含args、message、files、user、task_id等参数的字典。
+        
+        Returns:
+            str: 给用户显示的字符串（可使用markdown渲染）。
+        """
+        args = kwargs['args']
+        input_file = args['input_file']
+        output_format = args.get('output_format', self.DEFAULT_OUTPUT_FORMAT)
+        
+        show_text = (f"正在使用 {{ display_name }} 高级工具处理文件: {input_file}"
+                    f"（输出格式: {output_format}）")
+        
+        return Tool.markdown_terminal(
+            show_text,
+            workdir=kwargs.get("task_id", ""),
+            user=kwargs.get("user", "Adam"),
+            conda_env=self.CONDA_ENV
+        )
+    
+    def call(self, kwargs):    
+        """Tool 逻辑实现函数"""
+        args = kwargs['args']
+        input_file = args['input_file']
+        output_format = args.get('output_format', self.DEFAULT_OUTPUT_FORMAT)
+        
+        # TODO: 在这里实现你的Python逻辑
+        result = {
+            'input_file': input_file,
+            'output_format': output_format,
+            'processed_at': datetime.datetime.now().isoformat(),
+            'result': 'Python工具处理完成'
+        }
+        
+        # 对于Python工具，必须使用print输出结果
+        print(f"Python工具处理完成，输入文件: {input_file}")
+        print(f"输出格式: {output_format}")
+        print(f"处理结果: {result}")
+        
+        # 生成输出文件
+        if output_format == 'json':
+            with open(self.OUTPUT_FILE, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"结果已保存到 {self.OUTPUT_FILE}")
+    
+    def outputShow(self, kwargs):
+        """任务结束时调用，用于向用户展示工具执行结果。
+        
+        Args:
+            kwargs (dict): 包含stdout、stderr、exit_code等执行结果的字典。
+        
+        Returns:
+            tuple: (用户显示字符串, 文件列表) 元组。
+                - 用户显示字符串 (str): 格式化的显示文本
+                - 文件列表 (list): 生成的文件列表，会在前端提供下载
+        """
+        stdout = truncate_output(kwargs.get('stdout', ''))
+        stderr = truncate_output(kwargs.get('stderr', ''))
+        exit_code = kwargs.get('exit_code', 0)
+        
+        display_text = format_output_display(
+            stdout, stderr, exit_code, "{{ display_name }} 高级工具"
+        )
+        
+        # 根据输出格式判断生成的文件
+        file_list = []
+        args = kwargs.get('args', {})
+        output_format = args.get('output_format', self.DEFAULT_OUTPUT_FORMAT)
+        if output_format == 'json' and exit_code == 0:
+            file_list.append(self.OUTPUT_FILE)
+        
+        return display_text, file_list
+    
+    def summary(self, kwargs):
+        """任务结束时调用，用于向AI提供执行结果摘要。
+        
+        Args:
+            kwargs (dict): 包含stdout、stderr、exit_code等执行结果的字典。
+        
+        Returns:
+            str: 给AI的文本摘要，应简洁明了，避免上下文过长。
+        """
+        stdout = truncate_output(kwargs.get('stdout', ''))
+        stderr = truncate_output(kwargs.get('stderr', ''))
+        exit_code = kwargs.get('exit_code', 0)
+        
+        return generate_summary(
+            stdout, stderr, exit_code, "{{ display_name }}高级工具"
+        )
