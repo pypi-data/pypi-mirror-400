@@ -1,0 +1,158 @@
+Metadata-Version: 2.4
+Name: hexagon
+Version: 0.64.3
+Summary: Build your Team's CLI
+Home-page: https://github.com/lt-mayonesa/hexagon
+Author: Joaco Campero
+Author-email: juacocampero@gmail.com
+Project-URL: Bug Tracker, https://github.com/lt-mayonesa/hexagon/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: annotated-types==0.7.0; python_version >= "3.8"
+Requires-Dist: clipboard==0.0.4
+Requires-Dist: inquirerpy==0.3.4; python_version >= "3.7" and python_version < "4.0"
+Requires-Dist: markdown==3.10; python_version >= "3.10"
+Requires-Dist: markdown-it-py==4.0.0; python_version >= "3.10"
+Requires-Dist: mdurl==0.1.2; python_version >= "3.7"
+Requires-Dist: packaging==25.0; python_version >= "3.8"
+Requires-Dist: pfzy==0.3.4; python_version >= "3.7" and python_version < "4.0"
+Requires-Dist: prompt-toolkit==3.0.52; python_version >= "3.8"
+Requires-Dist: pydantic==2.12.5; python_version >= "3.9"
+Requires-Dist: pydantic-core==2.41.5; python_version >= "3.9"
+Requires-Dist: pydantic-settings==2.12.0; python_version >= "3.10"
+Requires-Dist: pygments==2.19.2; python_version >= "3.8"
+Requires-Dist: pyperclip==1.11.0
+Requires-Dist: python-dotenv==1.2.1; python_version >= "3.9"
+Requires-Dist: rich==14.2.0; python_full_version >= "3.8.0"
+Requires-Dist: ruamel.yaml==0.19.0; python_version >= "3.9"
+Requires-Dist: ruamel.yaml.clibz==0.3.4; python_version >= "3.9"
+Requires-Dist: typing-extensions==4.15.0; python_version >= "3.9"
+Requires-Dist: typing-inspection==0.4.2; python_version >= "3.9"
+Requires-Dist: wcwidth==0.2.14; python_version >= "3.6"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# hexagon
+Make your team's knowledge truly accessible, truly shared, and truly empowering by creating your own CLI.
+
+[![01_ci-cd](https://github.com/lt-mayonesa/hexagon/actions/workflows/01-python-package.yml/badge.svg)](https://github.com/lt-mayonesa/hexagon/actions/workflows/01-python-package.yml)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![PyPI - Version](https://img.shields.io/pypi/v/hexagon)](https://pypi.org/project/hexagon/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/hexagon)](https://pypi.org/project/hexagon/)
+[![PyPI - License](https://img.shields.io/pypi/l/hexagon)](https://pypi.org/project/hexagon/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/hexagon)](https://pypi.org/project/hexagon/)
+
+
+[![hexagon setup example](https://user-images.githubusercontent.com/11464844/141402773-2fa1e859-cbe7-43a2-87e8-81620307167f.gif)](https://asciinema.org/a/Mk8of7EC0grfsSgWYrEdGCjdF)
+
+---
+
+## Getting Started
+
+### Install hexagon
+```bash
+pipx install hexagon
+```
+
+### Create your teams CLI
+
+Either use our [template repo](https://github.com/lt-mayonesa/hexagon-tools) or create a YAML like the following
+```yaml
+cli:
+  custom_tools_dir: .  # relative to this file
+  name: Test CLI
+  command: tc
+
+envs:
+  - name: dev
+    alias: d
+  - name: qa
+    alias: q
+
+tools:
+
+  - name: google
+    alias: g
+    long_name: Google
+    description: Open google
+    type: web
+    envs:
+      dev: google.dev
+      qa: google.qa
+    action: open_link
+
+  - name: hello-world
+    alias: hw
+    long_name: Greet the world
+    type: shell
+    action: echo "Hello World!"
+```
+
+### Install the CLI
+
+Run `hexagon` and select the CLI installation tool
+
+## Options
+
+### Theming
+
+Hexagon supports 3 themes for now:
+
+ - default (some nice colors and decorations)
+ - disabled (no colors and no decorations)
+ - result_only (with colors but only shows the result logs)
+
+This can be specified by the envvar `HEXAGON_THEME`, i.e.,
+
+```bash
+# assuming you installed a CLI with command tc
+HEXAGON_THEME=result_only tc
+```
+
+
+## Development
+
+### Pre-requisites
+
+```bash
+pip install pipenv
+```
+
+### Run:
+
+```bash
+# start a shell
+pipenv shell
+# install hexagon dependencies
+pipenv install --dev
+# run it
+python -m hexagon
+```
+
+### Unit Tests:
+
+```bash
+pytest -svv tests/
+```
+
+### E2E Tests:
+
+```bash
+# first generate the transalation files
+.github/scripts/i18n/build.sh
+# run tests
+pytest -svv tests_e2e/
+```
