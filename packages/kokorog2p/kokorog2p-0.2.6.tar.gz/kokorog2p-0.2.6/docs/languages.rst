@@ -1,0 +1,575 @@
+Language Support
+================
+
+kokorog2p supports multiple languages with varying levels of functionality.
+
+.. list-table:: Language Support Overview
+   :header-rows: 1
+   :widths: 15 15 20 20 30
+
+   * - Language
+     - Code
+     - Dictionary
+     - Fallback
+     - Special Features
+   * - English (US)
+     - en-us
+     - 100k+ entries
+     - espeak-ng
+     - POS tagging, stress, numbers
+   * - English (GB)
+     - en-gb
+     - 100k+ entries
+     - espeak-ng
+     - POS tagging, stress, numbers
+   * - German
+     - de
+     - 738k+ entries
+     - espeak-ng
+     - Phonological rules, numbers
+   * - French
+     - fr
+     - Gold dictionary
+     - espeak-ng
+     - Numbers, liaison rules
+   * - Czech
+     - cs
+     - Rule-based
+     - —
+     - Phonological rules
+   * - Chinese
+     - zh
+     - —
+     - pypinyin
+     - Tone sandhi, pinyin
+   * - Japanese
+     - ja
+     - —
+     - pyopenjtalk
+     - Mora-based, pitch accent
+   * - Mixed
+     - multilingual
+     - Auto-detect
+     - lingua-py
+     - 17+ languages, word-level detection
+
+English (en-us, en-gb)
+----------------------
+
+English G2P uses a two-tier dictionary system with spaCy for POS tagging.
+
+Features
+~~~~~~~~
+
+* **Gold dictionary**: 50k+ high-confidence entries
+* **Silver dictionary**: Additional 50k+ entries
+* **POS-aware pronunciation**: Different pronunciations based on part of speech
+* **Stress assignment**: Primary and secondary stress markers
+* **Number handling**: Cardinals, ordinals, currency
+* **Contraction support**: Proper handling of "can't", "won't", etc.
+
+Usage
+~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.en import EnglishG2P
+
+   # US English
+   g2p_us = EnglishG2P(
+       language="en-us",
+       use_espeak_fallback=True,
+       use_spacy=True
+   )
+
+   # British English
+   g2p_gb = EnglishG2P(
+       language="en-gb",
+       use_espeak_fallback=True,
+       use_spacy=True
+   )
+
+Examples
+~~~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p import phonemize
+
+   # Context-dependent pronunciation
+   print(phonemize("I read a book.", language="en-us"))
+   # → ˈaɪ ɹˈɛd ə bˈʊk.
+
+   print(phonemize("I will read tomorrow.", language="en-us"))
+   # → ˈaɪ wɪl ɹˈid təmˈɑɹO.
+
+   # Numbers and currency
+   print(phonemize("I paid $1,234.56 for it.", language="en-us"))
+   # → aɪ pˈeɪd wʌn θˈaʊzənd tˈu hˈʌndɹəd...
+
+German (de)
+-----------
+
+German G2P uses a large dictionary (738k+ entries from Olaph) with rule-based fallback.
+
+Features
+~~~~~~~~
+
+* **Large dictionary**: 738k+ entries with stress markers
+* **Phonological rules**:
+
+  - Final obstruent devoicing (Auslautverhärtung)
+  - ich-Laut [ç] vs ach-Laut [x] alternation
+  - Word-initial sp/st → [ʃp]/[ʃt]
+  - Vowel length rules
+  - Schwa in unstressed syllables
+
+* **Number handling**: Cardinals, ordinals, years, currency
+* **Regional variants**: de-de, de-at, de-ch
+
+Usage
+~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.de import GermanG2P
+
+   g2p = GermanG2P(
+       language="de-de",
+       use_espeak_fallback=True,
+       strip_stress=True
+   )
+
+Examples
+~~~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p import phonemize
+
+   # Basic phonemization
+   print(phonemize("Guten Tag", language="de"))
+   # → ɡuːtn̩ taːk
+
+   # Phonological rules
+   print(phonemize("ich", language="de"))      # → ɪç (ich-Laut)
+   print(phonemize("ach", language="de"))      # → ax (ach-Laut)
+   print(phonemize("Tag", language="de"))      # → taːk (final devoicing)
+
+   # Numbers
+   print(phonemize("Ich habe 42 Euro.", language="de"))
+   # → ɪç haːbə t͡svaɪ̯ʊntfɪɐ̯t͡sɪç ɔɪ̯ʁo.
+
+French (fr)
+-----------
+
+French G2P uses a gold dictionary with espeak-ng fallback.
+
+Features
+~~~~~~~~
+
+* **Gold dictionary**: High-quality French pronunciations
+* **Number handling**: Cardinals, ordinals, currency
+* **espeak-ng fallback**: For out-of-vocabulary words
+
+Usage
+~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.fr import FrenchG2P
+
+   g2p = FrenchG2P(
+       language="fr-fr",
+       use_espeak_fallback=True
+   )
+
+Examples
+~~~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p import phonemize
+
+   print(phonemize("Bonjour le monde", language="fr"))
+   # → bɔ̃ʒuʁ lə mɔ̃d
+
+   print(phonemize("J'ai vingt et un ans.", language="fr"))
+   # → ʒɛ vɛ̃t e œ̃ ɑ̃.
+
+Czech (cs)
+----------
+
+Czech G2P is entirely rule-based with comprehensive phonological rules.
+
+Features
+~~~~~~~~
+
+* **Rule-based phonology**:
+
+  - Palatalization (d+i → ɟ, t+i → c, n+i → ɲ)
+  - Long vowels (á → aː, í → iː, etc.)
+  - ř phoneme [r̝]
+  - ch digraph → [x]
+  - Final devoicing
+  - Voicing assimilation
+
+* **No dictionary required**: Works with any Czech text
+
+Usage
+~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.cs import CzechG2P
+
+   g2p = CzechG2P(language="cs-cz")
+
+Examples
+~~~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p import phonemize
+
+   print(phonemize("Dobrý den", language="cs"))
+   # → dobriː dɛn
+
+   print(phonemize("Praha", language="cs"))
+   # → praɦa
+
+   # Palatalization
+   print(phonemize("děti", language="cs"))
+   # → ɟɛcɪ
+
+   # ř phoneme
+   print(phonemize("řeka", language="cs"))
+   # → r̝ɛka
+
+Chinese (zh)
+------------
+
+Chinese G2P uses jieba for tokenization and pypinyin for phoneme conversion.
+
+Features
+~~~~~~~~
+
+* **Jieba tokenization**: Chinese word segmentation
+* **Pypinyin conversion**: Pinyin to IPA
+* **Tone sandhi**: Automatic tone changes
+* **cn2an**: Number to Chinese conversion
+* **Punctuation mapping**: Chinese to Western punctuation
+
+Usage
+~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.zh import ChineseG2P
+
+   g2p = ChineseG2P(
+       language="zh",
+       version="1.1"
+   )
+
+Examples
+~~~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p import phonemize
+
+   print(phonemize("你好世界", language="zh"))
+   # → nǐ hǎo shì jiè (with tone markers)
+
+Japanese (ja)
+-------------
+
+Japanese G2P uses pyopenjtalk for text analysis and mora-based phoneme generation.
+
+Features
+~~~~~~~~
+
+* **pyopenjtalk**: Full Japanese text analysis
+* **Mora-based**: Phonemes aligned with mora structure
+* **Pitch accent**: Automatic pitch accent assignment
+* **Number handling**: Japanese numerals
+
+Usage
+~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.ja import JapaneseG2P
+
+   g2p = JapaneseG2P(
+       language="ja",
+       version="pyopenjtalk"
+   )
+
+Examples
+~~~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p import phonemize
+
+   print(phonemize("こんにちは", language="ja"))
+   # → koɴɲit͡ɕiha
+
+   print(phonemize("世界", language="ja"))
+   # → sekai
+
+Mixed-Language Support
+----------------------
+
+kokorog2p can automatically detect and handle texts that mix multiple languages, routing each word to the appropriate G2P engine.
+
+Features
+~~~~~~~~
+
+* **Automatic detection**: Word-level language detection using lingua-py
+* **High accuracy**: >90% accuracy for words with 5+ characters
+* **Caching**: Detection results cached for performance
+* **Configurable threshold**: Control detection sensitivity
+* **Graceful degradation**: Falls back to primary language without lingua-py
+* **17+ languages**: Support for major world languages
+
+Supported Languages
+~~~~~~~~~~~~~~~~~~~
+
+* English (en-us, en-gb)
+* German (de)
+* French (fr)
+* Spanish (es)
+* Italian (it)
+* Portuguese (pt)
+* Japanese (ja)
+* Chinese (zh)
+* Korean (ko)
+* Hebrew (he)
+* Czech (cs)
+* Dutch (nl)
+* Polish (pl)
+* Russian (ru)
+* Arabic (ar)
+* Hindi (hi)
+* Turkish (tr)
+
+Usage
+~~~~~
+
+.. code-block:: python
+
+   from kokorog2p import get_g2p
+
+   # German text with English words
+   g2p = get_g2p(
+       language="de",
+       multilingual_mode=True,
+       allowed_languages=["de", "en-us"]
+   )
+
+   tokens = g2p("Das Meeting war great!")
+
+   for token in tokens:
+       if token.is_word:
+           detected = token.get("detected_language")
+           print(f"{token.text} ({detected}) → {token.phonemes}")
+
+Output:
+
+.. code-block:: text
+
+   Das (de) → das
+   Meeting (en-us) → mˈiɾɪŋ
+   war (de) → vaːɐ̯
+   great (en-us) → ɡɹˈeɪt
+
+Examples
+~~~~~~~~
+
+**German with English:**
+
+.. code-block:: python
+
+   from kokorog2p import phonemize
+
+   result = phonemize(
+       "Ich gehe zum Meeting. Let's discuss the Roadmap!",
+       language="de",
+       multilingual_mode=True,
+       allowed_languages=["de", "en-us"]
+   )
+   print(result)
+   # → ɪç ɡeːə ʦʊm mˈiɾɪŋ. lɛts dɪskˈʌs ðə ɹˈoʊdmæp!
+
+**English with German:**
+
+.. code-block:: python
+
+   result = phonemize(
+       "Hello, mein Freund! This is wunderbar.",
+       language="en-us",
+       multilingual_mode=True,
+       allowed_languages=["en-us", "de"]
+   )
+   print(result)
+   # → həlˈO, maɪ̯n fʁɔɪ̯nt! ðɪs ɪz vʊndɐbaːɐ̯.
+
+**Multiple languages:**
+
+.. code-block:: python
+
+   # French, English, and German
+   g2p = get_g2p(
+       language="fr",
+       multilingual_mode=True,
+       allowed_languages=["fr", "en-us", "de"]
+   )
+
+   result = g2p.phonemize("Bonjour! The Meeting ist wichtig.")
+   print(result)
+
+Configuration
+~~~~~~~~~~~~~
+
+**Confidence threshold:**
+
+.. code-block:: python
+
+   from kokorog2p import get_g2p
+
+   # Conservative (higher confidence required)
+   g2p = get_g2p(
+       language="de",
+       multilingual_mode=True,
+       allowed_languages=["de", "en-us"],
+       language_confidence_threshold=0.9  # Default: 0.7
+   )
+
+   # Aggressive (lower confidence required)
+   g2p = get_g2p(
+       language="de",
+       multilingual_mode=True,
+       allowed_languages=["de", "en-us"],
+       language_confidence_threshold=0.5
+   )
+
+**Cache management:**
+
+.. code-block:: python
+
+   # Check cache size
+   cache_size = g2p.get_cache_size()
+   print(f"Cached {cache_size} detections")
+
+   # Clear cache if needed
+   g2p.clear_detection_cache()
+
+How It Works
+~~~~~~~~~~~~
+
+1. Text is tokenized into words
+2. Each word is sent to the language detector
+3. Detector returns language + confidence score
+4. If confidence ≥ threshold and language is allowed:
+
+   * Word is routed to that language's G2P engine
+   * Detection is cached for future use
+
+5. Otherwise:
+
+   * Word uses primary language G2P
+   * Short words (<3 chars) always use primary language
+
+Performance
+~~~~~~~~~~~
+
+* **Memory**: ~100 MB for lingua models (loaded once)
+* **Speed**: ~0.1-0.5 ms per word (first detection)
+* **Speed**: ~0.001 ms per word (cached)
+* **Accuracy**: >90% for words with 5+ characters
+
+Limitations
+~~~~~~~~~~~
+
+* Short words (<3 characters) use primary language only
+* Proper nouns may be misdetected
+* Requires lingua-py installation (gracefully degrades without it)
+* Detection quality varies by word distinctiveness
+* Cache grows unbounded (clear manually if needed)
+
+Installation
+~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   pip install kokorog2p[mixed]
+
+Language-Specific Number Handling
+----------------------------------
+
+English
+~~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.en.numbers import expand_number
+
+   print(expand_number("I have $42.50"))
+   # → I have forty-two dollars and fifty cents
+
+German
+~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.de.numbers import expand_number
+
+   print(expand_number("Ich habe 42 Euro."))
+   # → Ich habe zweiundvierzig Euro.
+
+French
+~~~~~~
+
+.. code-block:: python
+
+   from kokorog2p.fr.numbers import expand_number
+
+   print(expand_number("J'ai 42 euros."))
+   # → J'ai quarante-deux euros.
+
+Fallback Languages
+------------------
+
+For languages not explicitly supported, kokorog2p falls back to espeak-ng:
+
+.. code-block:: python
+
+   from kokorog2p import get_g2p
+
+   # Spanish (uses espeak-ng)
+   g2p_es = get_g2p("es-es")
+
+   # Italian (uses espeak-ng)
+   g2p_it = get_g2p("it-it")
+
+   # Portuguese (uses espeak-ng)
+   g2p_pt = get_g2p("pt-br")
+
+This provides basic support for 100+ languages via espeak-ng.
+
+Next Steps
+----------
+
+* See :doc:`advanced` for advanced usage patterns
+* Check language-specific API docs:
+
+  - :doc:`api/english`
+  - :doc:`api/german`
+  - :doc:`api/french`
+  - :doc:`api/czech`
+  - :doc:`api/chinese`
+  - :doc:`api/japanese`
+  - :doc:`api/mixed`
