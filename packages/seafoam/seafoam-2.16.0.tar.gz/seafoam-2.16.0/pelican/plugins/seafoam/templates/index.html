@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% if CANONICAL_URL is not defined %}
+    {% set CANONICAL_URL = SITEURL + '/' %}
+{% endif %}
+
+{% block breadcrumbs %}
+    {% if DISPLAY_BREADCRUMBS %}
+        <ol class="breadcrumb">
+            <li><a href="{{ SITE_ROOT_URL | default('/') }}" title="{{ SITENAME }}"><span class="fa fa-home fa-lg"></span></a></li>
+            {% if MENUITEMS_2_AT %}
+                <li><a href="{{ SITEURL -}} / {{- MENUITEMS_2_AT_LINK }}" title="{{ MENUITEMS_2_AT }}">{{ MENUITEMS_2_AT }}</a></li>
+            {% endif %}
+        </ol>     
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    {% if articles %}
+        {% for article in (articles_page.object_list if articles_page else articles) %}
+            {% include 'includes/article_listing.html' %}
+        {% endfor %}
+    {% endif %}
+
+    {% include 'includes/pagination.html' %}
+{% endblock content %}
