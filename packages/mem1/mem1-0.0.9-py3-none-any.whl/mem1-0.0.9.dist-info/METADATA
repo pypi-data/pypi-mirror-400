@@ -1,0 +1,290 @@
+Metadata-Version: 2.4
+Name: mem1
+Version: 0.0.9
+Summary: 基于云服务的用户记忆系统
+Project-URL: Homepage, https://github.com/sougannkyou/mem1
+Project-URL: Repository, https://github.com/sougannkyou/mem1
+Author: Song
+License: MIT
+Keywords: langchain,llm,memory,user-profile
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.12
+Requires-Dist: dashscope>=1.14.0
+Requires-Dist: elasticsearch>=8.0.0
+Requires-Dist: openai>=1.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: ipython>=8.0.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# mem1 - 用户记忆系统
+
+让 AI 真正"记住"用户：三层记忆架构 + 图片记忆 + 话题隔离 + 业务场景解耦。
+
+## 核心特性
+
+- **三层记忆架构**：短期会话 → 用户画像 → 长期记录
+- **话题隔离**：同一用户可有多个话题，对话按话题隔离，画像跨话题共享
+- **图片记忆**：存储图片时自动调用 VL 模型生成描述（OCR + 内容理解），搜索时基于文字描述召回
+- **业务解耦**：通过 ProfileTemplate 适配不同场景
+- **画像自动更新**：基于对话轮数/时间自动触发 LLM 更新用户画像
+- **可插拔存储**：支持 ES 后端，预留 SQLite/MySQL 扩展接口
+
+## 安装
+
+```bash
+pip install mem1
+```
+
+## 快速开始
+
+```python
+from mem1 import Mem1Memory, Mem1Config
+
+# 从环境变量加载配置
+config = Mem1Config.from_env()
+
+# 创建记忆实例（绑定用户和话题）
+memory = Mem1Memory(config, user_id="user001", topic_id="project_a")
+
+# 添加对话
+memory.add_conversation(
+    messages=[
+        {"role": "user", "content": "你好，我是张明"},
+        {"role": "assistant", "content": "你好张明！"}
+    ]
+)
+
+# 获取上下文（含用户画像 + 最近对话）
+ctx = memory.get_context()
+print(ctx['import_content'])   # 用户画像
+print(ctx['normal_content'])   # 最近对话记录
+print(ctx['current_time'])     # 当前时间
+```
+
+## 环境变量配置
+
+复制 `.env.example` 为 `.env` 并填写配置：
+
+```bash
+cp .env.example .env
+```
+
+## 图片记忆
+
+存储图片时自动调用 VL 模型（如 Qwen-VL）生成描述：
+- 【用户描述】用户发送图片时的文字说明
+- 【文字内容】OCR 识别图片中的文字
+- 【图片描述】VL 模型对图片内容的理解
+
+搜索时基于描述文本进行关键词匹配，返回图片路径。
+
+```python
+# 添加带图片的对话
+memory.add_conversation(
+    messages=[{"role": "user", "content": "这是今天的报表"}],
+    images=[{"path": "./report.png", "filename": "report.png"}]
+)
+
+# 搜索图片（基于 VL 生成的描述）
+results = memory.search_images(query="报表")
+# 返回: [{"filename": "...", "description": "...", "abs_path": "..."}]
+```
+
+## LangChain 集成
+
+完整示例（记忆存储 + 召回）：
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
+from mem1 import Mem1Memory, Mem1Config
+
+config = Mem1Config.from_env()
+memory = Mem1Memory(config, user_id="user001", topic_id="project_a")
+llm = ChatOpenAI(model=config.llm.model, api_key=config.llm.api_key, base_url=config.llm.base_url)
+
+# ========== 第一次对话：存储记忆 ==========
+memory.add_conversation(messages=[
+    {"role": "user", "content": "我是李明，市网信办的，每周一要交周报"},
+    {"role": "assistant", "content": "李明您好！已记录：周一交周报。"}
+])
+memory.add_conversation(messages=[
+    {"role": "user", "content": "本月处理了97起舆情，重大舆情11起"},
+    {"role": "assistant", "content": "已记录本月数据。"}
+])
+
+# ========== 第二次对话：召回记忆 ==========
+user_question = "帮我写个本月舆情简报"
+
+# 1. 获取记忆上下文
+ctx = memory.get_context(query=user_question, days_limit=7)
+
+# 2. 构建 system prompt（注入画像 + 历史对话）
+system_prompt = f"""你是舆情助手。
+
+## 用户画像
+{ctx['import_content']}
+
+## 最近对话记录
+{ctx['normal_content']}
+
+## 当前时间
+{ctx['current_time']}
+
+## 重要规则
+- 回答必须基于对话记录，不要编造
+- 数字必须从记录中原样提取
+"""
+
+# 3. 调用 LLM（记忆已注入）
+messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_question)]
+response = llm.invoke(messages)
+print(response.content)  # AI 会基于记忆中的 97起、11起 来回答
+
+# 4. 保存本次对话
+memory.add_conversation(messages=[
+    {"role": "user", "content": user_question},
+    {"role": "assistant", "content": response.content}
+])
+```
+
+## 核心接口
+
+```python
+memory = Mem1Memory(config, user_id="user001", topic_id="project_a")
+
+# 添加对话
+memory.add_conversation(messages=[...], images=[...], metadata={...})
+
+# 获取上下文（画像 + 最近 N 天对话）
+ctx = memory.get_context(days_limit=31)
+
+# 渐进式检索（先查近期，不够再扩展）
+ctx = memory.get_context_progressive(query="帮我写周报", max_days=31, step=7)
+
+# 按时间范围检索（供外部 LLM 作为 tool 调用）
+convs = memory.search_conversations(start_days=170, end_days=180)  # 查半年前
+
+# 查询对话
+convs = memory.get_conversations(days_limit=7)
+all_convs = memory.get_all_conversations(days_limit=7)
+
+# 图片搜索
+results = memory.search_images(query="麻花")
+
+# 话题管理
+topics = memory.list_topics()
+memory.delete_topic()
+memory.delete_user()
+```
+
+## 可插拔存储层
+
+v0.0.7 引入了可插拔存储层架构，支持自定义存储后端：
+
+```python
+from mem1 import Mem1Memory, Mem1Config, StorageBackend, ESStorage
+
+# 默认使用 ES
+memory = Mem1Memory(config, user_id="user001", topic_id="default")
+
+# 或显式指定存储后端
+storage = ESStorage(hosts=["http://localhost:9200"], index_name="my_index")
+memory = Mem1Memory(config, user_id="user001", storage=storage)
+
+# 未来可扩展 SQLite/MySQL 后端
+# storage = SQLiteStorage(db_path="mem1.db")
+```
+
+## 远期记忆检索
+
+mem1 定位是**记忆存储层**，不内置时间意图解析。当用户问"半年前的XX事"时，建议：
+
+1. **外部 LLM 判断时间范围**：通过 function calling 让 LLM 提取时间意图
+2. **调用 `search_conversations(start_days, end_days)`**：定向检索指定时间段
+
+```python
+# 示例：作为 LangChain Tool 暴露给 LLM
+from langchain.tools import tool
+
+@tool
+def search_memory(start_days: int, end_days: int) -> str:
+    """搜索用户历史对话。start_days 和 end_days 表示距今多少天。"""
+    convs = memory.search_conversations(start_days=start_days, end_days=end_days)
+    return memory._format_conversations_for_llm(convs)
+```
+
+这样设计的原因：
+- 外部 LLM 有完整对话上下文，判断时间范围更准确
+- 避免 mem1 内部嵌套 LLM 调用，架构更清晰
+- 符合 Agent / function calling 的设计模式
+
+## ES 索引
+
+| 索引 | 用途 |
+|------|------|
+| `conversation_history` | 对话记录（含图片索引） |
+| `mem1_user_state` | 用户状态 |
+| `mem1_user_profile` | 用户画像 |
+
+## LLM 提示词建议
+
+使用 `get_context()` 获取上下文后，建议在 system prompt 中加入以下规则，避免 LLM 编造信息：
+
+```
+## 重要规则
+1. 回答必须基于上述对话记录中的实际内容，严禁编造任何信息
+2. 涉及数字（金额、数量、百分比、日期等）时，必须从对话记录中原样提取，不得估算或编造
+3. 需要汇总累加时，必须列出计算过程（如：23+31+18+25=97）
+4. 涉及人名、公司名、账号名等实体时，必须使用对话中的原始名称
+5. 如果对话记录中没有相关信息，请明确说"对话记录中未提及"，不要猜测
+```
+
+## 设计决策：为什么不用向量数据库
+
+mem1 选择 ES 时间范围检索而非 Milvus/Pinecone 等向量数据库，核心原因是**对话记忆需要上下文连续性**：
+
+| 对比 | 向量检索（Milvus） | mem1 时间范围检索（ES） |
+|------|-------------------|------------------------|
+| 召回方式 | 单条 Embedding → Top-K 相似 | 时间范围 → 整体拼接 |
+| 上下文 | 碎片化，语义割裂 | 连续对话流，因果关系完整 |
+| 适用场景 | 知识库问答、独立文档 | 对话记忆、需要理解对话序列 |
+
+举例说明：
+```
+用户: 我是李明，市网信办的
+用户: 本月处理了97起舆情
+用户: 帮我写周报
+```
+
+- **向量检索**："帮我写周报" 可能只召回包含"周报"的那一条，丢失"97起舆情"
+- **时间范围检索**：LLM 看到完整对话流，理解"周报"要包含"97起舆情"
+
+向量检索更适合：长期记忆中的独立事实召回（如半年前提过的偏好）。但 mem1 通过**画像压缩**解决这个问题——重要信息会被 LLM 提取到用户画像中持久保存。
+
+## 设计决策：为什么不用 Context Caching
+
+豆包等大模型提供了 Context Caching 功能（缓存命中可省 86% token 费），但 mem1 选择不使用：
+
+| 对比 | Context Caching | mem1 架构 |
+|------|-----------------|-----------|
+| 原理 | 缓存整个对话历史，按 session 复用 | 画像压缩 + 按需检索 |
+| 适用场景 | 单 session 内反复分析同一长文档 | 跨 session 持久化记忆 |
+| 多模态 | Responses API 支持图片/视频缓存 | 图片转描述文本存储 |
+| 过期 | 72h 自动过期需重建 | ES 永久存储 |
+| 灵活性 | 固定缓存内容 | 动态组装 prompt |
+
+mem1 的记忆是动态组装的（画像 + 检索到的相关对话），每次 prompt 内容不同，Context Caching 的"相同前缀复用"优势无法发挥。
+
+如果担心 token 消耗，建议调小 `MEM1_CONTEXT_DAYS_LIMIT`（如 3-7 天），让远期记忆靠画像覆盖。
+
+## License
+
+MIT
