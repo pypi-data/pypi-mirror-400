@@ -1,0 +1,209 @@
+Metadata-Version: 2.4
+Name: danceir
+Version: 1.0.0
+Summary: A modular toolbox for dance motion analysis, feature extraction, and tempo estimation
+Author-email: Sagar Dutta <sagar0dutta@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://sagar0dutta.github.io/danceir
+Project-URL: Documentation, https://sagar0dutta.github.io/danceir
+Project-URL: Repository, https://github.com/sagar0dutta/danceir
+Project-URL: Issues, https://github.com/sagar0dutta/danceir/issues
+Keywords: dance,motion-analysis,tempo-estimation,keypoints
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: scipy>=1.7.0
+Requires-Dist: librosa>=0.9.0
+Provides-Extra: demo
+Requires-Dist: matplotlib>=3.5; extra == "demo"
+Requires-Dist: opencv-python>=4.7; extra == "demo"
+Requires-Dist: mediapipe>=0.10; extra == "demo"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=3.0; extra == "dev"
+Dynamic: license-file
+
+# DanceIR: Dance Information Retrieval Toolbox
+
+A modular Python toolbox for dance motion analysis, feature extraction, and tempo estimation from 2D keypoint data.
+
+This toolbox implements a kinematic anchor–based framework for estimating musical tempo from dance movement, as described in the following manuscript currently under review:
+
+> **Estimating Music Tempo from Dance Movement Using Kinematic Rhythmic Anchors (under review)**  
+
+
+## Features
+
+- **Multi-anchor dance tempo estimation**: Robust dance tempo estimation using multiple body segments (hands, feet, torso)
+- **COCO-format keypoint support**: Load and process standard 2D keypoint formats
+- **Feature extraction**: Center of mass, anchor detection, and energy-based features
+- **Signal preprocessing**: Detrending, normalization, and filtering utilities
+- **Evaluation metrics**: Octave-invariant metric for dance tempo estimation evaluation
+
+## Installation
+
+### From PyPI
+
+```bash
+pip install danceir
+```
+
+### From source
+
+```bash
+git clone https://github.com/sagar0dutta/danceir.git
+cd danceir
+pip install -e .
+```
+
+### Optional dependencies
+
+For demo notebooks and video processing:
+
+```bash
+pip install danceir[demo]
+```
+
+For development:
+
+```bash
+pip install danceir[dev]
+```
+
+## Quick Start
+
+### Basic Tempo Estimation
+
+```python
+import numpy as np
+from danceir.io import KeypointLoader
+from danceir.pipelines import estimate_tempo_from_keypoints
+
+# Load keypoint data (COCO format)
+loader = KeypointLoader()
+keypoints_data = loader.load_keypoints_pickle("keypoints.pkl")
+keypoints_2d = loader.extract_all_keypoints_2d(keypoints_data)
+# Shape: (num_frames, num_joints, 2) where last dim is [x, y]
+
+# Estimate tempo
+result = estimate_tempo_from_keypoints(
+    keypoints_2d,
+    marker_groups=[(9, 10), (15, 16)],  # both hands, both feet
+    axis='y',
+    use_com=True,  # Include torso center of mass
+    fps=60.0
+)
+
+# Get results
+tempo_info = result['combined_anchors']
+print(f"Estimated tempo: {tempo_info['gtempo']} BPM")
+print(f"Best segment: {tempo_info['best_segment']}")
+```
+
+### Evaluation
+
+```python
+from danceir.evaluation import dance_tempo_evaluation
+
+# Compare estimated tempo with reference
+ref_tempo = 120.0  # Ground truth BPM
+est_tempo = tempo_info['gtempo']
+
+eval_result = dance_tempo_evaluation(ref_tempo, est_tempo)
+print(f"Accuracy: {eval_result.accuracy}%")
+print(f"Mean DTS: {eval_result.mean_dts:.3f}")
+```
+
+## Keypoint Format
+
+DanceIR expects COCO-format 2D keypoints:
+
+- **Input shape**: `(num_persons, num_frames, num_joints, 3)`
+- **Last dimension**: `[x, y, confidence]`
+- **Joint indices**: 0=nose, 1=left_eye, ..., 9=left_wrist, 10=right_wrist, ..., 15=left_ankle, 16=right_ankle
+
+## API Overview
+
+### Main Pipeline
+
+- `estimate_tempo_from_keypoints()`: High-level tempo estimation from keypoints
+
+### I/O
+
+- `KeypointLoader`: Load COCO-format keypoint data from pickle files
+- `AnchorIO`: Save/load anchor sequences
+- `PathManager`: Manage data paths
+
+### Features
+
+- `compute_com_variants()`: Compute center of mass (hips, shoulders, torso)
+- `detect_segment_anchor()`: Detect anchors from motion signals
+- `AnchorExtractor`: High-level anchor extraction interface
+- `EnergyExtractor`: Energy-based feature extraction
+
+### Analysis
+
+- `estimate_dance_tempo()`: Multi-anchor tempo estimation
+- `compute_tempogram()`: Compute tempogram from anchor signals
+- `compute_alignment()`: Align signals with sinusoidal templates
+
+### Evaluation
+
+- `dance_tempo_evaluation()`: Compute Octave-invariant metrics
+
+## Requirements
+
+- Python >= 3.8
+- numpy >= 1.20.0
+- scipy >= 1.7.0
+- librosa >= 0.9.0
+
+## Documentation
+
+Full documentation: 
+
+## Examples
+
+See the `demo/` directory for Jupyter notebook examples:
+- **Demo.ipynb**: Complete tutorial with tempo estimation from keypoint files and video processing with MediaPipe pose estimation
+- Basic tempo estimation from keypoint files
+- Video processing with MediaPipe pose estimation
+
+The demo notebook demonstrates:
+1. Loading COCO-format keypoint data
+2. Extracting multi-anchor features (hands, feet, torso)
+3. Running tempo estimation pipeline
+4. Evaluating results with reference tempos
+5. Processing videos with MediaPipe for pose estimation
+
+<!-- ## Citation -->
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Issues
+
+Report bugs or request features on [GitHub Issues](https://github.com/sagar0dutta/danceir/issues).
+
+## Author
+
+**Sagar Dutta** - [sagar0dutta@gmail.com](mailto:sagar0dutta@gmail.com)
+
+---
+
+<!-- For more information, visit the [project homepage](https://github.com/sagar0dutta/danceir). -->
+
