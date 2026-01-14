@@ -1,0 +1,166 @@
+import json
+import logging
+import sys
+from collections.abc import Mapping
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
+from verifiers.errors import Error
+from verifiers.types import Messages
+from verifiers.utils.error_utils import ErrorChain
+
+
+def setup_logging(
+    level: str = "INFO",
+    log_format: str | None = None,
+    date_format: str | None = None,
+) -> None:
+    """
+    Setup basic logging configuration for the verifiers package.
+
+    Args:
+        level: The logging level to use. Defaults to "INFO".
+        log_format: Custom log format string. If None, uses default format.
+        date_format: Custom date format string. If None, uses default format.
+    """
+    if log_format is None:
+        log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    if date_format is None:
+        date_format = "%Y-%m-%d %H:%M:%S"
+
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter(fmt=log_format, datefmt=date_format))
+
+    logger = logging.getLogger("verifiers")
+    logger.setLevel(level.upper())
+    logger.addHandler(handler)
+
+    # Prevent the logger from propagating messages to the root logger
+    logger.propagate = False
+
+
+def print_prompt_completions_sample(
+    prompts: list[Messages],
+    completions: list[Messages],
+    errors: list[Error | None],
+    rewards: list[float],
+    step: int,
+    num_samples: int = 1,
+) -> None:
+    def _attr_or_key(obj, key: str, default=None):
+        """Return obj.key if present, else obj[key] if Mapping, else default."""
+        val = getattr(obj, key, None)
+        if val is not None:
+            return val
+        if isinstance(obj, Mapping):
+            return obj.get(key, default)
+        return default
+
+    def _normalize_tool_call(tc):
+        """Return {"name": ..., "args": ...} from a dict or Pydantic-like object."""
+        src = (
+            _attr_or_key(tc, "function") or tc
+        )  # prefer nested function object if present
+        name = _attr_or_key(src, "name", "") or ""
+        args = _attr_or_key(src, "arguments", {}) or {}
+
+        if not isinstance(args, str):
+            try:
+                args = json.dumps(args)
+            except Exception:
+                args = str(args)
+        return {"name": name, "args": args}
+
+    def _format_messages(messages) -> Text:
+        if isinstance(messages, str):
+            return Text(messages)
+
+        out = Text()
+        for idx, msg in enumerate(messages):
+            if idx:
+                out.append("\n\n")
+
+            assert isinstance(msg, dict)
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            style = "bright_cyan" if role == "assistant" else "bright_magenta"
+
+            out.append(f"{role}: ", style="bold")
+            out.append(content, style=style)
+
+            for tc in msg.get("tool_calls") or []:  # treat None as empty list
+                payload = _normalize_tool_call(tc)
+                out.append(
+                    "\n\n[tool call]\n"
+                    + json.dumps(payload, indent=2, ensure_ascii=False),
+                    style=style,
+                )
+
+        return out
+
+    def _format_error(error: BaseException) -> Text:
+        out = Text()
+        out.append(f"error: {ErrorChain(error)}", style="bold red")
+
+        return out
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold white", expand=True)
+
+    table.add_column("Prompt", style="bright_yellow")
+    table.add_column("Completion", style="bright_green")
+    table.add_column("Reward", style="bold cyan", justify="right")
+
+    reward_values = rewards
+    if len(reward_values) < len(prompts):
+        reward_values = reward_values + [0.0] * (len(prompts) - len(reward_values))
+
+    samples_to_show = min(num_samples, len(prompts))
+    for i in range(samples_to_show):
+        prompt = list(prompts)[i]
+        completion = list(completions)[i]
+        error = errors[i]
+        reward = reward_values[i]
+
+        formatted_prompt = _format_messages(prompt)
+        formatted_completion = _format_messages(completion)
+        if error is not None:
+            formatted_completion += Text("\n\n") + _format_error(error)
+
+        table.add_row(formatted_prompt, formatted_completion, Text(f"{reward:.2f}"))
+        if i < samples_to_show - 1:
+            table.add_section()
+
+    panel = Panel(table, expand=False, title=f"Step {step}", border_style="bold white")
+    console.print(panel)
+
+
+def print_time(time_s: float) -> str:
+    """
+    Format a time in seconds to a human-readable format:
+    - >1d -> Xd Yh
+    - >1h -> Xh Ym
+    - >1m -> Xm Ys
+    - <1s -> Xms
+    - Else: Xs
+    """
+    if time_s >= 86400:  # >1d
+        d = time_s // 86400
+        h = (time_s % 86400) // 3600
+        return f"{d:.0f}d" + (f" {h:.0f}h" if h > 0 else "")
+    elif time_s >= 3600:  # >1h
+        h = time_s // 3600
+        m = (time_s % 3600) // 60
+        return f"{h:.0f}h" + (f" {m:.0f}m" if m > 0 else "")
+    elif time_s >= 60:  # >1m
+        m = time_s // 60
+        s = (time_s % 60) // 1
+        return f"{m:.0f}m" + (f" {s:.0f}s" if s > 0 else "")
+    elif time_s < 1:  # <1s
+        ms = time_s * 1e3
+        return f"{ms:.0f}ms"
+    else:
+        return f"{time_s:.0f}s"
