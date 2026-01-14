@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Mindscheduler"
+version = "1.0.1"
+description = "一个轻量级、模块化的 LLM 增强型技能调度框架"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "SkillScheduler Contributors", email = "dev@skillscheduler.dev"}
+]
+keywords = ["automation", "llm", "skills", "scheduling", "markdown", "agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "python-frontmatter>=1.0.0",
+    "click>=8.0",
+    "openai>=1.0",  # LLM 功能的核心依赖
+    "packaging>=21.0",  # 用于版本解析和比较
+]
+
+[project.optional-dependencies]
+llm = [
+    # openai 现在是核心依赖，这里保留空组或添加其他 LLM 相关包
+]
+embedding = [
+    "sentence-transformers>=2.2",
+]
+prometheus = [
+    "prometheus-client>=0.17",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "mypy>=1.0",
+]
+all = [
+    "skillscheduler[embedding,prometheus]",  # openai 现在默认安装
+]
+
+[project.scripts]
+skill-scheduler = "skill_scheduler.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/skillscheduler/skillscheduler"
+Documentation = "https://github.com/skillscheduler/skillscheduler#readme"
+Repository = "https://github.com/skillscheduler/skillscheduler"
+"Bug Tracker" = "https://github.com/skillscheduler/skillscheduler/issues"
+
+[tool.setuptools]
+packages = [
+    "skill_scheduler",
+    "skill_scheduler.core",
+    "skill_scheduler.parsers",
+    "skill_scheduler.llm",
+    "skill_scheduler.observability",
+    "skill_scheduler.utils",
+    "skill_scheduler.prompts",
+]
+
+[tool.setuptools.package-data]
+"skill_scheduler.prompts" = ["*.txt", "*.md"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
