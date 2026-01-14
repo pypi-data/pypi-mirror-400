@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+{% from "macros.html" import multi_input with context %}
+<div class="container py-4">
+    <div class="row">
+        <!-- Form Title -->
+        <div class="col-12 text-center mb-4">
+            <h1 class="fs-3 fw-bold">Project Settings</h1>
+            <p class="text-muted">Define some basic settings of your project.</p>
+        </div>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-12">
+            <div class="bg-white border rounded-3 shadow-sm p-4">
+                <form method="POST" enctype="multipart/form-data"
+                    action="{{ url_for('project.tab_edit_project', projectname=project.path) }}" id="editProjectForm"
+                    class="js-tab-submit" data-next-target="#tab-import-data">
+                    <div class="row">
+                        <!-- Linke Seite: Name & Bild -->
+                        <div class="col-md-5 d-flex flex-column align-items-center justify-content-start">
+                            <div class="mb-3 w-100">
+                                <label for="inlineFormInputName" class="form-label small">Name</label>
+                                <input type="text" class="form-control" name="title" id="inlineFormInputName"
+                                    value="{{ project.title }}" placeholder="Name of the project">
+                            </div>
+                            <label for="inlineImage"
+                                class="ratio ratio-1x1 d-block rounded overflow-hidden bg-light border mb-3"
+                                style="cursor: pointer; height: 18rem; width: 100%;">
+                                {% if project.avatar %}
+                                <!-- Display existing project image -->
+                                <div class="w-100 h-100" style="background-image: url({{ url_for('data.serve_image', filepath=project.avatar) }});
+                        background-size: cover;
+                        background-position: center;">
+                                </div>
+                                {% else %}
+                                <div class="d-flex align-items-center justify-content-center bg-light h-100">
+                                    <div class="text-center">
+                                        <i class="bi bi-cloud-upload text-secondary d-block mb-2"
+                                            style="font-size: 2.5rem;"></i>
+                                        <span class="text-secondary">Upload image</span>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </label>
+                            <input type="file" class="showPreviewOfAvatar d-none" id="inlineImage" name="avatar"
+                                accept="image/*">
+                        </div>
+                        <!-- Rechte Seite: Rest -->
+                        <div class="col-md-7 d-flex flex-column">
+                            <div class="">
+                                <label for="xsltFileUpload" class="form-label small">Upload XSLT File</label>
+                                <div class="d-flex align-items-center">
+                                    <!-- Custom File Input -->
+                                    <input class="form-control me-2" type="file" id="xsltFileUpload" name="xslt"
+                                        accept=".xslt,.xsl" title="Upload XSLT">
+
+                                    <!-- Löschen-Button -->
+                                    <button {{ "disabled" if not project.xslt else "" }} type="button"
+                                        data-projectname="{{project.name}}" id="deleteXsltButton"
+                                        class="btn btn-outline-danger me-2" title="Delete XSLT">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+
+                                    <!-- Anzeigen-Button -->
+                                    {% set path = url_for('data.serve_file', filepath=project.xslt or "") %}
+                                    <button {{ "disabled" if not project.xslt else "" }} type="button"
+                                        id="viewXsltButton" class="btn btn-outline-primary" title="View XSLT"
+                                        onclick="window.open('{{ path }}', '_blank' )">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <label for="formFile" class="form-label mb-2">
+                                <div id="uploadStatus" class="mt-2 d-flex align-items-center gap-2">
+                                    {% if project.xslt %}
+                                    <span class="text-success d-flex align-items-center xslt-upload">
+                                        <i class="bi bi-check-circle me-2"></i>
+                                        {{ project.xslt.split('/')[-1] }}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-danger d-flex align-items-center xslt-upload">
+                                        <i class="bi bi-exclamation-circle me-2"></i>
+                                        No file uploaded
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </label>
+                            <div class="mb-3 flex-grow-1 d-flex flex-column">
+                                <label for="inlineFormInputDescription" class="form-label small">Description</label>
+                                <textarea class="form-control flex-grow-1" name="description"
+                                    id="inlineFormInputDescription">{{ project.description or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label for="inlineFormInputCollector" class="form-label small">Collector/s</label>
+                                {{ multi_input(project.collectors, 'collector') }}
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="text-center mt-1">
+                                <button type="submit" class="btn btn-primary px-4 rounded-3">
+                                    <i class="bi bi-chevron-right"></i> Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+</div>
