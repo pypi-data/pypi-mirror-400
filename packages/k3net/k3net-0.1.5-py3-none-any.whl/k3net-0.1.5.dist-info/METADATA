@@ -1,0 +1,111 @@
+Metadata-Version: 2.4
+Name: k3net
+Version: 0.1.5
+Summary: Network utilities for IP address detection and classification
+Author-email: Zhang Yanpo <drdr.xp@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/pykit3/k3net
+Project-URL: Documentation, https://k3net.readthedocs.io
+Keywords: network,ip,ipv4,host,address
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: netifaces
+Requires-Dist: pyyaml
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: coverage; extra == "dev"
+Requires-Dist: k3ut; extra == "dev"
+Provides-Extra: publish
+Requires-Dist: build; extra == "publish"
+Requires-Dist: twine; extra == "publish"
+Requires-Dist: pk3; extra == "publish"
+Provides-Extra: docs
+Requires-Dist: mkdocs>=1.5; extra == "docs"
+Requires-Dist: mkdocs-material>=9.0; extra == "docs"
+Requires-Dist: mkdocstrings[python]>=0.24; extra == "docs"
+Dynamic: license-file
+
+# k3net
+
+[![Action-CI](https://github.com/pykit3/k3net/actions/workflows/python-package.yml/badge.svg)](https://github.com/pykit3/k3net/actions/workflows/python-package.yml)
+[![Documentation Status](https://readthedocs.org/projects/k3net/badge/?version=stable)](https://k3net.readthedocs.io/en/stable/?badge=stable)
+[![Package](https://img.shields.io/pypi/pyversions/k3net)](https://pypi.org/project/k3net)
+
+Utility functions for network related operation.
+
+k3net is a component of [pykit3] project: a python3 toolkit set.
+
+
+
+
+# Install
+
+```
+pip install k3net
+```
+
+# Synopsis
+
+```python
+
+#!/usr/bin/env python
+
+import k3net
+
+if __name__ == "__main__":
+
+    # Check if an IP is valid IPv4
+    print(k3net.is_ip4("192.168.0.1"))  # True
+    print(k3net.is_ip4("invalid"))      # False
+
+    # Check if IP is public or private (INN)
+    print(k3net.is_pub("1.2.3.4"))      # True
+    print(k3net.is_inn("192.168.0.1"))  # True
+
+    # Get IP class
+    print(k3net.ip_class("1.2.3.4"))      # PUB
+    print(k3net.ip_class("192.168.0.1"))  # INN
+
+    # Select IPs by class
+    ips = ["1.2.3.4", "192.168.0.1", "10.0.0.1"]
+    print(k3net.choose_pub(ips))  # ['1.2.3.4']
+    print(k3net.choose_inn(ips))  # ['192.168.0.1', '10.0.0.1']
+
+    # Prefer public or private IPs
+    print(k3net.ips_prefer(ips, k3net.PUB))  # Public IPs first
+    print(k3net.ips_prefer(ips, k3net.INN))  # Private IPs first
+
+    # Get host IP addresses
+    host_ips = k3net.get_host_ip4()
+    print(host_ips)  # List of host IPv4 addresses
+
+    # IP to number conversion
+    num = k3net.ip_to_num("192.168.0.1")
+    print(num)  # 3232235521
+    print(k3net.num_to_ip(num))  # '192.168.0.1'
+
+```
+
+#   Author
+
+Zhang Yanpo (张炎泼) <drdr.xp@gmail.com>
+
+#   Copyright and License
+
+The MIT License (MIT)
+
+Copyright (c) 2015 Zhang Yanpo (张炎泼) <drdr.xp@gmail.com>
+
+
+[pykit3]: https://github.com/pykit3
