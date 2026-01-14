@@ -1,0 +1,143 @@
+[tool.poetry]
+name = "plexflow"
+version = "0.0.171"
+description = "A short description of the package."
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+]
+
+# --- 1. DEFINE CPU SOURCE FOR SPEED ---
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.13"
+
+# --- 2. HEAVY ML LIBS (Optimized for CPU) ---
+# We explicitly install torch from the CPU source to avoid 3GB+ downloads
+torch = { version = ">=2.2.0", source = "pytorch-cpu" }
+torchaudio = { version = ">=2.2.0", source = "pytorch-cpu" }
+# torchvision = { version = ">=0.17.0", source = "pytorch-cpu" } # Uncomment if you need image processing
+
+transformers = "^4.57.3"
+faster-whisper = "^1.2.1"
+stable-ts = "^2.19.1"
+mistralai = "^1.2.5"
+google-genai = "^1.26.0"
+groq = "^1.0.0"
+
+apache-airflow-providers-fab = ">=1.5.0"
+apache-airflow-providers-celery = ">=3.10.0"
+apache-airflow-providers-standard = ">=1.0.0"
+
+# --- 3. AIRFLOW & DB ---
+apache-airflow = "^3.1.5"
+asyncpg = "^0.30.0"
+apache-airflow-providers-postgres = "^5.10.2"
+apache-airflow-providers-redis = "^3.7.0"
+apache-airflow-providers-cncf-kubernetes = "^8.3.3"
+psycopg2-binary = "^2.9.9"
+redis = "^4.1.3"
+kafka = "^1.3.5"
+google-cloud-pubsub = "^2.28.0"
+
+# --- 4. MEDIA & SCRAPING ---
+python-ffmpeg = "^2.0.10"
+plexapi = "4.15.9"
+tmdbsimple = "^2.9.1"
+tvdbsimple = "^1.0.6"
+tvdb-v4-official = "^1.1.0"
+qbittorrent-api = "^2025.2.0"
+playwright = "^1.41.2"
+playwright-stealth = "^1.0.6"
+seleniumbase = "^4.28.4"
+nodriver = "^0.48.1"
+scrapy = "^2.11.2"
+cloudscraper = "^1.2.71"
+fake-useragent = "^1.4.0"
+duckduckgo-search = "^8.1.1"
+yt-dlp = "^2025.12.8"
+
+# --- 5. UTILS ---
+requests = "^2.25.1"
+pydantic = "^2.6.1"
+dataclasses-json = "^0.6.4"
+wget = "^3.2"
+lxml = "^5.1.0"
+beautifulsoup4 = "^4.12.3"
+bitmath = "^1.3.3.1"
+tpblite = "^0.8.0"
+parse-torrent-title = "^2.8.1"
+retrying = "^1.3.4"
+avro = "^1.11.3"
+json-repair = "^0.19.1"
+uvicorn = "^0.40.0" 
+arrow = "^1.3.0"
+brotli = "^1.1.0"
+html5lib = "^1.1"
+langcodes = "^3.4.0"
+pysrt = "^1.1.2"
+python-ulid = "^2.7.0"
+numpy = "1.26.4"
+webdriver-manager = "^4.0.2"
+pyautogui = "^0.9.54"
+dateparser = "^1.2.0"
+ratelimit = "^2.2.1"
+humanfriendly = "^10.0"
+iso639-lang = "^2.2.3"
+cloudinary = "^1.41.0"
+langdetect = "^1.0.9"
+tqdm = "^4.67.1"
+pika = "^1.3.2"
+opensubtitlescom = "^0.1.5"
+pytelegrambotapi = "^4.29.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^8.2.1"
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+
+[build-system]
+requires = ["poetry_core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+# (Keep your scripts as they were, they look fine)
+download_subtitles = 'scripts.subtitles.download_subtitles:main'
+redis_hook = 'scripts.redis.redis_hook:main'
+on_download_completed = 'scripts.torrents.on_download_completed:main'
+publish_hello_world = 'scripts.kafka.publish_hello_world:main'
+subscribe_hello_world = 'scripts.kafka.subscribe_hello_world:main'
+find_torrents = 'scripts.torrents.find_torrents:main'
+plex_activity_feed = 'scripts.plex.discover.get_activity_feed:main'
+read_from_gmail = 'scripts.plex.discover.read_from_gmail:main'
+chat_with_plexa = 'scripts.plex.discover.chat_with_plexa:main'
+get_movie = 'scripts.metadata.auto.get_movie:main'
+get_show = 'scripts.metadata.auto.get_show:main'
+parse_movie_torrent = 'scripts.torrents.parse_movie_torrent:main'
+match_torrent_imdb = 'scripts.torrents.match_torrent_imdb:main'
+universal_movie = 'scripts.metadata.universal.movie:main'
+gemini_ai = 'scripts.gemini.gemini_ai:main'
+treecat = 'scripts.utils.treecat:main'
+watchlist = 'scripts.plex.watchlist.watchlist:main'
+tgx_context = 'scripts.torrents.tgx_context:main'
+tgx_spider = 'scripts.spiders.tgx_spider:main'
+torrentquest = 'scripts.torrents.torrentquest:main'
+human_like = 'scripts.antibot.human_like:main'
+auto_torrents = 'scripts.torrents.auto_torrents:main'
+candidate_matching = 'scripts.torrents.candidate_matching:main'
+audio_extract = 'scripts.video.audio_extract:main'
+groq_transcribe = 'scripts.transcribe.groq_transcribe:main'
+mistral = 'scripts.mistral.mistral:main'
+schedule = 'scripts.downloads.qbit.schedule:main'
+interface = 'scripts.downloads.qbit.interface:main'
+refresh = 'scripts.plex.library.refresh:main'
+subtitle_compare = 'scripts.torrents.subtitle_comparison:main'
