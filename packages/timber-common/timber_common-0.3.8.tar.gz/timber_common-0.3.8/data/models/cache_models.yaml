@@ -1,0 +1,302 @@
+# config/models/cache_models.yaml
+#
+# Cache Models for Market Data and Stock Data
+# These models implement TTL-based caching for market analyses
+#
+# CORRECTED VERSION: Changed back_populates to backref
+
+version: "1.0.0"
+last_updated: "2025-10-19"
+description: "Cache models for market indices, sectors, and stock data - CORRECTED"
+
+models:
+  # ========================================
+  # Cached Market Index Model
+  # ========================================
+  - name: CachedMarketIndex
+    table_name: cached_market_indices
+    description: "Cached information about major market indices"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        description: "Primary key"
+      
+      - name: name
+        type: String
+        length: 100
+        unique: true
+        nullable: false
+        description: "Index name (e.g., S&P 500)"
+      
+      - name: symbol
+        type: String
+        length: 20
+        unique: true
+        nullable: false
+        index: true
+        description: "Index symbol (e.g., SPX)"
+      
+      - name: performance_data
+        type: JSON
+        nullable: true
+        description: "Performance metrics as JSON"
+      
+      - name: components
+        type: JSON
+        nullable: true
+        description: "Array of index components with weights"
+      
+      - name: last_updated
+        type: DateTime
+        nullable: false
+        index: true
+        description: "Last cache update timestamp"
+    
+    relationships:
+      - name: sector_analyses
+        type: one_to_many
+        target_model: CachedSectorAnalysis
+        backref: market_index  # FIXED: Changed from back_populates
+        lazy: dynamic
+        cascade: all, delete-orphan
+        description: "Sector analyses for this index"
+    
+    mixins:
+      - TimestampMixin
+    
+    indexes:
+      - columns: [last_updated]
+        name: idx_market_index_updated
+        description: "Fast lookup by update time"
+
+
+  # ========================================
+  # Cached Sector Analysis Model
+  # ========================================
+  - name: CachedSectorAnalysis
+    table_name: cached_sector_analyses
+    description: "Cached AI analysis of a sector within a specific index"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+      
+      - name: index_id
+        type: Integer
+        foreign_key: cached_market_indices.id
+        nullable: false
+        index: true
+        description: "Parent index ID"
+      
+      - name: sector_name
+        type: String
+        length: 100
+        nullable: false
+        description: "Sector name (e.g., Technology)"
+      
+      - name: cache_key
+        type: String
+        length: 255
+        unique: true
+        nullable: false
+        index: true
+        description: "Unique cache key: {index_id}-{sector_name_slug}"
+      
+      - name: outlook
+        type: String
+        length: 50
+        nullable: true
+        description: "Sector outlook: Bullish, Neutral, Bearish"
+      
+      - name: trend_summary
+        type: Text
+        nullable: true
+        description: "AI-generated trend summary"
+      
+      - name: news_sentiment_summary
+        type: Text
+        nullable: true
+        description: "News sentiment analysis summary"
+      
+      - name: top_companies_analysis
+        type: JSON
+        nullable: true
+        description: "Analysis of top companies in sector"
+      
+      - name: last_updated
+        type: DateTime
+        nullable: false
+        index: true
+        description: "Last cache update timestamp"
+    
+    # NO relationships section!
+    # The market_index relationship is created by backref in CachedMarketIndex.sector_analyses
+    
+    mixins:
+      - TimestampMixin
+    
+    indexes:
+      - columns: [index_id, sector_name]
+        name: idx_sector_analysis_index_sector
+        description: "Fast lookup by index and sector"
+      
+      - columns: [last_updated]
+        name: idx_sector_analysis_updated
+        description: "Fast lookup by update time"
+
+
+  # ========================================
+  # Cached Global Summary Model
+  # ========================================
+  - name: CachedGlobalSummary
+    table_name: cached_global_summaries
+    description: "Cached global market summary from multiple indices"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+      
+      - name: cache_key
+        type: String
+        length: 64
+        unique: true
+        nullable: false
+        index: true
+        description: "SHA256 hash of input summaries for content-based caching"
+      
+      - name: summary_data
+        type: JSON
+        nullable: true
+        description: "Global market summary with themes, risks, opportunities"
+      
+      - name: last_updated
+        type: DateTime
+        nullable: false
+        index: true
+        description: "Last cache update timestamp"
+    
+    mixins:
+      - TimestampMixin
+    
+    indexes:
+      - columns: [cache_key]
+        name: idx_global_summary_key
+        unique: true
+        description: "Fast lookup by cache key"
+      
+      - columns: [last_updated]
+        name: idx_global_summary_updated
+        description: "Fast lookup by update time"
+
+
+  # ========================================
+  # Cached Stock Data Model
+  # ========================================
+  - name: CachedStockData
+    table_name: cached_stock_data
+    description: "Cached stock data for individual tickers"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+      
+      - name: ticker
+        type: String
+        length: 20
+        unique: true
+        nullable: false
+        index: true
+        description: "Stock ticker symbol"
+      
+      - name: company_name
+        type: String
+        length: 255
+        nullable: true
+        description: "Company name"
+      
+      - name: gics_sector
+        type: String
+        length: 100
+        nullable: true
+        index: true
+        description: "GICS sector classification"
+      
+      - name: gics_sub_industry
+        type: String
+        length: 100
+        nullable: true
+        description: "GICS sub-industry classification"
+      
+      - name: financial_statements
+        type: JSON
+        nullable: true
+        description: "Income statement, balance sheet, cash flow"
+      
+      - name: key_ratios
+        type: JSON
+        nullable: true
+        description: "P/E, P/B, debt ratios, ROE, etc."
+      
+      - name: performance_metrics
+        type: JSON
+        nullable: true
+        description: "Returns, volatility, beta, Sharpe ratio"
+      
+      - name: news_analysis
+        type: JSON
+        nullable: true
+        description: "News sentiment and key themes"
+      
+      - name: worthiness_summary
+        type: JSON
+        nullable: true
+        description: "AI-generated investment worthiness summary"
+      
+      - name: valuation_data
+        type: JSON
+        nullable: true
+        description: "Market cap, enterprise value, target price"
+      
+      - name: peer_comparison
+        type: JSON
+        nullable: true
+        description: "Comparison with peer companies"
+      
+      - name: last_updated
+        type: DateTime
+        nullable: false
+        index: true
+        description: "Last cache update timestamp"
+      
+      - name: data_completeness_score
+        type: Integer
+        nullable: true
+        description: "Score 0-100 indicating data completeness"
+      
+      - name: has_error
+        type: String
+        length: 255
+        nullable: true
+        description: "Error message if data fetch failed"
+    
+    mixins:
+      - TimestampMixin
+    
+    indexes:
+      - columns: [ticker]
+        name: idx_stock_data_ticker
+        unique: true
+        description: "Fast lookup by ticker"
+      
+      - columns: [gics_sector]
+        name: idx_stock_data_sector
+        description: "Fast lookup by sector"
+      
+      - columns: [last_updated]
+        name: idx_stock_data_updated
+        description: "Fast lookup by update time"

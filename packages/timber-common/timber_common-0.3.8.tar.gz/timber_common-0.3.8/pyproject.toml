@@ -1,0 +1,244 @@
+[tool.poetry]
+name = "timber-common"
+version = "0.3.8"
+description = "Configuration-driven persistence library with ml tools (finance related) config driven db model registration, llm model choice, automatic encryption, caching, vector search, and GDPR compliance for Python applications"
+authors = ["Pumulo Sikaneta <pumulo@gmail.com>"]
+maintainers = ["Pumulo Sikaneta <pumulo@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/pumulo/timber-common"
+repository = "https://github.com/pumulo/timber-common"
+documentation = "https://github.com/pumulo/timber-common/tree/main/documentation"
+keywords = [
+    "orm",
+    "sqlalchemy",
+    "persistence",
+    "vector-search",
+    "semantic-search",
+    "encryption",
+    "gdpr",
+    "yaml-config",
+    "postgres",
+    "redis",
+    "configuration-driven",
+    "data-modeling",
+    "machine-learning",
+    "embeddings"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Database",
+    "Topic :: Database :: Front-Ends",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+packages = [
+    {include = "common"},
+    {include = "modules"},
+]
+include = [
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "documentation/**/*.md",
+    "data/models/**/*.yaml",
+]
+exclude = [
+    "tests/**/*",
+    "**/__pycache__",
+    "**/*.pyc",
+    "data/models/*.yaml",
+    ".env*",
+    ".venv",
+]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/pumulo/timber-common/issues"
+"Changelog" = "https://github.com/pumulo/timber-common/blob/main/CHANGELOG.md"
+"Discussions" = "https://github.com/pumulo/timber-common/discussions"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+# Core Dependencies - SQLAlchemy ORM and database support
+sqlalchemy = "^2.0.36"
+psycopg2-binary = "^2.9.11"
+pgvector = {extras = ["sqlalchemy"], version = "^0.4.1"}
+
+# Configuration and Validation
+pydantic = "^2.11.9"
+python-dotenv = "^1.1.1"
+PyYAML = "^6.0.3"
+
+# Caching
+redis = "^6.4.0"
+
+# External payments and subscription management
+stripe = "^14.0.1"
+plaid-python = "^37.1.0"
+
+# Security
+cryptography = "^46.0.2"
+Authlib = "^1.6.5"
+
+# Vector Search and Embeddings
+fastembed = "^0.7.3"
+
+# Financial Data APIs
+yfinance = "^0.2.66"
+
+# Data Processing
+scipy  = "^1.16.3"
+pandas = "^2.3.3"
+
+# HTTP and Utilities
+requests = "^2.32.5"
+setuptools = "^80.9.0"
+Jinja2 = "^3.1.6"
+Werkzeug = "^3.1.3"
+
+# Required LLM/Agent libraries
+langchain = "^1.0.8"
+langgraph = "^1.0.3"
+langchain-google-genai = "^3.1.0" 
+langchain-core = "^1.1.0"
+tiktoken = "0.12.0"
+
+# Email Sending
+sendgrid = "^6.12.5"
+
+# SMS Sending
+twilio = "^9.9.0"
+vonage = "^4.7.2"
+
+# Required for Google Image and Video Generative AI
+google-genai = {extras = ["grpc"], version = "^1.52.0"}
+
+# AWS SDK for Python (Boto3) for S3 and other services
+boto3 = "^1.41.2"
+
+[tool.poetry.group.dev.dependencies]
+# Code Quality
+black = "^25.9.0"
+isort = "^6.0.1"
+mypy = "^1.14.1"
+pylint = "^3.3.0"
+flake8 = "^7.1.0"
+
+# Testing
+pytest = "^8.4.2"
+pytest-cov = "^6.0.0"
+pytest-asyncio = "^0.24.0"
+
+# Documentation
+sphinx = "^8.2.3"
+sphinx-rtd-theme = "^3.0.2"
+
+[tool.poetry.group.optional.dependencies]
+# Optional vector database clients
+qdrant-client = {version = "^1.7.0", optional = true}
+weaviate-client = {version = "^4.0.0", optional = true}
+pinecone-client = {version = "^5.0.0", optional = true}
+
+[tool.poetry.extras]
+qdrant = ["qdrant-client"]
+weaviate = ["weaviate-client"]
+pinecone = ["pinecone-client"]
+all = ["qdrant-client", "weaviate-client", "pinecone-client"]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+# Black configuration
+[tool.black]
+line-length = 88
+target-version = ['py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+# isort configuration
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+# pytest configuration
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=common",
+    "--cov=modules",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+
+# mypy configuration
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+ignore_missing_imports = true
+strict_equality = true
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["common", "modules"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]

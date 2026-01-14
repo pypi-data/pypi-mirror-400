@@ -1,0 +1,301 @@
+# narrative_models.yaml
+# Narrative and Goal Models Configuration
+# CORRECTED VERSION with dependency declaration
+
+version: "1.0.0"
+depends: ["00_association_tables.yaml"]  # Load association tables first
+
+models:
+  # ============================================================================
+  # UserGoal Model
+  # ============================================================================
+  - name: UserGoal
+    table_name: user_goal
+    description: "Represents a user's financial goal with target amount and date"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+        
+      - name: name
+        type: String
+        length: 150
+        nullable: false
+        
+      - name: target_amount
+        type: Float
+        nullable: false
+        
+      - name: target_date
+        type: Date
+        nullable: false
+        
+      - name: current_amount
+        type: Float
+        nullable: false
+        default: 0.0
+        
+      - name: status
+        type: String
+        length: 20
+        nullable: false
+        default: "active"
+        index: true
+        description: "Goal status: active, completed, archived"
+        
+      - name: image_url
+        type: String
+        length: 512
+        nullable: true
+        
+      - name: image_generation_status
+        type: String
+        length: 50
+        nullable: false
+        default: "pending"
+        description: "Image generation status: pending, generating, completed, failed"
+        
+      - name: image_prompt
+        type: Text
+        nullable: true
+    
+    relationships:
+      - name: user
+        type: many_to_one
+        target_model: User
+        backref:
+          name: goals
+          lazy: dynamic
+          
+      - name: tags
+        type: many_to_many
+        target_model: Tag
+        secondary: goal_tags
+        lazy: subquery
+        backref:
+          name: goals
+          lazy: true
+          
+      - name: comments
+        type: one_to_many
+        target_model: GoalComment
+        backref: goal
+        lazy: dynamic
+        order_by: asc(GoalComment.created_at)
+        cascade: all, delete-orphan
+        
+      - name: tracked_assets
+        type: one_to_many
+        target_model: TrackedAsset
+        backref: goal
+        lazy: true
+        cascade: all, delete-orphan
+    
+    mixins:
+      - TimestampMixin
+
+  # ============================================================================
+  # GoalComment Model
+  # ============================================================================
+  - name: GoalComment
+    table_name: goal_comments
+    description: "Comments on user goals"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: content
+        type: Text
+        nullable: false
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        
+      - name: goal_id
+        type: Integer
+        nullable: false
+        foreign_key: user_goal.id
+    
+    mixins:
+      - TimestampMixin
+
+  # ============================================================================
+  # TrackedAsset Model
+  # ============================================================================
+  - name: TrackedAsset
+    table_name: tracked_assets
+    description: "Assets tracked by users as part of their financial goals"
+    
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+        description: "Owner of this tracked asset"
+        
+      - name: user_goal_id
+        type: Integer
+        nullable: false
+        foreign_key: user_goal.id
+        index: true
+        description: "Link to the user's goal"
+        
+      - name: stock_symbol
+        type: String
+        length: 20
+        nullable: false
+        description: "Stock ticker symbol being tracked"
+        
+      - name: monitoring_strategy
+        type: JSON
+        nullable: true
+        description: "JSON configuration for monitoring agent parameters"
+        
+      - name: status
+        type: String
+        length: 50
+        nullable: false
+        default: "active"
+        index: true
+        description: "Tracker status: active, paused, achieved"
+    
+    relationships:
+      - name: user
+        type: many_to_one
+        target_model: User
+        backref: tracked_assets
+    
+    mixins:
+      - TimestampMixin
+
+  # ============================================================================
+  # FinancialAccount Model
+  # ============================================================================
+  - name: FinancialAccount
+    table_name: financial_account
+    description: "User's financial accounts linked via Plaid"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+        
+      - name: plaid_item_id
+        type: String
+        length: 255
+        nullable: false
+        foreign_key: plaid_item.item_id
+        
+      - name: plaid_account_id
+        type: String
+        length: 255
+        nullable: false
+        unique: true
+        
+      - name: account_name
+        type: String
+        length: 150
+        nullable: false
+        
+      - name: current_balance
+        type: Float
+        nullable: false
+        
+      - name: account_type
+        type: String
+        length: 50
+        nullable: false
+        description: "Account type: investment, checking, savings, etc."
+
+  # ============================================================================
+  # PlaidItem Model
+  # ============================================================================
+  - name: PlaidItem
+    table_name: plaid_item
+    description: "Stores Plaid API credentials and item metadata"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+        
+      - name: access_token
+        type: String
+        length: 255
+        nullable: false
+        unique: true
+        
+      - name: item_id
+        type: String
+        length: 255
+        nullable: false
+        unique: true
+    
+    relationships:
+      - name: accounts
+        type: one_to_many
+        target_model: FinancialAccount
+        backref: item
+        lazy: true
+
+  # ============================================================================
+  # NarrativeSnapshot Model
+  # ============================================================================
+  - name: NarrativeSnapshot
+    table_name: narrative_snapshot
+    description: "Timestamped snapshots of user's financial narrative"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+        
+      - name: content
+        type: Text
+        nullable: false
+        
+      - name: created_at
+        type: DateTime
+        nullable: false

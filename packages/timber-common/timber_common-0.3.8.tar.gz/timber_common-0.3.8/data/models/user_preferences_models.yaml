@@ -1,0 +1,278 @@
+# config/models/user_preferences.yaml
+#
+# Example: User Preferences Model
+# This shows how to create a completely new model using YAML configuration
+#
+# Place this file in: timber/config/models/ or your app's config/models/ directory
+
+models:
+  # ========================================
+  # User Preferences Model
+  # ========================================
+  - name: UserPreferences
+    table_name: user_preferences
+    module: timber.common.models  # Or your app's module
+    description: "Stores user-specific preferences and settings"
+    
+    # Caching configuration - preferences are accessed frequently
+    cache_strategy:
+      enabled: true
+      ttl_hours: 168  # Cache for 1 week
+      invalidate_on_update: true
+    
+    # Encryption configuration - some preferences might be sensitive
+    encryption:
+      enabled: true
+      fields:
+        - api_keys
+        - notification_settings
+      key_identifier: "user_preferences_key"
+    
+    # GDPR configuration
+    gdpr:
+      user_field: user_id
+      cascade_delete: true  # Delete preferences when user is deleted
+      export_fields:
+        - user_id
+        - theme
+        - language
+        - timezone
+        - notification_settings
+        - display_preferences
+        - research_defaults
+        - created_at
+        - updated_at
+      # Note: api_keys is intentionally excluded from export for security
+    
+    # Column definitions
+    columns:
+      - name: id
+        type: String(36)
+        primary_key: true
+        default: uuid4
+        description: "Unique identifier"
+      
+      - name: user_id
+        type: String(36)
+        foreign_key: users.id
+        nullable: false
+        unique: true  # One preference record per user
+        indexed: true
+        description: "User these preferences belong to"
+      
+      # UI/Display Preferences
+      - name: theme
+        type: String(20)
+        nullable: false
+        default: "light"
+        description: "UI theme preference (light, dark, auto)"
+      
+      - name: language
+        type: String(10)
+        nullable: false
+        default: "en"
+        description: "Preferred language code (en, es, fr, etc)"
+      
+      - name: timezone
+        type: String(50)
+        nullable: false
+        default: "UTC"
+        description: "User's timezone (e.g., America/New_York)"
+      
+      - name: display_preferences
+        type: JSON
+        nullable: true
+        default: {}
+        description: "Additional UI display preferences"
+        # Example: {"compact_mode": true, "show_tooltips": false}
+      
+      # Notification Preferences
+      - name: notification_settings
+        type: JSON
+        nullable: true
+        encrypted: true
+        default: {}
+        description: "Notification preferences and channels"
+        # Example: {
+        #   "email_enabled": true,
+        #   "push_enabled": false,
+        #   "frequency": "daily",
+        #   "quiet_hours": {"start": "22:00", "end": "08:00"}
+        # }
+      
+      - name: email_notifications_enabled
+        type: Boolean
+        nullable: false
+        default: true
+        description: "Quick toggle for email notifications"
+      
+      # Research/Workflow Preferences
+      - name: research_defaults
+        type: JSON
+        nullable: true
+        default: {}
+        description: "Default settings for research workflows"
+        # Example: {
+        #   "default_time_period": "1y",
+        #   "include_sector_analysis": true,
+        #   "auto_generate_ppt": false
+        # }
+      
+      - name: favorite_tickers
+        type: JSON
+        nullable: true
+        default: []
+        description: "Array of favorite stock tickers"
+        # Example: ["AAPL", "GOOGL", "MSFT"]
+      
+      - name: watchlist_ids
+        type: JSON
+        nullable: true
+        default: []
+        description: "Array of watchlist IDs"
+      
+      # API/Integration Preferences
+      - name: api_keys
+        type: JSON
+        nullable: true
+        encrypted: true
+        default: {}
+        description: "Encrypted API keys for external services"
+        # Example: {
+        #   "alpha_vantage": "encrypted_key_here",
+        #   "polygon": "encrypted_key_here"
+        # }
+      
+      # Dashboard/Layout Preferences
+      - name: dashboard_layout
+        type: JSON
+        nullable: true
+        default: {}
+        description: "Saved dashboard layout configuration"
+        # Example: {
+        #   "widgets": [
+        #     {"type": "portfolio", "position": {"x": 0, "y": 0}},
+        #     {"type": "watchlist", "position": {"x": 1, "y": 0}}
+        #   ]
+        # }
+      
+      - name: default_view
+        type: String(50)
+        nullable: false
+        default: "dashboard"
+        description: "Default landing page when user logs in"
+      
+      # Data/Privacy Preferences
+      - name: data_sharing_consent
+        type: Boolean
+        nullable: false
+        default: false
+        description: "User consent for anonymous data sharing"
+      
+      - name: analytics_enabled
+        type: Boolean
+        nullable: false
+        default: true
+        description: "Allow usage analytics"
+    
+    # Relationships
+    relationships:
+      - name: user
+        model: User
+        type: many_to_one
+        foreign_key: user_id
+        backref:
+          name: preferences
+          uselist: false  # One-to-one relationship
+          cascade: all, delete-orphan
+    
+    # Mixins to include
+    mixins:
+      - EncryptedFieldMixin
+      - GDPRComplianceMixin
+      - CacheableMixin
+      - AuditMixin  # Track who created/updated preferences
+    
+    # Database indexes
+    indexes:
+      - columns: [user_id]
+        name: idx_user_prefs_user
+        unique: true
+        description: "Unique index to ensure one preference record per user"
+    
+    # Table-level constraints
+    table_args:
+      comment: "User-specific preferences and settings"
+
+
+  # ========================================
+  # User Preferences History (Optional)
+  # ========================================
+  # Track changes to preferences over time
+  - name: UserPreferencesHistory
+    table_name: user_preferences_history
+    module: timber.common.models
+    description: "Audit trail of preference changes"
+    
+    columns:
+      - name: id
+        type: String(36)
+        primary_key: true
+        default: uuid4
+      
+      - name: user_id
+        type: String(36)
+        foreign_key: users.id
+        nullable: false
+        indexed: true
+      
+      - name: preferences_id
+        type: String(36)
+        foreign_key: user_preferences.id
+        nullable: false
+        indexed: true
+      
+      - name: field_changed
+        type: String(100)
+        nullable: false
+        description: "Name of the field that changed"
+      
+      - name: old_value
+        type: JSON
+        nullable: true
+        description: "Previous value"
+      
+      - name: new_value
+        type: JSON
+        nullable: true
+        description: "New value"
+      
+      - name: changed_at
+        type: DateTime
+        nullable: false
+        default: common.utils.time_helpers.current_utc
+        indexed: true
+      
+      - name: changed_by
+        type: String(36)
+        nullable: true
+        description: "User ID who made the change (if applicable)"
+    
+    relationships:
+      - name: user
+        model: User
+        type: many_to_one
+        foreign_key: user_id
+      
+      - name: preferences
+        model: UserPreferences
+        type: many_to_one
+        foreign_key: preferences_id
+    
+    mixins:
+      - TimestampMixin
+    
+    indexes:
+      - columns: [user_id, changed_at]
+        name: idx_prefs_history_user_time
+        description: "Fast lookup of user's preference change history"

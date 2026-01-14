@@ -1,0 +1,507 @@
+# config/models/messaging_models.yaml
+# ============================================================================
+# Multi-Channel Messaging Models
+# ============================================================================
+#
+# Infrastructure for delivering messages across channels:
+# - In-app messages
+# - Email messages
+# - Push notifications
+#
+# NOTE: This is separate from the existing Notification model which handles
+# social/collaboration notifications with comments and tags. This system
+# is for templated, multi-channel message delivery.
+#
+# Features:
+# - User messaging preferences per channel
+# - Message templates for consistency
+# - Delivery tracking and retry
+# - Message batching/digest support
+
+version: "1.0.0"
+
+models:
+  # ==========================================================================
+  # USER MESSAGING PREFERENCES
+  # ==========================================================================
+  
+  - name: UserMessagingPreference
+    table_name: user_messaging_preferences
+    description: "User preferences for message delivery channels"
+    
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+      
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+      
+      # Channel settings
+      - name: email_enabled
+        type: Boolean
+        default: true
+      
+      - name: email_address
+        type: String
+        length: 255
+        nullable: true
+      
+      - name: email_verified
+        type: Boolean
+        default: false
+      
+      - name: push_enabled
+        type: Boolean
+        default: true
+      
+      - name: push_subscription
+        type: JSON
+        nullable: true
+        description: "Web push subscription object"
+      
+      - name: in_app_enabled
+        type: Boolean
+        default: true
+      
+      # Digest preferences
+      - name: digest_frequency
+        type: String
+        length: 20
+        default: "immediate"
+        description: "immediate, daily, weekly"
+      
+      - name: digest_time
+        type: Time
+        nullable: true
+        description: "Preferred time for digest (if not immediate)"
+      
+      - name: timezone
+        type: String
+        length: 50
+        default: "UTC"
+      
+      # Quiet hours
+      - name: quiet_hours_enabled
+        type: Boolean
+        default: false
+      
+      - name: quiet_hours_start
+        type: Time
+        nullable: true
+      
+      - name: quiet_hours_end
+        type: Time
+        nullable: true
+      
+      # Category preferences (JSON map of category -> channels)
+      - name: category_settings
+        type: JSON
+        nullable: true
+        description: "Per-category channel preferences"
+    
+    relationships:
+      - name: user
+        type: many_to_one
+        target_model: User
+        backref:
+          name: messaging_preferences
+          uselist: false
+    
+    mixins:
+      - TimestampMixin
+    
+    indexes:
+      - columns: [user_id]
+        name: idx_msg_pref_user
+        unique: true
+
+  # ==========================================================================
+  # MESSAGE TEMPLATE
+  # ==========================================================================
+  
+  - name: MessageTemplate
+    table_name: message_templates
+    description: "Reusable message templates for multi-channel delivery"
+    
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+      
+      - name: code
+        type: String
+        length: 100
+        nullable: false
+        unique: true
+        index: true
+        description: "Template identifier (e.g., 'investment_goal_reached')"
+      
+      - name: category
+        type: String
+        length: 50
+        nullable: false
+        index: true
+        description: "investment, workflow, system, marketing"
+      
+      - name: name
+        type: String
+        length: 255
+        nullable: false
+      
+      - name: description
+        type: Text
+        nullable: true
+      
+      # In-app template
+      - name: in_app_title
+        type: String
+        length: 255
+        nullable: true
+        description: "Title with {placeholders}"
+      
+      - name: in_app_body
+        type: Text
+        nullable: true
+        description: "Body with {placeholders}"
+      
+      - name: in_app_icon
+        type: String
+        length: 50
+        nullable: true
+      
+      - name: in_app_action_url
+        type: String
+        length: 500
+        nullable: true
+        description: "URL template for click action"
+      
+      # Email template
+      - name: email_subject
+        type: String
+        length: 255
+        nullable: true
+      
+      - name: email_body_html
+        type: Text
+        nullable: true
+        description: "HTML email body with {placeholders}"
+      
+      - name: email_body_text
+        type: Text
+        nullable: true
+        description: "Plain text fallback"
+      
+      # Push template
+      - name: push_title
+        type: String
+        length: 100
+        nullable: true
+      
+      - name: push_body
+        type: String
+        length: 255
+        nullable: true
+      
+      - name: push_icon
+        type: String
+        length: 255
+        nullable: true
+      
+      - name: push_action_url
+        type: String
+        length: 500
+        nullable: true
+      
+      # Settings
+      - name: default_channels
+        type: JSON
+        nullable: true
+        description: "Default channels for this template"
+      
+      - name: priority
+        type: String
+        length: 20
+        default: "normal"
+        description: "low, normal, high, urgent"
+      
+      - name: is_active
+        type: Boolean
+        default: true
+    
+    mixins:
+      - TimestampMixin
+
+  # ==========================================================================
+  # MESSAGE (Delivery Record)
+  # ==========================================================================
+  
+  - name: Message
+    table_name: messages
+    description: "User messages with multi-channel delivery tracking"
+    
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+      
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+      
+      - name: template_id
+        type: String
+        length: 36
+        nullable: true
+        foreign_key: message_templates.id
+      
+      - name: category
+        type: String
+        length: 50
+        nullable: false
+        index: true
+        description: "investment, workflow, system, marketing"
+      
+      - name: priority
+        type: String
+        length: 20
+        default: "normal"
+        description: "low, normal, high, urgent"
+      
+      # Content
+      - name: title
+        type: String
+        length: 255
+        nullable: false
+      
+      - name: body
+        type: Text
+        nullable: true
+      
+      - name: data
+        type: JSON
+        nullable: true
+        description: "Additional structured data"
+      
+      - name: action_url
+        type: String
+        length: 500
+        nullable: true
+      
+      - name: icon
+        type: String
+        length: 50
+        nullable: true
+      
+      # Source tracking
+      - name: source_type
+        type: String
+        length: 50
+        nullable: true
+        description: "workflow, system, advisor, scheduled"
+      
+      - name: source_id
+        type: String
+        length: 36
+        nullable: true
+        description: "Related entity ID"
+      
+      # Delivery status per channel
+      - name: channels_requested
+        type: JSON
+        nullable: true
+        description: "List of channels to deliver to"
+      
+      - name: in_app_status
+        type: String
+        length: 20
+        default: "pending"
+        description: "pending, delivered, read, dismissed"
+      
+      - name: in_app_read_at
+        type: DateTime
+        nullable: true
+      
+      - name: email_status
+        type: String
+        length: 20
+        nullable: true
+        description: "pending, sent, delivered, bounced, failed"
+      
+      - name: email_sent_at
+        type: DateTime
+        nullable: true
+      
+      - name: email_message_id
+        type: String
+        length: 255
+        nullable: true
+        description: "Email provider message ID"
+      
+      - name: push_status
+        type: String
+        length: 20
+        nullable: true
+        description: "pending, sent, delivered, clicked, failed"
+      
+      - name: push_sent_at
+        type: DateTime
+        nullable: true
+      
+      # Scheduling
+      - name: scheduled_for
+        type: DateTime
+        nullable: true
+        description: "For delayed/scheduled messages"
+      
+      - name: expires_at
+        type: DateTime
+        nullable: true
+        description: "Auto-dismiss after this time"
+      
+      # Batching
+      - name: batch_id
+        type: String
+        length: 36
+        nullable: true
+        index: true
+        description: "For grouping related messages"
+      
+      - name: is_batched
+        type: Boolean
+        default: false
+        description: "Part of a digest batch"
+    
+    relationships:
+      - name: user
+        type: many_to_one
+        target_model: User
+        backref:
+          name: messages
+          lazy: dynamic
+          order_by: desc(Message.created_at)
+      
+      - name: template
+        type: many_to_one
+        target_model: MessageTemplate
+        backref:
+          name: messages
+          lazy: dynamic
+      
+      - name: delivery_logs
+        type: one_to_many
+        target_model: MessageDeliveryLog
+        backref: message
+        lazy: dynamic
+        cascade: all, delete-orphan
+    
+    mixins:
+      - TimestampMixin
+    
+    indexes:
+      - columns: [user_id, in_app_status]
+        name: idx_msg_user_status
+      
+      - columns: [user_id, created_at]
+        name: idx_msg_user_created
+      
+      - columns: [scheduled_for]
+        name: idx_msg_scheduled
+        where: "scheduled_for IS NOT NULL"
+      
+      - columns: [email_status]
+        name: idx_msg_email_pending
+        where: "email_status = 'pending'"
+      
+      - columns: [push_status]
+        name: idx_msg_push_pending
+        where: "push_status = 'pending'"
+
+  # ==========================================================================
+  # MESSAGE DELIVERY LOG
+  # ==========================================================================
+  
+  - name: MessageDeliveryLog
+    table_name: message_delivery_logs
+    description: "Detailed delivery tracking for debugging and retry"
+    
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+      
+      - name: message_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: messages.id
+        index: true
+      
+      - name: channel
+        type: String
+        length: 20
+        nullable: false
+        description: "email, push, in_app"
+      
+      - name: attempt_number
+        type: Integer
+        default: 1
+      
+      - name: status
+        type: String
+        length: 20
+        nullable: false
+        description: "pending, success, failed, retrying"
+      
+      - name: provider
+        type: String
+        length: 50
+        nullable: true
+        description: "sendgrid, firebase, etc."
+      
+      - name: provider_response
+        type: JSON
+        nullable: true
+      
+      - name: error_message
+        type: Text
+        nullable: true
+      
+      - name: attempted_at
+        type: DateTime
+        nullable: false
+        default: now
+      
+      - name: delivered_at
+        type: DateTime
+        nullable: true
+      
+      - name: next_retry_at
+        type: DateTime
+        nullable: true
+    
+    mixins:
+      - TimestampMixin
+    
+    indexes:
+      - columns: [message_id, channel]
+        name: idx_delivery_msg_channel
+      
+      - columns: [next_retry_at]
+        name: idx_delivery_retry
+        where: "status = 'retrying'"

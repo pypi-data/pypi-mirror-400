@@ -1,0 +1,266 @@
+# OAuth2 Models Configuration
+# Contains OAuth2 clients, authorization codes, and tokens
+
+models:
+  # ============================================================================
+  # OAuth2Client Model
+  # ============================================================================
+  - name: OAuth2Client
+    table_name: oauth2_clients
+    mixins:
+      - TimestampMixin
+    description: "OAuth2 client applications that can access user resources"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: client_id
+        type: String
+        length: 48
+        unique: true
+        nullable: false
+        index: true
+        
+      - name: client_secret
+        type: String
+        length: 120
+        nullable: false
+        
+      - name: client_name
+        type: String
+        length: 120
+        nullable: false
+        description: "Human-readable name for the client application"
+        
+      - name: client_uri
+        type: Text
+        nullable: true
+        description: "URL of the client application's homepage"
+        
+      - name: scope
+        type: Text
+        nullable: true
+        description: "Default scopes (permissions) granted to this client, space-separated"
+        
+      - name: redirect_uris
+        type: Text
+        nullable: true
+        description: "Comma-separated list of valid redirect URIs"
+        
+      - name: grant_types
+        type: Text
+        nullable: true
+        description: "Comma-separated list of allowed grant types (e.g., authorization_code)"
+        
+      - name: response_types
+        type: Text
+        nullable: true
+        description: "Comma-separated list of allowed response types (e.g., code)"
+        
+      - name: token_endpoint_auth_method
+        type: String
+        length: 48
+        default: client_secret_basic
+        description: "How the client authenticates at the token endpoint"
+    
+    methods:
+      get_client_id:
+        returns: str
+        description: "Returns the client's unique ID"
+        
+      get_default_redirect_uri:
+        returns: str
+        description: "Returns the first redirect URI from the registered list"
+        
+      get_allowed_scope:
+        params:
+          - name: scope
+            type: str
+        returns: str
+        description: "Validates and returns allowed scopes for the request"
+        
+      check_redirect_uri:
+        params:
+          - name: uri
+            type: str
+        returns: bool
+        description: "Validates if the redirect URI is registered"
+        
+      check_response_type:
+        params:
+          - name: response_type
+            type: str
+        returns: bool
+        
+      check_grant_type:
+        params:
+          - name: grant_type
+            type: str
+        returns: bool
+        
+      check_token_endpoint_auth_method:
+        params:
+          - name: method
+            type: str
+        returns: bool
+
+  # ============================================================================
+  # OAuth2AuthorizationCode Model
+  # ============================================================================
+  - name: OAuth2AuthorizationCode
+    table_name: oauth2_authorization_codes
+    mixins:
+      - TimestampMixin
+    description: "Temporary authorization codes issued after user consent"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        description: "ID of the user who granted consent"
+        
+      - name: client_id
+        type: String
+        length: 48
+        nullable: false
+        description: "Client to whom the code was issued"
+        
+      - name: code
+        type: String
+        length: 120
+        unique: true
+        nullable: false
+        
+      - name: redirect_uri
+        type: Text
+        nullable: true
+        description: "Redirect URI used in the authorization request"
+        
+      - name: scope
+        type: Text
+        nullable: true
+        description: "Scopes granted by the user for this code"
+        
+      - name: issued_at
+        type: DateTime
+        default: common.utils.time_helpers.current_utc
+        
+      - name: expires_at
+        type: DateTime
+        default: common.utils.time_helpers.utc_plus_5min
+        description: "Authorization codes typically expire in 5 minutes"
+    
+    methods:
+      is_expired:
+        returns: bool
+        description: "Checks if the authorization code has expired"
+        
+      get_redirect_uri:
+        returns: str
+        
+      get_scope:
+        returns: str
+        
+      get_client_id:
+        returns: str
+        
+      get_user_id:
+        returns: str
+
+  # ============================================================================
+  # OAuth2Token Model
+  # ============================================================================
+  - name: OAuth2Token
+    table_name: oauth2_tokens
+    mixins:
+      - TimestampMixin
+    description: "Issued access and refresh tokens for OAuth2 clients"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        description: "ID of the user whose resources are accessed"
+        
+      - name: client_id
+        type: String
+        length: 48
+        nullable: false
+        description: "Client that owns this token"
+        
+      - name: token_type
+        type: String
+        length: 40
+        nullable: true
+        description: "Token type, typically 'bearer'"
+        
+      - name: access_token
+        type: String
+        length: 255
+        unique: true
+        nullable: false
+        description: "Token for accessing protected resources"
+        
+      - name: refresh_token
+        type: String
+        length: 255
+        unique: true
+        nullable: true
+        description: "Token for obtaining new access tokens"
+        
+      - name: scope
+        type: Text
+        nullable: true
+        description: "Scopes associated with this token"
+        
+      - name: issued_at
+        type: DateTime
+        default: common.utils.time_helpers.current_utc
+        
+      - name: expires_in
+        type: Integer
+        default: 3600
+        description: "Access token validity duration in seconds (default 1 hour)"
+        
+      - name: expires_at
+        type: DateTime
+        default: common.utils.time_helpers.utc_plus_1hour
+        description: "Absolute expiry time for the access token"
+    
+    methods:
+      to_dict:
+        returns:
+          - token_type
+          - access_token
+          - refresh_token
+          - expires_in
+          - scope
+          
+      is_refresh_token_active:
+        returns: bool
+        description: "Determines if the refresh token is still valid"
+        
+      is_expired:
+        returns: bool
+        description: "Checks if the access token has expired"
+        
+      get_scope:
+        returns: str
+        
+      get_client_id:
+        returns: str
+        
+      get_user_id:
+        returns: str

@@ -1,0 +1,110 @@
+# Portfolio Models Configuration
+# Contains user portfolio holdings and transactions
+
+models:
+  # ============================================================================
+  # PortfolioHolding Model
+  # ============================================================================
+  - name: PortfolioHolding
+    table_name: portfolio_holdings
+    mixins:
+      - TimestampMixin
+    description: "User's stock holdings with aggregated position information"
+    
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+        
+      - name: stock_symbol
+        type: String
+        length: 20
+        nullable: false
+        
+      - name: total_shares
+        type: Float
+        nullable: false
+        default: 0.0
+        description: "Total number of shares currently held"
+        
+      - name: average_cost_basis
+        type: Float
+        nullable: true
+        description: "Weighted average cost per share"
+    
+    relationships:
+      - name: user
+        type: many_to_one
+        target_model: User
+        backref:
+          name: portfolio_holdings
+          lazy: dynamic
+          cascade: all, delete-orphan
+        
+      - name: transactions
+        type: one_to_many
+        target_model: PortfolioTransaction
+        backref: holding
+        lazy: dynamic
+        cascade: all, delete-orphan
+
+  # ============================================================================
+  # PortfolioTransaction Model
+  # ============================================================================
+  - name: PortfolioTransaction
+    table_name: portfolio_transactions
+    mixins:
+      - TimestampMixin
+    description: "Individual buy/sell transactions for portfolio holdings"
+    
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+        
+      - name: holding_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: portfolio_holdings.id
+        index: true
+        
+      - name: transaction_type
+        type: String
+        length: 4
+        nullable: false
+        description: "Transaction type: buy or sell"
+        
+      - name: transaction_date
+        type: Date
+        nullable: false
+        
+      - name: shares
+        type: Float
+        nullable: false
+        description: "Number of shares in this transaction"
+        
+      - name: price_per_share
+        type: Float
+        nullable: false
+        description: "Price per share at time of transaction"
+        
+      - name: notes
+        type: Text
+        nullable: true
+        description: "Optional notes about the transaction"
+    
+    # NO relationships defined here!
+    # The backref from PortfolioHolding.transactions automatically creates
+    # the 'holding' relationship on this model

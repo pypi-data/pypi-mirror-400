@@ -1,0 +1,144 @@
+# Vector Database Models Configuration
+# Contains text embeddings for semantic search using pgvector
+
+models:
+  # ============================================================================
+  # TextEmbedding Model
+  # ============================================================================
+  - name: TextEmbedding
+    table_name: text_embeddings
+    mixins:
+      - TimestampMixin
+    description: "Text chunks and their vector embeddings for semantic search"
+    
+    database_extensions:
+      - pgvector  # Requires PostgreSQL with pgvector extension
+    
+    columns:
+      - name: id
+        type: String  # Changed from UUID for SQLite compatibility
+        length: 36
+        primary_key: true
+        default: uuid4
+        description: "UUID primary key as string"
+        
+      - name: content_text
+        type: Text
+        nullable: false
+        description: "The original text chunk"
+        
+      - name: embedding
+        type: Vector
+        dimension: 768
+        nullable: false
+        description: "Vector embedding (768 dimensions for text-embedding-004)"
+        
+      - name: source_type
+        type: String
+        length: 50
+        nullable: false
+        index: true
+        description: "Type of source: news_article, report_summary, research_note, etc."
+        
+      - name: source_id
+        type: String
+        length: 36
+        nullable: true
+        index: true
+        description: "ID of the original source object"
+        
+      # FIXED: Changed from 'metadata' to 'embedding_metadata' to avoid SQLAlchemy conflict
+      - name: embedding_metadata
+        type: JSON
+        nullable: true
+        description: "Additional metadata (e.g., ticker, date, tags)"
+    
+    methods:
+      to_dict:
+        returns:
+          - id
+          - content_text
+          - source_type
+          - source_id
+          - embedding_metadata  # Updated field name
+          - created_at: isoformat
+          - updated_at: isoformat
+
+  # ============================================================================
+  # Embedding Metadata Model (Moved from core code)
+  # ============================================================================
+  - name: EmbeddingMetadata
+    table_name: embedding_metadata
+    module: timber.common.models.dynamic # Or appropriate dynamic module
+    description: "Metadata for text embeddings for fast filtering"
+    
+    mixins:
+      - TimestampMixin
+      
+    columns:
+      - name: embedding_id
+        type: String(36) # Must match type of TextEmbedding.id (UUID as string)
+        primary_key: true
+        foreign_key: text_embeddings.id # Assuming 'TextEmbedding' is loaded first
+        description: "Foreign key to TextEmbedding record"
+      
+      - name: ticker
+        type: String(20)
+        nullable: true
+        indexed: true
+      
+      - name: index_symbol
+        type: String(20)
+        nullable: true
+        indexed: true
+      
+      - name: sector
+        type: String(100)
+        nullable: true
+        indexed: true
+        
+      - name: user_id
+        type: String(36)
+        nullable: true
+        indexed: true
+      
+      - name: session_id
+        type: String(36)
+        nullable: true
+        indexed: true
+      
+      - name: meta_data
+        type: JSON
+        nullable: true
+      
+      - name: is_encrypted
+        type: Boolean
+        nullable: false
+        default: false
+      
+      - name: is_user_data
+        type: Boolean
+        nullable: false
+        default: false
+        indexed: true
+        
+    # Relationships
+    # Note: TextEmbedding is not defined in YAML, so the relationship must wait
+    # for TextEmbedding to be registered by its core code path.
+    relationships:
+      - name: embedding
+        model: TextEmbedding
+        type: many_to_one
+        foreign_key: embedding_id
+        # Assuming TextEmbedding defines a backref like 'metadata_records'
+        # If not, add backref here:
+        # backref: metadata_records 
+
+    # Database indexes
+    indexes:
+      - columns: [user_id]
+        name: idx_metadata_user
+      - columns: [session_id]
+        name: idx_metadata_session
+      - columns: [is_user_data]
+        name: idx_metadata_user_data

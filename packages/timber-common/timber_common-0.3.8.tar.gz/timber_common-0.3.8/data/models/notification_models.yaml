@@ -1,0 +1,124 @@
+# notification_models.yaml
+# Notification Models Configuration
+# CORRECTED VERSION with dependency declaration
+
+version: "1.0.0"
+depends: ["00_association_tables.yaml"]  # Load association tables first
+
+models:
+  # ============================================================================
+  # Notification Model
+  # ============================================================================
+  - name: Notification
+    table_name: notifications
+    description: "User notifications with tags and comments support"
+    
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        index: true
+        
+      - name: content
+        type: Text
+        nullable: false
+        
+      - name: status
+        type: String
+        length: 20
+        nullable: false
+        default: "active"
+        index: true
+        description: "Notification status: active (unread), read, archived"
+        
+      - name: link_url
+        type: String
+        length: 512
+        nullable: true
+        
+      - name: source_type
+        type: String
+        length: 50
+        nullable: true
+        description: "Type of source that generated the notification"
+        
+      - name: source_id
+        type: String
+        length: 36
+        nullable: true
+        description: "ID of the source object"
+    
+    relationships:
+      - name: user
+        type: many_to_one
+        target_model: User
+        backref:
+          name: notifications
+          lazy: dynamic
+          order_by: desc(Notification.created_at)
+          cascade: all, delete-orphan
+          
+      - name: tags
+        type: many_to_many
+        target_model: Tag
+        secondary: notification_tags
+        lazy: subquery
+        backref:
+          name: notifications
+          lazy: true
+          
+      - name: comments
+        type: one_to_many
+        target_model: NotificationComment
+        backref: notification
+        lazy: dynamic
+        order_by: asc(NotificationComment.created_at)
+        cascade: all, delete-orphan
+    
+    mixins:
+      - TimestampMixin
+
+  # ============================================================================
+  # NotificationComment Model
+  # ============================================================================
+  - name: NotificationComment
+    table_name: notification_comments
+    description: "Comments on notifications and insights"
+    
+    columns:
+      - name: id
+        type: Integer
+        primary_key: true
+        
+      - name: content
+        type: Text
+        nullable: false
+        
+      - name: user_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: users.id
+        
+      - name: notification_id
+        type: String
+        length: 36
+        nullable: false
+        foreign_key: notifications.id
+    
+    relationships:
+      - name: author
+        type: many_to_one
+        target_model: User
+        backref: notification_comments
+    
+    mixins:
+      - TimestampMixin

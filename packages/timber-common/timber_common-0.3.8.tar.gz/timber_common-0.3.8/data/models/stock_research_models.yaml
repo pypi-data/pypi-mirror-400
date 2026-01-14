@@ -1,0 +1,214 @@
+# stock_research_models.yaml
+# Stock Research Workflow Models - CORRECTED VERSION
+# Removed complex primaryjoin that requires foreign() and and_() functions
+# Using simpler backref approach instead
+
+version: "1.0.0"
+last_updated: "2025-10-19"
+description: "Models for stock research workflow system - CORRECTED"
+
+models:
+  # ========================================
+  # Stock Research Session Model
+  # ========================================
+  - name: StockResearchSession
+    table_name: stock_research_sessions
+    session_type: stock_research
+    description: "SQLAlchemy model for storing research session data with task tracking"
+    
+    # Column definitions
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+        description: "Unique identifier for the research session"
+      
+      - name: user_id
+        type: String
+        length: 36
+        foreign_key: users.id
+        nullable: false
+        index: true
+        description: "User who owns this research session"
+      
+      - name: state
+        type: String
+        length: 50
+        nullable: false
+        default: initiate_research
+        description: "Current workflow state"
+      
+      - name: task_ids
+        type: JSON
+        nullable: true
+        description: "Array of task IDs associated with this session"
+      
+      - name: stock_symbol
+        type: String
+        length: 100
+        nullable: true
+        index: true
+        description: "Stock ticker symbol being researched"
+      
+      - name: research_data
+        type: JSON
+        nullable: true
+        description: "Structured research data collected during workflow"
+      
+      - name: worthiness_summary
+        type: JSON
+        nullable: true
+        description: "Summary of stock worthiness analysis"
+      
+      - name: admin_review_notes
+        type: Text
+        nullable: true
+        description: "Notes from admin review process"
+      
+      - name: ppt_path
+        type: String
+        length: 255
+        nullable: true
+        description: "Path to generated PowerPoint presentation"
+      
+      - name: historical_summary
+        type: Text
+        nullable: true
+        description: "Final summary of stock research"
+      
+      - name: session_metadata
+        type: JSON
+        nullable: true
+        description: "Additional session metadata"
+    
+    # Relationships
+    relationships:
+      - name: author
+        type: many_to_one
+        target_model: User
+        backref:
+          name: research_sessions
+          lazy: dynamic
+          cascade: all, delete-orphan
+        description: "User who created this research session"
+      
+      # SIMPLIFIED: Removed complex primaryjoin
+      # WorkflowEvent now needs a proper foreign key to work with backref
+      - name: events
+        type: one_to_many
+        target_model: WorkflowEvent
+        backref: stock_research_session
+        lazy: dynamic
+        cascade: all, delete-orphan
+        order_by: asc(WorkflowEvent.timestamp)
+        description: "Workflow events associated with this session"
+    
+    # Mixins to include
+    mixins:
+      - TimestampMixin
+    
+    # Database indexes
+    indexes:
+      - columns: [user_id, state]
+        name: idx_stock_research_user_state
+        description: "Fast lookup of user's sessions by state"
+      
+      - columns: [stock_symbol]
+        name: idx_stock_research_symbol
+        description: "Fast lookup by stock symbol"
+      
+      - columns: [created_at]
+        name: idx_stock_research_created
+        description: "Fast sorting by creation date"
+      
+      - columns: [user_id, created_at]
+        name: idx_stock_research_user_created
+        description: "Fast lookup of user's recent sessions"
+      
+      - columns: [state, created_at]
+        name: idx_stock_research_state_created
+        description: "Fast filtering by state and sorting by date"
+
+
+  # ========================================
+  # Workflow Event Model
+  # ========================================
+  - name: WorkflowEvent
+    table_name: workflow_events
+    description: "Universal event log for workflow sessions"
+    
+    # Column definitions
+    columns:
+      - name: id
+        type: String
+        length: 36
+        primary_key: true
+        default: uuid4
+        description: "Unique identifier for the event"
+      
+      # CRITICAL: Changed to proper foreign key
+      - name: session_id
+        type: String
+        length: 36
+        foreign_key: stock_research_sessions.id
+        nullable: false
+        index: true
+        description: "ID of the session this event belongs to"
+      
+      - name: session_type
+        type: String
+        length: 50
+        nullable: false
+        index: true
+        description: "Type of session (stock_research, index_research, etc)"
+      
+      - name: event_type
+        type: String
+        length: 50
+        nullable: false
+        description: "Type of event (STATE_TRANSITION, ERROR, TASK_COMPLETE, etc)"
+      
+      - name: timestamp
+        type: DateTime
+        nullable: false
+        index: true
+        description: "When the event occurred (UTC)"
+      
+      - name: status
+        type: String
+        length: 20
+        nullable: false
+        default: PENDING
+        description: "Event status (PENDING, COMPLETE, ERROR)"
+      
+      - name: details
+        type: JSON
+        nullable: true
+        description: "Additional event details"
+    
+    # NO relationships defined here!
+    # The relationship is created by the backref in StockResearchSession.events
+        
+    # Mixins
+    mixins:
+      - TimestampMixin
+    
+    # Database indexes
+    indexes:
+      - columns: [session_id, session_type]
+        name: idx_workflow_events_session
+        description: "Fast lookup of events for a specific session"
+      
+      - columns: [session_type, timestamp]
+        name: idx_workflow_events_type_time
+        description: "Fast filtering by session type and time"
+      
+      - columns: [session_id, timestamp]
+        name: idx_workflow_events_session_time
+        description: "Fast chronological lookup of session events"
+      
+      - columns: [event_type, timestamp]
+        name: idx_workflow_events_event_time
+        description: "Fast filtering by event type and time"
