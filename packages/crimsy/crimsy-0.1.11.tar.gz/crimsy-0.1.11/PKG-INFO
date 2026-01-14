@@ -1,0 +1,820 @@
+Metadata-Version: 2.4
+Name: crimsy
+Version: 0.1.11
+Summary: A lightweight web framework for building APIs in Python
+License-File: LICENSE
+Requires-Python: >=3.11
+Requires-Dist: msgspec>=0.19.0
+Requires-Dist: python-multipart>=0.0.20
+Requires-Dist: starlette>=0.50.0
+Description-Content-Type: text/markdown
+
+# Crimsy
+
+A lightweight web framework for building APIs in Python, built on top of Starlette with `msgspec` for fast JSON encoding/decoding.
+
+## Features
+
+- 🚀 **Fast**: Uses `msgspec` for ultra-fast JSON encoding/decoding
+- 🪶 **Lightweight**: Minimal dependencies (only `starlette` and `msgspec`)
+- 🔒 **Fully Typed**: Complete type hints for better IDE support
+- 📚 **Auto Documentation**: Automatic OpenAPI schema generation and Swagger UI
+- 🎯 **Familiar API**: Similar interface to FastAPI for easy adoption
+- ⚡ **All HTTP Methods**: Support for GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS
+- 💉 **Dependency Injection**: Built-in support for dependency injection
+- 🛡️ **Exception Handling**: Built-in HTTP exception handling
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+  - [Application](#application)
+  - [Routers](#routers)
+  - [Request Parameters](#request-parameters)
+  - [Response Handling](#response-handling)
+- [msgspec Integration](#msgspec-integration)
+- [Dependency Injection](#dependency-injection)
+- [Exception Handling](#exception-handling)
+- [OpenAPI Documentation](#openapi-documentation)
+- [Complete Examples](#complete-examples)
+- [Development](#development)
+
+## Installation
+
+```bash
+pip install crimsy  # (when published)
+# or for development:
+uv sync
+```
+
+## Quick Start
+
+```python
+import msgspec
+from crimsy import Crimsy, Router
+
+
+class User(msgspec.Struct):
+    name: str
+    age: int = 0
+
+
+app = Crimsy()
+router = Router(prefix="/users")
+
+
+@router.get("/")
+async def list_users() -> list[User]:
+    return [User(name="Alice", age=30), User(name="Bob", age=25)]
+
+
+@router.post("/")
+async def create_user(user: User) -> User:
+    # Your code here
+    return user
+
+
+app.add_router(router)
+```
+
+Run with:
+```bash
+uvicorn app:app --reload
+```
+
+Visit `http://localhost:8000/docs` for automatic API documentation.
+
+## Core Concepts
+
+### Application
+
+The `Crimsy` class is the main application class, wrapping Starlette:
+
+```python
+from crimsy import Crimsy
+
+app = Crimsy(
+    title="My API",           # API title for OpenAPI
+    version="1.0.0",          # API version
+    openapi_url="/openapi.json",  # OpenAPI schema URL (or None to disable)
+    docs_url="/docs",         # Swagger UI URL (or None to disable)
+    debug=False,              # Debug mode
+    middleware=None,          # List of Starlette middleware
+)
+```
+
+### Routers
+
+Routers group related endpoints under a common prefix:
+
+```python
+from crimsy import Router
+
+router = Router(prefix="/api/v1")
+
+@router.get("/items")
+async def list_items() -> list[dict]:
+    return [{"id": 1, "name": "Item 1"}]
+
+@router.post("/items")
+async def create_item(item: dict) -> dict:
+    return item
+
+app.add_router(router)
+```
+
+#### Supported HTTP Methods
+
+All standard HTTP methods are supported:
+
+```python
+@router.get("/resource")      # GET
+@router.post("/resource")     # POST
+@router.put("/resource")      # PUT
+@router.delete("/resource")   # DELETE
+@router.patch("/resource")    # PATCH
+@router.head("/resource")     # HEAD
+@router.options("/resource")  # OPTIONS
+async def handler() -> dict:
+    return {}
+```
+
+### Request Parameters
+
+Crimsy provides three ways to extract parameters from requests:
+
+#### 1. Query Parameters
+
+Extract parameters from the URL query string:
+
+```python
+from crimsy import Query
+
+@router.get("/search")
+async def search(
+    q: str,                    # Required query parameter
+    limit: int = 10,           # Optional with default
+    offset: int = Query(default=0)  # Explicit Query marker with default
+) -> dict:
+    return {"query": q, "limit": limit, "offset": offset}
+
+# Usage: GET /search?q=python&limit=20&offset=5
+```
+
+#### 2. Path Parameters
+
+Extract parameters from the URL path:
+
+```python
+from crimsy import Path
+
+@router.get("/users/{user_id}")
+async def get_user(
+    user_id: int = Path()      # Path parameter
+) -> dict:
+    return {"user_id": user_id}
+
+# Usage: GET /users/123
+```
+
+Path parameters can also be declared without the `Path()` marker - Crimsy automatically detects them:
+
+```python
+@router.get("/items/{item_id}")
+async def get_item(item_id: int) -> dict:
+    return {"item_id": item_id}
+```
+
+#### 3. Body Parameters
+
+Extract data from the request body:
+
+```python
+from crimsy import Body
+import msgspec
+
+class CreateUserRequest(msgspec.Struct):
+    name: str
+    email: str
+    age: int = 0
+
+@router.post("/users")
+async def create_user(
+    user: CreateUserRequest = Body()  # Body parameter
+) -> CreateUserRequest:
+    # user is automatically validated and deserialized
+    return user
+
+# Usage: POST /users with JSON body: {"name": "Alice", "email": "alice@example.com", "age": 30}
+```
+
+For POST/PUT/PATCH requests with `msgspec.Struct`, the `Body()` marker is optional:
+
+```python
+@router.post("/users")
+async def create_user(user: CreateUserRequest) -> CreateUserRequest:
+    # Automatically treated as body parameter
+    return user
+```
+
+#### Mixing Parameter Types
+
+You can mix different parameter types in the same handler:
+
+```python
+@router.put("/users/{user_id}")
+async def update_user(
+    user_id: int = Path(),           # From URL path
+    version: str = Query(default="v1"),  # From query string
+    user: CreateUserRequest = Body() # From request body
+) -> dict:
+    return {"user_id": user_id, "version": version, "user": user}
+
+# Usage: PUT /users/123?version=v2 with JSON body
+```
+
+### Response Handling
+
+Crimsy automatically encodes responses using `msgspec`:
+
+```python
+@router.get("/user")
+async def get_user() -> User:
+    return User(name="Alice", age=30)
+# Returns: {"name": "Alice", "age": 30}
+
+@router.get("/users")
+async def get_users() -> list[User]:
+    return [User(name="Alice", age=30), User(name="Bob", age=25)]
+# Returns: [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
+
+@router.get("/data")
+async def get_data() -> dict:
+    return {"key": "value"}
+# Returns: {"key": "value"}
+
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: int) -> None:
+    # None returns 204 No Content
+    pass
+```
+
+You can also return Starlette `Response` objects directly:
+
+```python
+from starlette.responses import Response
+
+@router.get("/custom")
+async def custom_response() -> Response:
+    return Response(content="Custom response", media_type="text/plain")
+```
+
+## msgspec Integration
+
+Crimsy is tightly integrated with [msgspec](https://jcristharif.com/msgspec/) for fast JSON encoding/decoding.
+
+### Defining Data Models
+
+Use `msgspec.Struct` to define your data models:
+
+```python
+import msgspec
+
+class User(msgspec.Struct):
+    name: str
+    email: str
+    age: int = 0           # Optional field with default
+    is_active: bool = True
+
+class Post(msgspec.Struct):
+    title: str
+    content: str
+    author: User           # Nested structures
+    tags: list[str] = []   # Lists with defaults
+```
+
+### Automatic Validation
+
+`msgspec` automatically validates incoming data:
+
+```python
+@router.post("/users")
+async def create_user(user: User) -> User:
+    # If request body doesn't match User structure,
+    # automatic 400 Bad Request response is returned
+    return user
+
+# Valid:   {"name": "Alice", "email": "alice@example.com"}
+# Invalid: {"name": "Alice"}  -> 400: missing required field 'email'
+# Invalid: {"name": "Alice", "email": "alice@example.com", "age": "thirty"}  -> 400: invalid type
+```
+
+### msgspec.Struct in GET Requests
+
+For GET requests, `msgspec.Struct` parameters are treated as JSON-encoded query parameters:
+
+```python
+@router.get("/greet")
+async def greet(user: User, greeting: str = "Hello") -> dict:
+    return {"message": f"{greeting}, {user.name}!"}
+
+# Usage: GET /greet?user={"name":"Alice","email":"alice@example.com","age":30}&greeting=Hi
+# URL-encoded: GET /greet?user=%7B%22name%22%3A%22Alice%22%2C%22email%22%3A%22alice%40example.com%22%2C%22age%22%3A30%7D&greeting=Hi
+```
+
+**Note**: This is a non-standard but intentional feature allowing complex types in GET requests. For production APIs with complex data structures, consider using POST requests instead, which are more conventional and avoid issues with URL length limits and caching.
+
+## Dependency Injection
+
+Crimsy includes a built-in dependency injection system similar to FastAPI's.
+
+### Basic Dependencies
+
+Use `Depends()` to inject dependencies:
+
+```python
+from crimsy import Depends
+
+async def get_database() -> Database:
+    """Dependency that returns a database connection."""
+    return Database()
+
+@router.get("/users")
+async def list_users(db: Database = Depends(get_database)) -> list[User]:
+    # db is automatically injected
+    return db.get_all_users()
+```
+
+### Dependencies with Parameters
+
+Dependencies can have their own parameters:
+
+```python
+async def get_current_user(token: str = Query()) -> User:
+    """Dependency that extracts current user from token."""
+    if not token:
+        raise HTTPException(status_code=401, message="Missing token")
+    # Validate token and return user
+    return validate_token(token)
+
+@router.get("/me")
+async def get_me(current_user: User = Depends(get_current_user)) -> User:
+    return current_user
+
+# Usage: GET /me?token=abc123
+```
+
+### Nested Dependencies
+
+Dependencies can depend on other dependencies:
+
+```python
+async def get_db() -> Database:
+    return Database()
+
+async def get_user_repository(db: Database = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
+
+@router.get("/users/{user_id}")
+async def get_user(
+    user_id: int,
+    repo: UserRepository = Depends(get_user_repository)
+) -> User:
+    return repo.get_by_id(user_id)
+```
+
+### Dependency Caching
+
+By default, dependencies are cached within a single request:
+
+```python
+async def get_db() -> Database:
+    print("Creating database connection")
+    return Database()
+
+@router.get("/data")
+async def get_data(
+    db1: Database = Depends(get_db),
+    db2: Database = Depends(get_db)
+) -> dict:
+    # "Creating database connection" is printed only once
+    # db1 and db2 are the same instance
+    return {"same": db1 is db2}  # Returns: {"same": true}
+```
+
+To disable caching:
+
+```python
+@router.get("/data")
+async def get_data(
+    db: Database = Depends(get_db, use_cache=False)
+) -> dict:
+    # Fresh instance each time
+    return {}
+```
+
+## Exception Handling
+
+### HTTPException
+
+Use `HTTPException` to return HTTP error responses:
+
+```python
+from crimsy import HTTPException
+
+@router.get("/users/{user_id}")
+async def get_user(user_id: int) -> User:
+    user = database.get(user_id)
+    if user is None:
+        raise HTTPException(status_code=404, message="User not found")
+    return user
+
+# Returns: 404 with body: {"error": "User not found"}
+```
+
+`HTTPException` can be raised anywhere - in endpoints, dependencies, or nested function calls.
+
+### Exception in Dependencies
+
+```python
+async def verify_admin(token: str = Query()) -> User:
+    user = verify_token(token)
+    if not user.is_admin:
+        raise HTTPException(status_code=403, message="Admin access required")
+    return user
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    admin: User = Depends(verify_admin)
+) -> None:
+    database.delete(user_id)
+```
+
+### Custom Exception Handlers
+
+Register custom exception handlers:
+
+```python
+class DatabaseException(Exception):
+    pass
+
+app = Crimsy()
+
+@app.exception_handler(DatabaseException)
+async def database_exception_handler(request, exc):
+    raise HTTPException(status_code=503, message="Database unavailable")
+
+@router.get("/data")
+async def get_data() -> dict:
+    raise DatabaseException()  # Returns 503
+```
+
+### Automatic Error Responses
+
+Crimsy automatically handles common errors:
+
+- **400 Bad Request**: Missing required parameters, invalid types, or validation errors
+- **500 Internal Server Error**: Unhandled exceptions
+
+```python
+@router.get("/search")
+async def search(q: str) -> dict:  # q is required
+    return {"query": q}
+
+# GET /search -> 400: {"error": "Missing required query parameter: q"}
+# GET /search?q=test -> 200: {"query": "test"}
+```
+
+## OpenAPI Documentation
+
+Crimsy automatically generates OpenAPI 3.0 documentation for your API.
+
+### Accessing Documentation
+
+- **OpenAPI JSON**: `http://localhost:8000/openapi.json`
+- **Swagger UI**: `http://localhost:8000/docs`
+
+### Customizing Documentation
+
+```python
+app = Crimsy(
+    title="My Awesome API",
+    version="2.1.0",
+    openapi_url="/api/schema.json",  # Custom OpenAPI URL
+    docs_url="/api/docs",            # Custom Swagger UI URL
+)
+
+# Or disable documentation:
+app = Crimsy(
+    title="My API",
+    openapi_url=None,  # Disables OpenAPI schema endpoint
+    docs_url=None,     # Disables Swagger UI
+)
+```
+
+### Type Annotations in Documentation
+
+Crimsy uses Python type annotations to generate accurate API documentation:
+
+```python
+@router.get("/users/{user_id}")
+async def get_user(
+    user_id: int = Path(),
+    include_posts: bool = Query(default=False)
+) -> User:
+    """Get a user by ID.
+    
+    Optional: include their posts in the response.
+    """
+    return user
+
+# OpenAPI schema will include:
+# - Path parameter: user_id (integer, required)
+# - Query parameter: include_posts (boolean, optional, default: false)
+# - Response schema: User object structure
+# - Endpoint description from docstring
+```
+
+## Complete Examples
+
+### Example 1: Simple CRUD API
+
+```python
+import msgspec
+from crimsy import Crimsy, Router, HTTPException, Path, Query, Body
+
+class User(msgspec.Struct):
+    id: int
+    name: str
+    email: str
+    age: int = 0
+
+# In-memory database
+users_db: dict[int, User] = {
+    1: User(id=1, name="Alice", email="alice@example.com", age=30),
+    2: User(id=2, name="Bob", email="bob@example.com", age=25),
+}
+next_id = 3
+
+app = Crimsy(title="User Management API", version="1.0.0")
+router = Router(prefix="/users")
+
+@router.get("/")
+async def list_users(limit: int = Query(default=10)) -> list[User]:
+    """List all users."""
+    return list(users_db.values())[:limit]
+
+@router.get("/{user_id}")
+async def get_user(user_id: int = Path()) -> User:
+    """Get a specific user by ID."""
+    if user_id not in users_db:
+        raise HTTPException(status_code=404, message="User not found")
+    return users_db[user_id]
+
+@router.post("/")
+async def create_user(user: User) -> User:
+    """Create a new user."""
+    global next_id
+    user_with_id = User(id=next_id, name=user.name, email=user.email, age=user.age)
+    users_db[next_id] = user_with_id
+    next_id += 1
+    return user_with_id
+
+@router.put("/{user_id}")
+async def update_user(user_id: int = Path(), user: User = Body()) -> User:
+    """Update an existing user."""
+    if user_id not in users_db:
+        raise HTTPException(status_code=404, message="User not found")
+    users_db[user_id] = user
+    return user
+
+@router.delete("/{user_id}")
+async def delete_user(user_id: int = Path()) -> None:
+    """Delete a user."""
+    if user_id not in users_db:
+        raise HTTPException(status_code=404, message="User not found")
+    del users_db[user_id]
+
+app.add_router(router)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+### Example 2: API with Dependency Injection
+
+```python
+import msgspec
+from crimsy import Crimsy, Router, Depends, HTTPException, Query
+
+class Database:
+    """Mock database."""
+    def __init__(self):
+        self.users = {"alice": "Alice Smith", "bob": "Bob Jones"}
+    
+    def get_user(self, username: str) -> str | None:
+        return self.users.get(username)
+
+class User(msgspec.Struct):
+    username: str
+    full_name: str
+
+# Dependencies
+async def get_db() -> Database:
+    """Provide database connection."""
+    return Database()
+
+async def get_current_user(
+    token: str = Query(),
+    db: Database = Depends(get_db)
+) -> User:
+    """Extract current user from token."""
+    if token not in db.users:
+        raise HTTPException(status_code=401, message="Invalid token")
+    return User(username=token, full_name=db.users[token])
+
+# Application
+app = Crimsy(title="Auth API", version="1.0.0")
+router = Router(prefix="/api")
+
+@router.get("/me")
+async def get_me(current_user: User = Depends(get_current_user)) -> User:
+    """Get current authenticated user."""
+    return current_user
+
+@router.get("/protected")
+async def protected_resource(
+    current_user: User = Depends(get_current_user),
+    db: Database = Depends(get_db)
+) -> dict:
+    """Access a protected resource."""
+    return {
+        "message": f"Hello, {current_user.full_name}!",
+        "data": "Secret information"
+    }
+
+app.add_router(router)
+
+# Usage:
+# GET /api/me?token=alice -> {"username": "alice", "full_name": "Alice Smith"}
+# GET /api/me?token=invalid -> 401: {"error": "Invalid token"}
+```
+
+### Example 3: Complex Nested Structures
+
+```python
+import msgspec
+from crimsy import Crimsy, Router
+
+class Address(msgspec.Struct):
+    street: str
+    city: str
+    country: str
+    postal_code: str = ""
+
+class Company(msgspec.Struct):
+    name: str
+    address: Address
+
+class Employee(msgspec.Struct):
+    id: int
+    name: str
+    email: str
+    company: Company
+    skills: list[str] = []
+
+app = Crimsy(title="Employee API", version="1.0.0")
+router = Router(prefix="/employees")
+
+@router.post("/")
+async def create_employee(employee: Employee) -> Employee:
+    """Create a new employee with nested company and address."""
+    # employee is fully validated including nested structures
+    return employee
+
+@router.get("/{employee_id}")
+async def get_employee(employee_id: int) -> Employee:
+    """Get employee with all nested data."""
+    return Employee(
+        id=employee_id,
+        name="Alice Smith",
+        email="alice@example.com",
+        company=Company(
+            name="Tech Corp",
+            address=Address(
+                street="123 Main St",
+                city="San Francisco",
+                country="USA",
+                postal_code="94105"
+            )
+        ),
+        skills=["Python", "JavaScript", "SQL"]
+    )
+
+app.add_router(router)
+
+# POST /employees/ with:
+# {
+#   "id": 1,
+#   "name": "Alice Smith",
+#   "email": "alice@example.com",
+#   "company": {
+#     "name": "Tech Corp",
+#     "address": {
+#       "street": "123 Main St",
+#       "city": "San Francisco",
+#       "country": "USA",
+#       "postal_code": "94105"
+#     }
+#   },
+#   "skills": ["Python", "JavaScript", "SQL"]
+# }
+```
+
+## Development
+
+### Setting Up Development Environment
+
+```bash
+# Clone the repository
+git clone https://github.com/xelandernt/crimsy.git
+cd crimsy
+
+# Install dependencies with uv
+uv sync
+
+# Or install with pip
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+just test
+
+# Run with coverage
+uv run pytest --cov=src/crimsy --cov-report=term-missing
+
+# Run specific test file
+uv run pytest tests/unit/test_router.py
+```
+
+### Linting and Type Checking
+
+```bash
+# Run all linters
+just lint
+
+# Or run individually
+uv run ruff format  # Format code
+uv run ruff check --fix  # Check and fix issues
+uv run mypy .  # Type checking
+```
+
+### Project Structure
+
+```
+crimsy/
+├── src/crimsy/
+│   ├── __init__.py       # Public API exports
+│   ├── app.py           # Main Crimsy application class
+│   ├── router.py        # Router for grouping endpoints
+│   ├── params.py        # Parameter extraction (Query, Body, Path)
+│   ├── dependencies.py  # Dependency injection system
+│   ├── exceptions.py    # HTTPException and error handling
+│   └── openapi.py       # OpenAPI schema generation
+├── tests/              # Test suite
+├── examples/           # Example applications
+└── README.md          # This file
+```
+
+## License
+
+See LICENSE file.
+
+## Additional Resources
+
+For more examples, see [README_EXAMPLES.md](README_EXAMPLES.md).
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+- All tests pass: `just test`
+- Code is properly formatted: `just lint`
+- Type hints are correct: `mypy .`
+
+## Why Crimsy?
+
+- **Performance**: `msgspec` is one of the fastest JSON libraries for Python
+- **Simplicity**: Minimal API surface, easy to learn
+- **Type Safety**: Full type hints help catch errors before runtime
+- **Familiarity**: Similar to FastAPI but lighter weight
+- **Modern**: Built on modern Python features (3.11+)
+
+---
+
+**Crimsy** - Fast, lightweight, and fully typed web framework for building APIs in Python.
