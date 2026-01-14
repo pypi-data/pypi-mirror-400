@@ -1,0 +1,61 @@
+name: commcare-export release actions
+on:
+  release:
+    types: [published]
+
+jobs:
+  generate_linux_bin:
+    name: Generate Linux binary as release asset
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # setuptools-scm needs full git history
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install package and dependencies
+        shell: bash
+        run: |
+          uv pip install --system pyinstaller
+          uv pip install --system "commcare-export[executable]"
+
+      - name: Generate exe
+        shell: bash
+        run: pyinstaller --dist ./dist/linux commcare-export.spec
+
+      - name: Upload release assets
+        uses: AButler/upload-release-assets@v3.0
+        with:
+          files: "./dist/linux/*"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+  generate_windows_exe:
+    name: Generate Windows exe as release asset
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # setuptools-scm needs full git history
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install package and dependencies
+        shell: pwsh
+        run: |
+          uv pip install --system pyinstaller
+          uv pip install --system "commcare-export[executable]"
+
+      - name: Generate exe
+        shell: pwsh
+        run: pyinstaller --dist ./dist/windows commcare-export.spec
+
+      - name: Upload release assets
+        uses: AButler/upload-release-assets@v3.0
+        with:
+          files: "./dist/windows/*"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
