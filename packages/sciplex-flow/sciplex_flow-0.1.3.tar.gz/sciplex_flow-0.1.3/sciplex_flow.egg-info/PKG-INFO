@@ -1,0 +1,100 @@
+Metadata-Version: 2.4
+Name: sciplex-flow
+Version: 0.1.3
+Summary: Local web app for Sciplex visual programming - node-based data science workflows
+Author-email: Sciplex Team <info@sciplex.de>
+License: MIT
+Project-URL: Homepage, https://sciplex.de/en/
+Project-URL: Documentation, https://sciplex.de/en/
+Project-URL: Repository, https://github.com/sciplex-app/sciplex_flow.git
+Keywords: data-science,visual-programming,workflow,nodes,web-app
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: sciplex-core>=0.1.1
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: uvicorn[standard]>=0.24.0
+Requires-Dist: websockets>=12.0
+Requires-Dist: pydantic[email]>=2.5.0
+Requires-Dist: python-multipart>=0.0.6
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: ruff>=0.8.4; extra == "dev"
+Requires-Dist: mypy>=1.13.0; extra == "dev"
+Dynamic: license-file
+
+# Sciplex Flow
+
+Local web application for Sciplex visual programming. Runs a FastAPI/uvicorn backend and serves the bundled React/Vite frontend. Depends on `sciplex-core` for models, controllers, and default nodes.
+
+## Installation
+
+Python 3.11+ is required.
+
+```bash
+pip install sciplex-flow
+```
+
+## Quick start
+
+```bash
+# Start the local server on the default port (8000)
+sciplex-flow
+
+# Choose a port
+sciplex-flow --port 5173
+```
+
+What happens:
+- FastAPI server starts locally (no cloud calls by default)
+- Web UI served from the packaged `frontend/dist` bundle
+- WebSocket channel powers live node execution and UI updates
+
+## Project layout
+
+- `cli/` — Entry point for the `sciplex-flow` CLI.
+- `backend/` — FastAPI app and websocket adapters.
+- `frontend/` — React/Vite source; `dist/` is the built bundle shipped in the wheel.
+- `frontend/dist/` — Bundled assets included in the package (do not delete; rebuild when frontend changes).
+
+## Architecture (high level)
+- FastAPI backend serving REST + WebSocket for live updates.
+- React/Vite frontend bundled into `frontend/dist` and served by the backend.
+- Depends on `sciplex-core` for models/controllers and default nodes.
+
+## Supported versions
+- Python 3.11, 3.12
+- Node 20.x (for frontend build)
+
+## Development
+
+```bash
+# Install backend in editable mode
+pip install -e ".[dev]"
+
+# Run backend
+sciplex-flow --port 8000
+
+# Frontend (from frontend/)
+npm install
+npm run dev         # dev server with HMR
+npm run build       # produces frontend/dist for packaging
+npm run lint        # ESLint (TS/React)
+npm run typecheck   # TypeScript type-check only
+```
+
+To update the packaged assets, rebuild the frontend and ensure `frontend/dist` is present before creating a wheel/sdist. CI does this automatically (see `.github/workflows/ci.yml`).
+
+## License
+
+MIT
+
