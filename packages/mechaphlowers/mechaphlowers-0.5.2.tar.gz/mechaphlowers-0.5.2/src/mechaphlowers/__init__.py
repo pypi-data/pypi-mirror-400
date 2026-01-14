@@ -1,0 +1,44 @@
+# Copyright (c) 2025, RTE (http://www.rte-france.com)
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: MPL-2.0
+
+import logging
+from importlib.metadata import version
+
+import pandas as pd
+
+from mechaphlowers.config import options
+from mechaphlowers.core.models.balance.engine import BalanceEngine
+from mechaphlowers.data.measures import (
+    PapotoParameterMeasure,
+    param_calibration,
+)
+from mechaphlowers.data.units import Q_ as units
+from mechaphlowers.entities.arrays import CableArray, SectionArray
+from mechaphlowers.entities.shapes import SupportShape
+from mechaphlowers.plotting import PlotEngine
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+pd.options.mode.copy_on_write = True
+
+__version__ = version('mechaphlowers')
+
+logger.info("Mechaphlowers package initialized.")
+logger.info(f"Mechaphlowers version: {__version__}")
+
+
+__all__ = [
+    "options",
+    "BalanceEngine",
+    "PlotEngine",
+    "SectionArray",
+    "CableArray",
+    "SupportShape",
+    "units",
+    "PapotoParameterMeasure",
+    "param_calibration",
+]
