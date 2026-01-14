@@ -1,0 +1,215 @@
+Metadata-Version: 2.4
+Name: janet-cli
+Version: 0.2.5
+Summary: CLI tool to sync Janet AI tickets to local markdown files
+Author-email: Janet AI <support@janet-ai.com>
+License: MIT
+Project-URL: Homepage, https://github.com/janet-ai/janet-cli
+Project-URL: Repository, https://github.com/janet-ai/janet-cli
+Project-URL: Issues, https://github.com/janet-ai/janet-cli/issues
+Keywords: cli,janet,tickets,markdown,sync
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: typer>=0.12.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: platformdirs>=4.0.0
+Requires-Dist: keyring>=25.0.0
+Requires-Dist: python-dateutil>=2.8.0
+Requires-Dist: pycrdt>=0.9.0
+Requires-Dist: InquirerPy>=0.3.4
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+Requires-Dist: httpx-mock>=0.15.0; extra == "dev"
+Requires-Dist: black>=24.0.0; extra == "dev"
+Requires-Dist: mypy>=1.8.0; extra == "dev"
+Requires-Dist: ruff>=0.2.0; extra == "dev"
+Dynamic: license-file
+
+# Janet AI CLI
+
+> Sync your Janet AI tickets to local markdown files for seamless integration with AI coding agents.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+## What is Janet AI?
+
+[Janet AI](https://tryjanet.ai) is an AI-native project management platform for modern software teams. The Janet CLI allows developers to sync their tickets locally as markdown files, enabling AI coding assistants like Claude Code, Cursor, and GitHub Copilot to have full project context.
+
+## Why Use the CLI?
+
+AI coding assistants work better when they understand your project's tickets, requirements, and priorities. By syncing Janet AI tickets to your workspace, AI agents can:
+
+- Reference specific tickets while writing code
+- Understand requirements and acceptance criteria
+- Answer questions about project priorities
+- Suggest implementations based on ticket descriptions
+
+## Installation
+
+```bash
+pip install janet-cli
+```
+
+## Quick Start
+
+### 1. Authenticate
+
+```bash
+janet login
+```
+
+### 2. Sync Tickets
+
+```bash
+janet sync
+```
+
+### 3. Use with AI Agents
+
+Your tickets are now available as markdown files! Point your AI coding agent to the sync directory.
+
+```bash
+# Example prompts for Claude Code, Cursor, etc:
+"Look at ticket CS-42 and implement the authentication flow"
+"What are the high priority tickets in the Backend project?"
+"Implement the feature described in PROJ-15"
+```
+
+## Usage
+
+### Basic Commands
+
+```bash
+# Authentication
+janet login                     # Authenticate with Janet AI
+janet logout                    # Clear credentials
+janet auth status               # Show authentication status
+
+# Organization Management
+janet org list                  # List your organizations
+janet org select <org-id>       # Switch organization
+
+# Project Management
+janet project list              # List projects in current org
+
+# Syncing
+janet sync                      # Interactive mode
+janet sync --all                # Sync all projects (skip selection)
+janet sync --dir ./tickets      # Specify custom directory
+
+# Status & Configuration
+janet status                    # Show overall status
+janet config show               # Display configuration
+janet --help                    # Show help
+```
+
+### Example Workflow
+
+```bash
+# First time setup
+janet login
+janet sync
+
+# Re-sync to get updates
+janet sync
+
+# Sync to specific directory
+cd /path/to/my/project
+janet sync --dir ./janet-tickets
+```
+
+## File Organization
+
+Tickets are organized in a clear hierarchy:
+
+```
+janet-tickets/
+├── README.md                    # Context for AI agents
+└── My Organization/
+    ├── Backend/
+    │   ├── BACK-1.md
+    │   ├── BACK-2.md
+    │   └── BACK-42.md
+    └── Frontend/
+        ├── FRONT-1.md
+        └── FRONT-15.md
+```
+
+## Markdown Format
+
+Each ticket is exported with complete information:
+
+```markdown
+# PROJ-42: Add user authentication
+
+## Metadata
+- **Status:** In Progress
+- **Priority:** High
+- **Type:** Feature
+- **Assignees:** John Doe, Jane Smith
+- **Created:** Jan 07, 2026 10:30 AM
+- **Updated:** Jan 07, 2026 02:45 PM
+- **Labels:** backend, security
+
+## Description
+
+We need to implement OAuth authentication...
+
+### Requirements
+- Support multiple auth providers
+- Handle token refresh
+- Secure token storage
+
+## Comments (2)
+
+### John Doe - Jan 07, 2026 11:00 AM
+
+Started working on the OAuth flow.
+
+### Jane Smith - Jan 07, 2026 01:30 PM
+
+Looks good! Add tests when done.
+
+## Attachments (1)
+
+### design-mockup.png
+- **Type:** image/png
+- **Uploaded by:** Jane Smith
+```
+
+## Configuration
+
+The CLI stores configuration at:
+- **macOS/Linux:** `~/.config/janet-cli/config.json`
+- **Windows:** `%APPDATA%\janet-cli\config.json`
+
+Configuration includes authentication tokens and your selected organization.
+
+## Requirements
+
+- Python 3.8 or higher
+- Janet AI account ([sign up](https://tryjanet.ai))
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+Built for [Janet AI](https://tryjanet.ai) - The AI-native project management platform backed by Y Combinator.
