@@ -1,0 +1,59 @@
+{
+  "family": "membrain-mcp",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::638331727768:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::638331727768:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "membrain-mcp",
+      "image": "638331727768.dkr.ecr.ap-south-1.amazonaws.com/membrain-mcp:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8100,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "API_BASE_URL",
+          "value": "http://membrain-api-alb-1094729422.ap-south-1.elb.amazonaws.com"
+        },
+        {
+          "name": "MCP_SERVER_HOST",
+          "value": "0.0.0.0"
+        },
+        {
+          "name": "MCP_SERVER_PORT",
+          "value": "8100"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/membrain-mcp",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "python -c \"import httpx; httpx.get('http://localhost:8100/health', timeout=5)\" || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
+
