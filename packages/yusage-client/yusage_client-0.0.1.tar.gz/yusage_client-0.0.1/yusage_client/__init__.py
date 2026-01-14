@@ -1,0 +1,3 @@
+"""yusage_client - A placeholder package."""
+
+__version__ = "0.0.1"
