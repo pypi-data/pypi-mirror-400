@@ -1,0 +1,92 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tgzr.cli"
+dynamic = ["version"]
+description = 'tgzr command line interface'
+readme = "README.md"
+requires-python = "==3.12.*"
+license = "GPL-3.0-or-later"
+keywords = []
+authors = [
+  { name = "Dee", email = "dee.sometech@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+dependencies = [
+  "click",
+  "rich>=14.2.0",
+  "uv>=0.9.15",
+]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.17.0",
+]
+
+[project.urls]
+Documentation = "https://github.com/open-tgzr/tgzr.cli#readme"
+Issues = "https://github.com/open-tgzr/tgzr.cli/issues"
+Source = "https://github.com/open-tgzr/tgzr.cli"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "./src/tgzr/cli/_version.py"
+
+[tool.hatch.build]
+# this is needed bc it is otherwise not included in the build:
+artifacts = ['_version.py']
+packages = ["src/tgzr"]
+
+[tool.hatch.build.targets.wheel]
+# this is needed bc it is otherwise not included in the build:
+artifacts = ['_version.py']
+packages = ["src/tgzr"]
+
+[project.scripts]
+tgzr = "tgzr.cli.main:main"
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/tgzr/cli tests}"
+
+[tool.coverage.run]
+source_pkgs = ["tgzr.cli", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/tgzr/cli/_version.py",
+]
+
+[tool.coverage.paths]
+tgzr.cli = ["src/tgzr/cli", "*/tgzr.cli/src/tgzr/cli"]
+tests = ["tests", "*/tgzr/cli/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.uv.sources]
+tgzr-shell = { path = "../tgzr.shell", editable = true }
+
