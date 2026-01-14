@@ -1,0 +1,121 @@
+# Env Setter
+
+Env Setter is a cli package meant to make switching environments simple and easy.
+
+It should just work, but is definitely completely untested.
+
+This package is meant to be useful for developers who work with multiple environments locally.
+
+For example, instead of setting different variables like:
+
+```bash
+export DEV_INSTANCE_URL=<some url>
+export DEV_API_KEY=<some api key>
+export DEV_DATABASE=<some database url>
+
+export PREPROD_INSTANCE_URL=<>
+export PREPROD_API_KEY=<>
+export PREPROD_DATABASE=<>
+```
+
+and then switching between dev and preprod instances for doing things like run some local tests, tasks etc.
+
+you can do it via:
+
+```bash
+envo-set dev # sets INSTANCE_URL, API_KEY, DATABASE
+<some-command> $INSTANCE_URL -H "Authorization: $API_KEY"
+
+envo-set preprod # sets the same environment variables
+<some-command> $INSTANCE_URL -H "Authorization: $API_KEY" # same but different instance
+```
+
+## Installing env-setter
+
+Use [pipx](https://github.com/pypa/pipx) to install pipx on your machine.
+
+```bash
+pipx install env-setter
+
+envo init
+```
+
+`envo init` adds the shell alias for `envo-set`. Since running something always launches a child process, we cannot set the environment variable in the child process. Thus, we have a specific alias that runs `eval` on the output of `envo command` to set it up for you.
+
+This is explained more below.
+
+## Usage
+
+By default, envo looks in `~/.envs` for environments stored in TOML format.
+
+You can override this by setting the `ENVS_DIR` environment variables.
+
+Each environment should just be a set of key-value pairs, for example:
+
+```toml
+# let's say in env1.toml
+TARGET = "https://someurl.com"
+NUM_PROCESSES = 4
+```
+And,
+```toml
+# let's say in env2.toml
+TARGET = "https://target.com"
+NUM_PROCESSES = 2
+```
+
+You can now do the following:
+
+### Init a shell
+```bash
+# initializes a shell with the "envo-set" alias, this might need to be run per-shell if you have multiple.
+envo init
+```
+
+### List available environments
+```bash
+envo list
+```
+
+Output is the name of the files.
+```
+env1
+env2
+```
+
+### Show an environment
+```bash
+envo show env1
+```
+Output:
+```
+TARGET=https://someurl.com
+NUM_PROCESSES=4
+```
+
+### The run command for an environment
+
+```bash
+envo command env2
+```
+Output:
+```bash
+export TARGET=https://target.com
+export NUM_PROCESSES=2
+```
+
+### Set environment variables from a file
+```bash
+envo-set env2
+```
+
+Essentially, `envo-set` runs the following:
+
+```bash
+function env_set() {
+    eval $(envo command $@)
+}
+alias envo-set="env_set"
+```
+
+This ensures you get automatically get the environment variables in your process.
