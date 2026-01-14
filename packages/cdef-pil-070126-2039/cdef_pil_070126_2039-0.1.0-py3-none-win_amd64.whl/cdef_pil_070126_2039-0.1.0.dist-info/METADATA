@@ -1,0 +1,48 @@
+Metadata-Version: 2.4
+Name: cdef-pil-070126-2039
+Version: 0.1.0
+Summary: Parental income loss analysis pipeline.
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+
+# Parental Income Loss
+
+## Stacked Event-Study Outputs
+The stacked example writes results to:
+- `output/stacked_event_study/stacked_results.csv`
+- `output/stacked_event_study/stacked_results.parquet`
+
+Each row contains:
+- `sample`, `chapter`, `component` (event_time or horizon_*),
+- `reference_year`, `target_year`, `event_time`,
+- `att`, `se`, `conf_low`, `conf_high`,
+- `n_pairs`, `n_treated`, `n_control`, `convergence`,
+- `bucket_periods`, `horizon_start`, `horizon_end`, `horizon_label`, `bucket_weight`.
+
+Bucket weighting defaults to treated-weighted (`n_treated`). Override with:
+- `STACKED_BUCKET_WEIGHT=pairs`
+
+## Quickstart: Custom Components
+- Implement one or more of: `PopulationAssembler`, `CohortSelector`, `ExposureDetector`, `MatchingEngine`.
+- Wire them into the pipeline with `CohortWorkflow::with_components`.
+- Use `docs/component_contracts.md` to ensure required columns are present.
+
+Example wiring:
+```rust
+let workflow = CohortWorkflow::with_components(builder, selector, matcher);
+let outputs = workflow.run(sources, &detector, &registries, &plan, None)?;
+```
+
+## Stacked Event Study CLI
+- Run the standalone stacked event-study on a parquet file:
+  `cargo run -- --stacked-input path/to/stacked_inputs.parquet --did-outcome perindkialt13`
+- Optional flags: `--stacked-samples`, `--stacked-chapter-col`, `--stacked-icd-col`,
+  `--stacked-output-dir`, plus the existing `--stacked-*` config flags.
+
+## Docs
+- Component contracts: `docs/component_contracts.md`
+- Custom component example: `crates/pil/examples/custom_components.rs`
+- Custom selector example: `crates/pil/examples/custom_selector.rs`
+- Custom matcher example: `crates/pil/examples/custom_matcher.rs`
+- Custom detector example: `crates/pil/examples/custom_detector.rs`
+
