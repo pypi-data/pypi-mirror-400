@@ -1,0 +1,549 @@
+import asyncio
+import json
+import os
+import platform
+import tempfile
+from asyncio.subprocess import Process
+from datetime import datetime
+from uuid import UUID, uuid4
+
+import psutil
+from kimina_client import (
+    Command,
+    CommandResponse,
+    Diagnostics,
+    Error,
+    Infotree,
+    ReplResponse,
+    Snippet,
+)
+from loguru import logger
+from rich.syntax import Syntax
+
+from .db import db
+from .errors import LeanError, ReplError
+from .logger import console
+from .models import ReplStatus
+from .prisma_client import prisma
+from .process_utils import kill_process_safely
+from .settings import Environment, settings
+from .utils import is_blank
+
+log_lock = asyncio.Lock()
+
+
+async def log_snippet(uuid: UUID, snippet_id: str, code: str) -> None:
+    if settings.environment == Environment.prod:
+        header = f"[{uuid.hex[:8]}] Running snippet {snippet_id}:"
+        async with log_lock:
+            logger.info(header)
+            # Log the code as part of the message or in a separate log entry
+            logger.info(f"Code snippet:\n{code or '<empty>'}")
+    else:
+        header = f"\\[{uuid.hex[:8]}] Running snippet [bold magenta]{snippet_id}[/bold magenta]:"
+        syntax = Syntax(
+            code or "<empty>",
+            "lean",
+            theme="monokai",
+            line_numbers=False,
+            word_wrap=True,
+        )
+
+        async with log_lock:
+            logger.info(header)
+            if console:
+                console.print(syntax)
+
+
+class Repl:
+    def __init__(
+        self,
+        uuid: UUID,
+        created_at: datetime,
+        header: str = "",
+        *,
+        max_repl_mem: int,
+        max_repl_uses: int,
+    ) -> None:
+        self.uuid = uuid
+        self.header = header
+        self.use_count = 0
+        self.created_at = created_at
+        self.last_check_at = created_at
+
+        # Stores the response received when running the import header.
+        self.header_cmd_response: ReplResponse | None = None
+
+        self.proc: Process | None = None
+        self.error_file = tempfile.TemporaryFile("w+")
+        self.max_memory_bytes = max_repl_mem * 1024 * 1024
+        self.max_repl_uses = max_repl_uses
+
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+        # REPL statistics
+        self.cpu_per_exec: dict[int, float] = {}
+        self.mem_per_exec: dict[int, int] = {}
+
+        # Vars that hold max CPU / mem usage per proof.
+        self._cpu_max: float = 0.0  # CPU as a percentage of a single core
+        self._mem_max: int = 0
+
+        self._ps_proc: psutil.Process | None = None
+        self._cpu_task: asyncio.Task[None] | None = None
+        self._mem_task: asyncio.Task[None] | None = None
+
+        # Flag to track if REPL process has been forcefully killed
+        self._killed: bool = False
+
+    @classmethod
+    async def create(cls, header: str, max_repl_uses: int, max_repl_mem: int) -> "Repl":
+        if db.connected:
+            record = await prisma.repl.create(
+                data={
+                    "header": header,
+                    "max_repl_uses": max_repl_uses,
+                    "max_repl_mem": max_repl_mem,
+                }
+            )
+            return cls(
+                uuid=UUID(record.uuid),
+                created_at=record.created_at,
+                header=record.header,
+                max_repl_uses=record.max_repl_uses,
+                max_repl_mem=record.max_repl_mem,
+            )
+        return cls(
+            uuid=uuid4(),
+            created_at=datetime.now(),
+            header=header,
+            max_repl_uses=max_repl_uses,
+            max_repl_mem=max_repl_mem,
+        )
+
+    @property
+    def exhausted(self) -> bool:
+        if self.max_repl_uses < 0:
+            return False
+        if self.header and not is_blank(self.header):
+            # Header does not count towards uses.
+            return self.use_count >= self.max_repl_uses + 1
+        return self.use_count >= self.max_repl_uses
+
+    async def kill_immediately(self) -> None:
+        """
+        Immediately kill the REPL process and mark it as killed.
+
+        This is called when a timeout occurs to ensure the process is terminated
+        immediately rather than waiting for cleanup. The REPL will be marked as
+        killed to prevent reuse.
+
+        This method is idempotent - safe to call multiple times.
+        """
+        if self._killed:
+            return
+
+        if not self.proc:
+            self._killed = True
+            return
+
+        self._killed = True
+        logger.warning(
+            f"[{self.uuid.hex[:8]}] Killing REPL process immediately due to timeout/hang"
+        )
+
+        # Cancel CPU and memory monitor tasks
+        if self._cpu_task:
+            self._cpu_task.cancel()
+        if self._mem_task:
+            self._mem_task.cancel()
+
+        # Kill the process using the safe kill function
+        try:
+            await kill_process_safely(
+                self.proc, use_process_group=True, logger_instance=logger
+            )
+        except Exception as e:
+            logger.error(f"[{self.uuid.hex[:8]}] Error killing REPL process: {e}")
+
+        # Close stdin (stdout/stderr are closed automatically when process terminates)
+        try:
+            if self.proc.stdin:
+                self.proc.stdin.close()
+        except Exception as e:
+            logger.debug(f"[{self.uuid.hex[:8]}] Error closing stdin: {e}")
+
+    async def start(self) -> None:
+        # TODO: try/catch this bit and raise as REPL startup error.
+        self._loop = asyncio.get_running_loop()
+
+        def _preexec() -> None:
+            import resource
+
+            # Memory limit
+            if platform.system() != "Darwin":  # Only for Linux
+                resource.setrlimit(
+                    resource.RLIMIT_AS, (self.max_memory_bytes, self.max_memory_bytes)
+                )
+
+            # No CPU limit on REPL, most Lean proofs take up to one core.
+            # The adjustment variables are the maximum number of REPLs and the timeout.
+            # See https://github.com/leanprover-community/repl/issues/91
+
+            os.setsid()
+
+        # Type assertion: paths are set by Settings model_validator
+        assert settings.repl_path is not None, "repl_path should be set by Settings"
+        assert settings.project_dir is not None, "project_dir should be set by Settings"
+
+        self.proc = await asyncio.create_subprocess_exec(
+            "lake",
+            "env",
+            str(settings.repl_path),
+            cwd=str(settings.project_dir),
+            env=os.environ,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            preexec_fn=_preexec,
+        )
+
+        self._ps_proc = psutil.Process(self.proc.pid)
+        now = self._loop.time()
+        self._last_check = now
+        self._last_cpu_time = self._sum_cpu_times(self._ps_proc)
+
+        self._cpu_max = 0.0
+        self._mem_max = 0
+        self._cpu_task = self._loop.create_task(self._cpu_monitor())
+        self._mem_task = self._loop.create_task(self._mem_monitor())
+
+        logger.info(f"\\[{self.uuid.hex[:8]}] Started")
+
+    @staticmethod
+    def _sum_cpu_times(proc: psutil.Process) -> float:
+        total = proc.cpu_times().user + proc.cpu_times().system
+        for c in proc.children(recursive=True):
+            t = c.cpu_times()
+            total += t.user + t.system
+        return float(total)
+
+    async def _cpu_monitor(self) -> None:
+        while self.is_running and self._ps_proc and self._loop:
+            await asyncio.sleep(1)
+            now = self._loop.time()
+
+            cur_cpu = self._sum_cpu_times(self._ps_proc)
+            delta_cpu = cur_cpu - self._last_cpu_time
+            delta_t = now - self._last_check
+            usage_pct = (delta_cpu / delta_t) * 100
+            self._cpu_max = max(self._cpu_max, usage_pct)
+            self._last_cpu_time = cur_cpu
+            self._last_check = now
+
+    async def _mem_monitor(self) -> None:
+        while self.is_running and self._ps_proc:
+            await asyncio.sleep(1)
+            total = self._ps_proc.memory_info().rss
+            for child in self._ps_proc.children(recursive=True):
+                total += child.memory_info().rss
+            self._mem_max = max(self._mem_max, total)
+
+    @property
+    def is_running(self) -> bool:
+        if not self.proc:
+            return False
+        if self._killed:
+            return False
+        return self.proc.returncode is None
+
+    @property
+    def is_killed(self) -> bool:
+        """Check if the REPL process has been forcefully killed."""
+        return self._killed
+
+    async def send_timeout(
+        self,
+        snippet: Snippet,
+        timeout: float,
+        is_header: bool = False,
+        infotree: Infotree | None = None,
+    ) -> ReplResponse:
+        cmd_response = None
+        elapsed_time = (
+            0.0  # TODO: check what's the best time to check elapsed time, time lib?
+        )
+        diagnostics = Diagnostics(repl_uuid=str(self.uuid))
+
+        try:
+            cmd_response, elapsed_time, diagnostics = await asyncio.wait_for(
+                self.send(snippet, is_header=is_header, infotree=infotree),
+                timeout=timeout,
+            )
+        except TimeoutError as e:
+            logger.error(
+                "\\[{}] Lean REPL command timed out in {} seconds, killing process immediately",
+                self.uuid.hex[:8],
+                timeout,
+            )
+            # Kill the process immediately to prevent hang
+            await self.kill_immediately()
+            raise e
+        except LeanError as e:
+            logger.exception("Lean REPL error: %s", e)
+            raise e
+        except ReplError as e:
+            logger.exception("REPL error: %s", e)
+            raise e
+
+        return ReplResponse(
+            id=snippet.id,
+            response=cmd_response,
+            time=elapsed_time,
+            diagnostics=diagnostics if len(diagnostics) > 0 else None,
+        )
+
+    async def send(
+        self,
+        snippet: Snippet,
+        is_header: bool = False,
+        infotree: Infotree | None = None,
+    ) -> tuple[CommandResponse | Error, float, Diagnostics]:
+        await log_snippet(self.uuid, snippet.id, snippet.code)
+
+        self._cpu_max = 0.0
+        self._mem_max = 0
+
+        if not self.is_running:
+            logger.error(f"[{self.uuid.hex[:8]}] REPL process not running (killed={self._killed})")
+            raise ReplError("REPL process not running or has been killed")
+
+        if self.proc is None:
+            logger.error(f"[{self.uuid.hex[:8]}] REPL process not initialized")
+            raise ReplError("REPL process not initialized")
+
+        loop = self._loop or asyncio.get_running_loop()
+
+        if self.proc.stdin is None:
+            raise ReplError("stdin pipe not initialized")
+        if self.proc.stdout is None:
+            raise ReplError("stdout pipe not initialized")
+
+        input: Command = {"cmd": snippet.code}
+
+        if self.use_count != 0 and not is_header:  # remove is_header
+            input["env"] = 0
+            input["gc"] = True
+
+        if infotree:
+            input["infotree"] = infotree
+
+        payload = (json.dumps(input, ensure_ascii=False) + "\n\n").encode("utf-8")
+
+        start = loop.time()
+        logger.debug("Sending payload to REPL")
+
+        try:
+            self.proc.stdin.write(payload)
+            await self.proc.stdin.drain()
+        except BrokenPipeError:
+            logger.error("Broken pipe while writing to REPL stdin")
+            raise LeanError("Lean process broken pipe")
+        except Exception as e:
+            logger.error("Failed to write to REPL stdin: %s", e)
+            raise LeanError("Failed to write to REPL stdin")
+
+        logger.debug("Reading response from REPL stdout")
+        raw = await self._read_response()
+        elapsed = loop.time() - start
+
+        logger.debug("Raw response from REPL: %r", raw)
+        try:
+            resp: CommandResponse | Error = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.error("JSON decode error: %r", raw)
+            raise ReplError("JSON decode error")
+
+        self.error_file.seek(0)
+        err = self.error_file.read().strip()
+        self.error_file.seek(0)
+        self.error_file.truncate(0)
+        if err:
+            logger.error("Stderr: %s", err)
+            raise LeanError(err)
+
+        elapsed_time = round(elapsed, 6)
+        diagnostics: Diagnostics = {
+            "repl_uuid": str(self.uuid),
+            "cpu_max": self._cpu_max,
+            "memory_max": self._mem_max,
+        }
+
+        self.cpu_per_exec[self.use_count] = self._cpu_max
+        self.mem_per_exec[self.use_count] = self._mem_max
+
+        self.use_count += 1
+        return resp, elapsed_time, diagnostics
+
+    async def _read_response(self) -> bytes:
+        if not self.proc or self.proc.stdout is None:
+            logger.error("REPL process not started or stdout pipe not initialized")
+            raise ReplError("REPL process not started or stdout pipe not initialized")
+
+        chunks: list[bytes] = []
+        buffer = b""
+        # Read in chunks to avoid 64KB per-line limit
+        # The REPL protocol uses blank lines (\n\n) as terminators
+        chunk_size = 64 * 1024  # 64KB chunks
+        max_response_size = 10 * 1024 * 1024  # 10MB safety limit
+
+        try:
+            while True:
+                # Read a chunk of data
+                chunk = await self.proc.stdout.read(chunk_size)
+                if not chunk:
+                    # EOF reached - return what we have
+                    if buffer:
+                        chunks.append(buffer)
+                    break
+
+                buffer += chunk
+
+                # Check if we have a blank line terminator (\n\n)
+                # The protocol uses double newline to terminate responses
+                if b"\n\n" in buffer:
+                    # Split at the first double newline
+                    parts = buffer.split(b"\n\n", 1)
+                    # Include everything up to (but not including) the terminator
+                    chunks.append(parts[0])
+                    break
+
+                # Safety check to prevent unbounded memory growth
+                if len(buffer) > max_response_size:
+                    logger.warning(
+                        f"[{self.uuid.hex[:8]}] Response buffer exceeded {max_response_size // (1024*1024)}MB, "
+                        "this may indicate an issue with the REPL response"
+                    )
+                    # Continue reading but log a warning
+        except asyncio.LimitOverrunError as e:
+            # This shouldn't happen with chunked reading, but handle it gracefully
+            logger.error(
+                f"[{self.uuid.hex[:8]}] LimitOverrunError while reading response: {e}. "
+                f"Buffer size: {len(buffer)} bytes"
+            )
+            raise LeanError(
+                f"Response line exceeded buffer limit. This may indicate an extremely large "
+                f"response from Lean. Buffer size: {len(buffer)} bytes"
+            ) from e
+        except Exception as e:
+            logger.error("Failed to read from REPL stdout: %s", e)
+            raise LeanError("Failed to read from REPL stdout") from e
+
+        return b"".join(chunks)
+
+    async def health_check(self, timeout: float = 5.0) -> bool:
+        """
+        Verify that the REPL is responsive by sending a simple command.
+        Returns True if the REPL responds, False otherwise.
+
+        Note: This increments use_count, but that's acceptable since we're about to
+        use the REPL anyway. The health check helps prevent deadlocks from unresponsive REPLs.
+        """
+        if not self.proc or self.proc.returncode is not None:
+            logger.debug(f"[{self.uuid.hex[:8]}] Health check failed: process not running")
+            return False
+
+        if self.proc.stdin is None or self.proc.stdout is None:
+            logger.debug(f"[{self.uuid.hex[:8]}] Health check failed: pipes not initialized")
+            return False
+
+        try:
+            # Send a simple command that should always work: #eval 1
+            # This will increment use_count and reset env, but that's okay since
+            # we're about to use the REPL anyway
+            health_check_snippet = Snippet(id="health-check", code="#eval 1")
+            try:
+                # Check if we can write to stdin (non-blocking check)
+                if self.proc.stdin.is_closing():
+                    logger.debug(f"[{self.uuid.hex[:8]}] Health check failed: stdin is closing")
+                    return False
+
+                # Actually send the command and wait for response with timeout
+                # If send() completes without exception, the REPL responded and is healthy
+                # We don't need to check the response type since any response indicates
+                # the REPL is alive and processing commands
+                await asyncio.wait_for(
+                    self.send(health_check_snippet, is_header=False),
+                    timeout=timeout,
+                )
+                logger.debug(f"[{self.uuid.hex[:8]}] Health check passed")
+                return True
+            except TimeoutError:
+                logger.warning(
+                    f"[{self.uuid.hex[:8]}] Health check failed: command timed out after {timeout}s"
+                )
+                return False
+            except (LeanError, ReplError, BrokenPipeError) as e:
+                logger.warning(
+                    f"[{self.uuid.hex[:8]}] Health check failed: {type(e).__name__}: {e}"
+                )
+                return False
+        except Exception as e:
+            logger.warning(
+                f"[{self.uuid.hex[:8]}] Health check exception: {type(e).__name__}: {e}"
+            )
+            return False
+
+    async def close(self) -> None:
+        if self._killed:
+            # Already killed, just do cleanup
+            if self._cpu_task:
+                self._cpu_task.cancel()
+            if self._mem_task:
+                self._mem_task.cancel()
+
+            if db.connected:
+                await prisma.repl.update(
+                    where={"uuid": str(self.uuid)},
+                    data={"status": ReplStatus.STOPPED},  # type: ignore
+                )
+            return
+
+        if self.proc:
+            self.last_check_at = datetime.now()
+            self._killed = True
+
+            # Cancel CPU and memory monitor tasks
+            if self._cpu_task:
+                self._cpu_task.cancel()
+            if self._mem_task:
+                self._mem_task.cancel()
+
+            # Close stdin
+            try:
+                if self.proc.stdin:
+                    self.proc.stdin.close()
+            except Exception as e:
+                logger.debug(f"[{self.uuid.hex[:8]}] Error closing stdin in close(): {e}")
+
+            # Kill the process using the safe kill function
+            try:
+                await kill_process_safely(
+                    self.proc, use_process_group=True, logger_instance=logger
+                )
+            except Exception as e:
+                logger.error(f"[{self.uuid.hex[:8]}] Error killing REPL process in close(): {e}")
+
+            if db.connected:
+                await prisma.repl.update(
+                    where={"uuid": str(self.uuid)},
+                    data={"status": ReplStatus.STOPPED},  # type: ignore
+                )
+
+
+async def close_verbose(repl: Repl) -> None:
+    uuid = repl.uuid
+    logger.info(f"Closing REPL {uuid.hex[:8]}")
+    await repl.close()
+    del repl
+    logger.info(f"Closed REPL {uuid.hex[:8]}")
