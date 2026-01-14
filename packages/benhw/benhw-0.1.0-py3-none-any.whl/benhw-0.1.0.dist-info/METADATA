@@ -1,0 +1,80 @@
+Metadata-Version: 2.4
+Name: benhw
+Version: 0.1.0
+Summary: Bentham Instruments Hardware Control SDK
+Author-email: Bentham Instruments Ltd <support@bentham.co.uk>
+License: Proprietary - Bentham Instruments Ltd
+Project-URL: Homepage, https://www.bentham.co.uk
+Project-URL: Documentation, https://www.bentham.co.uk/products/components/software/software-development-kit-72/
+Keywords: bentham,hardware,control,instrumentation,spectroscopy
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: cffi>=1.15.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: black>=22.0.0; extra == "dev"
+Requires-Dist: isort>=5.0.0; extra == "dev"
+Requires-Dist: mypy>=0.990; extra == "dev"
+
+# BenHW SDK - Python Interface
+
+Python interface for Bentham Instruments Hardware Control DLL.
+
+## Installation
+
+```bash
+pip install benhw
+```
+
+
+## Usage
+
+### Example
+
+```python
+from benhw import BenHW, exceptions, tokens
+
+hw = BenHW()
+
+try:
+  hw.build_system_model("system.cfg")
+  hw.load_setup("setup.atr")
+  hw.initialise()
+  hw.park()
+  hw.select_wavelength(wl=555)
+  hw.set("motor1", tokens.MotorPosition, 0, 4455)
+  signal = hw.automeasure()
+  print(f"signal: {signal}")
+except exceptions.BenHWException as e:
+  print(f"BenHW error: {e}")
+
+```
+
+### Accessing Tokens and Errors
+
+```python
+from benhw import tokens, errors
+
+# Access tokens via namespace
+print(tokens.ADCVolts)           # 504
+print(tokens.MonochromatorCurrentWL)  # 11
+
+# Access error codes via namespace
+print(errors.BI_OK)      # 0
+print(errors.BI_error)   # -1
+```
+
+## Requirements
+
+- Python 3.12+
+- Windows operating system
