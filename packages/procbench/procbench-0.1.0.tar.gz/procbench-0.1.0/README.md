@@ -1,0 +1,82 @@
+# ProcBench
+
+Process Benchmarking Tool.
+
+- [ProcBench](#procbench)
+  - [Setup](#setup)
+    - [As a Tool](#as-a-tool)
+    - [For Development](#for-development)
+  - [Usage](#usage)
+    - [Prepare your Test Cases](#prepare-your-test-cases)
+    - [Run the Test Cases](#run-the-test-cases)
+    - [Export HTML Report](#export-html-report)
+
+## Setup
+
+### As a Tool
+
+Get ready:
+
+- Python 3.12+
+
+then:
+
+```sh
+pip install procbench
+```
+
+**NOTE:** For the Usage below, just replace
+`uv run -m procbench ...` with `procbench ...`.
+
+### For Development
+
+Get ready:
+
+- Python 3.12+
+- `uv`, the Python package manager.
+
+then:
+
+```sh
+cd <project_root>
+uv venv
+uv sync
+```
+
+## Usage
+
+### Prepare your Test Cases
+
+Make a copy of `sample-test-case.json`, e.g.
+`tc01.json`. Change the parameters as needed.
+
+You can make several test cases, e.g. `tc02.json`, `tc03.json`.
+Suppose we have those three test cases.
+
+### Run the Test Cases
+
+Suppose you want to dump the output to `result.json`, run:
+
+```sh
+uv run -m procbench -o result.json tc01.json tc02.json tc03.json
+```
+
+For verbose debug output, add `-v` flag:
+
+```sh
+uv run -m procbench -v -o result.json tc01.json tc02.json tc03.json
+```
+
+The results JSON file will contain detailed benchmarking results
+and is machine-parseable. See [sample-results.json](./sample-results.json)
+for a grasp of the structure.
+
+### Export HTML Report
+
+```sh
+uv run -m procbench export html result.json report.html
+```
+
+![HTML report 1](docs/images/html-report-1.png)
+
+![HTML report 2](docs/images/html-report-2.png)
