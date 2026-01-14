@@ -1,0 +1,113 @@
+Metadata-Version: 2.4
+Name: lloca
+Version: 1.3.4
+Summary: Lorentz Local Canonicalization
+Author-email: Jonas Spinner <j.spinner@thphys.uni-heidelberg.de>, Luigi Favaro <luigi.favaro@uclouvain.be>
+Project-URL: homepage, https://github.com/heidelberg-hepml/lloca
+Project-URL: repository, https://github.com/heidelberg-hepml/lloca
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.0
+Requires-Dist: torch-geometric>=2.3.0
+Requires-Dist: lgatr
+Requires-Dist: pelican-lite
+Provides-Extra: xformers-attention
+Requires-Dist: xformers; extra == "xformers-attention"
+Provides-Extra: flex-attention
+Requires-Dist: torch>=2.7; extra == "flex-attention"
+Provides-Extra: flash-attention
+Requires-Dist: flash-attn; extra == "flash-attention"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: sphinx<9.0; extra == "dev"
+Requires-Dist: sphinx-autodoc-typehints; extra == "dev"
+Requires-Dist: sphinx-rtd-theme; extra == "dev"
+Dynamic: license-file
+
+<div align="center">
+
+## Lorentz Local Canonicalization
+
+[![Tests](https://github.com/heidelberg-hepml/lloca/actions/workflows/tests.yaml/badge.svg)](https://github.com/heidelberg-hepml/lloca/actions/workflows/tests.yaml)
+[![codecov](https://codecov.io/gh/heidelberg-hepml/lloca/branch/main/graph/badge.svg)](https://codecov.io/gh/heidelberg-hepml/lloca)
+[![PyPI version](https://img.shields.io/pypi/v/lloca.svg)](https://pypi.org/project/lloca)
+[![pytorch](https://img.shields.io/badge/PyTorch_2.0+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
+
+[![LLoCa-CS](http://img.shields.io/badge/paper-arxiv.2505.20280-B31B1B.svg)](https://arxiv.org/abs/2505.20280)
+[![LLoCa-HEP](http://img.shields.io/badge/paper-arxiv.2508.14898-B31B1B.svg)](https://arxiv.org/abs/2508.14898)
+
+</div>
+
+This repository contains a standalone implementation of **Lorentz Local Canonicalization (LLoCa)** by [Jonas Spinner](mailto:j.spinner@thphys.uni-heidelberg.de), [Luigi Favaro](mailto:luigi.favaro@uclouvain.be), Peter Lippmann, Sebastian Pitz, Gerrit Gerhartz, Huilin Qu, Tilman Plehn, and Fred A. Hamprecht. LLoCa uses equivariantly predicted local reference frames and geometric message passing between these frames to make any architecture Lorentz-equivariant.
+You can read more about LLoCa in the following two papers and in the [LLoCa documentation](https://heidelberg-hepml.github.io/lloca/):
+- [Lorentz Local Canonicalization: How to make any Network Lorentz-Equivariant](https://arxiv.org/abs/2505.20280) (ML audience)
+- [Lorentz-Equivariance without Limitations](https://arxiv.org/abs/2508.14898) (HEP audience)
+
+![](img/lloca.png)
+
+## Installation
+
+You can either install the latest release using pip
+```
+pip install lloca
+```
+or clone the repository and install the package in dev mode
+```
+git clone https://github.com/heidelberg-hepml/lloca.git
+cd lloca
+pip install -e ".[dev]"
+pre-commit install
+```
+
+## How to use LLoCa
+
+Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.io/lloca/) (WIP) and our example notebook for the [LLoCa-Transformer](examples/demo_transformer.ipynb).
+
+## Features
+
+- Backbone architectures in `lloca/backbone`: `Transformer`, `ParticleTransformer`, `ParticleNet`, `GraphNet`, `MLP`
+- The `Transformer` backbone supports several attention kernels that can be installed optionally with e.g. `pip install lloca[xformers-attention]`, `pip install lloca[flex-attention]`, `pip install lloca[flash-attention]`.
+- `LLoCaMessagePassing` as blueprint for generic `LLoCa` graph network backbones
+- Equivariant vector predictors in `lloca/equivectors`: `MLPVectors`, `LGATrVectors`, `PELICANVectors`
+- Local frames for equivariant architectures on several symmetry groups: SO(1,3) (`LearnedPDFrames`, `LearnedSO13Frames`, `LearnedRestFrames`), SO(3) (`LearnedSO3Frames`), SO(1,1)xSO(2) (`LearnedZFrames`) and SO(2) (`LearnedSO2Frames`); as well as the corresponding random global frames for data augmentation
+- Support for arbitrary higher-order representations with the `TensorReps` class
+
+Coming soon:
+
+- Parity-odd representations
+- Support for cross-attention
+- More backbone architectures
+
+## Examples
+
+- https://github.com/heidelberg-hepml/lloca-experiments: Codebase for the original papers.
+- https://github.com/heidelberg-hepml/tagger-quantization: Quantized LLoCa taggers
+
+Let us know if you use `lloca`, so we can add your repo to the list!
+
+## Citation
+
+If you find this code useful in your research, please cite our papers
+
+```bibtex
+@article{Favaro:2025pgz,
+    author = "Favaro, Luigi and Gerhartz, Gerrit and Hamprecht, Fred A. and Lippmann, Peter and Pitz, Sebastian and Plehn, Tilman and Qu, Huilin and Spinner, Jonas",
+    title = "{Lorentz-Equivariance without Limitations}",
+    eprint = "2508.14898",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    month = "8",
+    year = "2025"
+}
+@article{Spinner:2025prg,
+    author = "Spinner, Jonas and Favaro, Luigi and Lippmann, Peter and Pitz, Sebastian and Gerhartz, Gerrit and Plehn, Tilman and Hamprecht, Fred A.",
+    title = "{Lorentz Local Canonicalization: How to Make Any Network Lorentz-Equivariant}",
+    eprint = "2505.20280",
+    archivePrefix = "arXiv",
+    primaryClass = "stat.ML",
+    month = "5",
+    year = "2025"
+}
+```
