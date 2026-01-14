@@ -1,0 +1,2 @@
+set(libunwind_INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}/libunwind/include)
+set(libunwind_LIBRARIES ${CMAKE_CURRENT_LIST_DIR}/libunwind/lib/libunwind-coredump.a ${CMAKE_CURRENT_LIST_DIR}/libunwind/lib/libunwind-generic.a ${CMAKE_CURRENT_LIST_DIR}/libunwind/lib/libunwind-x86_64.a ${CMAKE_CURRENT_LIST_DIR}/libunwind/lib/libunwind-setjmp.a ${CMAKE_CURRENT_LIST_DIR}/libunwind/lib/libunwind.a ${CMAKE_CURRENT_LIST_DIR}/libunwind/lib/libunwind-ptrace.a)

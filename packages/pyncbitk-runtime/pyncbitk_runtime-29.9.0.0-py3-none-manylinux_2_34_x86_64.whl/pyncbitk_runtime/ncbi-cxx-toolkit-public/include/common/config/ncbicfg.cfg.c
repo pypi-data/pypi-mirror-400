@@ -1,0 +1,183 @@
+/* Hey, Emacs, treat this as -*- C -*- ! */
+/*  $Id$
+ * ===========================================================================
+ *
+ *                            PUBLIC DOMAIN NOTICE
+ *               National Center for Biotechnology Information
+ *
+ *  This software/database is a "United States Government Work" under the
+ *  terms of the United States Copyright Act.  It was written as part of
+ *  the author's official duties as a United States Government employee and
+ *  thus cannot be copyrighted.  This software/database is freely available
+ *  to the public for use. The National Library of Medicine and the U.S.
+ *  Government have not placed any restriction on its use or reproduction.
+ *
+ *  Although all reasonable efforts have been taken to ensure the accuracy
+ *  and reliability of the software and data, the NLM and the U.S.
+ *  Government do not and cannot warrant the performance or results that
+ *  may be obtained by using this software or data. The NLM and the U.S.
+ *  Government disclaim all warranties, express or implied, including
+ *  warranties of performance, merchantability or fitness for any particular
+ *  purpose.
+ *
+ *  Please cite the author in any work or product based on this material.
+ * 
+ * ===========================================================================
+ *
+ * Author:  Aaron Ucko
+ *
+ * File Description:
+ *   Access to miscellaneous global configuration settings
+ *
+ */
+
+#include <corelib/ncbicfg.h>
+#include <stdlib.h>
+
+#ifdef NCBI_OS_UNIX
+#  include <unistd.h>
+#endif
+
+#include <corelib/ncbi_base_build_ver.h>
+#undef NCBI_GIT_BRANCH
+#undef NCBI_REVISION
+#undef NCBI_SUBVERSION_REVISION
+#undef NCBI_TEAMCITY_BUILD_NUMBER
+#undef NCBI_TEAMCITY_PROJECT_NAME
+#undef NCBI_TEAMCITY_BUILDCONF_NAME
+#undef NCBI_TEAMCITY_BUILD_ID
+#ifdef HAVE_COMMON_NCBI_BUILD_VER_H
+#  include <common/ncbi_build_ver.h>
+#endif
+#ifndef NCBI_GIT_BRANCH
+#  define NCBI_GIT_BRANCH ""
+#endif
+#ifndef NCBI_REVISION
+#  define NCBI_REVISION ""
+#endif
+#ifndef NCBI_SUBVERSION_REVISION
+#  define NCBI_SUBVERSION_REVISION 0
+#endif
+#ifndef NCBI_TEAMCITY_BUILD_NUMBER
+#  define NCBI_TEAMCITY_BUILD_NUMBER   0
+#  define NCBI_TEAMCITY_PROJECT_NAME   ""
+#  define NCBI_TEAMCITY_BUILDCONF_NAME ""
+#  define NCBI_TEAMCITY_BUILD_ID       ""
+#endif
+
+/*
+
+ On UNIX the value of s_DefaultRunpath[] will be replaced at configure step
+ with runpath specified to configure.
+
+ On MS Windows you can set up a base directory for runpath using
+ environtment variable NCBI_INSTALL_PATH before building CONFIGURE
+ project in MSVC 7.* build tree. If this env.variable is not defined,
+ that current build path will be used as runpath.
+
+*/
+
+static const char s_DefaultRunpath[] = "/var/cache/conan2/p/b/ncbi-3934c9246540d/b/build/Release/lib";
+static const char *s_Runpath         = s_DefaultRunpath;
+
+static const char s_DefaultSybaseLocalPath[] = "";
+static const char s_DefaultSybaseNetPath[]   = "";
+static const char *s_DefaultSybasePath       = 0;
+static const char *s_SybasePath              = 0;
+
+static const char s_BuildFeatures[] = "BZ2 EXSLT FreeTDS Iconv LIBEXSLT LIBUV LIBXML LIBXSLT LMDB LZO LocalZCF NGHTTP2 PCRE PCRE2 SQLITE3 UNWIND UV XML XSLT Z ZSTD DLL DLL_BUILD GCC Iconv Linux MT PSGLoader PubSeqOS TLS connext unix";
+
+const char* NCBI_GetDefaultRunpath(void)
+{
+    return s_DefaultRunpath;
+}
+
+
+const char* NCBI_GetRunpath(void)
+{
+    return s_Runpath;
+}
+
+
+void NCBI_SetRunpath(const char* runpath)
+{
+    s_Runpath = runpath;
+}
+
+
+const char* NCBI_GetDefaultSybasePath(void)
+{
+    if ( !s_DefaultSybasePath ) {
+#ifdef NCBI_OS_UNIX
+        if (sizeof(s_DefaultSybaseLocalPath) > 1
+            &&  access(s_DefaultSybaseLocalPath, R_OK | X_OK) >= 0) {
+            s_DefaultSybasePath = s_DefaultSybaseLocalPath;
+        } else {
+            s_DefaultSybasePath = s_DefaultSybaseNetPath;
+        }
+#else
+        s_DefaultSybasePath = s_DefaultSybaseNetPath;
+#endif
+    }
+    return s_DefaultSybasePath;
+}
+
+
+const char* NCBI_GetSybasePath(void)
+{
+    if ( !s_SybasePath ) {
+        s_SybasePath = NCBI_GetDefaultSybasePath();
+    }
+    return s_SybasePath;
+}
+
+
+void NCBI_SetSybasePath(const char* sybpath)
+{
+    s_SybasePath = sybpath;
+}
+
+
+const char* NCBI_GetBuildFeatures(void)
+{
+    return s_BuildFeatures;
+}
+
+double NCBI_GetCheckTimeoutMult(void)
+{
+    static double check_mult = 0;
+
+    if (check_mult == 0) {
+        double env_val = 0;
+        const char* env_str = getenv("NCBI_CHECK_TIMEOUT_MULT");
+        if (env_str)
+            env_val = strtod(env_str, NULL);
+        if (env_val <= 0)
+            env_val = 1;
+
+        check_mult = env_val;
+    }
+
+    return check_mult;
+}
+
+/* Cover ncbi_base_build_ver.h */
+#if defined(NCBI_OS_MSWIN)  &&  defined(NCBI_DLL_BUILD)
+#  define EXPOSE_METADATA(type, macro, symbol) \
+    NCBI_XNCBI_EXPORT \
+    type g_NCBI_##symbol(void) \
+    { \
+        return NCBI_##macro; \
+    }
+#else
+#  define EXPOSE_METADATA(type, macro, symbol) \
+    const type kNCBI_##symbol = NCBI_##macro;
+#endif
+
+EXPOSE_METADATA(TStringLiteral, GIT_BRANCH,              GitBranch)
+EXPOSE_METADATA(TStringLiteral, REVISION,                Revision)
+EXPOSE_METADATA(int,            SUBVERSION_REVISION,     SubversionRevision)
+EXPOSE_METADATA(TStringLiteral, TEAMCITY_BUILDCONF_NAME, TeamCityBuildConfName)
+EXPOSE_METADATA(TStringLiteral, TEAMCITY_BUILD_ID,       TeamCityBuildID)
+EXPOSE_METADATA(int,            TEAMCITY_BUILD_NUMBER,   TeamCityBuildNumber)
+EXPOSE_METADATA(TStringLiteral, TEAMCITY_PROJECT_NAME,   TeamCityProjectName)

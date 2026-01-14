@@ -1,0 +1,14 @@
+#include <objects/pcassay2/PC_AnnotatedXRef.hpp>
+#include <objects/pcassay2/PC_AssayContainer.hpp>
+#include <objects/pcassay2/PC_AssayDRAttr.hpp>
+#include <objects/pcassay2/PC_AssayData.hpp>
+#include <objects/pcassay2/PC_AssayDescription.hpp>
+#include <objects/pcassay2/PC_AssayResults.hpp>
+#include <objects/pcassay2/PC_AssaySubmit.hpp>
+#include <objects/pcassay2/PC_AssayTargetInfo.hpp>
+#include <objects/pcassay2/PC_CategorizedComment.hpp>
+#include <objects/pcassay2/PC_ConcentrationAttr.hpp>
+#include <objects/pcassay2/PC_IntegerMinMax.hpp>
+#include <objects/pcassay2/PC_RealMinMax.hpp>
+#include <objects/pcassay2/PC_ResultType.hpp>
+#include <objects/pcassay2/NCBI_PCAssay2_module.hpp>
