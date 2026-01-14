@@ -1,0 +1,101 @@
+[build-system]
+requires = ["hatchling", "hatch-requirements-txt"]
+build-backend = "hatchling.build"
+
+[project]
+name = "h2o-audit-trail"
+dynamic = ["version", "dependencies"]
+description = 'Python client for H2O Audit Trail'
+readme = "PUBLIC_README.md"
+requires-python = ">=3.8"
+keywords = []
+authors = [
+    { name = "H2O.ai", email = "support@h2o.ai" },
+]
+
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt"]
+
+[project.urls]
+Documentation = "https://docs.h2o.ai/audit-trail/py/initialization"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/h2o_audit_trail"]
+
+[tool.hatch.version]
+path = "../../VERSION"
+pattern = "(?P<version>.*)"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest==8.1.1",
+    "pytest-timeout==2.3.1",
+    "pytest-xdist==3.5.0",
+]
+
+[tool.hatch.envs.test.scripts]
+e2e = [
+    "python -m pytest -n 1 tests/e2e",
+]
+
+[tool.pytest.ini_options]
+timeout = 10
+
+[tool.hatch.envs.lint]
+python = "3.10"
+dependencies = [
+    "black==23.1.0",
+    "isort==5.12.0",
+    "mypy==1.6.0",
+]
+
+[tool.hatch.envs.lint.scripts]
+# TODO use flake8 and mypy
+check = [
+    "black --check --diff .",
+    "isort --check --diff .",
+    # In case a third-party library does not have type hints, we can "--install-types"
+    # which installs stub packages that contain type hints for another library (but not actual code)
+    # so mypy can check correctly passed types to these libraries.
+    "mypy --install-types --non-interactive src"
+]
+fix = [
+    "black .",
+    "isort ."
+]
+
+[tool.black]
+exclude = ["src/h2o_audit_trail/gen"]
+skip-magic-trailing-comma = true
+
+[tool.isort]
+skip = ["src/h2o_audit_trail/gen"]
+force_single_line = true
+known_application = ["h2o_audit_trail"]
+profile = "black"
+
+[tool.mypy]
+exclude = [
+    "src/h2o_audit_trail/gen",
+    "src/testing",
+]
+
+# Even if the gen folder is excluded, mypy will still check it because gen
+# is imported into our other src code and mypy by default checks all imports as well.
+# This is telling mypy to not check the imported code (so we check only our src code).
+follow_imports = "silent"
+
+check_untyped_defs = true
+
+[tool.hatch.envs.docs]
+# pdoc3 generates different results for different python versions
+# use fixed python version for stable docs output
+python = "3.10"
+dependencies = [
+    "pdoc3==0.10.0",
+]
+
+[tool.hatch.envs.docs.scripts]
+generate = [
+    "pdoc3 --force --template-dir docs/templates --output-dir ../../docs/docs/py src/h2o_audit_trail/clients"
+]
