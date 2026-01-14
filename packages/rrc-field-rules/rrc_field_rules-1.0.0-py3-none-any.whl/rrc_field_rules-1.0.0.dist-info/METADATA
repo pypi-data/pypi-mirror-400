@@ -1,0 +1,262 @@
+Metadata-Version: 2.4
+Name: rrc-field-rules
+Version: 1.0.0
+Summary: Python module to parse Texas RRC field rules from Oracle database to JSON
+Project-URL: Homepage, https://github.com/jippylong12/rrc_field_rules
+Project-URL: Documentation, https://github.com/jippylong12/rrc_field_rules#readme
+Project-URL: Issues, https://github.com/jippylong12/rrc_field_rules/issues
+Author: Marcus Salinas
+License: MIT
+Keywords: field-rules,oil-gas,oracle,railroad-commission,rrc,texas
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Database
+Classifier: Topic :: Scientific/Engineering :: GIS
+Requires-Python: >=3.11
+Requires-Dist: oracledb>=2.0.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: typer>=0.12.0
+Provides-Extra: dev
+Requires-Dist: mypy>=1.10.0; extra == 'dev'
+Requires-Dist: pytest-mock>=3.0.0; extra == 'dev'
+Requires-Dist: pytest>=8.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.5.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# RRC Field Rules Parser
+
+A Python module to parse Texas Railroad Commission (RRC) field rules data from an Oracle database and export to JSON.
+
+## Overview
+
+This package connects to an Oracle database containing the RRC Oil & Gas Division's field rules data (originally from Oracle `.dmp` export files) and provides:
+
+- **Python API** for programmatic access to field rules data
+- **CLI tool** for quick data extraction and health checks
+- **JSON export** for integration with other systems
+
+### Available Tables
+
+| Table | Description |
+|-------|-------------|
+| `og_field` | Oil & Gas Field master records |
+| `og_field_info` | Field information with discovery dates, county codes |
+| `og_field_rule` | Field-specific spacing and acreage rules |
+| `og_std_field_rule` | Statewide standard field rules by depth |
+
+## Installation
+
+```bash
+# Using pip
+pip install rrc-field-rules
+
+# Using uv (recommended)
+uv add rrc-field-rules
+```
+
+### Development Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/username/rrc-field-rules.git
+cd rrc-field-rules
+
+# Install with dev dependencies
+uv sync --all-extras
+```
+
+## Prerequisites
+
+This module requires access to an Oracle database with the RRC field rules data loaded. The database can be:
+
+1. **Docker container** (included setup for local development)
+2. **Remote Oracle instance** with the data pre-loaded
+
+### Docker Setup (Local Development)
+
+```bash
+# Start the Oracle container with data import
+python main.py
+
+# The container will:
+# - Start Oracle Free (slim)
+# - Create PROD_OG_OWNR user
+# - Import the .dmp file automatically
+```
+
+Default connection details:
+- **Host:** `localhost`
+- **Port:** `1521`
+- **Service:** `FREEPDB1`
+- **User:** `PROD_OG_OWNR`
+- **Password:** `ParserPassword123`
+
+## CLI Usage
+
+### Check Database Connection
+
+```bash
+rrc-field-rules check --password ParserPassword123
+```
+
+### Export Data to JSON
+
+```bash
+# Export all tables
+rrc-field-rules export output.json --password ParserPassword123
+
+# Export specific table with limit
+rrc-field-rules export output.json --table og_field --limit 100 --password ParserPassword123
+```
+
+### List Available Tables
+
+```bash
+rrc-field-rules list-tables
+```
+
+### Environment Variables
+
+Instead of passing options, you can set environment variables:
+
+```bash
+export RRC_HOST=localhost
+export RRC_PORT=1521
+export RRC_SERVICE=FREEPDB1
+export RRC_USER=PROD_OG_OWNR
+export RRC_PASSWORD=ParserPassword123
+```
+
+## Python API Usage
+
+### Basic Usage
+
+```python
+from rrc_field_rules import FieldRulesParser, ParserConfig
+
+# Configure connection
+config = ParserConfig(password="ParserPassword123")
+
+# Use as context manager (recommended)
+with FieldRulesParser(config) as parser:
+    # Health check
+    if parser.check_health():
+        print("Connected!")
+
+    # Get all field records
+    fields = parser.get_fields()
+    print(f"Found {len(fields)} fields")
+
+    # Get with limit
+    first_10 = parser.get_fields(limit=10)
+
+    # Access specific tables
+    field_info = parser.get_field_info()
+    field_rules = parser.get_field_rules()
+    std_rules = parser.get_std_field_rules()
+```
+
+### Export to JSON
+
+```python
+from pathlib import Path
+from rrc_field_rules import FieldRulesParser, ParserConfig
+
+config = ParserConfig(password="ParserPassword123")
+
+with FieldRulesParser(config) as parser:
+    # Export all tables
+    counts = parser.export_all_to_json(Path("all_data.json"))
+    print(f"Exported: {counts}")
+
+    # Export single table
+    parser.export_table_to_json("og_field", Path("fields.json"), limit=100)
+```
+
+### Working with Models
+
+Data is returned as Pydantic models with full type hints:
+
+```python
+from rrc_field_rules import FieldRulesParser, ParserConfig
+
+config = ParserConfig(password="ParserPassword123")
+
+with FieldRulesParser(config) as parser:
+    for field in parser.get_fields(limit=5):
+        print(f"Field: {field.field_name}")
+        print(f"  Number: {field.field_number}")
+        print(f"  Class: {field.field_class_code}")
+        print(f"  District: {field.district_code}")
+        print(f"  H2S Flag: {field.field_h2s_flag}")
+```
+
+### Custom Connection Settings
+
+```python
+from rrc_field_rules import ParserConfig
+
+# Remote database
+config = ParserConfig(
+    host="oracle.example.com",
+    port=1521,
+    service="PRODDB",
+    user="rrc_reader",
+    password="secure_password"
+)
+
+# From .env file (uses pydantic-settings)
+# Create .env with RRC_HOST, RRC_PORT, etc.
+config = ParserConfig()  # Will load from environment
+```
+
+## Schema Reference
+
+### og_field
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `field_number` | VARCHAR2(8) | 8-digit field number (first 5 unique, last 3 = reservoir) |
+| `field_name` | VARCHAR2(50) | Field name (operator + formation + depth) |
+| `field_id` | NUMBER(38) | System-generated unique key |
+| `field_class_code` | CHAR(1) | G=gas, O=oil, B=both |
+| `field_h2s_flag` | CHAR(1) | Y=present, N=not present, E=exempt |
+| `wildcat_flag` | CHAR(1) | Y/N - no known zone of production |
+| `district_code` | CHAR(2) | RRC district (01-10, 6e, 7b, 7c, 8a, 8b) |
+
+### og_field_rule
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `field_id` | NUMBER(38) | Foreign key to og_field |
+| `rule_type_code` | CHAR(1) | B=base, O=optional |
+| `minimum_lease_distance` | NUMBER(4) | Min distance from lease line (feet) |
+| `minimum_well_distance` | NUMBER(4) | Min distance between wells (feet) |
+| `minimum_acres_per_unit` | NUMBER(8,2) | Min acres per well |
+
+## Development
+
+```bash
+# Run tests
+uv run pytest
+
+# Lint
+uv run ruff check src/
+
+# Type check
+uv run mypy src/
+
+# Format
+uv run ruff format src/
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
