@@ -1,0 +1,38 @@
+# fmt: off
+
+from .dclasses import DCLASS_INSTANCES
+from .diamonds import DIAMOND_INSTANCES
+from .enums import ENUM_INSTANCES
+from .named_tuples import NAMED_TUPLE_INSTANCES
+from .recursive import RECURSIVE_INSTANCES
+from .typed_dicts import TYPED_DICT_INSTANCES
+from .units import UNIT_INSTANCES
+from .with_annos import WITH_ANNO_INSTANCES
+from .with_methods import WITH_METHOD_INSTANCES
+from .with_props import WITH_PROP_INSTANCES
+
+__all__ = [
+    'DCLASS_INSTANCES',
+    'DIAMOND_INSTANCES',
+    'ENUM_INSTANCES',
+    'NAMED_TUPLE_INSTANCES',
+    'RECURSIVE_INSTANCES',
+    'TYPED_DICT_INSTANCES',
+    'WITH_ANNO_INSTANCES',
+    'WITH_METHOD_INSTANCES',
+    'WITH_PROP_INSTANCES',
+    'INSTANCES'
+]
+
+INSTANCES = [
+    *DCLASS_INSTANCES,
+    *DIAMOND_INSTANCES,
+    *ENUM_INSTANCES,
+    *NAMED_TUPLE_INSTANCES,
+    *RECURSIVE_INSTANCES,
+    *TYPED_DICT_INSTANCES,
+    *WITH_ANNO_INSTANCES,
+    *WITH_METHOD_INSTANCES,
+    *WITH_PROP_INSTANCES,
+    *UNIT_INSTANCES
+]
