@@ -1,0 +1,214 @@
+name: high_school_student_academic_tracker
+description: >
+  A semantic model designed for 10th-grade students to track academic performance,
+  attendance, and extracurricular activities in a simple and understandable way.
+
+tables:
+  - name: HS_ACAD_DB.STUDENT_PERFORMANCE
+    description: >
+      Contains student academic records including subjects, grades, and exam dates.
+    base_table:
+      database: HS_ACAD_DB
+      schema: ACADEMICS
+      table: HS_ACAD_DB.ACADEMICS.STUDENT_PERFORMANCE
+    dimensions:
+      - name: STUDENT_NAME
+        description: Full name of the student.
+        data_type: VARCHAR(100)
+        sample_values:
+          - "Alice Johnson"
+          - "Bob Smith"
+          - "Cathy Lee"
+      - name: SUBJECT
+        description: Name of the academic subject.
+        data_type: VARCHAR(50)
+        sample_values:
+          - "Mathematics"
+          - "Science"
+          - "English"
+          - "History"
+      - name: EXAM_DATE
+        description: Date when the exam was taken.
+        data_type: DATE
+        sample_values:
+          - "2025-03-15"
+          - "2025-05-20"
+      - name: GRADE
+        description: Grade achieved in the exam (A, B, C, D, F).
+        data_type: VARCHAR(2)
+        sample_values:
+          - "A"
+          - "B"
+          - "C"
+          - "D"
+          - "F"
+    facts:
+      - name: SCORE
+        description: Numeric score achieved in the exam (0-100).
+        data_type: NUMBER
+        sample_values:
+          - 95
+          - 82
+          - 74
+          - 60
+          - 45
+
+  - name: HS_ACAD_DB.ATTENDANCE
+    description: >
+      Records of student attendance including date and presence status.
+    base_table:
+      database: HS_ACAD_DB
+      schema: ACADEMICS
+      table: HS_ACAD_DB.ACADEMICS.ATTENDANCE
+    dimensions:
+      - name: STUDENT_NAME
+        description: Full name of the student.
+        data_type: VARCHAR(100)
+        sample_values:
+          - "Alice Johnson"
+          - "Bob Smith"
+      - name: ATTENDANCE_DATE
+        description: Date of attendance record.
+        data_type: DATE
+        sample_values:
+          - "2025-04-01"
+          - "2025-04-02"
+      - name: STATUS
+        description: Attendance status (Present, Absent, Late).
+        data_type: VARCHAR(10)
+        sample_values:
+          - "Present"
+          - "Absent"
+          - "Late"
+    facts:
+      - name: DAYS_PRESENT
+        description: Count of days present.
+        data_type: NUMBER
+      - name: DAYS_ABSENT
+        description: Count of days absent.
+        data_type: NUMBER
+
+  - name: HS_ACAD_DB.EXTRACURRICULARS
+    description: >
+      Information about student participation in extracurricular activities.
+    base_table:
+      database: HS_ACAD_DB
+      schema: ACADEMICS
+      table: HS_ACAD_DB.ACADEMICS.EXTRACURRICULARS
+    dimensions:
+      - name: STUDENT_NAME
+        description: Full name of the student.
+        data_type: VARCHAR(100)
+        sample_values:
+          - "Alice Johnson"
+          - "Cathy Lee"
+      - name: ACTIVITY_NAME
+        description: Name of the extracurricular activity.
+        data_type: VARCHAR(50)
+        sample_values:
+          - "Basketball"
+          - "Drama Club"
+          - "Science Olympiad"
+      - name: ROLE
+        description: Role of the student in the activity.
+        data_type: VARCHAR(50)
+        sample_values:
+          - "Player"
+          - "Member"
+          - "Captain"
+    facts:
+      - name: PARTICIPATION_YEARS
+        description: Number of years the student has participated.
+        data_type: NUMBER
+        sample_values:
+          - 1
+          - 2
+          - 3
+
+relationships:
+  - name: StudentPerformance_to_Attendance
+    left_table: HS_ACAD_DB.STUDENT_PERFORMANCE
+    right_table: HS_ACAD_DB.ATTENDANCE
+    relationship_columns:
+      - left_column: STUDENT_NAME
+        right_column: STUDENT_NAME
+    join_type: left_outer
+    relationship_type: many_to_many
+
+  - name: StudentPerformance_to_Extracurriculars
+    left_table: HS_ACAD_DB.STUDENT_PERFORMANCE
+    right_table: HS_ACAD_DB.EXTRACURRICULARS
+    relationship_columns:
+      - left_column: STUDENT_NAME
+        right_column: STUDENT_NAME
+    join_type: left_outer
+    relationship_type: many_to_many
+
+  - name: Attendance_to_Extracurriculars
+    left_table: HS_ACAD_DB.ATTENDANCE
+    right_table: HS_ACAD_DB.EXTRACURRICULARS
+    relationship_columns:
+      - left_column: STUDENT_NAME
+        right_column: STUDENT_NAME
+    join_type: left_outer
+    relationship_type: many_to_many
+
+custom_instructions: |
+  Usage:
+    This semantic model is intended for tracking and analyzing academic and extracurricular data for 10th-grade students.
+    It supports queries about grades, attendance, and activity participation.
+  
+  Default Column Selection:
+    STUDENT_NAME, SUBJECT, EXAM_DATE, GRADE, SCORE, ATTENDANCE_DATE, STATUS, ACTIVITY_NAME, ROLE, PARTICIPATION_YEARS
+  
+  Levels:
+    Data is available at the student level. Queries without specific filters return data aggregated by student.
+  
+  Rounding:
+    Numeric scores and counts should be rounded to whole numbers where applicable.
+
+verified_queries:
+  - name: List students with their latest exam grades
+    question: List all students with their most recent exam grades by subject.
+    sql: |
+      SELECT STUDENT_NAME, SUBJECT, GRADE, EXAM_DATE
+      FROM HS_ACAD_DB.ACADEMICS.STUDENT_PERFORMANCE
+      WHERE EXAM_DATE = (
+        SELECT MAX(EXAM_DATE)
+        FROM HS_ACAD_DB.ACADEMICS.STUDENT_PERFORMANCE sp2
+        WHERE sp2.STUDENT_NAME = STUDENT_PERFORMANCE.STUDENT_NAME
+          AND sp2.SUBJECT = STUDENT_PERFORMANCE.SUBJECT
+      )
+      ORDER BY STUDENT_NAME, SUBJECT;
+
+  - name: Count of absences per student
+    question: How many days has each student been absent?
+    sql: |
+      SELECT STUDENT_NAME, COUNT(*) AS DAYS_ABSENT
+      FROM HS_ACAD_DB.ACADEMICS.ATTENDANCE
+      WHERE UPPER(STATUS) = 'ABSENT'
+      GROUP BY STUDENT_NAME
+      ORDER BY DAYS_ABSENT DESC;
+
+  - name: List students participating in extracurricular activities
+    question: List students and their roles in extracurricular activities.
+    sql: |
+      SELECT STUDENT_NAME, ACTIVITY_NAME, ROLE, PARTICIPATION_YEARS
+      FROM HS_ACAD_DB.ACADEMICS.EXTRACURRICULARS
+      ORDER BY STUDENT_NAME, ACTIVITY_NAME;
+
+  - name: Average score by subject
+    question: What is the average exam score for each subject?
+    sql: |
+      SELECT SUBJECT, ROUND(AVG(SCORE)) AS AVG_SCORE
+      FROM HS_ACAD_DB.ACADEMICS.STUDENT_PERFORMANCE
+      GROUP BY SUBJECT
+      ORDER BY AVG_SCORE DESC;
+
+  - name: Attendance status count by date
+    question: How many students were present, absent, or late on each date?
+    sql: |
+      SELECT ATTENDANCE_DATE, STATUS, COUNT(STUDENT_NAME) AS COUNT
+      FROM HS_ACAD_DB.ACADEMICS.ATTENDANCE
+      GROUP BY ATTENDANCE_DATE, STATUS
+      ORDER BY ATTENDANCE_DATE, STATUS;
