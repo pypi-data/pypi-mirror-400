@@ -1,0 +1,76 @@
+define component rc-rally-car
+  parameters
+    control-signals is an electromagnetic-energy-flow
+    acceleration-forces, steering-forces is a mechanical-energy-flow
+
+  variables
+    powers is an power-bundle
+    torques is a torque-bundle
+    constraining-forces is a constraining-forces-bundle
+
+  transformation-requirement
+    cr-convert-signals-into-forces-01: must convert control-signals into acceleration-forces and steering-forces
+
+  component
+    power-unit is a battery-pack with arguments
+      * powers.p_ps
+      * constraining-forces.f_pu
+
+    power-switch is an on-off-switch with arguments
+      * powers.p_ps
+      * powers.p_cu
+      * constraining-forces.f_ps
+
+    control-unit is a four-channel-car-control-unit with arguments
+      * control-signals
+      * powers.p_cu
+      * powers.p_rd
+      * powers.p_sd
+      * constraining-forces.f_cu
+
+    rear-axle-drive is a car-rear-axle-drive with arguments
+      * powers.p_rd
+      * torques.k_ra
+      * constraining-forces.f_rd
+
+    steering-column-drive is a car-steering-column-drive with arguments
+      * powers.p_sd
+      * torques.k_sc
+      * constraining-forces.f_sd
+
+    rear-axle-assembly is a car-rear-axle-assembly with arguments
+      * torques.k_ra
+      * acceleration-forces
+      * constraining-forces.f_ra
+
+    front-axle-assembly is a car-front-axle-assembly with arguments
+      * torques.k_sc
+      * steering-forces
+      * constraining-forces.f_fa
+
+    chassis is a car-chassis with arguments
+      * constraining-forces
+
+    body is a rally-car-body with arguments
+      * constraining-forces.f_bo
+
+    goal-requirement
+      # Transfer of electrical-energy-flows.
+      pu-provide-power-01: power-unit must provide powers.p_ps to power-switch
+      ps-provide-power-01: power-switch must provide powers.p_cu to control-unit
+      cu-provide-power-01: control-unit must provide powers.p_rd to rear-axle-drive
+      cu-provide-power-02: control-unit must provide powers.p_sd to steering-column-drive
+
+      # Transfer of mechanical-energy-flows.
+      rd-provide_torque-01: rear-axle-drive must provide torques.k_ra to rear-axle-assembly
+      sd-provide-torque-01: steering-column-drive must provide torques.k_sc to front-axle-assembly
+
+      # Transfer of static structural strain-energy-flows.
+      cs-exert-constraining-forces-01: chassis must exert constraining-forces.f_pu on power-unit
+      cs-exert-constraining-forces-02: chassis must exert constraining-forces.f_ps on power-switch
+      cs-exert-constraining-forces-03: chassis must exert constraining-forces.f_cu on control-unit
+      cs-exert-constraining-forces-04: chassis must exert constraining-forces.f_rd on rear-axle-drive
+      cs-exert-constraining-forces-05: chassis must exert constraining-forces.f_sd on steering-column-drive
+      cs-exert-constraining-forces-06: chassis must exert constraining-forces.f_ra on rear-axle-assembly
+      cs-exert-constraining-forces-07: chassis must exert constraining-forces.f_fa on front-axle-assembly
+      cs-exert-constraining-forces-08: chassis must exert constraining-forces.f_bo on body

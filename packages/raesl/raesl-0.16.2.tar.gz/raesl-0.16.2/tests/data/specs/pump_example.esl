@@ -1,0 +1,141 @@
+# Specification of a drive-mechanism driving a pump.
+define type
+  MechanicalEnergyFlow is a real with unit Nm
+  ElectricalEnergyFlow is a real with unit W
+  LiquidMaterialFlow is a real with unit L/s
+  EnergyPotential is a real with unit Wh
+  ControlSignal is a boolean
+  Distance is a real with unit m
+  SpatialMeasure is a Distance of at least 0.0 [m]
+  Efficiency is a real  of at least 0.0 and at most 1.0
+
+
+define verb
+  provide to
+  convert into
+  send to
+
+
+define relation
+  BatteryEfficiencyModel
+    relating parameters
+      * potential is an EnergyPotential
+      * output is an ElectricalEnergyFlow
+
+world
+  comments
+    pump #< Can be sourced by manufacturer XYZ.
+         #< Part number CFG.PMP.0.1
+
+  variables
+    torque is a MechanicalEnergyFlow #< Comments on variable torque.
+    water-flow is a LiquidMaterialFlow
+    drive-length is a SpatialMeasure
+    pump-length is a SpatialMeasure
+
+  design-requirements
+    min-water-flow: water-flow must be at least 1.0 [L/s]
+
+  design-constraints
+    dc-drive-length: drive-length must be equal to pump-length
+
+  components
+    pump is a CentrifugalPump with arguments
+      * torque
+      * water-flow
+      * pump-length
+
+    drive-mechanism is an ElectricalDriveMechanism with arguments
+      * torque
+      * drive-length
+
+  goal-requirements
+    provide-torque: drive-mechanism must provide torque to pump
+
+  need
+    IP68: drive-mechanism must be IP68 compliant
+
+
+define component CentrifugalPump
+  parameters
+    torque is a MechanicalEnergyFlow
+    water-flow is a LiquidMaterialFlow
+    length is a SpatialMeasure property
+
+  transformation-requirements
+    convert-torque: must convert torque into water-flow
+
+
+define component ElectricalDriveMechanism
+  parameters
+    torque is a MechanicalEnergyFlow
+    length is a SpatialMeasure property
+
+  variables
+    power-potential is an EnergyPotential
+    power is an ElectricalEnergyFlow
+    motor-control-signal is a ControlSignal
+
+  transformation-requirements
+    convert-power-potential: must convert power-potential into torque
+
+  components
+    power-source is a Battery with arguments
+      * power-potential
+      * power
+
+    motor is a BrushlessMotor with arguments
+      * power
+      * torque
+
+    power-switch is a Switch with arguments
+      * motor-control-signal
+
+  goal-requirements
+    provide-power: power-source must provide power to motor
+    send-control-signal: power-switch must send motor-control-signal to power-source
+
+  behavior-requirements
+    toggle-power:
+      case on:
+        when
+          * c1: motor-control-signal is equal to True [-]
+        then
+          * r1: power must be at least 300 [W]
+      case off:
+        when no other case applies
+        then
+          * r2: power must be equal to 0 [W]
+
+
+define component BrushlessMotor
+  parameters
+    power is an ElectricalEnergyFlow
+    torque is a MechanicalEnergyFlow
+
+  variables
+    conversion is an Efficiency
+
+  transformation-requirements
+    convert-power: must convert power into torque with subclauses
+      * s1: conversion must be at least 0.8
+
+
+define component Battery
+  parameters
+    power-potential is an EnergyPotential
+    power is an ElectricalEnergyFlow
+
+  transformation-constraints
+    convert-potential: does convert power-potential into power
+
+  relations
+    efficiency-model: BatteryEfficiencyModel
+      relating arguments
+      * power-potential
+      * power
+
+
+define component Switch
+  parameters
+    motor-control-signal is a ControlSignal

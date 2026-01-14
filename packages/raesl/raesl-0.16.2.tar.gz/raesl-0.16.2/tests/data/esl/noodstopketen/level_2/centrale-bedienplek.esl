@@ -1,0 +1,40 @@
+define component CentraleBedienplek
+  parameters
+    # Bediensignaal
+    reguliere_bedienhandelingen_CBN is a bedienhandeling
+    bediensignaal_CBP is a bediensignaal
+    verificatiehandelingen_CBN is a bedienhandeling
+    verificatiesignaal_CBP is a bediensignaal
+
+    # Statussignaal
+    gealloceerd_statussignaal_OBJ-PBN is a statussignaal
+    statusinformatie_OBJ-PBN is a informatie-stroom
+
+    # Verzoeksignaal
+    verzoeksignaal_CRN is a verzoeksignaal
+    verzoeksignaal_CBP is a informatie-stroom
+
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+  transformation-requirement
+    CBP-omzetten-statussignaal-01: must omzetten gealloceerd_statussignaal_OBJ-PBN in statusinformatie_OBJ-PBN
+
+    CBP-omzetten-bediensignaal-01: must omzetten reguliere_bedienhandelingen_CBN in bediensignaal_CBP
+
+    CBP-omzetten-bediensignaal-02: must omzetten verificatiehandelingen_CBN in verificatiesignaal_CBP
+
+    CBP-omzetten-verzoeksignaal-01: must omzetten verzoeksignaal_CRN in verzoeksignaal_CBP
+
+  behavior-requirement
+    CBP-operationele-status:
+      case CBP-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-op-afstand [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case CBP-is-passief:
+      when
+          * c2: objectbedienmodus is equal to bediening-lokaal-nood [-] or objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-]
+        then
+          * r2: operationele-status must be equal to passief [-]

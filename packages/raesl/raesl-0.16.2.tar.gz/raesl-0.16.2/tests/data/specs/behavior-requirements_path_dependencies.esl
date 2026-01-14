@@ -1,0 +1,181 @@
+define type
+  control-signal is an string
+  voltage is a real with unit V
+  electrical-energy-flow
+  mechanical-energy-flow with unit Nm
+  state is a string
+
+define verb
+  send to
+  convert into
+  provide to
+
+
+define relation
+  torque-curve-models
+    returning parameters
+      * motor-start-up-curve is a mechanical-energy-flow
+      * motot-shut-down-curve is a mechanical-energy-flow
+
+
+world
+  variables
+    motor-control-signal is a control-signal
+    torque is a mechanical-energy-flow
+    water-flow is a real
+
+  components
+    switch is an wireless-switch with arguments
+      * motor-control-signal
+    motor is a electric-motor with arguments
+      * motor-control-signal
+      * torque
+    pump is a centrifugal-pump with arguments
+      * torque
+      * water-flow
+
+  goal-requirement
+    send-control-signal: switch must send motor-control-signal to motor
+    provide-torque: motor must provide torque to pump
+
+define component wireless-switch
+  parameter
+    motor-control-signal is a control-signal
+
+  variable
+    switch-circuit-voltage is a voltage
+    motor-state, switch-state is a state
+    switch-is-reset is a boolean
+
+  transformation-requirement
+    convert-voltage-to-control-signal: must convert switch-circuit-voltage into motor-control-signal
+
+  behavior-requirement
+    switch-state-transitions:
+      case switch-is-clicked:
+        when
+          * c1: switch-circuit-voltage is at least 1.0 [V]
+        then
+          * r1: switch-state must be equal to "clicked"
+      case switch-is-not-clicked:
+        when
+          * c1: switch-circuit-voltage is smaller than 1.0 [V]
+        then
+          * r1: switch-state must be equal to "not_clicked"
+          * r2: switch-is-reset must be equal to true [-]
+
+    motor-state-transitions:
+      case motor-is-on:
+        when
+          * c1: motor-control-signal is equal to "on"
+        then
+          * r1: motor-state must be equal to "on"
+      case motor-is-off:
+        when
+          * c1: motor-control-signal is equal to "off"
+        then
+          * r1: motor-state must be equal to "off"
+
+    motor-control-signal-values:
+      case turn-motor-on:
+        when
+          * c1: switch-state is equal to "clicked"
+          * c2: motor-state is equal to "off"
+          * c3: switch-is-reset is equal to true [-]
+        then
+          * r1: motor-control-signal must be equal to "on"
+          * c3: switch-is-reset must be equal to false [-]
+      case turn-motor-off:
+        when
+          * c1: switch-state is equal to "clicked"
+          * c2: motor-state is equal to "on"
+          * c3: switch-is-reset is equal to true [-]
+        then
+          * r2: motor-control-signal must be equal to "off"
+          * c3: switch-is-reset must be equal to false [-]
+
+
+define component electric-motor
+  parameter
+    motor-control-signal is a control-signal
+    torque is a mechanical-energy-flow
+
+  variables
+    power is an electrical-energy-flow
+    start-up-curve, shut-down-curve is a mechanical-energy-flow
+    detailed-motor-state is a state
+
+  transformation-requirement
+    convert-power-into-torque: must convert power into torque
+
+  behavior-requirement
+    detailed-motor-state-transitions:
+      case start-up:
+          when
+            * c1: motor-control-signal is equal to "on"
+            * c2: torque is smaller than  60.0 [Nm]
+          then
+            * r1: detailed-motor-state must be equal to "start-up"
+        case steady-state:
+          when
+            * c1: motor-control-signal is equal to "on"
+            * c2: torque is at least  60.0 [Nm]
+          then
+            * r1: detailed-motor-state must be equal to "steady-state"
+        case shut-down:
+          when
+            * c1: motor-control-signal is equal to "off"
+            * c2: torque is greater than 0.0 [Nm]
+          then
+            * r1: detailed-motor-state must be equal to "shut-down"
+        case off:
+          when
+            * c1: motor-control-signal is equal to "off"
+            * c2: torque is equal to 0.0 [Nm]
+          then
+            * r2: detailed-motor-state must be equal to "off"
+
+    motor-torque-output:
+      case motor-start-up:
+        when
+          * c1: detailed-motor-state is equal to "start-up"
+        then
+          * r1: torque must be equal to start-up-curve
+      case motor-is-in-steady-state:
+        when
+          * c1: detailed-motor-state is equal to "steady-state"
+        then
+          * r1: torque must be equal to 60.0 [Nm]
+      case motor-shut-down:
+        when
+          * c1: detailed-motor-state is equal to "shut-down"
+        then
+          * r2: torque must be equal to shut-down-curve
+      case motor-is-off:
+        when
+          * c2: detailed-motor-state is equal to "off"
+        then
+          * r2: torque must be equal to 0.0 [Nm]
+
+  relation
+    torque-curves: torque-curve-models
+      returning arguments
+        * start-up-curve
+        * shut-down-curve
+
+
+define component centrifugal-pump
+  parameter
+    torque is a mechanical-energy-flow
+    water-flow is a real
+
+  transformation-requirement
+    convert-torque-into-water-flow: must convert torque into water-flow
+
+  behavior-requirement
+    water-flow-output:
+      case produce-a-water-flow:
+        when
+          * c1: torque is greater than 0.0 [Nm]
+        then
+          * r1: water-flow must be greater than 0 [-]

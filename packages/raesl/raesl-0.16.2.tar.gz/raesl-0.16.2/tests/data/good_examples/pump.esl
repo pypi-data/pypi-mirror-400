@@ -1,0 +1,105 @@
+define type
+    mechanical-energy-flow is a real
+    electrical-energy-flow is a real
+    chemical-energy-flow is a real
+    liquid-material-flow is a real
+    performance-measure is a real
+
+define verb
+    transfer to
+    provide to
+    convert into
+
+define relation
+    conversion-efficiency
+
+#-----------------------------------------------------------------------------------
+
+world
+    variable
+        torque is a mechanical-energy-flow
+        steady-state-torque, reliability is a performance-measure
+    components
+        drive-mechanism-x is an electrical-drive-mechanism with argument
+            torque
+        pump-y is a centrifugal-pump with argument
+            torque
+    goal-requirement
+        gfr-0: drive-mechanism-x must transfer torque to pump-y with subclauses
+            c-0: steady-state-torque must be equal to 40 Nm
+            c-1: reliability must be at least 95 %
+        end
+
+    need
+      n-1: drive-mechanism-x must be really cool
+      n-2: steady-state-torque must be really steady
+      n-3: gfr-0 must always be available
+
+    comment
+        drive-mechanism-x #< This is a component comment.
+        torque #< Must be really high.
+
+#-----------------------------------------------------------------------------------
+
+define component centrifugal-pump
+    parameter
+        torque is a mechanical-energy-flow
+    variables
+        water-flow is a liquid-material-flow
+        efficiency is a performance-measure
+    transformation-requirement
+        tfr-0: must convert torque into water-flow with subclause
+            c-0: efficiency must be at least 75 %
+        end
+    design-requirement
+        dsr-0: water-flow must be at least 10 l/s
+    relation
+        rlt-0: conversion-efficiency with arguments
+            torque, water-flow, efficiency
+    comment
+       rlt-0 #< This is a comment on relation rlt-0.
+       dsr-0 #< This is a design function comment.
+       tfr-0 #< This is a transformation function comment.
+
+#-----------------------------------------------------------------------------------
+
+define component electrical-drive-mechanism
+    parameter
+        torque is a mechanical-energy-flow
+    variable
+        power is an electrical-energy-flow
+    components
+        electric-motor-q is a brushless-motor with arguments
+            power, torque
+        power-source-r is a battery with argument
+            power
+    goal-requirement
+        gfr-0: power-source-r must provide power to electric-motor-q
+
+    comment
+        electric-motor-q #< This is a component comment on electric-motor-q.
+        gfr-0 #< This is a goal function comment.
+
+#-----------------------------------------------------------------------------------
+
+define component brushless-motor
+    parameters
+        power is an electrical-energy-flow
+        torque is a mechanical-energy-flow
+    transformation-requirement
+        tfr-0: must convert power into torque
+
+#-----------------------------------------------------------------------------------
+
+define component battery
+    parameter
+        power-out is an electrical-energy-flow      #< Unit is in Watt.
+    variable
+        power-potential is a chemical-energy-flow
+    transformation-constraint
+        tfr-0: does convert power-potential into power-out with subclauses
+            c-0: power-out is at most 300 W
+        end
+    comment
+        power-out #< Is alternating
+                  #< current

@@ -1,0 +1,93 @@
+#--------------------lv0_world----------------------#        
+world
+    variables
+        oxygen is a oxygen-bundle
+        demin-water is a demin-water-bundle
+        hydrogen is a hydrogen-bundle
+        
+    component
+        separator is a separation-station with arguments
+            #in:
+            * oxygen.mix
+            #out:
+            * demin-water.O2
+                                     
+        cooling-system is a cooling-station with arguments
+            #in:
+            * demin-water.O2         
+            #out:
+            * demin-water.he
+    
+    goal-requirements
+        provide-hydrogen-cool: cooling-system must supply hydrogen.cool to separator
+        provide-hot-demin-water-01: separator must supply demin-water.O2 to cooling-system               
+#--------------------lv1_world_O2separation---------#
+define component separation-station
+    parameters
+        in-oxygen-mix-el is a mixture-material-flow
+        out-demin-water-O2 is a liquid-material-flow
+    
+    transformation-requirement  
+        convert-oxygen-mix: must convert in-oxygen-mix-el into out-demin-water-O2
+    
+    components
+        O2-separator is a O2-liquid-separator with arguments
+            #in:
+            * in-oxygen-mix-el
+            #out:
+            * out-demin-water-O2
+#--------------------lv2_world_O2separation_O2separator---------#          
+define component O2-liquid-separator
+    parameters
+        in-mix is a mixture-material-flow
+        out-liquid is a liquid-material-flow
+        
+    transformation-requirements
+        separate-liquid-gas: must convert in-mix into out-liquid
+#--------------------lv1_world_O2cooling---------#
+define component cooling-station
+    parameters
+        in-demin-water-hot is a liquid-material-flow
+        out-demin-water-cool is a liquid-material-flow
+  
+    transformation-requirement
+        cool-demin-water-02: must convert in-demin-water-hot into out-demin-water-cool 
+        
+    components              
+       demin-water-heat-exchanger is a liquid-heat-exchanger with arguments
+            #in:
+            * in-demin-water-hot
+            #out:
+            * out-demin-water-cool
+#--------------------lv2_world_O2cooling_liquid-heat-exchanger---------#
+define component liquid-heat-exchanger
+    parameters
+        in-hot-liquid is a liquid-material-flow
+        out-cool-liquid is a liquid-material-flow
+        
+    transformation-requirement
+        cool-liquid: must convert in-hot-liquid into out-cool-liquid
+        
+#--------------------preamble---------#
+define type 
+  # mass flows (1 direction)
+  liquid-material-flow is a real with unit M^3/h
+  gas-material-flow is a real with unit M^3/h
+  mixture-material-flow is a real with unit M^3/h
+     
+  # mass flow bundles
+  demin-water-bundle is a bundle of
+    * O2 is a liquid-material-flow # O2: O2-separator
+    * he is a liquid-material-flow # he: heat-exchanger
+    
+  hydrogen-bundle is a bundle of 
+    * cool is a gas-material-flow #cool: hydrogen after cooling station
+
+  oxygen-bundle is a bundle of 
+    * mix is a mixture-material-flow # mix: O2(g) & H2O(l) mxture
+    * ex is a gas-material-flow #ex: external, vent, atmosphere
+
+define verbs
+    # verbs from Hirtz(2002)
+    convert into
+    supply to 

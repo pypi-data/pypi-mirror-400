@@ -1,0 +1,29 @@
+define component CentraleBedienaar
+  parameters
+    noodbedienhandelingen_CBN is a bedienhandeling
+    reguliere_bedienhandelingen_CBN is a bedienhandeling
+    statusinformatie_OBJ-PBN is a informatie-stroom
+    statusinformatie_OBJ-PNC is a informatie-stroom
+    verzoeksignaal_CBP is a informatie-stroom
+    verificatiehandeling_CBN is a bedienhandeling
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+ transformation-requirement
+   CBN-omzetten-statusinformatie: must omzetten statusinformatie_OBJ-PBN and statusinformatie_OBJ-PNC in noodbedienhandelingen_CBN and reguliere_bedienhandelingen_CBN
+
+   CBN-omzetten-verzoeksignaal: must beantwoorden verzoeksignaal_CBP met verificatiehandeling_CBN
+
+
+  behavior-requirement
+    CBN-operationele-status:
+      case CBN-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-op-afstand [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case CBN-is-passief:
+      when
+          * c2: objectbedienmodus is equal to bediening-lokaal-nood [-] or objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-]
+        then
+          * r2: operationele-status must be equal to passief [-]

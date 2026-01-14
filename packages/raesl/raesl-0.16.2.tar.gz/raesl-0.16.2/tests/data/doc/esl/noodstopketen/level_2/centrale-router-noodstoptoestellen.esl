@@ -1,0 +1,46 @@
+define component CentraleRouterNoodstoptoestellen
+  parameters
+    # Statussignaal
+    statussignaal_OBJ-PNC is a statussignaal
+    gealloceerd_statussignaal_OBJ-PNC is a statussignaal
+
+    # Statussignaal
+    bediensignaal_NCB is a bediensignaal
+    statussignaal_NBC is a statussignaal
+
+    verzoeksignaal_CRN is a verzoeksignaal
+
+    verificatiesignaal_CBP is a bediensignaal
+
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+  transformation-requirement
+    CRN-omzetten-statussignaal-01: must omzetten statussignaal_OBJ-PNC and verificatiesignaal_CBP in gealloceerd_statussignaal_OBJ-PNC
+
+    CRN-omzetten-bediensignaal-01: must omzetten bediensignaal_NCB in statussignaal_NBC
+
+  behavior-requirement
+    CRN-operationele-status:
+      case CRN-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-op-afstand [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case CRN-is-passief:
+      when
+          * c2: objectbedienmodus is equal to bediening-lokaal-nood [-] or objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-]
+        then
+          * r2: operationele-status must be equal to passief [-]
+
+    CRN-noodstop-verificatie:
+      case CRN-noodstopkoppeling-is-geverifieerd:
+        when
+          * c1: verificatiesignaal_CBP is equal to True [-]
+        then
+          * r1: gealloceerd_statussignaal_OBJ-PNC must be equal to verbonden [-]
+      case CRN-noodstopkoppeling-is-niet-geverifieerd:
+      when
+          * c2: verificatiesignaal_CBP is equal to False [-]
+        then
+          * r2: gealloceerd_statussignaal_OBJ-PNC must be equal to niet-verbonden [-]

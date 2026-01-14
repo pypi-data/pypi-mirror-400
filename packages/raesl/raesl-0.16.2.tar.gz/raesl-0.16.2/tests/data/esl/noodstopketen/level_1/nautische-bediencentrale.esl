@@ -1,0 +1,189 @@
+define component NautischeBediencentrale
+  parameters
+    # Te verzen signaal (outputs)
+    bediensignaal_NBC is a bediensignaal # Uitgaande bediensignaal van de Nautische bediencentrale.
+    statussignaal_NBC is a statussignaal # Uitgaande statussignaal van de Nautische bediencentrale.
+
+    # Ontvangen signaal (inputs)
+    statussignaal_OBJ-PBN is a statussignaal # Status signaal van het primaire bediensysteem van een object verzonden over het Wide-Area-Network.
+    statussignaal_OBJ-PNC is a statussignaal # Status signaal van het Primaire Noodstopcircuit verzonden over het Wide-Area-Network.
+
+    objectbedienmodus is an bedienmodi-enumeratie
+
+  transformation-requirements
+
+    NBC-omzetten-statussignaal-02: must omzetten statussignaal_OBJ-PNC and noodbedienhandelingen_CBN in statussignaal_NBC
+
+    NBC-omzetten-statussignaal-01: must omzetten statussignaal_OBJ-PBN and reguliere_bedienhandelingen_CBN in bediensignaal_NBC
+
+  variables
+    # Status-signaal
+    gealloceerd_statussignaal_OBJ-PBN is a statussignaal #< Statussignaal van het primaire bediensysteem van een object dat is gealloceerd aan een specifieke bedienplek.
+    gealloceerd_statussignaal_OBJ-PNC is a statussignaal #< Statussignaal van het Primaire Noodstopcircuit van een object dat is gealloceerd aan een specifieke bedienplek.
+
+    # Verzoeksignaal
+    verzoeksignaal_CRN is a verzoeksignaal #< Verzoek tot validatie van noodstoptoestel koppeling van de centrale router noodstoptoestellen.
+    verzoeksignaal_CBP is a informatie-stroom #< Verzoek tot validatie van noodstoptoestel koppeling van de centrale bedienplek.
+
+    # Bediensignaal
+    reguliere_bedienhandelingen_CBN is a bedienhandeling #< Bediensignaal die een bedienaar tijdens reguliere  bediening kan invoeren.
+    bediensignaal_CBP is a bediensignaal #< Bediensignaal geregistreerd, verwerkt en te verzen door de centrale bedienplek.
+
+    noodbedienhandelingen_CBN is a bedienhandeling #< Bediensignaal die een bedienaar in geval van nood kan versturen via het noodstoptoestel.
+
+    bediensignaal_NCB is a bediensignaal #< Bediensignaal geregistreerd, verwerkt en te verzen door het centrale noodstoptoestel.
+
+    verificatiehandeling_CBN is a bedienhandeling #< Bediensignaal dat een bedienaar kan invoeren ter validatie van de noodstoptoestel-koppeling.
+    verificatiesignaal_CBP is a bediensignaal #< Bediensignaal dat de centrale bedienplek dient te versturen na validatie van de noodstoptoestel koppeling door de bedienaar.
+
+    # Informatie
+    statusinformatie_OBJ-PNC is a informatie-stroom #< Aan de bedienaar (visueel) gepresenteerd statusinformatie van het primaire bediensysteem van het te bedienen object.
+    statusinformatie_OBJ-PBN is a informatie-stroom #< Aan de bedien (visueel) gepresenteerd statusinformatie van het primaire noodstop-circuit van het te bedienen object.
+
+    # Prestatie indicator
+    het_safety-integrity-level is a prestatie-indicator
+
+    # Status-variabelen
+    operationele_status_CRB is a operationele-status-enumeratie
+    operationele_status_CRN is a operationele-status-enumeratie
+    operationele_status_CBP is a operationele-status-enumeratie
+    operationele_status_NCB is a operationele-status-enumeratie
+    operationele_status_CBN is a operationele-status-enumeratie
+
+  components
+    de_centrale_router_bediensystemen is a CentraleRouterBediensystemen with arguments
+      * statussignaal_OBJ-PBN
+      * gealloceerd_statussignaal_OBJ-PBN
+      * bediensignaal_CBP
+      * bediensignaal_NBC
+      * objectbedienmodus
+      * operationele_status_CRB
+
+    de_centrale_router_noodstoptoestellen is a CentraleRouterNoodstoptoestellen with arguments
+      * statussignaal_OBJ-PNC
+      * gealloceerd_statussignaal_OBJ-PNC
+      * bediensignaal_NCB
+      * statussignaal_NBC
+      * verzoeksignaal_CRN
+      * verificatiesignaal_CBP
+      * objectbedienmodus
+      * operationele_status_CRN
+
+    de_centrale_bedienplek is a CentraleBedienplek with arguments
+      * reguliere_bedienhandelingen_CBN
+      * bediensignaal_CBP
+      * verificatiehandeling_CBN
+      * verificatiesignaal_CBP
+      * gealloceerd_statussignaal_OBJ-PBN
+      * statusinformatie_OBJ-PBN
+      * verzoeksignaal_CRN
+      * verzoeksignaal_CBP
+      * objectbedienmodus
+      * operationele_status_CBP
+
+    het_noodstoptoestel_centrale_bedienplek is a NoodstoptoestelCentraleBedienplek with arguments
+      * noodbedienhandelingen_CBN
+      * bediensignaal_NCB
+      * gealloceerd_statussignaal_OBJ-PNC
+      * statusinformatie_OBJ-PNC
+      * objectbedienmodus
+      * operationele_status_NCB
+
+    de_centrale_bedienaar is a CentraleBedienaar with arguments
+      * noodbedienhandelingen_CBN
+      * reguliere_bedienhandelingen_CBN
+      * statusinformatie_OBJ-PBN
+      * statusinformatie_OBJ-PNC
+      * verzoeksignaal_CBP
+      * verificatiehandeling_CBN
+      * objectbedienmodus
+      * operationele_status_CBN
+
+  comments
+    de_centrale_router_bediensystemen #< Dit component (LFV) wordt afgekort als CRB (Centrale Router Bediensystemen).
+    de_centrale_router_noodstoptoestellen #< Dit component (LFV) wordt afgekort als CRN (Centrale Router Noostoptoestellen).
+    de_centrale_bedienplek #< Dit component (LFV) wordt afgekort als CBP (Centrale BedienPlek).
+    het_noodstoptoestel_centrale_bedienplek #< Dit component (LFV) wordt afgekort als NCB (Noodstoptoestel Centrale Bedienplek).
+    de_centrale_bedienaar #< Dit component (LFV) wordt afgekort als CBN (Centrale BedieNaar).
+
+  goal-requirement
+    CRB-aanbieden-statussignaal-01: de_centrale_router_bediensystemen must aanbieden gealloceerd_statussignaal_OBJ-PBN aan de_centrale_bedienplek with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    CRB-aanbieden-statussignaal-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode.
+
+  goal-requirement
+    CRN-aanbieden-statussignaal-01: de_centrale_router_noodstoptoestellen must aanbieden gealloceerd_statussignaal_OBJ-PNC aan het_noodstoptoestel_centrale_bedienplek with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    CRN-aanbieden-statussignaal-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    CBN-uitvoeren-bedienhandelingen-01: de_centrale_bedienaar must uitvoeren reguliere_bedienhandelingen_CBN op de_centrale_bedienplek with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    CBN-uitvoeren-bedienhandelingen-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    CBN-uitvoeren-bedienhandelingen-02: de_centrale_bedienaar must uitvoeren noodbedienhandelingen_CBN op het_noodstoptoestel_centrale_bedienplek with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    CBN-uitvoeren-bedienhandelingen-02 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    CBP-aanbieden-bediensignaal-01: de_centrale_bedienplek must aanbieden bediensignaal_CBP aan de_centrale_router_bediensystemen with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    CBP-aanbieden-bediensignaal-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    CPB-tonen-statusinformatie-01: de_centrale_bedienplek must tonen statusinformatie_OBJ-PBN aan de_centrale_bedienaar with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    CPB-tonen-statusinformatie-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    NCB-tonen-statusinformatie-01: het_noodstoptoestel_centrale_bedienplek must tonen statusinformatie_OBJ-PNC aan de_centrale_bedienaar with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    NCB-tonen-statusinformatie-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    NCB-aanbieden-bediensignaal-01: het_noodstoptoestel_centrale_bedienplek  must aanbieden bediensignaal_NCB aan de_centrale_router_noodstoptoestellen with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    NCB-aanbieden-bediensignaal-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    CRN-versturen-verzoeksignaal-01: de_centrale_router_noodstoptoestellen must verzenden verzoeksignaal_CRN naar de_centrale_bedienplek with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    CRN-versturen-verzoeksignaal-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    CBP-versturen-verzoeksignaal-01: de_centrale_bedienplek must tonen verzoeksignaal_CBP aan de_centrale_bedienaar with subclauses
+      * sil-level-01: het_safety-integrity-level  must be at least t.b.d.
+
+  comment
+    CBP-versturen-verzoeksignaal-01 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    CBN-uitvoeren-bedienhandelingen-03: de_centrale_bedienaar  must uitvoeren verificatiehandeling_CBN op de_centrale_bedienplek
+
+  comment
+    CBN-uitvoeren-bedienhandelingen-03 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode
+
+  goal-requirement
+    CBP-aanbieden-bediensignaal-02: de_centrale_bedienplek  must aanbieden verificatiesignaal_CBP aan de_centrale_router_noodstoptoestellen
+
+  comment
+    CBP-aanbieden-bediensignaal-02 #< Nader te bepalen informatie m.b.t. tot bovenstaande eis. Bijvoorbeeld een omschrijving van de verificatiemethode

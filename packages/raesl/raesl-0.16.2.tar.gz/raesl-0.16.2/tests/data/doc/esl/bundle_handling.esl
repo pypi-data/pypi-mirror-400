@@ -1,0 +1,104 @@
+define type
+  foo is a bundle of
+    * x is a real
+    * y is a real
+
+  faa is a bundle of
+    * s is a foo
+    * t is a foo
+
+define verb
+  provide to
+  transform into
+
+define relation
+  some_relation
+    requiring parameter
+      * q is a faa
+      * u is a real
+    returning parameter
+      * r is a faa
+    relating parameter
+      * v is a real
+
+
+world
+  variable
+    q is a faa
+    r is a faa
+    u, v is a real
+
+  components
+    Aa is a blob with arguments
+      * q
+      * r
+    Bb is a blob with arguments
+      * q
+      * r
+
+  need
+    n1: q.s.x is important
+
+  goal-requirement
+    g1: Aa must provide q.s, r and u to Bb with subclauses
+      * s1: u must be at least 5.0 [-]
+    g2: Bb must provide q and v to Aa with subclauses
+      * s1: u must be at least 5.0 [-]
+
+  design-requirement
+    d1: q.s.y must be at least 8 [-]
+    d2: q.s.x must be equal to r.s.x
+
+  relation
+    r1: some_relation
+      requiring arguments
+        * q
+        * u
+      returning argument
+        * r
+      relating argument
+        * v
+
+
+define component blob
+  parameter
+    q is a faa
+    r is a faa
+
+  transformation-requirement
+    t1: must transform q.s.x into r
+
+  variables
+    f is a faa
+    g is a faa
+    u, v is a real
+
+  design-requirement
+    d1: f.s.y must be equal to 8 [-]
+    d2: f.s.x must be equal to q.t.y [-]
+
+  need
+    n1: f.s.y is important
+
+  relation
+    r1: some_relation
+      requiring arguments
+        * q
+        * u
+      returning argument
+        * g
+      relating argument
+        * v
+
+  behavior-requirement
+    some-behavior:
+      case case-1:
+        when
+          * c1: q.s.y is greater than 5.0 [-]
+        then
+          * r1: q.t.y must be smaller than 6.0 [-]
+      case case-2:
+        when
+          * c1: f.s.y is at most 5.0 [-]
+        then
+          * r1: g.s.y must be at least 6.0 [-]

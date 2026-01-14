@@ -1,0 +1,28 @@
+define component PrimairBesturingssysteem
+  parameters
+    bediensignaal_PBN is a bediensignaal
+    besturingssignaal_PBS is a besturingssignaal
+    statussignaal_PNC is a statussignaal
+    statussignaal_PVB is a statussignaal
+    statussignaal_PBS is a statussignaal
+    statussignaal_SBS is a statussignaal
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+  transformation-requirement
+    PBS-omzetten-bediensignaal-01: must omzetten bediensignaal_PBN, statussignaal_SBS and statussignaal_PNC in besturingssignaal_PBS
+
+    PBS-omzetten-statussignaal-01: must omzetten statussignaal_PVB, statussignaal_SBS and statussignaal_PNC in statussignaal_PBS
+
+  behavior-requirement
+   PBS-operationele-status:
+      case PBS-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-op-afstand [-] or objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case PBS-is-passief:
+      when
+          * c2: objectbedienmodus is equal to bediening-lokaal-nood [-]
+        then
+          * r2: operationele-status must be equal to passief [-]

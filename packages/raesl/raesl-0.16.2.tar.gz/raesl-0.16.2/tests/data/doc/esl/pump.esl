@@ -1,0 +1,240 @@
+# Specification of a drive-mechanism driving a pump.
+define type
+  mechanical-energy-flow is a real with unit Nm
+  electrical-energy-flow is a real with unit W
+  liquid-material-flow is a real with unit L/s
+  magnetic-energy-flow is a real
+  status-signal is an enumeration of Pressed, NotPressed
+  chemical-energy-flow is a real of at least 0.0
+  thermal-energy-flow is a real
+  spatial is a real of at least 0.0
+  efficiency is a real of at least 0.0 and at most 1.0
+  constant is a real
+
+define verb
+  provide to
+  convert into
+  send to
+
+
+define relation
+  battery-efficiency-model
+    relating parameters
+      * potential is a chemical-energy-flow
+      * output is an electrical-energy-flow
+
+  battery-heat-generation-model
+    requiring parameters
+      * output is an electrical-energy-flow
+      * heat-coefficient is a real
+    returning parameters
+      * heat-flux is a thermal-energy-flow
+
+
+world
+  variables
+    torque is a mechanical-energy-flow
+    water-flow is a liquid-material-flow
+    drive-length is a spatial
+    pump-length is a spatial
+    x is a real
+
+  components
+    pump is a centrifugal-pump with arguments
+      * torque
+      * water-flow
+      * pump-length
+
+    drive-mechanism is an electrical-drive-mechanism with arguments
+      * torque
+      * drive-length
+
+  comments
+    pump #< @supplier Can be sourced by manufacturer XYZ.
+         #< @part-number Part number CFG.PMP.0.1
+    torque #< must be high.
+
+  goal-requirements
+    provide-torque: drive-mechanism must provide torque to pump
+
+  comments
+    provide-torque #< @rationale Pump cannot operate without torque.
+                   #< @stakeholders Funny Pete and Sleepy Joe
+                   #< @verification-method Test drive-mechanism torque output.
+                   #< @validation-method Test is pump has proper rpm under nominal load.
+
+  design-requirements
+    min-water-flow: water-flow must be at least 1.0 [L/s] #< @test-tag Test
+    max-water-flow: water-flow must be at most 3.0 [L/s]
+    miscellaneous-dr: x must be at most 5.0 [-]
+
+  design-constraints
+    drive-length-target: drive-length is equal to pump-length #< @test-tag Test
+    miscellaneous-dc: x is at most 5.0 [-]
+
+  need
+    IP68: drive-mechanism must be IP68 compliant #< @test-tag Test
+    cost: drive-mechanism must be affordable
+    reliability: provide-torque must be very reliable
+    stability: water-flow must be very stable
+    miscellaneous-nd: x must be random
+
+
+define component centrifugal-pump
+  parameters
+    torque is a mechanical-energy-flow
+    water-flow is a liquid-material-flow
+    length is a spatial property
+
+  transformation-requirements
+    convert-torque: must convert torque into water-flow
+
+
+define component electrical-drive-mechanism
+  parameters
+    torque is a mechanical-energy-flow
+    length is a spatial property
+
+  variables
+    power is an electrical-energy-flow
+    power-button-state is a status-signal
+    kill-switch-state is a status-signal
+    power-potential is a chemical-energy-flow
+
+  transformation-requirements
+    convert-power-potential: must convert power-potential into torque
+
+  components
+    power-button is a button with arguments
+      * power-button-state
+
+    kill-switch is a button with arguments
+      * kill-switch-state
+
+    power-source is a battery with arguments
+      * power
+      * power-potential
+      * power-button-state
+      * kill-switch-state
+
+    motor is a brushless-motor with arguments
+      * power
+      * torque
+
+  goal-requirements
+    pb-send-signal-01: power-button must send power-button-state to power-source
+    ks-send-signal-02: kill-switch must send kill-switch-state to power-source
+    bs-provide-power: power-source must provide power to motor
+
+
+define component button
+  parameters
+    button-state is a status-signal property
+
+  variable
+    button-position is a spatial
+    actuation-force is a mechanical-energy-flow
+
+  behavior-requirement
+    button-state-behavior:
+      case Pressed:
+        when
+          * s1: button-position is smaller than 0
+        then
+          * r1: button-state must be equal to "Pressed"
+      case NotPressed:
+        when
+          * s1: button-position is at least 0
+        then
+          * r1: button-state must be equal to "NotPressed"
+
+  transformation-requirement
+    convert-force-01: must convert actuation-force into button-state
+
+define component brushless-motor
+  parameters
+    power is a electrical-energy-flow
+    torque is a mechanical-energy-flow
+
+  variables
+    conversion is an efficiency
+    magnetic-flux is a magnetic-energy-flow
+
+  transformation-requirements
+    convert-power: must convert power into torque with subclauses
+      * c1: conversion must be at least 0.8
+
+  components
+    rotor is a Rotor with arguments
+      * magnetic-flux
+      * power
+      * torque
+    stator is a Stator with arguments
+      * magnetic-flux
+
+  goal-requirement
+     st-provide-flux: stator must provide magnetic-flux to rotor
+
+
+define component battery
+  parameters
+    power-out is an electrical-energy-flow
+    power-potential is a chemical-energy-flow
+    power-button-state is a status-signal
+    kill-switch-state is a status-signal
+
+  variables
+    heat-generation-coefficient is a constant
+    heat-flux is a thermal-energy-flow
+
+  transformation-constraint
+    convert-potential: does convert power-potential into power-out #< @test-tag Test
+
+  design-requirement
+    max-power: power-out must be at most 400 [W]
+
+  behavior-requirements
+    toggle-power: #< @test-tag Test
+      case on:
+        when
+          * c1: power-button-state is equal to Pressed [-]
+        then
+          * r1: power-out must be at least 300 [W]
+      case off:
+        when no other case applies
+        then
+          * r2: power-out must be equal to 0 [W]
+
+    kill-power:
+      case emergency:
+        when
+          * c1: kill-switch-state is equal to Pressed [-]
+        then
+          * r1: power-out must be equal to 0 [W]
+
+  relations
+    efficiency-model: battery-efficiency-model #< @test-tag Test
+      relating arguments
+        * power-potential
+        * power-out
+
+    heat-model: battery-heat-generation-model
+      requiring arguments
+        * power-out
+        * heat-generation-coefficient
+      returning arguments
+        * heat-flux
+
+define component Rotor
+  parameters
+    magnetic-flux is an magnetic-energy-flow
+    power is an electrical-energy-flow
+    torque is a mechanical-energy-flow
+
+  transformation-requirement
+    ba-convert-flux-and-power: must convert magnetic-flux and power into torque #< @test-tag Test
+
+
+define component Stator
+  parameter
+    magnetic-flux is a magnetic-energy-flow #< @test-tag Test

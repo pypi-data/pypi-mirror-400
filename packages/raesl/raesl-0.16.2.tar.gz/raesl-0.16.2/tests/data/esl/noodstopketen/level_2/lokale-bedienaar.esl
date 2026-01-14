@@ -1,0 +1,29 @@
+define component LokaleBedienaar
+  parameter
+    statusinformatie_PBN is a informatie-stroom
+    bedienhandelingen_LBP-LBN is a bedienhandeling
+    noodbedienhandelingen_NLB-LBN is a bedienhandeling
+    statusinformatie_SBN is a informatie-stroom
+    bedienhandelingen_NBP-LBN is a bedienhandeling
+    noodbedienhandelingen_NNB-LBN is a bedienhandeling
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+  transformation-requirement
+    LBN-omzetten-statusinformatie-01: must omzetten statusinformatie_PBN in bedienhandelingen_LBP-LBN and noodbedienhandelingen_NLB-LBN
+
+  transformation-requirement
+    LBN-omzetten-statusinformatie-02: must omzetten statusinformatie_SBN in bedienhandelingen_NBP-LBN and noodbedienhandelingen_NNB-LBN
+
+  behavior-requirement
+    LPN-operationele-status:
+      case LBN-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-] or objectbedienmodus is equal to bediening-lokaal-nood [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case LBN-is-passief:
+        when
+          * c2: objectbedienmodus is equal to bediening-op-afstand [-]
+        then
+          * r2: operationele-status must be equal to passief [-]

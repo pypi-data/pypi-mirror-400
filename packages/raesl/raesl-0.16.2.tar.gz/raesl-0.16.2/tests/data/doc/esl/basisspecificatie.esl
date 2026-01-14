@@ -1,0 +1,1512 @@
+## Richtlijnen voor het omzetten van de Basis Specificatie schutsluis naar ESL.
+
+# Algemeen
+# - Een _ wordt gebruikt als vervaningen van een spatie.
+# - Twee spaties als indentatie.
+# -  a- en b- zijn 'place holders' voor boven en beneden of buiten en binnen
+#   om zo de woorden a-pand en b-pand of binnenpand en buitenpand te maken.
+
+# Variabel type
+# - Gebruik de Nederlandse vertaling van de interactions basis van Tilstra daar
+#   waar mogelijk.
+
+# Naam van variabelen
+# - Gebruike lange omschrijve variabelnamen waarin de woorden zijn gescheiden met
+#   underscores. Bijv.: het_stroomafwaarts_arriviere_scheepvaarts_aanbod.
+
+# Labels van doel- en transformatie functies
+# - Gebruik het werkwoord + zelfstandignaamwoord formaat van Pahl en Beitz. Voeg
+#   een nummer toe indien de werkwoord en zelfstandignaamwoord combinatie vaker
+#   vaker voorkomt. Bijv. geleiden-scheepvaart-01.
+
+# Labels van subclauses
+# - Gebruik het gegeneraliseerde onderwerp-nummer formaat. Bijv. veiligheid-01
+
+# Labels van ontwerpeisen en randvoorwaarden.
+# - Gebruik het gegeneraliseerde onderwerp-nummer formaat. Bijv. zoutconcentratie-01
+
+define type
+  vaste_materiaalstroom is a string with units schepen/uur
+  vloeibare_materiaalstroom is a string with units m3/s
+  geometrische_maat is a string with units %, MNAP, meter, schepen
+  frequentie is a string with units 1/year, 1/jaar
+  prestatiemaat is a string with units 1/jaar, N/m2, Newton, jaar, %, minuten, %/jaar, m3/s, %/pakket, schepen/uur, gram/liter, %/schip, %/cyclus, %/schutcyclus
+  veiligheidsmaat is a string with units %/schip, %/cyclus, %/schutcyclus, Newton, N/m2
+  categorie is a string
+  concentratie is a string with units gram/m3, gram/liter
+  hydraulische_energiestroom is a string with units N/m2
+  document is a string
+  informatiestroom is a string
+  protocol is a string
+
+  statusinformatiestroom is a informatiestroom
+  besturingsinformatiestroom is a informatiestroom
+
+  hydraulische_parameterbundle ...
+  is a bundle of
+    * de_gemiddelde_waterstand is a geometrische_maat
+    * de_standaarddeviatie_van_de_waterstand is a geometrische_maat
+    * de_minimale_waterstand is a geometrische_maat
+    * de_maximale_waterstand is a geometrische_maat
+    * de_onderschreidingsfrequentie is a frequentie
+    * de_overschreidingsfrequentie is a frequentie
+
+
+  scheepsgeometriebundle ...
+  is a bundle of
+    * de_lengte is a geometrische_maat
+    * de_breedte is a geometrische_maat
+    * de_hoogte is a geometrische_maat
+    * de_diepgang is a geometrische_maat
+
+
+  stuwkrachtbundle ...
+  is a bundle of
+    * de_maximale_stuwkracht_hoofdschroef is a hydraulische_energiestroom
+    * de_maximaal_stuwkracht_boegschroef is a hydraulische_energiestroom
+
+
+
+# Werkwoorden
+define verb
+  geleiden naar
+  reguleren naar
+  communiceren aan
+  schutten naar
+  leveren aan
+  laten_samenvloeien in
+  splitsen in
+
+
+# relaties
+define relation
+  scheepvaartsaanbodmodel
+    relating parameters
+      * het_gemiddelde_uitgaande_scheepvaartsaanbod is a vaste_materiaalstroom
+      * de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_IV_schepen is a vaste_materiaalstroom
+      * de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_III_schepen is a vaste_materiaalstroom
+      * de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_II_schepen is a vaste_materiaalstroom
+      * de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_I_schepen is a vaste_materiaalstroom
+
+  zout-zoetwaterhydrodynamischmodel
+    relating parameters
+      * de_over_de_vertikaal_gemeten_gemiddelde_zoutconcentratie_op_punt_x1_y1 is a concentratie
+      * de_over_de_vertikaal_gemeten_standaarddeviatie_van_de_zoutconcentratie_op_punt_x1_y1 is a concentratie
+      * de_over_de_vertikaal_gemeten_gemiddelde_zoutconcentratie_op_punt_x2_y2 is a concentratie
+      * de_over_de_vertikaal_gemeten_standaarddeviatie_van_de_zoutconcentratie_op_punt_x2_y2 is a concentratie
+      * het_uitstroomdebiet is a vloeibare_materiaalstroom
+      * het_instroomdebiet is a vloeibare_materiaalstroom
+      * hydraulische_parameters is a hydraulische_parameterbundle
+
+  wachtrijmodel
+    relating parameters
+      * de_gemiddelde_beroepsvaartpasseertijd is a prestatiemaat
+      * de_gemiddelde_pleziervaartpasseertijd is a prestatiemaat
+      * het_a-waarts_arrivere_scheepvaartsaanbod is a vaste_materiaalstroom
+      * het_b-waarts_arrivere_scheepvaartsaanbod is a vaste_materiaalstroom
+      * de_standaarddeviatie_van_de_beroepsvaartpasseertijd is a prestatiemaat
+      * de_gemiddelde_beroepsvaartwachttijd is a prestatiemaat
+      * de_standaarddeviatie_van_de_beroepsvaartwachttijd is a prestatiemaat
+      * de_gemiddelde_opsteltijd is a prestatiemaat
+      * de_standaarddeviatie_van_de_opsteltijd is a prestatiemaat
+      * de_gemiddelde_invaartijd is a prestatiemaat
+      * de_standaarddeviatie_van_de_invaartijd is a prestatiemaat
+      * de_gemiddelde_schuttijd is a prestatiemaat
+      * de_standaarddeviatie_van_de_schuttijd is a prestatiemaat
+      * de_gemiddelde_uitvaartijd is a prestatiemaat
+      * de_standaarddeviatie_van_de_uitvaartijd is a prestatiemaat
+      * de_gemiddelde_ongeplande_uitvaltijd is a prestatiemaat
+      * de_standaarddeviatie_van_de_ongeplande_uitvaltijd is a prestatiemaat
+      * de_gemiddelde_geplande_uitvaltijd is a prestatiemaat
+      * de_standaarddeviatie_van_de_geplande_uitvaltijd is a prestatiemaat
+
+world
+  # Dit is het eerste decompositieniveau van de specificatie. De wereld duidt de grens
+  # van de technische scope van het project. Alle componenten binnen de wereld
+  # maken deel uit van de scope van het project. Dit kunnen bestaande (te renoveren)
+  # of nieuw te realiseren componenten te zijn. De (functionele) behoefte, eisen,
+  # randvoorwaarden en raakvlakken m.b.t. de componenten op het eerste
+  # decompositieniveau worden in dit hoofdstuk behandeld.
+  #
+  # --------------------------------------
+  # Auteur: T.Wilschut
+  # Datum: 02-12-2018
+  # --------------------------------------
+  variables
+    het_a-waarts_arrivere_scheepvaartsaanbod, ...
+    het_a-waarts_vertrekke_scheepvaartsaanbod, ...
+    het_b-waarts_arrivere_scheepvaartsaanbod, ...
+    het_b-waarts_vertrekke_scheepvaartsaanbod ...
+    is a vaste_materiaalstroom
+
+    het_a-waartse_instroomdebiet, ...
+    het_gemiddelde_a-waartse_instroomdebiet, ...
+    de_standaarddeviatie_van_het_a-waartse-instroomdebiet, ...
+    het_a-waartse_uitstroomdebiet, ...
+    het_b-waartse_instroomdebiet, ...
+    het_gemiddelde_b-waartse_instroomdebiet, ...
+    de_standaarddeviatie_van_het_b-waartse-instroomdebiet, ...
+    het_b-waartse_uitstroomdebiet ...
+    is a vloeibare_materiaalstroom
+
+    de_gemiddelde_zoutconcentratie_van_het_a-waartse_instroomdebiet, ...
+    de_standaarddeviatie_van_de_zoutconcentratie_van_het_a-waartse_instroomdebiet, ...
+    de_gemiddelde_zoutconcentratie_van_het_b-waartse_instroomdebiet, ...
+    de_standaarddeviatie_van_de_zoutconcentratie_van_het_b-waartse_instroomdebiet ...
+    is a concentratie
+
+    de_betrouwbaarheid, de_beschikbaarheid ...
+    is a prestatiemaat
+
+    de_gemiddelde_passeertijd, de_standaarddeviatie_van_de_passeertijd, ...
+    de_gemiddelde_ongeplande_uitvaltijd, de_standaarddeviatie_van_de_ongeplande_uitvaltijd, ...
+    de_gemiddelde_geplande_uitvaltijd, de_standaarddeviatie_van_de_geplande_uitvaltijd ...
+    is a prestatiemaat
+
+    de_bovengrens_van_het_regulatiebereik, de_ondergrens_van_het_regulatiebreik ...
+    is a prestatiemaat
+
+    de_kans_op_letselschade, de_kans_op_materiele_schade ...
+    is a veiligheidsmaat
+
+    hydraulische_parameters_van_het_a-pand, ...
+    hydraulische_parameters_van_het_b-pand ...
+    is a hydraulische_parameterbundle
+
+    geometrie_van_het_maatgeve_schip ...
+    is a scheepsgeometriebundle
+
+    stuwkrachten_van_het_maatgeve_schip ...
+    is a stuwkrachtbundle
+
+    de_geleidingshoek ...
+    is a geometrische_maat
+
+    de_actuele_toestand_van_het_sluiscomplex, videobeelden_van_het_sluiscomplex, ...
+    audiosignalen_van_het_sluiscomplex, audiosignalen_van_de_bediencentrale, ...
+    audiosignalen_van_de_bedienaar, audiosignalen_van_de_scheepvaart ...
+    is a statusinformatiestroom
+
+    besturingssignalen ...
+    is a besturingsinformatiestroom
+
+    het_communicatieprotocol ...
+    is a protocol
+
+
+  component
+    het_a-pand is an x-water with arguments
+      * hydraulische_parameters_van_het_a-pand
+      * het_a-waarts_arrivere_scheepvaartsaanbod
+      * het_a-waarts_vertrekke_scheepvaartsaanbod
+      * het_a-waartse_instroomdebiet
+      * het_a-waartse_uitstroomdebiet
+
+  comment
+    het_a-pand #< **Definitie:**  Voor het openbaar scheepvaartverkeer openstaand, aaneengesloten stuk
+      #< oppervlaktewater dat in doorvaart tenminste voldoet of zal gaan voldoen aan
+      #< een vrije doorvaarthoogte van 2,45 meter en een diepte van 1,10 meter, beide
+      #< ten opzichte van het ter plaatse gelde zomerstreefpeil, de gemiddelde
+      #< waterstand, of in getijdegebieden het NAP (Bron: [OTL 2.2](https://otl.rws.nl/publicatieomgeving/#/otl/rws-otl/library/otl-lib/version/2.2/object/ct0050/info)).
+      #<
+      #< **Opmerking:** Het a-pand is een generieke naam. In projecten kunt u er voor
+      #< kiezen om deze naam bijvoorbeeld door het_benedenpand of het_binnenpand te
+      #< vervangen.
+
+  component
+    het_b-pand is a x-water with arguments
+      * hydraulische_parameters_van_het_b-pand
+      * het_b-waarts_arrivere_scheepvaartsaanbod
+      * het_b-waarts_vertrekke_scheepvaartsaanbod
+      * het_b-waartse_instroomdebiet
+      * het_b-waartse_uitstroomdebiet
+
+  comment
+    het_b-pand #< **Definitie:** Voor het openbaar scheepvaartverkeer openstaand, aaneengesloten stuk
+      #< oppervlaktewater dat in doorvaart tenminste voldoet of zal gaan voldoen aan
+      #< een vrije doorvaarthoogte van 2,45 meter en een diepte van 1,10 meter, beide
+      #< ten opzichte van het ter plaatse gelde zomerstreefpeil, de gemiddelde
+      #< waterstand, of in getijdegebieden het NAP (Bron: [OTL 2.2](https://otl.rws.nl/publicatieomgeving/#/otl/rws-otl/library/otl-lib/version/2.2/object/ct0050/info)).
+      #<
+      #< **Opmerking:** Het b-pand is een generieke naam. In projecten kunt u er voor
+      #< kiezen om deze naam bijvoorbeeld door het_benedenpand of het_binnenpand te
+      #< vervangen.
+
+  component
+    het_schutsluiscomplex is a schutsluiscomplex with arguments
+      * hydraulische_parameters_van_het_a-pand
+      * hydraulische_parameters_van_het_b-pand
+      * het_a-waarts_arrivere_scheepvaartsaanbod
+      * het_a-waarts_vertrekke_scheepvaartsaanbod
+      * het_b-waarts_arrivere_scheepvaartsaanbod
+      * het_b-waarts_vertrekke_scheepvaartsaanbod
+      * het_a-waartse_instroomdebiet
+      * het_a-waartse_uitstroomdebiet
+      * het_b-waartse_instroomdebiet
+      * het_b-waartse_uitstroomdebiet
+      * geometrie_van_het_maatgeve_schip
+      * stuwkrachten_van_het_maatgeve_schip
+
+  comment
+    het_schutsluiscomplex #< **Definitie:** Verzameling van een of meer bouwwerken, die samen een
+      #< functionele eenheid vormen om scheepvaart te schutten, en die een aantal
+      #< voorzieningen kunnen delen (Bron: [OTL 2.2](https://otl.rws.nl/publicatieomgeving/#/otl/rws-otl/library/otl-lib/version/2.2/object/ct0050/info)).
+      #<
+      #< **Opmerking:** Het schutsluiscomplex is een generieke naam. In projecten
+      #< kunt u ervoor kiezen deze naam bijvoorbeeld door
+      #< het_Prinses_Marijkesluizencomplex te vervangen.
+
+  component
+    de_scheepvaart is a gemengde_scheepvaart with arguments
+      * geometrie_van_het_maatgeve_schip
+      * stuwkrachten_van_het_maatgeve_schip
+
+  comment
+    de_scheepvaart #< **Definitie:** Vaartuigen, met inbegrip van vaartuigen zonder
+      #< waterverplaatsing en watervliegtuigen, gebruikt of geschikt om te worden
+      #< gebruikt als een middel van vervoer te water (Bron: [OTL 2.2](https://otl.rws.nl/publicatieomgeving/#/otl/rws-otl/library/otl-lib/version/2.2/object/ct0050/info)).
+      #<
+      #< **Opmerking:** Let op dat de scheepvaart een duaal karakter heeft in deze
+      #< specificatie. De scheepvaart is namelijk gemodelleerd als een component welke
+      #< interactie heeft met het sluiscomplex (bijv. gegevens uitwisselen) en als
+      #< 'flow' (het scheepvaartsaanbod) die door het sluiscomplex wordt geleid.
+
+  component
+    de_bediencentrale is a verkeerscentrale
+
+  comment
+    de_bediencentrale #< **Definitie:** Gebouw met een operationele instelling voor het op afstand
+      #< bedienen en monitoren van (vaar)weggebonden installaties die de
+      #< verkeersstromen geleiden (Bron: [OTL 2.2](https://otl.rws.nl/publicatieomgeving/#/otl/rws-otl/library/otl-lib/version/2.2/object/ct0050/info)).
+      #<
+      #< **Opmerking:** de bediencentrale is een generieke naam. In projecten kunt
+      #< u deze naam vervangen door bijv. Bediencentrale Maasbracht.
+
+  need
+    ontwerprichtlijn-01: het_schutsluiscomplex dient te conformeren aan de [Richtlijn Vaarwegen 2011](http://publicaties.minienm.nl/documenten/richtlijnen-vaarwegen-2011).
+    ontwerprichtlijn-02: het_schutsluiscomplex dient te conformeren aan het [Supplement Richtlijn Vaarwegen 2011](http://publicaties.minienm.nl/documenten/richtlijnen-vaarwegen-2011).
+    ontwerprichtlijn-03: het_schutsluiscomplex dient te conformeren aan de [Richtlijn Ontwerp Kunstwerken](http://publicaties.minienm.nl/documenten/richtlijnen-ontwerp-kunstwerken-rok-1-4).
+    ontwerprichtlijn-04: het_schutsluiscomplex dient te conformeren aan de [Leidraad Kunstwerken](http://publicaties.minienm.nl/documenten/leidraad-kunstwerken).
+    ontwerprichtlijn-05: het_schutsluiscomplex dient te conformeren aan de [Richtlijn Scheepvaarttekens 2008](http://publicaties.minienm.nl/documenten/richtlijnen-scheepvaarttekens-rst-2008).
+    ontwerprichtlijn-06: het_schutsluiscomplex dient te conformeren aan de Richtlijn voor Openbare Verlichting 2011.
+    ontwerprichtlijn-07: het_schutsluiscomplex dient te conformeren aan de [Richtlijn Basisnet Vervoer Gevaarlijke Stoffen](http://publicaties.minienm.nl/documenten/bijlagen-basisnet-vervoer-gevaarlijke-stoffen-ontwerp-basisnet-w).
+    ontwerprichtlijn-08: het_schutsluiscomplex dient te conformeren aan de Functionele eisen Sociale Veiligheid en Security.
+    ontwerprichtlijn-09: het_schutsluiscomplex dient te conformeren aan de Landelijke Bruggen en Sluizen Standaard.
+    ontwerprichtlijn-10: het_schutsluiscomplex dient te conformeren aan de Interface Eisen specificatie Bedienpost Objecten.
+
+  comment
+    ontwerprichtlijn-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0222
+      #< - SYS-0223
+      #< - SYS-0290
+      #<
+      #< **Toelichting:** De Richtlijnen Vaarwegen bundelen de Nederlandse kennis op
+      #< het gebied van het ontwerp en de inrichting van vaarwegen, zowel vaarwegvakken
+      #< als havens, bruggen en sluizen. De richtlijnen geven aanwijzingen voor het
+      #< kiezen van een maatgev schip en maatgeve hydraulische randvoorwaarden
+      #< voor zowel beroeps- als recreatievaart. De richtlijnen gelden voor vaarwegen
+      #< tot en met CEMT-klasse V. Door vaarwegen volgens dezelfde richtlijnen te
+      #< ontwerpen, ontstaat een beter samenhang vaarwegennetwerk.
+    ontwerprichtlijn-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0247
+      #< - SYS-0222
+      #< - SYS-0223
+      #< - SYS-0290
+      #<
+      #< **Toelichting:** In december 2011 zijn de Richtlijnen Vaarwegen 2011 (RVW)
+      #< verschenen. De uitgave van dit Supplement op de Richtlijnen Vaarwegen 2011 had
+      #< een aantal aanleidingen, te weten: 1. Het besluit van het Bestuur RWS d.d.
+      #< 12-4-2013, dat op afsluitbomen van bruggen zowel een stop- als
+      #< noodstopvoorziening moet worden aangebracht bij nieuwbouw en renovatie. 2.
+      #< Het per 26-8-2011 van kracht worden van het Besluit algemene regels
+      #< ruimtelijke ordening (Barro). 3. Het gereed gekomen onderzoek van het
+      #< Marin, gericht op uitbreiding van de Richtlijnen Vaarwegen met klasse VI.
+    ontwerprichtlijn-03 #< Gebaseerd op:
+      #<
+      #< - SYS-0209
+      #< - SYS-0249
+      #< - SYS-0268
+      #<
+      #< **Toelichting:** De Richtlijnen Ontwerp Kunstwerken (ROK) is een Kader binnen de
+      #< Werkwijzer Aanleg van RWS. Het is een verzameling van generieke eisen waaraan het
+      #< ontwerp en de uitvoering van een nieuw te bouwen kunstwerk moet voldoen. De ROK
+      #< geldt ook voor nieuwe onderdelen van bestaande kunstwerken, wanneer deze onderdelen
+      #< worden vervangen, of voor verbredingen wanneer kunstwerken worden uitgebreid. Het
+      #< ontwerpen van kunstwerken is een creatief proces dat in alle vrijheid plaats moet
+      #< vinden. Het product wat hierbij ontstaat, moet echter wel betrouwbaar, duurzaam en
+      #< functioneel zijn. Om dit aan te tonen zijn eisen en randvoorwaarden nodig. Het
+      #< overgrote deel van deze eisen is opgenomen in de Eurocodes met bijbehore
+      #< Nationale Bijlagen. In aanvulling hierop heeft RWS nog een aantal specifieke
+      #< eisen, omdat de EC-eisen niet streng genoeg zijn, of omdat ze niet voorkomen in
+      #< de EC's + NB's. Ook bieden de EC's + NB's soms keuzemogelijkheden die via deze ROK
+      #< worden ingevuld. De ROK beoogd alle richtlijnen te omvatten voor de
+      #< kunstwerkcategorieën die in paragrafen 1.4 en 1.5 zijn gedefinieerd. Voor de
+      #< ordening van de eisen is de structuur van de Eurocode gevolgd. De EC's met NB's
+      #< bevatten de eisen voor Constructieve Veiligheid en Duurzaamheid. Er zijn geen
+      #< EC-delen beschikbaar voor de KW-categorieën tunnels, natte kunstwerken,
+      #< beweegbare bruggen, geluidsschermen en verkeerskundige draagconstructies.
+      #< Hoewel veel van de constructie-onderdelen van deze kunstwerken berek kunnen
+      #< worden met de EC's, zijn er specifieke grondslagen, belastingen en materiaaleisen
+      #< nodig zijn om betrouwbare kunstwerken te realiseren. Hierin is voorzien door
+      #< in de ROK specifieke eisen op te nemen per categorie. Voor het ontwerp van
+      #< nieuw te bouwen kunstwerken zijn ook de Europese uitvoeringsnormen van belang.
+      #< Deze zijn genoemd bij de aanvullingen op EC 2 Betonconstructies, EC 3
+      #< Staalconstructies en EC 7 Geotechnisch Ontwerp. In deze ROK zijn als
+      #< aanvulling op de EC's ook andere richtlijnen genoemd, zoals CUR-rapporten,
+      #< CROW-richtlijnen, e.d. en eigen RWS-richtlijnen. Daarnaast zijn er
+      #< RWS-richtlijnen in het laatste hoofdstuk genoemd. Deze richtlijnen zijn ook
+      #< nodig bij het ontwerpen van kunstwerken, maar gaan over andere zaken dan de
+      #< constructieve veiligheid en de duurzaamheid. Omdat het voor het ontwerpproces
+      #< nuttig is, bevat de ROK soms ook handreikingen en Best Practices. In de ROK
+      #< gaat het over het ontwerp van de kunstwerken, met eventuele mechanische
+      #< uitrustingen, en niet over het ontwerp van de afmetingen die vanuit functionele
+      #< eisen nodig zijn. Ook het ontwerp van installaties, die toegevoegd moeten
+      #< worden vanwege de functionele eisen, zijn geen onderwerp van deze ROK.
+      #< Indien een ontwerp wordt overwogen dat aan afwijke, gelijkwaardige eisen
+      #< voldoet, dient hiervoor vooraf toestemming te worden verkregen van de
+      #< beheercommissie van de ROK.
+    ontwerprichtlijn-04 #< Gebaseerd op:
+      #<
+      #< - SYS-0192
+      #<
+      #< **Vraag:** in hoeverre zijn de ROK en Leidraad Kunstwerken aanvull en of
+      #< overlapp?
+      #<
+      #< **Toelichting:** Deze leidraad geeft aanbevelingen voor een zodanig
+      #< ontwerp en beheer van een waterker kunstwerk of bijzondere waterkere
+      #< constructie, dat de verschille waarden en functies, die het kunstwerk of de
+      #< constructie kan bezitten, optimaal tot hun recht komen. Hierbij dient het
+      #< kunstwerk of de constructie te voldoen aan functionele en constructieve
+      #< uitgangspunten, eisen en randvoorwaarden. Met name de aspecten, die van belang
+      #< zijn voor de waterkere functie van deze constructies, komen in deze leidraad
+      #< aan de orde. Voor de overige functies geeft de leidraad verwijzingen naar
+      #< relevante TAW-publicaties, zowel andere leidraden als technische rapporten,
+      #< en overige ontwerpdocumenten of voorschriften
+      #<
+      #< **Opmerking:** Merk op als specificeerder dat de [Leidraad Kunstwerken] vele
+      #< keuze mogelijkheden biedt waarvan een groot aantal niet ter keuze kan worden
+      #< gelaten aan bouwe partijen. Belangrijk hierbij is dat RWS als Opdrachtgever
+      #< dit vroegtijdig onderkent (zoals de belastingfactor op vervalbelasting, keuze
+      #< wel of niet meenemen van komberg vermogen). Dit kan leiden tot aanvulle
+      #< (verificatie) eisen. Bijvoorbeeld: De keuze welk percentage (variër van 0
+      #< tot 100%) van het komberg vermogen meegenomen in de bepaling van het
+      #< toelaatbaar instrom volume via het gesloten kunstwerk, en daarmee de
+      #< kere hoogte, wordt projectspecifiek gemaakt. Dit vergt een uitgebreide
+      #< achterlandanalyse waarin wordt nagegaan welke peilstijgingen in het
+      #< achterligge gebied onder verschille condities acceptabel zijn. De
+      #< Waterwet biedt ook mogelijkheden veilige eisen af te leiden aan de onderdelen
+      #< van de waterkering zonder deze ingewikkelde analyse. Voor de analyse zijn,
+      #< behalve specialistische risicoanalytische kennis, ook zeer veel gegevens
+      #<  betreffe het achterland nodig waaronder het veiligheidsniveau van de
+      #< dijken en de ruimte ten opzichte van MHW. Bovien wordt wellicht een beroep
+      #< gedaan op de reservecapaciteit van de dijken. Iets wat alleen in overleg met
+      #< de dijkbeheerder kan plaatsvinden.
+      #< Nogmaals, deze uitwerking dient in een vroege verkenning/plan fase uitgewerkt
+      #< te worden en dient bij voorkeur niet overgelaten te worden aan een bouwe
+      #< partij. Het is in praktijk dan ook waarschijnlijk dat de RWS/Ingenieursdienst
+      #< de waterkeringseisen zelf afleidt.
+
+      #<
+    ontwerprichtlijn-05 #< Gebaseerd op:
+      #<
+      #< - SYS-0222
+      #<
+      #< **Toelichting:** Deze richtlijn geeft een overzicht van tekens langs de vaarwegen in nederland conform
+      #, Europese standaards. Deze tekens zijn bind voor alle vaarwegen en
+      #< scheepvaartwegen waar het binnenvaartpolitieregelement en het rijnvaartregelement
+      #< van toepassing zijn.
+    ontwerprichtlijn-06 #< Gebaseerd op:
+      #<
+      #< - SYS-0247
+      #< - SYS-0223
+      #<
+      #< **Toelichting:** Deze richtlijn geeft een overzicht van de gelde normen
+      #< en eisen m.b.t. de verlichting van openbare ruimtes.
+    ontwerprichtlijn-07 #< Gebaseerd op:
+      #<
+      #< - SYS-0207
+      #<
+      #< **Toelichting:** Deze richtlijn geeft ontwerpregels die voortkomen uit
+      #< de Wet Vervoer Gevaarlijke Stoffen.
+      #<
+      #< **Opmerking:** Deze eis is alleen van toepassing indien het a-pand en/or
+      #< het b-pand onderdeel zijn van het basisnet vervoer gevaarlijke stoffen.
+    ontwerprichtlijn-08 #< Gebaseerd op:
+      #<
+      #< - SYS-0245
+      #< - SYS-0246
+      #<
+      #< **Toeliching:** Dit document bevat eisen m.b.t. bescherming of beveiliging van
+      #< personen en/ of infrastructuur tegen moedwillige (en wederrechtelijke) verstoringen.
+    ontwerprichtlijn-09 #< Gebaseerd op:
+      #<
+      #< - SYS-1392
+      #<
+      #< **Toelichting:** Dit document bevat eisen m.b.t. het dynamisch gedrag van
+      #< de technische installaties binnnen het sluiscomplex.
+    ontwerprichtlijn-10 #< Gebaseerd op:
+      #<
+      #< - SYS-0236
+      #<
+      #< **Toelichting:** Dit document bevat eisen t.b.v. de integratie van een object
+      #< in het bestaande netwerk van bedienposten.
+
+  need
+    wetgeving-01: het_schutsluiscomplex dient te voldoen aan de Waterwet.
+    wetgeving-02: het_schutsluiscomplex dient te voldoen aan het Bouwbesluis 2012.
+    wetgeving-03: het_schutsluiscomplex dient te voldoen aan het Binnenvaartpolitiereglement.
+    wetgeving-04: het_schutsluiscomplex dient te voldoen aan de Arbeidsomstandighedenwet.
+    wetgeving-05: het_schutsluiscomplex dient te voldoen aan de Wet Milieubeheer.
+    wetgeving-06: het_schutsluiscomplex dient te voldoen aan de Wet Vervoer Gevaarlijke Stoffen.
+
+  comment
+    wetgeving-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0192
+      #< - SYS-0250
+      #< - SYS-0251
+      #<
+      #< **Toelichting:** Op 22 december 2009 is de Waterwet in werking getreden.
+      #< Een achttal wetten is samengevoegd tot één wet, de Waterwet. De Waterwet
+      #< regelt het beheer van oppervlaktewater en grondwater, en verbetert ook de
+      #< samenhang tussen waterbeleid en ruimtelijke ordening. Daarnaast levert de
+      #< Waterwet een belangrijke bijdrage aan kabinetsdoelstellingen zoals vermindering
+      #< van regels, vergunningstelsels en administratieve lasten. Totdat de
+      #< Omgevingswet in werking treedt- voorzien voor 2021 - blijft de Waterwet van kracht.
+    wetgeving-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0290
+      #<
+      #< **Toelichting:** Een bouwwerk mag geen gevaar opleveren voor bewoners,
+      #< gebruikers en omgeving. Daarom heeft de overheid in het Bouwbesluit 2012
+      #< voorschriften voor veiligheid, gezondheid, bruikbaarheid, energiezuinigheid
+      #< en milieu vastgelegd. Een bouwwerk moet altijd voldoen aan die voorschriften.
+    wetgeving-03 #< Gebaseerd op:
+      #<
+      #< - SYS-0207
+      #< - SYS-0290
+      #<
+      #< **Toelichitng:** Het Binnenvaartpolitiereglement (BPR) bevat de verkeersregels
+      #< voor de Nederlandse binnenwateren. Zo staan hierin de borden en overige
+      #< verkeerstekens vermeld, de te voeren verlichting, tekens en geluidsseinen voor
+      #< vaartuigen, en de voorrangs- en uitwijkregels op het water. Het BPR werd als
+      #< wet vastgesteld op 26 oktober 1983 en vormt de opvolger van het vaarreglement
+      #< (1965-1984). Het is laatstelijk op 1 juli 2010 grondig gewijzigd; de laatste
+      #< herziening dateert 1-1-2016.
+    wetgeving-04 #< Gebaseerd op:
+      #<
+      #< - SYS-0290
+      #<
+      #< **Toelichting:** In de Arbeidsomstandighedenwet - of kortweg: de Arbowet -
+      #< staan regels voor werkgevers en werknemers om de gezondheid, veiligheid en
+      #< welzijn van werknemers te bevorderen. De Arbowet is een zogeheten kaderwet.
+      #< Dat betekent dat er geen concrete regels staan, maar algemene bepalingen over
+      #< het arbobeleid in bedrijven. De Arbowet stelt dat werkgever en werknemers
+      #< samen moeten zorgen voor het verbeteren van de arbeidsomstandigheden.
+      #< De werkgever is uiteindelijk verantwoordelijk, maar ook de werknemer heeft de
+      #< verplichting de eigen veiligheid en gezondheid in acht te nemen. Door
+      #< bijvoorbeeld arbeidsmiddelen en beschermingsmiddelen op de juiste wijze te
+      #< gebruiken.
+    wetgeving-05 #< Gebaseerd op:
+      #<
+      #< - SYS-0283
+      #<
+      #< **Toelichting:** De Wet milieubeheer (Wm) is de belangrijkste milieuwet.
+      #< Deze wet bepaalt welk wettelijk gereedschap kan worden ingezet om het milieu te
+      #< beschermen. De belangrijkste instrumenten zijn milieuplannen en milieuprogramma's,
+      #< milieukwaliteitseisen, vergun­ningen, algemene regels en handhaving. Ook bevat de
+      #< wet de regels voor financiële instrumenten, zoals heffingen, bijdragen en
+      #< schadevergoedingen.
+      #<
+      #< **Vraag:** De Wet Milieubeheer wordt alleen genoemd in SYS-0283, mij is echter
+      #< niet duidelijk wat deze wet met de brandmeldinstallatie te maken heeft.
+    wetgeving-06 #< Gebaseerd op:
+      #<
+      #< - SYS-0207
+      #< - SYS-0209
+      #<
+      #< **Toelichting:** De Wet Vervoer Gevaarlijke Stoffen (WVGS) is een wet die sinds
+      #< 12 oktober 1995 bestaat in Nederland. De wet werd ingevoerd als vervanger van
+      #< de oude wet Gevaarlijke Stoffen uit 1963. De Wet vervoer gevaarlijke stoffen
+      #< heeft als doelstelling het bevorderen van de openbare veiligheid bij het vervoer
+      #< van gevaarlijke stoffen. Dit betekent het voorkomen van schade, of hinder voor
+      #< mens, dier en het milieu als gevolg van dit vervoer centraal staat in deze wet.
+
+  goal-constraint
+    geleiden-scheepvaart-01: het_a-pand does geleiden het_a-waarts_arrivere_scheepvaartsaanbod ...
+      naar het_schutsluiscomplex
+
+  comment
+    geleiden-scheepvaart-01 #< Gebaseerd op:
+      #<
+      #< - De huidige basis specificatie heeft geen directe equivalent.
+      #<
+      #< **Toelichting:** Deze randvoorwaarde legt het arrivere scheepvaartsaanbod
+      #< op de grens van het a-pand en het schutsluiscomplex vast.
+      #< De samenstelling van het a-waarts arrivere scheepvaartsaanbod
+      #< wordt in de definitie van het a-pand gespecificeerd.
+
+  goal-requirement
+    geleiden-scheepvaart-02: het_schutsluiscomplex must geleiden ...
+      het_a-waarts_vertrekke_scheepvaartsaanbod naar het_a-pand ...
+      with subclause
+        * geomtrie-01: de_geleidingshoek must be at most 'ntb' %
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/jaar
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    geleiden-scheepvaart-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0208 -> greq-geleiden-scheepvaart-02, geometrie-01
+      #<
+      #< **Toelichting:**
+
+  goal-constraint
+    geleiden-scheepvaart-03: het_b-pand does geleiden het_b-waarts_arrivere_scheepvaartsaanbod ...
+      naar het_schutsluiscomplex
+
+  comment
+    geleiden-scheepvaart-03 #< Gebaseerd op:
+      #<
+      #< - De huidige basis specificatie heeft geen directe equivalent.
+      #<
+      #< **Toelichting:** Deze randvoorwaarde legt het arrivere scheepvaartsaanbod
+      #< op de grens van het b-pand en het schutsluiscomplex vast.
+      #< De samenstelling van het b-waarts arrivere scheepvaartsaanbod
+      #< wordt in de definitie van het a-pand gespecificeerd.
+
+  goal-requirement
+    geleiden-scheepvaart-04: het_schutsluiscomplex must geleiden ...
+      het_b-waarts_vertrekke_scheepvaartsaanbod naar het_b-pand ...
+      with subclause
+        * geometrie-01: de_geleidingshoek must be at most 'ntb' %
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/jaar
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    geleiden-scheepvaart-04 #< Gebaseerd op:
+      #<
+      #< - SYS-0208 -> greq-geleiden-scheepvaart-02, geometrie-01
+      #<
+
+  goal-constraint
+    leveren-debiet-01: het_a-pand does leveren het_a-waartse_instroomdebiet aan het_schutsluiscomplex ...
+      with subclauses
+        * debiet-01: het_gemiddelde_a-waartse_instroomdebiet is equal to 'ntb' m3/s
+        * debiet-02: de_standaarddeviatie_van_het_a-waartse-instroomdebiet is equal to 'ntb' m3/s
+        * concentratie-01: de_gemiddelde_zoutconcentratie_van_het_a-waartse_instroomdebiet is equal to 'ntb' gram/m3
+        * concentratie-02: de_standaarddeviatie_van_de_zoutconcentratie_van_het_a-waartse_instroomdebiet is equal to 'ntb' gram/m3
+
+
+  comment
+    leveren-debiet-01 #< Toegevoegd om de randvoorwaarde m.b.t. debieten en zoutconcentraties
+      #< (boundary conditions) op de systeemgrens tussen het a-pand en het
+      #< sluiscomplex vast te leggen.
+
+  goal-constraint
+    leveren-debiet-02: het_b-pand does leveren het_b-waartse_instroomdebiet aan het_schutsluiscomplex ...
+      with subclauses
+        * debiet-01: het_gemiddelde_b-waartse_instroomdebiet is equal to 'ntb' m3/s
+        * debiet-02: de_standaarddeviatie_van_het_b-waartse-instroomdebiet is equal to 'ntb' m3/s
+        * concentratie-01: de_gemiddelde_zoutconcentratie_van_het_b-waartse_instroomdebiet is equal to 'ntb' gram/m3
+        * concentratie-02: de_standaarddeviatie_van_de_zoutconcentratie_van_het_b-waartse_instroomdebiet is equal to 'ntb' gram/m3
+
+
+  comment
+    leveren-debiet-02 #< Toegevoegd om de randvoorwaarde m.b.t. debieten en zoutconcentraties
+      #< (boundaryconditions) op de systeemgrens tussen het b-pand en het
+      #< sluiscomplex vast te leggen.
+
+  goal-requirement
+    reguleren-debiet-01: het_schutsluiscomplex must reguleren ...
+      het_a-waartse_uitstroomdebiet naar het_a-pand ...
+      with subclauses
+        * bereik-01: de_bovengrens_van_het_regulatiebereik must be at least 'ntb' m3/s  #< Dit is de gewenste spui/inlaat/pompcapaciteit
+        * bereik-02: de_ondergrens_van_het_regulatiebreik must be at most 'ntb' m3/s    #< Dit is het toegestane lekdebiet.
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/jaar
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    reguleren-debiet-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0192 -> greq-reguleren-debiet-01, bereik-01, bereik-02 (geformuleerd als het reguleren van een debiet)
+      #< - SYS-0193 -> greq-reguleren-debiet-01, bereik-01, bereik-02 (geformuleerd als het reguleren van een debiet)
+      #< - SYS-0194 -> bereik-02 (de_ondergrens_van_het_regulatiebereik)
+      #< - SYS-0195 -> bereik-01 (de_bovengrens_van_het_regulatiebereik)
+      #< - SYS-0250 -> uitvaltijd-01, uitvaltijd-02, uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0252 -> uitvaltijd-01, uitvaltijd-02, uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0253 -> betrouwbaarheid-01, beschikbaarheid-01
+      #< - SYS-0254 -> uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0255 -> uitvaltijd-01, uitvaltijd-02, uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0256 -> uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0257 -> uitvaltijd-01, uitvaltijd-02
+      #<
+
+  goal-requirement
+    reguleren-debiet-02: het_schutsluiscomplex must reguleren ...
+     het_b-waartse_uitstroomdebiet naar het_b-pand ...
+      with subclauses
+        * bereik-01: de_bovengrens_van_het_regulatiebereik must be at least 'ntb' m3/s  #< Dit is de gewenste spui/inlaat/pompcapaciteit
+        * bereik-02: de_ondergrens_van_het_regulatiebreik must be at most 'ntb' m3/s    #< Dit is het toegestane lekdebiet.
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/jaar
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    reguleren-debiet-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0192 -> greq-reguleren-debiet-01, bereik-01, bereik-02 (geformuleerd als het reguleren van een debiet)
+      #< - SYS-0193 -> greq-reguleren-debiet-01, bereik-01, bereik-02 (geformuleerd als het reguleren van een debiet)
+      #< - SYS-0194 -> bereik-02 (de_ondergrens_van_het_regulatiebereik)
+      #< - SYS-0195 -> bereik-01 (de_bovengrens_van_het_regulatiebereik)
+      #< - SYS-0250 -> uitvaltijd-01, uitvaltijd-02, uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0252 -> uitvaltijd-01, uitvaltijd-02, uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0253 -> betrouwbaarheid-01, beschikbaarheid-01
+      #< - SYS-0254 -> uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0255 -> uitvaltijd-01, uitvaltijd-02, uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0256 -> uitvaltijd-03, uitvaltijd-04
+      #< - SYS-0257 -> uitvaltijd-01, uitvaltijd-02
+
+  goal-requirement
+    communiceren-toestandsinformatie-01: het_schutsluiscomplex must communiceren ...
+      de_actuele_toestand_van_het_sluiscomplex aan de_bediencentrale ...
+        with subclauses
+          * protocol-01: het_communicatieprotocol must be equal to 'ntb'
+          * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/pakket
+          * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+          * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    communiceren-toestandsinformatie-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0235
+      #<
+
+  goal-constraint
+    communiceren-besturingssignalen-01: de_bediencentrale does communiceren ...
+      besturingssignalen aan het_schutsluiscomplex ...
+        with subclauses
+          * protocol-01: het_communicatieprotocol is equal to 'ntb'
+          * betrouwbaarheid-01: de_betrouwbaarheid is at least 'ntb' %/pakket
+          * beschikbaarheid-01: de_beschikbaarheid is at least 'ntb' %/jaar
+          * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd is at most 'ntb' minuten
+
+
+  comment
+    communiceren-besturingssignalen-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0235
+      #<
+
+  goal-requirement
+    communiceren-videobeelden-01: het_schutsluiscomplex must communiceren ...
+      videobeelden_van_het_sluiscomplex aan de_bediencentrale ...
+        with subclauses
+          * protocol-01: het_communicatieprotocol must be equal to 'ntb'
+          * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/pakket
+          * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+          * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    communiceren-videobeelden-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0235
+      #<
+
+  goal-requirement
+    communiceren-audiosignalen-01: het_schutsluiscomplex must communiceren ...
+      audiosignalen_van_het_sluiscomplex aan de_bediencentrale ...
+        with subclauses
+          * protocol-01: het_communicatieprotocol must be equal to 'ntb'
+          * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/pakket
+          * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+          * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    communiceren-audiosignalen-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0235
+      #<
+
+  goal-constraint
+    communiceren-besturingssignalen-02: de_bediencentrale does communiceren ...
+      audiosignalen_van_de_bediencentrale aan het_schutsluiscomplex ...
+        with subclauses
+          * protocol-01: het_communicatieprotocol is equal to 'ntb'
+          * betrouwbaarheid-01: de_betrouwbaarheid is at least 'ntb' %/pakket
+          * beschikbaarheid-01: de_beschikbaarheid is at least 'ntb' %/jaar
+          * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd is at most 'ntb' minuten
+
+
+  comment
+    communiceren-besturingssignalen-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0235
+      #<
+
+  goal-requirement
+    communiceren-audiosignalen-02: het_schutsluiscomplex must communiceren ...
+      audiosignalen_van_de_bedienaar aan de_scheepvaart ...
+        with subclauses
+          * protocol-01: het_communicatieprotocol must be equal to 'ntb'
+          * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/pakket
+          * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+          * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+          * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  goal-constraint
+    communiceren-audiosignalen-03: de_scheepvaart does communiceren ...
+      audiosignalen_van_de_scheepvaart aan het_schutsluiscomplex ...
+        with subclauses
+          * protocol-01: het_communicatieprotocol is equal to 'ntb'
+          * betrouwbaarheid-01: de_betrouwbaarheid is at least 'ntb' %/pakket
+          * beschikbaarheid-01: de_beschikbaarheid is at least 'ntb' %/jaar
+          * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd is at most 'ntb' minuten
+          * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd is at most 'ntb' minuten
+
+
+  comment
+    communiceren-audiosignalen-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0226
+      #< - SYS-0227, SYS-0228 deze eisen zijn eigenlijk de uitvoeringsvormen van SYS-0226.
+      #<
+      #< **Opmerking:**
+    communiceren-audiosignalen-03 #< Gebaseerd op:
+      #<
+      #< - SYS-0226
+      #< - SYS-0227 deze eis is eigenlijk de uitvoeringsvormen van SYS-0226.
+      #<
+      #< **Opmerking:**
+
+
+define component verkeerscentrale
+  empty
+
+define component x-water
+  #< Een x-water is een generieke naam voor bijvoorbeeld een binnenwater, buitenwater,
+  #< rivier of kanaal.
+  # --------------------------------------
+  # Auteur: T.Wilschut
+  # Datum: 02-12-2018
+  # --------------------------------------
+  parameters
+    hydraulische_parameters ...
+    is a hydraulische_parameterbundle property
+
+    het_gemiddelde_uitgaande_scheepvaartsaanbod ...
+    is a vaste_materiaalstroom property
+
+    het_gemiddelde_inkome_scheepvaartsaanbod ...
+    is a vaste_materiaalstroom
+
+    het_uitstroomdebiet ...
+    is a vloeibare_materiaalstroom property
+
+    het_instroomdebiet ...
+    is a vloeibare_materiaalstroom
+
+  variables
+    de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_IV_schepen, ...
+    de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_III_schepen, ...
+    de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_II_schepen, ...
+    de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_I_schepen ...
+    is a vaste_materiaalstroom
+
+    de_over_de_vertikaal_gemeten_gemiddelde_zoutconcentratie_op_punt_x1_y1, ...
+    de_over_de_vertikaal_gemeten_standaarddeviatie_van_de_zoutconcentratie_op_punt_x1_y1, ...
+    de_over_de_vertikaal_gemeten_gemiddelde_zoutconcentratie_op_punt_x2_y2, ...
+    de_over_de_vertikaal_gemeten_standaarddeviatie_van_de_zoutconcentratie_op_punt_x2_y2 ...
+    is a concentratie
+
+  design-constraint
+    waterstand-01: hydraulische_parameters.de_gemiddelde_waterstand is equal to 'ntb' MNAP
+    waterstand-02: hydraulische_parameters.de_standaarddeviatie_van_de_waterstand is equal to 'ntb' MNAP
+    waterstand-03: hydraulische_parameters.de_minimale_waterstand is equal to 'ntb' MNAP ...
+      with subclause
+        * onderschreidingsfrequentie-01: hydraulische_parameters.de_onderschreidingsfrequentie ...
+          is equal to 'ntb' 1/year
+
+    waterstand-04: hydraulische_parameters.de_maximale_waterstand is equal to 'ntb' MNAP ...
+      with subclause
+        * overschreidingsfrequentie-01: hydraulische_parameters.de_overschreidingsfrequentie ...
+          is equal to 'ntb' 1/year
+
+
+  comment
+    waterstand-01 #< Toegevoegd om de hydraulische parameters expliciet te maken.
+    waterstand-02 #< Toegevoegd om de hydraulische parameters expliciet te maken.
+    waterstand-03 #< Toegevoegd om de hydraulische parameters expliciet te maken.
+    waterstand-04 #< Toegevoegd om de hydraulische parameters expliciet te maken.
+
+  design-constraint
+    # Constraints m.b.t. aankomst intensiteiten.
+    aankomstintensiteit-01: de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_I_schepen ...
+      is equal to 'ntb' schepen/uur
+    aankomstintensiteit-02: de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_II_schepen ...
+      is equal to 'ntb' schepen/uur
+    aankomstintensiteit-03: de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_III_schepen ...
+      is equal to 'ntb' schepen/uur
+    aankomstintensiteit-04: de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_IV_schepen ...
+      is equal to 'ntb' schepen/uur
+
+  comment
+    aankomstintensiteit-01 #< Toegevoegd om de aankomstintensiteit expliciet te maken.
+    aankomstintensiteit-02 #< Toegevoegd om de aankomstintensiteit expliciet te maken.
+    aankomstintensiteit-03 #< Toegevoegd om de aankomstintensiteit expliciet te maken.
+    aankomstintensiteit-04 #< Toegevoegd om de aankomstintensiteit expliciet te maken.
+
+  design-requirement
+    zoutconcentratie-01: de_over_de_vertikaal_gemeten_gemiddelde_zoutconcentratie_op_punt_x1_y1...
+      must be at most 'ntb' gram/liter
+    zoutconcentratie-02: de_over_de_vertikaal_gemeten_standaarddeviatie_van_de_zoutconcentratie_op_punt_x1_y1 ...
+      must be at most 'ntb' gram/liter
+    zoutconcentratie-03: de_over_de_vertikaal_gemeten_gemiddelde_zoutconcentratie_op_punt_x2_y2...
+      must be at most 'ntb' gram/liter
+    zoutconcentratie-04: de_over_de_vertikaal_gemeten_standaarddeviatie_van_de_zoutconcentratie_op_punt_x2_y2...
+      must be at most 'ntb' gram/liter
+
+  comment
+    zoutconcentratie-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0196.
+      #<
+      #< **Opmerking:** In het geval men juist verzoeting tegen wil gaan in plaats van
+      #< verzilting dient men hoogstens door tenminste te vervangen.
+      #<
+    zoutconcentratie-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0196.
+      #<
+    zoutconcentratie-03 #< Gebaseerd op:
+      #<
+      #< - SYS-0196.
+      #<
+      #< **Opmerking:** In het geval men juist verzoeting tegen wil gaan in plaats van
+      #< verzilting dient men hoogstens door tenminste te vervangen.
+    zoutconcentratie-04 #< Gebaseerd op:
+      #<
+      #< - SYS-0196.
+      #<
+
+  relation
+    scheepvaartsaanbod: scheepvaartsaanbodmodel
+    relating arguments
+        * het_gemiddelde_uitgaande_scheepvaartsaanbod
+        * de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_IV_schepen
+        * de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_III_schepen
+        * de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_II_schepen
+        * de_gemiddelde_aankomst_intensiteit_van_cemt-klasse_I_schepen
+
+  comment
+    scheepvaartsaanbod #< Toegevoegd om het gemiddelde scheepvaartsaanbod
+      #< expliciet te maken.
+      #< Maak in uw berkeningen gebruik van exponentieel verdeelde
+      #< aankomstintensiteiten.
+
+  relation
+    zoutconcentraties: zout-zoetwaterhydrodynamischmodel
+    relating arguments
+      * de_over_de_vertikaal_gemeten_gemiddelde_zoutconcentratie_op_punt_x1_y1
+      * de_over_de_vertikaal_gemeten_standaarddeviatie_van_de_zoutconcentratie_op_punt_x1_y1
+      * de_over_de_vertikaal_gemeten_gemiddelde_zoutconcentratie_op_punt_x2_y2
+      * de_over_de_vertikaal_gemeten_standaarddeviatie_van_de_zoutconcentratie_op_punt_x2_y2
+      * het_uitstroomdebiet
+      * het_instroomdebiet
+      * hydraulische_parameters
+
+  comment
+    zoutconcentraties #< Toegevoegd om de afhankelijkheden tussen de in- en uitstroom
+      #< debieten, de zoutconcentraties en de hydraulische parameters expliciet te maken.
+
+define component gemengde_scheepvaart
+  # Gemengde scheepvaart is een samenstelling van beroepsvaart en van pleziervaart.
+  # ------------------------------------------------------------------------------------
+  # Auteur: T.Wilschut
+  # Datum: 02-12-2018
+  # ------------------------------------------------------------------------------------
+  parameters
+    geometrie_van_het_maatgeve_schip is a scheepsgeometriebundle property
+    stuwkrachten_van_het_maatgeve_schip is a stuwkrachtbundle property
+
+
+define component schutsluiscomplex
+  # Een sluiscomplex is ...
+  # ------------------------------------------------------------------------------------
+  # Auteur: T.Wilschut
+  # Datum: 02-12-2018
+  # ------------------------------------------------------------------------------------
+  parameters
+    hydraulische_parameters_a-pand, hydraulische_parameters_b-pand ...
+    is a hydraulische_parameterbundle
+
+    het_a-waarts_arrivere_scheepvaartsaanbod, ...
+    het_a-waarts_vertrekke_scheepvaartsaanbod, ...
+    het_b-waarts_arrivere_scheepvaartsaanbod, ...
+    het_b-waarts_vertrekke_scheepvaartsaanbod ...
+    is a vaste_materiaalstroom
+
+    het_a-waartse_instroomdebiet, ...
+    het_a-waartse_uitstroomdebiet, ...
+    het_b-waartse_instroomdebiet, ...
+    het_b-waartse_uitstroomdebiet ...
+    is a vloeibare_materiaalstroom
+
+    geometrie_van_het_maatgeve_schip ...
+    is a scheepsgeometriebundle
+
+    stuwkrachten_van_het_maatgeve_schip ...
+    is a stuwkrachtbundle
+
+  variable
+    het_aantal_wachtplekken_voor_a-waarts_wachte_beroepsvaart, ...
+    het_aantal_wachtplekken_voor_a-waarts_wachte_pleziervaart, ...
+    het_aantal_wachtplekken_voor_a-waarts_wachte_kegelschepen, ...
+    het_aantal_wachtplekken_voor_b-waarts_wachte_beroepsvaart, ...
+    het_aantal_wachtplekken_voor_b-waarts_wachte_pleziervaart, ...
+    het_aantal_wachtplekken_voor_b-waarts_wachte_kegelschepen, ...
+    het_aantal_a-waartse_opstelplekken_voor_de_beroepsvaart, ...
+    het_aantal_a-waartse_opstelplekken_voor_de_pleziervaart, ...
+    het_aantal_b-waartse_opstelplekken_voor_de_beroepsvaart, ...
+    het_aantal_b-waartse_opstelplekken_voor_de_pleziervaart, ...
+    de_a-waartse_uitlooplengte, ...
+    de_b-waartse_uitlooplengte, ...
+    de_vrije_doorvaarhoogte ...
+    is a geometrische_maat
+
+    de_constructieve_veiligheidsindex_beta ...
+    is a integer
+
+    de_ontwerplevensduur, de_ontwerpschutfrequentie, ...
+    de_ontwerpaanvaarbelasting ...
+    is a prestatiemaat
+
+    de_a-waarts_wachte_beroepsvaart, de_a-waarts_wachte_pleziervaart, ...
+    de_a-waarts_wachte_kegelschepen, het_a-waarts_opstelle_scheepvaartsaanbod, ...
+    een_a-waarts_te_schutten_kolkvulling, een_a-waarts_geschutte_kolkvulling, ...
+    een_b-waarts_te_schutten_kolkvulling, een_b-waarts_geschutte_kolkvulling, ...
+    de_b-waarts_wachte_beroepsvaart, de_b-waarts_wachte_pleziervaart, ...
+    de_b-waarts_wachte_kegelschepen, het_b-waarts_opstelle_scheepvaartsaanbod ...
+    is a vaste_materiaalstroom
+
+    de_betrouwbaarheid, de_beschikbaarheid ...
+    is a prestatiemaat
+
+    de_gemiddelde_beroepsvaartpasseertijd, de_standaarddeviatie_van_de_beroepsvaartpasseertijd, ...
+    de_gemiddelde_beroepsvaartwachttijd, de_standaarddeviatie_van_de_beroepsvaartwachttijd, ...
+    de_gemiddelde_pleziervaartpasseertijd, de_standaarddeviatie_van_de_pleziervaartpasseertijd, ...
+    de_gemiddelde_pleziervaartwachttijd, de_standaarddeviatie_van_de_pleziervaartwachttijd, ...
+    de_gemiddelde_opsteltijd, de_standaarddeviatie_van_de_opsteltijd, ...
+    de_gemiddelde_invaartijd, de_standaarddeviatie_van_de_invaartijd, ...
+    de_gemiddelde_schuttijd, de_standaarddeviatie_van_de_schuttijd, ...
+    de_gemiddelde_uitvaartijd, de_standaarddeviatie_van_de_uitvaartijd, ...
+    de_gemiddelde_ongeplande_uitvaltijd, de_standaarddeviatie_van_de_ongeplande_uitvaltijd, ...
+    de_gemiddelde_geplande_uitvaltijd, de_standaarddeviatie_van_de_geplande_uitvaltijd ...
+    is a prestatiemaat
+
+    de_kans_op_letselschade, de_kans_op_materiele_schade ...
+    is a veiligheidsmaat
+
+    de_geleidingshoek, de_uitlooplengte ...
+    is a geometrische_maat
+
+    de_vigere_ontwerprichtlijn ...
+    is a document
+
+    Richtlijn_Vaarwegen, Richtlijn_Ontwerp_Kunstwerken, Richtlijn_Openbare_Verlichting ...
+    is a document
+
+    de_ontwerpstuwkrachtbelasting, de_langskracht_op_schepen ...
+    is a hydraulische_energiestroom
+
+    het_gemiddelde_verval, de_standaarddeviatie_van_het_verval, ...
+    het_maximale_operationele_verval ...
+    is a geometrische_maat
+
+  transformation-requirement
+    splitsen-scheepvaart-01: must splitsen het_a-waarts_arrivere_scheepvaartsaanbod in ...
+      de_a-waarts_wachte_beroepsvaart and de_a-waarts_wachte_pleziervaart ...
+      and de_a-waarts_wachte_kegelschepen ...
+      with subclauses
+        * geometrie-01: de_geleidingshoek must be at most 'ntb' %
+        * wachttijd-01: de_gemiddelde_beroepsvaartwachttijd must be at most 'ntb' minuten
+        * wachttijd-02: de_standaarddeviatie_van_de_beroepsvaartwachttijd must be at most 'ntb' minuten
+        * wachttijd-03: de_gemiddelde_pleziervaartwachttijd must be at most 'ntb' minuten
+        * wachttijd-04: de_standaarddeviatie_van_de_pleziervaartwachttijd must be at most 'ntb' minuten
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schip
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schip
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/cyclus
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    splitsen-scheepvaart-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0197 -> geleiden-01, wachttijd-01 en wachttijd-2 (vlot), schade-01, schade-02 (veilig)
+      #< - SYS-0198 -> Zie definitie van het a-waarts arrivere scheepvaartsaanbod
+      #< - SYS-0199 -> Zie definitie van het a-waarts arrivere scheepvaartsaanbod
+      #< - SYS-0202 -> geleiden-01, zie ook wachtplekken-01 tot -06.
+      #< - SYS-0203 -> wachtijd-01, wachtijd-02
+      #< - SYS-0206 -> Zie ook wachtplekken-01 tot -06.
+      #< - SYS-0207 -> Zie ook wachtplekken-01 tot -06.
+      #<
+
+  transformation-requirement
+    samen-laten-vloeien-scheepvaart-01: must laten_samenvloeien de_a-waarts_wachte_beroepsvaart ...
+      and de_a-waarts_wachte_pleziervaart and de_a-waarts_wachte_kegelschepen ...
+      in het_a-waarts_opstelle_scheepvaartsaanbod ...
+      with subclauses
+        * geometrie-01: de_geleidingshoek must be at most 'ntb' %
+        * wachttijd-01: de_gemiddelde_opsteltijd must be at most 'ntb' minuten
+        * wachttijd-02: de_standaarddeviatie_van_de_opsteltijd must be at most 'ntb' minuten
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schip
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schip
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/schip
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    samen-laten-vloeien-scheepvaart-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0204 -> Zie ook opstelruimte-01 tot -04.
+      #< - SYS-0205 -> Zie ook req-opstelruimte-01 tot -04.
+      #<
+
+  transformation-requirement
+    geleiden-scheepvaart-01: must geleiden het_a-waarts_opstelle_scheepvaartsaanbod naar ...
+      een_b-waarts_te_schutten_kolkvulling ...
+      with subclauses
+        * geometrie-01: de_geleidingshoek must be at most 'ntb' %
+        * wachttijd-01: de_gemiddelde_invaartijd must be at most 'ntb' minuten
+        * wachttijd-02: de_standaarddeviatie_van_de_invaartijd must be at most 'ntb' minuten
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schip
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schip
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/schip
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    geleiden-scheepvaart-01 #< Gebaseerd op:
+    #<
+    #< - SYS-0209
+    #<
+
+  transformation-requirement
+    schutten-scheepvaart-01: must schutten een_b-waarts_te_schutten_kolkvulling naar ...
+      een_b-waarts_geschutte_kolkvulling ...
+       with subclauses
+        * schuttijd-01: de_gemiddelde_schuttijd must be at most 'ntb' minuten
+        * schuttijd-02: de_standaarddeviatie_van_de_schuttijd must be at most 'ntb' minuten
+        * langskrachten-01: de_langskracht_op_schepen must be at most 'ntb' N/m2
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schutcyclus
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schutcyclus
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/schutcyclus
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * verval-01: het_gemiddelde_verval must be equal to 'ntb' meter
+        * verval-02: de_standaarddeviatie_van_het_verval must be equal to 'ntb' meter
+        * verval-03: het_maximale_operationele_verval must be at most 'ntb' meter
+
+
+  comment
+    schutten-scheepvaart-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0210 -> schuttijd-01, schuttijd-02 (vlot), schade-01, schade-02 (veiligheid)
+      #<               verval-01, verval-02, verval-03 (schutpeilen/vervallen)
+      #< - SYS-0211 -> Dit is een ander oplossingsconcept waarin er een aparte opstelruimte
+      #<               voor plezier als beroepsvaart is. In dit geval dient functie
+      #<               tr-geleiden-scheepvaart te veranderen.
+      #< - SYS-0213 -> schuttijd-01, schuttijd-02
+      #<
+
+  transformation-requirement
+    samen-laten-vloeien-scheepvaart-02: must laten_samenvloeien een_b-waarts_geschutte_kolkvulling in ...
+      het_b-waarts_vertrekke_scheepvaartsaanbod ...
+       with subclauses
+        * schuttijd-01: de_gemiddelde_uitvaartijd must be at most 'ntb' minuten
+        * schuttijd-02: de_standaarddeviatie_van_de_uitvaartijd must be at most 'ntb' minuten
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schutcyclus
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schutcyclus
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/schutcyclus
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    samen-laten-vloeien-scheepvaart-02 #< Gebaseerd op:
+      #<
+      #< - SYS-202
+      #<
+
+  transformation-requirement
+    splitsen-scheepvaart-02: must splitsen het_b-waarts_arrivere_scheepvaartsaanbod in ...
+      de_b-waarts_wachte_beroepsvaart and de_b-waarts_wachte_pleziervaart and ...
+      de_b-waarts_wachte_kegelschepen  ...
+      with subclauses
+       * geometrie-01: de_geleidingshoek must be at most 'ntb' %
+       * wachttijd-01: de_gemiddelde_beroepsvaartwachttijd must be at most 'ntb' minuten
+       * wachttijd-02: de_standaarddeviatie_van_de_beroepsvaartwachttijd must be at most 'ntb' minuten
+       * wachttijd-03: de_gemiddelde_pleziervaartwachttijd must be at most 'ntb' minuten
+       * wachttijd-04: de_standaarddeviatie_van_de_pleziervaartwachttijd must be at most 'ntb' minuten
+       * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schip
+       * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schip
+       * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/cyclus
+       * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+       * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+       * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+       * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+       * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+  comment
+    splitsen-scheepvaart-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0197 -> geleiden-01, wachttijd-01 en wachttijd-2 (vlot), schade-01, schade-02 (veilig)
+      #< - SYS-0198 -> Zie definitie van het a-waarts arrivere scheepvaartsaanbod
+      #< - SYS-0199 -> Zie definitie van het a-waarts arrivere scheepvaartsaanbod
+      #< - SYS-0202 -> geleiden-01, zie ook wachtplekken-01 tot -06.
+      #< - SYS-0203 -> wachtijd-01, wachtijd-02
+      #< - SYS-0206 -> Zie ook wachtplekken-01 tot -06.
+      #< - SYS-0207 -> Zie ook wachtplekken-01 tot -06.
+      #<
+
+  transformation-requirement
+    samen-laten-vloeien-scheepvaart-03: must laten_samenvloeien de_b-waarts_wachte_beroepsvaart ...
+      and de_b-waarts_wachte_pleziervaart and de_b-waarts_wachte_kegelschepen ...
+      in het_b-waarts_opstelle_scheepvaartsaanbod ...
+      with subclauses
+        * geometrie-01: de_geleidingshoek must be at most 'ntb' %
+        * wachttijd-01: de_gemiddelde_opsteltijd must be at most 'ntb' minuten
+        * wachttijd-02: de_standaarddeviatie_van_de_opsteltijd must be at most 'ntb' minuten
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schip
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schip
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/schip
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    samen-laten-vloeien-scheepvaart-03 #< Gebaseerd op:
+      #<
+      #< - SYS-0204 -> Zie ook opstelruimte-01 tot -04.
+      #< - SYS-0205 -> Zie ook req-opstelruimte-01 tot -04.
+      #<
+
+  transformation-requirement
+    geleiden-scheepvaart-02: must geleiden het_b-waarts_opstelle_scheepvaartsaanbod naar ...
+      een_a-waarts_te_schutten_kolkvulling ...
+      with subclauses
+        * geometrie-01: de_geleidingshoek must be at most 'ntb' %
+        * wachttijd-01: de_gemiddelde_invaartijd must be at most 'ntb' minuten
+        * wachttijd-02: de_standaarddeviatie_van_de_invaartijd must be at most 'ntb' minuten
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schip
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schip
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/schip
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    geleiden-scheepvaart-02 #< Gebaseerd op:
+    #<
+    #< - SYS-0209
+    #<
+
+  transformation-requirement
+    schutten-scheepvaart-02: must schutten een_a-waarts_te_schutten_kolkvulling naar ...
+      een_a-waarts_geschutte_kolkvulling ...
+       with subclauses
+        * schuttijd-01: de_gemiddelde_schuttijd must be at most 'ntb' minuten
+        * schuttijd-02: de_standaarddeviatie_van_de_schuttijd must be at most 'ntb' minuten
+        * langskrachten-01: de_langskracht_op_schepen must be at most 'ntb' N/m2
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schutcyclus
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schutcyclus
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/schutcyclus
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    schutten-scheepvaart-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0210 -> schuttijd-01, schuttijd-02 (vlot), schade-01, schade-02 (veiligheid)
+      #<               verval-01, verval-02, verval-03 (schutpeilen/vervallen)
+      #< - SYS-0211 -> Dit is een ander oplossingsconcept waarin er een aparte opstelruimte
+      #<               voor plezier als beroepsvaart is. In dit geval dient functie
+      #<               tr-geleiden-scheepvaart te veranderen.
+      #< - SYS-0213 -> schuttijd-01, schuttijd-02
+      #<
+
+  transformation-requirement
+    samen-laten-vloeien-scheepvaart-04: must laten_samenvloeien een_a-waarts_geschutte_kolkvulling in ...
+      het_a-waarts_vertrekke_scheepvaartsaanbod ...
+       with subclauses
+        * schuttijd-01: de_gemiddelde_uitvaartijd must be at most 'ntb' minuten
+        * schuttijd-02: de_standaarddeviatie_van_de_uitvaartijd must be at most 'ntb' minuten
+        * schade-01: de_kans_op_letselschade must be at most 'ntb' %/schutcyclus
+        * schade-02: de_kans_op_materiele_schade must be at most 'ntb' %/schutcyclus
+        * betrouwbaarheid-01: de_betrouwbaarheid must be at least 'ntb' %/schutcyclus
+        * beschikbaarheid-01: de_beschikbaarheid must be at least 'ntb' %/jaar
+        * uitvaltijd-01: de_gemiddelde_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-02: de_standaarddeviatie_van_de_geplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-03: de_gemiddelde_ongeplande_uitvaltijd must be at most 'ntb' minuten
+        * uitvaltijd-04: de_standaarddeviatie_van_de_ongeplande_uitvaltijd must be at most 'ntb' minuten
+
+
+  comment
+    samen-laten-vloeien-scheepvaart-04 #< Gebaseerd op:
+      #<
+      #< - SYS-202
+      #<
+
+  transformation-requirement
+    omzetten-debiet-01: must reguleren het_a-waartse_instroomdebiet naar ...
+      het_b-waartse_uitstroomdebiet
+
+    omzetten-debiet-02: must reguleren het_b-waartse_instroomdebiet naar ...
+      het_a-waartse_uitstroomdebiet
+
+  design-requirement
+    passeertijd-01: de_gemiddelde_beroepsvaartpasseertijd must be at most 'ntb' minuten
+    passeertijd-02: de_standaarddeviatie_van_de_beroepsvaartpasseertijd must be at most 'ntb' minuten
+    passeertijd-03: de_gemiddelde_pleziervaartpasseertijd must be at most 'ntb' minuten
+    passeertijd-04: de_standaarddeviatie_van_de_pleziervaartpasseertijd must be at most 'ntb' minuten
+
+  comment
+    passeertijd-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0200
+      #< - SYS-0201
+      #<
+    passeertijd-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0200
+      #< - SYS-0201
+      #<
+    passeertijd-03 #< Gebaseerd op:
+      #<
+      #< - SYS-0200
+      #< - SYS-0201
+      #<
+    passeertijd-04 #< Gebaseerd op:
+      #<
+      #< - SYS-0200
+      #< - SYS-0201
+      #<
+
+  design-requirement
+    wachtplekken-01: het_aantal_wachtplekken_voor_a-waarts_wachte_beroepsvaart ...
+      must be at least 'ntb' schepen
+
+    wachtplekken-02: het_aantal_wachtplekken_voor_a-waarts_wachte_pleziervaart ...
+      must be at least 'ntb' schepen
+
+    wachtplekken-03: het_aantal_wachtplekken_voor_a-waarts_wachte_kegelschepen ...
+      must be at least 'ntb' schepen
+
+    wachtplekken-04: het_aantal_wachtplekken_voor_b-waarts_wachte_beroepsvaart ...
+      must be at least 'ntb' schepen
+
+    wachtplekken-05: het_aantal_wachtplekken_voor_b-waarts_wachte_pleziervaart ...
+      must be at least 'ntb' schepen
+
+    wachtplekken-06: het_aantal_wachtplekken_voor_b-waarts_wachte_kegelschepen ...
+      must be at least 'ntb' schepen
+
+  comment
+    wachtplekken-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0296
+      #<
+    wachtplekken-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0296
+      #<
+    wachtplekken-03 #< Gebaseerd op:
+      #<
+      #< - SYS-0297
+      #<
+    wachtplekken-04 #< Gebaseerd op:
+      #<
+      #< - SYS-0296
+      #<
+    wachtplekken-05 #< Gebaseerd op:
+      #<
+      #< - SYS-0296
+      #<
+    wachtplekken-06 #< Gebaseerd op:
+      #<
+      #< - SYS-0297
+      #<
+
+  design-requirement
+    opstelplekken-01: het_aantal_a-waartse_opstelplekken_voor_de_beroepsvaart ...
+      must be at least 'ntb' schepen
+
+    opstelplekken-02: het_aantal_a-waartse_opstelplekken_voor_de_pleziervaart ...
+      must be at least 'ntb' schepen
+
+    opstelplekken-03: het_aantal_b-waartse_opstelplekken_voor_de_beroepsvaart ...
+      must be at least 'ntb' schepen
+
+    opstelplekken-04: het_aantal_b-waartse_opstelplekken_voor_de_pleziervaart ...
+      must be at least 'ntb' schepen
+
+  comment
+    opstelplekken-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0204
+      #<
+      #< Vraag: hoeven er geen aparte opstelplekken voor kegelschepen te zijn?
+    opstelplekken-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0205
+      #<
+    opstelplekken-03 #< Gebaseerd op:
+      #<
+      #< - SYS-0204
+      #<
+      #< Vraag: hoeven er geen aparte opstelplekken voor kegelschepen te zijn?
+    opstelplekken-04 #< Gebaseerd op:
+      #<
+      #< - SYS-0205
+      #<
+
+  design-requirement
+    uitlooplengte-01: de_a-waartse_uitlooplengte must be at least 'ntb' meter
+    uitlooplengte-02: de_b-waartse_uitlooplengte must be at least 'ntb' meter
+
+  comment
+    uitlooplengte-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0208
+      #<
+    uitlooplengte-02 #< Gebaseerd op:
+      #<
+      #< - SYS-0208
+      #<
+
+  design-requirement
+    veiligheid-01: de_constructieve_veiligheidsindex_beta must be at least 'ntb' [-] ...
+      with subclauses
+        * levensduur-01: de_ontwerplevensduur is equal to 100 jaar
+        * frequentie-01: de_ontwerpschutfrequentie is equal to 10000 1/jaar
+        * belasting-01: de_ontwerpstuwkrachtbelasting is equal to ...
+          stuwkrachten_van_het_maatgeve_schip.de_maximale_stuwkracht_hoofdschroef
+        * belasting-02: de_ontwerpaanvaarbelasting is equal to 'ntb' Newton
+
+
+  comment
+    veiligheid-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0249
+      #<
+      #< - SYS-0268
+      #<
+      #< **Vraag:** Wordt de ontwerpaanvaarbelasting gedefinieerd in Newtons of in Joules?
+
+  design-requirement
+    doorvaarhoogte-01: de_vrije_doorvaarhoogte must be at least 'ntb' meter
+
+  comment
+    doorvaarhoogte-01 #< Gebaseerd op:
+      #<
+      #< - SYS-0215
+      #<
+
+  relation
+    passeertijden: wachtrijmodel
+    relating arguments
+      * de_gemiddelde_beroepsvaartpasseertijd
+      * de_gemiddelde_pleziervaartpasseertijd
+      * het_a-waarts_arrivere_scheepvaartsaanbod
+      * het_b-waarts_arrivere_scheepvaartsaanbod
+      * de_standaarddeviatie_van_de_beroepsvaartpasseertijd
+      * de_gemiddelde_beroepsvaartwachttijd
+      * de_standaarddeviatie_van_de_beroepsvaartwachttijd
+      * de_gemiddelde_opsteltijd
+      * de_standaarddeviatie_van_de_opsteltijd
+      * de_gemiddelde_invaartijd
+      * de_standaarddeviatie_van_de_invaartijd
+      * de_gemiddelde_schuttijd
+      * de_standaarddeviatie_van_de_schuttijd
+      * de_gemiddelde_uitvaartijd
+      * de_standaarddeviatie_van_de_uitvaartijd
+      * de_gemiddelde_ongeplande_uitvaltijd
+      * de_standaarddeviatie_van_de_ongeplande_uitvaltijd
+      * de_gemiddelde_geplande_uitvaltijd
+      * de_standaarddeviatie_van_de_geplande_uitvaltijd
+
+  comment
+    passeertijden #< Toegevoegd om de afhankelijkheden tussen de verschille
+      #< tijdsparameters aan te duiden.

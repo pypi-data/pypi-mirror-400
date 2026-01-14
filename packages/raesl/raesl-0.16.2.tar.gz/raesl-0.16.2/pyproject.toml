@@ -1,0 +1,146 @@
+[build-system]
+requires = [
+    "hatchling",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "raesl"
+version = "0.16.2"
+description = "Ratio ESL support in Python."
+keywords = [
+    "systems",
+    "engineering",
+    "specification",
+    "requirements",
+    "management",
+    "language",
+]
+authors = [
+    { name = "Ratio Innovations B.V.", email = "info@ratio-case.nl" },
+]
+license = "GPL-3.0-or-later"
+license-files = [
+    "LICENSE.md",
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.3.1",
+    "click-log>=0.4.0",
+    "graphviz>=0.21.0",
+    "openpyxl>=3.1.5",
+    "plotly[kaleido]>=6.5.0",
+    "ragraph[plot]>=1.23.2",
+    "sly>=0.5",
+]
+
+[project.optional-dependencies]
+all = [
+    "pandoc-fignos>=2.4.0",
+    "pluggy>=1.6.0",
+    "pypandoc>=1.15",
+    "ipykernel>=7.1.0",
+    "ipython>=9.4.0",
+    "jupyter-client>=8.6.3",
+    "jupyter-server>=2.17.0",
+    "lsprotocol>=2023.0.1",
+    "pygls>=1.3.1",
+    "pygments>=2.19.2",
+    "ratio-typst>=0.1.4",
+    "pypst>=0.7.0",
+    "typst>=0.14.2",
+]
+doc = [
+    "pandoc-fignos>=2.4.0",
+    "pluggy>=1.6.0",
+    "pypandoc>=1.15",
+]
+jupyter = [
+    "ipykernel>=7.1.0",
+    "ipython>=9.4.0",
+    "jupyter-client>=8.6.3",
+    "jupyter-server>=2.16.0",
+]
+pygments = [
+    "pygments>=2.19.2",
+]
+render = [
+    "ratio-typst>=0.1.4",
+    "pypst>=0.7.0",
+    "typst>=0.14.2",
+]
+server = [
+    "lsprotocol>=2023.0.1",
+    "pygls>=1.3.1",
+]
+
+[project.scripts]
+raesl = "raesl.cli:cli"
+
+[project.entry-points."pygments.lexers"]
+elephant = "raesl.pygments:EslLexer"
+
+[dependency-groups]
+tasks = [
+    "invoke",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-examples",
+    "pytest-watcher",
+]
+experiment = [
+    "jupyterlab",
+    "pandas",
+]
+
+[tool.uv]
+package = true
+default-groups = [
+    "experiment",
+    "test",
+]
+
+[project.urls]
+Homepage = "https://raesl.ratio-case.nl"
+Repository = "https://gitlab.com/ratio-case-os/python/raesl"
+"Bug Tracker" = "https://gitlab.com/ratio-case-os/python/raesl/-/issues"
+Changelog = "https://raesl.ratio-case.nl/CHANGELOG/"
+
+[tool.pytest.ini_options]
+addopts = "-s --cov --cov-report xml:./.pytest_cache/coverage.xml --cov-report term-missing --basetemp ./tests/.temp"
+testpaths = [
+    "tests",
+]
+markers = [
+    "slow",
+    "format",
+]
+
+[tool.coverage.run]
+source = [
+    "raesl",
+]
+disable_warnings = [
+    "module-not-imported",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.raver]
+ref = "origin/main"
+module = "./src/raesl/__init__.py"
+changelog = "./docs/CHANGELOG.md"
+
+[tool.ruff]
+lint.select = [
+    "E", # pycodestyle
+    "F", # pyflakes
+    "I", # imports
+]
+line-length = 100
+target-version = "py311"

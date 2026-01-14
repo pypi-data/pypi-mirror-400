@@ -1,0 +1,26 @@
+define component SecundairBesturingssysteem
+  parameters
+    bediensignaal_SNB is a bediensignaal
+    bediensignaal_SBN is a bediensignaal
+    statussignaal_SNC is a statussignaal
+    statussignaal_SVB is a statussignaal
+    statussignaal_SBS is a statussignaal
+    besturingssignaal_SBS is a besturingssignaal
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+  transformation-requirement
+    SBS-omzetten-signaal-01: must omzetten bediensignaal_SNB, bediensignaal_SBN, statussignaal_SNC and statussignaal_SVB in besturingssignaal_SBS and statussignaal_SBS
+
+  behavior-requirement
+    SBS-operationele-status:
+      case SBS-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-lokaal-nood [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case SBS-is-passief:
+        when
+          * c2: objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-] or objectbedienmodus is equal to bediening-op-afstand [-]
+        then
+          * r2: operationele-status must be equal to passief [-]

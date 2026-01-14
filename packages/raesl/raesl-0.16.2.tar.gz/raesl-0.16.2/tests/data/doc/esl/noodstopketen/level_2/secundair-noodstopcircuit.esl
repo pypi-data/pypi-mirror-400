@@ -1,0 +1,26 @@
+define component SecundairNoodstopCircuit
+  parameter
+    bediensignaal_SNB is a bediensignaal
+    bediensignaal_NNB is a bediensignaal
+    bediensignaal_NLB is a bediensignaal
+    statussignaal_TIN is a statussignaal
+    statussignaal_SNC is a statussignaal
+    besturingssignaal_SNC is a besturingssignaal
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+  transformation-requirement
+    SNC-omzetten-signaal-01: must omzetten bediensignaal_SNB, bediensignaal_NNB, bediensignaal_NLB and statussignaal_TIN in statussignaal_SNC and besturingssignaal_SNC
+
+  behavior-requirement
+    SNC-operationele-status:
+      case SNC-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-lokaal-nood [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case SNC-is-passief:
+        when
+          * c2: objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-] or objectbedienmodus is equal to bediening-op-afstand [-]
+        then
+          * r2: operationele-status must be equal to passief [-]

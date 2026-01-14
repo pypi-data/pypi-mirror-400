@@ -1,0 +1,488 @@
+openapi: 3.0.0
+info:
+  title: ESL Graph output structure.
+  description: Definition of ESL graph structure. Based on Ratio's Graph, Node and Edge objects. See https://ratio-case.gitlab.io/graph_io/reference/graph_io.generic.html#module-graph_io.generic.graph. Note that most information derived from an ESL specification are stored within the annotation property of the node and edge objects.
+  version: 0.0.1
+components:
+  schemas:
+    Node:
+      description: A Node in a Graph. Uniquely identified within a Graph via it's name property.
+      required:
+        - name
+      properties:
+        name:
+          description: Node name. Serves as a unique identifier.
+          type: string
+        kind:
+          description: Node kind. Used for main categorization.
+          type: string
+          enum:
+            [
+              variable_type,
+              relation_type,
+              component,
+              need,
+              variable,
+              function_spec,
+              behavior_spec,
+              design_spec,
+              relation_spec,
+            ]
+        labels:
+          description: Node labels. Used for multi-member categorization.
+          $ref: "#/components/schemas/StringArray"
+        parent:
+          $ref: "#/components/schemas/Node"
+          nullable: true
+        child_names:
+          description: Array of child nodes.
+          type: array
+          items:
+            - $ref: "#/components/schemas/Node"
+        is_bus:
+          description: Whether this node is a bus within the scope of its parent.
+          type: boolean
+        weights:
+          description: Numerical properties of this Node.
+          $ref: "#/components/schemas/WeightMap"
+        annotations:
+          description: Any other additional information.
+          type: object
+          properties:
+            esl_info:
+              $ref: "#/components/schemas/EslNodeAnnotations"
+    WeightMap:
+      type: object
+      additionalProperties:
+        anyOf:
+          - type: boolean
+          - type: number
+    EslNodeAnnotations:
+      description: Parts of the ESL specification related to the node.
+      type: object
+      anyOf:
+        - $ref: "#/components/schemas/VariableTypeAnnotation"
+        - $ref: "#/components/schemas/RelationTypeAnnotation"
+        - $ref: "#/components/schemas/ComponentAnnotation"
+        - $ref: "#/components/schemas/VariableAnnotation"
+        - $ref: "#/components/schemas/NeedAnnotation"
+        - $ref: "#/components/schemas/FuncSpecAnnotation"
+        - $ref: "#/components/schemas/BehaviorSpecAnnotation"
+        - $ref: "#/components/schemas/DesignSpecAnnotation"
+        - $ref: "#/components/schemas/RelationSpecAnnotation"
+    VariableTypeAnnotation:
+      description: Variable type definition body.
+      type: object
+      properties:
+        units:
+          description: List of unit names that are allowed for this variable type.
+          $ref: "#/components/schemas/StringArray"
+          nullable: true
+        domain:
+          description: Array of intervals that span the domain.
+          nullable: true
+          type: array
+          items:
+            - $ref: "#/components/schemas/Interval"
+        comments:
+          description: Array of comments attached to the variable type.
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+    Interval:
+      description: Disjunction of allowed ranges of the type, pairs of
+        (lowerbound, upperbound) where one of the bounds may be None.
+        Constants and enumerations are expressed as intervals with the same
+        lower and upper bound.
+      type: object
+      properties:
+        lowerbound:
+          $ref: "#/components/schemas/Bound"
+        upperbound:
+          $ref: "#/components/schemas/Bound"
+    RelationTypeAnnotation:
+      description: relation type information.
+      type: object
+      properties:
+        definition_name:
+          description: Name of the type of the relation.
+          type: string
+        comments:
+          description: Array of comments,
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+    ComponentAnnotation:
+      description: Component information.
+      type: object
+      properties:
+        definition_name:
+          description: Name of the definition of the component.
+          type: string
+        property_variables:
+          description: List of variable names that represent properties of the component.
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+        comments:
+          description: Array of comments,
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+    VariableAnnotation:
+      description: Variable type information.
+      type: object
+      properties:
+        is_property:
+          description: Boolean that indicates if this variable is a property.
+          type: boolean
+        property_owner:
+          description:
+        type_ref:
+          description: Name of variable type.
+          type: string
+        comments:
+          description: Array of comments,
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+    NeedAnnotation:
+      description: Parsed and instantiated need specification.
+      type: object
+      properties:
+        subject:
+          description: Subject of the need.
+          type: string
+        text:
+          description: Natural language text of the need.
+          type: string
+        comments:
+          description: Array of comments,
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+    FuncSpecAnnotation:
+      description: Function specification.
+      type: object
+      properties:
+        sub_kind:
+          description: Either 'goal' or 'transformation'
+          enum: [goal, transformation]
+        form:
+          description: Either "requirement" or "constraint".
+          type: string
+          enum: ["requirement", "constraint"]
+        body:
+          description: Body of the function specification.
+          anyOf:
+            - $ref: "#components/schemas/GoalSpecAnnotation"
+            - $ref: "component/schemas/TransformSpecAnnotation"
+        comments:
+          description: Array of comments,
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+    GoalSpecAnnotation:
+      description: Parsed elements of the goal specification.
+      type: object
+      properties:
+        active:
+          description: Name of the active conponent of the goal-specification.
+          type: string
+        auxiliary:
+          description: auxiliary verb used within the specification.
+          type: string
+        verb:
+          description: The verb used within the goal-specification.
+          type: string
+        variables:
+          description: List of variable names used within the specification.
+          $ref: "#/components/schemas/StringArray"
+        preposition:
+          description: Preposition used within the goal-specification.
+          type: string
+        passive:
+          description: Name of the passive component of the goal-specification.
+        subclauses:
+          descriptions: List of subclauses.
+          nullable: true
+          type: array
+          items:
+            - SubclauseSpec
+    SubclauseSpec:
+      description: Sublause specification.
+      type: object
+      properties:
+        name:
+          description: Identifier of the Sublause.
+          type: string
+        form:
+          description: Either 'requirement' or `constraint'
+          enum: ["requirement", "constraint"]
+        body:
+          description: List of design rules specs of the sublclause, which have a logical 'or' relation.
+          $ref: "#/components/schemas/DesignRuleSpecArray"
+    DesignRuleSpecArray:
+      type: array
+      items:
+        - $ref: "#/components/schemas/DesignRuleSpec"
+    DesignRuleSpec:
+      description: Design rule specification.
+      type: object
+      properties:
+        subject:
+          desription: Name of the subject variable of the design rule.
+          type: string
+        auxiliary:
+          description: Auxiliary used within the design rule.
+          type: string
+        comparison:
+          description: Mathmematical comparison.
+          type: string
+        bound:
+          description: Bound on the subject variable.
+          nullable: true
+          $ref: "#/components/schemas/Bound"
+    Bound:
+      value:
+        description: Value of the bound
+        anyOf:
+          - string
+          - boolean
+          - number
+          - integer
+      unit:
+        description: Unit of the bound
+        nullable: true
+        type: string
+    TransformSpecAnnotation:
+      description: Body of a transformation specification.
+      type: object
+      properties:
+        active:
+          description: Name of the active conponent of the transformation-specification.
+          type: string
+        auxiliary:
+          description: auxiliary verb used within the specification.
+          type: string
+        verb:
+          description: The verb used within the transform-specification.
+          type: string
+        input_variables:
+          description: List of names of input variables
+          $ref: "#/components/schemas/StringArray"
+        preposition:
+          description: Preposition used within the goal-specification.
+          type: string
+        output_variables:
+          description: List of names of output variables
+          $ref: "#/components/schemas/StringArray"
+        subclauses:
+          descriptions: List of subclauses.
+          nullable: true
+          type: array
+          items:
+            - SubclauseSpec"
+    BehaviorSpecAnnotation:
+      description: Body of behavior spec.
+      type: object
+      properties:
+        form:
+          description: Either "requirement" or "constraint".
+          type: string
+          enum: ["requirement", "constraint"]
+        cases:
+          description: List of cases described in the behavior spec.
+          type: array
+          items:
+            - $ref: "#/components/schemas/CaseSpec"
+        default:
+          description: Fallback case if no other case applies'
+          type: array
+          items:
+            - $ref: "#/components/schemas/DesignRuleSpecArray"
+        comments:
+          description: Array of comments,
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+    CaseSpec:
+      description: Body of a case in a behavior spec.
+      type: object
+      properties:
+        name: Case name.
+        when_clauses:
+          description: List of when-clause specs or the string `no other cases applies'
+          anyOf:
+            - string
+            - $ref: "#/components/schemas/WhenClauseSpec"
+        then_clauses:
+          description: List of then-clause specs.
+          $ref: "#/components/schemas/ThenClauseSpec"
+    WhenClauseSpec:
+      description: Body of a single when clause.
+      properties:
+        name:
+          description: Name of the when clause.
+          type: string
+        body:
+          description: Body of the when clause.
+          $ref: "#/components/schemas/DewsignRuleSpecArray" # Only constraint form.
+    ThenClauseSpec:
+      description: Body of a single then clause.
+      properties:
+        name:
+          description: Name of the then clause.
+          type: string
+        body:
+          description: Body of the then clause.
+          $ref: "#/components/schemas/DesignRuleSpecArray"
+    StringArray:
+      type: array
+      items:
+        type: string
+    DesignSpecAnnotation:
+      description: Design specification.
+      type: object
+      properties:
+        form:
+          description: Either "requirement" or "constraint".
+          type: string
+          enum: ["requirement", "constraint"]
+        body:
+          description: Body of the design specification.
+          $ref: "#/components/schemas/DesignRuleSpecArray"
+        sub_clauses:
+          descriptions: List of subclauses.
+          nullable: true
+          type: array
+          items:
+            - SubclauseSpec"
+        comments:
+          description: Array of comments,
+          nullable: true
+          $ref: "#/components/schemas/StringArray"
+    RelationSpecAnnotation:
+      description: Relation specification.
+      type: object
+      properties:
+        definition_name:
+          description: Name of the definition of the relation spec.
+          type: string
+        required_variables:
+          description: List of input variables names.
+          $ref: "#/components/schemas/StringArray"
+        returned_variables:
+          description: List of output variables names.
+          $ref: "#/components/schemas/StringArray"
+        related_variables:
+          description: List of undirected variables names.
+          $ref: "#/components/schemas/StringArray"
+        comments:
+          description: Array of comments.
+          $ref: "#/components/schemas/StringArray"
+    Edge:
+      description: |
+        An Edge between two Nodes in a Graph.
+      required:
+        - source
+        - target
+      properties:
+        edge_id:
+          type: string
+        source:
+          description: Source Node of this Edge.
+          $ref: "#/components/schemas/Node"
+        target:
+          description: Target Node of this Edge.
+          $ref: "#/components/schemas/Node"
+        kind:
+          description: Edge kind. Used for main categorization.
+          type: string
+          enum:
+            [
+              functional_dependency,
+              logical_dependency,
+              design_dependency,
+              coordination_dependency,
+              mapping_dependency,
+              traceability_dependency,
+            ]
+        labels:
+          description: Edge labels. Used for multi-member categorization.
+          $ref: "#/components/schemas/StringArray"
+        weights:
+          description: Numerical properties of this Edge.
+          $ref: "#/components/schemas/WeightMap"
+        is_bus:
+          description: Boolean that indicates if the edge is a bus Edge.
+          type: object
+        annotations:
+          description: Any other additional information.
+          type: object
+          properties:
+            esl_info:
+              $ref: "#/components/schemas/EslEdgeAnnotations"
+    EslEdgeAnnotations:
+      descriptions: Annotions for edges derived from an ESL spec.
+      type: object
+      properties:
+        reason:
+          description: Reason for the edge to exist
+          $ref: "#/components/schemas/Reason"
+    Reason:
+      description: Reason for an Edge to exist.
+      type: object
+      properties:
+        funtion_specifications:
+          description: Function specification names from which the dependency is derived.
+          nullable: true
+          type: array
+          items:
+            - $ref: "#/components/schema/StringArray"
+        behavior_specifications:
+          description: Behavior specification names from which the dependency is derived.
+          nullable: true
+          type: array
+          items:
+            - $ref: "#/components/schema/StringArray"
+        relation_specifications:
+          description: Relation specification names from which the dependency is derived.
+          nullable: true
+          type: array
+          items:
+            - $ref: "#/components/schema/StringArray"
+        design_specifications:
+          description: Design specification names from which the dependency is derived.
+          nullable: true
+          type: array
+          items:
+            - $ref: "#/components/schema/StringArray"
+        shared_variables:
+          description: List of variables that are shared between the source and target.
+          nullable: true
+          type: array
+          items:
+            - $ref: "#/components/schema/StringArray"
+        path_variables:
+          description: List of variables that form an input-output path.
+          nullable: true
+          type: array
+          items:
+            - $ref: "#/components/schema/StringArray"
+        shared_subject:
+          description: Subject that is shared between needs.
+          type: string
+    Graph:
+      description: |
+        A Graph consisting of both Nodes and Edges. Nodes can be subject to
+        hierarchical relationships with respect to other Nodes. Edges represent
+        interfaces or dependencies between Nodes that are not hierarchial of nature.
+      required:
+        - graph_id
+      properties:
+        graph_id:
+          description: Unique Graph identifier.
+          type: string
+        nodes:
+          description: All Nodes of this Graph.
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Node"
+        edges:
+          description: All Edges of this Graph.
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Edge"

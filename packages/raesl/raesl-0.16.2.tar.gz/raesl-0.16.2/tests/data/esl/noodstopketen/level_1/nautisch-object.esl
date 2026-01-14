@@ -1,0 +1,406 @@
+define component NautischObject
+  parameter
+    # Output statussingalen
+    te_verzenden_statussignaal_PBN is a statussignaal
+    te_verzenden_statussignaal_PNC is a statussignaal
+
+    # Input signaal.
+    bediensignaal_NBC is a bediensignaal
+    statussignaal_NBC is a statussignaal
+
+    objectbedienmodus is an bedienmodi-enumeratie property
+
+  variables
+    # Interne bediensignaal
+    bediensignaal_LRB is a bediensignaal #< Bediensignaal van de lokale router bediensystemen.
+    bediensignaal_PBN is a bediensignaal #< Bediensignaal van het primaire bediensysteem.
+    bediensignaal_LBP is a bediensignaal #< Bediensignaal van de lokale bedienplek.
+    bediensignaal_NLB is a bediensignaal #< Bediensignaal van het noodstoptoestel lokale bedienplek.
+
+    # Besturingssignaal
+    besturingssignaal_PBS is a besturingssignaal #< Besturingssignaal van het primaire besturingssysteem.
+    besturingssignaal_PVB is a besturingssignaal #< Besturingssignaal van de primaire veiligheidsborging.
+    besturingssignaal_PNC is a besturingssignaal #< Besturingssignaal uitgaande van het primaire noodstopcircuit.
+
+    besturingssignaal_SNC is a besturingssignaal #< Besturingssignaal uitgaande van het secundaire noodstopcircuit.
+
+    besturingssignaal_SBS is a besturingssignaal #< Besturingssignaal uitgaande van het secondaire besturingssysteem.
+
+    besturingssignaal_SVB is a besturingssignaal #< Besutringssignaal uitgaande van de secundaire veiligheidsboriging.
+
+    # Bedienhandelingen
+    bedienhandelingen_LBP-LBN is a bedienhandeling #< Reguliere bedienhandelingen van de lokale bedienaar op de lokale bedienplek.
+
+    bedienhandelingen_NBP-LBN is a bedienhandeling #< Reguliere bedienhandelingen van de lokale bedienaar op de noodbedienplek.
+
+    noodbedienhandelingen_NLB-LBN is a bedienhandeling #< Noodbedienhandelingen van de loale bedienaar op het noodstoptoestel lokale bedienplek.
+
+    noodbedienhandelingen_NNB-LBN is a bedienhandeling #< Noodbedienhandelingen van de loale bedienaar op het noodstoptoestel noodbedienplek.
+
+    schakelhandeling_SLB-LBN is a bedienhandeling #< Bedienhandeling om over te schakelen naar lokale bediening
+
+    schakelhandeling_SNB-LBN is a bedienhandeling #< Bedienhandeling om over te schakelen naar noodbediening bediening
+
+    # Status signaal
+    statussignaal_PNC is a statussignaal #< Statussignaal van het primaire noodstop circuit.
+
+    statussignaal_LRN is a statussignaal #< Statusignaal van de lokale router noodstoptoestellen.
+
+    statussignaal_TIN is a statussignaal #< Statussignaal van de technische installaties.
+    statussignaal_PVB is a statussignaal #< Statussignaal van de primaire veiligheidsborging.
+    statussignaal_PBS is a statussignaal #< Statussignaal van het primaire besturingssysteem.
+    statussignaal_PBN is a statussignaal #< Statussignaal van het primaire bediensysteem.
+
+    statussignaal_SNC is a statussignaal #< Statussignaal van het secondaire noodstop cicuit.
+
+    statussignaal_SBN is a statussignaal #< Statussignaal van het secundaire bediensysteem.
+
+    statussignaal_SBS is a statussignaal #< Statussignaal van het secundaire besturingssysteem.
+
+    statussignaal_SVB is a statussignaal #< Statussignaal van de secundaire veiligheidsboriging.
+
+    intern_gerouteerde_statussignaal_PBN is a statussignaal #< Statussignaal van het primaire bediensysteem die intern gerouteerd worden naar de lokale bedienplek door de lokale router bediensystemen.
+
+    bediensignaal_SLB is a bediensignaal #< Bediensignaal van de sleutel schakelaar lokale bediening.
+
+    bediensignaal_SNB is a bediensignaal #< Bediensignaal van de sleutelschakelaar nood bediening.
+
+    bediensignaal_NNB is a bediensignaal #< Bediensignaal van het noodstoptoestel noodbedienplek.
+
+    bediensignaal_NBP is a bediensignaal #< Bediensignaal van de noodbedienplek,
+
+    bediensignaal_SBN is a bediensignaal #< Bediensignaal van het secundaire bediensysteem
+
+    # Energie stroom
+    dynamisch_gedrag_TIN is an energie-stroom #< Het dynamische gedrag dat van het object.
+
+    # Informatie stroom
+    statusinformatie_PBN is a informatie-stroom #< (Visueel) gepresenteerde informatie m.b.t. tot de status van het primaire bediensysteem van het te bedienen object.
+    statusinformatie_SBN is a informatie-stroom #< (Visueel) gepresenteerde informatie m.b.t. de status van het secundaire bediensysteem van het te bedienen object.
+
+    # Status-variablen
+    operationele_status_LRB is a operationele-status-enumeratie #< Status die aangeeft of de lokale router bediensystemen actief of passief is in de aansturing van het object.
+    operationele_status_PBN is a operationele-status-enumeratie #< Status die aangeeft of het primaire bediensysteem actief of passief is in de aansturing van het object.
+    operationele_status_PBS is a operationele-status-enumeratie #< Status die aangeeft of het primaire besturingssysteem actief of passief is in de aansturing van het object.
+    operationele_status_PVB is a operationele-status-enumeratie#< Status die aangeeft of de primaire veiligheidsboriging actief of passief is in de aansturing van het object.
+    operationele_status_PNC is a operationele-status-enumeratie#< Status die aangeeft of het primaire noodstopcircuit actief of passief is in de aansturing van het object.
+    operationele_status_LBP is a operationele-status-enumeratie#< Status die aangeeft of de lokale bedienplek actief of passief is in de aansturing van het object.
+    operationele_status_LBN is a operationele-status-enumeratie#< Status die aangeeft of de lokale bedienaar actief of passief is in de aansturing van het object.
+    operationele_status_NBP is a operationele-status-enumeratie#< Status die aangeeft of de lokale noodbedienplek actief of passief is in de aansturing van het object.
+    operationele_status_SBN is a operationele-status-enumeratie#< Status die aangeeft of het secundair bediensysteem actief of passief is in de aansturing van het object.
+    operationele_status_SBS is a operationele-status-enumeratie#< Status die aangeeft of het secundair besturingssysteem actief of passief is in de aansturing van het object.
+    operationele_status_SVB is a operationele-status-enumeratie#< Status die aangeeft of de secundaire veiligheidsborging actief of passief is in de aansturing van het object.
+    operationele_status_SNC is a operationele-status-enumeratie#< Status die aangeeft of het secundaire noodstopcircuit actief of passief is in de aansturing van het object.
+    operationele_status_NLB is a operationele-status-enumeratie#< Status die aangeeft of het noodstoptoestel lokale bedienplek actief of passief is in de aansturing van het object.
+    operationele_status_NNB is a operationele-status-enumeratie#< Status die aangeeft of het noodstoptoestel noodbedienplek actief of passief is in de aansturing van het object.
+    operationele_status_SLB is a operationele-status-enumeratie#< Status die aangeeft of de sleutelschakelaar lokale bediening actief of passief is in de aansturing van het object
+    operationele_status_SNB is a operationele-status-enumeratie#< Status die aangeeft of de sleutelschakelaar nood bediening actief of passief is in de aansturing van het object
+
+  transformation-requirements
+    OBJ-omzetten-bediensignalen-01: must omzetten bediensignaal_NBC and statussignaal_NBC in dynamisch_gedrag_TIN
+    OBJ-omzetten-dynamisch-gedrag-01: must omzetten dynamisch_gedrag_TIN in te_verzenden_statussignaal_PBN and te_verzenden_statussignaal_PNC
+
+  components
+    # Bedienaar
+    de_lokale_bedienaar is a LokaleBedienaar with arguments
+      * statusinformatie_PBN
+      * bedienhandelingen_LBP-LBN
+      * noodbedienhandelingen_NLB-LBN
+      * statusinformatie_SBN
+      * bedienhandelingen_NBP-LBN
+      * noodbedienhandelingen_NNB-LBN
+      * objectbedienmodus
+      * operationele_status_LBN
+
+     # Primaire keten.
+    de_lokale_bedienplek is a LokaleBedienplek with arguments
+      * bedienhandelingen_LBP-LBN
+      * bediensignaal_LBP
+      * bediensignaal_SLB
+      * intern_gerouteerde_statussignaal_PBN
+      * statusinformatie_PBN
+      * objectbedienmodus
+      * operationele_status_LBP
+
+    de_lokale_routerbediensystemen is a LokaleRouterBediensystemen with arguments
+      * bediensignaal_NBC
+      * bediensignaal_LBP
+      * bediensignaal_LRB
+      * statussignaal_PBN
+      * intern_gerouteerde_statussignaal_PBN
+      * te_verzenden_statussignaal_PBN
+      * bediensignaal_SLB
+      * objectbedienmodus
+      * operationele_status_LRB
+
+    de_lokale_router_noodstoptoestellen is a LokaleRouterNoodstoptoestellen with arguments
+      * statussignaal_NBC
+      * statussignaal_PNC
+      * statussignaal_LRN
+      * te_verzenden_statussignaal_PNC
+
+    het_primaire_bediensysteem is a PrimairBediensysteem with arguments
+      * bediensignaal_LRB
+      * bediensignaal_PBN
+      * statussignaal_PBS
+      * statussignaal_PBN
+      * objectbedienmodus
+      * operationele_status_PBN
+
+    het_primaire_besturingssysteem is a PrimairBesturingssysteem with arguments
+      * bediensignaal_PBN
+      * besturingssignaal_PBS
+      * statussignaal_PNC
+      * statussignaal_PVB
+      * statussignaal_PBS
+      * statussignaal_SBS
+      * objectbedienmodus
+      * operationele_status_PBS
+
+    de_primaire_veiligheidsborging is a PrimaireVeiligheidsborging with arguments
+      * besturingssignaal_PBS
+      * besturingssignaal_PVB
+      * statussignaal_TIN
+      * statussignaal_PVB
+      * objectbedienmodus
+      * operationele_status_PVB
+
+    het_noodstoptoestel_lokale_bedienplek is a NoodstoptoestelLokaleBedienplek with arguments
+      * noodbedienhandelingen_NLB-LBN
+      * bediensignaal_NLB
+      * objectbedienmodus
+      * operationele_status_NLB
+
+    het_primaire_noodstopcircuit is a PrimairNoodstopCircuit with arguments
+      * bediensignaal_NLB
+      * statussignaal_LRN
+      * statussignaal_PNC
+      * statussignaal_TIN
+      * bediensignaal_SLB
+      * bediensignaal_SNB
+      * bediensignaal_NNB
+      * besturingssignaal_PNC
+      * objectbedienmodus
+      * operationele_status_PNC
+
+    # Secundaire keten.
+    de_nood_bedienplek is a NoodBedienplek with arguments
+      * bediensignaal_SNB
+      * bedienhandelingen_NBP-LBN
+      * bediensignaal_NBP
+      * statussignaal_SBN
+      * statusinformatie_SBN
+      * objectbedienmodus
+      * operationele_status_NBP
+
+    het_noodstoptoestel_noodbedienplek is a NoodstoptoestelNoodBedienplek with arguments
+      * noodbedienhandelingen_NNB-LBN
+      * bediensignaal_NNB
+      * objectbedienmodus
+      * operationele_status_NNB
+
+    het_secundaire_bediensysteem is a SecundairBediensysteem with arguments
+      * bediensignaal_NBP
+      * statussignaal_SBN
+      * statussignaal_SBS
+      * bediensignaal_SBN
+      * objectbedienmodus
+      * operationele_status_SBN
+
+    het_secundaire_besturingssysteem is a SecundairBesturingssysteem with arguments
+      * bediensignaal_SNB
+      * bediensignaal_SBN
+      * statussignaal_SNC
+      * statussignaal_SVB
+      * statussignaal_SBS
+      * besturingssignaal_SBS
+      * objectbedienmodus
+      * operationele_status_SBS
+
+    het_secundaire_noodstopcircuit is a SecundairNoodstopCircuit with arguments
+      * bediensignaal_SNB
+      * bediensignaal_NNB
+      * bediensignaal_NLB
+      * statussignaal_TIN
+      * statussignaal_SNC
+      * besturingssignaal_SNC
+      * objectbedienmodus
+      * operationele_status_SNC
+
+    de_secundaire_veiligheidsborging is a SecundaireVeiligheidsborging with arguments
+      * besturingssignaal_SBS
+      * besturingssignaal_SVB
+      * statussignaal_TIN
+      * statussignaal_SVB
+      * objectbedienmodus
+      * operationele_status_SVB
+
+    # Schakelaars
+    de_sleutelschakelaar_lokale_bediening is a SleutelschakelaarLokaleBediening with arguments
+      * schakelhandeling_SLB-LBN
+      * bediensignaal_SLB
+      * objectbedienmodus
+      * operationele_status_SLB
+
+    de_sleutelschakelaar_noodbediening is a SleutelschakelaarNoodBediening with arguments
+      * schakelhandeling_SNB-LBN
+      * bediensignaal_SNB
+      * objectbedienmodus
+      * operationele_status_SNB
+
+    # De techniek
+    de_technische_installaties is a TechnischeInstallaties with arguments
+      * besturingssignaal_PVB
+      * besturingssignaal_PNC
+      * besturingssignaal_SNC
+      * besturingssignaal_SVB
+      * statussignaal_TIN
+      * dynamisch_gedrag_TIN
+
+  comments
+    de_lokale_bedienaar #< Dit component (LFV) wordt afgekort als LBN (Lokale BedieNaar).
+    de_lokale_bedienplek #< Dit component (LFV) wordt afgekort als LBP (Lokale BedienPlek).
+    de_lokale_routerbediensystemen #< Dit component (LFV) wordt afgekort als LRB (Lokale RouterBediensystemen).
+    de_lokale_router_noodstoptoestellen #< Dit component (LFV) wordt afgekort als LRN (Lokale Router Noodstoptoestellen).
+    het_primaire_bediensysteem #< Dit component wordt afgekort als PBN (Primair BedieNsysteem).
+    het_primaire_besturingssysteem #< Dit component (LFV) wordt afgekort als PBS (Primaire BesutringsSysteem).
+    de_primaire_veiligheidsborging #< Dit component (LFV) wordt afgekort als PVB (Primaire veiligheidsborging).
+    het_noodstoptoestel_lokale_bedienplek #< Dit component (LFV) wordt afgekort als NLB (Noodstoptoestel Lokale Bedienplek).
+    het_primaire_noodstopcircuit #< Dit component (LFV) wordt afgekort als PNC (Primair Noodstopcircuit).
+    de_nood_bedienplek #< Dit component (LFV) wordt afgekort als NBP (NoodBedienPlek).
+    het_noodstoptoestel_noodbedienplek #< Dit component (LFV) wordt afgekort als NNB (Noodstoptoestel NoodBedienplek).
+    het_secundaire_bediensysteem #< Dit component (LFV) wordt afgekort als SBN (Secundair BedieNsysteem).
+    het_secundaire_besturingssysteem #< Dit component (LFV) wordt afgekort als SBS (Secundair BesturingSysteem).
+    de_secundaire_veiligheidsborging #< Dit component (LFV) wordt afgekort als SVB (Secundaire VeiligheidsBorging).
+    de_sleutelschakelaar_lokale_bediening #< Dit component (LFV) wordt afgekort als SLB (Sleutelschakelaar Lokale Bediening).
+    de_sleutelschakelaar_noodbediening #< Dit component (LFV) wordt afgekort als SNB (Sleutelschakelaar NoodBediening).
+    de_technische_installaties #< Dit component (LFV) wordt afgekort als TIN (Technische INstallaties).
+
+  goal-requirement
+    # Primaire reguliere keten
+    LBN-uitvoeren-bedienhandelingen-01: de_lokale_bedienaar must uitvoeren bedienhandelingen_LBP-LBN op de_lokale_bedienplek
+
+    LBP-zenden-bediensignaal-01: de_lokale_bedienplek must zenden bediensignaal_LBP naar de_lokale_routerbediensystemen
+
+    LRB-zenden-bediensignaal-01: de_lokale_routerbediensystemen must zenden bediensignaal_LRB naar het_primaire_bediensysteem
+
+    PBN-zenden-bediensignaal-01: het_primaire_bediensysteem must zenden bediensignaal_PBN naar het_primaire_besturingssysteem
+
+    PBS-zenden-besturingssignaal-01: het_primaire_besturingssysteem must zenden besturingssignaal_PBS naar de_primaire_veiligheidsborging
+
+    PVB-zenden-besturingssignaal-01: de_primaire_veiligheidsborging must zenden besturingssignaal_PVB naar de_technische_installaties
+
+    # Primaire noodstopketen
+    LBN-uitvoeren-bedienhandelingen-02: de_lokale_bedienaar must uitvoeren noodbedienhandelingen_NLB-LBN op het_noodstoptoestel_lokale_bedienplek
+
+    NLB-zenden-bediensignaal-01: het_noodstoptoestel_lokale_bedienplek must verzenden bediensignaal_NLB naar het_primaire_noodstopcircuit
+
+    LRN-zenden-bediensignaal-01: de_lokale_router_noodstoptoestellen must verzenden statussignaal_LRN naar het_primaire_noodstopcircuit
+
+    PNC-zenden-statussignaal-01: het_primaire_noodstopcircuit must verzenden statussignaal_PNC naar het_primaire_besturingssysteem
+
+    PNC-zenden-statussignaal-02: het_primaire_noodstopcircuit must verzenden statussignaal_PNC naar de_lokale_router_noodstoptoestellen
+
+    PNC-zenden-besturingssignaal-01: het_primaire_noodstopcircuit must verzenden besturingssignaal_PNC naar de_technische_installaties
+
+    TIN-zenden-statussignaal-01: de_technische_installaties must verzenden statussignaal_TIN naar de_primaire_veiligheidsborging
+
+    TIN-zenden-statussignaal-02: de_technische_installaties must verzenden statussignaal_TIN naar het_primaire_noodstopcircuit
+
+    TIN-zenden-statussignaal-03: de_technische_installaties must verzenden statussignaal_TIN naar het_secundaire_noodstopcircuit
+
+    TIN-zenden-statussignaal-04: de_technische_installaties must verzenden statussignaal_TIN naar de_secundaire_veiligheidsborging
+
+    PVB-zenden-statussignaal-01: de_primaire_veiligheidsborging must verzenden statussignaal_PVB naar het_primaire_besturingssysteem
+
+    PBS-zenden-statussignaal-01: het_primaire_besturingssysteem must verzenden statussignaal_PBS naar het_primaire_bediensysteem
+
+    PBN-zenden-statussignaal-01: het_primaire_bediensysteem must verzenden statussignaal_PBN naar de_lokale_routerbediensystemen
+
+    LRB-zenden-statussignaal-01: de_lokale_routerbediensystemen must verzenden intern_gerouteerde_statussignaal_PBN naar de_lokale_bedienplek
+
+    LBP-tonen-statusinformatie-01: de_lokale_bedienplek must tonen statusinformatie_PBN aan de_lokale_bedienaar
+
+    LBN-uitvoeren-bedienhandeling-04: de_lokale_bedienaar must uitvoeren schakelhandeling_SLB-LBN op de_sleutelschakelaar_lokale_bediening
+
+    SLB-zenden-bediensignaal-01: de_sleutelschakelaar_lokale_bediening must verzenden bediensignaal_SLB naar de_lokale_bedienplek
+
+    SLB-zenden-bediensignaal-02: de_sleutelschakelaar_lokale_bediening must verzenden bediensignaal_SLB naar het_primaire_noodstopcircuit
+
+    SLB-zenden-bediensignaal-03: de_sleutelschakelaar_lokale_bediening must verzenden bediensignaal_SLB naar de_lokale_router_noodstoptoestellen
+
+    #SLB-zenden-bediensignaal-04: de_sleutelschakelaar_lokale_bediening must verzenden #bediensignaal_SLB naar het_primaire_besturingssysteem
+
+    SNB-zenden-bediensignaal-01: de_sleutelschakelaar_noodbediening must verzenden bediensignaal_SNB naar het_primaire_noodstopcircuit
+
+    SNB-zenden-bediensignaal-02: de_sleutelschakelaar_noodbediening must verzenden bediensignaal_SNB naar de_nood_bedienplek
+
+    SNB-zenden-bediensignaal-03: de_sleutelschakelaar_noodbediening must verzenden bediensignaal_SNB naar het_secundaire_noodstopcircuit
+
+    SNB-zenden-bediensignaal-04: de_sleutelschakelaar_noodbediening must verzenden bediensignaal_SNB naar het_secundaire_besturingssysteem
+
+    LBN-uitvoeren-bedienhandeling-05: de_lokale_bedienaar must uitvoeren schakelhandeling_SNB-LBN op de_sleutelschakelaar_noodbediening
+
+    LBN-uitvoeren-bedienhandelingen-06: de_lokale_bedienaar must uitvoeren bedienhandelingen_NBP-LBN op de_nood_bedienplek
+
+    LBN-uitvoeren-bedienhandelingen-07: de_lokale_bedienaar must uitvoeren noodbedienhandelingen_NNB-LBN op het_noodstoptoestel_noodbedienplek
+
+    NNB-zenden-bediensignaal-01: het_noodstoptoestel_noodbedienplek must zenden bediensignaal_NNB naar het_primaire_noodstopcircuit
+
+    NNB-zenden-bediensignaal-02: het_noodstoptoestel_noodbedienplek must zenden bediensignaal_NNB naar het_secundaire_noodstopcircuit
+
+    NLB-zenden-bediensignaal-02: het_noodstoptoestel_lokale_bedienplek must zenden bediensignaal_NLB naar het_secundaire_noodstopcircuit
+
+    SNC-zenden-besturingssignaal-01: het_secundaire_noodstopcircuit must zenden besturingssignaal_SNC naar de_technische_installaties
+
+    SNC-zenden-statussignaal-01: het_secundaire_noodstopcircuit must zenden statussignaal_SNC naar het_secundaire_besturingssysteem
+
+    NBP-tonen-statusinformatie-01: de_nood_bedienplek must tonen statusinformatie_SBN aan de_lokale_bedienaar
+
+    NBP-zenden-bediensignaal-01: de_nood_bedienplek must zenden bediensignaal_NBP naar het_secundaire_bediensysteem
+
+    SBN-zenden-statussignaal-01: het_secundaire_bediensysteem must zenden statussignaal_SBN naar de_nood_bedienplek
+
+    SBN-zenden-bediensignaal-01: het_secundaire_bediensysteem must zenden bediensignaal_SBN naar het_secundaire_besturingssysteem
+
+    SBS-zenden-statussignaal-01: het_secundaire_besturingssysteem must zenden statussignaal_SBS naar het_secundaire_bediensysteem
+
+    SBS-zenden-statussignaal-02: het_secundaire_besturingssysteem must zenden statussignaal_SBS naar het_primaire_besturingssysteem
+
+    SBS-zenden-besturingssignaal-01: het_secundaire_besturingssysteem must zenden besturingssignaal_SBS naar de_secundaire_veiligheidsborging
+
+    SVB-zenden-besturingssignaal-01: de_secundaire_veiligheidsborging must zenden besturingssignaal_SVB naar de_technische_installaties
+
+    SVB-zenden-statussignaal-01: de_secundaire_veiligheidsborging must zenden statussignaal_SVB naar het_secundaire_besturingssysteem
+
+  behavior-requirement
+    OBJ-bedienmodus:
+      case bediening-op-afstand:
+        when
+          * c1: bediensignaal_SLB is equal to bediening-op-afstand [-]
+          * c2: bediensignaal_SNB is equal to niet_ingeschakeld [-]
+        then
+          * r1: objectbedienmodus must be equal to bediening-op-afstand [-]
+      case lokale-bediening-regulier-of-onderhoud:
+        when
+          * c3: bediensignaal_SLB is equal to bediening_lokaal [-]
+          * c4: bediensignaal_SNB is equal to niet_ingeschakeld [-]
+        then
+          * r2: objectbedienmodus must be equal to bediening-lokaal-regulier-of-onderhoud [-]
+      case lokale-bediening-nood:
+        when
+          * c5: bediensignaal_SNB is equal to ingeschakeld [-]
+        then
+          * r3: objectbedienmodus must be equal to bediening-lokaal-nood [-]
+
+    OBJ-actieve-status-besturingssystemen:
+      case PBS-is-actief:
+        when
+          * c1: operationele_status_PBS is equal to actief [-]
+        then
+          * r2: operationele_status_SBS must be equal to passief [-]
+      case SBS-is-actief:
+        when
+          * c1: operationele_status_SBS is equal to actief [-]
+        then
+          * r2: operationele_status_PBS must be equal to passief [-]

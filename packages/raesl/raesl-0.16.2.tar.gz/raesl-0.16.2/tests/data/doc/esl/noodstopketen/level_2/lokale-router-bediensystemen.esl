@@ -1,0 +1,55 @@
+define component LokaleRouterBediensystemen
+  parameters
+    bediensignaal_NBC is a bediensignaal
+    bediensignaal_LBP is a bediensignaal
+    bediensignaal_LRB is a bediensignaal
+    statussignaal_PBN is a statussignaal
+    intern_gerouteerde_statussignaal_PBN is a statussignaal
+    te_verzenden_statussignaal_PBN is a statussignaal
+    bediensignaal_SLB is a bediensignaal
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+  transformation-requirement
+    LRB-omzetten-bediensignaal-01: must omzetten bediensignaal_NBC, bediensignaal_SLB and bediensignaal_LBP in bediensignaal_LRB
+
+    LRB-omzetten-statussignaal-01: must omzetten statussignaal_PBN and bediensignaal_SLB in intern_gerouteerde_statussignaal_PBN and te_verzenden_statussignaal_PBN
+
+  behavior-requirement
+    LRB-signaal-routering-bedienmodi:
+      case bediening-op-afstand:
+        when
+          * c1: objectbedienmodus is equal to bediening-op-afstand [-]
+        then
+          * r1: bediensignaal_LRB must be equal to bediensignaal_NBC
+      case lokale-bediening-nood-en-onderhoud:
+        when
+          * c2: objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-]
+        then
+          * r2: bediensignaal_LRB must be equal to bediensignaal_LBP
+      case fall-back:
+        when no other case applies
+        then
+          * r2: bediensignaal_LRB must be equal to "None"
+
+    LRB-operationele-status:
+      case LRB-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-op-afstand [-] or objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case LRB-is-passief:
+      when
+          * c2: objectbedienmodus is equal to bediening-lokaal-nood [-]
+        then
+          * r2: operationele-status must be equal to passief [-]
+
+    relations
+      LRB-opereationale-status-automaton-model: OpereationaleStatusAutomatonModel
+        requiring arguments
+          * objectbedienmodus
+        returning arguments
+          * operationele-status
+
+    comments
+      LRB-opereationale-status-automaton-model #< Model implementatie van de relatie tussen de objectbedienmodus en de operationele status van de lokele routerbediensystemen.

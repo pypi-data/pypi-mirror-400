@@ -1,0 +1,174 @@
+
+TYPES:
+type#1 = type
+type#2 = type
+type#3 = type
+type#4 = type
+type#5 = type <-- type#1
+    units: M^3/h
+type#6 = bundle
+    O2: type#5
+    he: type#5
+type#6 end
+
+type#7 = type <-- type#1
+    units: M^3/h
+type#8 = bundle
+    cool: type#7
+type#8 end
+
+type#9 = type <-- type#1
+    units: M^3/h
+type#10 = bundle
+    mix: type#9
+    ex: type#7
+type#10 end
+
+
+typedef real: type#1
+typedef integer: type#2
+typedef string: type#3
+typedef boolean: type#4
+typedef liquid-material-flow: type#5
+typedef demin-water-bundle: type#6
+typedef gas-material-flow: type#7
+typedef hydrogen-bundle: type#8
+typedef mixture-material-flow: type#9
+typedef oxygen-bundle: type#10
+
+VERBS:
+    VerbPrepos('convert', 'into')
+      #< No doc-comments found.
+    VerbPrepos('supply', 'to')
+      #< No doc-comments found.
+
+RELATION-DEFINITIONS:
+
+COMPONENTS:
+    world:
+      #< No doc-comments found.
+        var oxygen
+          \- mix - type#9
+          |        #< No doc-comments found.
+          \- ex - type#7
+                  #< No doc-comments found.
+        var demin-water
+          \- O2 - type#5
+          |       #< No doc-comments found.
+          \- he - type#5
+                  #< No doc-comments found.
+        var hydrogen
+          \- cool - type#7
+                    #< No doc-comments found.
+        child-component separator: def=separation-station
+          #< No doc-comments found.
+            arg oxygen.mix <-> param in-oxygen-mix-el
+              - type#9
+                #< No doc-comments found.
+            arg demin-water.O2 <-> param out-demin-water-O2
+              - type#5
+                #< No doc-comments found.
+        child-component cooling-system: def=cooling-station
+          #< No doc-comments found.
+            arg demin-water.O2 <-> param in-demin-water-hot
+              - type#5
+                #< No doc-comments found.
+            arg demin-water.he <-> param out-demin-water-cool
+              - type#5
+                #< No doc-comments found.
+        requirement goal provide-hydrogen-cool:
+          #< No doc-comments found.
+            comp 'cooling-system' must (supply to) comp 'separator'
+            flow 'hydrogen.cool':
+              - type#7
+                #< No doc-comments found.
+        requirement goal provide-hot-demin-water-01:
+          #< No doc-comments found.
+            comp 'separator' must (supply to) comp 'cooling-system'
+            flow 'demin-water.O2':
+              - type#5
+                #< No doc-comments found.
+    def component O2-liquid-separator:
+      #< No doc-comments found.
+        param in-mix
+          - type#9
+            #< No doc-comments found.
+        param out-liquid
+          - type#5
+            #< No doc-comments found.
+        requirement transform separate-liquid-gas:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'in-mix':
+          - type#9
+            #< No doc-comments found.
+          out-flow 'out-liquid':
+          - type#5
+            #< No doc-comments found.
+    def component cooling-station:
+      #< No doc-comments found.
+        param in-demin-water-hot
+          - type#5
+            #< No doc-comments found.
+        param out-demin-water-cool
+          - type#5
+            #< No doc-comments found.
+        child-component demin-water-heat-exchanger: def=liquid-heat-exchanger
+          #< No doc-comments found.
+            arg in-demin-water-hot <-> param in-hot-liquid
+              - type#5
+                #< No doc-comments found.
+            arg out-demin-water-cool <-> param out-cool-liquid
+              - type#5
+                #< No doc-comments found.
+        requirement transform cool-demin-water-02:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'in-demin-water-hot':
+          - type#5
+            #< No doc-comments found.
+          out-flow 'out-demin-water-cool':
+          - type#5
+            #< No doc-comments found.
+    def component liquid-heat-exchanger:
+      #< No doc-comments found.
+        param in-hot-liquid
+          - type#5
+            #< No doc-comments found.
+        param out-cool-liquid
+          - type#5
+            #< No doc-comments found.
+        requirement transform cool-liquid:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'in-hot-liquid':
+          - type#5
+            #< No doc-comments found.
+          out-flow 'out-cool-liquid':
+          - type#5
+            #< No doc-comments found.
+    def component separation-station:
+      #< No doc-comments found.
+        param in-oxygen-mix-el
+          - type#9
+            #< No doc-comments found.
+        param out-demin-water-O2
+          - type#5
+            #< No doc-comments found.
+        child-component O2-separator: def=O2-liquid-separator
+          #< No doc-comments found.
+            arg in-oxygen-mix-el <-> param in-mix
+              - type#9
+                #< No doc-comments found.
+            arg out-demin-water-O2 <-> param out-liquid
+              - type#5
+                #< No doc-comments found.
+        requirement transform convert-oxygen-mix:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'in-oxygen-mix-el':
+          - type#9
+            #< No doc-comments found.
+          out-flow 'out-demin-water-O2':
+          - type#5
+            #< No doc-comments found.

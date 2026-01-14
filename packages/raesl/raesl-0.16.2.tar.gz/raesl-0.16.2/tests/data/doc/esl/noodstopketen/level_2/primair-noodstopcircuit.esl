@@ -1,0 +1,29 @@
+define component PrimairNoodstopCircuit
+  parameters
+    bediensignaal_NLB is a bediensignaal
+    statussignaal_LRN is a statussignaal
+    statussignaal_PNC is a statussignaal
+    statussignaal_TIN is a statussignaal
+    bediensignaal_SLB is a bediensignaal
+    bediensignaal_SNB is a bediensignaal
+    bediensignaal_NNB is a bediensignaal
+    besturingssignaal_PNC is a besturingssignaal
+    objectbedienmodus is an bedienmodi-enumeratie
+    operationele-status is a operationele-status-enumeratie property
+
+
+  transformation-requirement
+    PNC-omzetten-signaal-01: must omzetten bediensignaal_NLB,statussignaal_LRN, bediensignaal_SLB, bediensignaal_SNB, bediensignaal_NNB and statussignaal_TIN in statussignaal_PNC and besturingssignaal_PNC
+
+  behavior-requirement
+    PNC-operationele-status:
+      case PNC-is-actief:
+        when
+          * c1: objectbedienmodus is equal to bediening-lokaal-regulier-of-onderhoud [-] or objectbedienmodus is equal to bediening-op-afstand [-]
+        then
+          * r1: operationele-status must be equal to actief [-]
+      case PNC-is-passief:
+        when
+          * c2: objectbedienmodus is equal to bediening-lokaal-nood [-]
+        then
+          * r2: operationele-status must be equal to passief [-]

@@ -1,0 +1,252 @@
+
+TYPES:
+type#1 = type
+type#2 = type
+type#3 = type
+type#4 = type
+type#5 = type <-- type#4
+type#6 = type <-- type#1
+    units: Nm
+type#7 = type <-- type#1
+    units: W
+type#8 = type <-- type#1
+    units: L/s
+type#9 = type <-- type#1
+    units: Wh
+type#10 = type <-- type#1
+    units: m
+type#11 = type <-- type#10
+    intervals: (=> Value(0.0, [m]), <= *)
+type#12 = type <-- type#1
+    intervals: (=> Value(0.0), <= Value(1.0))
+
+typedef real: type#1
+typedef integer: type#2
+typedef string: type#3
+typedef boolean: type#4
+typedef ControlSignal: type#5
+typedef MechanicalEnergyFlow: type#6
+typedef ElectricalEnergyFlow: type#7
+typedef LiquidMaterialFlow: type#8
+typedef EnergyPotential: type#9
+typedef Distance: type#10
+typedef SpatialMeasure: type#11
+typedef Efficiency: type#12
+
+VERBS:
+    VerbPrepos('provide', 'to')
+      #< No doc-comments found.
+    VerbPrepos('convert', 'into')
+      #< No doc-comments found.
+    VerbPrepos('send', 'to')
+      #< No doc-comments found.
+
+RELATION-DEFINITIONS:
+    def BatteryEfficiencyModel:
+      #< No doc-comments found.
+        inp_out potential: type#9
+        inp_out output: type#7
+
+COMPONENTS:
+    world:
+      #< No doc-comments found.
+        var torque
+          - type#6
+            #< Comments on variable torque.
+        var water-flow
+          - type#8
+            #< No doc-comments found.
+        var drive-length
+          - type#11
+            #< No doc-comments found.
+        var pump-length
+          - type#11
+            #< No doc-comments found.
+        child-component pump: def=CentrifugalPump
+          #< Can be sourced by manufacturer XYZ. Part number CFG.PMP.0.1
+            arg torque <-> param torque
+              - type#6
+                #< Comments on variable torque.
+            arg water-flow <-> param water-flow
+              - type#8
+                #< No doc-comments found.
+            arg pump-length <-> param length
+              - type#11
+                #< No doc-comments found.
+        child-component drive-mechanism: def=ElectricalDriveMechanism
+          #< No doc-comments found.
+            arg torque <-> param torque
+              - type#6
+                #< Comments on variable torque.
+            arg drive-length <-> param length
+              - type#11
+                #< No doc-comments found.
+        requirement goal provide-torque:
+          #< No doc-comments found.
+            comp 'drive-mechanism' must (provide to) comp 'pump'
+            flow 'torque':
+              - type#6
+                #< Comments on variable torque.
+        need IP68: subject drive-mechanism
+          #< No doc-comments found.
+        requirement design min-water-flow
+          #< No doc-comments found.
+            water-flow must >= 1.0[L/s]
+            - type#8
+              #< No doc-comments found.
+        constraint design dc-drive-length
+          #< No doc-comments found.
+            drive-length must == pump-length
+            - type#11
+              #< No doc-comments found.
+            - type#11
+              #< No doc-comments found.
+    def component Battery:
+      #< No doc-comments found.
+        param power-potential
+          - type#9
+            #< No doc-comments found.
+        param power
+          - type#7
+            #< No doc-comments found.
+        relation-instance efficiency-model: def=BatteryEfficiencyModel
+          #< No doc-comments found.
+            ['power-potential'] <-> param('potential', inp_out, multi=False)
+              - type#9
+                #< No doc-comments found.
+            ['power'] <-> param('output', inp_out, multi=False)
+              - type#7
+                #< No doc-comments found.
+        constraint transform convert-potential:
+          #< No doc-comments found.
+          does (convert into)
+          in-flow 'power-potential':
+          - type#9
+            #< No doc-comments found.
+          out-flow 'power':
+          - type#7
+            #< No doc-comments found.
+    def component BrushlessMotor:
+      #< No doc-comments found.
+        var conversion
+          - type#12
+            #< No doc-comments found.
+        param power
+          - type#7
+            #< No doc-comments found.
+        param torque
+          - type#6
+            #< No doc-comments found.
+        requirement transform convert-power:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'power':
+          - type#7
+            #< No doc-comments found.
+          out-flow 'torque':
+          - type#6
+            #< No doc-comments found.
+            subclause s1:
+              conversion must >= 0.8[-]
+              - type#12
+                #< No doc-comments found.
+    def component CentrifugalPump:
+      #< No doc-comments found.
+        param torque
+          - type#6
+            #< No doc-comments found.
+        param water-flow
+          - type#8
+            #< No doc-comments found.
+        param length: property
+          - type#11
+            #< No doc-comments found.
+        requirement transform convert-torque:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'torque':
+          - type#6
+            #< No doc-comments found.
+          out-flow 'water-flow':
+          - type#8
+            #< No doc-comments found.
+    def component ElectricalDriveMechanism:
+      #< No doc-comments found.
+        var power-potential
+          - type#9
+            #< No doc-comments found.
+        var power
+          - type#7
+            #< No doc-comments found.
+        var motor-control-signal
+          - type#5
+            #< No doc-comments found.
+        param torque
+          - type#6
+            #< No doc-comments found.
+        param length: property
+          - type#11
+            #< No doc-comments found.
+        child-component power-source: def=Battery
+          #< No doc-comments found.
+            arg power-potential <-> param power-potential
+              - type#9
+                #< No doc-comments found.
+            arg power <-> param power
+              - type#7
+                #< No doc-comments found.
+        child-component motor: def=BrushlessMotor
+          #< No doc-comments found.
+            arg power <-> param power
+              - type#7
+                #< No doc-comments found.
+            arg torque <-> param torque
+              - type#6
+                #< No doc-comments found.
+        child-component power-switch: def=Switch
+          #< No doc-comments found.
+            arg motor-control-signal <-> param motor-control-signal
+              - type#5
+                #< No doc-comments found.
+        requirement goal provide-power:
+          #< No doc-comments found.
+            comp 'power-source' must (provide to) comp 'motor'
+            flow 'power':
+              - type#7
+                #< No doc-comments found.
+        requirement goal send-control-signal:
+          #< No doc-comments found.
+            comp 'power-switch' must (send to) comp 'power-source'
+            flow 'motor-control-signal':
+              - type#5
+                #< No doc-comments found.
+        requirement transform convert-power-potential:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'power-potential':
+          - type#9
+            #< No doc-comments found.
+          out-flow 'torque':
+          - type#6
+            #< No doc-comments found.
+        requirement behavior toggle-power:
+          #< No doc-comments found.
+            case on:
+                c1: if
+                  motor-control-signal is == True[-]
+                  - type#5
+                    #< No doc-comments found.
+                r1: then
+                  power must >= 300[W]
+                  - type#7
+                    #< No doc-comments found.
+            default:
+                r2: then
+                  power must == 0[W]
+                  - type#7
+                    #< No doc-comments found.
+    def component Switch:
+      #< No doc-comments found.
+        param motor-control-signal
+          - type#5
+            #< No doc-comments found.

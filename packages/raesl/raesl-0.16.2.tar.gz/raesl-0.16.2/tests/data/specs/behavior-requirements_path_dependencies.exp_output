@@ -1,0 +1,364 @@
+
+TYPES:
+type#1 = type
+type#2 = type
+type#3 = type
+type#4 = type
+type#5 = type
+    units: Nm
+type#6 = type
+type#7 = type <-- type#1
+    units: V
+type#8 = type <-- type#3
+type#9 = type <-- type#3
+
+typedef real: type#1
+typedef integer: type#2
+typedef string: type#3
+typedef boolean: type#4
+typedef mechanical-energy-flow: type#5
+typedef electrical-energy-flow: type#6
+typedef voltage: type#7
+typedef control-signal: type#8
+typedef state: type#9
+
+VERBS:
+    VerbPrepos('send', 'to')
+      #< No doc-comments found.
+    VerbPrepos('convert', 'into')
+      #< No doc-comments found.
+    VerbPrepos('provide', 'to')
+      #< No doc-comments found.
+
+RELATION-DEFINITIONS:
+    def torque-curve-models:
+      #< No doc-comments found.
+        output motor-start-up-curve: type#5
+        output motot-shut-down-curve: type#5
+
+COMPONENTS:
+    world:
+      #< No doc-comments found.
+        var motor-control-signal
+          - type#8
+            #< No doc-comments found.
+        var torque
+          - type#5
+            #< No doc-comments found.
+        var water-flow
+          - type#1
+            #< No doc-comments found.
+        child-component switch: def=wireless-switch
+          #< No doc-comments found.
+            arg motor-control-signal <-> param motor-control-signal
+              - type#8
+                #< No doc-comments found.
+        child-component motor: def=electric-motor
+          #< No doc-comments found.
+            arg motor-control-signal <-> param motor-control-signal
+              - type#8
+                #< No doc-comments found.
+            arg torque <-> param torque
+              - type#5
+                #< No doc-comments found.
+        child-component pump: def=centrifugal-pump
+          #< No doc-comments found.
+            arg torque <-> param torque
+              - type#5
+                #< No doc-comments found.
+            arg water-flow <-> param water-flow
+              - type#1
+                #< No doc-comments found.
+        requirement goal send-control-signal:
+          #< No doc-comments found.
+            comp 'switch' must (send to) comp 'motor'
+            flow 'motor-control-signal':
+              - type#8
+                #< No doc-comments found.
+        requirement goal provide-torque:
+          #< No doc-comments found.
+            comp 'motor' must (provide to) comp 'pump'
+            flow 'torque':
+              - type#5
+                #< No doc-comments found.
+    def component centrifugal-pump:
+      #< No doc-comments found.
+        param torque
+          - type#5
+            #< No doc-comments found.
+        param water-flow
+          - type#1
+            #< No doc-comments found.
+        requirement transform convert-torque-into-water-flow:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'torque':
+          - type#5
+            #< No doc-comments found.
+          out-flow 'water-flow':
+          - type#1
+            #< No doc-comments found.
+        requirement behavior water-flow-output:
+          #< No doc-comments found.
+            case produce-a-water-flow:
+                c1: if
+                  torque is > 0.0[Nm]
+                  - type#5
+                    #< No doc-comments found.
+                r1: then
+                  water-flow must > 0[-]
+                  - type#1
+                    #< No doc-comments found.
+            no default case.
+    def component electric-motor:
+      #< No doc-comments found.
+        var power
+          - type#6
+            #< No doc-comments found.
+        var start-up-curve
+          - type#5
+            #< No doc-comments found.
+        var shut-down-curve
+          - type#5
+            #< No doc-comments found.
+        var detailed-motor-state
+          - type#9
+            #< No doc-comments found.
+        param motor-control-signal
+          - type#8
+            #< No doc-comments found.
+        param torque
+          - type#5
+            #< No doc-comments found.
+        relation-instance torque-curves: def=torque-curve-models
+          #< No doc-comments found.
+            ['start-up-curve'] <-> param('motor-start-up-curve', output, multi=False)
+              - type#5
+                #< No doc-comments found.
+            ['shut-down-curve'] <-> param('motot-shut-down-curve', output, multi=False)
+              - type#5
+                #< No doc-comments found.
+        requirement transform convert-power-into-torque:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'power':
+          - type#6
+            #< No doc-comments found.
+          out-flow 'torque':
+          - type#5
+            #< No doc-comments found.
+        requirement behavior detailed-motor-state-transitions:
+          #< No doc-comments found.
+            case start-up:
+                c1: if
+                  motor-control-signal is == "on"[-]
+                  - type#8
+                    #< No doc-comments found.
+                c2: if
+                  torque is < 60.0[Nm]
+                  - type#5
+                    #< No doc-comments found.
+                r1: then
+                  detailed-motor-state must == "start-up"[-]
+                  - type#9
+                    #< No doc-comments found.
+            case steady-state:
+                c1: if
+                  motor-control-signal is == "on"[-]
+                  - type#8
+                    #< No doc-comments found.
+                c2: if
+                  torque is >= 60.0[Nm]
+                  - type#5
+                    #< No doc-comments found.
+                r1: then
+                  detailed-motor-state must == "steady-state"[-]
+                  - type#9
+                    #< No doc-comments found.
+            case shut-down:
+                c1: if
+                  motor-control-signal is == "off"[-]
+                  - type#8
+                    #< No doc-comments found.
+                c2: if
+                  torque is > 0.0[Nm]
+                  - type#5
+                    #< No doc-comments found.
+                r1: then
+                  detailed-motor-state must == "shut-down"[-]
+                  - type#9
+                    #< No doc-comments found.
+            case off:
+                c1: if
+                  motor-control-signal is == "off"[-]
+                  - type#8
+                    #< No doc-comments found.
+                c2: if
+                  torque is == 0.0[Nm]
+                  - type#5
+                    #< No doc-comments found.
+                r2: then
+                  detailed-motor-state must == "off"[-]
+                  - type#9
+                    #< No doc-comments found.
+            no default case.
+        requirement behavior motor-torque-output:
+          #< No doc-comments found.
+            case motor-start-up:
+                c1: if
+                  detailed-motor-state is == "start-up"[-]
+                  - type#9
+                    #< No doc-comments found.
+                r1: then
+                  torque must == start-up-curve
+                  - type#5
+                    #< No doc-comments found.
+                  - type#5
+                    #< No doc-comments found.
+            case motor-is-in-steady-state:
+                c1: if
+                  detailed-motor-state is == "steady-state"[-]
+                  - type#9
+                    #< No doc-comments found.
+                r1: then
+                  torque must == 60.0[Nm]
+                  - type#5
+                    #< No doc-comments found.
+            case motor-shut-down:
+                c1: if
+                  detailed-motor-state is == "shut-down"[-]
+                  - type#9
+                    #< No doc-comments found.
+                r2: then
+                  torque must == shut-down-curve
+                  - type#5
+                    #< No doc-comments found.
+                  - type#5
+                    #< No doc-comments found.
+            case motor-is-off:
+                c2: if
+                  detailed-motor-state is == "off"[-]
+                  - type#9
+                    #< No doc-comments found.
+                r2: then
+                  torque must == 0.0[Nm]
+                  - type#5
+                    #< No doc-comments found.
+            no default case.
+    def component wireless-switch:
+      #< No doc-comments found.
+        var switch-circuit-voltage
+          - type#7
+            #< No doc-comments found.
+        var motor-state
+          - type#9
+            #< No doc-comments found.
+        var switch-state
+          - type#9
+            #< No doc-comments found.
+        var switch-is-reset
+          - type#4
+            #< No doc-comments found.
+        param motor-control-signal
+          - type#8
+            #< No doc-comments found.
+        requirement transform convert-voltage-to-control-signal:
+          #< No doc-comments found.
+          must (convert into)
+          in-flow 'switch-circuit-voltage':
+          - type#7
+            #< No doc-comments found.
+          out-flow 'motor-control-signal':
+          - type#8
+            #< No doc-comments found.
+        requirement behavior switch-state-transitions:
+          #< No doc-comments found.
+            case switch-is-clicked:
+                c1: if
+                  switch-circuit-voltage is >= 1.0[V]
+                  - type#7
+                    #< No doc-comments found.
+                r1: then
+                  switch-state must == "clicked"[-]
+                  - type#9
+                    #< No doc-comments found.
+            case switch-is-not-clicked:
+                c1: if
+                  switch-circuit-voltage is < 1.0[V]
+                  - type#7
+                    #< No doc-comments found.
+                r1: then
+                  switch-state must == "not_clicked"[-]
+                  - type#9
+                    #< No doc-comments found.
+                r2: then
+                  switch-is-reset must == true[-]
+                  - type#4
+                    #< No doc-comments found.
+            no default case.
+        requirement behavior motor-state-transitions:
+          #< No doc-comments found.
+            case motor-is-on:
+                c1: if
+                  motor-control-signal is == "on"[-]
+                  - type#8
+                    #< No doc-comments found.
+                r1: then
+                  motor-state must == "on"[-]
+                  - type#9
+                    #< No doc-comments found.
+            case motor-is-off:
+                c1: if
+                  motor-control-signal is == "off"[-]
+                  - type#8
+                    #< No doc-comments found.
+                r1: then
+                  motor-state must == "off"[-]
+                  - type#9
+                    #< No doc-comments found.
+            no default case.
+        requirement behavior motor-control-signal-values:
+          #< No doc-comments found.
+            case turn-motor-on:
+                c1: if
+                  switch-state is == "clicked"[-]
+                  - type#9
+                    #< No doc-comments found.
+                c2: if
+                  motor-state is == "off"[-]
+                  - type#9
+                    #< No doc-comments found.
+                c3: if
+                  switch-is-reset is == true[-]
+                  - type#4
+                    #< No doc-comments found.
+                r1: then
+                  motor-control-signal must == "on"[-]
+                  - type#8
+                    #< No doc-comments found.
+                c3: then
+                  switch-is-reset must == false[-]
+                  - type#4
+                    #< No doc-comments found.
+            case turn-motor-off:
+                c1: if
+                  switch-state is == "clicked"[-]
+                  - type#9
+                    #< No doc-comments found.
+                c2: if
+                  motor-state is == "on"[-]
+                  - type#9
+                    #< No doc-comments found.
+                c3: if
+                  switch-is-reset is == true[-]
+                  - type#4
+                    #< No doc-comments found.
+                r2: then
+                  motor-control-signal must == "off"[-]
+                  - type#8
+                    #< No doc-comments found.
+                c3: then
+                  switch-is-reset must == false[-]
+                  - type#4
+                    #< No doc-comments found.
+            no default case.
