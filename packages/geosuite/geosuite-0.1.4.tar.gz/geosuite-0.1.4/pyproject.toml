@@ -1,0 +1,212 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geosuite"
+version = "0.1.4"
+description = "A Python library for geoscience workflows: geomechanics, petrophysics, machine learning, and data I/O"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "K. Jones", email = "kyletjones@gmail.com"}
+]
+keywords = [
+    "geoscience",
+    "geophysics",
+    "petrophysics",
+    "geomechanics",
+    "petroleum",
+    "well-log",
+    "machine-learning",
+    "geology"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=2.0.0",
+    "scipy>=1.13.0",
+    "scikit-learn>=1.3",
+    "matplotlib>=3.7",
+    "signalplot>=0.1.0",
+    "lasio>=0.30",
+    "segyio>=1.9",
+    "ruptures>=1.1",
+    "joblib>=1.3.0",
+    "cloudpickle>=2.2.0",
+    "numba>=0.58.0",
+    "pyarrow>=14.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+visualization = [
+    "plotly>=5.0.0",  # For interactive 3D visualization
+    "folium>=0.14.0",  # For interactive maps
+    "geopandas>=0.14.0",  # For static geospatial maps
+    "shapely>=2.0.0",  # Required by geopandas
+]
+analysis = [
+    "ts2net>=0.7.0",  # Time series to network analysis
+]
+data_formats = [
+    "resqpy>=0.7.0",  # RESQML format support
+    "dlisio>=0.7.0",  # DLIS format support
+    "pyproj>=3.6.0",  # CRS handling
+    "requests>=2.31.0",  # Remote data access
+    "websocket-client>=1.6.0",  # WITSML streaming
+]
+forecasting = [
+    "pymc>=5.0.0",  # Bayesian decline analysis
+    "arviz>=0.15.0",  # Bayesian diagnostics and visualization
+]
+ml = [
+    "mlflow>=2.8.0",
+    "mlflow[extras]>=2.8.0",
+    "shap>=0.44.0",  # For model interpretability
+]
+deep = [
+    "torch>=2.0.0",  # PyTorch for deep learning
+    "tensorflow>=2.13.0",  # TensorFlow as alternative backend
+]
+optimization = [
+    "optuna>=3.0.0",  # Hyperparameter optimization
+]
+geospatial = [
+    "apache-sedona==1.5.1",
+    "pyspark>=3.4.0,<3.5.0",
+    "shapely>=2.0.0",
+    "pyproj>=3.6.0",
+    "geopandas>=0.14.0",
+    "h3>=4.1.0",
+    "fiona>=1.9.0",
+]
+data = [
+    "openpyxl>=3.1.5",
+    "duckdb>=1.1.3",
+]
+webapp = [
+    "Flask>=3.0.0",
+    "dash>=2.16",
+    "dash-bootstrap-components>=1.4",
+    "dash-echarts>=0.0.7",
+    "python-dotenv>=1.0.0",
+    "gunicorn>=21.0.0",
+]
+imaging = [
+    "scikit-image>=0.21",
+]
+modeling = [
+    "pygeomodeling>=0.3.0",
+    "pykrige>=1.6.0",  # For Kriging support
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "types-requests",
+    "jupyter>=1.0.0",
+    "jupyterlab>=4.0.0",
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "sphinx-autobuild>=2024.0.0",
+    "myst-parser>=2.0.0",
+]
+all = [
+    "geosuite[ml,geospatial,data,webapp,imaging,modeling,dev]"
+]
+
+[project.urls]
+Homepage = "https://github.com/kylejones200/geosuite"
+Documentation = "https://geosuite.readthedocs.io"
+Repository = "https://github.com/kylejones200/geosuite"
+Issues = "https://github.com/kylejones200/geosuite/issues"
+
+[tool.setuptools]
+packages = ["geosuite", "geosuite.io", "geosuite.petro", "geosuite.geomech", "geosuite.ml", "geosuite.stratigraphy", "geosuite.imaging", "geosuite.geospatial", "geosuite.plotting", "geosuite.data", "geosuite.modeling", "geosuite.cli", "geosuite.config", "geosuite.workflows", "geosuite.analysis", "geosuite.forecasting"]
+
+[project.scripts]
+geosuite-batch = "geosuite.cli.batch_process:main"
+geosuite-analyze = "geosuite.cli.analyze:main"
+geosuite-workflow = "geosuite.cli.workflow:main"
+
+[tool.setuptools.package-data]
+geosuite = ["data/files/*.parquet", "data/files/KSdata/*.parquet"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --cov=geosuite --cov-report=term-missing --cov-report=html --strict-markers"
+markers = [
+    "unit: Unit tests for individual functions and classes",
+    "integration: Integration tests for components working together",
+    "slow: Tests that take a long time to run",
+    "requires_mlflow: Tests that require MLflow to be configured",
+    "requires_databricks: Tests that require Databricks connection",
+]
+
+[tool.coverage.run]
+source = ["geosuite"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/setup.py",
+    "geosuite/cli/*",  # CLI utilities not fully tested
+    "geosuite/utils/uncertainty.py",  # Not yet implemented
+    "geosuite/geomech/basic.py",  # Legacy module
+    "geosuite/io/csv_loader.py",  # Optional dependency
+    "geosuite/io/las_loader.py",  # Optional dependency
+    "geosuite/io/segy_loader.py",  # Optional dependency
+    "geosuite/io/witsml_parser.py",  # Optional dependency
+    "geosuite/io/ppdm_parser.py",  # Optional dependency
+    "geosuite/geospatial/*",  # Optional geospatial features
+    "geosuite/imaging/*",  # Optional imaging features
+    "geosuite/modeling/*",  # Optional modeling features
+    "geosuite/plotting/strip_charts.py",  # Visualization (hard to test)
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+# fail_under = 0  # Coverage check disabled - informational only
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
