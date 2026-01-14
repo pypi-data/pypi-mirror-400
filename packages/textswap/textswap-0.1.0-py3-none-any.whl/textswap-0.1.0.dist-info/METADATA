@@ -1,0 +1,115 @@
+Metadata-Version: 2.4
+Name: textswap
+Version: 0.1.0
+Summary: Bulk text replacement in files using dictionary mappings
+Project-URL: Homepage, https://github.com/cainky/textswap
+Project-URL: Repository, https://github.com/cainky/textswap
+Project-URL: Issues, https://github.com/cainky/textswap/issues
+Author-email: Kyle Cain <kyle@kylecain.me>
+License-Expression: GPL-3.0-or-later
+License-File: LICENSE
+Keywords: bulk,cli,dictionary,find-replace,replace,text
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Text Processing
+Classifier: Topic :: Utilities
+Requires-Python: >=3.9
+Requires-Dist: click>=8.0.0
+Provides-Extra: dev
+Requires-Dist: pytest-cov>=4.0.0; extra == 'dev'
+Requires-Dist: pytest>=7.0.0; extra == 'dev'
+Requires-Dist: ruff>=0.1.0; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# textswap
+
+**Bulk text replacement in files using dictionary mappings.**
+
+[![PyPI version](https://badge.fury.io/py/textswap.svg)](https://badge.fury.io/py/textswap)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+Replace text across multiple files using find/replace dictionaries. Supports bidirectional replacement (keys-to-values or values-to-keys).
+
+## Installation
+
+```bash
+pip install textswap
+```
+
+## Quick Start
+
+1. Create a config file (`config.json`):
+
+```json
+{
+  "dictionaries": {
+    "example": {
+      "old_text": "new_text",
+      "foo": "bar"
+    }
+  },
+  "ignore_extensions": [".exe", ".bin"],
+  "ignore_directories": ["node_modules", ".git"],
+  "ignore_file_prefixes": [".", "_"]
+}
+```
+
+2. Run:
+
+```bash
+textswap -f ./my_folder -d 1
+```
+
+## Usage
+
+```bash
+# Interactive mode
+textswap
+
+# With options
+textswap --folder ./src --direction 1 --config my_config.json
+
+# Dry run (preview changes)
+textswap -f ./src -d 1 --dry-run
+
+# Reverse direction (values-to-keys)
+textswap -f ./src -d 2
+```
+
+## Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--folder` | `-f` | Folder to process |
+| `--direction` | `-d` | 1 = keys-to-values, 2 = values-to-keys |
+| `--config` | `-c` | Path to config file (default: config.json) |
+| `--dict-name` | `-n` | Dictionary name (auto-selects if only one) |
+| `--dry-run` | | Preview changes without modifying files |
+
+## Config Format
+
+```json
+{
+  "dictionaries": {
+    "my_replacements": {
+      "find_this": "replace_with_this",
+      "old": "new"
+    }
+  },
+  "ignore_extensions": [".exe", ".dll"],
+  "ignore_directories": ["node_modules", "venv"],
+  "ignore_file_prefixes": [".", "_"]
+}
+```
+
+## License
+
+GPL v3
