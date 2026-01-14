@@ -1,0 +1,65 @@
+- job:
+    name: cross-nova-tox-functional
+    parent: openstack-tox
+    description: |
+      Run cross-project functional tests on nova.
+    vars:
+      zuul_work_dir: src/opendev.org/openstack/nova
+      tox_envlist: functional
+    required-projects:
+      - openstack/nova
+      - openstack/oslo.policy
+    irrelevant-files: &irrelevant-files
+      - ^\.gitreview$
+      - ^.*\.rst$
+      - ^doc/.*$
+      - LICENSE
+      - ^releasenotes/.*$
+      - ^sample_data/.*$
+      - ^\.pre-commit-config\.yaml$
+      - ^oslo_policy/tests/.*$
+      - ^test-requirements\.txt$
+
+- job:
+    name: cross-nova-tox-py313
+    parent: openstack-tox-py313
+    description: |
+      Run cross-project unit tests on nova.
+    vars:
+      zuul_work_dir: src/opendev.org/openstack/nova
+    required-projects:
+      - openstack/nova
+      - openstack/oslo.policy
+    irrelevant-files: *irrelevant-files
+
+- job:
+    name: cross-neutron-tox-py313
+    parent: openstack-tox-py313
+    description: |
+      Run cross-project unit tests on neutron.
+    timeout: 3600
+    vars:
+      zuul_work_dir: src/opendev.org/openstack/neutron
+    required-projects:
+      - openstack/neutron
+      - openstack/oslo.policy
+    irrelevant-files: *irrelevant-files
+
+- project:
+    templates:
+      - check-requirements
+      - lib-forward-testing-python3
+      - openstack-python3-jobs
+      - periodic-stable-jobs
+      - publish-openstack-docs-pti
+      - release-notes-jobs-python3
+    check:
+      jobs:
+        - cross-nova-tox-py313
+        - cross-nova-tox-functional
+        - cross-neutron-tox-py313
+    gate:
+      jobs:
+        - cross-nova-tox-py313
+        - cross-nova-tox-functional
+        - cross-neutron-tox-py313
