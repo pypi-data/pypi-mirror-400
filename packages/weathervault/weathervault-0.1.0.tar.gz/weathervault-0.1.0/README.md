@@ -1,0 +1,228 @@
+# weathervault
+
+[![Tests](https://github.com/rich-iannone/weathervault/actions/workflows/tests.yml/badge.svg)](https://github.com/rich-iannone/weathervault/actions/workflows/tests.yml)
+[![Python versions](https://img.shields.io/pypi/pyversions/weathervault.svg)](https://pypi.org/project/weathervault/)
+
+Obtain Polars DataFrames of historical weather data from NOAA's National Centers for Environmental Information (NCEI) Integrated Surface Database (ISD).
+
+## Features
+
+- download and decode weather station data with a simple API
+- get data as efficient Polars DataFrames ready for analysis
+- locate met stations by name, location, and elevation
+- automatic conversion from UTC to local station time
+- support different temperature units (Celsius, Fahrenheit, and Kelvin)
+- optional local data file caching with automatic cache detection
+- access to the global ISD network of weather stations (29,000+ stations)
+
+## Installation
+
+```bash
+pip install weathervault
+```
+
+Or install from source:
+
+```bash
+pip install git+https://github.com/rich-iannone/weathervault.git
+```
+
+## Quick Start
+
+```python
+import weathervault as wv
+
+# Get weather data for LaGuardia Airport (New York) for 2024
+weather = wv.get_weather_data("725030-14732", years=2024)
+
+weather.head()
+```
+
+Output:
+```
+shape: (5, 10)
+┌──────────────┬─────────────────────────┬───────┬───────────┬───────┬─────┬──────┬────────────┬──────────┬────────────┐
+│ id           ┆ time                    ┆ temp  ┆ dew_point ┆ rh    ┆ wd  ┆ ws   ┆ atmos_pres ┆ ceil_hgt ┆ visibility │
+│ ---          ┆ ---                     ┆ ---   ┆ ---       ┆ ---   ┆ --- ┆ ---  ┆ ---        ┆ ---      ┆ ---        │
+│ str          ┆ datetime[μs, tz]        ┆ f64   ┆ f64       ┆ f64   ┆ i32 ┆ f64  ┆ f64        ┆ i32      ┆ i32        │
+╞══════════════╪═════════════════════════╪═══════╪═══════════╪═══════╪═════╪══════╪════════════╪══════════╪════════════╡
+│ 725030-14732 ┆ 2024-01-01 00:51:00 EST ┆ 12.8  ┆ 7.8       ┆ 72.1  ┆ 200 ┆ 4.6  ┆ 1016.9     ┆ 2438     ┆ 16093      │
+│ 725030-14732 ┆ 2024-01-01 01:51:00 EST ┆ 12.2  ┆ 7.2       ┆ 71.8  ┆ 190 ┆ 5.1  ┆ 1016.5     ┆ 2743     ┆ 16093      │
+│ ...          ┆ ...                     ┆ ...   ┆ ...       ┆ ...   ┆ ... ┆ ...  ┆ ...        ┆ ...      ┆ ...        │
+└──────────────┴─────────────────────────┴───────┴───────────┴───────┴─────┴──────┴────────────┴──────────┴────────────┘
+```
+
+## Finding Weather Stations
+
+### Convenient Shorthand Syntax
+
+Use `wv.country` and `wv.state` for clean, readable code with IDE autocomplete:
+
+```python
+# Search by country using convenient shorthand
+de_stations = wv.search_stations(country_code=wv.country.DE)  # Germany
+gb_stations = wv.search_stations(country_code=wv.country.GB)  # United Kingdom
+jp_stations = wv.search_stations(country_code=wv.country.JP)  # Japan
+
+# Search by US state
+ca_stations = wv.search_stations(state=wv.state.CA)  # California
+ny_stations = wv.search_stations(state=wv.state.NY)  # New York
+tx_stations = wv.search_stations(state=wv.state.TX)  # Texas
+
+# Combine filters
+us_ca = wv.search_stations(
+    country_code=wv.country.US,
+    state=wv.state.CA
+)
+```
+
+### Search by Location (lat/long Bounding Box)
+
+```python
+# Search by coordinates (latitude/longitude range)
+nyc_stations = wv.search_stations(
+    lat_range=(40.5, 41.0),
+    lon_range=(-74.5, -73.5)
+)
+```
+
+### Search by Name or Country
+
+```python
+# Search by station name
+airports = wv.search_stations(name="international airport")
+
+# Search by country name
+uk_stations = wv.search_stations(country="United Kingdom")
+
+# Or use ISO 2-letter country codes
+uk_stations = wv.search_stations(country_code="GB")
+```
+
+### Get All Station Metadata
+
+```python
+# Get metadata for all 29,000+ stations
+all_stations = wv.get_station_metadata()
+```
+
+## Weather Data Columns
+
+The returned DataFrame includes:
+
+| Column | Description |
+|--------|-------------|
+| `id` | Station identifier (USAF-WBAN format) |
+| `time` | Observation time (local time by default) |
+| `temp` | Air temperature (°C) |
+| `dew_point` | Dew point temperature |
+| `rh` | Relative humidity (%) |
+| `wd` | Wind direction (degrees, 0-360) |
+| `ws` | Wind speed (m/s) |
+| `atmos_pres` | Sea level pressure (hPa) |
+| `ceil_hgt` | Ceiling height (m, 22000 = unlimited) |
+| `visibility` | Visibility (m, max 16000 = 10 miles) |
+
+## Advanced Usage
+
+### Include Station Metadata
+
+Add station information (name, country, state, ICAO, coordinates, elevation) to each observation:
+
+```python
+weather = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    incl_stn_info=True
+)
+
+# Now includes: name, country, state, icao, lat, lon, elev
+weather[["time", "temp", "name", "country", "state"]].head()
+```
+
+### Temperature Units
+
+```python
+# Get temperatures in Fahrenheit
+weather = wv.get_weather_data("725030-14732", years=2024, temp_unit="f")
+
+# Kelvin is also supported
+weather = wv.get_weather_data("725030-14732", years=2024, temp_unit="k")
+```
+
+Supported values: `"c"`/`"celsius"`, `"f"`/`"fahrenheit"`, `"k"`/`"kelvin"`.
+
+### Multiple Years
+
+```python
+# Get multiple years of data
+weather = wv.get_weather_data(
+    "725030-14732",
+    years=[2022, 2023, 2024]
+)
+```
+
+### Hourly Resampling
+
+```python
+# Resample to regular hourly intervals (fills missing hours with None)
+weather = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    make_hourly=True
+)
+```
+
+### Keep UTC Time
+
+```python
+# Don't convert to local time (keep UTC time)
+weather = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    convert_to_local=False
+)
+```
+
+### Smart Data Caching
+
+Cache downloaded files for offline use or faster repeated access:
+
+```python
+# Cache in current directory
+weather = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    cache_dir="."
+)
+
+# Or specify a custom cache directory
+weather = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    cache_dir="~/weather_cache"
+)
+```
+
+Weathervault automatically checks:
+
+1. Specified `cache_dir=` (if provided)
+2. Current working directory (for existing cached files)
+
+and if no relevant data files are found, they are downloaded from NOAA.
+
+## Data Inventory
+
+Check what data is available:
+
+```python
+# Get the data inventory (record counts by station/year/month)
+inventory = wv.get_inventory()
+
+# Filter to a specific station
+station_inv = inventory.filter(pl.col("id") == "725030-14732")
+```
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
