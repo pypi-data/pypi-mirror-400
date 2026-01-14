@@ -1,0 +1,55 @@
+Metadata-Version: 2.4
+Name: devqubit-braket
+Version: 0.1.0
+Summary: devqubit adapter for Braket
+Author: devqubit
+License-Expression: Apache-2.0
+License-File: LICENSE
+Keywords: braket,experiment-tracking,quantum
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: <3.14,>=3.11
+Requires-Dist: amazon-braket-sdk<2,>=1.107
+Requires-Dist: devqubit-engine<0.2.0,>=0.1.0
+Description-Content-Type: text/markdown
+
+# devqubit-braket
+
+Amazon Braket adapter for devqubit. Automatically captures circuits, results, and device information from Braket simulators and QPUs.
+
+## Installation
+
+```bash
+pip install devqubit[braket]
+```
+
+## Usage
+
+```python
+from braket.circuits import Circuit
+from braket.devices import LocalSimulator
+from devqubit import track
+
+circuit = Circuit().h(0).cnot(0, 1)
+
+with track(project="braket-exp") as run:
+    device = run.wrap(LocalSimulator())
+    task = device.run(circuit, shots=1000)
+    result = task.result()
+```
+
+## What's Captured
+
+- **Circuits** — OpenQASM 3, Braket IR
+- **Results** — Measurement counts, result types
+- **Device info** — Device ARN, properties, topology
+
+## License
+
+Apache 2.0
