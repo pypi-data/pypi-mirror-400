@@ -1,0 +1,63 @@
+name: Publish nikki-utils to PyPI
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # only trigger on version tags
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧱 Starting build
+        run: echo "🏗️ Building nikki-utils distribution..."
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install build tools
+        run: |
+          echo "📦 Installing build dependencies..."
+          python3 -m pip install --upgrade build --user
+
+      - name: Build source tarball and wheel
+        run: |
+          echo "🔧 Building source tarball and wheel..."
+          python3 -m build
+
+      - name: Store distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: ✅ Build complete
+        run: echo "✅ nikki-utils build finished successfully!"
+
+  publish-to-pypi:
+    name: Publish nikki-utils to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: ✅ PyPI publish complete
+        run: echo "🎉 nikki-utils successfully published to PyPI!"
