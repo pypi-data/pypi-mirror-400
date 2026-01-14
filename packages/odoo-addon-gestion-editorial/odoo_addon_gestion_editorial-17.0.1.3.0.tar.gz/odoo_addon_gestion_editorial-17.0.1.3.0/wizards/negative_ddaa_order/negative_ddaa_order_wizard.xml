@@ -1,0 +1,40 @@
+<odoo>
+    <record id="editorial_negative_ddaa_order_wizard" model="ir.ui.view">
+        <field name="model">editorial.negative.ddaa.order.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <field name="ddaa_order" invisible="True"/>
+                <p>Este albarán de autoría tiene un importe negativo de <strong><field name="amount_total" readonly="True" force_save="True"/></strong>.</p>
+                <p><strong>¿Qué quieres hacer?</strong></p>
+
+                <field name="selection"  widget="radio"/>
+
+                <field name="currency_id" invisible="True"/>
+
+                <div invisible="selection != 'distribute_amounts'">
+                    <field name="ddaa_order_lines" widget="section_and_note_one2many" options="{'no_create_edit': True, 'no_create': True, 'no_open': True, 'no_add': True}">
+                        <tree editable="top" create="false" delete="false">
+                            <field name="order_id" column_invisible="True"/>
+                            <field name="display_type" column_invisible="True"/>
+                            <field name="product_id" column_invisible="True"/>
+                            <field name="section_id" column_invisible="True"/>
+                            <field name="name" readonly="true" widget="section_and_note_text"/>
+                            <field name="product_qty"/>
+                            <field name="price_unit"/>
+                            <field name="price_total"/>
+                            <field name="currency_id" column_invisible="True"/>
+                        </tree>
+                    </field>
+                    <div class="h3 m-2 d-flex justify-content-between">
+                        <p><strong>Cantidad a distribuir:</strong> <field name="amount_total" readonly="True"/></p>
+                        <p>Total: <field name="calculated_total"  force_save="True" decoration-danger="calculated_total != amount_total" decoration-success="calculated_total == amount_total"/></p>
+                    </div>
+                </div>
+                <footer>
+                    <button string="Confirmar" type="object" name="open_new_ddaa_order" class="oe_highlight" />
+                    <button string="Cancelar" name="cancel" class="oe_link" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
