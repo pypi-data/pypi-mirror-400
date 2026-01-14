@@ -1,0 +1,220 @@
+[project]
+name = "fca-api"
+description = "Python client library for the UK Financial Services (FCA) Register RESTful API"
+authors = [
+    { name = "I. Orlovs", email = "ilja@release.art" },
+    { name = "S. R. Murthy", email = "s.murthy@tutanota.com" },
+]
+maintainers = [
+    { name = "I. Orlovs", email = "ilja@release.art" },
+]
+dynamic = []
+requires-python = ">=3.11"
+license = "MPL-2.0"
+dependencies = [
+    "httpx>=0.28.1",
+]
+readme = "README.md"
+keywords = [
+    "financial conduct authority",
+    "FCA",
+    "financial data",
+    "financial regulation",
+    "financial services register",
+    "financial services",
+    "prudential regulation authority",
+    "regulated markets",
+    "restful api",
+    "uk",
+    "united kingdom",
+]
+classifiers = [
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Development Status :: 4 - Beta",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+]
+version = "0.1.0"
+
+[project.optional-dependencies]
+user = []
+
+[project.urls]
+Homepage = "https://docs.release.art/fca-api/"
+Documentation = "https://docs.release.art/fca-api/"
+Repository = "https://github.com/release-art/fca-api/"
+
+[build-system]
+requires = [
+    "pdm-backend",
+]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.build]
+package-dir = "src"
+includes = [
+    "src/fca_api",
+]
+excludes = [
+    "docs",
+    "build",
+    "dist",
+    "tests",
+    ".pytest_cache",
+    "*.pyc",
+    "*.env",
+    "*__pycache__*",
+]
+source-includes = [
+    "README.md",
+]
+editable-backend = "path"
+
+[tool.pdm.dev-dependencies]
+build = [
+    "pip>=23.1.2",
+    "twine",
+]
+lint = [
+    "ruff",
+]
+test = [
+    "coverage[toml]",
+    "pytest",
+    "pytest-cov",
+]
+
+[tool.pdm.scripts.doc]
+shell = "make doc"
+help = "Build sphynx docs"
+
+[tool.pdm.scripts.lint]
+shell = "make lint"
+help = "Lint source with Ruff"
+
+[tool.pdm.scripts.unittests]
+shell = "make unittests"
+help = "Run unit tests & measure coverage"
+
+[tool.pdm.version]
+source = "file"
+path = "src/fca_api/__version__.py"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "B",
+    "C",
+    "E",
+    "F",
+    "I",
+    "W",
+    "N",
+    "C4",
+    "T20",
+    "PTH",
+]
+ignore = [
+    "N802",
+    "F841",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+    "F401",
+    "E402",
+]
+"bin/**/*.py" = [
+    "T201",
+]
+"main.py" = [
+    "B008",
+]
+
+[tool.ruff.lint.isort]
+order-by-type = true
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = [
+    "fca_api",
+]
+forced-separate = [
+    "tests",
+]
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+pythonpath = "src"
+addopts = "--cache-clear --code-highlight=yes --color=yes --cov=src --cov-config=pyproject.toml --cov-report=xml --cov-report=html -ra --tb=native --verbosity=3 "
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+python_files = [
+    "test_*.py",
+]
+python_classes = [
+    "Test",
+    "Acceptance",
+]
+python_functions = [
+    "test",
+]
+testpaths = [
+    "tests/",
+]
+markers = []
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "./build",
+    "./dist",
+    "./docs",
+    "*/tests*",
+    ".pytest_cache",
+    "*.pyc",
+    "*.env",
+    "*__pycache__*",
+    "__version__.py",
+]
+source = [
+    "src",
+]
+
+[tool.coverage.report]
+precision = 3
+show_missing = true
+skip_covered = true
+skip_empty = true
+sort = "Name"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "virtualenv",
+    "pytest-asyncio>=1.3.0",
+    "pytest-mock>=3.15.1",
+]
+docs = [
+    "myst-parser>=4.0.1",
+    "sphinx>=7.4.7",
+    "sphinx-autobuild",
+    "sphinx-copybutton",
+    "sphinx-design>=0.6.1",
+    "pydata-sphinx-theme>=0.16.1",
+]
