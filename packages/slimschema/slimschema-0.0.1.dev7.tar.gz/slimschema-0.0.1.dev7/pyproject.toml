@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slimschema"
+version = "v0.0.1dev7"
+description = "Token-efficient schema language for LLMs with fast Zig backend"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "BotAssembly"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "jsonschema>=4.20.0",
+]
+
+[project.optional-dependencies]
+pydantic = ["pydantic>=2.0.0"]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "mktestdocs>=0.2",
+    "coverage>=7.0.0",
+    "mypy>=1.5.0",
+    "ruff>=0.1.0",
+]
+all = ["slimschema[pydantic]"]
+
+[project.urls]
+Homepage = "https://github.com/botassembly/slimschema"
+Repository = "https://github.com/botassembly/slimschema"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+slimschema = ["*.so", "*.pyd", "_native/*.so", "_native/*.pyd"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_configs = true
+check_untyped_defs = false
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "E721",  # Type comparison (intentional for type objects)
+    "N805",  # First argument should be self (false positive for Pydantic validators)
+]
+
+[tool.importlinter]
+root_package = "slimschema"
+
+[[tool.importlinter.contracts]]
+name = "Adapters are independent"
+type = "independence"
+modules = [
+    "slimschema.adapters.pydantic",
+]
+
+[[tool.importlinter.contracts]]
+name = "Core and errors don't import API or adapters"
+type = "forbidden"
+source_modules = ["slimschema.core", "slimschema.errors"]
+forbidden_modules = [
+    "slimschema.api",
+    "slimschema.adapters",
+]
