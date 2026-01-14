@@ -1,0 +1,340 @@
+import sys
+import os
+import platform
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+def find_git_root(start_path: Path) -> Optional[Path]:
+    """Search upwards for .git directory."""
+    current = start_path.resolve()
+    # If we are in a subfolder like 'gui', find the root
+    for _ in range(5):
+        if (current / ".git").exists():
+            return current
+        if current.parent == current:
+            break
+        current = current.parent
+    return None
+
+def run_auto_update(project_root: Path):
+    """
+    Generate an update script and execute it in a new terminal window.
+    Detects if this is a Git-based install or a Pip-based install.
+    """
+    system = platform.system()
+    
+    # Try to find Git root
+    git_root = find_git_root(project_root)
+    
+    if system == "Windows":
+        if git_root:
+            _run_windows_git_update(git_root)
+        else:
+            _run_windows_pip_update()
+    elif system == "Darwin":
+        if git_root:
+            _run_mac_git_update(git_root)
+        else:
+            _run_mac_pip_update()
+    else:
+        print(f"[AutoUpdate] Check not implemented for {system}")
+
+def _run_windows_git_update(root: Path):
+    """
+    Create batch file and run it.
+    """
+    script_path = root / "update_openlpt.bat"
+    
+    # Try to find vcvarsall.bat like install_windows.bat does
+    vcvars = ""
+    vswhere = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)") + "\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+    if os.path.exists(vswhere):
+        try:
+            res = subprocess.check_output([
+                vswhere, "-latest", "-products", "*", 
+                "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", 
+                "-property", "installationPath"
+            ], encoding='utf-8').strip()
+            if res:
+                vcvars_path = Path(res) / "VC" / "Auxiliary" / "Build" / "vcvarsall.bat"
+                if vcvars_path.exists():
+                    vcvars = str(vcvars_path)
+        except:
+            pass
+
+    # Capture relevant environment variables to preserve SSH/Git auth
+    # "start" command spawns a fresh cmd which might lose session env vars (like SSH_AUTH_SOCK)
+    env_setup = []
+    for k, v in os.environ.items():
+        if k.startswith(('SSH_', 'GIT_')):
+            env_setup.append(f'set "{k}={v}"')
+            
+    env_block = "\n".join(env_setup)
+    
+    # Windows activation logic for VS
+    vs_activation = f'call "{vcvars}" x64' if vcvars else "echo [Warning] vcvarsall.bat not found. Build might fail."
+
+    # Batch script content
+    # Note: 'call conda activate' is required for batch files
+    content = f"""@echo off
+title OpenLPT Updater
+echo ==========================================
+echo       OpenLPT Auto-Updater
+echo ==========================================
+echo.
+cd /d "%~dp0"
+
+echo [0/4] Restoring environment variables...
+{env_block}
+
+echo.
+echo NOTE: If the process pauses below, please type your password (SSH passphrase or Git account password) and press Enter.
+echo.
+echo [1/4] Pulling latest code from git...
+git pull
+if %errorlevel% neq 0 (
+    echo [Error] Git pull failed.
+    pause
+    exit /b %errorlevel%
+)
+
+echo.
+echo [2/4] Activating Conda Environment 'OpenLPT'...
+call conda activate OpenLPT
+if %errorlevel% neq 0 (
+    echo [Warning] Failed to activate 'OpenLPT'. Trying to proceed with current env...
+)
+
+:: Set consistent build environment for Windows
+set "CMAKE_GENERATOR=NMake Makefiles"
+set "CMAKE_BUILD_TYPE=Release"
+set "CMAKE_GENERATOR_INSTANCE="
+set "CMAKE_GENERATOR_PLATFORM="
+set "CMAKE_GENERATOR_TOOLSET="
+
+:: Activate VS environment
+echo [INFO] Activating Visual Studio environment...
+{vs_activation}
+
+echo.
+echo [3/4] Update dependencies with Mamba...
+call mamba install -c conda-forge --file requirements.txt -y
+if %errorlevel% neq 0 (
+    echo [Error] Mamba install failed.
+    pause
+    exit /b %errorlevel%
+)
+
+:: Clean previous build to avoid generator mismatch
+if exist build rmdir /s /q build
+if exist openlpt.egg-info rmdir /s /q openlpt.egg-info
+
+echo.
+echo [4/4] Re-installing OpenLPT package...
+pip install . --no-build-isolation
+if %errorlevel% neq 0 (
+    echo [Error] Pip install failed.
+    pause
+    exit /b %errorlevel%
+)
+
+echo.
+echo ==========================================
+echo       Update Successful! 
+echo ==========================================
+echo Please restart OpenLPT manually.
+pause
+"""
+    try:
+        with open(script_path, "w") as f:
+            f.write(content)
+            
+        print(f"[AutoUpdate] Created script at {script_path}")
+        
+        # Execute in new window and exit app
+        # start "Title" "script"
+        os.system(f'start "OpenLPT Updater" "{script_path}"')
+        
+        print("[AutoUpdate] Exiting application to allow update...")
+        sys.exit(0)
+        
+    except Exception as e:
+        print(f"[AutoUpdate] Failed to start update: {e}")
+
+def _run_windows_pip_update():
+    """
+    Create a temporary batch file to update via pip.
+    """
+    import tempfile
+    temp_dir = Path(tempfile.gettempdir())
+    script_path = temp_dir / "update_openlpt_pip.bat"
+    
+    # Use sys.executable to ensure we use the same python environment
+    python_exe = sys.executable
+    
+    content = f"""@echo off
+title OpenLPT Pip Updater
+echo ==========================================
+echo       OpenLPT Pip Auto-Updater
+echo ==========================================
+echo.
+echo [1/2] Checking current PyPI index...
+"{python_exe}" -m pip index versions openlpt
+
+echo.
+echo [2/2] Updating OpenLPT via Pip (forcing no-cache)...
+"{python_exe}" -m pip install --upgrade "openlpt[gui]>=2.1.2" --no-cache-dir
+if %errorlevel% neq 0 (
+    echo.
+    echo [Error] Pip update failed. 
+    echo Possible cause: The new version might still be building on GitHub Actions.
+    echo Please wait 5-10 minutes after a release before updating.
+    pause
+    exit /b %errorlevel%
+)
+
+echo.
+echo ==========================================
+echo       Update Successful! 
+echo ==========================================
+echo Local files have been updated to the latest version found on PyPI.
+echo Please restart OpenLPT manually.
+pause
+"""
+    try:
+        with open(script_path, "w", encoding='utf-8') as f:
+            f.write(content)
+            
+        print(f"[AutoUpdate] Created pip update script at {script_path}")
+        os.system(f'start "OpenLPT Updater" "{script_path}"')
+        sys.exit(0)
+    except Exception as e:
+        print(f"[AutoUpdate] Failed to start pip update: {e}")
+
+def _run_mac_git_update(root: Path):
+    """
+    Create shell script and run it via Terminal.app
+    """
+    script_path = root / "update_openlpt.command"
+    
+    content = f"""#!/bin/bash
+echo "=========================================="
+echo "      OpenLPT Auto-Updater"
+echo "=========================================="
+echo ""
+cd "$(dirname "$0")"
+
+echo ""
+echo "NOTE: If the process pauses below, please type your password (SSH passphrase or Git account password) and press Enter."
+echo ""
+echo "[1/4] Pulling latest code from git..."
+git pull
+if [ $? -ne 0 ]; then
+    echo "[Error] Git pull failed."
+    read -p "Press enter to exit"
+    exit 1
+fi
+
+echo ""
+echo "[2/4] Activating Conda Environment 'OpenLPT'..."
+# Try to find conda hook
+CONDA_BASE=$(conda info --base)
+if [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
+    source "$CONDA_BASE/etc/profile.d/conda.sh"
+    conda activate OpenLPT
+else
+    echo "[Warning] Could not find conda.sh. Assuming environment is correct or manual activation needed."
+fi
+
+echo ""
+echo "[3/4] Update dependencies with Mamba..."
+mamba install -c conda-forge --file requirements.txt -y
+if [ $? -ne 0 ]; then
+    echo "[Error] Mamba install failed."
+    read -p "Press enter to exit"
+    exit 1
+fi
+
+echo ""
+echo "[4/4] Re-installing OpenLPT package..."
+pip install . --no-build-isolation
+if [ $? -ne 0 ]; then
+    echo "[Error] Pip install failed."
+    read -p "Press enter to exit"
+    exit 1
+fi
+
+echo ""
+echo "=========================================="
+echo "      Update Successful!"
+echo "=========================================="
+echo "Please restart OpenLPT manually."
+read -p "Press enter to close..."
+"""
+    try:
+        with open(script_path, "w") as f:
+            f.write(content)
+        
+        # Make executable
+        os.chmod(script_path, 0o755)
+        
+        print(f"[AutoUpdate] Created script at {script_path}")
+        
+        # Open in Terminal
+        subprocess.call(["open", str(script_path)])
+        
+        print("[AutoUpdate] Exiting application to allow update...")
+        sys.exit(0)
+        
+    except Exception as e:
+        print(f"[AutoUpdate] Failed to start update: {e}")
+
+def _run_mac_pip_update():
+    """
+    Create a temporary shell script to update via pip.
+    """
+    import tempfile
+    temp_dir = Path(tempfile.gettempdir())
+    script_path = temp_dir / "update_openlpt_pip.command"
+    
+    python_exe = sys.executable
+    
+    content = f"""#!/bin/bash
+echo "=========================================="
+echo "      OpenLPT Pip Auto-Updater"
+echo "=========================================="
+echo ""
+echo "[1/2] Checking current PyPI index..."
+"{python_exe}" -m pip index versions openlpt
+
+echo ""
+echo "[2/2] Updating OpenLPT via Pip (forcing no-cache)..."
+"{python_exe}" -m pip install --upgrade "openlpt[gui]>=2.1.2" --no-cache-dir
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "[Error] Pip update failed."
+    echo "Possible cause: The new version might still be building on GitHub Actions."
+    echo "Please wait 5-10 minutes after a release before updating."
+    read -p "Press enter to exit"
+    exit 1
+fi
+
+echo ""
+echo "=========================================="
+echo "      Update Successful!"
+echo "=========================================="
+echo "Local files have been updated to the latest version found on PyPI."
+echo "Please restart OpenLPT manually."
+read -p "Press enter to close..."
+"""
+    try:
+        with open(script_path, "w", encoding='utf-8') as f:
+            f.write(content)
+        os.chmod(script_path, 0o755)
+        
+        print(f"[AutoUpdate] Created pip update script at {script_path}")
+        subprocess.call(["open", str(script_path)])
+        sys.exit(0)
+    except Exception as e:
+        print(f"[AutoUpdate] Failed to start pip update: {e}")
