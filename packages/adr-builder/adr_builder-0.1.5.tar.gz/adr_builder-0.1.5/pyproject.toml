@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adr-builder"
+version = "0.1.5"
+description = "Generate Architectural Decision Records from simple criteria data."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+  { name = "ADR Builder Contributors" }
+]
+dependencies = [
+  "typer[all]>=0.12.0",
+  "pydantic>=2.6.0",
+  "PyYAML>=6.0.1",
+  "Jinja2>=3.1.2",
+  "rich>=13.7.0"
+]
+
+[project.scripts]
+adr = "adr_builder.cli:app"
+
+[project.optional-dependencies]
+docx = [
+    "python-docx>=1.1.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "mypy>=1.8.0",
+    "ruff>=0.2.0",
+    "pre-commit>=3.6.0",
+    "types-PyYAML>=6.0.0",
+]
+
+[tool.setuptools]
+include-package-data = true
+packages = ["adr_builder"]
+
+[tool.setuptools.package-data]
+adr_builder = ["templates/*.j2"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM"]
+ignore = ["E501"]  # line length handled separately
+
+[tool.ruff.lint.per-file-ignores]
+# Pydantic/Typer need Optional/List syntax for Python 3.9 runtime compatibility
+"adr_builder/models.py" = ["UP006", "UP035", "UP045"]
+"adr_builder/cli.py" = ["UP006", "UP035", "UP045"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = ["docx.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["adr_builder"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
