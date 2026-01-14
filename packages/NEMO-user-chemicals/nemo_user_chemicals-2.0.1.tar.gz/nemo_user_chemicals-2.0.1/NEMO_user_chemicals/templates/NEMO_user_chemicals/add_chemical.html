@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Add New Chemical{% endblock %}
+{% block content %}
+    <h1>Add New Chemical</h1>
+    <p>
+        Use this form to add a new generic chemical definition to the database. Once added, specific containers of this chemical can be assigned to users in the inventory.
+    </p>
+    <form action="{% if source_request %}{% url 'add_chemical_from_request' source_request.id %}{% else %}{% url 'add_chemical' %}{% endif %}"
+          method="post"
+          enctype="multipart/form-data"
+          class="form-horizontal">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="name" class="control-label col-sm-2">Chemical Name</label>
+            <div class="col-sm-6">
+                <input type="text"
+                       name="name"
+                       id="name"
+                       class="form-control"
+                       required
+                       placeholder="e.g. Acetone"
+                       value="{{ form.name.value|default_if_none:'' }}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="keywords" class="control-label col-sm-2">Keywords</label>
+            <div class="col-sm-6">
+                <textarea name="keywords"
+                          id="keywords"
+                          class="form-control"
+                          rows="3"
+                          placeholder="Synonyms or other search terms">{{ form.keywords.value|default_if_none:'' }}</textarea>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="control-label col-sm-2">Hazards</label>
+            <div class="col-sm-6">
+                {% for value, text in form.fields.hazards.choices %}
+                    <div class="checkbox">
+                        <label>
+                            <input type="checkbox"
+                                   name="hazards"
+                                   value="{{ value }}"
+                                   {% if value in form.initial.hazards|default:form.hazards.value %}checked{% endif %}>
+                            {{ text }}
+                        </label>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="document" class="control-label col-sm-2">SDS Document</label>
+            <div class="col-sm-6">
+                <input type="file" name="document" id="document" class="form-control">
+                {% if source_request and source_request.sds %}
+                    <div class="alert alert-info" style="margin-top: 10px; margin-bottom: 0;">
+                        <strong>Note:</strong> SDS from the request ({{ source_request.sds.name }}) will be used automatically if you do not upload a new one.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="url" class="control-label col-sm-2">External URL</label>
+            <div class="col-sm-6">
+                <input type="url"
+                       name="url"
+                       id="url"
+                       class="form-control"
+                       placeholder="https://..."
+                       value="{{ form.url.value|default_if_none:'' }}">
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <input type="submit" value="Create Chemical" class="btn btn-success">
+            </div>
+        </div>
+    </form>
+{% endblock %}
