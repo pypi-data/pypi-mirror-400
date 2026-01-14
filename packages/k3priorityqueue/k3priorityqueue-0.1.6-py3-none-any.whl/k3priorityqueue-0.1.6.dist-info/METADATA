@@ -1,0 +1,142 @@
+Metadata-Version: 2.4
+Name: k3priorityqueue
+Version: 0.1.6
+Summary: Priority queue with weighted producer support
+Author-email: Zhang Yanpo <drdr.xp@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/pykit3/k3priorityqueue
+Project-URL: Documentation, https://k3priorityqueue.readthedocs.io
+Keywords: queue,priority-queue,producer,weighted
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: k3heap
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: coverage; extra == "dev"
+Requires-Dist: k3ut; extra == "dev"
+Requires-Dist: k3thread; extra == "dev"
+Provides-Extra: publish
+Requires-Dist: build; extra == "publish"
+Requires-Dist: twine; extra == "publish"
+Requires-Dist: pk3; extra == "publish"
+Provides-Extra: docs
+Requires-Dist: mkdocs>=1.5; extra == "docs"
+Requires-Dist: mkdocs-material>=9.0; extra == "docs"
+Requires-Dist: mkdocstrings[python]>=0.24; extra == "docs"
+Dynamic: license-file
+
+# k3priorityqueue
+
+[![Action-CI](https://github.com/pykit3/k3priorityqueue/actions/workflows/python-package.yml/badge.svg)](https://github.com/pykit3/k3priorityqueue/actions/workflows/python-package.yml)
+[![Documentation Status](https://readthedocs.org/projects/k3priorityqueue/badge/?version=stable)](https://k3priorityqueue.readthedocs.io/en/stable/?badge=stable)
+[![Package](https://img.shields.io/pypi/pyversions/k3priorityqueue)](https://pypi.org/project/k3priorityqueue)
+
+priorityQueue is a queue with priority support
+
+k3priorityqueue is a component of [pykit3] project: a python3 toolkit set.
+
+
+PriorityQueue is a queue with priority support:
+
+The numbers of items it pops from each producer matches exactly the ratio of their priority:
+If the priorities of 3 producer A, B and C are 1, 3 and 7, and it runs long
+enough, it is expected that the number of items popped from A, B and C are
+1:3:7.
+
+import k3priorityqueue
+
+producers = (
+    # id, priority, iterable
+    (1, 1, [1] * 10),
+    (2, 2, [2] * 10),
+    (3, 3, [3] * 10),
+)
+pq = k3priorityqueue.PriorityQueue()
+for pid, prio, itr in producers:
+    pq.add_producer(pid, prio, itr)
+
+count = {}
+for _ in range(12):
+    val = pq.get()
+    count[val] = count.get(val, 0) + 1
+    print(val)
+
+print('respect priority ratio: counts:', repr(count))
+
+while True:
+    try:
+        val = pq.get()
+    except k3priorityqueue.Empty as e:
+        break
+    count[val] = count.get(val, 0) + 1
+    print(val)
+
+print('consumed all: counts:', repr(count))
+
+
+
+
+# Install
+
+```
+pip install k3priorityqueue
+```
+
+# Synopsis
+
+```python
+
+import k3priorityqueue
+
+producers = (
+    # id, priority, iterable
+    (1, 1, [1] * 10),
+    (2, 2, [2] * 10),
+    (3, 3, [3] * 10),
+)
+pq = k3priorityqueue.PriorityQueue()
+for pid, prio, itr in producers:
+    pq.add_producer(pid, prio, itr)
+
+count = {}
+for _ in range(12):
+    val = pq.get()
+    count[val] = count.get(val, 0) + 1
+    print(val)
+
+print('respect priority ratio: counts:', repr(count))
+
+while True:
+    try:
+        val = pq.get()
+    except k3priorityqueue.Empty as e:
+        break
+    count[val] = count.get(val, 0) + 1
+    print(val)
+
+print('consumed all: counts:', repr(count))
+```
+
+#   Author
+
+Zhang Yanpo (张炎泼) <drdr.xp@gmail.com>
+
+#   Copyright and License
+
+The MIT License (MIT)
+
+Copyright (c) 2015 Zhang Yanpo (张炎泼) <drdr.xp@gmail.com>
+
+
+[pykit3]: https://github.com/pykit3
