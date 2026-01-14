@@ -1,0 +1,22 @@
+from flask import Flask, render_template, request, redirect, url_for
+from .runner import run_script, stop_script
+
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    return redirect(url_for("python_page"))
+
+@app.route("/python", methods=["GET", "POST"])
+def python_page():
+    if request.method == "POST":
+        action = request.form.get("action")
+        code = request.form.get("code", "")
+        if action == "run":
+            run_script(code)
+        elif action == "stop":
+            stop_script()
+    return render_template("python.html")
+
+def main():
+    app.run(host="0.0.0.0", port=5000)
