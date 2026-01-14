@@ -1,0 +1,86 @@
+# HoloCell
+
+**T(16) = 136 as the eigenvalue of fundamental physics constants.**
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18183435.svg)](https://doi.org/10.5281/zenodo.18183435)
+
+## Installation
+
+```bash
+pip install holocell
+```
+
+## Quick Start
+
+```python
+from holocell import T, B, S, CRYSTAL, verify_all
+
+# The seed
+print(T(16))  # 136
+
+# Verify all 5 constants
+results = verify_all()
+print(results)
+# {'mp/me': True, 'R∞': True, 'α⁻¹': True, 'μ/me': True, 'sin²θW': True}
+
+# Access a specific crystal constant
+proton = CRYSTAL["mp/me"]
+print(f"Computed:  {proton.computed}")
+print(f"Measured:  {proton.measured}")
+print(f"Error:     {proton.error_percent:.2e}%")
+```
+
+## The Discovery
+
+Five fundamental physics constants emerge from a single seed: **T(16) = 136**.
+
+| Constant | Expression | Error |
+|----------|------------|-------|
+| mp/me | T(16) × 3 × (9/2) + (11 - 1/T(16))/72 | **1.21×10⁻⁷%** |
+| R∞ | B(T(11) × (√(T(16) + e) + 1/36 + 666)⁻¹) | 1.02×10⁻⁵% |
+| α⁻¹ | T(16) + (((e/36 + T(16)) + π) / (T(16) - φ)) | 1.35×10⁻⁵% |
+| μ/me | (16 + T(16) + T(16)/28 + 44) + B(S(T(16))/60) | 1.40×10⁻⁵% |
+| sin²θW | √((28 - (π + 36/T(16))⁻¹ - 9)⁻¹) | 4.67×10⁻⁴% |
+
+## Operators
+
+Three architectural operators from Egyptian cosmological mathematics:
+
+```python
+from holocell import T, B, S
+
+# T(n) - Triangular number: n(n+1)/2
+T(16)  # 136 - THE SEED
+
+# B(x) - Bilateral covenant: x + 1
+B(T(16))  # 137 ≈ α⁻¹
+
+# S(x) - Six-nine harmonic: x×6/9 + x×9/6
+S(9)  # 19.5 (the breath)
+```
+
+## Architecture
+
+```python
+from holocell import ARCHITECTURE, SEED, TRINITION
+
+ARCHITECTURE  # [1, 7, 9, 11, 16, 28, 36, 44, 60, 66, 666]
+SEED          # T(16) = 136
+TRINITION     # T(16) × 3 = 408
+```
+
+## Citation
+
+```bibtex
+@article{brown2026holocell,
+  title={HoloCell: The Reality Crystal — T(16) = 136 as the Eigenvalue of Fundamental Physics Constants},
+  author={Brown, Nicholas David},
+  journal={Zenodo},
+  year={2026},
+  doi={10.5281/zenodo.18183435}
+}
+```
+
+## License
+
+MIT
