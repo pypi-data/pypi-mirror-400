@@ -1,0 +1,1825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Results Matrix</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Compensate for Bootstrap 3 to 5 migration: restore original font sizes and link colors */
+        :root {
+            font-size: 14px; /* Bootstrap 3 used 14px base, Bootstrap 5 uses 16px */
+        }
+
+        a {
+            color: #337ab7; /* Bootstrap 3 link color */
+        }
+
+        a:hover {
+            color: #23527c; /* Bootstrap 3 link hover color */
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.428571429; /* Bootstrap 3 line-height */
+        }
+
+        .main-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .header-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header-section h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header-section .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+
+        .content-section {
+            padding: 20px;
+        }
+
+        .filter-section {
+            background-color: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-outline-secondary {
+            border-color: #667eea;
+            color: #667eea;
+            border-radius: 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-outline-secondary:hover {
+            background-color: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+         .matrix-container {
+             background-color: white;
+             border-radius: 12px;
+             padding: 15px;
+             box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+             overflow-x: auto;
+             position: relative;
+         }
+
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 1em; /* Increased from 0.85em to compensate for smaller base font */
+        }
+
+        .matrix-container small {
+            font-size: 1em; /* Increase legend text size to compensate for smaller base font */
+        }
+
+        .matrix-table th {
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #dee2e6;
+            padding: 6px 8px;
+            font-weight: 600;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+         .matrix-table th.test-case-column {
+             text-align: left;
+             min-width: 300px;
+             max-width: 60%;
+             background-color: #f8f9fa;
+         }
+
+        /* Extended resize handle that goes to the bottom of the table */
+         .resize-handle-extended {
+             position: absolute;
+             top: 0;
+             width: 8px;
+             background: #ddd;
+             cursor: col-resize;
+             z-index: 12;
+             border: 1px solid #999;
+         }
+
+         .resize-handle-extended:hover {
+             background: #007bff;
+             opacity: 0.8;
+         }
+
+         .resize-handle-extended.resizing {
+             background: #007bff;
+             opacity: 1;
+         }
+
+         /* Two-table layout container */
+         .matrix-layout {
+             display: flex;
+             position: relative;
+             width: 100%;
+         }
+
+         /* Fixed test cases table container */
+         .test-cases-table {
+             width: 400px;
+             border-right: 2px solid #dee2e6;
+         }
+
+         /* Scrollable results table */
+         .results-table {
+             flex: 1;
+             overflow-x: auto;
+             overflow-y: visible;
+         }
+
+         /* Make result cells wider for better badge visibility */
+         .results-table th,
+         .results-table td {
+             width: 40px;
+             min-width: 40px;
+             padding: 2px 2px !important; vertical-align: middle !important;
+             height: 24px !important;
+             box-sizing: border-box !important;
+         }
+
+         /* Force minimal padding on all result cells */
+         .results-table td[style*="padding"],
+         .results-table th[style*="padding"] {
+             padding: 2px 2px !important; vertical-align: middle !important;
+         }
+
+         /* Ensure both tables have identical row heights */
+         .test-cases-table table,
+         .results-table table {
+             table-layout: fixed;
+         }
+
+         .test-cases-table th,
+         .test-cases-table td,
+         .results-table th,
+         .results-table td {
+             height: 24px;
+             padding: 0px 4px !important;
+             vertical-align: middle;
+         }
+
+         /* Add a bit more vertical padding to test case cells for readability */
+         .test-cases-table th,
+         .test-cases-table td {
+             padding: 3px 4px !important;
+         }
+
+         /* Set specific width for test case cells */
+         .test-cases-table th,
+         .test-cases-table td {
+             width: 400px;
+             min-width: 400px;
+             padding: 3px 4px !important;
+         }
+
+         /* Force proper padding on all test case cells */
+         .test-cases-table td[style*="padding"],
+         .test-cases-table th[style*="padding"] {
+             padding: 3px 4px !important;
+         }
+
+        .matrix-table td {
+            border: 1px solid #dee2e6;
+            padding: 4px 8px;
+            text-align: center;
+            vertical-align: middle;
+            min-width: 40px;
+        }
+
+         .matrix-table td.test-case-cell {
+             text-align: left;
+             background-color: white;
+             font-weight: 500;
+             border-right: 2px solid #dee2e6;
+             overflow: hidden;
+             text-overflow: ellipsis;
+             white-space: nowrap;
+         }
+
+        .matrix-table tr:hover td.test-case-cell {
+            background-color: #f8f9fa;
+        }
+
+        /* Test case tree styling */
+        .test-case-tree {
+            font-size: 0.85em;
+        }
+
+        .test-case-tree .test-case-name {
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .test-case-tree .test-case-name:hover {
+            background-color: #e9ecef;
+        }
+
+        .test-case-tree .expand-icon {
+            margin-right: 8px;
+            cursor: pointer;
+            user-select: none;
+            color: #666;
+            font-size: 12px;
+            display: inline-block;
+            width: 16px;
+            text-align: center;
+        }
+
+        .test-case-tree .expand-icon:hover {
+            color: #333;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #dee2e6;
+        }
+
+        .metadata-filter {
+            margin-bottom: 10px;
+        }
+
+        .group-link {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+
+        .group-banner {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .group-banner-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .group-title-label {
+            font-size: 0.85em;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 6px;
+        }
+
+        .group-banner h2 {
+            margin: 0;
+            color: #495057;
+            font-size: 1.5em;
+            font-weight: 600;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+
+        .group-banner-links {
+            display: inline-flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .group-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .group-info-item {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            text-align: left;
+        }
+
+        .group-info-item strong {
+            display: block;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            color: #667eea;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .group-info-item span {
+            color: #212529;
+            font-weight: 600;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .content-section {
+                padding: 15px;
+            }
+
+            .matrix-table {
+                font-size: 0.8em;
+            }
+
+            .matrix-table th.test-case-column {
+                min-width: 150px;
+            }
+
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header-section">
+            <h1><i class="fas fa-table"></i> Test Results Matrix</h1>
+            <div class="subtitle">Visualize test results across runs and test cases</div>
+        </div>
+
+        <div class="content-section">
+            <div id="groupContextBanner" class="group-banner" style="display: none;">
+                <div class="group-banner-header">
+                    <div>
+                        <div class="group-title-label">Group</div>
+                        <h2 id="groupBannerTitle"></h2>
+                    </div>
+                <div class="group-banner-links">
+                    <a id="groupRunsLink" href="#" class="btn btn-outline-primary btn-sm">
+                        <i class="fa fa-list"></i> Test Runs
+                    </a>
+                    <a id="groupAnalyzerLink" href="#" class="btn btn-outline-primary btn-sm">
+                        <i class="fa fa-chart-line"></i> Analyzer
+                    </a>
+                    <a id="groupFailuresLink" href="#" class="btn btn-outline-primary btn-sm">
+                        <i class="fa fa-bug"></i> Failures
+                    </a>
+                </div>
+                </div>
+                <div class="group-info-grid" id="groupBannerMetadata"></div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <div class="filter-section">
+                        <h5 class="mb-3">
+                            <i class="fas fa-filter me-2"></i>Filters
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="clearFilters()">
+                                <i class="fas fa-times me-1"></i>Clear All
+                            </button>
+                        </h5>
+
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="statusFilter" class="form-label">Status</label>
+                                <select class="form-select" id="statusFilter" onchange="applyFilters()">
+                                    <option value="">All Statuses</option>
+                                    <option value="finished">Finished</option>
+                                    <option value="running">Running</option>
+                                    <option value="aborted">Aborted</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="daysBackFilter" class="form-label">Time Range</label>
+                                <select class="form-select" id="daysBackFilter" onchange="applyFilters()">
+                                    <option value="7">Last 7 days</option>
+                                    <option value="30" selected>Last 30 days</option>
+                                    <option value="90">Last 90 days</option>
+                                    <option value="365">Last year</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="runLimitFilter" class="form-label">Max Runs to Show</label>
+                                <input type="number" class="form-control" id="runLimitFilter" value="30" min="1" max="200" onchange="updateRunLimit()">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Metadata Filters</label>
+                                <div id="metadataFilters">
+                                    <!-- Dynamic metadata filters will be added here -->
+                                </div>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="addMetadataFilter()">
+                                    <i class="fas fa-plus me-1"></i>Add Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Matrix Section -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="matrix-container">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0">
+                                <i class="fas fa-table me-2"></i>Test Results Matrix
+                                <span id="matrixInfo" class="badge bg-secondary ms-2">0 runs, 0 test cases</span>
+                            </h5>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary" onclick="refreshMatrix()">
+                                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Legend -->
+    <div class="mb-3">
+        <small class="text-muted">Legend: </small>
+        <span class="me-2" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background-color: #28a745; border: 2px solid #1e7e34;"></span><small class="text-muted me-3">Passed</small>
+        <span class="me-2" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background-color: #dc3545; border: 2px solid #bd2130;"></span><small class="text-muted me-3">Failed</small>
+        <span class="me-2" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background-color: #ffc107; border: 2px solid #e0a800;"></span><small class="text-muted me-3">Skipped</small>
+        <span class="me-2" style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background-color: #6c757d; border: 2px solid #495057;"></span><small class="text-muted me-3">Error</small>
+    </div>
+
+                        <div id="loadingIndicator" class="loading" style="display: none;">
+                            <i class="fas fa-spinner fa-spin me-2"></i>Loading matrix data...
+                        </div>
+
+                        <div id="emptyState" class="empty-state" style="display: none;">
+                            <i class="fas fa-search"></i>
+                            <h4>No test results found</h4>
+                            <p>Try adjusting your filters or check back later.</p>
+                        </div>
+
+                         <div id="matrixContent" style="display: none;">
+                             <div class="matrix-layout">
+                                 <!-- Fixed test cases table -->
+                                 <div class="test-cases-table">
+                                     <table class="matrix-table" id="testCasesTable">
+                                         <thead>
+                                             <tr id="testCasesHeader">
+                                                 <th class="test-case-column">Test Cases</th>
+                                             </tr>
+                                         </thead>
+                                         <tbody id="testCasesBody">
+                                             <!-- Test cases will be populated here -->
+                                         </tbody>
+                                     </table>
+                                 </div>
+
+                                 <!-- Scrollable results table -->
+                                 <div class="results-table">
+                                     <table class="matrix-table" id="resultsTable">
+                                         <thead>
+                                             <tr id="resultsHeader">
+                                                 <!-- Run headers will be populated here -->
+                                             </tr>
+                                         </thead>
+                                         <tbody id="resultsBody">
+                                             <!-- Result badges will be populated here -->
+                                         </tbody>
+                                     </table>
+                                 </div>
+
+                                 <!-- Resize handle between the two tables -->
+                                 <div class="resize-handle-extended" id="resizeHandleExtended"></div>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global state
+        let metadataKeys = [];
+        let groupHash = null;
+        let groupDetails = null;
+        let expandedTestCases = new Set();
+        let testCaseTree = {};
+        let maxRunsToShow = 30;
+        let cachedRuns = null;
+        let cachedRunData = new Map();
+        let cachedFilterKey = null;
+        let hasAutoExpanded = false;
+
+         // Initialize the page
+         document.addEventListener('DOMContentLoaded', async function() {
+             const urlParams = new URLSearchParams(window.location.search);
+             groupHash = urlParams.get('group');
+             await loadMetadataKeys();
+             if (groupHash) {
+                 await loadGroupContext(groupHash);
+             }
+             loadFiltersFromURL();
+             setupColumnResizing();
+             setupScrollListener();
+
+             // Simple approach - just use CSS
+
+             applyFilters();
+         });
+
+        // Load filters from URL parameters
+        function loadFiltersFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            console.log('Loading filters from URL:', window.location.search);
+
+            // Load basic filters
+            const status = urlParams.get('status');
+            const daysBack = urlParams.get('days');
+
+            if (status) {
+                document.getElementById('statusFilter').value = status;
+                console.log('Set status filter to:', status);
+            }
+            if (daysBack) {
+                document.getElementById('daysBackFilter').value = daysBack;
+                console.log('Set days filter to:', daysBack);
+            }
+
+            // Load metadata filters
+            const metadataFilters = [];
+            for (const [key, value] of urlParams.entries()) {
+                if (key.startsWith('metadata.')) {
+                    const metadataKey = key.substring(9); // Remove 'metadata.' prefix
+                    metadataFilters.push({ key: metadataKey, value: value });
+                }
+            }
+
+            console.log('Found metadata filters in URL:', metadataFilters);
+            console.log('Available metadata keys:', metadataKeys);
+
+            // Clear existing metadata filters
+            document.getElementById('metadataFilters').innerHTML = '';
+
+            // Add metadata filters from URL
+            metadataFilters.forEach(filter => {
+                console.log('Adding metadata filter from URL:', filter);
+                addMetadataFilterFromURL(filter.key, filter.value);
+            });
+        }
+
+        function appendGroupParam(params) {
+            if (groupHash) {
+                params.set('group', groupHash);
+            }
+        }
+
+        // Add metadata filter from URL (without triggering value loading)
+        function addMetadataFilterFromURL(key, value) {
+            const container = document.getElementById('metadataFilters');
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'metadata-filter';
+            filterDiv.innerHTML = `
+                <div class="input-group">
+                    <select class="form-select" onchange="loadMetadataValues(this)">
+                        <option value="">Select metadata key</option>
+                        ${metadataKeys.map(k => `<option value="${k}" ${k === key ? 'selected' : ''}>${k}</option>`).join('')}
+                    </select>
+                    <select class="form-select" ${key ? '' : 'disabled'} onchange="applyFilters()">
+                        <option value="">Select value</option>
+                        ${key && value ? `<option value="${value}" selected>${value}</option>` : ''}
+                    </select>
+                    <button class="btn btn-outline-danger" type="button" onclick="removeMetadataFilter(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(filterDiv);
+
+            // If we have a key, load its values
+            if (key) {
+                const keySelect = filterDiv.querySelector('select:first-of-type');
+                const valueSelect = filterDiv.querySelector('select:last-of-type');
+                loadMetadataValues(keySelect, value);
+            }
+        }
+
+        // Update URL with current filter settings
+        function updateURLWithFilters() {
+            const url = new URL(window.location);
+            url.search = ''; // Clear existing parameters
+
+            // Add basic filters
+            const status = document.getElementById('statusFilter').value;
+            const daysBack = document.getElementById('daysBackFilter').value;
+
+            if (status) {
+                url.searchParams.set('status', status);
+            }
+            if (daysBack && daysBack !== '30') { // Only add if not default
+                url.searchParams.set('days', daysBack);
+            }
+
+            // Add metadata filters
+            const metadataFilters = document.querySelectorAll('.metadata-filter');
+            metadataFilters.forEach(filter => {
+                const keySelect = filter.querySelector('select:first-of-type');
+                const valueSelect = filter.querySelector('select:last-of-type');
+
+                if (keySelect.value && valueSelect.value) {
+                    url.searchParams.set(`metadata.${keySelect.value}`, valueSelect.value);
+                }
+            });
+
+            if (groupHash) {
+                url.searchParams.set('group', groupHash);
+            }
+
+            // Update URL without reloading page
+            window.history.replaceState({}, '', url);
+        }
+
+        // Load available metadata keys
+        async function loadMetadataKeys() {
+            try {
+                const response = await fetch('/api/metadata/keys');
+                const result = await response.json();
+                if (result.success) {
+                    metadataKeys = result.data;
+                    console.log('Loaded metadata keys:', metadataKeys);
+                }
+            } catch (error) {
+                console.error('Error loading metadata keys:', error);
+            }
+        }
+
+        async function loadGroupContext(hash) {
+            try {
+                const response = await fetch(`/api/groups/${hash}`);
+                const result = await response.json();
+                if (!result.success) {
+                    console.warn('Group lookup failed:', result.error);
+                    return;
+                }
+                groupDetails = result.data;
+                const banner = document.getElementById('groupContextBanner');
+                const title = document.getElementById('groupBannerTitle');
+                const metaContainer = document.getElementById('groupBannerMetadata');
+                const runsLink = document.getElementById('groupRunsLink');
+                const analyzerLink = document.getElementById('groupAnalyzerLink');
+                const failuresLink = document.getElementById('groupFailuresLink');
+                if (!banner || !title || !metaContainer) return;
+                const name = groupDetails.name || `Group ${groupDetails.hash}`;
+                title.innerText = name;
+                runsLink.href = `/groups/${groupDetails.hash}`;
+                analyzerLink.href = `/analyzer?group=${groupDetails.hash}`;
+                if (failuresLink) failuresLink.href = `/failures?group=${groupDetails.hash}`;
+                const metadata = groupDetails.metadata || {};
+                metaContainer.innerHTML = '';
+                const entries = Object.entries(metadata);
+                if (entries.length === 0) {
+                    metaContainer.innerHTML = '<div class="group-info-item"><span>No metadata defined for this group.</span></div>';
+                } else {
+                    entries.forEach(([key, value]) => {
+                        const item = document.createElement('div');
+                        item.className = 'group-info-item';
+                        const label = document.createElement('strong');
+                        label.textContent = key;
+                        const span = document.createElement('span');
+                        if (value && value.url) {
+                            const link = document.createElement('a');
+                            link.href = value.url;
+                            link.target = '_blank';
+                            link.textContent = value.value;
+                            span.appendChild(link);
+                        } else {
+                            span.textContent = value ? value.value : '';
+                        }
+                        item.appendChild(label);
+                        item.appendChild(span);
+                        metaContainer.appendChild(item);
+                    });
+                }
+                banner.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading group context:', error);
+            }
+        }
+
+        // Add a new metadata filter
+        function addMetadataFilter() {
+            const container = document.getElementById('metadataFilters');
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'metadata-filter';
+            filterDiv.innerHTML = `
+                <div class="input-group">
+                    <select class="form-select" onchange="loadMetadataValues(this)">
+                        <option value="">Select metadata key</option>
+                        ${metadataKeys.map(key => `<option value="${key}">${key}</option>`).join('')}
+                    </select>
+                    <select class="form-select" disabled onchange="applyFilters()">
+                        <option value="">Select value</option>
+                    </select>
+                    <button class="btn btn-outline-danger" type="button" onclick="removeMetadataFilter(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(filterDiv);
+        }
+
+        // Remove a metadata filter
+        function removeMetadataFilter(button) {
+            button.closest('.metadata-filter').remove();
+            applyFilters();
+        }
+
+        // Load values for a metadata key
+        async function loadMetadataValues(keySelect, preselectedValue = null) {
+            const valueSelect = keySelect.parentElement.querySelector('select:last-of-type');
+            const key = keySelect.value;
+
+            if (!key) {
+                valueSelect.disabled = true;
+                valueSelect.innerHTML = '<option value="">Select value</option>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/metadata/values?key=${encodeURIComponent(key)}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    valueSelect.innerHTML = '<option value="">All values</option>' +
+                        result.data.map(value => `<option value="${value}" ${preselectedValue && value === preselectedValue ? 'selected' : ''}>${value}</option>`).join('');
+                    valueSelect.disabled = false;
+
+                    // If we have a preselected value, apply filters
+                    if (preselectedValue) {
+                        applyFilters();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading metadata values:', error);
+            }
+        }
+
+        // Get current filter state
+        function getCurrentFilters() {
+            const metadataFilters = [];
+            document.querySelectorAll('.metadata-filter').forEach(filter => {
+                const keySelect = filter.querySelector('select');
+                const valueSelect = filter.querySelector('select:last-of-type');
+                if (keySelect && valueSelect) {
+                    metadataFilters.push({
+                        key: keySelect.value,
+                        value: valueSelect.value
+                    });
+                }
+            });
+
+            return {
+                status: document.getElementById('statusFilter').value,
+                daysBack: document.getElementById('daysBackFilter').value,
+                metadata: metadataFilters
+            };
+        }
+
+        // Update run limit
+        function updateRunLimit() {
+            const newLimit = parseInt(document.getElementById('runLimitFilter').value);
+            if (newLimit > 0 && newLimit <= 200) {
+                maxRunsToShow = newLimit;
+                applyFilters(); // Refresh with new limit
+            }
+        }
+
+        // Clear all filters
+        function clearFilters() {
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('daysBackFilter').value = '30';
+            document.getElementById('runLimitFilter').value = '30';
+            document.getElementById('metadataFilters').innerHTML = '';
+            maxRunsToShow = 30;
+            applyFilters();
+        }
+
+        // Apply filters and refresh matrix
+        async function applyFilters() {
+            updateURLWithFilters(); // Update URL with current filters
+            await loadMatrix();
+        }
+
+        // Load matrix data
+        async function loadMatrix() {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const emptyState = document.getElementById('emptyState');
+            const matrixContent = document.getElementById('matrixContent');
+            const matrixInfo = document.getElementById('matrixInfo');
+
+            loadingIndicator.style.display = 'block';
+            emptyState.style.display = 'none';
+            matrixContent.style.display = 'none';
+
+            try {
+                // Check if we need to reload data (only if filters changed)
+                const currentFilters = getCurrentFilters();
+                const filterKey = JSON.stringify(currentFilters);
+
+                let runs = cachedRuns;
+                let runData = cachedRunData;
+
+                // Only reload if we don't have cached data or filters changed
+                if (!cachedRuns || filterKey !== cachedFilterKey) {
+                    const params = new URLSearchParams({
+                        status: currentFilters.status,
+                        days_back: currentFilters.daysBack
+                    });
+
+                    // Add metadata filters
+                    currentFilters.metadata.forEach(filter => {
+                        if (filter.key && filter.value) {
+                            params.append(`metadata.${filter.key}`, filter.value);
+                        }
+                    });
+
+                    appendGroupParam(params);
+
+                    const response = await fetch(`/api/test-runs?${params}&limit=1000`);
+                    const result = await response.json();
+
+                    if (result.success && result.data.length > 0) {
+                        // Cache the runs and load test case data
+                        cachedRuns = result.data;
+                        cachedRunData = new Map();
+                        cachedFilterKey = filterKey;
+
+                        // Load test case data for all runs efficiently in one API call
+                        const runIds = cachedRuns.map(run => run.run_id);
+                        const testResults = await getTestResultsForRuns(runIds);
+
+                        // Build runData map from the efficient API response
+                        cachedRuns.forEach(run => {
+                            const testCases = testResults[run.run_id] || [];
+                            cachedRunData.set(run.run_id, {
+                                run: run,
+                                testCases: testCases
+                            });
+                        });
+
+                        runs = cachedRuns;
+                        runData = cachedRunData;
+                    } else {
+                        emptyState.style.display = 'block';
+                        matrixInfo.textContent = '0 runs';
+                        return;
+                    }
+                }
+
+                // Apply run limit
+                const limitedRuns = runs.slice(0, maxRunsToShow);
+
+                if (limitedRuns.length > 0) {
+                    await buildMatrix(limitedRuns, runData);
+                    matrixInfo.textContent = `${limitedRuns.length} of ${runs.length} runs`;
+                    matrixContent.style.display = 'block';
+                } else {
+                    emptyState.style.display = 'block';
+                    matrixInfo.textContent = '0 runs';
+                }
+            } catch (error) {
+                console.error('Error loading matrix:', error);
+                emptyState.style.display = 'block';
+                matrixInfo.textContent = '0 runs';
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        // Build the matrix from test run data
+        async function buildMatrix(runs, cachedData = null) {
+
+            let runData;
+            if (cachedData) {
+                // Use cached data
+                runData = cachedData;
+            } else {
+                // Load data (fallback)
+                runData = new Map();
+                for (const run of runs) {
+                    const testCases = await getTestCasesForRun(run.run_id);
+                    runData.set(run.run_id, {
+                        run: run,
+                        testCases: testCases
+                    });
+                }
+            }
+
+            // Collect test cases that are actually executed in at least one run
+            const allTestCases = new Set();
+            for (const run of runs) {
+                const runTestCases = runData.get(run.run_id).testCases;
+                runTestCases.forEach(tc => allTestCases.add(tc.test_case_id));
+            }
+
+
+            // Build test case tree
+            testCaseTree = buildTestCaseTree(Array.from(allTestCases));
+            // Auto-expand top-level test suites
+            autoExpandTopLevelSuites(testCaseTree);
+
+            // Sort runs by start time (oldest first) to assign sequential numbers
+            const runsByAge = Array.from(runs).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+            // Create a map of run_id to sequential number (oldest = 1)
+            const runNumberMap = new Map();
+            runsByAge.forEach((run, index) => {
+                runNumberMap.set(run.run_id, index + 1);
+            });
+
+            // Sort runs by start time (newest first) for display
+            const sortedRuns = Array.from(runs).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+
+             // Build results table header (run headers only) with sequential numbers as links
+             const resultsHeader = document.getElementById('resultsHeader');
+             resultsHeader.innerHTML = sortedRuns.map(run => {
+                 const runNumber = runNumberMap.get(run.run_id);
+                 const runUrl = `/testRun/${run.run_id}/index.html`;
+                 return `
+                 <th title="${run.run_name}">
+                     <div><a href="${runUrl}" style="color: inherit; text-decoration: none; font-weight: 600;">${runNumber}</a></div>
+                 </th>
+             `;
+             }).join('');
+
+            // Build test cases table body and results table body
+            const testCasesBody = document.getElementById('testCasesBody');
+            const resultsBody = document.getElementById('resultsBody');
+
+            testCasesBody.innerHTML = '';
+            resultsBody.innerHTML = '';
+
+            // Render test case tree
+            renderTestCaseTreeTwoTables(testCasesBody, resultsBody, testCaseTree, '', runData, sortedRuns, runNumberMap);
+
+            // If no rows were added, try rendering a flat list as fallback
+            if (testCasesBody.children.length === 0) {
+                renderFlatTestCasesTwoTables(testCasesBody, resultsBody, Array.from(allTestCases), runData, sortedRuns, runNumberMap);
+            }
+
+             // Simple width setting - just use CSS
+
+             // Position the resize handle and synchronize row heights after a short delay
+             setTimeout(() => {
+                 updateExtendedResizeHandle();
+                 synchronizeRowHeights();
+             }, 100);
+        }
+
+        // Get test results for multiple runs efficiently
+        async function getTestResultsForRuns(runIds) {
+            try {
+                const response = await fetch(`/api/test-results/for-runs?run_ids=${runIds.join(',')}`);
+                const result = await response.json();
+                if (result.success) {
+                    return result.data || {};
+                }
+                return {};
+            } catch (error) {
+                console.error('Error loading test results for runs:', runIds, error);
+                return {};
+            }
+        }
+
+        // Split path by dots, but ignore dots inside brackets (e.g., "Test.Suite[\"Name.With.Dots\"].Method")
+        function getPathSegments(path) {
+            const segments = [];
+            let currentSegment = '';
+            let bracketDepth = 0;
+
+            for (let i = 0; i < path.length; i++) {
+                const char = path[i];
+
+                if (char === '[') {
+                    bracketDepth++;
+                    currentSegment += char;
+                } else if (char === ']') {
+                    bracketDepth--;
+                    currentSegment += char;
+                } else if (char === '.' && bracketDepth === 0) {
+                    if (currentSegment) {
+                        segments.push(currentSegment);
+                        currentSegment = '';
+                    }
+                } else {
+                    currentSegment += char;
+                }
+            }
+
+            if (currentSegment) {
+                segments.push(currentSegment);
+            }
+
+            return segments;
+        }
+
+        // Build test case tree structure
+        function buildTestCaseTree(testCaseIds) {
+            const tree = {};
+
+            testCaseIds.forEach(testCaseId => {
+                const parts = getPathSegments(testCaseId);
+                let current = tree;
+
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i];
+                    if (!current[part]) {
+                        current[part] = {
+                            isLeaf: i === parts.length - 1,
+                            testCaseId: i === parts.length - 1 ? testCaseId : null,
+                            children: {}
+                        };
+                    }
+                    current = current[part].children;
+                }
+            });
+
+            return tree;
+        }
+
+        // Auto-expand top-level test suites so test cases are visible by default
+        function autoExpandTopLevelSuites(tree, prefix = '') {
+            // Only auto-expand on first load, not on every rebuild
+            if (hasAutoExpanded) {
+                return;
+            }
+
+            Object.keys(tree).forEach(key => {
+                const node = tree[key];
+                const currentPath = prefix + key;
+
+                if (!node.isLeaf && Object.keys(node.children).length > 0) {
+                    // Expand this node
+                    expandedTestCases.add(currentPath);
+
+                    // Recursively expand children if they're not leaf nodes
+                    autoExpandTopLevelSuites(node.children, currentPath + '.');
+                }
+            });
+
+            hasAutoExpanded = true;
+        }
+
+         // Get all leaf test case IDs from a tree node
+         // Only returns IDs for actual leaf nodes (nodes with no children)
+         function getAllLeafTestCaseIds(node, prefix = '') {
+             const leafIds = [];
+
+             // Check if this node has children
+             const hasChildren = node.children && Object.keys(node.children).length > 0;
+
+             // Only add this node's ID if it's a leaf (no children) AND has a testCaseId
+             if (!hasChildren && node.isLeaf && node.testCaseId) {
+                 leafIds.push(node.testCaseId);
+             }
+
+             // Recursively get leaf IDs from children
+             if (hasChildren) {
+                 Object.keys(node.children).forEach(key => {
+                     const childNode = node.children[key];
+                     const childPath = prefix ? `${prefix}.${key}` : key;
+                     leafIds.push(...getAllLeafTestCaseIds(childNode, childPath));
+                 });
+             }
+
+             return leafIds;
+         }
+
+         // Calculate summary status for a parent node based on its children
+         function calculateSummaryStatus(childTestCases, runData, runId) {
+             if (!childTestCases || childTestCases.length === 0) {
+                 return null; // No tests to summarize
+             }
+
+             const statuses = [];
+
+             // Get all test case results for this run
+             const runTestCases = runData.get(runId).testCases;
+
+             childTestCases.forEach(testCaseId => {
+                 const testCase = runTestCases.find(tc => tc.test_case_id === testCaseId);
+                 if (testCase && testCase.status) {
+                     const status = testCase.status.toLowerCase();
+                     // Ignore "not-executed" or null statuses
+                     if (status && status !== 'not-executed') {
+                         statuses.push(status);
+                     }
+                 }
+             });
+
+             if (statuses.length === 0) {
+                 return null; // No executed tests
+             }
+
+            // Priority: running > error > failed/aborted > skipped (if all) > passed
+            // Check for running first (highest priority)
+            if (statuses.some(s => s === 'running')) {
+                return 'running';
+            }
+
+            // Any error in children => summary error
+            if (statuses.some(s => s === 'error')) {
+                return 'error';
+            }
+
+            if (statuses.some(s => s === 'failed' || s === 'aborted')) {
+                // Check for aborted first (aborted is also a type of failure)
+                if (statuses.some(s => s === 'aborted')) {
+                    return 'aborted';
+                }
+                return 'failed';
+            }
+
+            // Check if all are skipped
+            if (statuses.every(s => s === 'skipped')) {
+                return 'skipped';
+            }
+
+            // If all executed tests passed (skipped tests are allowed)
+            if (statuses.every(s => s === 'passed' || s === 'skipped')) {
+                return 'passed';
+            }
+
+            // Default to passed if we have some passed tests
+            return 'passed';
+        }
+
+         // Render test case tree for two-table layout
+         function renderTestCaseTreeTwoTables(testCasesContainer, resultsContainer, tree, prefix, runData, sortedRuns, runNumberMap, depth = 0) {
+             Object.keys(tree).sort().forEach(key => {
+                 const node = tree[key];
+                 const indent = '&nbsp;'.repeat(depth * 4);
+                 const hasChildren = Object.keys(node.children).length > 0;
+
+                 if (node.isLeaf) {
+                     // Create rows in both tables
+                     const testCaseRow = document.createElement('tr');
+                     testCaseRow.innerHTML = `<td class="test-case-cell" style="padding: 3px 4px !important;">${indent}${key}</td>`;
+                     testCasesContainer.appendChild(testCaseRow);
+
+                     const resultRow = document.createElement('tr');
+
+                     // Get all test results for this test case across all runs
+                     const testResults = sortedRuns.map(run => {
+                         const runTestCases = runData.get(run.run_id).testCases;
+                         const tc = runTestCases.find(tc => tc.test_case_id === node.testCaseId);
+                         return { run: run, testCase: tc };
+                     });
+
+                     // Detect consecutive groups
+                     const groups = detectConsecutiveResults(testResults.map(tr => tr.testCase));
+
+                     // Helper function to get color for a status
+                     function getStatusColor(status) {
+                         if (status === 'passed') {
+                             return { bg: '#28a745', border: '#1e7e34' };
+                         } else if (status === 'failed') {
+                             return { bg: '#dc3545', border: '#bd2130' };
+                         } else if (status === 'skipped') {
+                             return { bg: '#ffc107', border: '#e0a800' };
+                         } else if (status === 'aborted') {
+                             return { bg: '#6c757d', border: '#495057' };
+                         } else if (status === 'error') {
+                             return { bg: '#6c757d', border: '#495057' };
+                         }
+                         return { bg: '#6c757d', border: '#495057' };
+                     }
+
+                     // Helper function to build test case log URL
+                     function buildTestCaseUrl(runId, testCaseId) {
+                         return `/testRun/${runId}/log/${encodeURIComponent(testCaseId)}.html`;
+                     }
+
+                     // Render groups - implement merged bars for consecutive results
+                     let html = '';
+                     groups.forEach(group => {
+                         // Skip rendering for not-executed groups
+                         if (group.result === 'not-executed') {
+                             for (let i = group.startIndex; i <= group.endIndex; i++) {
+                                 html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                             }
+                         } else if (group.count > 1) {
+                             // For consecutive results, render bar segments that visually connect
+                             const colors = getStatusColor(group.result);
+                             const isFirst = (idx) => idx === group.startIndex;
+                             const isLast = (idx) => idx === group.endIndex;
+
+                             for (let i = group.startIndex; i <= group.endIndex; i++) {
+                                 const testResult = testResults[i];
+                                 const testCase = testResult.testCase;
+
+                                 if (!testCase || !testCase.status || testCase.status.toLowerCase() === 'not-executed') {
+                                     // Empty cell for not-executed result
+                                     html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                                 } else {
+                                     const testCaseUrl = buildTestCaseUrl(testResult.run.run_id, node.testCaseId);
+                                     const statusText = group.result.charAt(0).toUpperCase() + group.result.slice(1);
+                                     const statusPlural = group.result === 'passed' ? 'passes' :
+                                                          group.result === 'failed' ? 'failures' :
+                                                          group.result === 'skipped' ? 'skips' :
+                                                          group.result === 'aborted' ? 'aborts' :
+                                                          group.result === 'error' ? 'errors' :
+                                                          group.result + 's';
+                                     const title = `${group.count} consecutive ${group.count > 1 ? statusPlural : statusText.toLowerCase()} - ${testResult.run.run_name}`;
+
+                                     // Calculate border radius: rounded on first and last segments only
+                                     const borderRadius = isFirst(i) && isLast(i) ? '10px' :
+                                                         isFirst(i) ? '10px 0 0 10px' :
+                                                         isLast(i) ? '0 10px 10px 0' : '0';
+
+                                     // Bar segment spans full width of cell
+                                     html += `<td style="text-align: center !important; padding: 2px 0px !important; vertical-align: middle !important;"><a href="${testCaseUrl}" style="display: block; text-decoration: none; width: 100%; height: 20px;"><div style="width: 100% !important; height: 20px !important; background-color: ${colors.bg} !important; border-radius: ${borderRadius} !important; border: 2px solid ${colors.border} !important; border-left: ${isFirst(i) ? '2px' : '0px'} solid ${colors.border} !important; border-right: ${isLast(i) ? '2px' : '0px'} solid ${colors.border} !important; display: block !important; cursor: pointer !important; box-sizing: border-box !important;" title="${title}"></div></a></td>`;
+                                 }
+                             }
+                         } else if (group.result === 'not-executed') {
+                             // Single not-executed result - render empty cell
+                             html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                         } else {
+                             // Single result - render individual dot
+                             const testResult = testResults[group.startIndex];
+                             const testCase = testResult.testCase;
+
+                             if (!testCase || !testCase.status || testCase.status.toLowerCase() === 'not-executed') {
+                                 html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                             } else {
+                                 const colors = getStatusColor(group.result);
+                                 const testCaseUrl = buildTestCaseUrl(testResult.run.run_id, node.testCaseId);
+                                 const status = testCase.status || group.result;
+                                 const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+                                 const title = `${statusText} - ${testResult.run.run_name}`;
+
+                                 html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"><a href="${testCaseUrl}" style="display: inline-block; text-decoration: none;"><div style="width: 20px !important; height: 20px !important; background-color: ${colors.bg} !important; border-radius: 50% !important; border: 2px solid ${colors.border} !important; display: inline-block !important; margin: 0 auto !important; cursor: pointer !important;" title="${title}"></div></a></td>`;
+                             }
+                         }
+                     });
+
+                     resultRow.innerHTML = html;
+
+                     resultsContainer.appendChild(resultRow);
+
+                 } else {
+                     // Create branch rows
+                     const testCaseRow = document.createElement('tr');
+                     const path = prefix + key;
+                     const isExpanded = expandedTestCases.has(path);
+
+                     // Use data attribute instead of inline onclick to avoid escaping issues
+                     const expandIcon = hasChildren ? `<i class="fas ${isExpanded ? 'fa-minus-circle' : 'fa-plus-circle'} expand-icon" data-test-path="${path.replace(/"/g, '&quot;')}"></i>&nbsp;` : '';
+
+                     testCaseRow.innerHTML = `<td class="test-case-cell" style="padding: 3px 4px !important;">${indent}${expandIcon}${key}</td>`;
+                     testCasesContainer.appendChild(testCaseRow);
+
+                     // Attach click event listener to the expand icon
+                     if (hasChildren) {
+                         const expandIconElement = testCaseRow.querySelector('.expand-icon');
+                         if (expandIconElement) {
+                             expandIconElement.addEventListener('click', function() {
+                                 toggleTestCase(path);
+                             });
+                         }
+                     }
+
+                     const resultRow = document.createElement('tr');
+
+                     // For parent nodes, calculate summary status for each run
+                     const leafTestCaseIds = getAllLeafTestCaseIds(node);
+
+                     // Get summary status for each run
+                     const summaryResults = sortedRuns.map(run => {
+                         const summaryStatus = calculateSummaryStatus(leafTestCaseIds, runData, run.run_id);
+                         return { run: run, status: summaryStatus };
+                     });
+
+                     // Detect consecutive groups for summary status
+                     // Convert summary results to format expected by detectConsecutiveResults
+                     // Only include results with valid status (null means all children were not-executed)
+                     const summaryTestCases = summaryResults.map(sr => sr.status ? { status: sr.status } : null);
+                     const summaryGroups = detectConsecutiveResults(summaryTestCases);
+
+                     // Filter out groups with 'not-executed' result to ensure they render as empty
+                     const filteredSummaryGroups = summaryGroups.filter(group => group.result !== 'not-executed');
+
+                     // Helper function to get color for a status
+                     function getStatusColor(status) {
+                         if (status === 'passed') {
+                             return { bg: '#28a745', border: '#1e7e34' };
+                         } else if (status === 'failed') {
+                             return { bg: '#dc3545', border: '#bd2130' };
+                         } else if (status === 'skipped') {
+                             return { bg: '#ffc107', border: '#e0a800' };
+                         } else if (status === 'aborted') {
+                             return { bg: '#6c757d', border: '#495057' };
+                         } else if (status === 'error') {
+                             return { bg: '#6c757d', border: '#495057' };
+                         } else if (status === 'error') {
+                             return { bg: '#6c757d', border: '#495057' };
+                         }
+                         return { bg: '#6c757d', border: '#495057' };
+                     }
+
+                     // Helper function to build test case log URL (not used for parent nodes, but needed for consistency)
+                     function buildTestCaseUrl(runId, testCaseId) {
+                         return `/testRun/${runId}/log/${encodeURIComponent(testCaseId)}.html`;
+                     }
+
+                     // Render summary status groups
+                     // Only show summary when node is collapsed (not expanded)
+                     let html = '';
+
+                     if (isExpanded) {
+                         // When expanded, hide summary bars/dots - render empty cells
+                         for (let i = 0; i < sortedRuns.length; i++) {
+                             html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                         }
+                     } else {
+                         // When collapsed, show summary status
+                         // Build a map of index to status for easy lookup
+                         const statusMap = new Map();
+                         filteredSummaryGroups.forEach(group => {
+                             for (let i = group.startIndex; i <= group.endIndex; i++) {
+                                 statusMap.set(i, group);
+                             }
+                         });
+
+                         // Render cells in order, checking if each index has a status group
+                         for (let i = 0; i < sortedRuns.length; i++) {
+                             const summaryResult = summaryResults[i];
+
+                             if (!summaryResult.status) {
+                                 // No executed tests - render empty cell
+                                 html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                             } else {
+                                 const group = statusMap.get(i);
+                                 if (!group) {
+                                     // Should not happen, but render empty as fallback
+                                     html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                                 } else if (group.count > 1) {
+                                     // Part of a consecutive group - render bar segment
+                                     const status = group.result;
+                                     const colors = getStatusColor(status);
+                                     const isFirst = (idx) => idx === group.startIndex;
+                                     const isLast = (idx) => idx === group.endIndex;
+
+                                     const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+                                     const statusPlural = status === 'passed' ? 'passes' :
+                                                          status === 'failed' ? 'failures' :
+                                                          status === 'skipped' ? 'skips' :
+                                                          status === 'aborted' ? 'aborts' :
+                                                          status === 'error' ? 'errors' :
+                                                          status + 's';
+                                     const title = `${group.count} consecutive ${group.count > 1 ? statusPlural : statusText.toLowerCase()} - ${summaryResult.run.run_name}`;
+
+                                     // Calculate border radius: rounded on first and last segments only
+                                     const borderRadius = isFirst(i) && isLast(i) ? '10px' :
+                                                         isFirst(i) ? '10px 0 0 10px' :
+                                                         isLast(i) ? '0 10px 10px 0' : '0';
+
+                                     // Bar segment spans full width of cell
+                                     html += `<td style="text-align: center !important; padding: 2px 0px !important; vertical-align: middle !important;"><div style="width: 100% !important; height: 20px !important; background-color: ${colors.bg} !important; border-radius: ${borderRadius} !important; border: 2px solid ${colors.border} !important; border-left: ${isFirst(i) ? '2px' : '0px'} solid ${colors.border} !important; border-right: ${isLast(i) ? '2px' : '0px'} solid ${colors.border} !important; display: block !important; cursor: default !important; box-sizing: border-box !important;" title="${title}"></div></td>`;
+                                } else {
+                                    // Single result - render individual dot
+                                    const status = group.result;
+                                    const colors = getStatusColor(status);
+                                    const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+                                    const title = `${statusText} - ${summaryResult.run.run_name}`;
+
+                                    html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"><div style="width: 20px !important; height: 20px !important; background-color: ${colors.bg} !important; border-radius: 50% !important; border: 2px solid ${colors.border} !important; display: inline-block !important; margin: 0 auto !important; cursor: default !important;" title="${title}"></div></td>`;
+                                }
+                             }
+                         }
+                     }
+
+                     resultRow.innerHTML = html;
+                     resultsContainer.appendChild(resultRow);
+
+                     // Render children if expanded
+                     if (isExpanded) {
+                         renderTestCaseTreeTwoTables(testCasesContainer, resultsContainer, node.children, path + '.', runData, sortedRuns, runNumberMap, depth + 1);
+                     }
+                 }
+             });
+         }
+
+         // Fallback function to render test cases in a flat list for two-table layout
+         function renderFlatTestCasesTwoTables(testCasesContainer, resultsContainer, testCaseIds, runData, sortedRuns, runNumberMap) {
+             testCaseIds.forEach(testCaseId => {
+                 const testCaseRow = document.createElement('tr');
+                 testCaseRow.innerHTML = `<td class="test-case-cell" style="padding: 3px 4px !important;">${testCaseId}</td>`;
+                 testCasesContainer.appendChild(testCaseRow);
+
+                 const resultRow = document.createElement('tr');
+
+                 // Get all test results for this test case across all runs
+                 const testResults = sortedRuns.map(run => {
+                     const runTestCases = runData.get(run.run_id).testCases;
+                     const tc = runTestCases.find(tc => tc.test_case_id === testCaseId);
+                     return { run: run, testCase: tc };
+                 });
+
+                 // Detect consecutive groups
+                 const groups = detectConsecutiveResults(testResults.map(tr => tr.testCase));
+
+                 // Helper function to get color for a status
+                 function getStatusColor(status) {
+                     if (status === 'passed') {
+                         return { bg: '#28a745', border: '#1e7e34' };
+                     } else if (status === 'failed') {
+                         return { bg: '#dc3545', border: '#bd2130' };
+                     } else if (status === 'skipped') {
+                         return { bg: '#ffc107', border: '#e0a800' };
+                         }
+                         return { bg: '#6c757d', border: '#495057' };
+                     }
+
+                 // Helper function to build test case log URL
+                 function buildTestCaseUrl(runId, testCaseId) {
+                     return `/testRun/${runId}/log/${encodeURIComponent(testCaseId)}.html`;
+                 }
+
+                 // Render groups with bar segments for consecutive results
+                 let html = '';
+                 groups.forEach(group => {
+                     // Skip rendering for not-executed groups
+                     if (group.result === 'not-executed') {
+                         for (let i = group.startIndex; i <= group.endIndex; i++) {
+                             html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                         }
+                     } else if (group.count > 1) {
+                         // For consecutive results, render bar segments that visually connect
+                         const colors = getStatusColor(group.result);
+                         const isFirst = (idx) => idx === group.startIndex;
+                         const isLast = (idx) => idx === group.endIndex;
+
+                         for (let i = group.startIndex; i <= group.endIndex; i++) {
+                             const testResult = testResults[i];
+                             const testCase = testResult.testCase;
+
+                             if (!testCase || !testCase.status || testCase.status.toLowerCase() === 'not-executed') {
+                                 // Empty cell for not-executed result
+                                 html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                             } else {
+                                 const testCaseUrl = buildTestCaseUrl(testResult.run.run_id, testCaseId);
+                                 const statusText = group.result.charAt(0).toUpperCase() + group.result.slice(1);
+                                 const statusPlural = group.result === 'passed' ? 'passes' :
+                                                      group.result === 'failed' ? 'failures' :
+                                                      group.result === 'skipped' ? 'skips' :
+                                                      group.result === 'aborted' ? 'aborts' :
+                                                      group.result === 'error' ? 'errors' :
+                                                      group.result + 's';
+                                 const title = `${group.count} consecutive ${group.count > 1 ? statusPlural : statusText.toLowerCase()} - ${testResult.run.run_name}`;
+
+                                 // Calculate border radius: rounded on first and last segments only
+                                 const borderRadius = isFirst(i) && isLast(i) ? '10px' :
+                                                     isFirst(i) ? '10px 0 0 10px' :
+                                                     isLast(i) ? '0 10px 10px 0' : '0';
+
+                                 // Bar segment spans full width of cell
+                                 html += `<td style="text-align: center !important; padding: 2px 0px !important; vertical-align: middle !important;"><a href="${testCaseUrl}" style="display: block; text-decoration: none; width: 100%; height: 20px;"><div style="width: 100% !important; height: 20px !important; background-color: ${colors.bg} !important; border-radius: ${borderRadius} !important; border: 2px solid ${colors.border} !important; border-left: ${isFirst(i) ? '2px' : '0px'} solid ${colors.border} !important; border-right: ${isLast(i) ? '2px' : '0px'} solid ${colors.border} !important; display: block !important; cursor: pointer !important; box-sizing: border-box !important;" title="${title}"></div></a></td>`;
+                             }
+                         }
+                     } else {
+                         // Single result - render individual dot
+                         const testResult = testResults[group.startIndex];
+                         const testCase = testResult.testCase;
+
+                         if (!testCase || !testCase.status || testCase.status.toLowerCase() === 'not-executed') {
+                             html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"></td>`;
+                         } else {
+                             const colors = getStatusColor(group.result);
+                             const testCaseUrl = buildTestCaseUrl(testResult.run.run_id, testCaseId);
+                             const title = `${testCase.status || group.result}`;
+
+                             html += `<td style="text-align: center !important; padding: 2px 2px !important; vertical-align: middle !important;"><a href="${testCaseUrl}" style="display: inline-block; text-decoration: none;"><div style="width: 20px !important; height: 20px !important; background-color: ${colors.bg} !important; border-radius: 50% !important; border: 2px solid ${colors.border} !important; display: inline-block !important; margin: 0 auto !important; cursor: pointer !important;" title="${title}"></div></a></td>`;
+                         }
+                     }
+                 });
+
+                 resultRow.innerHTML = html;
+
+                 resultsContainer.appendChild(resultRow);
+             });
+         }
+
+
+        // Toggle test case expansion
+        function toggleTestCase(path) {
+            if (expandedTestCases.has(path)) {
+                expandedTestCases.delete(path);
+            } else {
+                expandedTestCases.add(path);
+            }
+
+            // Rebuild UI to show/hide children
+            rebuildMatrixUI();
+        }
+
+
+         // Rebuild matrix UI without reloading data
+         async function rebuildMatrixUI() {
+             if (!cachedRuns || !cachedRunData) {
+                 // No cached data, need to load first
+                 await loadMatrix();
+                 return;
+             }
+
+             // Apply run limit
+             const limitedRuns = cachedRuns.slice(0, maxRunsToShow);
+
+             if (limitedRuns.length > 0) {
+                 await buildMatrix(limitedRuns, cachedRunData);
+                 document.getElementById('matrixInfo').textContent = `${limitedRuns.length} of ${cachedRuns.length} runs`;
+                 document.getElementById('matrixContent').style.display = 'block';
+
+                 // Ensure row heights are synchronized after rebuild
+                 setTimeout(() => {
+                     synchronizeRowHeights();
+                 }, 50);
+             }
+         }
+
+
+        // Simple function to detect consecutive identical results
+        function detectConsecutiveResults(testResults) {
+            const groups = [];
+            let currentGroup = null;
+
+            for (let i = 0; i < testResults.length; i++) {
+                const testCase = testResults[i];
+                // Treat null, undefined, or "not-executed" status as null (not-executed)
+                let result = null;
+                if (testCase && testCase.status) {
+                    const status = testCase.status.toLowerCase();
+                    if (status && status !== 'not-executed') {
+                        result = status;
+                    }
+                }
+
+                // For grouping, null (not-executed) should be treated separately from actual statuses
+                const groupKey = result || 'not-executed';
+
+                if (!currentGroup || currentGroup.result !== groupKey) {
+                    // Start new group
+                    if (currentGroup) {
+                        groups.push(currentGroup);
+                    }
+                    currentGroup = {
+                        result: groupKey,
+                        startIndex: i,
+                        endIndex: i,
+                        count: 1,
+                        testCase: result ? testCase : null // Only store testCase if it has a valid status
+                    };
+                } else {
+                    // Extend current group
+                    currentGroup.endIndex = i;
+                    currentGroup.count++;
+                }
+            }
+
+            if (currentGroup) {
+                groups.push(currentGroup);
+            }
+
+            return groups;
+        }
+
+
+        // Setup column resizing for the test case column
+        function setupColumnResizing() {
+            let isResizing = false;
+            let startX = 0;
+            let startWidth = 0;
+            let resizingHandle = null;
+
+             document.addEventListener('mousedown', function(e) {
+                 if (e.target.classList.contains('resize-handle-extended')) {
+                     isResizing = true;
+                     resizingHandle = e.target;
+                     startX = e.clientX;
+                     const testCasesTable = document.querySelector('.test-cases-table');
+                     startWidth = testCasesTable.offsetWidth;
+
+                     resizingHandle.classList.add('resizing');
+                     document.body.style.cursor = 'col-resize';
+                     document.body.style.userSelect = 'none';
+                     e.preventDefault();
+                     e.stopPropagation();
+                 }
+             });
+
+            document.addEventListener('mousemove', function(e) {
+                if (isResizing && resizingHandle) {
+                    const diff = e.clientX - startX;
+                     const testCasesTable = document.querySelector('.test-cases-table');
+                     const newWidth = Math.max(200, Math.min(window.innerWidth * 0.6, startWidth + diff));
+
+                    // Update the table column width using CSS
+                    const table = document.getElementById('matrixTable');
+                    const columnIndex = 0; // First column (Test Cases)
+
+                    // Create or update a style rule for the column
+                    let styleId = 'matrix-column-resize';
+                    let existingStyle = document.getElementById(styleId);
+                    if (!existingStyle) {
+                        existingStyle = document.createElement('style');
+                        existingStyle.id = styleId;
+                        document.head.appendChild(existingStyle);
+                    }
+
+                     // Set the test cases table width and adjust results table
+                     existingStyle.textContent = `
+                         .test-cases-table {
+                             width: ${newWidth}px !important;
+                             min-width: ${newWidth}px !important;
+                             max-width: ${newWidth}px !important;
+                         }
+                         .test-cases-table table {
+                             width: 100% !important;
+                         }
+                         .test-cases-table th,
+                         .test-cases-table td {
+                             width: ${newWidth}px !important;
+                             min-width: ${newWidth}px !important;
+                         }
+                         .results-table {
+                             width: calc(100% - ${newWidth}px) !important;
+                         }
+                     `;
+
+                    // Update the extended resize handle position
+                    updateExtendedResizeHandle();
+
+                    e.preventDefault();
+                }
+            });
+
+             document.addEventListener('mouseup', function(e) {
+                 if (isResizing && resizingHandle) {
+                     resizingHandle.classList.remove('resizing');
+                     document.body.style.cursor = '';
+                     document.body.style.userSelect = '';
+                     isResizing = false;
+                     resizingHandle = null;
+                 }
+             });
+
+            // Prevent text selection while resizing
+            document.addEventListener('selectstart', function(e) {
+                if (isResizing) {
+                    e.preventDefault();
+                }
+            });
+        }
+
+         // Synchronize row heights between the two tables
+         function synchronizeRowHeights() {
+             const testCasesTable = document.getElementById('testCasesTable');
+             const resultsTable = document.getElementById('resultsTable');
+
+             if (!testCasesTable || !resultsTable) return;
+
+             const testCasesRows = testCasesTable.querySelectorAll('tr');
+             const resultsRows = resultsTable.querySelectorAll('tr');
+
+             // Ensure we have the same number of rows
+             if (testCasesRows.length !== resultsRows.length) {
+                 console.warn('Row count mismatch between tables:', testCasesRows.length, 'vs', resultsRows.length);
+                 return;
+             }
+
+             // Synchronize each row pair
+             for (let i = 0; i < testCasesRows.length; i++) {
+                 const testCaseRow = testCasesRows[i];
+                 const resultRow = resultsRows[i];
+
+                 // Get the maximum height needed
+                 const testCaseHeight = testCaseRow.offsetHeight;
+                 const resultHeight = resultRow.offsetHeight;
+                 const maxHeight = Math.max(testCaseHeight, resultHeight, 24); // Minimum 24px
+
+                 // Set both rows to the same height
+                 testCaseRow.style.height = maxHeight + 'px';
+                 resultRow.style.height = maxHeight + 'px';
+
+                 // Set both test case and result cell heights to match
+                 const testCaseCells = testCaseRow.querySelectorAll('th, td');
+                 const resultCells = resultRow.querySelectorAll('th, td');
+
+                 testCaseCells.forEach(cell => {
+                     cell.style.height = maxHeight + 'px';
+                     cell.style.minHeight = maxHeight + 'px';
+                 });
+
+                 resultCells.forEach(cell => {
+                     // Don't set height on empty cells (they should be transparent)
+                     if (cell.innerHTML.trim() === '' || cell.innerHTML.includes('background: transparent')) {
+                         cell.style.height = 'auto';
+                         cell.style.minHeight = 'auto';
+                     } else {
+                         cell.style.height = maxHeight + 'px';
+                         cell.style.minHeight = maxHeight + 'px';
+                     }
+                 });
+             }
+         }
+
+         // Update the extended resize handle position
+         function updateExtendedResizeHandle() {
+             const extendedHandle = document.getElementById('resizeHandleExtended');
+             const testCasesTable = document.querySelector('.test-cases-table');
+             const matrixLayout = document.querySelector('.matrix-layout');
+
+             if (extendedHandle && testCasesTable && matrixLayout) {
+                 const testCasesRect = testCasesTable.getBoundingClientRect();
+                 const layoutRect = matrixLayout.getBoundingClientRect();
+
+                 // Position at the right edge of the test cases table
+                 const leftPosition = (testCasesRect.right - layoutRect.left) - 2;
+                 const tableHeight = testCasesTable.offsetHeight;
+
+                 extendedHandle.style.left = leftPosition + 'px';
+                 extendedHandle.style.height = tableHeight + 'px';
+                 extendedHandle.style.display = 'block';
+
+                 console.log('Resize handle positioned at:', leftPosition, 'px, height:', tableHeight, 'px');
+             }
+         }
+
+         // Setup scroll listener to update resize handle position
+         function setupScrollListener() {
+             const resultsTable = document.querySelector('.results-table');
+             if (resultsTable) {
+                 resultsTable.addEventListener('scroll', function() {
+                     // No need to update handle position since it's between the tables
+                     // The handle stays fixed relative to the test cases table
+                 });
+             }
+         }
+
+         // Refresh matrix
+         function refreshMatrix() {
+             loadMatrix();
+         }
+    </script>
+</body>
+</html>
