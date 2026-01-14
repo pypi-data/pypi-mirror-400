@@ -1,0 +1,87 @@
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+
+repos:
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # uv version.
+    rev: 0.6.2
+    hooks:
+      - id: uv-lock
+        stages: [pre-push]
+
+  - repo: local
+    hooks:
+    # Type check
+    - id: pyright
+      name: pyright
+      entry: uv run --all-extras pyright clypi/ type_tests/ examples/
+      language: python
+      types: [python]
+      exclude: ^tests/.*
+      pass_filenames: false
+      always_run: true
+      stages: [pre-push]
+
+    # Run tests
+    - id: pytest
+      name: pytest
+      entry: uv run pytest tests
+      language: python
+      types: [python]
+      files: ^tests/.*
+      pass_filenames: false
+      always_run: true
+      additional_dependencies: ["pytest==8.3.4"]
+      stages: [pre-push]
+
+    # Ruff - Format all files
+    - id: ruff-format
+      name: Run 'ruff format'
+      description: "Run 'ruff format' for extremely fast Python formatting"
+      entry: uvx ruff format --force-exclude
+      language: python
+      types_or: [python, pyi]
+      exclude: ^tests/.*
+      require_serial: true
+      additional_dependencies: ["ruff==0.8.1"]
+
+    # Ruff - Lint and autofix changes
+    - id: ruff
+      name: Run 'ruff' for extremely fast Python linting
+      description: "Run 'ruff' for extremely fast Python linting"
+      entry: uvx ruff check --force-exclude
+      language: python
+      types_or: [python, pyi]
+      args: [--fix]
+      exclude: ^tests/.*
+      require_serial: true
+      additional_dependencies: ["ruff==0.8.1"]
+
+    # Codespell
+    - id: codespell
+      name: codespell
+      entry: uv run codespell
+      language: python
+      pass_filenames: false
+      always_run: true
+      stages: [pre-push]
+
+    # Markdown tests
+    - id: mdtest
+      name: mdtest
+      entry: uv run mdtest
+      language: python
+      pass_filenames: false
+      stages: [pre-push]
+      types: [markdown]
+      always_run: true
+
+    # Docs
+    - id: docs
+      name: docs
+      entry: ./scripts/gen_readme
+      language: python
+      pass_filenames: false
+      stages: [pre-push]
+      always_run: true
