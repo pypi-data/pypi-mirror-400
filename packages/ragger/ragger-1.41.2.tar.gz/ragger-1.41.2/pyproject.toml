@@ -1,0 +1,121 @@
+[build-system]
+requires = [
+    "setuptools>=75",
+    "setuptools_scm[toml]>=6.2",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ragger"
+authors = [{name = "Ledger", email = "hello@ledger.fr"}]
+description = "Testing framework using Speculos and LedgerComm as backends"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "bip_utils>=2.4.0",
+    "py-sr25519-bindings>=0.2.0,<0.3.0",
+    "ledgered>=0.10.1",
+    "toml"
+]
+dynamic = ["version"]
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.urls]
+Homepage = "https://github.com/LedgerHQ/ragger"
+"Bug Tracker" = "https://github.com/LedgerHQ/ragger/issues"
+
+[project.optional-dependencies]
+tests = [
+    "pytest",
+    "pytest-cov",
+]
+checkers = [
+    "yapf",
+    "toml",
+    "flake8",
+    "flake8-pyproject",
+    "mypy",
+    "types-toml",
+    "bandit",
+]
+doc = [
+    # embeds pyreverse
+    "pylint",
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinxcontrib-images",
+    "sphinx-copybutton",
+    "Jinja2>=3.0",
+    # higher versions trigger build bugs with the RTD theme
+    "docutils==0.16",
+]
+speculos = [
+    "speculos>=0.13.1",
+    "mnemonic",
+]
+ledgercomm = [
+    "ledgercomm>=1.2.1",
+    "ledgercomm[hid]>=1.2.1",
+    "pyqt6",
+    "pytesseract",
+    "pillow",
+]
+ledgerwallet = [
+    "ledgerwallet>=0.4.0",
+    "pyqt6",
+    "pytesseract",
+    "pillow",
+]
+all_backends = [
+    "ragger[speculos]",
+    "ragger[ledgercomm]",
+    "ragger[ledgerwallet]",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["tests"]
+namespaces = false
+
+[tool.setuptools.package-data]
+ragger = ["py.typed"]
+
+[tool.setuptools_scm]
+write_to = "src/ragger/__version__.py"
+local_scheme = "no-local-version"
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.yapf]
+based_on_style = "pep8"
+column_limit = 100
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "@abstractmethod",
+    "pragma: no cover"
+]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = "E502"
