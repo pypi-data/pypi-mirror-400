@@ -1,0 +1,26 @@
+FROM python:3.13-bullseye
+
+ENV TOURIST_VERSION=local
+ENV DISPLAY=:99
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /local
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    python3-tk \
+    gnome-screenshot \
+  && rm -rf /var/lib/apt/lists/*
+RUN pip install patchright && patchright install --no-shell --with-deps chrome
+
+COPY . .
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter
+ENV AWS_LWA_READINESS_CHECK_PATH=/info/health
+ENV AWS_LWA_ENABLE_COMPRESSION=true
+ENV AWS_LWA_PORT=8000
+RUN pip install .[app]
+
+ENTRYPOINT [ "tourist" ]
