@@ -1,0 +1,29 @@
+services:
+  innowisemlinternshiptemp:
+    image: innowisemlinternshiptemp
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
+      - MLFLOW_EXPERIMENT_NAME=${MLFLOW_EXPERIMENT_NAME}
+    volumes:
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+      - ./mlflow/mlruns:/app/mlflow/mlruns
+      - ./submissions:/app/submissions
+
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    command: >
+      mlflow server
+      --backend-store-uri file:///mlruns
+      --default-artifact-root /mlruns
+      --host 0.0.0.0
+      --port 5000
+      --serve-artifacts
+    volumes:
+      - ./mlflow/mlruns:/mlruns
+    ports:
+      - "5050:5000"

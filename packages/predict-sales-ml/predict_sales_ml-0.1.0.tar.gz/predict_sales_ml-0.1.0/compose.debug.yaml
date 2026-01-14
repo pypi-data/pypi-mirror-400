@@ -1,0 +1,27 @@
+services:
+  innowisemlinternshiptemp:
+    image: innowisemlinternshiptemp
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    command: ["sh", "-c", "pip install debugpy -t /tmp && python /tmp/debugpy --wait-for-client --listen 0.0.0.0:5678 -m main "]
+    ports:
+      - 5678:5678
+    environment:
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
+      - MLFLOW_EXPERIMENT_NAME=${MLFLOW_EXPERIMENT_NAME}
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    command: >
+      command: >
+      mlflow server
+      --backend-store-uri file:///mlruns
+      --default-artifact-root /mlruns
+      --host 0.0.0.0
+      --port 5000
+      --serve-artifacts
+    volumes:
+      - ./mlflow/mlruns:/mlruns
+    ports:
+      - "5050:5000"
