@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Table Diff Report</title>
+
+{% set BAR_WIDTH = 30 %}
+
+<style>
+/*
+  Note: This CSS is designed to be PDF-friendly. Avoid complex styles and new CSS features.
+  Inline all colors.
+*/
+
+/* ===============================
+   Base
+   =============================== */
+
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  margin: 2rem;
+  line-height: 1.55;
+  color: #2c3e50;
+  background: white;
+}
+
+h1 {
+  font-size: 1.9em;
+  margin-bottom: 0.2em;
+}
+
+h2 {
+  font-size: 1.35em;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 0.2em;
+  margin-top: 0;
+}
+
+h3 {
+  font-size: 1.05em;
+  color: #9b59b6;
+}
+
+p {
+  margin: 0.6em 0;
+}
+
+code {
+  background: #eef1f3;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.95em;
+}
+
+/* ===============================
+   Header Block
+   =============================== */
+
+.header {
+  background: #fafbfc;
+  border: 1px solid #dcdcdc;
+  padding: 1em 1.2em;
+  margin-bottom: 2em;
+}
+
+/* ===============================
+   Badges
+   =============================== */
+
+.badge {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  border-radius: 6px;
+  font-size: 0.7em;
+  font-weight: 600;
+  margin-left: 0.4em;
+  color: white;
+}
+
+.badge.green { background: #2ecc71; }
+.badge.yellow { background: #f1c40f; color: #000; }
+.badge.red { background: #e74c3c; }
+.badge.blue { background: #3498db; }
+
+/* ===============================
+   Sections
+   =============================== */
+
+.section {
+  background: #fafbfc;
+  border: 1px solid #dcdcdc;
+  padding: 1em 1.2em;
+  margin-top: 2em;
+}
+
+/* ===============================
+   PDF / Divider Helpers
+   =============================== */
+
+hr.section-divider {
+  border: none;
+  border-top: 1px solid #bbb;
+  margin: 2.2em 0 1.4em 0;
+}
+
+/* ===============================
+   Details / Collapsible
+   =============================== */
+
+details {
+  margin-top: 0.3em;
+  padding: 0.25em 0.8em;
+  border: 1px solid #dcdcdc;
+  background: white;
+}
+
+details[open] {
+  border-left: 4px solid #3498db;
+  margin-top: 1.1em;
+  margin-bottom: 1.2em;
+}
+
+summary {
+  display: flex;
+  align-items: center;
+  
+  font-weight: 600;
+  cursor: pointer;
+  color: #2c3e50;
+
+  padding: 0;
+  margin: 0;
+}
+
+summary::before {
+  content: "▶";
+  font-size: 0.75em;
+  margin-right: 0.5em;
+  transition: transform 0.15s ease;
+}
+
+details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+summary h3 {
+  display: flex;
+  align-items: center;
+
+  margin: 0;
+  padding: 0;
+  line-height: 1.2;
+}
+
+.diff-bar {
+  font-family: monospace;
+  margin-left: auto;
+  width: {{BAR_WIDTH}}ch;
+}
+
+
+summary:hover {
+  color: #3498db;
+}
+
+/* ===============================
+   Tables
+   =============================== */
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  margin-top: 0.6em;
+  font-size: 0.85em;
+  width: 100%;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 0.35em 0.6em;
+  vertical-align: top;
+}
+
+th {
+  background: #eef1f3;
+  font-weight: 600;
+}
+
+/* PDF-safe row striping */
+tr.row-even {
+  background: #f8f9fa;
+}
+
+/* ===============================
+   Lists
+   =============================== */
+
+ul {
+  margin: 0.4em 0 0.8em 1.2em;
+}
+
+li {
+  margin: 0.25em 0;
+}
+
+/* ===============================
+   Utility
+   =============================== */
+
+.null-cell {
+  color: #888;
+  font-style: italic;
+}
+
+.muted {
+  color: #7f8c8d;
+  font-style: italic;
+}
+
+.display-inline-block {
+  display: inline-block;
+}
+
+/* ===============================
+   Buttons
+   =============================== */
+
+button {
+  font-family: inherit;
+  font-size: 0.85em;
+  font-weight: 600;
+
+  padding: 0.4em 0.9em;
+  margin-right: 0.4em;
+
+  color: #ffffff;
+  background: #3498db;
+
+  border: 1px solid #2c80b4;
+  border-radius: 6px;
+
+  cursor: pointer;
+}
+
+button:hover {
+  background: #2f89c6;
+}
+
+button:active {
+  background: #2c80b4;
+}
+
+button:focus {
+  outline: none;
+  border-color: #1f5f8b;
+}
+
+/* Optional: secondary-style button */
+button.secondary {
+  background: #ecf0f1;
+  color: #2c3e50;
+  border-color: #bdc3c7;
+}
+
+button.secondary:hover {
+  background: #dde3e6;
+}
+
+
+</style>
+
+</head>
+
+<body>
+
+<!-- ========================================================= -->
+<!-- Header -->
+<!-- ========================================================= -->
+
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<div class="header">
+  <h1>Table Comparison Report</h1>
+
+  <p>
+    Comparing <strong>{{ old_filename }}</strong> → <strong>{{ new_filename }}</strong>
+  </p>
+
+  <p>
+    <strong>Unique Key:</strong>
+    {% if unique_key | length == 1 %}
+      <code>{{ unique_key[0] }}</code>
+    {% else %}
+      <ul>
+        {% for k in unique_key %}
+          <li><code>{{ k }}</code></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </p>
+</div>
+
+<!-- ========================================================= -->
+<!-- General Observations -->
+<!-- ========================================================= -->
+
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<div class="section">
+<h2>General Observations</h2>
+
+{% if general_observations %}
+<ul>
+{% for obs in general_observations %}
+  <li>{{ obs }}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p class="muted">No general observations.</p>
+{% endif %}
+</div>
+<!-- ========================================================= -->
+<!-- Column Comparison -->
+<!-- ========================================================= -->
+
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<div class="section">
+<h2>Column Comparison</h2>
+
+<!-- Columns in Both -->
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<details>
+  <summary>
+    <h3 class="display-inline-block">
+      Columns in Both ({{ compare_cols.cols_in_both | length }})
+    </h3>
+  </summary>
+
+  <ul>
+  {% for col in compare_cols.cols_in_both %}
+    <li>
+      <code>{{ col }}</code>
+      {% if col in compare_cols.unique_key %}
+        <span class="badge green">PK</span>
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</details>
+
+<!-- Dropped Columns -->
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<details>
+  <summary>
+    <h3 class="display-inline-block">
+      Dropped Columns ({{ compare_cols.cols_in_old_only | length }})
+    </h3>
+  </summary>
+
+  {% if compare_cols.cols_in_old_only %}
+  <ul>
+  {% for col in compare_cols.cols_in_old_only %}
+    <li><code>{{ col }}</code></li>
+  {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">None</p>
+  {% endif %}
+</details>
+
+<!-- Added Columns -->
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<details>
+  <summary>
+    <h3 class="display-inline-block">
+      Added Columns ({{ compare_cols.cols_in_new_only | length }})
+    </h3>
+  </summary>
+
+  {% if compare_cols.cols_in_new_only %}
+  <ul>
+  {% for col in compare_cols.cols_in_new_only %}
+    <li><code>{{ col }}</code></li>
+  {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">None</p>
+  {% endif %}
+</details>
+
+</div>
+
+<!-- ========================================================= -->
+<!-- Row Comparison -->
+<!-- ========================================================= -->
+
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<div class="section">
+<h2>Row Comparison (Based on Unique Key)</h2>
+
+<ul>
+  <li>Rows in old: {{ df_old_rows_count }}</li>
+  <li>Rows in new: {{ df_new_rows_count }}</li>
+</ul>
+
+{% if compare_rows.rows_added_count > 0 %}
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<details>
+  <summary><h3 class="display-inline-block">Rows Added ({{ compare_rows.rows_added_count }})</h3></summary>
+  {{ df_to_html(compare_rows.df_rows_added, show_shape=True) | safe }}
+</details>
+{% endif %}
+
+{% if compare_rows.rows_removed_count > 0 %}
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<details>
+  <summary><h3 class="display-inline-block">Rows Removed ({{ compare_rows.rows_removed_count }})</h3></summary>
+  {{ df_to_html(compare_rows.df_rows_removed, show_shape=True) | safe }}
+</details>
+{% endif %}
+
+{% if compare_rows.rows_in_both_sides_count > 0 %}
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<details>
+  <summary><h3 class="display-inline-block">Rows in Both ({{ compare_rows.rows_in_both_sides_count }})</h3></summary>
+  {{ df_to_html(compare_rows.df_unique_key_in_both, show_shape=True) | safe }}
+</details>
+{% endif %}
+</div>
+
+<!-- ========================================================= -->
+<!-- Column Diffs -->
+<!-- ========================================================= -->
+
+{% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+<div class="section" id="column-diffs-section">
+<h2>Column Diffs</h2>
+
+{% if not enable_simple_pdf_mode %}
+<div style="margin-top: 1em;">
+  <button type="button" onclick="sortColumnDiffsByPctDesc()">
+    Sort by Most Changed
+  </button>
+  <button type="button" onclick="sortColumnDiffsByName()">
+    Sort by Name
+  </button>
+</div>
+{% endif %}
+
+{% for col_diff in column_diffs %}
+  {% set col_diff_pct = col_diff.row_difference_count / col_diff.total_rows_cnt %}
+
+  {% if enable_simple_pdf_mode %}<hr class="section-divider">{% endif %}
+  {% if enable_simple_pdf_mode %}
+  <details>
+  {% else %}
+  <details
+    class="column-diff"
+    data-diff-pct="{{ col_diff_pct }}"
+    data-col-name="{{ col_diff.column_name | lower }}"
+  >
+  {% endif %}
+
+  {% if enable_simple_pdf_mode %}
+  <summary><h3 class="display-inline-block">
+    <code>{{ col_diff.column_name }}</code> — {{ col_diff_pct | pct }}
+  </h3></summary>
+  {% else %}
+  {% set filled = (col_diff_pct * BAR_WIDTH) | round(0, 'floor') | int %}
+  {% set empty = BAR_WIDTH - filled %}
+
+  <summary>
+    <h3 class="display-inline-block">
+      <code>{{ col_diff.column_name }}</code> — {{ col_diff_pct | pct }}
+    </h3>
+    <span class="diff-bar">
+      {{ '░' * empty }}{{ '█' * filled }}
+    </span>
+  </summary>
+  {% endif %}
+
+  <p><strong>{{ col_diff.row_difference_description }}</strong></p>
+
+  <ul>
+    {% if col_diff.count_null_to_val > 0 %}
+      <li>{{ col_diff.count_null_to_val }} NULL → value</li>
+    {% endif %}
+    {% if col_diff.count_val_to_null > 0 %}
+      <li>{{ col_diff.count_val_to_null }} value → NULL</li>
+    {% endif %}
+    {% if col_diff.count_val_to_val > 0 %}
+      <li>{{ col_diff.count_val_to_val }} value → value</li>
+    {% endif %}
+  </ul>
+
+  {% if col_diff.top_transitions_df.height > 0 %}
+    {{ df_to_html(col_diff.top_transitions_df, max_rows=10) | safe }}
+  {% endif %}
+
+  {% if col_diff.df_diff_full is not none and col_diff.df_diff_full.height > 0 %}
+    {{ df_to_html(col_diff.df_diff_full, show_shape=True) | safe }}
+  {% elif col_diff.df_diff_sample.height > 0 %}
+    <p class="muted">Sample of differences (full diff too large to show)</p>
+    {{ df_to_html(col_diff.df_diff_sample) | safe }}
+  {% else %}
+    <p class="muted">No differences to show.</p>
+  {% endif %}
+</details>
+{% endfor %}
+</div>
+
+{% if not enable_simple_pdf_mode %}
+
+<script>
+(function () {
+  function getSection() {
+    return document.getElementById('column-diffs-section');
+  }
+
+  function getBlocks(section) {
+    return Array.prototype.slice.call(
+      section.querySelectorAll('details.column-diff')
+    );
+  }
+
+  function reorder(section, blocks) {
+    blocks.forEach(function (el) {
+      section.appendChild(el);
+    });
+  }
+
+  window.sortColumnDiffsByPctDesc = function () {
+    var section = getSection();
+    if (!section) return;
+
+    var blocks = getBlocks(section);
+    blocks.sort(function (a, b) {
+      console.log(a.dataset.diffPct, b.dataset.diffPct);
+      
+      return parseFloat(b.dataset.diffPct) -
+             parseFloat(a.dataset.diffPct);
+    });
+
+    reorder(section, blocks);
+  };
+
+  window.sortColumnDiffsByName = function () {
+    var section = getSection();
+    if (!section) return;
+
+    var blocks = getBlocks(section);
+    blocks.sort(function (a, b) {
+      return a.dataset.colName.localeCompare(b.dataset.colName);
+    });
+
+    reorder(section, blocks);
+  };
+})();
+</script>
+
+
+{% endif %}
+
+</body>
+</html>
