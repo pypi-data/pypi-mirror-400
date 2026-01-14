@@ -1,0 +1,70 @@
+#! /bin/bash
+
+##############################################################################################################################
+# This script is used to install the GitLab Runner to ensure the system can be used to upload artifacts back to gitlab
+##############################################################################################################################
+
+# exit on any error
+set -e
+
+GITLAB_RUNNER_VERSION="{{ gitlab_runner_version }}"
+GITLAB_RUNNER_FORCE_INSTALL="{{ gitlab_runner_force_install }}"
+
+if [ "${GITLAB_RUNNER_VERSION}" != "latest" ]; then
+    GITLAB_RUNNER_VERSION=v${GITLAB_RUNNER_VERSION}
+fi
+
+GITLAB_RUNNER_DOWNLOAD_URL="http://s3.amazonaws.com/gitlab-runner-downloads/${GITLAB_RUNNER_VERSION}/binaries/gitlab-runner-darwin-arm64"
+
+if [ "${GITLAB_RUNNER_FORCE_INSTALL}" != "true" ]; then
+    if command -v gitlab-runner --version &> /dev/null
+    then
+        echo "[INFO] Found GitLab Runner installation at '$(which gitlab-runner)'"
+        echo "[INFO] $(gitlab-runner --version | grep Version:)"
+        exit 0
+    fi
+fi
+
+if command -v curl --version &> /dev/null
+then
+    # ensure there is not yet a installed runner
+    sudo rm -f /usr/local/bin/gitlab-runner
+
+    # download the binary
+    echo "[INFO] Downloading GitLab Runner from '${GITLAB_RUNNER_DOWNLOAD_URL}'"
+    sudo mkdir -p /usr/local/bin
+    sudo curl -sS --fail --output /usr/local/bin/gitlab-runner "${GITLAB_RUNNER_DOWNLOAD_URL}"
+
+    # make it executable
+    sudo chmod +x /usr/local/bin/gitlab-runner
+elif  command -v wget --version &> /dev/null
+then
+    # ensure there is not yet a installed runner
+    sudo rm -f /usr/local/bin/gitlab-runner
+
+     # download the binary
+    echo "[INFO] Downloading GitLab Runner from '${GITLAB_RUNNER_DOWNLOAD_URL}'"
+    sudo mkdir -p /usr/local/bin
+    sudo wget --quiet -O /usr/local/bin/gitlab-runner "${GITLAB_RUNNER_DOWNLOAD_URL}"
+
+    # make it executable
+    sudo chmod +x /usr/local/bin/gitlab-runner
+elif  command -v brew --version &> /dev/null
+then
+    if command -v brew list gitlab-runner &>/dev/null
+    then
+        brew uninstall gitlab-runner
+    fi
+
+    if [ "${GITLAB_RUNNER_VERSION}" != "latest" ]; then
+        brew install "gitlab-runner@${GITLAB_RUNNER_VERSION}"
+    else
+        brew install gitlab-runner
+    fi
+else
+    echo "[ERROR] Neither 'curl', 'wget' nor 'brew' are available. Cannot install 'gitlab-runner'"
+    exit 1
+fi
+
+echo "[INFO] GitLab Runner installed at $(which gitlab-runner)"
+echo "[INFO] $(gitlab-runner --version | grep Version:)"
