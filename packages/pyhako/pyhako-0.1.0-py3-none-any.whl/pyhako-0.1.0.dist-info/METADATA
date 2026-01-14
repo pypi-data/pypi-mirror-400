@@ -1,0 +1,136 @@
+Metadata-Version: 2.4
+Name: pyhako
+Version: 0.1.0
+Summary: Async Python client for Sakamichi Group Message API (Nogizaka46, Sakurazaka46, Hinatazaka46)
+Project-URL: Homepage, https://github.com/xtorker/PyHako
+Project-URL: Repository, https://github.com/xtorker/PyHako
+Project-URL: Issues, https://github.com/xtorker/PyHako/issues
+Author-email: xtorker <xtorker@gmail.com>
+License: MIT
+Keywords: api,async,client,hinatazaka46,nogizaka46,sakamichi,sakurazaka46
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.9
+Requires-Dist: aiofiles>=23.0.0
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: keyring>=24.0.0
+Requires-Dist: playwright>=1.40.0
+Requires-Dist: structlog>=24.1.0
+Description-Content-Type: text/markdown
+
+# PyHako
+
+[![PyPI version](https://badge.fury.io/py/pyhako.svg)](https://badge.fury.io/py/pyhako)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://github.com/xtorker/PyHako/actions/workflows/ci.yml/badge.svg)](https://github.com/xtorker/PyHako/actions)
+
+**Async Python client for Sakamichi Groups (Nogizaka46, Sakurazaka46, Hinatazaka46) Message API.**
+
+PyHako provides a robust, type-hinted, and async interface to interact with the official Message apps for all three Sakamichi groups. It handles authentication (via browser), token management, and data retrieval.
+
+## Features
+- 🔐 **Browser Authentication**: Seamless interactive login via Playwright (compatible with MFA/SSO).
+- 🍪 **Auto-Refresh**: Automatically refreshes access tokens using captured cookies.
+- 🚀 **Async/Await**: Built on `aiohttp` for high-performance concurrent requests.
+- 📦 **Multi-Group**: Supports Nogizaka46, Sakurazaka46, and Hinatazaka46 out of the box.
+- 🛠️ **Type Hinted**: 100% type coverage for better IDE support.
+
+## Configuration
+
+PyHako uses `structlog` for observability. You can control the logging output via environment variables:
+
+- `HAKO_ENV=development` (default): Pretty-printed, colored console logs.
+- `HAKO_ENV=production`: Structured JSON logs with automatic secret redaction.
+
+## Installation
+
+Recommended install via `uv` (standard) or `pip`:
+```bash
+uv add pyhako
+# or
+pip install pyhako
+```
+
+For development:
+```bash
+git clone https://github.com/xtorker/PyHako.git
+cd PyHako
+uv sync
+```
+
+## Quick Start
+
+### 1. Authentication
+Use `BrowserAuth` to log in interactively. This launches a browser window for you to enter credentials.
+
+```python
+import asyncio
+from pyhako import BrowserAuth, Group
+
+async def login():
+    creds = await BrowserAuth.login(Group.NOGIZAKA46)
+    print(creds['access_token'])
+
+asyncio.run(login())
+```
+
+### 2. Fetching Data
+Initialize the `Client` with your credentials.
+
+```python
+import asyncio
+import aiohttp
+from pyhako import Client, Group
+
+async def main():
+    # ... assume creds obtained via BrowserAuth ...
+    token = "YOUR_ACCESS_TOKEN" 
+    
+    async with aiohttp.ClientSession() as session:
+        client = Client(Group.NOGIZAKA46, access_token=token)
+        
+        # Get Profile
+        profile = await client.get_profile(session)
+        print(f"Hello, {profile['nickname']}!")
+        
+        # Get Groups (Members)
+        groups = await client.get_groups(session)
+        for g in groups:
+            print(f"{g['name']} (ID: {g['id']})")
+
+asyncio.run(main())
+```
+
+## API Reference
+
+### `Client`
+The main entry point.
+
+- `__init__(group, access_token, ...)`: Initialize client.
+- `get_profile(session)`: Get current user profile.
+- `get_groups(session)`: List subscribed members/groups.
+- `get_messages(session, group_id, ...)`: Fetch messages timeline.
+- `get_news(session)`: Fetch official announcements.
+- `get_tags(session)`: Fetch tags.
+- `get_fc_contents(session)`: Fetch Fan Club content.
+- `get_organizations(session)`: Fetch organizations.
+- `get_products(session, product_type)`: Fetch products (subscriptions).
+
+### `BrowserAuth`
+Helper for OAuth2 flow.
+
+- `login(group, headless=False, ...)`: Perform login and capture tokens.
+
+## Contributing
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## License
+MIT
