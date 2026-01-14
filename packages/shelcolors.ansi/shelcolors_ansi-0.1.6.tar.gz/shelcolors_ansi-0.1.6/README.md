@@ -1,0 +1,138 @@
+\# shelcolors-ansi
+
+
+
+To install, type 'pip install shelcolors.ansi'.
+
+To use, type 'from shelcolors\_ansi import ANSI'
+
+
+
+Simple ANSI color helper. Use ANSI(color which is shown at the end of this readme, text, mode)
+
+modes can be:
+- highlight(default) = prints colored text
+- return = returns the colored text 
+- list_colors = returns all available colors in a dictionary
+
+Use clear(mode) to clear screen. Mode can be:
+- *you dont put anything* = default, safe mode(checks windows or linux)
+- windows = for windows only
+- linux = for linux, macOS, 
+
+Use changeTo(x, type) to safe change type(str -> int for example)
+
+========Colors========
+
+---Basic Colors---
+
+Black = black
+
+White = white
+
+Gray = gray
+
+Light Gray = lightgray
+
+Dark Gray = darkgray
+
+
+
+---Red Colors---
+
+Red = red
+
+Bright Red = brightred
+
+Dark Red = darkred
+
+Maroon = maroon
+
+Crimson = crimson
+
+
+
+---Yellow \& Orange Colors---
+
+Yellow = yellow
+
+Bright Yellow = brightyellow
+
+Orange = orange
+
+Dark Orange = darkorange
+
+Gold = gold
+
+Amber = amber
+
+Mustard = mustard
+
+
+
+---Green Colors---
+
+Green = green
+
+Bright Green = brightgreen
+
+Lime = lime
+
+Light Green = lightgreen
+
+Dark Green = darkgreen
+
+Olive = olive
+
+Mint = mint
+
+
+
+---Blue Colors---
+
+Blue = blue
+
+Bright Blue = brightblue
+
+Light Blue = lightblue
+
+Sky Blue = skyblue
+
+Cyan = cyan
+
+Aqua = aqua
+
+Teal = teal
+
+Navy = navy
+
+
+
+---Purple \& Pink Colors---
+
+Magenta = magenta
+
+Bright Magenta = brightmagenta
+
+Purple = purple
+
+Violet = violet
+
+Lavender = lavender
+
+Pink = pink
+
+Hot Pink = hotpink
+
+
+
+---Brown Colors---
+
+Brown = brown
+
+Dark Brown = darkbrown
+
+Tan = tan
+
+Beige = beige
+
