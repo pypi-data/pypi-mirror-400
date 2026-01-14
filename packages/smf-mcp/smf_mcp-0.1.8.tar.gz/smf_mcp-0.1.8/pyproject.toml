@@ -1,0 +1,111 @@
+[project]
+name = "smf-mcp"
+version = "0.1.8"
+description = "Enterprise-grade MCP framework built on FastMCP"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "guinat" }]
+keywords = ["mcp", "llm", "ai", "fastmcp", "enterprise"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+  "elasticsearch>=9.2.1",
+  "fastmcp>=2.11,<3",
+  "pydantic>=2,<3",
+  "pydantic-settings>=2,<3",
+  "python-dotenv>=1.0.0",
+  "pytest>=9.0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/guinat/smf-mcp"
+Repository = "https://github.com/guinat/smf-mcp"
+Issues = "https://github.com/guinat/smf-mcp/issues"
+
+[project.optional-dependencies]
+testing = [
+  "pytest>=9",
+  "pytest-asyncio>=1",
+]
+dev = [
+  "pytest>=9",
+  "pytest-asyncio>=1",
+  "pytest-cov>=5",
+  "black>=24",
+  "ruff>=0.4",
+  "mypy>=1",
+]
+observability = [
+  "opentelemetry-api>=1.20.0",
+  "opentelemetry-sdk>=1.20.0",
+  "opentelemetry-exporter-otlp>=1.20.0",
+  "prometheus-client>=0.18.0",
+]
+auth = [
+  "pyjwt>=2.8.0",
+  "cryptography>=41.0.0",
+]
+yaml = [
+  "pyyaml>=6.0.0",
+]
+elasticsearch = [
+  "elasticsearch>=9.2.1",
+]
+
+[project.scripts]
+smf = "smf.utils.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/smf"]
+include = [
+  "/src/smf/**/*.tpl",
+]
+exclude = [
+  "/src/smf/**/*.md",
+  "/src/smf/testing/conftest.py",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/smf",
+  "/README.md",
+  "/LICENSE",
+  "/pyproject.toml",
+]
+exclude = [
+  "/src/smf/**/*.md",
+  "/src/smf/testing/conftest.py",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
