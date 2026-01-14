@@ -1,0 +1,60 @@
+# pympostor
+
+CLI impostor game with AI - A word deduction game where players must identify the impostor among them.
+
+## Description
+
+"Adivina El Impostor" (Guess the Impostor) is a word-based deduction game where participants must figure out who the impostor is among them. It's a game of strategy and deduction that requires skill to give clues without being too obvious.
+
+## Installation
+
+Install using pip:
+
+```bash
+pip install pympostor
+```
+
+Or using uv:
+
+```bash
+uv pip install pympostor
+```
+
+## Requirements
+
+- Python 3.13 or higher
+- OpenAI API key (set in your environment or `.env` file)
+
+## Usage
+
+After installation, run the game with:
+
+```bash
+pympostor play
+```
+
+You can customize the number of players and impostors:
+
+```bash
+pympostor play --jugadores 5 --impostores 1
+```
+
+Options:
+- `--jugadores, -j`: Total number of players (minimum 3)
+- `--impostores, -i`: Number of impostors (must be less than players/2)
+
+## How It Works
+
+- Most players receive the same secret keyword
+- One or more impostors only know the category of the keyword, not the word itself
+- Players take turns saying a word related to the keyword
+- Players vote to eliminate who they think is the impostor
+- The game continues until the impostor is found or wins
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Author
+
+Facundo Goiriz - facundogoiriz@gmail.com
