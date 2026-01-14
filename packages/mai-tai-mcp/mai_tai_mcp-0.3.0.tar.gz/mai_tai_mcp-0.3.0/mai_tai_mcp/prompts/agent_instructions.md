@@ -1,0 +1,204 @@
+# Mai-Tai: Async Human-Agent Collaboration
+
+**When to use these tools:** Whenever the user mentions "mai-tai", "mai tai", "start mai-tai mode",
+"enter mai-tai mode", or asks you to communicate via mai-tai.
+
+## CRITICAL: Starting Mai-Tai Mode
+
+When the user says "start mai tai mode" (or similar activation phrase):
+
+1. **Your VERY FIRST response must use `chat_with_human`** - NOT a normal text reply
+2. Acknowledge you're in mai-tai mode and ask what they want to work on
+3. From that point forward, ALL your responses go through mai-tai tools
+
+**WRONG:** Responding normally first, then calling `chat_with_human`
+**RIGHT:** Immediately calling `chat_with_human("Mai-tai mode activated! What would you like to work on?")`
+
+The `chat_with_human` tool call IS your response. Do not reply outside of it.
+
+## CRITICAL: The #1 Rule of Mai-Tai Mode
+
+**`chat_with_human` is your HOME BASE. You must ALWAYS return there.**
+
+When in mai-tai mode, you are in a continuous conversation with the human. They may be on their
+phone, away from their computer. You must NEVER finish a task and go idle. You must NEVER
+disconnect. After completing ANY work, you MUST call `chat_with_human` to report results and
+wait for the next instruction.
+
+Think of it like a phone call: you don't just hang up when you're done talking - you say
+"done, what's next?" and wait for the response.
+
+## The Two Communication Tools
+
+You have **two tools** for communicating with the human:
+
+### 1. `update_status` - Quick updates (NON-BLOCKING)
+
+Use this to send status updates while you work. It returns immediately so you can keep going.
+
+**Use for:**
+- Acknowledging tasks: "Got it, starting now..."
+- Progress updates: "Finished the backend, moving to frontend..."
+- Milestones: "Tests passing, about to commit..."
+
+**Example flow:**
+```
+Human: "Please fork this repo"
+You call: update_status("On it! Forking the repo now...")  ← returns immediately
+You run: gh repo fork ...
+You call: chat_with_human("Done! Forked to your-username/repo. What's next?")  ← waits
+```
+
+### 2. `chat_with_human` - Conversation (BLOCKING - HOME BASE)
+
+Use this when you need a response, or when you're done with a task. It waits for the human to reply.
+
+**Use for:**
+- Reporting completion: "Done! Here's what I did..."
+- Questions: "Should I use Redis or PostgreSQL?"
+- Decisions: "I'm about to delete 50 files. OK to proceed?"
+- Ready for next task: "All done! What should I tackle next?"
+
+**THIS IS YOUR HOME BASE.** After completing any task, you MUST return here.
+
+## The Correct Flow
+
+```
+1. Human gives you a task
+2. update_status("Got it, working on X...")     ← optional, non-blocking
+3. Do the work
+4. update_status("Making progress...")          ← optional, for long tasks
+5. Do more work
+6. chat_with_human("Done! Here's what I did. What's next?")  ← REQUIRED
+7. Wait for response
+8. Repeat from step 2
+```
+
+**WRONG:** Doing the work and then going idle without calling `chat_with_human`.
+**WRONG:** Announcing what you're going to do via `chat_with_human` and waiting before actually doing it.
+**RIGHT:** Acknowledge with `update_status`, do the work, then report with `chat_with_human`.
+
+## When You Finish a Task
+
+**ALWAYS call `chat_with_human`!** This is non-negotiable. Examples:
+- "All done with the auth refactor! What should I tackle next?"
+- "Finished setting up the CI pipeline. Ready for the next task!"
+- "Migration complete, all tests passing. What's the next priority?"
+
+If you don't call `chat_with_human` after finishing, you'll disconnect from the human and they'll
+have to manually re-engage you. That's a bad experience. Always return to home base.
+
+## Mai-Tai Mode - When the Human Steps Away
+
+Mai-tai mode kicks in when the human steps away but wants you to keep working. There are two common patterns:
+
+### Pattern 1: Inline task (most common)
+
+The human gives you the task as they're leaving:
+
+> "Hey, I'm going to lunch. Can you finish the auth refactor and add tests? I'll check in when I'm back."
+
+**Your response:**
+1. Acknowledge: "Got it! I'll finish the auth refactor and add tests. I'll ping you with progress."
+2. Start working immediately - you already have your marching orders.
+
+### Pattern 2: Formal handoff
+
+The human announces they're stepping away without a specific task:
+
+> "Entering mai-tai mode" or "I'm stepping out for a bit"
+
+**Your response:**
+1. Ask what they want you to work on (with a longer timeout like 30 min).
+2. Wait for their response - they'll tell you the task before leaving.
+3. Acknowledge, then start working.
+
+### While They're Away
+
+- **Keep working autonomously** on the task they gave you.
+- **Use `update_status` for progress** - Send updates at major milestones. Since they're AFK, they'll
+  see them when they check back.
+- **Use `chat_with_human` when done** - Even if they're away, call this when you finish. They'll see
+  your completion message and can respond when they're back.
+- **Batch non-urgent questions** - group smaller questions together when possible.
+
+## Exiting Mai-Tai Mode
+
+When the human says "exit mai-tai mode", "stop mai-tai", "I'm back", or similar:
+
+1. **Stop using mai-tai tools** - no more `chat_with_human` calls
+2. **Resume normal conversation** - respond directly in the terminal/IDE as usual
+3. **Give a brief summary** of what you accomplished while in mai-tai mode
+
+**Example:**
+> Human (in mai-tai): "exit mai-tai mode"
+> You (in terminal): "Got it, exiting mai-tai mode! While you were away, I completed the auth refactor and added 12 tests. All passing. What's next?"
+
+## Timeouts
+
+The default timeout is **0 (wait forever)** - the tool will keep polling until the human responds.
+
+You can set a specific timeout if needed:
+- `timeout_seconds=300` (5 min) - for quick questions when human is active
+- `timeout_seconds=1800` (30 min) - reasonable upper bound for AFK scenarios
+
+### Progress Updates (use `update_status`)
+
+Keep the human informed with `update_status`, but don't spam them:
+
+- **Major milestones** - `update_status("Auth refactor done, starting on tests now...")`
+- **When you hit a snag** - `chat_with_human("Running into an issue with the DB connection. Any ideas?")` (use chat because you need an answer)
+- **When you finish** - `chat_with_human("All done! Here's what I did...")` (ALWAYS use chat when done)
+
+**Too quiet:** Human wonders if you're stuck or still working.
+**Too chatty:** Human gets notification fatigue and ignores updates.
+
+Find the balance - think "helpful coworker", not "status report bot".
+
+## Other Tools
+
+Beyond `chat_with_human` and `update_status`, you have a few utility tools:
+
+| Tool | When to Use |
+|------|-------------|
+| `get_messages` | Catch up on message history. Useful at the start of a long task, after a timeout, or to see what the human said while you were working. |
+| `get_project_info` | See workspace metadata. Rarely needed, but available. |
+
+## Workspaces
+
+Each API key is bound to a single workspace. All your messages go to that workspace automatically.
+You don't need to specify a workspace - it's determined by your API key.
+
+## Error Handling
+
+If a tool returns `"status": "error"`, read the error message and decide:
+
+- **Transient failures** (network timeout, rate limit) - Wait a moment and retry.
+- **Missing resource** (workspace not found, invalid ID) - Check your inputs or ask the human.
+- **Permission denied** - Ask the human for help.
+
+When in doubt, tell the human what happened: "I got an error trying to X - here's what it said: ..."
+
+## Tips
+
+- **Acknowledge with `update_status`, then work** - When you get a task, send a quick `update_status("Got it, working on X!")` so the human knows you received it, then do the work immediately.
+- **Report with `chat_with_human` when done** - ALWAYS call `chat_with_human` when you finish to stay connected.
+- **Use markdown** - Messages support full markdown including **bold**, `code`, and code blocks:
+  ```python
+  def example():
+      return "syntax highlighted!"
+  ```
+- **Be conversational** - Write like you're messaging a coworker, not filing a report.
+- **Ask early, ask often** - Humans prefer being asked over being surprised.
+- **Give context** - Include what you found, what you tried, what options you see.
+
+## Quick Reference
+
+| Situation | Tool to Use |
+|-----------|-------------|
+| Starting a task | `update_status` |
+| Progress update | `update_status` |
+| Need an answer | `chat_with_human` |
+| Finished a task | `chat_with_human` ⚠️ REQUIRED |
+| Have a question | `chat_with_human` |
+| Ready for next task | `chat_with_human` |
