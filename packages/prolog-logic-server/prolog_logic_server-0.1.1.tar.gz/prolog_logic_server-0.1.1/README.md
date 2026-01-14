@@ -1,0 +1,350 @@
+# Logic Server
+
+A constraint-based logic solver with LLM integration for solving logic puzzles and formal reasoning. Supports stateless reasoning, stateful sessions, and MCP tool exposure for Claude Desktop and Claude Code.
+
+## Features
+
+✅ **Session-based reasoning** - Accumulate facts and rules across multiple turns
+✅ **Logic queries** - Pattern matching with variables and constraints
+✅ **Rule derivation** - Define logical rules to infer new facts
+✅ **MCP integration** - Works with Claude Desktop and Claude Code
+✅ **Performance** - Optional 50x speedup with janus-swi
+
+## Installation
+
+**For Users (Recommended):**
+```bash
+# Install from PyPI
+pip install prolog-logic-server
+```
+
+This installs the `logic_server_mcp` command globally for easy integration with Claude.
+
+**For Development:**
+```bash
+# Clone and install in development mode
+cd /path/to/prolog
+pip install -e .
+
+# Install with MCP support (for Claude integration)
+pip install -e ".[mcp]"
+
+# Install development tools
+pip install -e ".[dev]"
+```
+
+**Requirements:**
+- Python 3.10+
+- SWI-Prolog (`swipl`) must be installed and on PATH
+
+**Install SWI-Prolog:**
+```bash
+# macOS
+brew install swi-prolog
+
+# Ubuntu/Debian
+apt-get install swi-prolog
+
+# Windows
+# Download from https://www.swi-prolog.org/Download.html
+```
+
+## Quick Start
+
+Choose your integration method:
+
+### Option 1: Claude Code (Recommended for Development)
+
+Add the logic server to Claude Code CLI:
+
+```bash
+# Install the package
+pip install prolog-logic-server
+
+# Add to Claude Code
+claude mcp add --transport stdio logic-reasoning -- logic_server_mcp
+
+# Verify it's connected
+claude mcp list
+```
+
+**Development mode:**
+```bash
+# Test the server first
+python test_mcp_server.py
+
+# Add to Claude Code (use module invocation)
+claude mcp add --transport stdio logic-reasoning -- python3 -m logic_server.mcp.stateful
+```
+
+**Usage in Claude Code:**
+```bash
+# Start Claude Code
+claude
+
+# Then ask:
+You: "Create a reasoning session and solve this logic puzzle:
+      Alice is 30, Bob is 17. Who is an adult (over 18)?"
+
+Claude: [Automatically uses the logic server to solve!]
+```
+
+### Option 2: Claude Desktop
+
+**Step 1: Install the package**
+```bash
+pip install prolog-logic-server
+```
+
+**Step 2: Configure Claude Desktop**
+
+Edit configuration file:
+- **macOS/Linux:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+Add this configuration:
+```json
+{
+  "mcpServers": {
+    "logic-reasoning": {
+      "command": "logic_server_mcp"
+    }
+  }
+}
+```
+
+**Development mode (for contributors):**
+```json
+{
+  "mcpServers": {
+    "logic-reasoning": {
+      "command": "python3",
+      "args": ["-m", "logic_server.mcp.stateful"]
+    }
+  }
+}
+```
+
+**Step 3: Restart Claude Desktop**
+1. Quit completely (Cmd+Q on Mac)
+2. Restart Claude Desktop
+3. Look for 🔌 icon - should show "logic-reasoning" connected
+
+### Option 3: CLI (Standalone)
+
+Run queries directly from command line:
+
+```bash
+# Query JSON fact files
+python -m logic_server.cli.main examples/puzzles/simple_pet_facts.json --query "person(P)."
+
+# With max solutions limit
+python -m logic_server.cli.main examples/puzzles/complex_pet_facts.json --query "pet(P)." --max-solutions 3
+```
+
+### Option 4: Python API
+
+```python
+from logic_server.core import create_session, assert_facts, assert_rules, query
+
+# Create session
+session_id = create_session()
+
+# Add facts
+assert_facts(session_id, [
+    {"predicate": "person", "args": ["alice"]},
+    {"predicate": "age", "args": ["alice", 30]},
+    {"predicate": "person", "args": ["bob"]},
+    {"predicate": "age", "args": ["bob", 17]}
+])
+
+# Add rules
+assert_rules(session_id, [
+    "adult(X) :- person(X), age(X, A), A >= 18"
+])
+
+# Query
+result = query(session_id, query="adult(X)")
+print(result)  # {"success": true, "solutions": [{"Bindings": {"X": "alice"}}], ...}
+```
+
+## What You Can Do
+
+Once integrated with Claude:
+
+✅ **Contract analysis** - Extract facts from documents, query obligations
+✅ **Logic puzzles** - Solve constraint satisfaction problems
+✅ **Multi-turn reasoning** - Build knowledge graphs across conversation
+✅ **Formal verification** - Every answer backed by logical proof
+✅ **Complex queries** - Pattern matching with variables and constraints
+
+## Example Usage
+
+### Logic Puzzle
+```
+You: "I have 3 people and 3 pets. Alice doesn't own a cat.
+      Bob owns a mammal but not a dog. Carol doesn't own a cat.
+      Who owns what?"
+
+Claude: [Creates session, adds constraints, solves using logic server]
+```
+
+### Multi-turn Reasoning
+```
+Turn 1: "Create a reasoning session"
+Turn 2: "Add fact: parent(alice, bob)"
+Turn 3: "Add fact: parent(bob, carol)"
+Turn 4: "Add rule: grandparent(X,Z) :- parent(X,Y), parent(Y,Z)"
+Turn 5: "Who is a grandparent?"
+→ Answer: alice
+```
+
+### Contract Analysis
+```
+You: "Analyze this contract: [paste contract text]"
+
+Claude: [Extracts facts, builds knowledge graph, queries obligations]
+→ "Based on formal logic analysis, Acme has 5 obligations:
+   1. License fee: $120,000/year
+   2. Support fee: $24,000/year
+   ..."
+```
+
+## Running Tests
+
+```bash
+# All tests
+python -m unittest
+
+# Specific test suites
+python -m unittest tests.unit.test_sessions
+python -m unittest tests.integration.test_mcp_server
+
+# Test with verbose output
+python -m unittest discover -v
+```
+
+## Performance Optimization
+
+For 50x faster query execution, install janus-swi:
+
+```bash
+pip install janus-swi
+```
+
+The system automatically uses MQI mode when available (1,152 queries/sec vs 20 queries/sec).
+
+See `PROLOG_POOLING.md` for advanced performance tuning.
+
+## Troubleshooting
+
+### Claude Desktop: Server not showing up?
+
+1. Verify package is installed: `which logic_server_mcp`
+2. Validate JSON config: `cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | python -m json.tool`
+3. View logs: `tail -f ~/Library/Logs/Claude/mcp*.log`
+4. Fully quit and restart Claude Desktop
+
+### Claude Code: Server not connecting?
+
+```bash
+# Check server status
+claude mcp list
+
+# View server details
+claude mcp get logic-reasoning
+
+# Remove and re-add
+claude mcp remove logic-reasoning
+claude mcp add --transport stdio logic-reasoning -- logic_server_mcp
+```
+
+### Import errors?
+
+```bash
+# Install from PyPI
+pip install prolog-logic-server
+
+# Or for development
+pip install -e ".[mcp]"
+
+# Verify installation
+python -c "import logic_server.mcp.stateful; print('OK')"
+```
+
+### SWI-Prolog not found?
+
+```bash
+# Verify installation
+which swipl
+
+# If not found, install:
+brew install swi-prolog  # macOS
+```
+
+## Documentation
+
+- **`USAGE_GUIDE.md`** - Complete API reference and MCP setup
+- **`ARCHITECTURE.md`** - Design notes and implementation details
+- **`CLAUDE_INTEGRATION.md`** - Detailed Claude Desktop integration guide
+- **`PROLOG_POOLING.md`** - Performance optimization with MQI
+- **`examples/README_CONTRACT_EXAMPLES.md`** - Contract analysis examples
+
+## Project Structure
+
+```
+src/logic_server/
+├── core/
+│   ├── solver.py           # Core logic query execution
+│   ├── mqi_solver.py       # High-performance MQI backend
+│   ├── session.py          # Stateful session management
+│   └── prolog_pool.py      # Process pooling (optional)
+├── mcp/
+│   ├── server.py           # Stateless MCP server
+│   └── stateful.py         # Stateful MCP server (recommended)
+├── llm/
+│   └── clients.py          # LLM abstraction (Ollama, OpenAI)
+└── cli/
+    └── main.py             # CLI query runner
+
+examples/
+├── contract_analysis.py    # Contract reasoning demo
+├── contract_llm_analysis.py # LLM-based fact extraction
+└── puzzles/                # Sample logic puzzles
+
+tests/
+├── unit/                   # Unit tests
+└── integration/            # Integration tests
+```
+
+## Advanced Examples
+
+See `examples/` directory:
+
+- **`contract_analysis.py`** - Manual fact extraction and querying
+- **`contract_llm_analysis.py`** - LLM-powered fact extraction
+- **`pool_benchmark.py`** - Performance benchmarking
+- **`mqi_session_example.py`** - High-performance MQI examples
+
+## Contributing
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+python -m unittest discover
+
+# Run specific test
+python -m unittest tests.unit.test_sessions
+```
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Support
+
+- **Issues:** https://github.com/briangu/prolog-logic-server/issues
+- **Documentation:** See docs/ directory
+- **Examples:** See examples/ directory
