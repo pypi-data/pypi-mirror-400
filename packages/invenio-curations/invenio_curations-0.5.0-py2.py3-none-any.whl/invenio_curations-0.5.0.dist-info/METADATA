@@ -1,0 +1,509 @@
+Metadata-Version: 2.4
+Name: invenio-curations
+Version: 0.5.0
+Summary: "Invenio module for generic and customizable curations."
+Home-page: https://github.com/tu-graz-library/invenio-curations
+Author: Graz University of Technology
+Author-email: info@tugraz.at
+License: MIT
+Keywords: invenio curations
+Platform: any
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.12
+License-File: LICENSE
+License-File: AUTHORS.rst
+Requires-Dist: invenio-drafts-resources>=3.0.0
+Requires-Dist: invenio-rdm-records>=19.0.0
+Requires-Dist: invenio-requests>=4.1.0
+Requires-Dist: nh3>=0.2.0
+Provides-Extra: tests
+Requires-Dist: invenio-app<3.0.0,>=2.0.0; extra == "tests"
+Requires-Dist: invenio-app-rdm<14.0.0,>=13.0.0b4.dev1; extra == "tests"
+Requires-Dist: invenio-db[mysql,postgresql]<3.0.0,>=2.0.0; extra == "tests"
+Requires-Dist: invenio-search[opensearch2]<4.0.0,>=3.0.0; extra == "tests"
+Requires-Dist: pytest-black>=0.6.0; extra == "tests"
+Requires-Dist: pytest-invenio<4.0.0,>=3.0.0; extra == "tests"
+Requires-Dist: sphinx>=4.5.0; extra == "tests"
+Requires-Dist: types-flask>=1.1.6; extra == "tests"
+Requires-Dist: ruff>=0.1.0; extra == "tests"
+Requires-Dist: mypy>=1.15.0; extra == "tests"
+Requires-Dist: types-setuptools>=78.1.0; extra == "tests"
+Provides-Extra: opensearch1
+Requires-Dist: invenio-search[opensearch1]<4.0.0,>=3.0.0; extra == "opensearch1"
+Provides-Extra: opensearch2
+Requires-Dist: invenio-search[opensearch2]<4.0.0,>=3.0.0; extra == "opensearch2"
+Dynamic: license-file
+
+..
+    Copyright (C) 2021 CERN.
+    Copyright (C) 2024-2025 Graz University of Technology.
+    Copyright (C) 2024 TU Wien.
+
+    Invenio-Curations is free software; you can redistribute it and/or
+    modify it under the terms of the MIT License; see LICENSE file for more
+    details.
+
+Invenio-Curations
+=================
+
+.. image:: https://github.com/tu-graz-library/invenio-curations/workflows/CI/badge.svg
+        :target: https://github.com/tu-graz-library/invenio-curations/actions?query=workflow%3ACI
+
+.. image:: https://img.shields.io/github/tag/tu-graz-library/invenio-curations.svg
+        :target: https://github.com/tu-graz-library/invenio-curations/releases
+
+.. image:: https://img.shields.io/pypi/dm/invenio-curations.svg
+        :target: https://pypi.python.org/pypi/invenio-curations
+
+.. image:: https://img.shields.io/github/license/tu-graz-library/invenio-curations.svg
+        :target: https://github.com/tu-graz-library/invenio-curations/blob/master/LICENSE
+
+
+What *is* `Invenio-Curations`?
+------------------------------
+
+`Invenio-Curations` is an Invenio package that adds curation reviews to InvenioRDM.
+
+The primary purpose of this package is to satisfy the need of some institutions to restrict the possibility for users to self-publish unreviewed records.
+One of the reasons why institutions may want this is if they are pursuing a `Core Trust Seal <https://www.coretrustseal.org/>`_ or similar certification for their (InvenioRDM-based) repository.
+
+
+Aren't there community reviews already?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Out of the box, InvenioRDM already provides reviews for records as part of the submission or inclusion into communities.
+However, there is no requirement per default for records to be part of any community at all.
+Thus, it is generally easy for users to self-publish records in standard InvenioRDM without any further review.
+
+Further, the set of reviewers for community submission/inclusion requests depends on the target community in question.
+In contrast, `Invenio-Curations` defines a fixed group of users to act as reviewers for all records in the system.
+
+
+Requirements
+------------
+
+Requires InvenioRDM v12 or higher (``invenio-app-rdm >= 12.0.7``).
+
+
+How to set up
+-------------
+
+After the successful installation of `Invenio-Curations`, it still needs to be configured properly to work.
+The following sections should guide you through the required adaptations.
+
+
+Update ``invenio.cfg``
+~~~~~~~~~~~~~~~~~~~~~~
+
+Add `notification builders` for `groups`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Currently, requests can only be sent to a single `receiver`.
+However, curation reviews are typically performed by a `group` of people rather than one single fixed `user`.
+Thus, the curation requests are sent to a `group` rather than a single `user` in the system so that all users with a certain `role` can receive and act on curation requests.
+
+Additionally, notification builders have to be configured so that notifications are sent out to the involved users whenever something's happening in the curation review.
+
+.. code-block:: python
+
+    from invenio_app_rdm.config import NOTIFICATIONS_BUILDERS
+    from invenio_curations.config import CURATIONS_NOTIFICATIONS_BUILDERS
+
+    # enable sending of notifications when something's happening in the review
+    NOTIFICATIONS_BUILDERS = {
+        **NOTIFICATIONS_BUILDERS,
+        # Curation request
+        **CURATIONS_NOTIFICATIONS_BUILDERS
+    }
+
+
+Add service component
+^^^^^^^^^^^^^^^^^^^^^
+
+In order to require an accepted curation request before publishing a record, the component has to be appended to the RDM record service:
+
+.. code-block:: python
+
+    from invenio_curations.services.components import CurationComponent
+    from invenio_rdm_records.services.components import DefaultRecordsComponents
+
+    # NOTE: the curation component should be added at the end
+    RDM_RECORDS_SERVICE_COMPONENTS = DefaultRecordsComponents + [
+        CurationComponent,
+    ]
+
+
+Set the search facets
+^^^^^^^^^^^^^^^^^^^^^
+
+To show friendlier names than the internal identifiers for the new request type and its status values in the search facets, you need to set the following configuration:
+
+.. code-block:: python
+
+   from invenio_curations.services import facets as curations_facets
+
+    REQUESTS_FACETS = {
+        "type": {
+            "facet": curations_facets.type,
+            "ui": {
+                "field": "type",
+            },
+        },
+        "status": {
+            "facet": curations_facets.status,
+            "ui": {
+                "field": "status",
+            },
+        },
+    }
+
+
+Set requests permission policy
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Setting the requests permission is done due to the following reasons:
+
+Additional actions have to be specified.
+
+Reading a request and creating comments depends on the state. Since new states are added, these states have to be included for these two permissions.
+
+In the default InvenioRDM implementation, a user can submit an unpublished record to a community. Doing so will result in a `CommunitySubmission` request.
+If this request is accepted, the record would also get published. Our `CurationComponent` would already stop the publish action. However, in the UI, the button to accept and publish is still visible and pushing it will present the user with a generic error.
+In order to prevent this, the request permissions can be adapted such that the button is not shown in the first place.
+Since we only want to change the behaviour of these community submission requests, we first check the type and then check the associated record. If the record has been accepted, the general request permissions will be applied. Otherwise, no one can accept the community submission.
+
+.. code-block:: python
+
+    from invenio_rdm_records.requests import CommunitySubmission
+    from invenio_rdm_records.services.permissions import RDMRequestsPermissionPolicy
+    from invenio_requests.services.generators import Creator, Receiver
+
+    from invenio_curations.requests.curation import CurationRequest
+    from invenio_curations.services.generators import (
+        IfCurationRequestAccepted,
+        IfRequestTypes,
+        TopicPermission,
+    )
+
+
+    class CurationRDMRequestsPermissionPolicy(RDMRequestsPermissionPolicy):
+        """Customized permission policy for sane handling of curation requests."""
+
+        curation_request_record_review = IfRequestTypes(
+            [CurationRequest],
+            then_=[TopicPermission(permission_name="can_review")],
+            else_=[],
+        )
+
+        # Only allow community-submission requests to be accepted after the rdm-curation request has been accepted
+        can_action_accept = [
+            IfRequestTypes(
+                request_types=[CommunitySubmission],
+                then_=[
+                    IfCurationRequestAccepted(
+                        then_=RDMRequestsPermissionPolicy.can_action_accept, else_=[]
+                    )
+                ],
+                else_=RDMRequestsPermissionPolicy.can_action_accept,
+            )
+        ]
+
+        # Update can read and can comment with new states
+        can_read = [
+            # Have to explicitly check the request type and circumvent using status, as creator/receiver will add a query filter where one entity must be the user.
+            IfRequestTypes(
+                [CurationRequest],
+                then_=[
+                    Creator(),
+                    Receiver(),
+                    TopicPermission(permission_name="can_review"),
+                ],
+                else_=RDMRequestsPermissionPolicy.can_read,
+            )
+        ]
+
+        can_create_comment = can_read
+
+        # Update submit to also allow record reviewers/managers for curation requests
+        can_action_submit = RDMRequestsPermissionPolicy.can_action_submit + [
+            curation_request_record_review
+        ]
+        # Add new actions
+        can_action_review = RDMRequestsPermissionPolicy.can_action_accept
+        can_action_critique = RDMRequestsPermissionPolicy.can_action_accept
+
+        can_action_resubmit = can_action_submit
+
+    REQUESTS_PERMISSION_POLICY = CurationRDMRequestsPermissionPolicy
+
+
+Permit the moderators to view the draft under review
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For curation reviews to make sense, it is of course vital for the moderators to be able to view the drafts in question.
+
+`Invenio-Curations` offers two permission generators that can come in handy for this purpose: ``CurationModerators`` and ``IfCurationRequestExists``.
+The former creates ``RoleNeed`` for the configured ``CURATIONS_MODERATION_ROLE``.
+It is intended to be used together with the latter, which checks if an ``rdm-curation`` request exists for the given record/draft.
+
+However, please note that overriding the permission policy for records is significantly more complex than overriding the one for requests!
+In fact, it's out of scope for this README - or is it?
+
+
+Set RDM permission policy
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Reasons to not rely on access grants:
+- They can be completely disabled for an instance
+- They can be managed by users which means they can just remove access for the moderators
+
+Thus, we provide a very basic adaptation of the RDM record permission policy used in a vanilla instance. This adapted policy should serve as
+an easy way to test the package as well as provide a starting point to understand which permissions have to be adapted for this module to work as expected.
+
+.. code-block:: python
+
+    from invenio_curations.services.permissions import CurationRDMRecordPermissionPolicy
+    RDM_PERMISSION_POLICY = CurationRDMRecordPermissionPolicy
+
+
+Make the new workflow available through the UI
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The changes so far have dealt with setting up the mechanism for the curation workflow in the backend.
+To also make the workflow accessible for users through the UI, some frontend components have to be updated as well.
+
+`Invenio-Curations` provides a few `component overrides <https://inveniordm.docs.cern.ch/develop/howtos/override_components/>`_.
+These overrides need to be registered in the overridable registry (i.e. in your instance's ``assets/js/invenio_app_rdm/overridableRegistry/mapping.js``):
+
+.. code-block:: javascript
+
+    import { curationComponentOverrides } from "@js/invenio_curations/requests";
+    import { DepositBox } from "@js/invenio_curations/deposit/DepositBox";
+
+    export const overriddenComponents = {
+        // ... after your other overrides ...
+        ...curationComponentOverrides,
+        "InvenioAppRdm.Deposit.CardDepositStatusBox.container": DepositBox,
+    };
+
+The ``DepositBox`` overrides the record's lifecycle management box on the deposit form.
+It takes care of rendering the "publish" button only when appropriate in the curation workflow.
+The other ``curationComponentOverrides`` provide better rendering for the new elements (e.g. event types) in the request page.
+
+
+Optional UI: Set Curation request custom field
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Because there could be a need to inform the user about the curation workflow, a custom field at the end can be added just to show
+a specific message. In order to set this up, a basic invenio custom field in your instance could be configured.
+
+Create a new javascript file at assets/templates/custom_fields/RdmCuration.js
+
+.. code-block:: javascript
+
+    import React from 'react';
+    import { i18next } from "@translations/invenio_app_rdm/i18next";
+
+    const RdmCuration = () => {
+      return (
+        <div className='ui visible warning message'>
+          <h4>
+          {i18next.t(
+            "Please create a curation request after saving the \
+            draft by clicking on Start Publication Process")}
+          </h4>
+        </div>
+      );
+    };
+
+    export default RdmCuration;
+
+
+Then add this block to the invenio.cfg to link the component to the actual custom-field.
+
+.. code-block:: python
+
+    from invenio_records_resources.services.custom_fields import BaseListCF
+    from marshmallow_utils.fields import SanitizedUnicode
+
+    class RdmCurationCF(BaseListCF):
+        """Experiments with title and program."""
+
+        def __init__(self, name, **kwargs):
+            """Constructor."""
+            super().__init__(
+              name,
+              **kwargs
+            )
+
+        @property
+        def mapping(self):
+            """Return the mapping."""
+            return {"type": "text"}
+
+    RDM_CUSTOM_FIELDS = [
+        RdmCurationCF(
+            name="rdm-curation",
+            field_cls=SanitizedUnicode
+        ),
+    ]
+
+    RDM_CUSTOM_FIELDS_UI = [
+        {
+            "section": _("Curation request"),
+            "fields": [
+                dict(
+                    field="rdm-curation",
+                    ui_widget="RdmCuration",
+                ),
+            ],
+            "hide_from_landing_page": True
+        }
+    ]
+
+
+Option: Activate automatically generated request comments.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This feature enables the creation and update of custom request comments (i.e events) that should track the differences between metadata states of a draft found in the curation phase.
+How to enable it:
+
+1. Make sure to set the ``CURATIONS_ENABLE_REQUEST_COMMENTS`` variable
+
+.. code-block:: python
+
+    CURATIONS_ENABLE_REQUEST_COMMENTS = True
+
+
+2. Setup the jinja template for the comment in the running instance's **./templates** folder. This is the the basic template and of course can be changed.
+   The actual updates should be kept in whatever template is eventually used. Variables for those are: **adds**, **changes**, **removes**.
+
+.. code-block:: html
+
+    <!DOCTYPE html>
+    <html>
+        <body>
+            <h3>{{header}}</h3>
+
+            {% if adds|length > 0 %}
+                <h3>
+                    {{ _("Added") }}
+                </h3>
+                <ul>
+                {% for add in adds %}
+                    <li>{{add}}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+
+            {% if changes|length > 0 %}
+                <h3>
+                    {{ _("Changed") }}
+                </h3>
+                <ul>
+                {% for change in changes %}
+                    <li>{{change}}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+
+            {% if removes|length > 0 %}
+                <h3>
+                    {{ _("Removed") }}
+                </h3>
+                <ul>
+                {% for remove in removes %}
+                    <li>{{remove}}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        </body>
+    </html>
+
+3. Optional: Configure the template file.
+
+.. code-block:: python
+
+    # default value
+    CURATIONS_COMMENT_TEMPLATE_FILE = "comment-template.html"
+
+
+4. Optional: Extend or replace field rendering classes.
+
+.. code-block:: python
+
+    from invenio_curations.services import DiffDescription
+    CURATIONS_COMMENTS_CLASSES = [DiffDescription] # + MyCustomClass
+
+
+Create curator role
+~~~~~~~~~~~~~~~~~~~
+
+The permission to manage curation requests is controlled by a specific role in the system.
+The name of this role can be specified via a configuration variable ``CURATIONS_MODERATION_ROLE``.
+
+The following ``invenio roles`` command can be used to create the role if it doesn't exist yet: ``invenio roles create <name-of-curation-role>``.
+
+After the role has been created, it can be assigned to users via: ``invenio roles add <user-email-address> <name-of-curation-role>``.
+
+..
+    Copyright (C) 2024-2026 Graz University of Technology.
+
+    Invenio-Curations is free software; you can redistribute it and/or
+    modify it under the terms of the MIT License; see LICENSE file for more
+    details.
+
+Changes
+=======
+
+Version v0.5.0 (released 2026-01-08)
+
+- fix(tests): ignore mypy untyped decorator
+- refactor: rename curations api
+- refactor: rename key returned by get-publish-data api
+- feat(ui): hide system comments from regular users
+- feat(ui): override TimelineFeed component from invenioRDM v13
+
+Version v0.4.0 (released 2025-12-02)
+
+- fix: send only patched title
+- types: change classVar to final
+- feat: integrate new 'pending_resubmission' status
+- feat: new get_publishing_data endpoint
+
+Version v0.3.1 (release 2025-10-22)
+
+- fix: readme markup
+
+
+Version v0.3.0 (release 2025-10-22)
+
+- fix: ruff
+- global: admins to bypass curation workflow
+- feature: create and update comments in curation requests
+
+
+Version v0.2.0 (release 2025-07-28)
+
+- fix: ruff PLC0415
+- fix: setuptools require underscores instead of dashes
+- setup: update deps
+- global: update dep rdm-records
+- global: use ruff
+- mypy: add strict=true
+- type-hints: complete type-hints in package
+- feat: add Python 3.12 type hints to notifications and requests modules
+- ui: fix link to unpublished record
+- fix: community requests submit button
+- ui-change: replace warning top message with custom-field
+- fix: start publication button enabled with warnings
+- ui: improve c workflow tooltips and status display
+- fix: add fallback for full_name and email missing
+- templates: replace username with full name and email
+- chore: remove references to lastFormikUpdatedAt
+- deposit form: use record.updated to determine necessity of re-fetch
+
+
+Version 0.1.0 (released 2024-10-17)
+
+- initial release
