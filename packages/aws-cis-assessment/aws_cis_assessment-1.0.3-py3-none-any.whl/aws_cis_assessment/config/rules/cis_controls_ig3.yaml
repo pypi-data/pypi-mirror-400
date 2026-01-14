@@ -1,0 +1,109 @@
+# CIS Controls Implementation Group 3 (IG3) - Advanced Security
+# Based on AWS Config Rules for CIS Critical Security Controls v8
+# Includes all IG1 and IG2 controls plus additional advanced security controls
+
+implementation_group: IG3
+total_rules: 120
+description: "Advanced security for enterprises with high-risk environments"
+
+# IG3 includes all IG1 and IG2 controls plus the following additional controls
+controls:
+  "7.1":
+    title: "Establish and Maintain a Vulnerability Management Process"
+    weight: 1.5
+    config_rules:
+      - name: "ecr-private-image-scanning-enabled"
+        resource_types: ["AWS::ECR::Repository"]
+        parameters: {}
+        description: "Ensures ECR repositories have image scanning enabled"
+        remediation_guidance: "Enable image scanning for ECR repositories to detect vulnerabilities"
+      
+      - name: "guardduty-enabled-centralized"
+        resource_types: ["AWS::::Account"]
+        parameters: {}
+        description: "Ensures GuardDuty is enabled for threat detection"
+        remediation_guidance: "Enable GuardDuty for centralized threat detection and monitoring"
+      
+      - name: "ec2-managedinstance-patch-compliance-status-check"
+        resource_types: ["AWS::EC2::Instance"]
+        parameters: {}
+        description: "Ensures EC2 instances managed by Systems Manager are patch compliant"
+        remediation_guidance: "Ensure EC2 instances are managed by Systems Manager and have compliant patch status"
+
+  "3.14":
+    title: "Log Sensitive Data Access"
+    weight: 1.0
+    config_rules:
+      - name: "api-gw-execution-logging-enabled"
+        resource_types: ["AWS::ApiGateway::Stage"]
+        parameters: {}
+        description: "Ensures API Gateway stages have execution logging enabled"
+        remediation_guidance: "Enable execution logging for API Gateway stages"
+      
+      - name: "cloudtrail-s3-dataevents-enabled"
+        resource_types: ["AWS::CloudTrail::Trail"]
+        parameters: {}
+        description: "Ensures CloudTrail logs S3 data events"
+        remediation_guidance: "Configure CloudTrail to log S3 data events"
+      
+      - name: "multi-region-cloudtrail-enabled"
+        resource_types: ["AWS::CloudTrail::Trail"]
+        parameters: {}
+        description: "Ensures multi-region CloudTrail is enabled"
+        remediation_guidance: "Enable multi-region CloudTrail for comprehensive logging"
+      
+      - name: "cloud-trail-cloud-watch-logs-enabled"
+        resource_types: ["AWS::CloudTrail::Trail"]
+        parameters: {}
+        description: "Ensures CloudTrail logs are sent to CloudWatch Logs"
+        remediation_guidance: "Configure CloudTrail to send logs to CloudWatch Logs"
+
+  "12.8":
+    title: "Establish and Maintain Dedicated Computing Resources for All Administrative Work"
+    weight: 1.0
+    config_rules:
+      - name: "api-gw-associated-with-waf"
+        resource_types: ["AWS::ApiGateway::Stage"]
+        parameters: {}
+        description: "Ensures API Gateway stages are associated with WAF"
+        remediation_guidance: "Associate API Gateway stages with AWS WAF for protection"
+      
+      - name: "vpc-sg-open-only-to-authorized-ports"
+        resource_types: ["AWS::EC2::SecurityGroup"]
+        parameters:
+          authorizedTcpPorts: "443,22"
+        description: "Ensures security groups are open only to authorized ports"
+        remediation_guidance: "Restrict security group rules to authorized ports only"
+      
+      - name: "no-unrestricted-route-to-igw"
+        resource_types: ["AWS::EC2::RouteTable"]
+        parameters: {}
+        description: "Ensures route tables do not have unrestricted routes to internet gateway"
+        remediation_guidance: "Remove unrestricted routes to internet gateway from route tables"
+
+  "13.1":
+    title: "Centralize Security Event Alerting"
+    weight: 1.0
+    config_rules:
+      - name: "restricted-incoming-traffic"
+        resource_types: ["AWS::EC2::SecurityGroup"]
+        parameters:
+          blockedPort1: "20"
+          blockedPort2: "21"
+          blockedPort3: "3389"
+          blockedPort4: "3306"
+          blockedPort5: "4333"
+        description: "Ensures security groups restrict incoming traffic on common ports"
+        remediation_guidance: "Remove rules allowing unrestricted access to common ports"
+      
+      - name: "incoming-ssh-disabled"
+        resource_types: ["AWS::EC2::SecurityGroup"]
+        parameters: {}
+        description: "Ensures security groups do not allow unrestricted SSH access"
+        remediation_guidance: "Remove rules allowing unrestricted SSH access (0.0.0.0/0:22)"
+      
+      - name: "vpc-flow-logs-enabled"
+        resource_types: ["AWS::EC2::VPC"]
+        parameters: {}
+        description: "Ensures VPC Flow Logs are enabled for network monitoring"
+        remediation_guidance: "Enable VPC Flow Logs for network traffic monitoring and security analysis"

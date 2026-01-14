@@ -1,0 +1,195 @@
+# CIS Controls Implementation Group 2 (IG2) - Enhanced Security
+# Based on AWS Config Rules for CIS Critical Security Controls v8
+# Includes all IG1 controls plus additional enhanced security controls
+
+implementation_group: IG2
+total_rules: 90
+description: "Enhanced security for enterprises with regulatory compliance burdens"
+
+# IG2 includes all IG1 controls plus the following additional controls
+controls:
+  "5.2":
+    title: "Use Unique Passwords"
+    weight: 1.0
+    config_rules:
+      - name: "iam-password-policy"
+        resource_types: ["AWS::::Account"]
+        parameters:
+          MinimumPasswordLength: 14
+          RequireSymbols: true
+          RequireNumbers: true
+          RequireUppercaseCharacters: true
+          RequireLowercaseCharacters: true
+          MaxPasswordAge: 90
+          PasswordReusePrevention: 24
+          AllowUsersToChangePassword: true
+          HardExpiry: false
+        description: "Ensures IAM password policy meets security requirements"
+        remediation_guidance: "Configure strong password policy with all security requirements"
+      
+      - name: "mfa-enabled-for-iam-console-access"
+        resource_types: ["AWS::IAM::User"]
+        parameters: {}
+        description: "Ensures MFA is enabled for IAM console access"
+        remediation_guidance: "Enable MFA for all users with console access"
+      
+      - name: "root-account-mfa-enabled"
+        resource_types: ["AWS::::Account"]
+        parameters: {}
+        description: "Ensures root account has MFA enabled"
+        remediation_guidance: "Enable MFA for the root account"
+      
+      - name: "iam-user-unused-credentials-check"
+        resource_types: ["AWS::IAM::User"]
+        parameters:
+          maxCredentialUsageAge: 90
+        description: "Identifies IAM users with unused credentials"
+        remediation_guidance: "Remove or rotate unused IAM credentials"
+
+  "3.10":
+    title: "Encrypt Sensitive Data in Transit"
+    weight: 1.5
+    config_rules:
+      - name: "api-gw-ssl-enabled"
+        resource_types: ["AWS::ApiGateway::Stage"]
+        parameters: {}
+        description: "Ensures API Gateway stages are configured with SSL certificates"
+        remediation_guidance: "Configure SSL certificates for API Gateway stages"
+      
+      - name: "alb-http-to-https-redirection-check"
+        resource_types: ["AWS::ElasticLoadBalancingV2::LoadBalancer"]
+        parameters: {}
+        description: "Ensures ALB redirects HTTP requests to HTTPS"
+        remediation_guidance: "Configure HTTP to HTTPS redirection on Application Load Balancers"
+      
+      - name: "elb-tls-https-listeners-only"
+        resource_types: ["AWS::ElasticLoadBalancing::LoadBalancer"]
+        parameters: {}
+        description: "Ensures ELB uses only TLS/HTTPS listeners"
+        remediation_guidance: "Configure ELB listeners to use HTTPS/TLS only"
+      
+      - name: "s3-bucket-ssl-requests-only"
+        resource_types: ["AWS::S3::Bucket"]
+        parameters: {}
+        description: "Ensures S3 buckets require SSL requests"
+        remediation_guidance: "Add bucket policy to deny non-SSL requests"
+      
+      - name: "redshift-require-tls-ssl"
+        resource_types: ["AWS::Redshift::Cluster"]
+        parameters: {}
+        description: "Ensures Redshift clusters require TLS/SSL connections"
+        remediation_guidance: "Enable require_ssl parameter for Redshift clusters"
+
+  "3.11":
+    title: "Encrypt Sensitive Data at Rest"
+    weight: 1.5
+    config_rules:
+      - name: "encrypted-volumes"
+        resource_types: ["AWS::EC2::Volume"]
+        parameters: {}
+        description: "Ensures EBS volumes are encrypted"
+        remediation_guidance: "Enable encryption for EBS volumes"
+      
+      - name: "rds-storage-encrypted"
+        resource_types: ["AWS::RDS::DBInstance"]
+        parameters: {}
+        description: "Ensures RDS instances have storage encryption enabled"
+        remediation_guidance: "Enable storage encryption for RDS instances"
+      
+      - name: "s3-default-encryption-kms"
+        resource_types: ["AWS::S3::Bucket"]
+        parameters: {}
+        description: "Ensures S3 buckets have default encryption with KMS"
+        remediation_guidance: "Enable default encryption with KMS for S3 buckets"
+      
+      - name: "dynamodb-table-encrypted-kms"
+        resource_types: ["AWS::DynamoDB::Table"]
+        parameters: {}
+        description: "Ensures DynamoDB tables are encrypted with KMS"
+        remediation_guidance: "Enable KMS encryption for DynamoDB tables"
+      
+      - name: "backup-recovery-point-encrypted"
+        resource_types: ["AWS::Backup::RecoveryPoint"]
+        parameters: {}
+        description: "Ensures AWS Backup recovery points are encrypted"
+        remediation_guidance: "Enable encryption for AWS Backup recovery points"
+      
+      - name: "efs-encrypted-check"
+        resource_types: ["AWS::EFS::FileSystem"]
+        parameters: {}
+        description: "Ensures EFS file systems are encrypted"
+        remediation_guidance: "Enable encryption for EFS file systems"
+      
+      - name: "secretsmanager-using-cmk"
+        resource_types: ["AWS::SecretsManager::Secret"]
+        parameters: {}
+        description: "Ensures Secrets Manager secrets use customer managed KMS keys"
+        remediation_guidance: "Configure Secrets Manager secrets to use customer managed KMS keys"
+      
+      - name: "sns-encrypted-kms"
+        resource_types: ["AWS::SNS::Topic"]
+        parameters: {}
+        description: "Ensures SNS topics are encrypted with KMS"
+        remediation_guidance: "Enable KMS encryption for SNS topics"
+      
+      - name: "sqs-queue-encrypted-kms"
+        resource_types: ["AWS::SQS::Queue"]
+        parameters: {}
+        description: "Ensures SQS queues are encrypted with KMS"
+        remediation_guidance: "Enable KMS encryption for SQS queues"
+      
+      - name: "cloudwatch-log-group-encrypted"
+        resource_types: ["AWS::Logs::LogGroup"]
+        parameters: {}
+        description: "Ensures CloudWatch log groups are encrypted with KMS"
+        remediation_guidance: "Enable KMS encryption for CloudWatch log groups"
+      
+      - name: "kinesis-stream-encrypted"
+        resource_types: ["AWS::Kinesis::Stream"]
+        parameters: {}
+        description: "Ensures Kinesis streams are encrypted with KMS"
+        remediation_guidance: "Enable KMS encryption for Kinesis streams"
+      
+      - name: "elasticsearch-encrypted-at-rest"
+        resource_types: ["AWS::Elasticsearch::Domain"]
+        parameters: {}
+        description: "Ensures Elasticsearch domains have encryption at rest enabled"
+        remediation_guidance: "Enable encryption at rest for Elasticsearch domains"
+
+  "7.1":
+    title: "Establish and Maintain a Vulnerability Management Process"
+    weight: 1.0
+    config_rules:
+      - name: "ecr-private-image-scanning-enabled"
+        resource_types: ["AWS::ECR::Repository"]
+        parameters: {}
+        description: "Ensures ECR repositories have image scanning enabled"
+        remediation_guidance: "Enable image scanning for ECR repositories"
+      
+      - name: "guardduty-enabled-centralized"
+        resource_types: ["AWS::::Account"]
+        parameters: {}
+        description: "Ensures GuardDuty is enabled"
+        remediation_guidance: "Enable GuardDuty for threat detection"
+
+  "12.1":
+    title: "Establish and Maintain a Secure Network Architecture"
+    weight: 1.0
+    config_rules:
+      - name: "restricted-incoming-traffic"
+        resource_types: ["AWS::EC2::SecurityGroup"]
+        parameters:
+          blockedPort1: "20"
+          blockedPort2: "21"
+          blockedPort3: "3389"
+          blockedPort4: "3306"
+          blockedPort5: "4333"
+        description: "Ensures security groups restrict incoming traffic on common ports"
+        remediation_guidance: "Remove rules allowing unrestricted access to common ports"
+      
+      - name: "vpc-sg-open-only-to-authorized-ports"
+        resource_types: ["AWS::EC2::SecurityGroup"]
+        parameters:
+          authorizedTcpPorts: "443"
+        description: "Ensures security groups are open only to authorized ports"
+        remediation_guidance: "Restrict security group rules to authorized ports only"
