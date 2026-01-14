@@ -1,0 +1,3345 @@
+"""AxonFlow SDK Main Client.
+
+The primary interface for interacting with AxonFlow governance platform.
+Supports both async and sync usage patterns.
+
+Example:
+    >>> from axonflow import AxonFlow
+    >>>
+    >>> # Async usage (enterprise with authentication)
+    >>> async with AxonFlow(endpoint="...", client_id="...", client_secret="...") as client:
+    ...     result = await client.execute_query("user-token", "What is AI?", "chat")
+    ...     print(result.data)
+    >>>
+    >>> # Async usage (community/self-hosted - no auth required)
+    >>> async with AxonFlow(endpoint="http://localhost:8080") as client:
+    ...     result = await client.execute_query("user-token", "What is AI?", "chat")
+    ...     print(result.data)
+    >>>
+    >>> # Sync usage
+    >>> client = AxonFlow.sync(endpoint="...", client_id="...", client_secret="...")
+    >>> result = client.execute_query("user-token", "What is AI?", "chat")
+"""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import concurrent.futures
+import contextlib
+import hashlib
+import os
+import re
+from collections.abc import Coroutine
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, TypeVar
+
+import httpx
+import structlog
+from cachetools import TTLCache
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+from axonflow.code_governance import (
+    CodeGovernanceMetrics,
+    ConfigureGitProviderRequest,
+    ConfigureGitProviderResponse,
+    CreatePRRequest,
+    CreatePRResponse,
+    ExportOptions,
+    ExportResponse,
+    GitProviderType,
+    ListGitProvidersResponse,
+    ListPRsOptions,
+    ListPRsResponse,
+    PRRecord,
+    ValidateGitProviderRequest,
+    ValidateGitProviderResponse,
+)
+from axonflow.exceptions import (
+    AuthenticationError,
+    AxonFlowError,
+    ConnectionError,
+    ConnectorError,
+    PolicyViolationError,
+    TimeoutError,
+)
+from axonflow.policies import (
+    CreateDynamicPolicyRequest,
+    CreatePolicyOverrideRequest,
+    CreateStaticPolicyRequest,
+    DynamicPolicy,
+    EffectivePoliciesOptions,
+    ListDynamicPoliciesOptions,
+    ListStaticPoliciesOptions,
+    PolicyCategory,  # noqa: F401 - used in docstrings
+    PolicyOverride,
+    PolicyTier,  # noqa: F401 - used in docstrings
+    PolicyVersion,
+    StaticPolicy,
+    TestPatternResult,
+    UpdateDynamicPolicyRequest,
+    UpdateStaticPolicyRequest,
+)
+from axonflow.types import (
+    AuditLogEntry,
+    AuditQueryOptions,
+    AuditResult,
+    AuditSearchRequest,
+    AuditSearchResponse,
+    AxonFlowConfig,
+    Budget,
+    BudgetAlertsResponse,
+    BudgetCheckRequest,
+    BudgetDecision,
+    BudgetsResponse,
+    BudgetStatus,
+    CacheConfig,
+    ClientRequest,
+    ClientResponse,
+    ConnectorHealthStatus,
+    ConnectorInstallRequest,
+    ConnectorMetadata,
+    ConnectorPolicyInfo,
+    ConnectorResponse,
+    CreateBudgetRequest,
+    ExecutionDetail,
+    ExecutionExportOptions,
+    ExecutionSnapshot,
+    ListBudgetsOptions,
+    ListExecutionsOptions,
+    ListExecutionsResponse,
+    ListUsageRecordsOptions,
+    Mode,
+    PlanExecutionResponse,
+    PlanResponse,
+    PlanStep,
+    PolicyApprovalResult,
+    PricingInfo,
+    PricingListResponse,
+    RateLimitInfo,
+    RetryConfig,
+    TimelineEntry,
+    TokenUsage,
+    UpdateBudgetRequest,
+    UsageBreakdown,
+    UsageRecordsResponse,
+    UsageSummary,
+)
+
+if TYPE_CHECKING:
+    from types import TracebackType
+
+logger = structlog.get_logger(__name__)
+
+
+def _parse_datetime(value: str) -> datetime:
+    """Parse ISO format datetime string.
+
+    Python 3.9's fromisoformat() doesn't handle 'Z' suffix for UTC.
+    This helper replaces 'Z' with '+00:00' for compatibility.
+
+    Also handles nanosecond precision (9 digits) by truncating to microseconds (6 digits)
+    since Python's fromisoformat() only supports up to 6 fractional digits.
+    """
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+
+    # Python's fromisoformat only supports up to 6 fractional digits (microseconds)
+    # Truncate nanoseconds (9 digits) to microseconds (6 digits) if needed
+    value = re.sub(r"(\.\d{6})\d+", r"\1", value)
+
+    return datetime.fromisoformat(value)
+
+
+# TypeVar for generic _run_sync method in SyncAxonFlow
+T = TypeVar("T")
+
+
+class AxonFlow:
+    """Main AxonFlow client for AI governance.
+
+    This client provides async-first API for interacting with AxonFlow Agent.
+    All methods are async by default, with sync wrappers available via `.sync()`.
+
+    Attributes:
+        config: Client configuration
+    """
+
+    __slots__ = (
+        "_config",
+        "_http_client",
+        "_map_http_client",
+        "_cache",
+        "_logger",
+        "_session_cookie",
+    )
+
+    def __init__(
+        self,
+        endpoint: str | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        *,
+        mode: Mode | str = Mode.PRODUCTION,
+        debug: bool = False,
+        timeout: float = 60.0,
+        map_timeout: float = 120.0,
+        insecure_skip_verify: bool = False,
+        retry_config: RetryConfig | None = None,
+        cache_enabled: bool = True,
+        cache_ttl: float = 60.0,
+        cache_max_size: int = 1000,
+    ) -> None:
+        """Initialize AxonFlow client.
+
+        Args:
+            endpoint: AxonFlow endpoint URL. Can also be set via AXONFLOW_AGENT_URL env var.
+            client_id: Client ID (optional for community/self-hosted mode)
+            client_secret: Client secret (optional for community/self-hosted mode)
+            mode: Operation mode (production or sandbox)
+            debug: Enable debug logging
+            timeout: Request timeout in seconds
+            map_timeout: Timeout for MAP operations in seconds (default: 120s)
+                        MAP operations involve multiple LLM calls and need longer timeouts
+            insecure_skip_verify: Skip TLS verification (dev only)
+            retry_config: Retry configuration
+            cache_enabled: Enable response caching
+            cache_ttl: Cache TTL in seconds
+            cache_max_size: Maximum cache entries
+
+        Note:
+            For community/self-hosted deployments, client_id and client_secret can be omitted.
+            The SDK will work without authentication headers in this mode.
+
+            As of v1.0.0, all routes go through a single endpoint (Single Entry Point Architecture).
+        """
+        # Support AXONFLOW_AGENT_URL env var for backwards compatibility
+        resolved_endpoint = endpoint or os.environ.get("AXONFLOW_AGENT_URL")
+        if not resolved_endpoint:
+            msg = "endpoint is required (or set AXONFLOW_AGENT_URL environment variable)"
+            raise ValueError(msg)
+
+        if isinstance(mode, str):
+            mode = Mode(mode)
+
+        self._config = AxonFlowConfig(
+            endpoint=resolved_endpoint.rstrip("/"),
+            client_id=client_id,
+            client_secret=client_secret,
+            mode=mode,
+            debug=debug,
+            timeout=timeout,
+            map_timeout=map_timeout,
+            insecure_skip_verify=insecure_skip_verify,
+            retry=retry_config or RetryConfig(),
+            cache=CacheConfig(enabled=cache_enabled, ttl=cache_ttl, max_size=cache_max_size),
+        )
+
+        # Configure SSL verification
+        verify_ssl: bool = not insecure_skip_verify
+
+        # Build headers
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+        }
+        # Add authentication and tenant headers
+        # client_id is always required for policy APIs (sets X-Tenant-ID)
+        # client_secret is optional for community mode but required for enterprise
+        if client_id:
+            headers["X-Tenant-ID"] = client_id  # client_id is used as tenant ID for policy APIs
+            # OAuth2-style: Authorization: Basic base64(clientId:clientSecret)
+            if client_secret:
+                credentials = f"{client_id}:{client_secret}"
+                encoded = base64.b64encode(credentials.encode()).decode()
+                headers["Authorization"] = f"Basic {encoded}"
+
+        # Initialize HTTP client
+        self._http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout),
+            verify=verify_ssl,
+            headers=headers,
+        )
+
+        # Initialize MAP HTTP client with longer timeout
+        self._map_http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(map_timeout),
+            verify=verify_ssl,
+            headers=headers,
+        )
+
+        # Initialize cache
+        self._cache: TTLCache[str, ClientResponse] | None = None
+        if cache_enabled:
+            self._cache = TTLCache(maxsize=cache_max_size, ttl=cache_ttl)
+
+        # Initialize logger
+        self._logger = structlog.get_logger(__name__).bind(
+            client_id=client_id or "community",
+            mode=mode.value,
+        )
+
+        # Initialize session cookie for portal authentication
+        self._session_cookie: str | None = None
+
+        if debug:
+            self._logger.info(
+                "AxonFlow client initialized",
+                endpoint=endpoint,
+            )
+
+    @property
+    def config(self) -> AxonFlowConfig:
+        """Get client configuration."""
+        return self._config
+
+    def _has_credentials(self) -> bool:
+        """Check if credentials are configured.
+
+        Returns True if client_id is set.
+        client_secret is optional for community mode but required for enterprise.
+        """
+        return bool(self._config.client_id)
+
+    def _require_credentials(self, feature: str) -> None:
+        """Require credentials for enterprise features.
+
+        Raises AuthenticationError if client_id is not configured.
+        Note: client_secret is optional for community mode.
+
+        Args:
+            feature: Name of the feature requiring credentials (for error message)
+
+        Raises:
+            AuthenticationError: If client_id is not configured
+        """
+        if not self._has_credentials():
+            msg = (
+                f"{feature} requires client_id. "
+                "Set client_id when creating the client "
+                "(client_secret is optional for community mode)."
+            )
+            raise AuthenticationError(msg)
+
+    async def __aenter__(self) -> AxonFlow:
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Async context manager exit."""
+        await self.close()
+
+    async def close(self) -> None:
+        """Close the HTTP clients."""
+        await self._http_client.aclose()
+        await self._map_http_client.aclose()
+
+    @classmethod
+    def sync(
+        cls,
+        endpoint: str,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        **kwargs: Any,
+    ) -> SyncAxonFlow:
+        """Create a synchronous client wrapper.
+
+        Example:
+            >>> # Enterprise mode with authentication
+            >>> client = AxonFlow.sync(endpoint="...", client_id="...", client_secret="...")
+            >>> result = client.execute_query("token", "query", "chat")
+            >>>
+            >>> # Community/self-hosted mode (no auth required)
+            >>> client = AxonFlow.sync(endpoint="http://localhost:8080")
+            >>> result = client.execute_query("token", "query", "chat")
+        """
+        return SyncAxonFlow(cls(endpoint, client_id, client_secret, **kwargs))
+
+    @classmethod
+    def sandbox(cls, client_id: str = "demo-key", client_secret: str = "demo-key") -> AxonFlow:  # noqa: S107
+        """Create a sandbox client for testing.
+
+        Args:
+            client_id: Optional client ID (defaults to demo-key)
+            client_secret: Optional client secret (defaults to demo-key)
+
+        Returns:
+            Configured AxonFlow client for sandbox environment
+        """
+        return cls(
+            endpoint="https://staging-eu.getaxonflow.com",
+            client_id=client_id,
+            client_secret=client_secret,
+            mode=Mode.SANDBOX,
+            debug=True,
+        )
+
+    def _get_cache_key(self, request_type: str, query: str, user_token: str) -> str:
+        """Generate cache key for a request."""
+        key = f"{request_type}:{query}:{user_token}"
+        return hashlib.sha256(key.encode()).hexdigest()[:32]
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Make HTTP request to Agent."""
+        url = f"{self._config.endpoint}{path}"
+
+        try:
+            if self._config.retry.enabled:
+                response = await self._request_with_retry(method, url, json_data)
+            else:
+                response = await self._http_client.request(method, url, json=json_data)
+
+            response.raise_for_status()
+            # Handle 204 No Content (e.g., DELETE responses)
+            if response.status_code == 204:  # noqa: PLR2004
+                return None  # type: ignore[return-value]
+            return response.json()  # type: ignore[no-any-return]
+
+        except httpx.ConnectError as e:
+            msg = f"Failed to connect to AxonFlow Agent: {e}"
+            raise ConnectionError(msg) from e
+        except httpx.TimeoutException as e:
+            msg = f"Request timed out: {e}"
+            raise TimeoutError(msg) from e
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:  # noqa: PLR2004
+                msg = "Invalid credentials"
+                raise AuthenticationError(msg) from e
+            if e.response.status_code == 403:  # noqa: PLR2004
+                body = e.response.json()
+                # Extract policy from policy_info if available
+                policy = body.get("policy")
+                if not policy:
+                    policy_info = body.get("policy_info")
+                    if policy_info and policy_info.get("policies_evaluated"):
+                        policy = policy_info["policies_evaluated"][0]
+                raise PolicyViolationError(
+                    body.get("block_reason") or body.get("message", "Request blocked by policy"),
+                    policy=policy,
+                    block_reason=body.get("block_reason"),
+                ) from e
+            msg = f"HTTP {e.response.status_code}: {e.response.text}"
+            raise AxonFlowError(msg) from e
+
+    async def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        json_data: dict[str, Any] | None,
+    ) -> httpx.Response:
+        """Make request with retry logic."""
+
+        @retry(
+            stop=stop_after_attempt(self._config.retry.max_attempts),
+            wait=wait_exponential(
+                multiplier=self._config.retry.initial_delay,
+                max=self._config.retry.max_delay,
+                exp_base=self._config.retry.exponential_base,
+            ),
+            retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException)),
+            reraise=True,
+        )
+        async def _do_request() -> httpx.Response:
+            return await self._http_client.request(method, url, json=json_data)
+
+        return await _do_request()
+
+    async def _map_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Make HTTP request to Agent using MAP timeout.
+
+        This uses the longer map_timeout for MAP operations that involve
+        multiple LLM calls and can take 30-60+ seconds.
+        """
+        url = f"{self._config.endpoint}{path}"
+
+        try:
+            if self._config.debug:
+                self._logger.debug(
+                    "MAP request",
+                    url=url,
+                    timeout=self._config.map_timeout,
+                )
+
+            response = await self._map_http_client.request(method, url, json=json_data)
+            response.raise_for_status()
+            return response.json()  # type: ignore[no-any-return]
+
+        except httpx.ConnectError as e:
+            msg = f"Failed to connect to AxonFlow Agent: {e}"
+            raise ConnectionError(msg) from e
+        except httpx.TimeoutException as e:
+            msg = f"MAP request timed out after {self._config.map_timeout}s: {e}"
+            raise TimeoutError(msg) from e
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:  # noqa: PLR2004
+                msg = "Invalid credentials"
+                raise AuthenticationError(msg) from e
+            if e.response.status_code == 403:  # noqa: PLR2004
+                body = e.response.json()
+                policy = body.get("policy")
+                if not policy:
+                    policy_info = body.get("policy_info")
+                    if policy_info and policy_info.get("policies_evaluated"):
+                        policy = policy_info["policies_evaluated"][0]
+                raise PolicyViolationError(
+                    body.get("block_reason") or body.get("message", "Request blocked by policy"),
+                    policy=policy,
+                    block_reason=body.get("block_reason"),
+                ) from e
+            msg = f"HTTP {e.response.status_code}: {e.response.text}"
+            raise AxonFlowError(msg) from e
+
+    async def health_check(self) -> bool:
+        """Check if AxonFlow Agent is healthy.
+
+        Returns:
+            True if agent is healthy, False otherwise
+        """
+        try:
+            response = await self._request("GET", "/health")
+            return response.get("status") == "healthy"
+        except AxonFlowError:
+            return False
+
+    async def orchestrator_health_check(self) -> bool:
+        """Check if AxonFlow Orchestrator is healthy.
+
+        Returns:
+            True if orchestrator is healthy, False otherwise
+        """
+        try:
+            response = await self._orchestrator_request("GET", "/health")
+        except AxonFlowError:
+            return False
+        else:
+            if isinstance(response, dict):
+                return response.get("status") == "healthy"
+            return False
+
+    async def execute_query(
+        self,
+        user_token: str,
+        query: str,
+        request_type: str,
+        context: dict[str, Any] | None = None,
+    ) -> ClientResponse:
+        """Execute a query through AxonFlow with policy enforcement.
+
+        Args:
+            user_token: User authentication token. If empty, defaults to "anonymous"
+                for audit purposes (community mode).
+            query: The query or prompt
+            request_type: Type of request (chat, sql, mcp-query, multi-agent-plan)
+            context: Optional additional context
+
+        Returns:
+            ClientResponse with results or error
+
+        Raises:
+            PolicyViolationError: If request is blocked by policy
+            AuthenticationError: If credentials are invalid
+            TimeoutError: If request times out
+        """
+        # Default to "anonymous" if user_token is empty (community mode)
+        if not user_token:
+            user_token = "anonymous"  # noqa: S105 - not a password, just a placeholder
+
+        # Check cache
+        if self._cache is not None:
+            cache_key = self._get_cache_key(request_type, query, user_token)
+            if cache_key in self._cache:
+                if self._config.debug:
+                    self._logger.debug("Cache hit", query=query[:50])
+                cached_result: ClientResponse = self._cache[cache_key]
+                return cached_result
+        else:
+            cache_key = ""
+
+        request = ClientRequest(
+            query=query,
+            user_token=user_token,
+            client_id=self._config.client_id,
+            request_type=request_type,
+            context=context or {},
+        )
+
+        if self._config.debug:
+            self._logger.debug(
+                "Executing query",
+                request_type=request_type,
+                query=query[:50] if query else "",
+            )
+
+        response_data = await self._request(
+            "POST",
+            "/api/request",
+            json_data=request.model_dump(),
+        )
+
+        response = ClientResponse.model_validate(response_data)
+
+        # Check for policy violation
+        if response.blocked:
+            # Extract policy name from policy_info if available
+            policy = None
+            if response.policy_info and response.policy_info.policies_evaluated:
+                policy = response.policy_info.policies_evaluated[0]
+            raise PolicyViolationError(
+                response.block_reason or "Request blocked by policy",
+                policy=policy,
+                block_reason=response.block_reason,
+            )
+
+        # Cache successful responses
+        if self._cache is not None and response.success and cache_key:
+            self._cache[cache_key] = response
+
+        return response
+
+    async def list_connectors(self) -> list[ConnectorMetadata]:
+        """List all available MCP connectors.
+
+        Returns:
+            List of connector metadata
+        """
+        response = await self._orchestrator_request("GET", "/api/v1/connectors")
+        # Response is wrapped: {"connectors": [...], "total": N}
+        if isinstance(response, dict) and "connectors" in response:
+            return [ConnectorMetadata.model_validate(c) for c in response["connectors"]]
+        # Fallback for direct list response
+        return [ConnectorMetadata.model_validate(c) for c in response or []]
+
+    async def install_connector(self, request: ConnectorInstallRequest) -> None:
+        """Install an MCP connector.
+
+        Args:
+            request: Connector installation request
+        """
+        await self._orchestrator_request(
+            "POST",
+            f"/api/v1/connectors/{request.connector_id}/install",
+            json_data=request.model_dump(exclude={"connector_id"}),
+        )
+
+        if self._config.debug:
+            self._logger.info("Connector installed", name=request.name)
+
+    async def uninstall_connector(self, connector_name: str) -> None:
+        """Uninstall an MCP connector.
+
+        Args:
+            connector_name: Name of the connector to uninstall
+        """
+        await self._orchestrator_request(
+            "DELETE",
+            f"/api/v1/connectors/{connector_name}",
+        )
+
+        if self._config.debug:
+            self._logger.info("Connector uninstalled", name=connector_name)
+
+    async def get_connector(self, connector_id: str) -> ConnectorMetadata:
+        """Get details for a specific connector.
+
+        Args:
+            connector_id: ID of the connector
+
+        Returns:
+            Connector metadata
+
+        Raises:
+            AxonFlowError: If connector not found
+        """
+        response = await self._orchestrator_request(
+            "GET",
+            f"/api/v1/connectors/{connector_id}",
+        )
+
+        if self._config.debug:
+            self._logger.info("Got connector", id=connector_id)
+
+        return ConnectorMetadata.model_validate(response)
+
+    async def get_connector_health(self, connector_id: str) -> ConnectorHealthStatus:
+        """Get health status of an installed connector.
+
+        Args:
+            connector_id: ID of the connector
+
+        Returns:
+            Connector health status
+
+        Raises:
+            AxonFlowError: If connector not found or not installed
+        """
+        response = await self._orchestrator_request(
+            "GET",
+            f"/api/v1/connectors/{connector_id}/health",
+        )
+
+        if self._config.debug and isinstance(response, dict):
+            self._logger.info("Connector health", id=connector_id, healthy=response.get("healthy"))
+
+        return ConnectorHealthStatus.model_validate(response)
+
+    async def query_connector(
+        self,
+        user_token: str,
+        connector_name: str,
+        operation: str,
+        params: dict[str, Any] | None = None,
+    ) -> ConnectorResponse:
+        """Query an MCP connector directly.
+
+        Args:
+            user_token: User authentication token
+            connector_name: Name of the connector
+            operation: Operation to perform (e.g., Slack API method like "conversations.list")
+            params: Operation parameters
+
+        Returns:
+            ConnectorResponse with results
+        """
+        # Use the standard /api/request endpoint with request_type="mcp-query"
+        # This ensures proper authentication and license validation flow
+        context = {
+            "connector": connector_name,
+            "params": params or {},
+        }
+
+        # Execute via the standard request flow
+        client_response = await self.execute_query(
+            user_token=user_token,
+            query=operation,
+            request_type="mcp-query",
+            context=context,
+        )
+
+        # Map ClientResponse to ConnectorResponse
+        policy_info = {}
+        if client_response.policy_info:
+            policy_info = client_response.policy_info.model_dump()
+
+        return ConnectorResponse(
+            success=client_response.success,
+            data=client_response.data,
+            error=client_response.error,
+            meta={
+                "blocked": client_response.blocked,
+                "block_reason": client_response.block_reason,
+                "policy_info": policy_info,
+            },
+        )
+
+    async def mcp_query(
+        self,
+        connector: str,
+        statement: str,
+        options: dict[str, Any] | None = None,
+    ) -> ConnectorResponse:
+        """Execute a query directly against the MCP connector endpoint.
+
+        This method calls the agent's /mcp/resources/query endpoint which provides:
+        - Request-phase policy evaluation (SQLi blocking, PII blocking)
+        - Response-phase policy evaluation (PII redaction)
+        - PolicyInfo metadata in responses
+
+        Args:
+            connector: Name of the MCP connector (e.g., "postgres")
+            statement: SQL statement or query to execute
+            options: Optional additional options for the query
+
+        Returns:
+            ConnectorResponse with data, redaction info, and policy_info
+
+        Raises:
+            ConnectorError: If the request is blocked by policy or fails
+
+        Example:
+            response = await client.mcp_query(
+                connector="postgres",
+                statement="SELECT * FROM customers LIMIT 10"
+            )
+            if response.redacted:
+                print(f"Redacted fields: {response.redacted_fields}")
+        """
+        if not connector:
+            msg = "connector name is required"
+            raise ConnectorError(msg, connector=None, operation="mcp_query")
+        if not statement:
+            msg = "statement is required"
+            raise ConnectorError(msg, connector=connector, operation="mcp_query")
+
+        url = f"{self._config.endpoint}/mcp/resources/query"
+        body = {
+            "connector": connector,
+            "statement": statement,
+            "options": options or {},
+        }
+
+        if self._config.debug:
+            self._logger.debug("MCP Query", connector=connector, statement=statement[:50])
+
+        response = await self._http_client.post(url, json=body)
+        response_data = response.json()
+
+        # Handle policy blocks (403 responses)
+        if not response.is_success:
+            error_msg = response_data.get("error", f"MCP query failed: {response.status_code}")
+            raise ConnectorError(error_msg, connector=connector, operation="mcp_query")
+
+        if self._config.debug:
+            self._logger.debug(
+                "MCP Query result",
+                connector=connector,
+                success=response_data.get("success"),
+                redacted=response_data.get("redacted"),
+            )
+
+        # Build policy_info if present
+        policy_info = None
+        if response_data.get("policy_info"):
+            policy_info = ConnectorPolicyInfo.model_validate(response_data["policy_info"])
+
+        return ConnectorResponse(
+            success=response_data.get("success", True),
+            data=response_data.get("data"),
+            error=response_data.get("error"),
+            meta=response_data.get("meta", {}),
+            redacted=response_data.get("redacted", False),
+            redacted_fields=response_data.get("redacted_fields", []),
+            policy_info=policy_info,
+        )
+
+    async def mcp_execute(
+        self,
+        connector: str,
+        statement: str,
+        options: dict[str, Any] | None = None,
+    ) -> ConnectorResponse:
+        """Execute a statement against an MCP connector (alias for mcp_query).
+
+        Same as mcp_query but follows the naming convention of other execute* methods.
+        """
+        return await self.mcp_query(connector, statement, options)
+
+    async def generate_plan(
+        self,
+        query: str,
+        domain: str | None = None,
+        user_token: str | None = None,
+    ) -> PlanResponse:
+        """Generate a multi-agent execution plan.
+
+        Args:
+            query: Natural language query describing the task
+            domain: Optional domain hint (travel, healthcare, etc.)
+            user_token: Optional user token for authentication (defaults to client_id)
+
+        Returns:
+            PlanResponse with generated plan
+
+        Note:
+            This uses map_timeout (default 120s) as MAP operations involve
+            multiple LLM calls and can take 30-60+ seconds.
+        """
+        context = {"domain": domain} if domain else {}
+
+        request = ClientRequest(
+            query=query,
+            user_token=user_token or self._config.client_id or "",
+            client_id=self._config.client_id,
+            request_type="multi-agent-plan",
+            context=context,
+        )
+
+        if self._config.debug:
+            self._logger.debug(
+                "Generating plan",
+                query=query[:50] if query else "",
+                domain=domain,
+                timeout=self._config.map_timeout,
+            )
+
+        # Use MAP request with longer timeout
+        response_data = await self._map_request(
+            "POST",
+            "/api/request",
+            json_data=request.model_dump(),
+        )
+
+        response = ClientResponse.model_validate(response_data)
+
+        if not response.success:
+            msg = f"Plan generation failed: {response.error}"
+            raise AxonFlowError(msg)
+
+        # Extract steps from response data
+        steps: list[PlanStep] = []
+        if response.data and isinstance(response.data, dict):
+            steps_data = response.data.get("steps", [])
+            steps = [PlanStep.model_validate(s) for s in steps_data]
+            # Also check for plan_id in data
+            if not response.plan_id and response.data.get("plan_id"):
+                response = ClientResponse.model_validate(
+                    {
+                        **response_data,
+                        "plan_id": response.data.get("plan_id"),
+                    }
+                )
+
+        plan_id = response.plan_id or (
+            response.data.get("plan_id", "") if isinstance(response.data, dict) else ""
+        )
+        return PlanResponse(
+            plan_id=plan_id,
+            steps=steps,
+            domain=response.data.get("domain", domain or "generic")
+            if response.data and isinstance(response.data, dict)
+            else (domain or "generic"),
+            complexity=response.data.get("complexity", 0)
+            if response.data and isinstance(response.data, dict)
+            else 0,
+            parallel=response.data.get("parallel", False)
+            if response.data and isinstance(response.data, dict)
+            else False,
+            metadata=response.metadata,
+        )
+
+    async def execute_plan(
+        self,
+        plan_id: str,
+        user_token: str | None = None,
+    ) -> PlanExecutionResponse:
+        """Execute a previously generated plan.
+
+        Args:
+            plan_id: ID of the plan to execute
+            user_token: Optional user token for authentication (defaults to client_id)
+
+        Returns:
+            PlanExecutionResponse with results
+
+        Note:
+            This uses map_timeout (default 120s) as plan execution involves
+            multiple LLM calls and can take 30-60+ seconds.
+        """
+        request = ClientRequest(
+            query="",
+            user_token=user_token or self._config.client_id or "",
+            client_id=self._config.client_id,
+            request_type="execute-plan",
+            context={"plan_id": plan_id},
+        )
+
+        if self._config.debug:
+            self._logger.debug(
+                "Executing plan",
+                plan_id=plan_id,
+                timeout=self._config.map_timeout,
+            )
+
+        # Use MAP request with longer timeout
+        response_data = await self._map_request(
+            "POST",
+            "/api/request",
+            json_data=request.model_dump(),
+        )
+
+        response = ClientResponse.model_validate(response_data)
+
+        return PlanExecutionResponse(
+            plan_id=plan_id,
+            status="completed" if response.success else "failed",
+            result=response.result,
+            step_results=response.metadata.get("step_results", {}),
+            error=response.error,
+            duration=response.metadata.get("duration"),
+        )
+
+    async def get_plan_status(self, plan_id: str) -> PlanExecutionResponse:
+        """Get status of a running or completed plan.
+
+        Args:
+            plan_id: ID of the plan
+
+        Returns:
+            PlanExecutionResponse with current status
+        """
+        response = await self._request("GET", f"/api/v1/plan/{plan_id}")
+        return PlanExecutionResponse.model_validate(response)
+
+    # =========================================================================
+    # Gateway Mode Methods
+    # =========================================================================
+
+    async def get_policy_approved_context(
+        self,
+        user_token: str,
+        query: str,
+        data_sources: list[str] | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> PolicyApprovalResult:
+        """Perform policy pre-check before making LLM call.
+
+        This is the first step in Gateway Mode. Call this before making your
+        LLM call to ensure policy compliance.
+
+        Note:
+            This is an enterprise feature that requires credentials.
+            Set client_id and client_secret when creating the client.
+
+        Args:
+            user_token: JWT token for the user making the request
+            query: The query/prompt that will be sent to the LLM
+            data_sources: Optional list of MCP connectors to fetch data from
+            context: Optional additional context for policy evaluation
+
+        Returns:
+            PolicyApprovalResult with context ID and approved data
+
+        Raises:
+            AuthenticationError: If credentials are not configured or user token is invalid
+            ConnectionError: If unable to reach AxonFlow Agent
+            TimeoutError: If request times out
+
+        Example:
+            >>> result = await client.get_policy_approved_context(
+            ...     user_token="user-jwt",
+            ...     query="Find patients with diabetes",
+            ...     data_sources=["postgres"]
+            ... )
+            >>> if not result.approved:
+            ...     raise PolicyViolationError(result.block_reason)
+        """
+        # Gateway Mode is an enterprise feature that requires credentials
+        self._require_credentials("Gateway Mode (get_policy_approved_context)")
+
+        request_body = {
+            "user_token": user_token,
+            "client_id": self._config.client_id,
+            "query": query,
+            "data_sources": data_sources or [],
+            "context": context or {},
+        }
+
+        if self._config.debug:
+            self._logger.debug(
+                "Gateway pre-check request",
+                query=query[:50] if query else "",
+                data_sources=data_sources,
+            )
+
+        response = await self._request(
+            "POST",
+            "/api/policy/pre-check",
+            json_data=request_body,
+        )
+
+        if self._config.debug:
+            self._logger.debug(
+                "Gateway pre-check complete",
+                context_id=response.get("context_id"),
+                approved=response.get("approved"),
+            )
+
+        rate_limit = None
+        if response.get("rate_limit"):
+            rate_limit = RateLimitInfo(
+                limit=response["rate_limit"]["limit"],
+                remaining=response["rate_limit"]["remaining"],
+                reset_at=_parse_datetime(response["rate_limit"]["reset_at"]),
+            )
+
+        return PolicyApprovalResult(
+            context_id=response["context_id"],
+            approved=response["approved"],
+            requires_redaction=response.get("requires_redaction", False),
+            approved_data=response.get("approved_data", {}),
+            policies=response.get("policies", []),
+            rate_limit_info=rate_limit,
+            expires_at=_parse_datetime(response["expires_at"]),
+            block_reason=response.get("block_reason"),
+        )
+
+    async def pre_check(
+        self,
+        user_token: str,
+        query: str,
+        data_sources: list[str] | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> PolicyApprovalResult:
+        """Alias for get_policy_approved_context().
+
+        Perform policy pre-check before making LLM call.
+        This is the first step in Gateway Mode.
+
+        Args:
+            user_token: JWT token for the user making the request
+            query: The query/prompt that will be sent to the LLM
+            data_sources: Optional list of MCP connectors to fetch data from
+            context: Optional additional context for policy evaluation
+
+        Returns:
+            PolicyApprovalResult with context ID and approved data
+
+        Example:
+            >>> result = await client.pre_check(
+            ...     user_token="user-jwt",
+            ...     query="Find patients with diabetes",
+            ...     data_sources=["postgres"]
+            ... )
+            >>> if not result.approved:
+            ...     raise PolicyViolationError(result.block_reason)
+        """
+        return await self.get_policy_approved_context(
+            user_token=user_token,
+            query=query,
+            data_sources=data_sources,
+            context=context,
+        )
+
+    async def audit_llm_call(
+        self,
+        context_id: str,
+        response_summary: str,
+        provider: str,
+        model: str,
+        token_usage: TokenUsage,
+        latency_ms: int,
+        metadata: dict[str, Any] | None = None,
+    ) -> AuditResult:
+        """Report LLM call details for audit logging.
+
+        This is the second step in Gateway Mode. Call this after making your
+        LLM call to record it in the audit trail.
+
+        Note:
+            This is an enterprise feature that requires credentials.
+            Set client_id and client_secret when creating the client.
+
+        Args:
+            context_id: Context ID from get_policy_approved_context()
+            response_summary: Brief summary of the LLM response (not full response)
+            provider: LLM provider name (openai, anthropic, bedrock, ollama)
+            model: Model name (gpt-4, claude-3-sonnet, etc.)
+            token_usage: Token counts from the LLM response
+            latency_ms: Time taken for the LLM call in milliseconds
+            metadata: Optional additional metadata to log
+
+        Returns:
+            AuditResult confirming the audit was recorded
+
+        Raises:
+            AuthenticationError: If credentials are not configured
+            AxonFlowError: If audit recording fails
+
+        Example:
+            >>> result = await client.audit_llm_call(
+            ...     context_id=ctx.context_id,
+            ...     response_summary="Found 5 patients with recent lab results",
+            ...     provider="openai",
+            ...     model="gpt-4",
+            ...     token_usage=TokenUsage(
+            ...         prompt_tokens=100,
+            ...         completion_tokens=50,
+            ...         total_tokens=150
+            ...     ),
+            ...     latency_ms=250
+            ... )
+        """
+        # Gateway Mode is an enterprise feature that requires credentials
+        self._require_credentials("Gateway Mode (audit_llm_call)")
+
+        request_body = {
+            "context_id": context_id,
+            "client_id": self._config.client_id,
+            "response_summary": response_summary,
+            "provider": provider,
+            "model": model,
+            "token_usage": {
+                "prompt_tokens": token_usage.prompt_tokens,
+                "completion_tokens": token_usage.completion_tokens,
+                "total_tokens": token_usage.total_tokens,
+            },
+            "latency_ms": latency_ms,
+            "metadata": metadata or {},
+        }
+
+        if self._config.debug:
+            self._logger.debug(
+                "Gateway audit request",
+                context_id=context_id,
+                provider=provider,
+                model=model,
+                tokens=token_usage.total_tokens,
+            )
+
+        response = await self._request(
+            "POST",
+            "/api/audit/llm-call",
+            json_data=request_body,
+        )
+
+        if self._config.debug:
+            self._logger.debug(
+                "Gateway audit complete",
+                audit_id=response.get("audit_id"),
+            )
+
+        return AuditResult(
+            success=response["success"],
+            audit_id=response["audit_id"],
+        )
+
+    # =========================================================================
+    # Audit Log Read Methods
+    # =========================================================================
+
+    async def search_audit_logs(
+        self,
+        request: AuditSearchRequest | None = None,
+    ) -> AuditSearchResponse:
+        """Search audit logs with optional filters.
+
+        Query the AxonFlow orchestrator for audit logs matching the specified
+        criteria. Use this for compliance dashboards, security investigations,
+        and operational monitoring.
+
+        Args:
+            request: Search filters and pagination options. If None, returns
+                recent logs with default limit (100).
+
+        Returns:
+            AuditSearchResponse containing matching audit entries.
+
+        Example:
+            >>> from datetime import datetime, timedelta
+            >>> from axonflow.types import AuditSearchRequest
+            >>>
+            >>> # Search for logs from a specific user in the last 24 hours
+            >>> yesterday = datetime.now() - timedelta(days=1)
+            >>> request = AuditSearchRequest(
+            ...     user_email="analyst@company.com",
+            ...     start_time=yesterday,
+            ...     limit=100,
+            ... )
+            >>> result = await client.search_audit_logs(request)
+            >>> for entry in result.entries:
+            ...     print(f"[{entry.timestamp}] {entry.user_email}: {entry.query_summary}")
+        """
+        if request is None:
+            request = AuditSearchRequest()
+
+        # Build request body with only non-None values
+        body: dict[str, Any] = {"limit": request.limit}
+        if request.user_email:
+            body["user_email"] = request.user_email
+        if request.client_id:
+            body["client_id"] = request.client_id
+        if request.start_time:
+            body["start_time"] = request.start_time.isoformat()
+        if request.end_time:
+            body["end_time"] = request.end_time.isoformat()
+        if request.request_type:
+            body["request_type"] = request.request_type
+        if request.offset > 0:
+            body["offset"] = request.offset
+
+        if self._config.debug:
+            self._logger.debug(
+                "Searching audit logs",
+                limit=request.limit,
+                offset=request.offset,
+            )
+
+        response = await self._orchestrator_request(
+            "POST",
+            "/api/v1/audit/search",
+            json_data=body,
+        )
+
+        # API may return array directly or wrapped response
+        if isinstance(response, list):
+            entries = [AuditLogEntry.model_validate(e) for e in response]
+            return AuditSearchResponse(
+                entries=entries,
+                total=len(entries),
+                limit=request.limit,
+                offset=request.offset,
+            )
+        # Wrapped response format (response is dict at this point)
+        if not isinstance(response, dict):
+            response = {}
+        entries = [AuditLogEntry.model_validate(e) for e in response.get("entries", [])]
+        return AuditSearchResponse(
+            entries=entries,
+            total=response.get("total", len(entries)),
+            limit=response.get("limit", request.limit),
+            offset=response.get("offset", request.offset),
+        )
+
+    async def get_audit_logs_by_tenant(
+        self,
+        tenant_id: str,
+        options: AuditQueryOptions | None = None,
+    ) -> AuditSearchResponse:
+        """Get recent audit logs for a specific tenant.
+
+        Convenience method for tenant-scoped audit queries. Use this when you
+        need to view all recent activity for a specific tenant.
+
+        Args:
+            tenant_id: The tenant identifier to query
+            options: Pagination options (limit, offset)
+
+        Returns:
+            AuditSearchResponse containing audit entries for the tenant.
+
+        Raises:
+            ValueError: If tenant_id is empty
+
+        Example:
+            >>> # Get the last 50 audit logs for a tenant
+            >>> result = await client.get_audit_logs_by_tenant("tenant-abc")
+            >>> print(f"Found {len(result.entries)} entries")
+            >>>
+            >>> # With custom options
+            >>> from axonflow.types import AuditQueryOptions
+            >>> opts = AuditQueryOptions(limit=100, offset=50)
+            >>> result = await client.get_audit_logs_by_tenant("tenant-abc", opts)
+        """
+        if not tenant_id:
+            msg = "tenant_id is required"
+            raise ValueError(msg)
+
+        if options is None:
+            options = AuditQueryOptions()
+
+        if self._config.debug:
+            self._logger.debug(
+                "Getting audit logs for tenant",
+                tenant_id=tenant_id,
+                limit=options.limit,
+                offset=options.offset,
+            )
+
+        url = f"/api/v1/audit/tenant/{tenant_id}?limit={options.limit}&offset={options.offset}"
+        response = await self._orchestrator_request("GET", url)
+
+        # API may return array directly or wrapped response
+        if isinstance(response, list):
+            entries = [AuditLogEntry.model_validate(e) for e in response]
+            return AuditSearchResponse(
+                entries=entries,
+                total=len(entries),
+                limit=options.limit,
+                offset=options.offset,
+            )
+        # Wrapped response format (response is dict at this point)
+        if not isinstance(response, dict):
+            response = {}
+        entries = [AuditLogEntry.model_validate(e) for e in response.get("entries", [])]
+        return AuditSearchResponse(
+            entries=entries,
+            total=response.get("total", len(entries)),
+            limit=response.get("limit", options.limit),
+            offset=response.get("offset", options.offset),
+        )
+
+    # =========================================================================
+    # Policy CRUD Methods - Static Policies
+    # =========================================================================
+
+    async def list_static_policies(
+        self,
+        options: ListStaticPoliciesOptions | None = None,
+    ) -> list[StaticPolicy]:
+        """List all static policies with optional filtering.
+
+        Args:
+            options: Filtering and pagination options
+
+        Returns:
+            List of static policies
+
+        Example:
+            >>> policies = await client.list_static_policies(
+            ...     ListStaticPoliciesOptions(category=PolicyCategory.SECURITY_SQLI)
+            ... )
+        """
+        params: list[str] = []
+        if options:
+            if options.category:
+                params.append(f"category={options.category.value}")
+            if options.tier:
+                params.append(f"tier={options.tier.value}")
+            if options.organization_id:
+                params.append(f"organization_id={options.organization_id}")
+            if options.enabled is not None:
+                params.append(f"enabled={str(options.enabled).lower()}")
+            if options.limit:
+                params.append(f"limit={options.limit}")
+            if options.offset:
+                params.append(f"offset={options.offset}")
+            if options.sort_by:
+                params.append(f"sort_by={options.sort_by}")
+            if options.sort_order:
+                params.append(f"sort_order={options.sort_order}")
+            if options.search:
+                params.append(f"search={options.search}")
+
+        path = "/api/v1/static-policies"
+        if params:
+            path = f"{path}?{'&'.join(params)}"
+
+        if self._config.debug:
+            self._logger.debug("Listing static policies", path=path)
+
+        response = await self._request("GET", path)
+        # Backend returns { policies: [], pagination: {} }, extract the policies array
+        policies = response.get("policies", []) if isinstance(response, dict) else response
+        return [StaticPolicy.model_validate(p) for p in policies]
+
+    async def get_static_policy(self, policy_id: str) -> StaticPolicy:
+        """Get a specific static policy by ID.
+
+        Args:
+            policy_id: Policy ID
+
+        Returns:
+            The static policy
+        """
+        if self._config.debug:
+            self._logger.debug("Getting static policy", policy_id=policy_id)
+
+        response = await self._request("GET", f"/api/v1/static-policies/{policy_id}")
+        return StaticPolicy.model_validate(response)
+
+    async def create_static_policy(
+        self,
+        request: CreateStaticPolicyRequest,
+    ) -> StaticPolicy:
+        """Create a new static policy.
+
+        Args:
+            request: Policy creation request
+
+        Returns:
+            The created policy
+
+        Example:
+            >>> policy = await client.create_static_policy(
+            ...     CreateStaticPolicyRequest(
+            ...         name="Block Credit Cards",
+            ...         category=PolicyCategory.PII_GLOBAL,
+            ...         pattern=r"\\b(?:\\d{4}[- ]?){3}\\d{4}\\b",
+            ...         severity=8
+            ...     )
+            ... )
+        """
+        if self._config.debug:
+            self._logger.debug("Creating static policy", name=request.name)
+
+        response = await self._request(
+            "POST",
+            "/api/v1/static-policies",
+            json_data=request.model_dump(exclude_none=True, by_alias=True),
+        )
+        return StaticPolicy.model_validate(response)
+
+    async def update_static_policy(
+        self,
+        policy_id: str,
+        request: UpdateStaticPolicyRequest,
+    ) -> StaticPolicy:
+        """Update an existing static policy.
+
+        Args:
+            policy_id: Policy ID
+            request: Fields to update
+
+        Returns:
+            The updated policy
+        """
+        if self._config.debug:
+            self._logger.debug("Updating static policy", policy_id=policy_id)
+
+        response = await self._request(
+            "PUT",
+            f"/api/v1/static-policies/{policy_id}",
+            json_data=request.model_dump(exclude_none=True, by_alias=True),
+        )
+        return StaticPolicy.model_validate(response)
+
+    async def delete_static_policy(self, policy_id: str) -> None:
+        """Delete a static policy.
+
+        Args:
+            policy_id: Policy ID
+        """
+        if self._config.debug:
+            self._logger.debug("Deleting static policy", policy_id=policy_id)
+
+        await self._request("DELETE", f"/api/v1/static-policies/{policy_id}")
+
+    async def toggle_static_policy(
+        self,
+        policy_id: str,
+        enabled: bool,
+    ) -> StaticPolicy:
+        """Toggle a static policy's enabled status.
+
+        Args:
+            policy_id: Policy ID
+            enabled: Whether the policy should be enabled
+
+        Returns:
+            The updated policy
+        """
+        if self._config.debug:
+            self._logger.debug("Toggling static policy", policy_id=policy_id, enabled=enabled)
+
+        response = await self._request(
+            "PATCH",
+            f"/api/v1/static-policies/{policy_id}",
+            json_data={"enabled": enabled},
+        )
+        return StaticPolicy.model_validate(response)
+
+    async def get_effective_static_policies(
+        self,
+        options: EffectivePoliciesOptions | None = None,
+    ) -> list[StaticPolicy]:
+        """Get effective static policies with tier inheritance applied.
+
+        Args:
+            options: Filtering options
+
+        Returns:
+            List of effective policies
+        """
+        query_params: list[str] = []
+        if options:
+            if options.category:
+                query_params.append(f"category={options.category.value}")
+            if options.include_disabled:
+                query_params.append("include_disabled=true")
+            if options.include_overridden:
+                query_params.append("include_overridden=true")
+
+        path = "/api/v1/static-policies/effective"
+        if query_params:
+            path = f"{path}?{'&'.join(query_params)}"
+
+        if self._config.debug:
+            self._logger.debug("Getting effective static policies", path=path)
+
+        response = await self._request("GET", path)
+        # Backend returns { static: [], dynamic: [], ... }, extract the static array
+        policies = response.get("static", []) if isinstance(response, dict) else response
+        return [StaticPolicy.model_validate(p) for p in policies]
+
+    async def test_pattern(
+        self,
+        pattern: str,
+        test_inputs: list[str],
+    ) -> TestPatternResult:
+        """Test a regex pattern against sample inputs.
+
+        Args:
+            pattern: Regex pattern to test
+            test_inputs: Array of strings to test against
+
+        Returns:
+            Test results showing matches
+
+        Example:
+            >>> result = await client.test_pattern(
+            ...     r"\\b\\d{3}-\\d{2}-\\d{4}\\b",
+            ...     ["SSN: 123-45-6789", "No SSN here"]
+            ... )
+        """
+        if self._config.debug:
+            self._logger.debug(
+                "Testing pattern",
+                pattern=pattern,
+                input_count=len(test_inputs),
+            )
+
+        response = await self._request(
+            "POST",
+            "/api/v1/static-policies/test",
+            json_data={"pattern": pattern, "inputs": test_inputs},
+        )
+        return TestPatternResult.model_validate(response)
+
+    async def get_static_policy_versions(
+        self,
+        policy_id: str,
+    ) -> list[PolicyVersion]:
+        """Get version history for a static policy.
+
+        Args:
+            policy_id: Policy ID
+
+        Returns:
+            Array of version history entries
+        """
+        if self._config.debug:
+            self._logger.debug("Getting static policy versions", policy_id=policy_id)
+
+        response = await self._request(
+            "GET",
+            f"/api/v1/static-policies/{policy_id}/versions",
+        )
+        versions = response.get("versions", [])
+        return [PolicyVersion.model_validate(v) for v in versions]
+
+    # =========================================================================
+    # Policy Override Methods (Enterprise)
+    # =========================================================================
+
+    async def create_policy_override(
+        self,
+        policy_id: str,
+        request: CreatePolicyOverrideRequest,
+    ) -> PolicyOverride:
+        """Create an override for a static policy.
+
+        Args:
+            policy_id: ID of the policy to override
+            request: Override configuration
+
+        Returns:
+            The created override
+
+        Example:
+            >>> override = await client.create_policy_override(
+            ...     "pol_123",
+            ...     CreatePolicyOverrideRequest(
+            ...         action=OverrideAction.WARN,
+            ...         reason="Temporarily relaxing for migration"
+            ...     )
+            ... )
+        """
+        if self._config.debug:
+            self._logger.debug(
+                "Creating policy override",
+                policy_id=policy_id,
+                action=request.action_override.value,
+            )
+
+        response = await self._request(
+            "POST",
+            f"/api/v1/static-policies/{policy_id}/override",
+            json_data=request.model_dump(mode="json", exclude_none=True, by_alias=True),
+        )
+        return PolicyOverride.model_validate(response)
+
+    async def delete_policy_override(self, policy_id: str) -> None:
+        """Delete an override for a static policy.
+
+        Args:
+            policy_id: ID of the policy whose override to delete
+        """
+        if self._config.debug:
+            self._logger.debug("Deleting policy override", policy_id=policy_id)
+
+        await self._request("DELETE", f"/api/v1/static-policies/{policy_id}/override")
+
+    async def list_policy_overrides(self) -> list[PolicyOverride]:
+        """List all active policy overrides (Enterprise).
+
+        Returns:
+            List of all active policy overrides
+
+        Example:
+            >>> overrides = await client.list_policy_overrides()
+            >>> for override in overrides:
+            ...     print(f"{override.policy_id}: {override.action_override}")
+        """
+        if self._config.debug:
+            self._logger.debug("Listing policy overrides")
+
+        response = await self._request("GET", "/api/v1/static-policies/overrides")
+        # Handle both array and wrapped response formats
+        # API may return list directly despite _request return type annotation
+        if isinstance(response, list):  # type: ignore[unreachable]
+            return [PolicyOverride.model_validate(item) for item in response]  # type: ignore[unreachable]
+        # Fallback for wrapped response: {"overrides": [...], "count": N}
+        overrides = response.get("overrides", [])
+        return [PolicyOverride.model_validate(item) for item in overrides]
+
+    # =========================================================================
+    # Dynamic Policy Methods
+    # =========================================================================
+
+    async def list_dynamic_policies(
+        self,
+        options: ListDynamicPoliciesOptions | None = None,
+    ) -> list[DynamicPolicy]:
+        """List all dynamic policies with optional filtering.
+
+        Args:
+            options: Filtering and pagination options
+
+        Returns:
+            List of dynamic policies
+        """
+        params: list[str] = []
+        if options:
+            if options.type:
+                params.append(f"type={options.type}")
+            if options.enabled is not None:
+                params.append(f"enabled={str(options.enabled).lower()}")
+            if options.limit:
+                params.append(f"limit={options.limit}")
+            if options.offset:
+                params.append(f"offset={options.offset}")
+            if options.sort_by:
+                params.append(f"sort_by={options.sort_by}")
+            if options.sort_order:
+                params.append(f"sort_order={options.sort_order}")
+            if options.search:
+                params.append(f"search={options.search}")
+
+        path = "/api/v1/dynamic-policies"
+        if params:
+            path = f"{path}?{'&'.join(params)}"
+
+        if self._config.debug:
+            self._logger.debug("Listing dynamic policies", path=path)
+
+        response = await self._orchestrator_request("GET", path)
+        policies = response.get("policies") if isinstance(response, dict) else response
+        return [DynamicPolicy.model_validate(p) for p in (policies or [])]
+
+    async def get_dynamic_policy(self, policy_id: str) -> DynamicPolicy:
+        """Get a specific dynamic policy by ID.
+
+        Args:
+            policy_id: Policy ID
+
+        Returns:
+            The dynamic policy
+        """
+        if self._config.debug:
+            self._logger.debug("Getting dynamic policy", policy_id=policy_id)
+
+        response = await self._orchestrator_request("GET", f"/api/v1/dynamic-policies/{policy_id}")
+        # Response may be wrapped in {"policy": {...}}
+        policy_data = response.get("policy", response) if isinstance(response, dict) else response
+        return DynamicPolicy.model_validate(policy_data)
+
+    async def create_dynamic_policy(
+        self,
+        request: CreateDynamicPolicyRequest,
+    ) -> DynamicPolicy:
+        """Create a new dynamic policy.
+
+        Args:
+            request: Policy creation request
+
+        Returns:
+            The created policy
+        """
+        if self._config.debug:
+            self._logger.debug("Creating dynamic policy", name=request.name)
+
+        response = await self._orchestrator_request(
+            "POST",
+            "/api/v1/dynamic-policies",
+            json_data=request.model_dump(exclude_none=True, by_alias=True),
+        )
+        # Response may be wrapped in {"policy": {...}}
+        policy_data = response.get("policy", response) if isinstance(response, dict) else response
+        return DynamicPolicy.model_validate(policy_data)
+
+    async def update_dynamic_policy(
+        self,
+        policy_id: str,
+        request: UpdateDynamicPolicyRequest,
+    ) -> DynamicPolicy:
+        """Update an existing dynamic policy.
+
+        Args:
+            policy_id: Policy ID
+            request: Fields to update
+
+        Returns:
+            The updated policy
+        """
+        if self._config.debug:
+            self._logger.debug("Updating dynamic policy", policy_id=policy_id)
+
+        response = await self._orchestrator_request(
+            "PUT",
+            f"/api/v1/dynamic-policies/{policy_id}",
+            json_data=request.model_dump(exclude_none=True, by_alias=True),
+        )
+        # Response may be wrapped in {"policy": {...}}
+        policy_data = response.get("policy", response) if isinstance(response, dict) else response
+        return DynamicPolicy.model_validate(policy_data)
+
+    async def delete_dynamic_policy(self, policy_id: str) -> None:
+        """Delete a dynamic policy.
+
+        Args:
+            policy_id: Policy ID
+        """
+        if self._config.debug:
+            self._logger.debug("Deleting dynamic policy", policy_id=policy_id)
+
+        await self._orchestrator_request("DELETE", f"/api/v1/dynamic-policies/{policy_id}")
+
+    async def toggle_dynamic_policy(
+        self,
+        policy_id: str,
+        enabled: bool,
+    ) -> DynamicPolicy:
+        """Toggle a dynamic policy's enabled status.
+
+        Args:
+            policy_id: Policy ID
+            enabled: Whether the policy should be enabled
+
+        Returns:
+            The updated policy
+        """
+        if self._config.debug:
+            self._logger.debug("Toggling dynamic policy", policy_id=policy_id, enabled=enabled)
+
+        response = await self._orchestrator_request(
+            "PUT",
+            f"/api/v1/dynamic-policies/{policy_id}",
+            json_data={"enabled": enabled},
+        )
+        # Response may be wrapped in {"policy": {...}}
+        policy_data = response.get("policy", response) if isinstance(response, dict) else response
+        return DynamicPolicy.model_validate(policy_data)
+
+    async def get_effective_dynamic_policies(
+        self,
+        options: EffectivePoliciesOptions | None = None,
+    ) -> list[DynamicPolicy]:
+        """Get effective dynamic policies with tier inheritance applied.
+
+        Args:
+            options: Filtering options
+
+        Returns:
+            List of effective dynamic policies
+        """
+        query_params: list[str] = []
+        if options:
+            if options.category:
+                query_params.append(f"category={options.category.value}")
+            if options.include_disabled:
+                query_params.append("include_disabled=true")
+
+        path = "/api/v1/dynamic-policies/effective"
+        if query_params:
+            path = f"{path}?{'&'.join(query_params)}"
+
+        if self._config.debug:
+            self._logger.debug("Getting effective dynamic policies", path=path)
+
+        response = await self._orchestrator_request("GET", path)
+        policies = response.get("policies") if isinstance(response, dict) else response
+        return [DynamicPolicy.model_validate(p) for p in (policies or [])]
+
+    # =========================================================================
+    # Code Governance Methods (Enterprise)
+    # =========================================================================
+
+    async def validate_git_provider(
+        self,
+        request: ValidateGitProviderRequest,
+    ) -> ValidateGitProviderResponse:
+        """Validate Git provider credentials before configuration.
+
+        Use this to verify tokens and connectivity before saving.
+
+        Args:
+            request: Validation request with provider type and credentials
+
+        Returns:
+            Validation result indicating if credentials are valid
+
+        Example:
+            >>> result = await client.validate_git_provider(
+            ...     ValidateGitProviderRequest(
+            ...         type=GitProviderType.GITHUB,
+            ...         token="ghp_xxxxxxxxxxxx"
+            ...     )
+            ... )
+            >>> if result.valid:
+            ...     print("Credentials are valid")
+        """
+        if self._config.debug:
+            self._logger.debug("Validating Git provider", provider_type=request.type.value)
+
+        response = await self._portal_request(
+            "POST",
+            "/api/v1/code-governance/git-providers/validate",
+            json_data=request.model_dump(exclude_none=True, by_alias=True),
+        )
+        return ValidateGitProviderResponse.model_validate(response)
+
+    async def configure_git_provider(
+        self,
+        request: ConfigureGitProviderRequest,
+    ) -> ConfigureGitProviderResponse:
+        """Configure a Git provider for code governance.
+
+        Supports GitHub, GitLab, and Bitbucket (cloud and self-hosted).
+
+        Args:
+            request: Configuration request with provider type and credentials
+
+        Returns:
+            Configuration result
+
+        Example:
+            >>> # Configure GitHub with PAT
+            >>> await client.configure_git_provider(
+            ...     ConfigureGitProviderRequest(
+            ...         type=GitProviderType.GITHUB,
+            ...         token="ghp_xxxxxxxxxxxx"
+            ...     )
+            ... )
+            >>> # Configure GitLab self-hosted
+            >>> await client.configure_git_provider(
+            ...     ConfigureGitProviderRequest(
+            ...         type=GitProviderType.GITLAB,
+            ...         token="glpat-xxxxxxxxxxxx",
+            ...         base_url="https://gitlab.mycompany.com"
+            ...     )
+            ... )
+        """
+        if self._config.debug:
+            self._logger.debug("Configuring Git provider", provider_type=request.type.value)
+
+        response = await self._portal_request(
+            "POST",
+            "/api/v1/code-governance/git-providers",
+            json_data=request.model_dump(exclude_none=True, by_alias=True),
+        )
+        return ConfigureGitProviderResponse.model_validate(response)
+
+    async def list_git_providers(self) -> ListGitProvidersResponse:
+        """List all configured Git providers for the tenant.
+
+        Returns:
+            List of configured providers
+
+        Example:
+            >>> result = await client.list_git_providers()
+            >>> for provider in result.providers:
+            ...     print(f"  - {provider.type.value}")
+        """
+        if self._config.debug:
+            self._logger.debug("Listing Git providers")
+
+        response = await self._portal_request("GET", "/api/v1/code-governance/git-providers")
+        return ListGitProvidersResponse.model_validate(response)
+
+    async def delete_git_provider(self, provider_type: GitProviderType) -> None:
+        """Delete a configured Git provider.
+
+        Args:
+            provider_type: Provider type to delete
+        """
+        if self._config.debug:
+            self._logger.debug("Deleting Git provider", provider_type=provider_type.value)
+
+        path = f"/api/v1/code-governance/git-providers/{provider_type.value}"
+        await self._portal_request("DELETE", path)
+
+    async def create_pr(self, request: CreatePRRequest) -> CreatePRResponse:
+        """Create a Pull Request from LLM-generated code.
+
+        This creates a PR with full audit trail linking back to the AI request.
+
+        Args:
+            request: PR creation request with repository info and files
+
+        Returns:
+            Created PR details including URL and number
+
+        Example:
+            >>> pr = await client.create_pr(
+            ...     CreatePRRequest(
+            ...         owner="myorg",
+            ...         repo="myrepo",
+            ...         title="feat: add user validation utilities",
+            ...         files=[
+            ...             CodeFile(
+            ...                 path="src/utils/validation.py",
+            ...                 content=generated_code,
+            ...                 language="python",
+            ...                 action=FileAction.CREATE
+            ...             )
+            ...         ],
+            ...         agent_request_id="req_123",
+            ...         model="gpt-4"
+            ...     )
+            ... )
+            >>> print(f"PR created: {pr.pr_url}")
+        """
+        if self._config.debug:
+            self._logger.debug(
+                "Creating PR",
+                owner=request.owner,
+                repo=request.repo,
+                title=request.title,
+            )
+
+        response = await self._portal_request(
+            "POST",
+            "/api/v1/code-governance/prs",
+            json_data=request.model_dump(exclude_none=True, by_alias=True),
+        )
+        return CreatePRResponse.model_validate(response)
+
+    async def list_prs(
+        self,
+        options: ListPRsOptions | None = None,
+    ) -> ListPRsResponse:
+        """List Pull Requests created through code governance.
+
+        Args:
+            options: Filtering and pagination options
+
+        Returns:
+            List of PR records
+
+        Example:
+            >>> result = await client.list_prs(ListPRsOptions(state="open", limit=10))
+            >>> for pr in result.prs:
+            ...     print(f"#{pr.pr_number}: {pr.title}")
+        """
+        params: list[str] = []
+        if options:
+            if options.limit:
+                params.append(f"limit={options.limit}")
+            if options.offset:
+                params.append(f"offset={options.offset}")
+            if options.state:
+                params.append(f"state={options.state}")
+
+        path = "/api/v1/code-governance/prs"
+        if params:
+            path = f"{path}?{'&'.join(params)}"
+
+        if self._config.debug:
+            self._logger.debug("Listing PRs", path=path)
+
+        response = await self._portal_request("GET", path)
+        return ListPRsResponse.model_validate(response)
+
+    async def get_pr(self, pr_id: str) -> PRRecord:
+        """Get a specific PR record by ID.
+
+        Args:
+            pr_id: PR record ID (internal ID, not GitHub PR number)
+
+        Returns:
+            PR record details
+        """
+        if self._config.debug:
+            self._logger.debug("Getting PR", pr_id=pr_id)
+
+        response = await self._portal_request("GET", f"/api/v1/code-governance/prs/{pr_id}")
+        return PRRecord.model_validate(response)
+
+    async def sync_pr_status(self, pr_id: str) -> PRRecord:
+        """Sync PR status with the Git provider.
+
+        This updates the local record with the current state from
+        GitHub/GitLab/Bitbucket.
+
+        Args:
+            pr_id: PR record ID
+
+        Returns:
+            Updated PR record
+        """
+        if self._config.debug:
+            self._logger.debug("Syncing PR status", pr_id=pr_id)
+
+        response = await self._portal_request("POST", f"/api/v1/code-governance/prs/{pr_id}/sync")
+        return PRRecord.model_validate(response)
+
+    async def close_pr(self, pr_id: str, delete_branch: bool = True) -> PRRecord:
+        """Close a PR without merging and optionally delete the branch.
+
+        This is an enterprise feature for cleaning up test/demo PRs.
+        Supports all Git providers: GitHub, GitLab, Bitbucket.
+
+        Args:
+            pr_id: PR record ID
+            delete_branch: Whether to delete the source branch (default: True)
+
+        Returns:
+            Closed PR record
+        """
+        if self._config.debug:
+            self._logger.debug("Closing PR", pr_id=pr_id, delete_branch=delete_branch)
+
+        path = f"/api/v1/code-governance/prs/{pr_id}"
+        if delete_branch:
+            path += "?delete_branch=true"
+
+        response = await self._portal_request("DELETE", path)
+        return PRRecord.model_validate(response)
+
+    # =========================================================================
+    # Code Governance Metrics and Export
+    # =========================================================================
+
+    async def get_code_governance_metrics(self) -> CodeGovernanceMetrics:
+        """Get aggregated code governance metrics.
+
+        Returns PR counts, file totals, and security findings for
+        the tenant.
+
+        Returns:
+            CodeGovernanceMetrics: Aggregated metrics
+
+        Example:
+            >>> metrics = await client.get_code_governance_metrics()
+            >>> print(f"Total PRs: {metrics.total_prs}")
+            >>> print(f"Secrets found: {metrics.total_secrets_detected}")
+        """
+        if self._config.debug:
+            self._logger.debug("Getting code governance metrics")
+
+        response = await self._portal_request("GET", "/api/v1/code-governance/metrics")
+        return CodeGovernanceMetrics.model_validate(response)
+
+    async def export_code_governance_data(
+        self,
+        options: ExportOptions | None = None,
+    ) -> ExportResponse:
+        """Export code governance data for compliance reporting.
+
+        Supports JSON format with optional date filtering.
+
+        Args:
+            options: Export options (date filters, state filter)
+
+        Returns:
+            ExportResponse: Exported PR records
+
+        Example:
+            >>> # Export all data
+            >>> result = await client.export_code_governance_data()
+            >>> print(f"Exported {result.count} records")
+            >>>
+            >>> # Export with filters
+            >>> from datetime import datetime
+            >>> from axonflow import ExportOptions
+            >>> result = await client.export_code_governance_data(ExportOptions(
+            ...     start_date=datetime(2024, 1, 1),
+            ...     state="merged"
+            ... ))
+        """
+        query_params: list[str] = ["format=json"]
+
+        if options:
+            if options.start_date:
+                query_params.append(f"start_date={options.start_date.isoformat()}")
+            if options.end_date:
+                query_params.append(f"end_date={options.end_date.isoformat()}")
+            if options.state:
+                query_params.append(f"state={options.state}")
+
+        path = f"/api/v1/code-governance/export?{'&'.join(query_params)}"
+
+        if self._config.debug:
+            self._logger.debug("Exporting code governance data", path=path)
+
+        response = await self._portal_request("GET", path)
+        return ExportResponse.model_validate(response)
+
+    async def export_code_governance_data_csv(
+        self,
+        options: ExportOptions | None = None,
+    ) -> str:
+        """Export code governance data as CSV for compliance reporting.
+
+        Returns raw CSV data suitable for saving to file or streaming.
+
+        Args:
+            options: Export options (date filters, state filter)
+
+        Returns:
+            str: CSV formatted data
+
+        Example:
+            >>> csv_data = await client.export_code_governance_data_csv()
+            >>> with open("pr-audit.csv", "w") as f:
+            ...     f.write(csv_data)
+        """
+        query_params: list[str] = ["format=csv"]
+
+        if options:
+            if options.start_date:
+                query_params.append(f"start_date={options.start_date.isoformat()}")
+            if options.end_date:
+                query_params.append(f"end_date={options.end_date.isoformat()}")
+            if options.state:
+                query_params.append(f"state={options.state}")
+
+        path = f"/api/v1/code-governance/export?{'&'.join(query_params)}"
+
+        if self._config.debug:
+            self._logger.debug("Exporting code governance data as CSV", path=path)
+
+        return await self._portal_request_text("GET", path)
+
+    # =========================================================================
+    # Execution Replay Methods
+    # =========================================================================
+
+    def _get_orchestrator_url(self) -> str:
+        """Get orchestrator URL.
+
+        Note: As of v1.0.0 (ADR-026 Single Entry Point), all routes go through
+        the single endpoint. This method now returns the endpoint directly.
+        """
+        return self._config.endpoint
+
+    def _get_portal_url(self) -> str:
+        """Get portal URL.
+
+        Note: As of v1.0.0 (ADR-026 Single Entry Point), all routes go through
+        the single endpoint. This method now returns the endpoint directly.
+        """
+        return self._config.endpoint
+
+    async def login_to_portal(self, org_id: str, password: str) -> dict[str, Any]:
+        """Login to Customer Portal and store session cookie.
+
+        Required before using Code Governance methods.
+
+        Args:
+            org_id: Organization ID
+            password: Organization password
+
+        Returns:
+            Login response with session info
+
+        Example:
+            >>> login = await client.login_to_portal("test-org-001", "test123")
+            >>> print(f"Logged in as {login['name']}")
+        """
+        base_url = self._get_portal_url()
+        url = f"{base_url}/api/v1/auth/login"
+
+        try:
+            response = await self._http_client.post(
+                url,
+                json={"org_id": org_id, "password": password},
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            msg = f"Login failed: HTTP {e.response.status_code}: {e.response.text}"
+            raise AuthenticationError(msg) from e
+        except httpx.ConnectError as e:
+            msg = f"Failed to connect to Customer Portal: {e}"
+            raise ConnectionError(msg) from e
+
+        result: dict[str, Any] = response.json()
+
+        # Extract session cookie
+        for cookie in response.cookies.jar:
+            if cookie.name == "axonflow_session":
+                self._session_cookie = cookie.value
+                break
+
+        # Fallback to session_id in response body
+        if not self._session_cookie and "session_id" in result:
+            self._session_cookie = result["session_id"]
+
+        if self._config.debug:
+            self._logger.info("Portal login successful", org_id=org_id)
+
+        return result
+
+    async def logout_from_portal(self) -> None:
+        """Logout from Customer Portal and clear session cookie."""
+        if not self._session_cookie:
+            return
+
+        base_url = self._get_portal_url()
+        url = f"{base_url}/api/v1/auth/logout"
+
+        with contextlib.suppress(httpx.HTTPError):
+            await self._http_client.post(
+                url,
+                cookies={"axonflow_session": self._session_cookie},
+            )
+
+        self._session_cookie = None
+
+        if self._config.debug:
+            self._logger.info("Portal logout successful")
+
+    def is_logged_in(self) -> bool:
+        """Check if logged in to Customer Portal."""
+        return self._session_cookie is not None
+
+    async def _portal_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | list[Any] | None:
+        """Make HTTP request to Customer Portal (for enterprise features).
+
+        Requires prior authentication via login_to_portal().
+        """
+        if not self._session_cookie:
+            msg = "Not logged in to Customer Portal. Call login_to_portal() first."
+            raise AuthenticationError(msg)
+
+        base_url = self._get_portal_url()
+        url = f"{base_url}{path}"
+
+        try:
+            if self._config.debug:
+                self._logger.debug("Portal request", method=method, path=path)
+
+            response = await self._http_client.request(
+                method,
+                url,
+                json=json_data,
+                cookies={"axonflow_session": self._session_cookie},
+            )
+            response.raise_for_status()
+            if response.status_code == 204:  # noqa: PLR2004
+                return None
+            result: dict[str, Any] | list[Any] = response.json()
+            return result  # noqa: TRY300
+
+        except httpx.ConnectError as e:
+            msg = f"Failed to connect to Customer Portal: {e}"
+            raise ConnectionError(msg) from e
+        except httpx.TimeoutException as e:
+            msg = f"Request timed out: {e}"
+            raise TimeoutError(msg) from e
+        except httpx.HTTPStatusError as e:
+            msg = f"HTTP {e.response.status_code}: {e.response.text}"
+            raise AxonFlowError(msg) from e
+
+    async def _portal_request_text(
+        self,
+        method: str,
+        path: str,
+    ) -> str:
+        """Make HTTP request to Customer Portal and return raw text response.
+
+        Used for CSV exports and other non-JSON responses.
+        Requires prior authentication via login_to_portal().
+        """
+        if not self._session_cookie:
+            msg = "Not logged in to Customer Portal. Call login_to_portal() first."
+            raise AuthenticationError(msg)
+
+        base_url = self._get_portal_url()
+        url = f"{base_url}{path}"
+
+        if self._config.debug:
+            self._logger.debug("Portal request (text)", method=method, path=path)
+
+        try:
+            response = await self._http_client.request(
+                method,
+                url,
+                cookies={"axonflow_session": self._session_cookie},
+            )
+            response.raise_for_status()
+        except httpx.ConnectError as e:
+            msg = f"Failed to connect to Customer Portal: {e}"
+            raise ConnectionError(msg) from e
+        except httpx.TimeoutException as e:
+            msg = f"Request timed out: {e}"
+            raise TimeoutError(msg) from e
+        except httpx.HTTPStatusError as e:
+            msg = f"HTTP {e.response.status_code}: {e.response.text}"
+            raise AxonFlowError(msg) from e
+
+        return response.text
+
+    async def _orchestrator_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | list[Any] | None:
+        """Make HTTP request to Orchestrator."""
+        base_url = self._get_orchestrator_url()
+        url = f"{base_url}{path}"
+
+        try:
+            response = await self._http_client.request(method, url, json=json_data)
+            response.raise_for_status()
+            if response.status_code == 204:  # noqa: PLR2004
+                return None
+            result: dict[str, Any] | list[Any] = response.json()
+            return result  # noqa: TRY300
+
+        except httpx.ConnectError as e:
+            msg = f"Failed to connect to Orchestrator: {e}"
+            raise ConnectionError(msg) from e
+        except httpx.TimeoutException as e:
+            msg = f"Request timed out: {e}"
+            raise TimeoutError(msg) from e
+        except httpx.HTTPStatusError as e:
+            msg = f"HTTP {e.response.status_code}: {e.response.text}"
+            raise AxonFlowError(msg) from e
+
+    async def list_executions(
+        self,
+        options: ListExecutionsOptions | None = None,
+    ) -> ListExecutionsResponse:
+        """List workflow executions with optional filtering.
+
+        Args:
+            options: Filtering and pagination options
+
+        Returns:
+            ListExecutionsResponse with executions and pagination info
+
+        Example:
+            >>> result = await client.list_executions(
+            ...     ListExecutionsOptions(status="completed", limit=10)
+            ... )
+            >>> for exec in result.executions:
+            ...     print(f"{exec.request_id}: {exec.status}")
+        """
+        params: list[str] = []
+        if options:
+            if options.limit:
+                params.append(f"limit={options.limit}")
+            if options.offset:
+                params.append(f"offset={options.offset}")
+            if options.status:
+                params.append(f"status={options.status}")
+            if options.workflow_id:
+                params.append(f"workflow_id={options.workflow_id}")
+            if options.start_time:
+                params.append(f"start_time={options.start_time.isoformat()}")
+            if options.end_time:
+                params.append(f"end_time={options.end_time.isoformat()}")
+
+        path = "/api/v1/executions"
+        if params:
+            path = f"{path}?{'&'.join(params)}"
+
+        if self._config.debug:
+            self._logger.debug("Listing executions", path=path)
+
+        response = await self._orchestrator_request("GET", path)
+        return ListExecutionsResponse.model_validate(response)
+
+    async def get_execution(self, execution_id: str) -> ExecutionDetail:
+        """Get a complete execution record including summary and all steps.
+
+        Args:
+            execution_id: Execution/request ID
+
+        Returns:
+            ExecutionDetail with summary and steps
+
+        Example:
+            >>> execution = await client.get_execution("exec-abc123")
+            >>> print(f"Status: {execution.summary.status}")
+            >>> for step in execution.steps:
+            ...     print(f"  Step {step.step_index}: {step.step_name}")
+        """
+        if self._config.debug:
+            self._logger.debug("Getting execution", execution_id=execution_id)
+
+        response = await self._orchestrator_request("GET", f"/api/v1/executions/{execution_id}")
+        return ExecutionDetail.model_validate(response)
+
+    async def get_execution_steps(self, execution_id: str) -> list[ExecutionSnapshot]:
+        """Get all step snapshots for an execution.
+
+        Args:
+            execution_id: Execution/request ID
+
+        Returns:
+            List of step snapshots
+
+        Example:
+            >>> steps = await client.get_execution_steps("exec-abc123")
+            >>> for step in steps:
+            ...     print(f"Step {step.step_index}: {step.status}")
+        """
+        if self._config.debug:
+            self._logger.debug("Getting execution steps", execution_id=execution_id)
+
+        path = f"/api/v1/executions/{execution_id}/steps"
+        response = await self._orchestrator_request("GET", path)
+        if response is None:
+            return []
+        return [ExecutionSnapshot.model_validate(s) for s in response]
+
+    async def get_execution_timeline(self, execution_id: str) -> list[TimelineEntry]:
+        """Get timeline view of execution for visualization.
+
+        Args:
+            execution_id: Execution/request ID
+
+        Returns:
+            List of timeline entries
+
+        Example:
+            >>> timeline = await client.get_execution_timeline("exec-abc123")
+            >>> for entry in timeline:
+            ...     status = f" [ERROR]" if entry.has_error else ""
+            ...     print(f"[{entry.step_index}] {entry.step_name}: {entry.status}{status}")
+        """
+        if self._config.debug:
+            self._logger.debug("Getting execution timeline", execution_id=execution_id)
+
+        path = f"/api/v1/executions/{execution_id}/timeline"
+        response = await self._orchestrator_request("GET", path)
+        if response is None:
+            return []
+        return [TimelineEntry.model_validate(e) for e in response]
+
+    async def export_execution(
+        self,
+        execution_id: str,
+        options: ExecutionExportOptions | None = None,
+    ) -> dict[str, Any]:
+        """Export a complete execution record for compliance or archival.
+
+        Args:
+            execution_id: Execution/request ID
+            options: Export options (format, what to include)
+
+        Returns:
+            Exported execution data
+
+        Example:
+            >>> export = await client.export_execution(
+            ...     "exec-abc123",
+            ...     ExecutionExportOptions(include_input=True, include_output=True)
+            ... )
+            >>> import json
+            >>> with open("audit-export.json", "w") as f:
+            ...     json.dump(export, f, indent=2)
+        """
+        params: list[str] = []
+        if options:
+            if options.format:
+                params.append(f"format={options.format}")
+            if options.include_input:
+                params.append("include_input=true")
+            if options.include_output:
+                params.append("include_output=true")
+            if options.include_policies:
+                params.append("include_policies=true")
+
+        path = f"/api/v1/executions/{execution_id}/export"
+        if params:
+            path = f"{path}?{'&'.join(params)}"
+
+        if self._config.debug:
+            self._logger.debug("Exporting execution", execution_id=execution_id)
+
+        return await self._orchestrator_request("GET", path)  # type: ignore[return-value]
+
+    async def delete_execution(self, execution_id: str) -> None:
+        """Delete an execution and all associated step snapshots.
+
+        Args:
+            execution_id: Execution/request ID
+
+        Example:
+            >>> await client.delete_execution("exec-abc123")
+        """
+        if self._config.debug:
+            self._logger.debug("Deleting execution", execution_id=execution_id)
+
+        await self._orchestrator_request("DELETE", f"/api/v1/executions/{execution_id}")
+
+    # ========================================
+    # COST CONTROLS - BUDGETS
+    # ========================================
+
+    async def create_budget(self, request: CreateBudgetRequest) -> Budget:
+        """Create a new budget.
+
+        Args:
+            request: Budget creation request
+
+        Returns:
+            The created budget
+
+        Example:
+            >>> budget = await client.create_budget(CreateBudgetRequest(
+            ...     id="my-budget",
+            ...     name="Monthly Budget",
+            ...     scope=BudgetScope.ORGANIZATION,
+            ...     limit_usd=100.0,
+            ...     period=BudgetPeriod.MONTHLY,
+            ...     on_exceed=BudgetOnExceed.WARN,
+            ...     alert_thresholds=[50, 80, 100]
+            ... ))
+        """
+
+        response = await self._orchestrator_request(
+            "POST", "/api/v1/budgets", json_data=request.model_dump(exclude_none=True)
+        )
+        return Budget.model_validate(response)
+
+    async def get_budget(self, budget_id: str) -> Budget:
+        """Get a budget by ID.
+
+        Args:
+            budget_id: Budget ID
+
+        Returns:
+            The budget
+        """
+
+        response = await self._orchestrator_request("GET", f"/api/v1/budgets/{budget_id}")
+        return Budget.model_validate(response)
+
+    async def list_budgets(self, options: ListBudgetsOptions | None = None) -> BudgetsResponse:
+        """List all budgets.
+
+        Args:
+            options: Filtering and pagination options
+
+        Returns:
+            List of budgets
+        """
+
+        params: list[str] = []
+        if options:
+            if options.scope:
+                params.append(f"scope={options.scope.value}")
+            if options.limit:
+                params.append(f"limit={options.limit}")
+            if options.offset:
+                params.append(f"offset={options.offset}")
+
+        path = "/api/v1/budgets"
+        if params:
+            path = f"{path}?{'&'.join(params)}"
+
+        response = await self._orchestrator_request("GET", path)
+        return BudgetsResponse.model_validate(response)
+
+    async def update_budget(self, budget_id: str, request: UpdateBudgetRequest) -> Budget:
+        """Update an existing budget.
+
+        Args:
+            budget_id: Budget ID
+            request: Update request
+
+        Returns:
+            The updated budget
+        """
+
+        response = await self._orchestrator_request(
+            "PUT",
+            f"/api/v1/budgets/{budget_id}",
+            json_data=request.model_dump(exclude_none=True),
+        )
+        return Budget.model_validate(response)
+
+    async def delete_budget(self, budget_id: str) -> None:
+        """Delete a budget.
+
+        Args:
+            budget_id: Budget ID
+        """
+        await self._orchestrator_request("DELETE", f"/api/v1/budgets/{budget_id}")
+
+    # ========================================
+    # COST CONTROLS - BUDGET STATUS & ALERTS
+    # ========================================
+
+    async def get_budget_status(self, budget_id: str) -> BudgetStatus:
+        """Get the current status of a budget.
+
+        Args:
+            budget_id: Budget ID
+
+        Returns:
+            Budget status including usage and remaining amount
+        """
+
+        response = await self._orchestrator_request("GET", f"/api/v1/budgets/{budget_id}/status")
+        return BudgetStatus.model_validate(response)
+
+    async def get_budget_alerts(self, budget_id: str) -> BudgetAlertsResponse:
+        """Get alerts for a budget.
+
+        Args:
+            budget_id: Budget ID
+
+        Returns:
+            Budget alerts
+        """
+
+        response = await self._orchestrator_request("GET", f"/api/v1/budgets/{budget_id}/alerts")
+        return BudgetAlertsResponse.model_validate(response)
+
+    async def check_budget(self, request: BudgetCheckRequest) -> BudgetDecision:
+        """Perform a pre-flight budget check.
+
+        Args:
+            request: Check request with scope IDs
+
+        Returns:
+            Budget decision
+        """
+
+        response = await self._orchestrator_request(
+            "POST", "/api/v1/budgets/check", json_data=request.model_dump(exclude_none=True)
+        )
+        return BudgetDecision.model_validate(response)
+
+    # ========================================
+    # COST CONTROLS - USAGE
+    # ========================================
+
+    async def get_usage_summary(self, period: str | None = None) -> UsageSummary:
+        """Get usage summary for a period.
+
+        Args:
+            period: Period (daily, weekly, monthly, quarterly, yearly)
+
+        Returns:
+            Usage summary
+        """
+
+        path = "/api/v1/usage"
+        if period:
+            path = f"{path}?period={period}"
+
+        response = await self._orchestrator_request("GET", path)
+        return UsageSummary.model_validate(response)
+
+    async def get_usage_breakdown(self, group_by: str, period: str | None = None) -> UsageBreakdown:
+        """Get usage breakdown by a grouping dimension.
+
+        Args:
+            group_by: Dimension to group by (provider, model, agent, team, workflow)
+            period: Period (daily, weekly, monthly, quarterly, yearly)
+
+        Returns:
+            Usage breakdown
+        """
+
+        params: list[str] = [f"group_by={group_by}"]
+        if period:
+            params.append(f"period={period}")
+
+        path = f"/api/v1/usage/breakdown?{'&'.join(params)}"
+        response = await self._orchestrator_request("GET", path)
+        return UsageBreakdown.model_validate(response)
+
+    async def list_usage_records(
+        self, options: ListUsageRecordsOptions | None = None
+    ) -> UsageRecordsResponse:
+        """List usage records.
+
+        Args:
+            options: Filtering and pagination options
+
+        Returns:
+            List of usage records
+        """
+
+        params: list[str] = []
+        if options:
+            if options.limit:
+                params.append(f"limit={options.limit}")
+            if options.offset:
+                params.append(f"offset={options.offset}")
+            if options.provider:
+                params.append(f"provider={options.provider}")
+            if options.model:
+                params.append(f"model={options.model}")
+
+        path = "/api/v1/usage/records"
+        if params:
+            path = f"{path}?{'&'.join(params)}"
+
+        response = await self._orchestrator_request("GET", path)
+        return UsageRecordsResponse.model_validate(response)
+
+    # ========================================
+    # COST CONTROLS - PRICING
+    # ========================================
+
+    async def get_pricing(
+        self, provider: str | None = None, model: str | None = None
+    ) -> PricingListResponse:
+        """Get pricing information for models.
+
+        Args:
+            provider: Filter by provider (optional)
+            model: Filter by model (optional)
+
+        Returns:
+            Pricing information
+        """
+
+        params: list[str] = []
+        if provider:
+            params.append(f"provider={provider}")
+        if model:
+            params.append(f"model={model}")
+
+        path = "/api/v1/pricing"
+        if params:
+            path = f"{path}?{'&'.join(params)}"
+
+        response = await self._orchestrator_request("GET", path)
+
+        # Handle single object vs array response
+        if isinstance(response, dict) and "provider" in response:
+            # Single object response - wrap in list
+            return PricingListResponse(pricing=[PricingInfo.model_validate(response)])
+        return PricingListResponse.model_validate(response)
+
+
+class SyncAxonFlow:
+    """Synchronous wrapper for AxonFlow client.
+
+    Wraps all async methods for synchronous usage.
+    """
+
+    __slots__ = ("_async_client", "_loop", "_owns_loop")
+
+    def __init__(self, async_client: AxonFlow) -> None:
+        self._async_client = async_client
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._owns_loop: bool = False
+
+    def _get_loop(self) -> asyncio.AbstractEventLoop:
+        """Get or create event loop for synchronous execution."""
+        if self._loop is None or self._loop.is_closed():
+            try:
+                self._loop = asyncio.get_event_loop()
+                if self._loop.is_running():
+                    # Loop exists but is running, create our own
+                    self._loop = asyncio.new_event_loop()
+                    self._owns_loop = True
+            except RuntimeError:
+                self._loop = asyncio.new_event_loop()
+                self._owns_loop = True
+        return self._loop
+
+    def _run_sync(self, coro: Coroutine[Any, Any, T]) -> T:
+        """Run a coroutine synchronously, handling nested event loops."""
+        # Check if there's a running loop in the current thread
+        try:
+            asyncio.get_running_loop()
+            # We're inside an async context - run in a thread pool
+            # This avoids "This event loop is already running" errors
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(asyncio.run, coro)
+                return future.result()
+        except RuntimeError:
+            # No running loop - safe to use run_until_complete
+            return self._get_loop().run_until_complete(coro)
+
+    def __enter__(self) -> SyncAxonFlow:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Close the client and clean up resources."""
+        self._run_sync(self._async_client.close())
+        # Close the event loop if we created it
+        if self._owns_loop and self._loop is not None and not self._loop.is_closed():
+            self._loop.close()
+            self._loop = None
+
+    @property
+    def config(self) -> AxonFlowConfig:
+        """Get client configuration."""
+        return self._async_client.config
+
+    def health_check(self) -> bool:
+        """Check if AxonFlow Agent is healthy."""
+        return self._run_sync(self._async_client.health_check())
+
+    def orchestrator_health_check(self) -> bool:
+        """Check if AxonFlow Orchestrator is healthy."""
+        return self._run_sync(self._async_client.orchestrator_health_check())
+
+    def execute_query(
+        self,
+        user_token: str,
+        query: str,
+        request_type: str,
+        context: dict[str, Any] | None = None,
+    ) -> ClientResponse:
+        """Execute a query through AxonFlow.
+
+        If user_token is empty, defaults to "anonymous" for audit purposes.
+        """
+        return self._run_sync(
+            self._async_client.execute_query(user_token, query, request_type, context)
+        )
+
+    def list_connectors(self) -> list[ConnectorMetadata]:
+        """List all available MCP connectors."""
+        return self._run_sync(self._async_client.list_connectors())
+
+    def install_connector(self, request: ConnectorInstallRequest) -> None:
+        """Install an MCP connector."""
+        return self._run_sync(self._async_client.install_connector(request))
+
+    def uninstall_connector(self, connector_name: str) -> None:
+        """Uninstall an MCP connector."""
+        return self._run_sync(self._async_client.uninstall_connector(connector_name))
+
+    def get_connector(self, connector_id: str) -> ConnectorMetadata:
+        """Get details for a specific connector."""
+        return self._run_sync(self._async_client.get_connector(connector_id))
+
+    def get_connector_health(self, connector_id: str) -> ConnectorHealthStatus:
+        """Get health status of an installed connector."""
+        return self._run_sync(self._async_client.get_connector_health(connector_id))
+
+    def query_connector(
+        self,
+        user_token: str,
+        connector_name: str,
+        operation: str,
+        params: dict[str, Any] | None = None,
+    ) -> ConnectorResponse:
+        """Query an MCP connector directly."""
+        return self._run_sync(
+            self._async_client.query_connector(user_token, connector_name, operation, params)
+        )
+
+    def mcp_query(
+        self,
+        connector: str,
+        statement: str,
+        options: dict[str, Any] | None = None,
+    ) -> ConnectorResponse:
+        """Execute a query directly against the MCP connector endpoint.
+
+        This method calls the agent's /mcp/resources/query endpoint which provides:
+        - Request-phase policy evaluation (SQLi blocking, PII blocking)
+        - Response-phase policy evaluation (PII redaction)
+        - PolicyInfo metadata in responses
+        """
+        return self._run_sync(self._async_client.mcp_query(connector, statement, options))
+
+    def mcp_execute(
+        self,
+        connector: str,
+        statement: str,
+        options: dict[str, Any] | None = None,
+    ) -> ConnectorResponse:
+        """Execute a statement against an MCP connector (alias for mcp_query)."""
+        return self._run_sync(self._async_client.mcp_execute(connector, statement, options))
+
+    def generate_plan(
+        self,
+        query: str,
+        domain: str | None = None,
+        user_token: str | None = None,
+    ) -> PlanResponse:
+        """Generate a multi-agent execution plan."""
+        return self._run_sync(self._async_client.generate_plan(query, domain, user_token))
+
+    def execute_plan(
+        self,
+        plan_id: str,
+        user_token: str | None = None,
+    ) -> PlanExecutionResponse:
+        """Execute a previously generated plan."""
+        return self._run_sync(self._async_client.execute_plan(plan_id, user_token))
+
+    def get_plan_status(self, plan_id: str) -> PlanExecutionResponse:
+        """Get status of a running or completed plan."""
+        return self._run_sync(self._async_client.get_plan_status(plan_id))
+
+    # Gateway Mode sync wrappers
+
+    def get_policy_approved_context(
+        self,
+        user_token: str,
+        query: str,
+        data_sources: list[str] | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> PolicyApprovalResult:
+        """Perform policy pre-check before making LLM call."""
+        return self._run_sync(
+            self._async_client.get_policy_approved_context(user_token, query, data_sources, context)
+        )
+
+    def pre_check(
+        self,
+        user_token: str,
+        query: str,
+        data_sources: list[str] | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> PolicyApprovalResult:
+        """Alias for get_policy_approved_context().
+
+        Perform policy pre-check before making LLM call.
+        """
+        return self._run_sync(
+            self._async_client.pre_check(user_token, query, data_sources, context)
+        )
+
+    def audit_llm_call(
+        self,
+        context_id: str,
+        response_summary: str,
+        provider: str,
+        model: str,
+        token_usage: TokenUsage,
+        latency_ms: int,
+        metadata: dict[str, Any] | None = None,
+    ) -> AuditResult:
+        """Report LLM call details for audit logging."""
+        return self._run_sync(
+            self._async_client.audit_llm_call(
+                context_id, response_summary, provider, model, token_usage, latency_ms, metadata
+            )
+        )
+
+    # Policy CRUD sync wrappers
+
+    def list_static_policies(
+        self,
+        options: ListStaticPoliciesOptions | None = None,
+    ) -> list[StaticPolicy]:
+        """List all static policies with optional filtering."""
+        return self._run_sync(self._async_client.list_static_policies(options))
+
+    def get_static_policy(self, policy_id: str) -> StaticPolicy:
+        """Get a specific static policy by ID."""
+        return self._run_sync(self._async_client.get_static_policy(policy_id))
+
+    def create_static_policy(
+        self,
+        request: CreateStaticPolicyRequest,
+    ) -> StaticPolicy:
+        """Create a new static policy."""
+        return self._run_sync(self._async_client.create_static_policy(request))
+
+    def update_static_policy(
+        self,
+        policy_id: str,
+        request: UpdateStaticPolicyRequest,
+    ) -> StaticPolicy:
+        """Update an existing static policy."""
+        return self._run_sync(self._async_client.update_static_policy(policy_id, request))
+
+    def delete_static_policy(self, policy_id: str) -> None:
+        """Delete a static policy."""
+        return self._run_sync(self._async_client.delete_static_policy(policy_id))
+
+    def toggle_static_policy(
+        self,
+        policy_id: str,
+        enabled: bool,
+    ) -> StaticPolicy:
+        """Toggle a static policy's enabled status."""
+        return self._run_sync(self._async_client.toggle_static_policy(policy_id, enabled))
+
+    def get_effective_static_policies(
+        self,
+        options: EffectivePoliciesOptions | None = None,
+    ) -> list[StaticPolicy]:
+        """Get effective static policies with tier inheritance applied."""
+        return self._run_sync(self._async_client.get_effective_static_policies(options))
+
+    def test_pattern(
+        self,
+        pattern: str,
+        test_inputs: list[str],
+    ) -> TestPatternResult:
+        """Test a regex pattern against sample inputs."""
+        return self._run_sync(self._async_client.test_pattern(pattern, test_inputs))
+
+    def get_static_policy_versions(
+        self,
+        policy_id: str,
+    ) -> list[PolicyVersion]:
+        """Get version history for a static policy."""
+        return self._run_sync(self._async_client.get_static_policy_versions(policy_id))
+
+    # Policy override sync wrappers
+
+    def create_policy_override(
+        self,
+        policy_id: str,
+        request: CreatePolicyOverrideRequest,
+    ) -> PolicyOverride:
+        """Create an override for a static policy."""
+        return self._run_sync(self._async_client.create_policy_override(policy_id, request))
+
+    def delete_policy_override(self, policy_id: str) -> None:
+        """Delete an override for a static policy."""
+        return self._run_sync(self._async_client.delete_policy_override(policy_id))
+
+    def list_policy_overrides(self) -> list[PolicyOverride]:
+        """List all active policy overrides (Enterprise)."""
+        return self._run_sync(self._async_client.list_policy_overrides())
+
+    # Dynamic policy sync wrappers
+
+    def list_dynamic_policies(
+        self,
+        options: ListDynamicPoliciesOptions | None = None,
+    ) -> list[DynamicPolicy]:
+        """List all dynamic policies with optional filtering."""
+        return self._run_sync(self._async_client.list_dynamic_policies(options))
+
+    def get_dynamic_policy(self, policy_id: str) -> DynamicPolicy:
+        """Get a specific dynamic policy by ID."""
+        return self._run_sync(self._async_client.get_dynamic_policy(policy_id))
+
+    def create_dynamic_policy(
+        self,
+        request: CreateDynamicPolicyRequest,
+    ) -> DynamicPolicy:
+        """Create a new dynamic policy."""
+        return self._run_sync(self._async_client.create_dynamic_policy(request))
+
+    def update_dynamic_policy(
+        self,
+        policy_id: str,
+        request: UpdateDynamicPolicyRequest,
+    ) -> DynamicPolicy:
+        """Update an existing dynamic policy."""
+        return self._run_sync(self._async_client.update_dynamic_policy(policy_id, request))
+
+    def delete_dynamic_policy(self, policy_id: str) -> None:
+        """Delete a dynamic policy."""
+        return self._run_sync(self._async_client.delete_dynamic_policy(policy_id))
+
+    def toggle_dynamic_policy(
+        self,
+        policy_id: str,
+        enabled: bool,
+    ) -> DynamicPolicy:
+        """Toggle a dynamic policy's enabled status."""
+        return self._run_sync(self._async_client.toggle_dynamic_policy(policy_id, enabled))
+
+    def get_effective_dynamic_policies(
+        self,
+        options: EffectivePoliciesOptions | None = None,
+    ) -> list[DynamicPolicy]:
+        """Get effective dynamic policies with tier inheritance applied."""
+        return self._run_sync(self._async_client.get_effective_dynamic_policies(options))
+
+    # Portal Authentication sync wrappers
+
+    def login_to_portal(self, org_id: str, password: str) -> dict[str, Any]:
+        """Login to Customer Portal and store session cookie."""
+        return self._run_sync(self._async_client.login_to_portal(org_id, password))
+
+    def logout_from_portal(self) -> None:
+        """Logout from Customer Portal and clear session cookie."""
+        return self._run_sync(self._async_client.logout_from_portal())
+
+    def is_logged_in(self) -> bool:
+        """Check if logged in to Customer Portal."""
+        return self._async_client.is_logged_in()
+
+    # Code Governance sync wrappers
+
+    def validate_git_provider(
+        self,
+        request: ValidateGitProviderRequest,
+    ) -> ValidateGitProviderResponse:
+        """Validate Git provider credentials before configuration."""
+        return self._run_sync(self._async_client.validate_git_provider(request))
+
+    def configure_git_provider(
+        self,
+        request: ConfigureGitProviderRequest,
+    ) -> ConfigureGitProviderResponse:
+        """Configure a Git provider for code governance."""
+        return self._run_sync(self._async_client.configure_git_provider(request))
+
+    def list_git_providers(self) -> ListGitProvidersResponse:
+        """List all configured Git providers for the tenant."""
+        return self._run_sync(self._async_client.list_git_providers())
+
+    def delete_git_provider(self, provider_type: GitProviderType) -> None:
+        """Delete a configured Git provider."""
+        return self._run_sync(self._async_client.delete_git_provider(provider_type))
+
+    def create_pr(self, request: CreatePRRequest) -> CreatePRResponse:
+        """Create a Pull Request from LLM-generated code."""
+        return self._run_sync(self._async_client.create_pr(request))
+
+    def list_prs(
+        self,
+        options: ListPRsOptions | None = None,
+    ) -> ListPRsResponse:
+        """List Pull Requests created through code governance."""
+        return self._run_sync(self._async_client.list_prs(options))
+
+    def get_pr(self, pr_id: str) -> PRRecord:
+        """Get a specific PR record by ID."""
+        return self._run_sync(self._async_client.get_pr(pr_id))
+
+    def sync_pr_status(self, pr_id: str) -> PRRecord:
+        """Sync PR status with the Git provider."""
+        return self._run_sync(self._async_client.sync_pr_status(pr_id))
+
+    def close_pr(self, pr_id: str, delete_branch: bool = True) -> PRRecord:
+        """Close a PR without merging and optionally delete the branch."""
+        return self._run_sync(self._async_client.close_pr(pr_id, delete_branch))
+
+    def get_code_governance_metrics(self) -> CodeGovernanceMetrics:
+        """Get aggregated code governance metrics."""
+        return self._run_sync(self._async_client.get_code_governance_metrics())
+
+    def export_code_governance_data(
+        self,
+        options: ExportOptions | None = None,
+    ) -> ExportResponse:
+        """Export code governance data for compliance reporting."""
+        return self._run_sync(self._async_client.export_code_governance_data(options))
+
+    def export_code_governance_data_csv(
+        self,
+        options: ExportOptions | None = None,
+    ) -> str:
+        """Export code governance data as CSV for compliance reporting."""
+        return self._run_sync(self._async_client.export_code_governance_data_csv(options))
+
+    # Execution Replay sync wrappers
+
+    def list_executions(
+        self,
+        options: ListExecutionsOptions | None = None,
+    ) -> ListExecutionsResponse:
+        """List workflow executions with optional filtering."""
+        return self._run_sync(self._async_client.list_executions(options))
+
+    def get_execution(self, execution_id: str) -> ExecutionDetail:
+        """Get a complete execution record including summary and all steps."""
+        return self._run_sync(self._async_client.get_execution(execution_id))
+
+    def get_execution_steps(self, execution_id: str) -> list[ExecutionSnapshot]:
+        """Get all step snapshots for an execution."""
+        return self._run_sync(self._async_client.get_execution_steps(execution_id))
+
+    def get_execution_timeline(self, execution_id: str) -> list[TimelineEntry]:
+        """Get timeline view of execution for visualization."""
+        return self._run_sync(self._async_client.get_execution_timeline(execution_id))
+
+    def export_execution(
+        self,
+        execution_id: str,
+        options: ExecutionExportOptions | None = None,
+    ) -> dict[str, Any]:
+        """Export a complete execution record for compliance or archival."""
+        return self._run_sync(self._async_client.export_execution(execution_id, options))
+
+    def delete_execution(self, execution_id: str) -> None:
+        """Delete an execution and all associated step snapshots."""
+        return self._run_sync(self._async_client.delete_execution(execution_id))
+
+    # Cost Controls sync wrappers
+
+    def create_budget(self, request: CreateBudgetRequest) -> Budget:
+        """Create a new budget."""
+        return self._run_sync(self._async_client.create_budget(request))
+
+    def get_budget(self, budget_id: str) -> Budget:
+        """Get a budget by ID."""
+        return self._run_sync(self._async_client.get_budget(budget_id))
+
+    def list_budgets(self, options: ListBudgetsOptions | None = None) -> BudgetsResponse:
+        """List all budgets."""
+        return self._run_sync(self._async_client.list_budgets(options))
+
+    def update_budget(self, budget_id: str, request: UpdateBudgetRequest) -> Budget:
+        """Update an existing budget."""
+        return self._run_sync(self._async_client.update_budget(budget_id, request))
+
+    def delete_budget(self, budget_id: str) -> None:
+        """Delete a budget."""
+        return self._run_sync(self._async_client.delete_budget(budget_id))
+
+    def get_budget_status(self, budget_id: str) -> BudgetStatus:
+        """Get the current status of a budget."""
+        return self._run_sync(self._async_client.get_budget_status(budget_id))
+
+    def get_budget_alerts(self, budget_id: str) -> BudgetAlertsResponse:
+        """Get alerts for a budget."""
+        return self._run_sync(self._async_client.get_budget_alerts(budget_id))
+
+    def check_budget(self, request: BudgetCheckRequest) -> BudgetDecision:
+        """Perform a pre-flight budget check."""
+        return self._run_sync(self._async_client.check_budget(request))
+
+    def get_usage_summary(self, period: str | None = None) -> UsageSummary:
+        """Get usage summary for a period."""
+        return self._run_sync(self._async_client.get_usage_summary(period))
+
+    def get_usage_breakdown(self, group_by: str, period: str | None = None) -> UsageBreakdown:
+        """Get usage breakdown by a grouping dimension."""
+        return self._run_sync(self._async_client.get_usage_breakdown(group_by, period))
+
+    def list_usage_records(
+        self, options: ListUsageRecordsOptions | None = None
+    ) -> UsageRecordsResponse:
+        """List usage records."""
+        return self._run_sync(self._async_client.list_usage_records(options))
+
+    def get_pricing(
+        self, provider: str | None = None, model: str | None = None
+    ) -> PricingListResponse:
+        """Get pricing information for models."""
+        return self._run_sync(self._async_client.get_pricing(provider, model))
