@@ -1,0 +1,40 @@
+[package]
+name = "neighborlist-rs"
+version = "0.1.7"
+edition = "2024"
+authors = ["Conductor <conductor@example.com>"]
+description = "High-performance neighborlist construction for atomistic systems"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+
+[lib]
+name = "neighborlist_rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.27.2" }
+numpy = "0.27.0"
+rayon = "1.10.0"
+nalgebra = { version = "0.34.1", features = ["bytemuck"] }
+thiserror = "2.0.17"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wide = "1.1.1"
+bytemuck = { version = "1.16.1", features = ["derive"] }
+dhat = { version = "0.3", optional = true }
+
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+dhat-heap = ["dep:dhat"]
+
+[dev-dependencies]
+approx = "0.5.1"
+proptest = "1.4.0"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+opt-level = 3
+
