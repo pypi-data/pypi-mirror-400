@@ -1,0 +1,591 @@
+# AIGC Auth Python SDK
+
+[![PyPI version](https://badge.fury.io/py/huace-aigc-auth-client.svg)](https://pypi.org/project/huace-aigc-auth-client/)
+[![Python Version](https://img.shields.io/pypi/pyversions/huace-aigc-auth-client.svg)](https://pypi.org/project/huace-aigc-auth-client/)
+
+Python 后端服务接入华策 AIGC 鉴权中心的 SDK 工具包。
+
+## 安装
+
+```bash
+pip install huace-aigc-auth-client
+```
+
+## 环境变量配置
+
+在项目根目录创建 `.env` 文件：
+
+```bash
+# 必填：应用 ID 和密钥（在鉴权中心创建应用后获取）
+AIGC_AUTH_APP_ID=your_app_id
+AIGC_AUTH_APP_SECRET=your_app_secret
+
+# 可选：鉴权服务地址（默认为生产环境）
+AIGC_AUTH_BASE_URL=https://aigc-auth.huacemedia.com/api/v1
+```
+
+如需通过 Nginx 代理：
+
+```nginx
+location /aigc-auth/ {
+    proxy_pass https://aigc-auth.huacemedia.com/aigc-auth/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+## 快速开始
+
+### 1. 初始化客户端
+
+```python
+from huace_aigc_auth_client import AigcAuthClient
+
+# 方式一：从环境变量读取配置
+client = AigcAuthClient()
+
+# 方式二：直接传入参数
+client = AigcAuthClient(
+    app_id="your_app_id",
+    app_secret="your_app_secret",
+    base_url="https://aigc-auth.huacemedia.com/api/v1"
+)
+```
+
+### 2. 验证 Token
+
+```python
+result = client.verify_token(token)
+
+if result.valid:
+    print(f"用户 ID: {result.user_id}")
+    print(f"用户名: {result.username}")
+    print(f"过期时间: {result.expires_at}")
+else:
+    print("Token 无效")
+```
+
+### 3. 获取用户信息
+
+```python
+from huace_aigc_auth_client import AigcAuthClient, AigcAuthError
+
+client = AigcAuthClient()
+
+try:
+    user = client.get_user_info(token)
+    
+    print(f"用户名: {user.username}")
+    print(f"昵称: {user.nickname}")
+    print(f"邮箱: {user.email}")
+    print(f"角色: {user.roles}")
+    print(f"权限: {user.permissions}")
+    
+    # 检查角色
+    if user.has_role("admin"):
+        print("是管理员")
+    
+    # 检查权限
+    if user.has_permission("user:write"):
+        print("有用户写权限")
+        
+except AigcAuthError as e:
+    print(f"错误: {e.message}")
+```
+
+### 4. 批量检查权限
+
+```python
+results = client.check_permissions(token, ["user:read", "user:write", "admin:access"])
+
+for permission, has_permission in results.items():
+    print(f"{permission}: {'✓' if has_permission else '✗'}")
+```
+
+## FastAPI 集成
+
+### 方式一：使用中间件（推荐）
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+from huace_aigc_auth_client import AigcAuthClient, AuthMiddleware
+
+app = FastAPI()
+
+# 初始化客户端和中间件
+client = AigcAuthClient()
+auth_middleware = AuthMiddleware(
+    client,
+    exclude_paths=["/health", "/docs", "/openapi.json"],
+    exclude_prefixes=["/public/"]
+)
+
+# 注册中间件
+@app.middleware("http")
+async def auth(request: Request, call_next):
+    return await auth_middleware.fastapi_middleware(request, call_next)
+
+# 在路由中获取用户信息
+@app.get("/me")
+async def get_current_user(request: Request):
+    user = request.state.user_info
+    return {
+        "username": user.username,
+        "roles": user.roles
+    }
+
+@app.get("/admin")
+async def admin_only(request: Request):
+    user = request.state.user_info
+    if not user.has_role("admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return {"message": "欢迎管理员"}
+```
+
+### 方式二：使用依赖注入
+
+```python
+from fastapi import FastAPI, Depends, HTTPException
+from huace_aigc_auth_client import AigcAuthClient, create_fastapi_auth_dependency, UserInfo
+
+app = FastAPI()
+client = AigcAuthClient()
+
+# 创建认证依赖
+get_current_user = create_fastapi_auth_dependency(client)
+
+@app.get("/me")
+async def get_me(user: UserInfo = Depends(get_current_user)):
+    return {"username": user.username}
+
+# 创建权限检查依赖
+def require_permission(permission: str):
+    async def check(user: UserInfo = Depends(get_current_user)):
+        if not user.has_permission(permission):
+            raise HTTPException(status_code=403, detail="权限不足")
+        return user
+    return check
+
+@app.get("/users")
+async def list_users(user: UserInfo = Depends(require_permission("user:read"))):
+    return {"users": [...]}
+```
+
+### 方式三：使用装饰器
+
+```python
+from fastapi import FastAPI, Request
+from huace_aigc_auth_client import AigcAuthClient, require_auth, UserInfo
+
+app = FastAPI()
+client = AigcAuthClient()
+
+@app.get("/protected")
+@require_auth(client)
+async def protected_route(request: Request, user_info: UserInfo):
+    return {"user": user_info.username}
+
+@app.get("/admin")
+@require_auth(client, permissions=["admin:access"])
+async def admin_route(request: Request, user_info: UserInfo):
+    return {"admin": True}
+
+# 只需要任意一个权限
+@app.get("/editor")
+@require_auth(client, permissions=["article:write", "article:edit"], any_permission=True)
+async def editor_route(request: Request, user_info: UserInfo):
+    return {"editor": True}
+```
+
+## Flask 集成
+
+```python
+from flask import Flask, g, jsonify
+from functools import wraps
+from huace_aigc_auth_client import AigcAuthClient, AuthMiddleware
+
+app = Flask(__name__)
+
+# 初始化客户端和中间件
+client = AigcAuthClient()
+auth_middleware = AuthMiddleware(
+    client,
+    exclude_paths=["/health", "/login"],
+    exclude_prefixes=["/public/"]
+)
+
+# 注册 before_request
+@app.before_request
+def before_request():
+    return auth_middleware.flask_before_request()
+
+# 在路由中获取用户信息
+@app.route("/me")
+def get_me():
+    user = g.user_info
+    return jsonify({
+        "username": user.username,
+        "roles": user.roles
+    })
+
+# 权限检查装饰器
+def require_permission(permission):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            user = g.user_info
+            if not user.has_permission(permission):
+                return jsonify({"error": "权限不足"}), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+@app.route("/admin")
+@require_permission("admin:access")
+def admin_only():
+    return jsonify({"message": "欢迎管理员"})
+```
+
+## API 参考
+
+### UserInfo 对象
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `id` | int | 用户 ID |
+| `username` | str | 用户名 |
+| `nickname` | str | 昵称 |
+| `email` | str | 邮箱 |
+| `phone` | str | 手机号 |
+| `avatar` | str | 头像 URL |
+| `roles` | List[str] | 角色代码列表 |
+| `permissions` | List[str] | 权限代码列表 |
+| `department` | str | 部门 |
+| `company` | str | 公司 |
+
+| 方法 | 说明 |
+|------|------|
+| `has_role(role)` | 检查是否拥有指定角色 |
+| `has_permission(permission)` | 检查是否拥有指定权限 |
+| `has_any_permission(permissions)` | 检查是否拥有任意一个权限 |
+| `has_all_permissions(permissions)` | 检查是否拥有所有权限 |
+
+### 异常处理
+
+```python
+from huace_aigc_auth_client import AigcAuthClient, AigcAuthError
+
+client = AigcAuthClient()
+
+try:
+    user = client.get_user_info(token)
+except AigcAuthError as e:
+    print(f"错误码: {e.code}")
+    print(f"错误信息: {e.message}")
+```
+
+| 错误码 | 说明 |
+|--------|------|
+| 401 | 未授权（Token 无效或已过期） |
+| 403 | 禁止访问（用户被禁用或权限不足） |
+| 404 | 用户不存在 |
+| -1 | 网络请求失败 |
+
+---
+
+## 旧系统接入（用户同步）
+
+如果你的系统已有用户表，可通过 SDK 提供的「旧系统适配器」实现低成本接入，**无需修改历史代码和表结构**。
+
+### 接入原理
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   aigc-auth     │────▶│   SDK 同步层    │────▶│   旧系统        │
+│   (鉴权中心)    │     │   (字段映射)    │     │   (用户表)      │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                       │                       │
+        │   1. 初始化同步       │                       │
+        │◀──────────────────────────────────────────────│
+        │   (批量同步旧用户到 auth)                     │
+        │                       │                       │
+        │   2. 增量同步         │                       │
+        │──────────────────────▶│──────────────────────▶│
+        │   (auth 新用户自动同步到旧系统)               │
+        │                       │                       │
+        │   3. Webhook 推送     │                       │
+        │──────────────────────────────────────────────▶│
+        │   (用户变更主动通知)                          │
+```
+
+### 快速开始
+
+#### 1. 配置环境变量
+
+```bash
+# .env 文件
+AIGC_AUTH_APP_ID=your_app_id
+AIGC_AUTH_APP_SECRET=your_app_secret
+AIGC_AUTH_BASE_URL=https://aigc-auth.huacemedia.com/api/v1
+
+# 同步配置
+AIGC_AUTH_SYNC_ENABLED=true
+AIGC_AUTH_SYNC_PASSWORD=Abc@123456
+AIGC_AUTH_WEBHOOK_URL=https://your-domain.com/api/v1/webhook/auth
+AIGC_AUTH_WEBHOOK_SECRET=your_secret
+```
+
+#### 2. 创建字段映射
+
+```python
+from huace_aigc_auth_client import (
+    FieldMapping,
+    SyncConfig,
+    PasswordMode,
+    create_sync_config
+)
+
+# 定义字段映射
+field_mappings = [
+    FieldMapping(
+        auth_field="username",
+        legacy_field="username",
+        required=True
+    ),
+    FieldMapping(
+        auth_field="email",
+        legacy_field="email"
+    ),
+    FieldMapping(
+        auth_field="nickname",
+        legacy_field="nickname"
+    ),
+    # 状态字段转换：auth 的 status 映射到旧系统的 is_active
+    FieldMapping(
+        auth_field="status",
+        legacy_field="is_active",
+        transform_to_legacy=lambda s: s == "active",
+        transform_to_auth=lambda a: "active" if a else "disabled"
+    ),
+    # 角色字段转换：auth 的 roles 列表映射到旧系统的 role 字符串
+    FieldMapping(
+        auth_field="roles",
+        legacy_field="role",
+        transform_to_legacy=lambda r: r[0] if r else "viewer",
+        transform_to_auth=lambda r: [r] if r else ["viewer"]
+    ),
+]
+
+# 创建同步配置
+sync_config = create_sync_config(
+    field_mappings=field_mappings,
+    password_mode=PasswordMode.UNIFIED,
+    unified_password="Abc@123456",
+    webhook_url="https://your-domain.com/api/v1/webhook/auth",
+)
+```
+
+#### 3. 实现旧系统适配器
+
+```python
+from huace_aigc_auth_client import LegacySystemAdapter, LegacyUserData
+
+class MyLegacyAdapter(LegacySystemAdapter):
+    """实现与旧系统用户表的交互"""
+    
+    def __init__(self, db, sync_config):
+        super().__init__(sync_config)
+        self.db = db
+    
+    def get_user_by_unique_field(self, username: str):
+        """通过用户名获取旧系统用户"""
+        user = self.db.query(User).filter(User.username == username).first()
+        if not user:
+            return None
+        return LegacyUserData({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            # ... 其他字段
+        })
+    
+    def create_user(self, user_data: dict):
+        """在旧系统创建用户"""
+        user = User(
+            username=user_data["username"],
+            email=user_data.get("email"),
+            hashed_password=hash_password(user_data["password"]),
+            # ... 其他字段
+        )
+        self.db.add(user)
+        self.db.commit()
+        return user.id
+    
+    def update_user(self, username: str, user_data: dict):
+        """更新旧系统用户"""
+        user = self.db.query(User).filter(User.username == username).first()
+        if user:
+            for key, value in user_data.items():
+                setattr(user, key, value)
+            self.db.commit()
+    
+    def get_all_users(self):
+        """获取所有用户（用于初始化同步）"""
+        users = self.db.query(User).all()
+        return [LegacyUserData({"username": u.username, ...}) for u in users]
+```
+
+#### 4. 集成到登录流程
+
+```python
+from huace_aigc_auth_client import AigcAuthClient, UserSyncService
+
+client = AigcAuthClient()
+adapter = MyLegacyAdapter(db, sync_config)
+sync_service = UserSyncService(client, adapter)
+
+# 在获取用户信息后调用同步
+@app.middleware("http")
+async def auth_middleware(request, call_next):
+    response = await auth.fastapi_middleware(request, call_next)
+    
+    # 登录成功后，同步用户到旧系统
+    if hasattr(request.state, "user_info"):
+        user_info = request.state.user_info
+        sync_service.sync_on_login(user_info)
+    
+    return response
+```
+
+#### 5. 添加 Webhook 接收端点
+
+```python
+@app.post("/api/v1/webhook/auth")
+async def receive_auth_webhook(request: Request, db: Session = Depends(get_db)):
+    """接收 aigc-auth 的用户变更通知"""
+    data = await request.json()
+    event = data.get("event")
+    user_data = data.get("data", {})
+    
+    # 验证签名
+    signature = request.headers.get("X-Webhook-Signature")
+    # ... 验证逻辑
+    
+    if event == "user.created":
+        adapter = MyLegacyAdapter(db, sync_config)
+        if not adapter.get_user_by_unique_field(user_data["username"]):
+            legacy_data = adapter.transform_auth_to_legacy(user_data)
+            legacy_data["password"] = sync_config.unified_password
+            adapter.create_user(legacy_data)
+            db.commit()
+    
+    elif event == "user.updated":
+        adapter = MyLegacyAdapter(db, sync_config)
+        legacy_data = adapter.transform_auth_to_legacy(user_data)
+        adapter.update_user(user_data["username"], legacy_data)
+        db.commit()
+    
+    return {"success": True}
+```
+
+#### 6. 执行初始化同步
+
+```python
+# 一次性脚本：将旧系统用户同步到 aigc-auth
+async def init_sync():
+    adapter = MyLegacyAdapter(db, sync_config)
+    users = adapter.get_all_users()
+    
+    for user in users:
+        auth_data = adapter.transform_legacy_to_auth(user)
+        auth_data["password"] = sync_config.unified_password
+        client.sync_user_to_auth(auth_data)
+    
+    print(f"同步完成：{len(users)} 个用户")
+
+# 运行
+asyncio.run(init_sync())
+```
+
+### 密码处理策略
+
+| 模式 | 说明 | 适用场景 |
+|------|------|----------|
+| `UNIFIED` | 统一初始密码 | 推荐，安全性高 |
+| `CUSTOM_MAPPING` | 自定义映射函数 | 需要保留原密码时 |
+
+```python
+from huace_aigc_auth_client import PasswordMode, create_sync_config
+
+# 统一密码模式（推荐）
+sync_config = create_sync_config(
+    password_mode=PasswordMode.UNIFIED,
+    unified_password="Abc@123456"
+)
+
+# 自定义映射模式
+def password_mapper(user_data):
+    return user_data.get("hashed_password", "default")
+
+sync_config = create_sync_config(
+    password_mode=PasswordMode.CUSTOM_MAPPING,
+    password_mapper=password_mapper
+)
+```
+
+### 同步方向配置
+
+```python
+from huace_aigc_auth_client import SyncDirection, create_sync_config
+
+# 仅从 auth 同步到旧系统（默认）
+sync_config = create_sync_config(
+    direction=SyncDirection.AUTH_TO_LEGACY
+)
+
+# 仅从旧系统同步到 auth（初始化用）
+sync_config = create_sync_config(
+    direction=SyncDirection.LEGACY_TO_AUTH
+)
+
+# 双向同步（需谨慎使用）
+sync_config = create_sync_config(
+    direction=SyncDirection.BIDIRECTIONAL
+)
+```
+
+---
+
+## 导出清单
+
+```python
+from huace_aigc_auth_client import (
+    # 核心类
+    AigcAuthClient,
+    require_auth,
+    AuthMiddleware,
+    UserInfo,
+    TokenVerifyResult,
+    AigcAuthError,
+    create_fastapi_auth_dependency,
+    
+    # 旧系统接入
+    LegacySystemAdapter,
+    LegacyUserData,
+    SyncConfig,
+    SyncDirection,
+    PasswordMode,
+    FieldMapping,
+    UserSyncService,
+    WebhookSender,
+    SyncResult,
+    create_sync_config,
+    create_default_field_mappings,
+)
+```
+
+## 许可证
+
+MIT License

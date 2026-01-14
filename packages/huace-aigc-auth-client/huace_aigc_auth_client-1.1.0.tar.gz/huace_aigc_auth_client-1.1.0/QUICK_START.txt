@@ -1,0 +1,119 @@
+============================================
+华策 AIGC Auth Client - 快速入门
+============================================
+
+安装
+----
+pip install huace-aigc-auth-client
+
+
+环境变量配置
+------------
+# .env 文件
+AIGC_AUTH_APP_ID=your_app_id
+AIGC_AUTH_APP_SECRET=your_app_secret
+AIGC_AUTH_BASE_URL=https://aigc-auth.huacemedia.com/api/v1
+
+
+基本使用
+--------
+
+1. 初始化客户端
+   
+   from huace_aigc_auth_client import AigcAuthClient
+   
+   # 从环境变量读取配置
+   client = AigcAuthClient()
+   
+   # 或直接传入参数
+   client = AigcAuthClient(
+       app_id="your_app_id",
+       app_secret="your_app_secret"
+   )
+
+
+2. 验证 Token
+   
+   result = client.verify_token(token)
+   
+   if result.valid:
+       print(f"用户: {result.username}")
+   else:
+       print("Token 无效")
+
+
+3. 获取用户信息
+   
+   user = client.get_user_info(token)
+   
+   print(f"用户名: {user.username}")
+   print(f"角色: {user.roles}")
+   print(f"权限: {user.permissions}")
+   
+   # 检查角色和权限 （role 和 permission 需要自行去系统对应应用创建）
+   if user.has_role("admin") or user.is_admin:
+       print("是管理员")
+   
+   if user.has_permission("user:write"):
+       print("有写权限")
+
+
+FastAPI 集成
+------------
+
+from fastapi import FastAPI, Request
+from huace_aigc_auth_client import AigcAuthClient, AuthMiddleware
+
+app = FastAPI()
+client = AigcAuthClient()
+
+# 中间件配置
+auth = AuthMiddleware(
+    client,
+    exclude_paths=["/health", "/docs"]
+)
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    return await auth.fastapi_middleware(request, call_next)
+
+@app.get("/me")
+async def get_me(request: Request):
+    user = request.state.user_info
+    return {"username": user.username}
+
+
+旧系统接入
+----------
+
+如果你的系统已有用户表，可使用旧系统适配器实现低成本接入：
+
+from huace_aigc_auth_client import (
+    AigcAuthClient,
+    LegacySystemAdapter,
+    SyncConfig,
+    UserSyncService,
+    create_sync_config,
+    create_default_field_mappings
+)
+
+# 1. 定义字段映射
+field_mappings = create_default_field_mappings() # 可以自定义
+
+# 2. 创建同步配置
+sync_config = create_sync_config(
+    field_mappings=field_mappings,
+    webhook_url="https://your-domain.com/webhook"
+)
+
+# 3. 实现适配器（继承 LegacySystemAdapter）
+# 4. 创建同步服务执行用户同步
+
+
+更多文档
+--------
+
+完整文档请参考内部：README.md
+发布说明请参考：PUBLISH.md
+
+
