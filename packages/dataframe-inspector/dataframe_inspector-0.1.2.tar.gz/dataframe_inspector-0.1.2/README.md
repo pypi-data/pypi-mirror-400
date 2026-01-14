@@ -1,0 +1,139 @@
+# dataframe-inspector
+
+[![PyPI version](https://badge.fury.io/py/dataframe-inspector.svg)](https://badge.fury.io/py/dataframe-inspector)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+Inspect nested JSON/dict structures in pandas DataFrame columns.
+
+## Installation
+
+```bash
+pip install dataframe-inspector
+```
+
+## Usage
+
+```python
+import pandas as pd
+from dataframe_inspector import Inspector
+
+# DataFrame with deeply nested structure (5 levels)
+df = pd.DataFrame({
+    'id': [1, 2],
+    'response': [
+        {
+            'data': {
+                'organization': {
+                    'department': {
+                        'team': {
+                            'lead': {'name': 'Alice', 'id': 101},
+                            'members': [
+                                {'name': 'Bob', 'role': 'engineer'},
+                                {'name': 'Carol', 'role': 'designer'}
+                            ]
+                        },
+                        'name': 'Engineering',
+                        'budget': 500000
+                    },
+                    'name': 'Tech Division'
+                },
+                'timestamp': '2024-01-01'
+            }
+        },
+        {
+            'data': {
+                'organization': {
+                    'department': {
+                        'team': {
+                            'lead': {'name': 'David', 'id': 102},
+                            'members': [
+                                {'name': 'Eve', 'role': 'analyst'}
+                            ]
+                        },
+                        'name': 'Sales',
+                        'budget': 300000
+                    },
+                    'name': 'Business Division'
+                },
+                'timestamp': '2024-01-02'
+            }
+        }
+    ]
+})
+
+inspector = Inspector(df)
+
+# Get overview - identifies nested vs simple columns
+inspector.overview()
+```
+
+**Output:**
+```
+================================================================================
+DATAFRAME OVERVIEW
+================================================================================
+
+📊 Dimensions:
+  Rows: 2
+  Columns: 2
+
+🔍 Nested Columns (1):
+  Use inspect_column() to explore these:
+  - response (0.0% null)
+
+📝 Simple Columns (1):
+  - id (int64, 2 unique, 0.0% null)
+
+================================================================================
+```
+
+```python
+# Deep dive into nested column with increased depth
+inspector.inspect_column('response', max_depth=4, sample_size=1)
+```
+
+**Output:**
+```
+============================================================
+Nested Column: 'response'
+============================================================
+
+Nested structure keys found (depth ≤ 4):
+  - data
+  - data.organization
+  - data.organization.department
+  - data.organization.department.budget
+  - data.organization.department.name
+  - data.organization.department.team
+  - data.organization.name
+  - data.timestamp
+
+Sample values (first 1):
+
+[Row 0]:
+    data:
+      organization:
+        department:
+          team:
+            lead:
+              name: Alice
+              id: 101
+            members:
+              [0]:
+                name: Bob
+                role: engineer
+              [1]:
+                name: Carol
+                role: designer
+          name: Engineering
+          budget: 500000
+        name: Tech Division
+      timestamp: 2024-01-01
+============================================================
+```
+
+See more examples in the [`examples/`](https://github.com/canxiu-zhang/dataframe-inspector/tree/main/examples) folder.
+
+## Contributing
+
+Issues and pull requests are welcome on [GitHub](https://github.com/canxiu-zhang/dataframe-inspector).
