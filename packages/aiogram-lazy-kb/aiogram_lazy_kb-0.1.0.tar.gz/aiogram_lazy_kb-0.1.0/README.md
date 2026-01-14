@@ -1,0 +1,88 @@
+# aiogram-lazy-kb 🎹
+
+Простая обертка для быстрого создания клавиатур в `aiogram 3.x`.
+Забудьте о `KeyboardBuilder`, `adjust()` и импортах кнопок для простых задач.
+
+## Установка
+
+```bash
+pip install aiogram-lazy-kb
+Использование
+1. Reply Клавиатура (Кнопки меню)
+Python
+
+from aiogram_lazy_kb import LazyKeyboard
+
+# Простая сетка 2 кнопки в ряд
+kb = LazyKeyboard.reply(
+    buttons=["Меню", "Помощь", "О нас", "Контакты"],
+    sizes=2,
+    placeholder="Выберите пункт..."
+)
+
+# Сложная схема: 2 кнопки в первом ряду, 1 во втором
+kb_complex = LazyKeyboard.reply(
+    buttons=["Кнопка 1", "Кнопка 2", "Кнопка 3 (во всю ширь)"],
+    sizes=[2, 1]
+)
+2. Inline Клавиатура (Кнопки под сообщением)
+Поддерживает автоматическое определение ссылок (URL).
+
+Python
+
+# Передаем словарь: Текст -> callback_data
+kb = LazyKeyboard.inline(
+    data={
+        "Лайк": "like_action",
+        "Дизлайк": "dislike_action",
+        "Наш сайт": "https://google.com" # Автоматически станет url-кнопкой
+    },
+    sizes=2
+)
+Требования
+Python 3.9+
+aiogram 3.x
+text
+
+
+---
+
+### Как протестировать перед заливкой
+
+Создай рядом с папкой `src` файл `test_bot.py` (не заливай его на PyPI, это для тебя):
+
+```python
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+# Импортируем наш локальный модуль (симуляция)
+import sys
+import os
+sys.path.insert(0, os.path.abspath("src"))
+
+from aiogram_lazy_kb import LazyKeyboard
+
+# Вставь сюда токен тестового бота
+TOKEN = "YOUR_BOT_TOKEN"
+
+dp = Dispatcher()
+bot = Bot(token=TOKEN)
+
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    # Тест Reply
+    kb = LazyKeyboard.reply(["Каталог", "Корзина", "Инфо"], sizes=[2, 1], placeholder="Жми!")
+    await message.answer("Привет! Вот reply клавиатура:", reply_markup=kb)
+
+    # Тест Inline
+    kb_inline = LazyKeyboard.inline({
+        "Купить": "buy_item",
+        "Ссылка": "https://ya.ru"
+    }, sizes=2)
+    await message.answer("А вот inline:", reply_markup=kb_inline)
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
