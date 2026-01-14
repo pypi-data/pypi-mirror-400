@@ -1,0 +1,602 @@
+# Python IoC
+
+A lightweight, type-safe IoC (Inversion of Control) container for Python with constructor injection, decorator pattern support, and comprehensive validation.
+
+## Features
+
+- 🔧 **Constructor injection** via type hints
+- 🔄 **Three lifetime modes**: Transient, Scoped, and Singleton
+- 🎨 **Decorator pattern** support for cross-cutting concerns
+- 🏭 **Factory registration** with dependency injection
+- ✅ **Validation** with circular dependency detection
+- 🛡️ **Type-safe** using Python's type system
+- 📦 **Protocol and ABC support** for interface-based design
+
+## Installation
+
+```bash
+pip install j2-ioc
+```
+
+## Quick Start
+
+```python
+from python_ioc import Container, Lifetime
+
+# Define your abstractions
+class UserRepository(ABC):
+    @abstractmethod
+    def get(self, user_id: int) -> dict: ...
+
+class PostgresUserRepository(UserRepository):
+    def get(self, user_id: int) -> dict:
+        return {"id": user_id, "email": f"user{user_id}@example.com"}
+
+# Configure container
+container = (
+    Container()
+    .scoped(UserRepository, PostgresUserRepository)
+)
+
+# Validate configuration
+container.validate()
+
+# Use within a scope
+with container.scope() as scope:
+    repo = scope.resolve(UserRepository)
+    user = repo.get(1)
+```
+
+## Lifetime Management
+
+### Transient
+A new instance is created every time the service is resolved:
+```python
+container.transient(EmailSender, SmtpEmailSender)
+```
+
+### Scoped
+One instance per scope. Perfect for request-scoped services in web apps:
+```python
+container.scoped(UserRepository, PostgresUserRepository)
+```
+
+### Singleton
+One instance shared across the entire application:
+```python
+container.singleton(Config, EnvConfig)
+```
+
+## Advanced Features
+
+### Decorator Pattern
+Add cross-cutting concerns like caching, logging, or validation:
+
+```python
+class CachedUserRepository(UserRepository):
+    def __init__(self, inner: UserRepository, cache: Cache):
+        self.inner = inner
+        self.cache = cache
+
+    def get(self, user_id: int) -> dict:
+        cached = self.cache.get(f"user:{user_id}")
+        if cached:
+            return cached
+        result = self.inner.get(user_id)
+        self.cache.set(f"user:{user_id}", result)
+        return result
+
+container.decorate(UserRepository, CachedUserRepository)
+```
+
+### Factory Functions
+Register factory functions with automatic dependency injection:
+
+```python
+def create_db_connection(config: Config) -> Connection:
+    return psycopg.connect(config.get('db_url'))
+
+container.factory(Connection, create_db_connection, Lifetime.SINGLETON)
+```
+
+### Instance Registration
+Register pre-existing instances:
+
+```python
+config = EnvConfig()
+container.instance(Config, config)
+```
+
+### Validation
+Catch configuration errors early:
+
+```python
+try:
+    container.validate()
+except ContainerError as e:
+    print(f"Error: {e}")
+```
+
+Validation checks for:
+- Missing dependencies
+- Circular dependencies
+- Lifetime mismatches (e.g., singleton depending on scoped service)
+
+## Idiomatic Usage with ABCs
+
+```python
+from abc import ABC, abstractmethod
+from python_ioc import Container
+
+# Abstract base class as contract
+class UserRepository(ABC):
+    @abstractmethod
+    def get(self, user_id: int) -> dict: ...
+
+class EmailSender(ABC):
+    @abstractmethod
+    def send(self, to: str, body: str) -> None: ...
+
+# Concrete implementations
+class PostgresUserRepository(UserRepository):
+    def get(self, user_id: int) -> dict:
+        return {"id": user_id, "email": "jesper@example.com"}
+
+class SmtpEmailSender(EmailSender):
+    def __init__(self, users: UserRepository):  # Injected!
+        self.users = users
+
+    def send(self, to: str, body: str) -> None:
+        print(f"Sending to {to}: {body}")
+
+# Wire it up
+container = (
+    Container()
+    .scoped(UserRepository, PostgresUserRepository)
+    .transient(EmailSender, SmtpEmailSender)
+)
+
+# Use it
+with container.scope() as scope:
+    sender = scope.resolve(EmailSender)
+    sender.send("test@example.com", "Hello!")
+```
+
+### Or with Protocols (duck typing, no inheritance required)
+
+```python
+from typing import Protocol, runtime_checkable
+from python_ioc import Container
+
+@runtime_checkable
+class UserRepository(Protocol):
+    def get(self, user_id: int) -> dict: ...
+
+# No inheritance needed - just implement the methods
+class InMemoryUserRepository:
+    def __init__(self):
+        self._users = {1: {"id": 1, "name": "Jesper"}}
+
+    def get(self, user_id: int) -> dict:
+        return self._users.get(user_id, {})
+
+container = Container().singleton(UserRepository, InMemoryUserRepository)
+
+with container.scope() as scope:
+    repo = scope.resolve(UserRepository)
+    user = repo.get(1)
+    print(user)  # {'id': 1, 'name': 'Jesper'}
+```
+
+## FastAPI Integration
+
+Python-IoC works great with FastAPI for managing request-scoped dependencies:
+
+```python
+from abc import ABC, abstractmethod
+from fastapi import FastAPI, Request
+from python_ioc import Container
+
+# Define your services
+class Database(ABC):
+    @abstractmethod
+    def query(self, sql: str) -> list: ...
+
+class PostgresDatabase(Database):
+    def __init__(self):
+        print("Creating database connection")
+
+    def query(self, sql: str) -> list:
+        return [{"id": 1, "name": "Alice"}]
+
+class UserService:
+    def __init__(self, db: Database):
+        self.db = db
+
+    def get_users(self):
+        return self.db.query("SELECT * FROM users")
+
+# Configure container
+container = (
+    Container()
+    .scoped(Database, PostgresDatabase)
+    .scoped(UserService)
+)
+
+# Create FastAPI app
+app = FastAPI()
+
+# Add container to app state
+@app.on_event("startup")
+async def startup():
+    app.state.container = container
+
+# Dependency function to get scope
+def get_scope(request: Request):
+    if not hasattr(request.state, "scope"):
+        request.state.scope = app.state.container.scope()
+        request.state.scope.__enter__()
+    return request.state.scope
+
+# Middleware to clean up scope after request
+@app.middleware("http")
+async def cleanup_scope(request: Request, call_next):
+    response = await call_next(request)
+    if hasattr(request.state, "scope"):
+        request.state.scope.__exit__(None, None, None)
+    return response
+
+# Use in endpoints
+@app.get("/users")
+async def get_users(request: Request):
+    scope = get_scope(request)
+    user_service = scope.resolve(UserService)
+    return user_service.get_users()
+
+# Each request gets its own scoped instances
+@app.get("/health")
+async def health(request: Request):
+    scope = get_scope(request)
+    db = scope.resolve(Database)
+    # Same Database instance within this request
+    return {"status": "healthy"}
+```
+
+**Key benefits:**
+- **Request-scoped services**: Each HTTP request gets its own service instances
+- **Automatic cleanup**: Scopes are properly disposed after each request
+- **Type-safe**: Full IDE support and type checking
+- **Testable**: Easy to swap implementations for testing
+
+### Simpler Alternative with Dependency Injection
+
+For a more FastAPI-idiomatic approach using dependency injection:
+
+```python
+from fastapi import Depends, FastAPI
+from python_ioc import Container
+
+# Configure container (same as above)
+container = Container().scoped(Database, PostgresDatabase).scoped(UserService)
+
+app = FastAPI()
+
+# Create a dependency that yields from a scope
+async def get_user_service():
+    with container.scope() as scope:
+        yield scope.resolve(UserService)
+
+# Use FastAPI's dependency injection
+@app.get("/users")
+async def get_users(user_service: UserService = Depends(get_user_service)):
+    return user_service.get_users()
+```
+
+## Complete Example
+
+```python
+from abc import ABC, abstractmethod
+from python_ioc import Container, Lifetime
+from python_ioc.errors import (
+    CircularDependencyError,
+    ContainerError,
+    MissingDependencyError
+)
+
+# ── Define abstractions ──────────────────────────────────────────────────
+
+class Config(ABC):
+    @abstractmethod
+    def get(self, key: str) -> str: ...
+
+class UserRepository(ABC):
+    @abstractmethod
+    def get(self, user_id: int) -> dict: ...
+
+class EmailSender(ABC):
+    @abstractmethod
+    def send(self, to: str, body: str) -> None: ...
+
+class Cache(ABC):
+    @abstractmethod
+    def get(self, key: str) -> object | None: ...
+    @abstractmethod
+    def set(self, key: str, value: object) -> None: ...
+
+# ── Implementations ──────────────────────────────────────────────────────
+
+class EnvConfig(Config):
+    def __init__(self):
+        self._values = {"db_url": "postgresql://localhost/app"}
+
+    def get(self, key: str) -> str:
+        return self._values.get(key, "")
+
+class PostgresUserRepository(UserRepository):
+    def __init__(self, config: Config):
+        self.config = config
+        print(f"  [PostgresUserRepository] Connected to {config.get('db_url')}")
+
+    def get(self, user_id: int) -> dict:
+        print(f"  [PostgresUserRepository] Fetching user {user_id} from DB")
+        return {"id": user_id, "email": f"user{user_id}@example.com"}
+
+class InMemoryCache(Cache):
+    def __init__(self):
+        self._store: dict[str, object] = {}
+
+    def get(self, key: str) -> object | None:
+        result = self._store.get(key)
+        print(f"  [Cache] GET {key} -> {'HIT' if result else 'MISS'}")
+        return result
+
+    def set(self, key: str, value: object) -> None:
+        print(f"  [Cache] SET {key}")
+        self._store[key] = value
+
+# ── Decorator ────────────────────────────────────────────────────────────
+
+class CachedUserRepository(UserRepository):
+    """Decorator that adds caching to any UserRepository."""
+
+    def __init__(self, inner: UserRepository, cache: Cache):
+        self.inner = inner
+        self.cache = cache
+
+    def get(self, user_id: int) -> dict:
+        key = f"user:{user_id}"
+        cached = self.cache.get(key)
+        if cached:
+            return cached
+        result = self.inner.get(user_id)
+        self.cache.set(key, result)
+        return result
+
+class SmtpEmailSender(EmailSender):
+    def __init__(self, users: UserRepository):
+        self.users = users
+
+    def send(self, to: str, body: str) -> None:
+        print(f"  [SmtpEmailSender] Sending to {to}: {body}")
+
+# ── Factory function (dependencies injected via type hints) ────────────
+
+def create_connection_string(config: Config) -> str:
+    """Factory functions can have dependencies injected too."""
+    return f"Connection to {config.get('db_url')}"
+
+# ── Configure container ──────────────────────────────────────────────────
+
+print("=" * 60)
+print("Setting up container...")
+print("=" * 60)
+
+container = (
+    Container()
+    # Singleton config - shared everywhere
+    .singleton(Config, EnvConfig)
+    # Singleton cache
+    .singleton(Cache, InMemoryCache)
+    # Scoped repository - one per scope
+    .scoped(UserRepository, PostgresUserRepository)
+    # Add caching decorator
+    .decorate(UserRepository, CachedUserRepository)
+    # Transient email sender - new instance each time
+    .transient(EmailSender, SmtpEmailSender)
+    # Factory example - dependency injection works in factories too
+    .factory(
+        str,  # Just for demo - normally wouldn't register str
+        create_connection_string,
+        Lifetime.SINGLETON
+    )
+)
+
+# Validate configuration
+print("\nValidating container configuration...")
+container.validate()
+print("✓ Container configuration is valid")
+
+# ── Use the container ────────────────────────────────────────────────────
+
+print("\n" + "=" * 60)
+print("Scope 1: First request")
+print("=" * 60)
+
+with container.scope() as scope:
+    print("\nResolving EmailSender...")
+    sender = scope.resolve(EmailSender)
+
+    print("\nFetching user 1 (should hit DB)...")
+    user_repo = scope.resolve(UserRepository)
+    user = user_repo.get(1)
+    print(f"Got user: {user}")
+
+    print("\nFetching user 1 again (should hit cache)...")
+    user = user_repo.get(1)
+    print(f"Got user: {user}")
+
+print("\n" + "=" * 60)
+print("Scope 2: Second request (new scope, same singletons)")
+print("=" * 60)
+
+with container.scope() as scope:
+    print("\nResolving UserRepository (new scoped instance)...")
+    user_repo = scope.resolve(UserRepository)
+
+    print("\nFetching user 1 (cache is singleton, should still hit)...")
+    user = user_repo.get(1)
+    print(f"Got user: {user}")
+
+    print("\nFetching user 2 (should hit DB)...")
+    user = user_repo.get(2)
+    print(f"Got user: {user}")
+
+# ── Demonstrate validation errors ────────────────────────────────────────
+
+print("\n" + "=" * 60)
+print("Validation examples")
+print("=" * 60)
+
+# Missing dependency
+print("\n1. Missing dependency:")
+try:
+    class NeedsUnregistered:
+        def __init__(self, missing: "UnregisteredService"): ...
+
+    class UnregisteredService: ...
+
+    bad_container = Container().transient(NeedsUnregistered)
+    bad_container.validate()
+except MissingDependencyError as e:
+    print(f"   ✓ Caught: {e}")
+
+# Circular dependency
+print("\n2. Circular dependency:")
+try:
+    class ServiceA:
+        def __init__(self, b: "ServiceB"): ...
+
+    class ServiceB:
+        def __init__(self, a: ServiceA): ...
+
+    bad_container = (
+        Container()
+        .transient(ServiceA)
+        .transient(ServiceB)
+    )
+    bad_container.validate()
+except CircularDependencyError as e:
+    print(f"   ✓ Caught: {e}")
+
+# Lifetime mismatch
+print("\n3. Lifetime mismatch (singleton depending on scoped):")
+try:
+    class ScopedService: ...
+
+    class SingletonNeedsScoped:
+        def __init__(self, scoped: ScopedService): ...
+
+    bad_container = (
+        Container()
+        .scoped(ScopedService)
+        .singleton(SingletonNeedsScoped)
+    )
+    bad_container.validate()
+except ContainerError as e:
+    print(f"   ✓ Caught: {e}")
+
+print("\n" + "=" * 60)
+print("Done!")
+print("=" * 60)
+```
+
+**Output:**
+```
+============================================================
+Setting up container...
+============================================================
+
+Validating container configuration...
+✓ Container configuration is valid
+
+============================================================
+Scope 1: First request
+============================================================
+
+Resolving EmailSender...
+  [PostgresUserRepository] Connected to postgresql://localhost/app
+
+Fetching user 1 (should hit DB)...
+  [Cache] GET user:1 -> MISS
+  [PostgresUserRepository] Fetching user 1 from DB
+  [Cache] SET user:1
+Got user: {'id': 1, 'email': 'user1@example.com'}
+
+Fetching user 1 again (should hit cache)...
+  [Cache] GET user:1 -> HIT
+Got user: {'id': 1, 'email': 'user1@example.com'}
+
+============================================================
+Scope 2: Second request (new scope, same singletons)
+============================================================
+
+Resolving UserRepository (new scoped instance)...
+  [PostgresUserRepository] Connected to postgresql://localhost/app
+
+Fetching user 1 (cache is singleton, should still hit)...
+  [Cache] GET user:1 -> HIT
+Got user: {'id': 1, 'email': 'user1@example.com'}
+
+Fetching user 2 (should hit DB)...
+  [Cache] GET user:2 -> MISS
+  [PostgresUserRepository] Fetching user 2 from DB
+  [Cache] SET user:2
+Got user: {'id': 2, 'email': 'user2@example.com'}
+
+============================================================
+Validation examples
+============================================================
+
+1. Missing dependency:
+   ✓ Caught: 'UnregisteredService' is not registered, required by NeedsUnregistered
+
+2. Circular dependency:
+   ✓ Caught: Circular dependency detected: ServiceA -> ServiceB -> ServiceA
+
+3. Lifetime mismatch (singleton depending on scoped):
+   ✓ Caught: Lifetime mismatch: singleton 'SingletonNeedsScoped' cannot depend on scoped 'ScopedService'
+
+============================================================
+Done!
+============================================================
+```
+
+### Development
+
+A `Makefile` is provided for common development tasks:
+
+```bash
+make install-dev   # Install development dependencies
+make test          # Run tests
+make coverage      # Run tests with coverage report
+make lint          # Run linting checks (flake8)
+make format        # Format code (black)
+make type-check    # Run type checking (mypy)
+make build         # Build the package
+```
+
+### CI/CD
+
+This project uses GitHub Actions for CI/CD:
+- **CI**: Runs tests, linting, and type checking on every push to `main` and pull requests.
+- **Release**: Automatically builds and publishes the package to PyPI when a new tag `v*` is pushed.
+
+To publish manually, you can use the provided script:
+```bash
+./scripts/publish.sh
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
