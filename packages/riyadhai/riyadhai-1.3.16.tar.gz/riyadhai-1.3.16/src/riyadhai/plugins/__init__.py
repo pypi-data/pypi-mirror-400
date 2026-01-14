@@ -1,0 +1,41 @@
+# Copyright 2026 RiyadhAI LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Plugin namespace for `riyadhai`.
+
+This package is intentionally lightweight. Plugins are optional and may be
+distributed separately.
+"""
+
+from __future__ import annotations
+
+import importlib
+from typing import Any
+
+__all__ = [
+    "google",
+]
+
+
+def __getattr__(name: str) -> Any:
+    if name not in __all__:
+        raise AttributeError(name)
+
+    try:
+        return importlib.import_module(f"{__name__}.{name}")
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError(
+            f"`{__name__}.{name}` is not installed. "
+            f"Install it via `pip install 'riyadhai[full]'`."
+        ) from e
