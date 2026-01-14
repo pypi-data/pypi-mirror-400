@@ -1,0 +1,136 @@
+[build-system]
+requires = ["setuptools", "setuptools-compile-po"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "djangocms-render-context"
+description = "Render context into template."
+readme = {file = "README.md", content-type = "text/markdown"}
+license = "BSD-3-Clause"
+authors = [
+  { name = "Zdeněk Böhm", email = "zdenek.bohm@nic.cz" },
+]
+requires-python = ">=3.9"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Framework :: Django",
+  "Framework :: Django :: 4.2",
+  "Framework :: Django :: 5.0",
+  "Framework :: Django :: 5.1",
+  "Framework :: Django :: 5.2",
+  "Framework :: Django CMS",
+  "Framework :: Django CMS :: 4.1",
+  "Framework :: Django CMS :: 5.0",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dynamic = [ "version" ]
+dependencies = [
+  "django-cms>=4.0,<6",
+  "django-filer~=3.4",
+  "django-sekizai~=4.1",
+  "pyyaml",
+  "requests",
+]
+
+[project.optional-dependencies]
+quality = [
+  "ruff",
+  "mypy",
+  "types-PyYAML",
+  "types-requests",
+]
+test = [
+  "testfixtures",
+  "responses",
+]
+
+[project.urls]
+Homepage = "https://gitlab.nic.cz/djangocms-apps/djangocms-render-context"
+Repository = "https://gitlab.nic.cz/djangocms-apps/djangocms-render-context.git"
+Changelog = "https://gitlab.nic.cz/djangocms-apps/djangocms-render-context/-/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+include = ["djangocms_render_context*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "djangocms_render_context.__version__" }
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py312"
+exclude = [
+  "migrations",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",  # pycodestyle errors
+  "W",  # pycodestyle warnings
+  "F",  # pyflakes
+  "I",  # isort
+  "C",  # flake8-comprehensions
+  "B",  # flake8-bugbear
+  "PLE", # pylint error
+  "PLR", # pylint refactor
+  "PLW", # pylint warning
+  "UP", # pyupgrade
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 80
+
+[tool.isort]
+line_length = 120
+skip = [
+  "manage.py",
+  "*migrations*",
+]
+include_trailing_comma = true
+multi_line_output = 5
+lines_after_imports = 2
+default_section = "THIRDPARTY"
+sections = [
+  "FUTURE",
+  "STDLIB",
+  "DJANGO",
+  "CMS",
+  "THIRDPARTY",
+  "FIRSTPARTY",
+  "LOCALFOLDER",
+]
+known_first_party = "djangocms_render_context"
+known_cms = [ "cms" ]
+known_django = "django"
+
+[tool.mypy]
+check_untyped_defs = true
+ignore_missing_imports = true
+local_partial_types = true
+python_version = "3.9"
+
+[[tool.mypy.overrides]]
+module = "djangocms_render_context.migrations.*"
+ignore_errors = true
+
+[tool.bumpversion]
+# Usage: bump-my-version bump patch/minor/major
+current_version = "1.1.0"
+search = "{current_version}"
+replace = "{new_version}"
+commit = true
+tag = true
+tag_name = "{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "djangocms_render_context/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
