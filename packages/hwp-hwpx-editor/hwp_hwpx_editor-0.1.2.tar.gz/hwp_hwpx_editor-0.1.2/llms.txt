@@ -1,0 +1,370 @@
+# HWP-HWPX Editor - LLM Reference
+
+## Overview
+
+hwp-hwpx-editor is a JVM-based library for reading AND editing HWP/HWPX files.
+Extends hwp-hwpx-parser with editing capabilities using Java hwplib/hwpxlib libraries.
+
+## Installation
+
+```bash
+pip install hwp-hwpx-editor
+```
+
+Requirements: Python 3.8+, Java 8+ (JRE or JDK)
+
+## Quick Start
+
+```python
+from hwp_hwpx_editor import HWPEditor
+
+editor = HWPEditor()
+doc = editor("document.hwp")
+text = doc.extract_text()
+doc.save("output.hwp")
+doc.close()
+```
+
+## Core Classes
+
+### HWPEditor (Main Entry Point)
+
+```python
+from hwp_hwpx_editor import HWPEditor, DocumentType
+
+editor = HWPEditor()
+
+# Open files
+doc = editor("document.hwp")           # Simple call
+doc = editor.read("document.hwpx")     # Explicit
+
+# Create blank documents
+doc = editor.create_blank(DocumentType.HWP)
+doc = editor.create_blank(DocumentType.HWPX)
+```
+
+### Document Class
+
+```python
+# Properties
+doc.document_type   # DocumentType.HWP or DocumentType.HWPX
+doc.file_path       # Path
+doc.is_modified     # bool
+doc.version         # str
+doc.sections        # list
+
+# Text extraction (JVM-based)
+doc.extract_text()
+doc.extract_text(method=HWPTextExtractMethod.ONLY_MAIN_PARAGRAPH)
+
+# Text extraction (Fast Layer - no JVM)
+doc.extract_text_fast()
+doc.extract_text_with_notes_fast()
+doc.get_tables_fast()
+doc.get_memos_fast()
+doc.get_footnotes_fast()
+doc.get_endnotes_fast()
+doc.get_hyperlinks_fast()
+
+# Find objects
+doc.find_all("table")
+doc.find_all("image")
+doc.find_all("paragraph")
+doc.find_all("comment")
+
+# Save
+doc.save()                  # Save to original path
+doc.save("new_path.hwp")    # Save to new path
+doc.close()
+```
+
+## HWP-Only Features
+
+### Field Manipulation
+
+```python
+# Get field text
+text = doc.get_field_text("field_name")
+
+# Set field text
+success = doc.set_field_text("field_name", "new_text")
+```
+
+### Table Operations
+
+```python
+# Find tables
+tables = doc.get_tables()
+
+# Get table info
+info = doc.get_table_info(table)
+# Returns: row_count, column_count, cell_spacing, border_fill_id
+
+# Extract table text
+cells = doc.extract_table_text(table)  # List[List[str]]
+
+# Convert to formats
+markdown = doc.get_table_as_markdown(table)
+csv = doc.get_table_as_csv(table, delimiter=",")
+
+# Modify table
+doc.merge_table_cells(table, start_row, start_col, end_row, end_col)
+doc.remove_table_row(table, row_index)
+```
+
+### Media Insertion
+
+```python
+# Insert image
+doc.insert_image(
+    section_index=0,
+    paragraph_index=0,
+    image_path="image.png",
+    width=100,    # mm
+    height=50     # mm
+)
+
+# Insert hyperlink
+doc.insert_hyperlink(
+    section_index=0,
+    paragraph_index=0,
+    link_text="Click here",
+    url="https://example.com"
+)
+```
+
+### Comments (Hidden Comments)
+
+```python
+# Find all comments
+comments = doc.find_comments()
+
+# Get comment content
+text = doc.get_comment_text(comment)
+info = doc.get_comment_info(comment)
+
+# Create comment
+doc.create_comment(section_index, paragraph_index, "comment text")
+```
+
+## HWPX-Only Features
+
+### Object Finding
+
+```python
+doc.find_tables()
+doc.find_images()
+doc.find_paragraphs()
+doc.find_memo_properties()
+```
+
+### Memo Management
+
+```python
+# Get memo info
+info = doc.get_memo_info(memo_property)
+
+# Create memo property
+doc.create_memo_property(
+    memo_id="memo1",
+    width=200,
+    line_color="#000000",
+    fill_color="#FFFF00",
+    active_color="#FF0000"
+)
+
+# Set memo shape reference
+doc.set_memo_shape_reference(section_index, "memo1")
+
+# Find memos in content
+memos = doc.find_memos_in_content()
+```
+
+### Text Replacement (Powerful!)
+
+```python
+# Replace ALL text in document
+def my_replacer(text):
+    return text.replace("old", "new")
+
+count = doc.replace_all_texts(my_replacer)
+
+# Replace text in specific locations only
+count = doc.replace_all_texts(
+    my_replacer,
+    locations=["body", "table", "footnote", "endnote", "memo"]
+)
+
+# Replace only table texts (including nested tables)
+count = doc.replace_table_texts(my_replacer)
+
+# Example: Lorem ipsum replacement
+def replace_lorem(text):
+    return text.upper()
+
+doc.replace_all_texts(replace_lorem, locations=["body", "table"])
+doc.save("output.hwpx")
+```
+
+### Advanced Table Manager
+
+```python
+table_manager = doc.get_hwpx_table_manager()
+# For low-level table operations
+```
+
+## Simple API (extract-hwp Compatible)
+
+```python
+from hwp_hwpx_editor import (
+    extract_text_from_hwp,
+    extract_text_from_hwpx,
+    extract_text_from_hwp5,
+    is_hwp_file_password_protected,
+)
+
+# Returns (text, error) tuple
+text, error = extract_text_from_hwp("document.hwp")
+if error is None:
+    print(text)
+
+# Check encryption
+if is_hwp_file_password_protected("document.hwp"):
+    print("Encrypted")
+```
+
+## Fast Layer (No JVM Needed)
+
+Re-exports hwp-hwpx-parser functionality:
+
+```python
+from hwp_hwpx_editor import Reader, read
+
+with Reader("document.hwp") as r:
+    print(r.text)
+    print(r.tables)
+
+# Or use Document fast methods
+doc = editor("document.hwpx")
+text = doc.extract_text_fast()       # No JVM
+result = doc.extract_text_with_notes_fast()
+```
+
+## JVM Management
+
+```python
+from hwp_hwpx_editor import (
+    initialize_jvm,
+    shutdown_jvm,
+    is_jvm_running,
+)
+
+# JVM starts automatically with HWPEditor()
+# Manual control if needed:
+initialize_jvm()
+is_jvm_running()  # Returns bool
+shutdown_jvm()    # Call before program exit
+```
+
+## Common Patterns
+
+### Fill Form Fields (HWP)
+
+```python
+from hwp_hwpx_editor import HWPEditor
+
+editor = HWPEditor()
+with editor.read("form.hwp") as doc:
+    doc.set_field_text("name", "John Doe")
+    doc.set_field_text("address", "123 Main St")
+    doc.save("filled_form.hwp")
+```
+
+### Bulk Text Replace (HWPX)
+
+```python
+from hwp_hwpx_editor import HWPEditor
+
+editor = HWPEditor()
+with editor.read("document.hwpx") as doc:
+    # Replace in body and tables only
+    count = doc.replace_all_texts(
+        lambda t: t.replace("Lorem", "Sample"),
+        locations=["body", "table"]
+    )
+    print(f"Replaced {count} elements")
+    doc.save("output.hwpx")
+```
+
+### Extract All Tables as Markdown
+
+```python
+from hwp_hwpx_editor import HWPEditor
+
+editor = HWPEditor()
+with editor.read("report.hwp") as doc:
+    for i, table in enumerate(doc.get_tables()):
+        print(f"## Table {i+1}")
+        print(doc.get_table_as_markdown(table))
+```
+
+### Create New Document
+
+```python
+from hwp_hwpx_editor import HWPEditor, DocumentType
+
+editor = HWPEditor()
+doc = editor.create_blank(DocumentType.HWPX)
+# Add content...
+doc.save("new_document.hwpx")
+```
+
+## Feature Matrix
+
+### HWP Support
+
+| Feature | Status |
+|---------|--------|
+| Text extraction | Yes |
+| Field read/write | Yes |
+| Table manipulation | Yes |
+| Image insertion | Yes |
+| Hyperlink insertion | Yes |
+| Comment management | Yes |
+| Blank document | Yes |
+
+### HWPX Support
+
+| Feature | Status |
+|---------|--------|
+| Text extraction | Yes |
+| Object finding | Yes |
+| Memo management | Yes |
+| Text replacement | Yes |
+| Nested table support | Yes |
+| Blank document | Yes |
+
+## Dependencies
+
+- hwp-hwpx-parser>=0.1.0 (for Fast Layer)
+- JPype1>=1.4.0 (JVM bridge)
+- Java 8+ runtime
+
+## Error Handling
+
+```python
+from hwp_hwpx_editor import (
+    HWPParserError,
+    JVMNotStartedError,
+    UnsupportedFileFormatError,
+    ParsingError,
+    WritingError,
+)
+
+try:
+    doc = editor("document.hwp")
+except JVMNotStartedError:
+    print("JVM failed to start")
+except ParsingError as e:
+    print(f"Failed to parse: {e}")
+```
