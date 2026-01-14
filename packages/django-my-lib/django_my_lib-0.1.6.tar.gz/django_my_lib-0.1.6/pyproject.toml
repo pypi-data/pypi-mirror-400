@@ -1,0 +1,51 @@
+[project]
+name = "django-my-lib"
+version = "0.1.6"
+description = "A handy collection of reusable Django UI components, allowing me to share and integrate elements efficiently across various projects."
+authors = [
+    {name = "Gustavo Rizzo S M de Albuquerque",email = "grizzo.albu@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python =  ">=3.14,<4.0"
+dependencies = [
+    "django (>=5.2.7,<6.0.0)"
+]
+
+[tool.poetry]
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.18.2"
+taskipy = "^1.14.1"
+ruff = "^0.14.3"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 120
+exclude = [
+    "migrations",
+    "__pycache__",
+    "build",
+    "dist"
+]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I", "N", "UP", "B"]
+
+[tool.taskipy.variables]
+V_DEMO_FOLDER = "cd demo_project &&"
+
+[tool.taskipy.settings]
+use_vars = true
+
+[tool.taskipy.tasks]
+migrate = { cmd = "{V_DEMO_FOLDER} python ./manage.py migrate", help = "applies database migrations for the demo project" }
+create-superuser = {cmd ="{V_DEMO_FOLDER} python ./manage.py createsuperuser", help = "creates a superuser for the demo project"}
+setup = { cmd = "task migrate && task create-superuser", help = "sets up the demo project by applying migrations and creating a superuser" }
+lint = { cmd = "ruff check .", help = "runs the linter" }
+lint-fix = { cmd = "ruff check . --fix", help = "runs the linter and tries to fix issues" }
+test = { cmd = "{V_DEMO_FOLDER} python manage.py test", help = "runs the test suite" }
+run-demo = { cmd = "{V_DEMO_FOLDER} python manage.py runserver", help = "runs the demo project server" }
