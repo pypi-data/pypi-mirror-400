@@ -1,0 +1,287 @@
+"""Test core functionality of VCFcache."""
+
+from pathlib import Path
+import subprocess
+import pytest
+from vcfcache.utils.paths import get_vcfcache_root
+from vcfcache.utils.validation import compute_md5
+
+# Constants
+TEST_ROOT = get_vcfcache_root() / "tests"
+TEST_DATA_DIR = TEST_ROOT / "data" / "nodata"
+TEST_VCF = TEST_DATA_DIR / "crayz_db.bcf"
+TEST_VCF2 = TEST_DATA_DIR / "crayz_db2.bcf"
+import sys
+
+# Use python -m vcfcache to ensure we use the installed package
+VCFCACHE_CMD = [sys.executable, "-m", "vcfcache"]
+
+
+def test_error_handling(test_output_dir, params_file, test_scenario):
+    """Test error conditions and edge cases."""
+    print(f"\n=== Testing error handling (scenario: {test_scenario}) ===")
+
+    # Test with non-existent input file
+    init_cmd = VCFCACHE_CMD + [
+        "blueprint-init",
+        "-i",
+        "nonexistent.bcf",
+        "-o",
+        test_output_dir,
+        "-y",
+        params_file
+    ]
+
+    result = subprocess.run(init_cmd, capture_output=True, text=True)
+    assert result.returncode != 0, "Should fail with non-existent input"
+
+    # Test with invalid output location
+    init_cmd = VCFCACHE_CMD + [
+        "blueprint-init",
+        "-i",
+        str(TEST_VCF),
+        "-o",
+        test_output_dir,
+        "-y",
+        "nonexistent.yaml",
+    ]
+    result = subprocess.run(init_cmd, capture_output=True, text=True)
+    assert result.returncode != 0, "Should fail with invalid yaml"
+
+    # Test add without init
+    add_cmd = VCFCACHE_CMD + [ "blueprint-extend", "--db", test_output_dir, "-i", str(TEST_VCF)]
+    result = subprocess.run(add_cmd, capture_output=True, text=True)
+    assert result.returncode != 0, "Should fail without initialization"
+
+
+def test_file_validation(test_output_dir: str, test_scenario):
+    """Test file validation and integrity checks."""
+    print(f"\n=== Testing file validation (scenario: {test_scenario}) ===")
+
+    # Create test file
+    ref_file = TEST_ROOT / "data/references/reference.fasta"
+
+    # Test MD5 calculation
+    md5_hash = compute_md5(ref_file)
+    # MD5 updated after adding dbcontig, dbcontig2, dbcontig3, samplecontig to reference.fasta
+    assert md5_hash == "f51754c41c167c02138b16a1da76fa70"
+
+
+def test_vcf_reference_validation(test_scenario):
+    """Test VCF reference validation."""
+    print(f"\n=== Testing VCF reference validation (scenario: {test_scenario}) ===")
+
+    from vcfcache.database.base import VCFDatabase
+    from vcfcache.utils.validation import check_bcftools_installed
+    import logging
+
+    # Set up test files
+    vcf_file = TEST_DATA_DIR / "crayz_db.bcf"
+    ref_file = TEST_ROOT / "data/references/reference.fasta"
+
+    # Get system bcftools path
+    bcftools_path = check_bcftools_installed()
+
+    # Create a VCFDatabase instance
+    db = VCFDatabase(Path(TEST_ROOT), 2, True, Path(bcftools_path))
+    db.logger = logging.getLogger("test")
+
+    # Test validation with valid files
+    result, error = db.validate_vcf_reference(vcf_file, ref_file)
+    assert result, f"Validation should pass but failed with: {error}"
+
+    # Test validation with non-existent VCF file
+    result, error = db.validate_vcf_reference(Path("nonexistent.bcf"), ref_file)
+    assert not result, "Validation should fail with non-existent VCF file"
+    assert "not found" in error
+
+    # Test validation with non-existent reference file
+    result, error = db.validate_vcf_reference(vcf_file, Path("nonexistent.fasta"))
+    assert not result, "Validation should fail with non-existent reference file"
+    assert "not found" in error
+
+
+def test_requirements_outputs_annotation_tool_cmd(test_output_dir):
+    """--requirements should print the frozen annotation tool command."""
+
+    annotation_dir = Path(test_output_dir) / "cache" / "vep_gnomad"
+    annotation_dir.mkdir(parents=True, exist_ok=True)
+
+    expected_cmd = "docker run --rm -i vep:latest"
+    (annotation_dir / "annotation.yaml").write_text(
+        "annotation_cmd: \"echo ${params.annotation_tool_cmd}\"\n"
+        "must_contain_info_tag: CSQ\n"
+        "required_tool_version: \"1.0\"\n"
+        "genome_build: GRCh38\n"
+    )
+    (annotation_dir / "params.snapshot.yaml").write_text(
+        "annotation_tool_cmd: docker run --rm -i vep:latest\n"
+    )
+
+    result = subprocess.run(
+        VCFCACHE_CMD + [
+            "annotate",
+            "--requirements",
+            "-a",
+            str(annotation_dir),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert expected_cmd in result.stdout
+    assert "Annotation command (with params substituted)" in result.stdout
+
+
+def test_list_shows_available_annotations(test_output_dir):
+    """--list should enumerate annotation directories containing vcfcache_annotated.bcf."""
+
+    cache_dir = Path(test_output_dir) / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    anno1 = cache_dir / "vep_gnomad"
+    anno1.mkdir()
+    (anno1 / "vcfcache_annotated.bcf").write_text("dummy")
+
+    anno2 = cache_dir / "custom"
+    anno2.mkdir()
+    (anno2 / "vcfcache_annotated.bcf").write_text("dummy")
+
+    result = subprocess.run(
+        VCFCACHE_CMD + [
+            "annotate",
+            "--list",
+            "-a",
+            str(cache_dir),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "vep_gnomad" in result.stdout
+    assert "custom" in result.stdout
+
+
+def test_list_inspect_reports_required_params(tmp_path: Path):
+    """list --inspect should report params keys referenced by annotation.yaml."""
+    cache_root = tmp_path / "cache_root"
+    (cache_root / "blueprint").mkdir(parents=True)
+    (cache_root / "cache" / "test_anno").mkdir(parents=True)
+
+    # Minimal markers
+    (cache_root / "blueprint" / "vcfcache.bcf").write_text("dummy")
+    (cache_root / "cache" / "test_anno" / "vcfcache_annotated.bcf").write_text("dummy")
+
+    (cache_root / "cache" / "test_anno" / "annotation.yaml").write_text(
+        "annotation_cmd: |\n"
+        "  ${params.bcftools_cmd} view ${INPUT_BCF} | ${params.annotation_tool_cmd} > ${OUTPUT_BCF}\n"
+        "must_contain_info_tag: CSQ\n"
+        "required_tool_version: \"115.2\"\n"
+        "genome_build: GRCh38\n",
+        encoding="utf-8",
+    )
+    (cache_root / "cache" / "test_anno" / "params.snapshot.yaml").write_text(
+        "params:\n"
+        "  bcftools_cmd: bcftools\n"
+        "  annotation_tool_cmd: vep\n"
+        "  genome_build: GRCh38\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        VCFCACHE_CMD + ["list", "caches", "--inspect", str(cache_root)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Required params.yaml keys" in result.stdout
+    assert "bcftools_cmd" in result.stdout
+    assert "annotation_tool_cmd" in result.stdout
+
+
+def test_caches_local_lists_from_path(tmp_path: Path):
+    base = tmp_path / "vcfcache_dir"
+    cache_root = base / "caches" / "cache-GRCh37-gnomad-4.1joint-AF0100-vep-115.2-basic"
+    (cache_root / "blueprint").mkdir(parents=True)
+    (cache_root / "cache" / "test_anno").mkdir(parents=True)
+    # Ensure size >= 1MB so it is listed (local listing ignores tiny/placeholder dirs).
+    (cache_root / "blueprint" / "vcfcache.bcf").write_bytes(b"x" * (1024 * 1024 + 10))
+    (cache_root / "cache" / "test_anno" / "vcfcache_annotated.bcf").write_bytes(b"x" * (1024 * 1024 + 10))
+    (cache_root / "cache" / "test_anno" / ".vcfcache_complete").write_text(
+        "completed: true\nmode: cache-build\n"
+    )
+    (cache_root / "cache" / "test_anno" / "annotation.yaml").write_text(
+        "annotation_cmd: echo\n"
+        "must_contain_info_tag: CSQ\n"
+        "required_tool_version: \"1.0\"\n"
+        "genome_build: GRCh37\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        VCFCACHE_CMD + ["list", "caches", "--local", str(base)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Local vcfcache caches" in result.stdout
+    assert "gnomAD v4.1 joint GRCh37" in result.stdout
+
+
+def test_list_local_accepts_path_positional(tmp_path: Path):
+    base = tmp_path / "blueprints"
+    bp1 = base / "bp-GRCh37-gnomad-4.1joint-AF0100"
+    (bp1 / "blueprint").mkdir(parents=True)
+    (bp1 / "blueprint" / "vcfcache.bcf").write_bytes(b"x" * (1024 * 1024 + 10))
+    (bp1 / ".vcfcache_complete").write_text("completed: true\nmode: blueprint-init\n")
+
+    result = subprocess.run(
+        VCFCACHE_CMD + ["list", "blueprints", "--local", str(base)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Local vcfcache blueprints" in result.stdout
+    assert "gnomAD v4.1 joint GRCh37" in result.stdout
+
+
+def test_list_local_does_not_append_item_type_when_dir_is_already_items(tmp_path: Path):
+    # Path directly contains blueprint roots (no blueprints/ subdir).
+    root = tmp_path / "my_blueprints_dir"
+    bp1 = root / "bp-GRCh37-gnomad-4.1joint-AF0100"
+    (bp1 / "blueprint").mkdir(parents=True)
+    (bp1 / "blueprint" / "vcfcache.bcf").write_bytes(b"x" * (1024 * 1024 + 10))
+    (bp1 / ".vcfcache_complete").write_text("completed: true\nmode: blueprint-init\n")
+
+    result = subprocess.run(
+        VCFCACHE_CMD + ["list", "blueprints", "--local", str(root)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Local vcfcache blueprints" in result.stdout
+    assert "bp-GRCh37-gnomad-4.1joint-AF0100" in result.stdout
+
+
+def test_list_local_filters_invalid_dirs(tmp_path: Path):
+    base = tmp_path / "mixed"
+    base.mkdir()
+    (base / ".git").mkdir()
+    (base / ".venv").mkdir()
+
+    bp = base / "bp-GRCh37-gnomad-4.1joint-AF0100"
+    (bp / "blueprint").mkdir(parents=True)
+    (bp / "blueprint" / "vcfcache.bcf").write_bytes(b"x" * (1024 * 1024 + 10))
+    (bp / ".vcfcache_complete").write_text("completed: true\nmode: blueprint-init\n")
+
+    result = subprocess.run(
+        VCFCACHE_CMD + ["list", "blueprints", "--local", str(base)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert ".git" not in result.stdout
+    assert ".venv" not in result.stdout
+    assert "bp-GRCh37-gnomad-4.1joint-AF0100" in result.stdout
