@@ -1,0 +1,75 @@
+[tool.poetry]
+name = "pyap2"
+version = "0.1.16"
+packages = [{ include = "pyap" }]
+description = "Pyap2 is a maintained fork of pyap, a regex-based library for parsing US, CA, and UK addresses. The fork adds typing support, handles more address formats and edge cases."
+authors = ["Argyle Developers <developers@argyle.io>"]
+documentation = "https://github.com/argyle-engineering/pyap"
+homepage = "https://github.com/argyle-engineering/pyap"
+repository = "https://github.com/argyle-engineering/pyap"
+license = "MIT"
+readme="README.rst"
+keywords = ["address", "parser", "regex"]
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    'Topic :: Software Development :: Libraries',
+    'Topic :: Scientific/Engineering :: Information Analysis',
+    'Topic :: Utilities'
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+
+[tool.poetry.dev-dependencies]
+black = "*"
+flake8 = "*"
+flake8-bugbear = "*"
+yamllint = "*"
+pytest = "^7.1.2"
+taskipy = "^1.12.2"
+
+[tool.taskipy.tasks]
+lint = "flake8"
+yamllint = "yamllint ."
+run_pyright = "(npm list -g pyright@1.1.245 || npm install -g pyright@1.1.245) && pyright"
+check_types = "task run_pyright"
+check_fmt = "black --check ."
+fmt = "black ."
+test = "pytest tests -vvv"
+check = "task lint && task yamllint && task check_fmt && task check_types && task test"
+
+[tool.pyright]
+pythonVersion = "3.9"
+reportIncompatibleVariableOverride = true
+strictListInference = true
+strictDictionaryInference = true
+strictSetInference = true
+reportUnusedImport = true
+reportDuplicateImport = true
+reportWildcardImportFromLibrary = true
+reportOptionalMemberAccess = true
+reportUntypedBaseClass = true
+reportPrivateUsage = true
+reportUntypedClassDecorator = true
+reportConstantRedefinition = true
+reportInvalidTypeVarUse = true
+reportUnnecessaryIsInstance = true
+reportUnnecessaryCast = true
+reportUnnecessaryComparison = true
+reportAssertAlwaysTrue = true
+reportUnusedCoroutine = true
+
+[build-system]
+requires = ["poetry>=1.4", "poetry-dynamic-versioning>=1.0"]
+build-backend = "poetry.masonry.api"
+
+[tool.poetry-dynamic-versioning]
+enable = false
+vcs = "git"
+latest-tag = true
+pattern = "^(?P<base>\\d+\\.\\d+\\.\\d+)"
+format-jinja = "{% if distance == 0 %}{{ base }}{% else %}{{ base }}a{{ distance }}{% endif %}"
