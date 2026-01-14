@@ -1,0 +1,94 @@
+{# Treemap HTML template for sphinx-needs-tree-map #}
+<div class="needtreemap-container" id="{{ treemap_id }}-container">
+    {% if title %}
+    <div class="needtreemap-title">{{ title }}</div>
+    {% endif %}
+    <div id="{{ treemap_id }}"
+         class="needtreemap"
+         style="height: {{ height }}; width: {{ width }};"></div>
+</div>
+
+<script>
+(function() {
+    // Ensure Plotly is loaded
+    function loadPlotly(callback) {
+        if (typeof Plotly !== 'undefined') {
+            callback();
+            return;
+        }
+
+        // Check if script is already being loaded
+        var existingScript = document.querySelector('script[src*="plotly"]');
+        if (existingScript) {
+            existingScript.addEventListener('load', callback);
+            return;
+        }
+
+        // Load Plotly from CDN
+        var script = document.createElement('script');
+        script.src = '{{ plotly_cdn }}';
+        script.async = true;
+        script.onload = callback;
+        script.onerror = function() {
+            console.error('Failed to load Plotly.js from CDN');
+            var container = document.getElementById('{{ treemap_id }}');
+            if (container) {
+                container.innerHTML = '<p style="color: red; padding: 1em;">Error: Failed to load Plotly.js visualization library.</p>';
+            }
+        };
+        document.head.appendChild(script);
+    }
+
+    function renderTreemap() {
+        var data = [{{ plotly_data | safe }}];
+        var layout = {{ plotly_layout | safe }};
+        var config = {{ plotly_config | safe }};
+
+        var container = document.getElementById('{{ treemap_id }}');
+        if (!container) {
+            console.error('Treemap container not found: {{ treemap_id }}');
+            return;
+        }
+
+        Plotly.newPlot('{{ treemap_id }}', data, layout, config);
+
+        // Add click handler for interactivity
+        container.on('plotly_click', function(eventData) {
+            if (eventData.points && eventData.points.length > 0) {
+                var point = eventData.points[0];
+                var customdata = point.customdata;
+
+                // If it's a need node with metadata, could navigate to it
+                if (customdata && customdata.node_type === 'need' && customdata.metadata) {
+                    var needId = customdata.metadata.need_id;
+                    // Try to find and scroll to the need element on the page
+                    var needElement = document.getElementById(needId);
+                    if (needElement) {
+                        needElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // Highlight the element briefly
+                        needElement.style.transition = 'background-color 0.3s';
+                        needElement.style.backgroundColor = '#fff3cd';
+                        setTimeout(function() {
+                            needElement.style.backgroundColor = '';
+                        }, 2000);
+                    }
+                }
+            }
+        });
+
+        // Handle window resize for responsive behavior
+        window.addEventListener('resize', function() {
+            Plotly.Plots.resize(container);
+        });
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPlotly(renderTreemap);
+        });
+    } else {
+        loadPlotly(renderTreemap);
+    }
+})();
+</script>
