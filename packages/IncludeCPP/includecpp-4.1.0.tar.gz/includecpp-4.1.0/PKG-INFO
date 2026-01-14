@@ -1,0 +1,1008 @@
+Metadata-Version: 2.4
+Name: IncludeCPP
+Version: 4.1.0
+Summary: Professional C++ Python bindings with type-generic templates, pystubs and native threading
+Home-page: https://github.com/liliassg/IncludeCPP
+Author: Lilias Hatterscheidt
+Author-email: lilias@includecpp.dev
+License: MIT
+Project-URL: Repository, https://github.com/liliassg/IncludeCPP
+Project-URL: Bug Tracker, https://github.com/liliasg/IncludeCPP/issues
+Keywords: c++,python,bindings,pybind11,template,performance,threading
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: C++
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pybind11>=2.11.0
+Requires-Dist: click>=8.0.0
+Requires-Dist: typing-extensions>=4.0.0
+Requires-Dist: requests>=2.28.0
+Requires-Dist: colorama>=0.4.0
+Dynamic: author-email
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# IncludeCPP
+
+Write C++ code, use it in Python. Auto-generates pybind11 bindings.
+
+```bash
+pip install IncludeCPP
+```
+
+# First Steps
+
+## Project Setup
+
+```bash
+includecpp init
+```
+
+Creates:
+- `cpp.proj` - project configuration
+- `include/` - your C++ source files
+- `plugins/` - generated binding definitions
+
+## Write C++ Code
+
+Put your code in `namespace includecpp`:
+
+```cpp
+// include/fast_list.cpp
+#include <vector>
+
+namespace includecpp {
+
+class FastList {
+public:
+    void append(int val) { data.push_back(val); }
+    int get(int i) { return data[i]; }
+private:
+    std::vector<int> data;
+};
+
+int add(int a, int b) { return a + b; }
+
+}  // namespace includecpp
+```
+
+The parser only scans code inside `namespace includecpp`. Everything else is ignored.
+
+## Generate Bindings
+
+```bash
+includecpp plugin fast_list include/fast_list.cpp
+```
+
+This runs a C++ parser that:
+1. Scans your source files for classes, methods, functions
+2. Extracts signatures, return types, parameter names
+3. Generates `plugins/fast_list.cp` with binding instructions
+
+## Build
+
+```bash
+includecpp rebuild
+```
+
+Compiles your C++ into a Python extension module (`.pyd` on Windows, `.so` on Linux/Mac).
+
+## Use in Python
+
+```python
+from includecpp import fast_list
+
+my_list = fast_list.FastList()
+my_list.append(42)
+print(fast_list.add(1, 2))  # 3
+```
+
+Alternative syntax:
+
+```python
+from includecpp import CppApi
+
+api = CppApi()
+fast_list = api.include("fast_list")
+```
+
+# How to Start
+
+## Minimal Example
+
+```bash
+# 1. Create project
+mkdir myproject && cd myproject
+includecpp init
+
+# 2. Write C++ (include/math.cpp)
+cat > include/math.cpp << 'EOF'
+namespace includecpp {
+    int square(int x) { return x * x; }
+}
+EOF
+
+# 3. Generate plugin
+includecpp plugin math include/math.cpp
+
+# 4. Build
+includecpp rebuild
+
+# 5. Use
+python -c "from includecpp import math; print(math.square(7))"
+```
+
+## Development Workflow
+
+For active development, use `auto`:
+
+```bash
+includecpp auto math
+```
+
+This regenerates the `.cp` file from source and rebuilds in one command.
+
+For fastest iteration:
+
+```bash
+includecpp rebuild --fast
+```
+
+Skips unchanged files. ~0.4s when nothing changed.
+
+# How IncludeCPP Works
+
+## Architecture
+
+```
+Your C++ Source            Plugin File (.cp)           Python Module
+include/math.cpp    --->   plugins/math.cp     --->    math.cpXXX.pyd
+     ^                           ^                          ^
+     |                           |                          |
+  C++ parser              Binding config             pybind11 compiled
+  extracts API            (editable)                 extension
+```
+
+## The Parser
+
+The C++ parser (`parser.cpp`) runs as a compiled executable. It:
+
+1. Tokenizes your C++ source files
+2. Identifies the `namespace includecpp` block
+3. Extracts:
+   - Class names and inheritance
+   - Method signatures (name, return type, parameters)
+   - Function signatures
+   - Template instantiations
+   - Const/static qualifiers
+4. Outputs structured binding instructions to `.cp` files
+
+## Plugin Files (.cp)
+
+The `.cp` format is a declarative binding specification:
+
+```
+SOURCE(math.cpp) math
+
+PUBLIC(
+    math CLASS(Calculator) {
+        CONSTRUCTOR()
+        CONSTRUCTOR(int)
+        METHOD(add)
+        METHOD_CONST(getValue)
+        FIELD(value)
+    }
+
+    math FUNC(square)
+    math TEMPLATE_FUNC(maximum) TYPES(int, float, double)
+)
+```
+
+Key directives:
+- `SOURCE(file.cpp) module_name` - links source to module
+- `PUBLIC(...)` - defines public bindings
+- `CLASS(Name)` - expose a class
+- `STRUCT(Name)` - expose a struct
+- `FUNC(name)` - expose a free function
+- `METHOD(name)` - expose a class method
+- `METHOD_CONST(name, signature)` - for overloaded methods
+- `TEMPLATE_FUNC(name) TYPES(...)` - instantiate template
+- `CONSTRUCTOR(args)` - expose constructor
+- `FIELD(name)` - expose member variable
+- `DEPENDS(mod1, mod2)` - declare module dependencies
+
+## Build System
+
+The build manager:
+
+1. Reads `cpp.proj` configuration
+2. Parses all `.cp` files in `plugins/`
+3. Generates pybind11 binding code
+4. Compiles using CMake with detected compiler (MSVC, GCC, Clang)
+5. Places output in `~/.includecpp/builds/` (not in your project)
+6. Creates a registry so Python can find modules
+
+Caching layers:
+- **Object files**: Only recompile changed `.cpp` files
+- **Generator cache**: Compiler/CMake detection runs once
+- **SHA256 hashes**: Skip unchanged modules entirely
+
+# CLI Reference
+
+Use `includecpp <command> --help` for details.
+
+| Command | Description |
+|---------|-------------|
+| `init` | Create project structure |
+| `plugin <name> <files>` | Generate .cp from C++ sources |
+| `auto <plugin>` | Regenerate .cp and rebuild |
+| `auto --all` | Regenerate and rebuild all plugins |
+| `auto --all -x <name>` | All plugins except specified |
+| `fix <module>` | Analyze C++ code for issues |
+| `fix --all` | Analyze all modules |
+| `fix --undo` | Revert last fix changes |
+| `fix --ai <module>` | AI-enhanced code analysis |
+| `ai key <key>` | Set OpenAI API key |
+| `ai enable` | Enable AI features |
+| `ai disable` | Disable AI features |
+| `ai model --list` | List available models |
+| `ai model set <name>` | Set active model |
+| `ai --info` | Show AI configuration and usage |
+| `ai optimize <module>` | AI code optimization |
+| `ai optimize --agent "<task>"` | Custom AI task |
+| `ai ask "<question>"` | Ask about project with full context |
+| `ai ask "<question>" <module>` | Ask about specific module |
+| `ai edit "<task>"` | Edit code with AI assistance |
+| `ai edit "<task>" --think2` | Thorough edit mode |
+| `ai undo` | Restore files after AI changes |
+| `rebuild` / `build` | Compile all modules |
+| `get <module>` | Show module API (classes, methods, functions) |
+| `install <name>` | Install community module |
+| `update` | Update IncludeCPP |
+| `bug` | Report an issue |
+| `--doc` | Show documentation |
+| `--changelog` | Show latest version changelog |
+| `cppy convert <files> --cpp` | Convert Python to C++ |
+| `cppy convert <files> --py` | Convert C++ to Python |
+| `cppy convert <files> --cpp --no-h` | Convert without header |
+| `cppy convert <files> --cpp --ai` | AI-assisted conversion |
+| `cppy analyze <files>` | Analyze code structure |
+| `cppy types` | Show type mapping tables |
+
+## Build Flags
+
+```bash
+includecpp rebuild                  # Standard build
+includecpp rebuild --clean          # Full rebuild, clear caches
+includecpp rebuild --fast           # Fast incremental (~0.4s if unchanged)
+includecpp rebuild --verbose        # Show compiler output
+includecpp rebuild -m crypto        # Build specific module only
+includecpp rebuild -j 8             # Use 8 parallel jobs
+includecpp rebuild --keep           # Keep generator between builds
+includecpp rebuild --no-incremental # Force full recompilation
+includecpp rebuild --this           # Build current directory as module
+```
+
+## Fast Mode
+
+`--fast` enables object file caching:
+
+| Scenario | Time |
+|----------|------|
+| No changes | ~0.4s |
+| Source changed | ~5-10s |
+| Full rebuild | ~30s |
+
+Clear caches with `--clean`.
+
+## Incompatible Flag Combinations
+
+| Flags | Reason |
+|-------|--------|
+| `--fast` + `--no-incremental` | Fast mode requires incremental |
+| `--fast` + `--clean` | Fast uses caches, clean deletes them |
+| `--fast` + `--this` | Not supported together |
+| `--incremental` + `--no-incremental` | Contradictory |
+
+# Advanced Features
+
+## AI Integration
+
+IncludeCPP integrates with OpenAI for intelligent code analysis and optimization.
+
+### Setup
+
+```bash
+includecpp ai key sk-your-api-key-here
+includecpp ai enable
+```
+
+### Available Models
+
+```bash
+includecpp ai model --list
+```
+
+- `gpt-5` (default) - 256k context
+- `gpt-5-nano` - 32k context, fast
+- `gpt-4o` - 128k context
+- `gpt-4-turbo` - 128k context
+- `gpt-3.5-turbo` - 16k context
+
+### AI-Enhanced Fix
+
+```bash
+includecpp fix --ai mymodule
+includecpp fix --ai --all
+```
+
+Sends source files to AI for analysis, suggests improvements while preserving all existing functions.
+
+### AI Optimize
+
+```bash
+includecpp ai optimize mymodule                        # Optimize module sources
+includecpp ai optimize --file src/utils.cpp            # Optimize specific files
+includecpp ai optimize --agent mymodule "add SIMD"     # Custom task
+```
+
+### AI Ask
+
+Ask questions about your project with full context awareness:
+
+```bash
+includecpp ai ask "where is collision detection?"              # Search all modules
+includecpp ai ask "how does chunk generation work?" chunk_utils  # Specific module
+includecpp ai ask "explain the biome system" --file include/biomes.cpp
+includecpp ai ask "list all public methods" --all -x tests      # All except tests
+```
+
+Supports: module name, --file, --all, -x/--exclude
+
+### AI Edit
+
+Edit code with AI assistance:
+
+```bash
+includecpp ai edit "add logging to all methods" collision
+includecpp ai edit "optimize the loop" --file include/utils.cpp
+includecpp ai edit "add error handling" --all --think2          # Thorough mode
+```
+
+Flags:
+- `--file` - specific files
+- `--all` - all modules
+- `-x/--exclude` - exclude modules
+- `--think2` - thorough analysis (more tokens)
+
+### AI Generate (Super Assistant)
+
+The most powerful AI command - a full assistant with file operations and command execution.
+
+```bash
+# Basic usage
+includecpp ai generate "add error handling to all functions" --file mymodule.cp
+
+# Create new module from scratch
+includecpp ai generate "fast SIMD math library" --t-new-module simd_math
+
+# Planning mode (search, analyze, then execute)
+includecpp ai generate "refactor for better performance" --t-plan --think2
+
+# With Python file (auto-detect module usage)
+includecpp ai generate "update api methods" --file mymod.cp --python main.py
+
+# Full context mode
+includecpp ai generate "comprehensive optimization" --t-max-context --think3
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--file <path>` | Add files (multiple allowed). .cp files auto-resolve to source |
+| `--think/2/3` | Extended context and planning |
+| `--websearch` | Enable web research |
+| `--t-max-context` | No context reduction |
+| `--t-plan` | Search/grep before executing |
+| `--t-new-module <name>` | Create new module (cpp + plugin + build) |
+| `--python <file.py>` | Include Python file, auto-detect modules |
+| `--confirm` | Skip confirmations |
+
+### AI Tools
+
+List available tools for the generate command:
+
+```bash
+includecpp ai tools
+```
+
+Available tools: READ_FILE, WRITE_FILE, EDIT_FILE, DELETE_FILE, CREATE_FOLDER, LIST_FOLDER, SEARCH_FILES, GREP, RUN_CMD, INCLUDECPP_CMD
+
+### Build Error Analysis
+
+When AI is enabled and `rebuild` fails, the build error is automatically analyzed:
+- Root cause identification
+- Code fix suggestions
+- Prevention tips
+
+### Configuration
+
+```bash
+includecpp ai --info          # Show status, model, usage stats
+includecpp ai disable         # Disable without removing key
+```
+
+API key stored in `~/.includecpp/.secret`.
+
+## Overloaded Methods
+
+Specify the signature to disambiguate:
+
+```
+MODULE CLASS(Circle) {
+    METHOD_CONST(intersects, const Circle&)
+    METHOD_CONST(intersects, const Rect&)
+}
+```
+
+## Template Instantiation
+
+```
+MODULE TEMPLATE_FUNC(maximum) TYPES(int, float, double)
+
+MODULE STRUCT(Point) TYPES(int, float) {
+    FIELD(x)
+    FIELD(y)
+}
+```
+
+Generates `maximum_int`, `maximum_float`, `maximum_double` and `Point_int`, `Point_float`.
+
+## Module Dependencies
+
+```
+DEPENDS(math_utils, geometry)
+```
+
+Ensures dependent modules build first.
+
+## VSCode IntelliSense
+
+Generates `.pyi` stub files for autocomplete. Enable in `cpp.proj`:
+
+```json
+{
+  "CPI-IntelliSense": true
+}
+```
+
+## CPPY Code Conversion
+
+Convert code between Python and C++ with full support for classes, functions, and type hints.
+
+### Python to C++
+
+```bash
+includecpp cppy convert math_utils.py --cpp
+includecpp cppy convert data.py --cpp --no-h  # Skip header
+includecpp cppy convert src/*.py --cpp -o include/
+```
+
+Converts Python code to optimized C++ with:
+- Type hints mapped to C++ types (int, str -> std::string, List -> std::vector)
+- Classes with constructors, methods, fields
+- Functions with proper signatures
+- List comprehensions to STL algorithms
+- Exception handling to try/catch
+
+### C++ to Python
+
+```bash
+includecpp cppy convert utils.cpp --py
+includecpp cppy convert mymodule.cp --py  # Auto-resolve SOURCE()
+```
+
+Converts C++ to Python with:
+- STL types mapped to Python equivalents
+- Classes with type hints
+- Methods become class methods with self
+- Structs become dataclasses
+
+### AI-Assisted Conversion
+
+```bash
+includecpp cppy convert complex_lib.py --cpp --ai
+includecpp cppy convert advanced.cpp --py --ai -v
+```
+
+The `--ai` flag enables intelligent conversion with:
+- Section-by-section analysis and processing
+- Automatic `--think2` context level
+- Comprehensive rulebase for precise conversions
+- pybind11 wrappers for Python features without C++ equivalents:
+  - Generators -> callback pattern / py::iterator
+  - Async/await -> std::async / std::future
+  - Context managers -> RAII pattern
+  - Duck typing -> templates with concepts
+- Reports API changes to user
+- Fallback to standard conversion if AI unavailable
+
+**Workaround Examples:**
+| Python Feature | C++ Workaround |
+|----------------|----------------|
+| `yield` | Callback pattern or py::iterator |
+| `async/await` | std::async + std::future |
+| `with` context | RAII ScopedResource class |
+| List comprehension | transform_to_vector template |
+| Dict comprehension | transform_to_map template |
+| Dynamic attributes | py::object |
+
+### Analyze Code
+
+```bash
+includecpp cppy analyze math.py           # View structure
+includecpp cppy analyze utils.cpp --json  # JSON output
+```
+
+### Type Mapping
+
+```bash
+includecpp cppy types  # Show conversion tables
+```
+
+| Python | C++ |
+|--------|-----|
+| int | int |
+| float | double |
+| str | std::string |
+| bool | bool |
+| List[T] | std::vector<T> |
+| Dict[K,V] | std::unordered_map<K,V> |
+| Optional[T] | std::optional<T> |
+| Tuple[...] | std::tuple<...> |
+
+# Configuration
+
+## cpp.proj
+
+```json
+{
+  "project": "MyProject",
+  "include": "/include",
+  "plugins": "/plugins",
+  "compiler": {
+    "standard": "c++17",
+    "optimization": "O3"
+  }
+}
+```
+
+Options:
+- `project` - project name
+- `include` - C++ source directory
+- `plugins` - plugin file directory
+- `compiler.standard` - C++ standard (c++11, c++14, c++17, c++20)
+- `compiler.optimization` - optimization level (O0, O1, O2, O3)
+
+# Requirements
+
+- Python 3.8+
+- C++ compiler (g++, clang++, MSVC)
+- pybind11 (installed automatically)
+- CMake (for build generation)
+
+# Experimental Features
+
+The following features are **experimental** and may contain bugs:
+
+- `includecpp ai` - AI-powered code assistance
+- `includecpp cppy` - Python to C++ code conversion
+
+These commands are **hidden by default**. To enable them:
+
+```bash
+includecpp settings
+```
+
+Then check **"Enable Experimental Features"** and save.
+
+**Warning:** Experimental features are under active development and may:
+- Produce incorrect output
+- Have breaking changes between versions
+- Be removed or significantly changed
+
+Use at your own discretion. Report issues at: https://github.com/liliassg/IncludeCPP/issues
+
+# CSSL - C-Style Scripting Language
+
+IncludeCPP includes CSSL, a scripting language with advanced data manipulation features.
+
+## Basic Usage
+
+```python
+from includecpp import CSSL
+
+# Execute CSSL code
+CSSL.exec('''
+    printl("Hello from CSSL!");
+
+    int x = 10;
+    for (i in range(0, 5)) {
+        x = x + i;
+    }
+    printl(x);
+''')
+
+# Execute with arguments
+result = CSSL.exec('''
+    int a = parameter.get(0);
+    int b = parameter.get(1);
+    parameter.return(a + b);
+''', 5, 3)
+print(result)  # 8
+```
+
+## Live Object Sharing
+
+Share Python objects with CSSL scripts. Changes in CSSL reflect back to Python:
+
+```python
+from includecpp import CSSL
+
+class Counter:
+    def __init__(self):
+        self.value = 100
+
+counter = Counter()
+cssl = CSSL.CsslLang()
+cssl.share(counter, "cnt")
+
+# Modify in CSSL - changes reflect in Python!
+cssl.exec('''
+    $cnt.value = $cnt.value - 10;
+    printl($cnt.value);  // 90
+''')
+
+print(counter.value)  # 90 - Changed!
+```
+
+### Shared Object Syntax
+
+- `$name` - Access shared object
+- `$name.property` - Access/modify properties
+- `$name.method()` - Call methods
+- `delete("name")` - Remove shared object
+
+## Data Types
+
+```cssl
+// Basic types
+int x = 42;
+float pi = 3.14;
+string name = "CSSL";
+bool active = true;
+
+// Collections
+array<int> arr;
+arr.push(1);
+arr.push(2);
+printl(arr.length());  // 2
+
+vector<string> vec;
+vec.push("A");
+vec.push("B");
+
+stack<int> s;
+s.push(10);
+s.pop();
+```
+
+## Control Flow
+
+```cssl
+// If/elif/else
+if (x > 10) {
+    printl("big");
+} elif (x > 5) {
+    printl("medium");
+} else {
+    printl("small");
+}
+
+// For loops
+for (i in range(0, 10)) {
+    printl(i);
+}
+
+for (i in range(0, 10, 2)) {  // with step
+    printl(i);  // 0, 2, 4, 6, 8
+}
+
+// Foreach
+array<string> items;
+items.push("A");
+items.push("B");
+foreach (item in items) {
+    printl(item);
+}
+
+// While
+int count = 0;
+while (count < 5) {
+    printl(count);
+    count = count + 1;
+}
+```
+
+## Functions
+
+```cssl
+// Basic function
+void greet(string name) {
+    printl("Hello, " + name + "!");
+}
+
+// Return value
+int add(int a, int b) {
+    return a + b;
+}
+
+// Global variables
+global version = "1.0.0";
+printl(@version);
+
+// r@ syntax for global declaration
+r@myGlobal = "value";
+printl(@myGlobal);
+```
+
+## BruteForce Injection System
+
+CSSL's unique injection operators for data manipulation:
+
+```cssl
+// <== Move data (replaces target)
+target <== source;
+
+// +<== Copy & add to target
+target +<== source;
+
+// -<== Move & remove from source
+target -<== source;
+
+// <<== Code infusion into functions
+myFunc() <<== {
+    printl("Injected code!");
+};
+
+// +<<== Add code without replacing
+myFunc() +<<== {
+    printl("Additional code!");
+};
+```
+
+## String Methods
+
+```cssl
+string s = "Hello World";
+
+// Methods
+s.length();           // 11
+s.toUpper();          // "HELLO WORLD"
+s.toLower();          // "hello world"
+s.contains("World");  // true
+s.startsWith("Hello"); // true
+s.endsWith("World");  // true
+s.replace("World", "CSSL");
+s.split(" ");         // ["Hello", "World"]
+s.trim();             // Remove whitespace
+s.substring(0, 5);    // "Hello"
+```
+
+## CSSL Modules
+
+```python
+# Create callable module
+module = CSSL.module('''
+    string name = parameter.get(0);
+    printl("Hello, " + name + "!");
+''')
+module("World")  # Prints: Hello, World!
+
+# Create module with functions
+math_mod = CSSL.makemodule('''
+    int add(int a, int b) {
+        return a + b;
+    }
+
+    int multiply(int a, int b) {
+        return a * b;
+    }
+''')
+print(math_mod.add(2, 3))       # 5
+print(math_mod.multiply(4, 5))  # 20
+```
+
+## Inline Payloads
+
+```python
+cssl = CSSL.CsslLang()
+
+# Register code as payload
+cssl.script(<name>, "helpers", '''
+    global version = "1.0.0";
+    void log(string msg) {
+        printl("[LOG] " + msg);
+    }
+''')
+
+# Use in CSSL
+cssl.run('''
+    payload("<name>"); // use module you declared in cssl.script(<name>, ...)
+    @log("Application started");
+    printl(@version);
+''')
+```
+
+## Return CSSL Classes to Python
+
+Use `python::pythonize()` to convert CSSL class instances into Python-usable objects:
+
+```python
+from includecpp import CSSL
+
+cssl = CSSL.CsslLang()
+
+# Create and return a CSSL class as a Python object
+greeter = cssl.run('''
+    class Greeter {
+        string name;
+
+        Greeter(string n) {
+            this->name = n;
+        }
+
+        string sayHello() {
+            return "Hello, " + this->name + "!";
+        }
+
+        void setName(string newName) {
+            this->name = newName;
+        }
+
+        string getName() {
+            return this->name;
+        }
+    }
+
+    instance = new Greeter("World");
+    pyclass = python::pythonize(instance);
+    parameter.return(pyclass);
+''')
+
+# Now use it like a normal Python object!
+print(greeter.name)           # "World"
+print(greeter.sayHello())     # "Hello, World!"
+greeter.setName("Python")
+print(greeter.getName())      # "Python"
+print(greeter.name)           # "Python"
+```
+
+### Aliases
+
+- `python::pythonize(instance)` - Main function
+- `python::wrap(instance)` - Alias
+- `python::export(instance)` - Alias
+
+All three do the same thing: wrap a CSSL class instance for Python use.
+
+## Universal Instances (v4.0.3+)
+
+Universal instances are shared containers accessible from CSSL, Python, and C++:
+
+```python
+from includecpp import CSSL
+
+cssl = CSSL.CsslLang()
+
+# Create in CSSL
+cssl.run('''
+    instance<"myContainer"> container;
+    container.data = "Hello";
+    container.count = 42;
+''')
+
+# Access from Python
+container = cssl.getInstance("myContainer")
+print(container.data)   # "Hello"
+print(container.count)  # 42
+
+# Modify from Python
+container.newValue = "Added from Python"
+
+# Changes reflect in CSSL
+cssl.run('''
+    instance<"myContainer"> c;
+    printl(c.newValue);  // "Added from Python"
+''')
+```
+
+### Instance Methods
+
+```python
+cssl.getInstance("name")      # Get instance (None if not found)
+cssl.createInstance("name")   # Create or get instance
+cssl.deleteInstance("name")   # Delete instance
+cssl.listInstances()          # List all instance names
+```
+
+### Method Injection
+
+Inject methods into instances using `+<<==`:
+
+```cssl
+instance<"api"> api;
+
+// Inject a method
+api +<<== {
+    void greet(string name) {
+        printl("Hello, " + name + "!");
+    }
+};
+
+api.greet("World");  // Hello, World!
+```
+
+## Simplified Module API (v4.0.2+)
+
+Create CSSL modules from files with payload binding:
+
+```python
+from includecpp import CSSL
+
+# Register payload from file
+CSSL.makepayload("api", "lib/api/myapi.cssl-pl")
+
+# Create module from file, binding to payload
+mod = CSSL.makemodule("writer", "lib/writer.cssl", bind="api")
+mod.SaySomething("Hello!")  # Call functions directly
+```
+
+## VSCode Extension
+
+IncludeCPP includes a VSCode extension for CSSL syntax highlighting.
+
+### Installation
+
+```bash
+# Copy extension to VSCode extensions folder
+# Windows: %USERPROFILE%\.vscode\extensions\
+# Linux/Mac: ~/.vscode/extensions/
+
+# Or install from included files
+pip show includecpp  # Find package location
+# Copy vscode/cssl folder to extensions
+```
+
+### Features
+
+- Syntax highlighting for `.cssl`, `.cssl-pl`, `.cssl-mod` files
+- Snippets for common patterns
+- Run CSSL files with F5
+- Proper coloring for:
+  - Keywords and control flow
+  - Data types (purple/lilac)
+  - Variable declarations (light blue)
+  - Injection operators (`<<==`, `<==`)
+  - Global (`@`), shared (`$`), and captured (`%`) references
