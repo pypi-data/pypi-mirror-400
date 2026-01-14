@@ -1,0 +1,130 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [created]  # 当新的 GitHub release 被创建时触发
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史记录，用于版本信息
+          ref: ${{ github.event.release.tag_name }}  # 检出 release 对应的 tag
+          fetch-tags: true  # 获取所有 tags
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Extract version from release tag
+        id: tag_version
+        run: |
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          # 移除 'v' 前缀（如果存在）
+          VERSION=${TAG_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Release: ${{ github.event.release.name }}"
+          echo "Tag: $TAG_NAME, Version: $VERSION"
+          
+          # 验证 tag 格式（应该是语义化版本号）
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?(\+[a-zA-Z0-9]+)?$ ]]; then
+            echo "Warning: Tag version does not follow semantic versioning: $VERSION"
+          fi
+
+      - name: Verify tag is on master branch
+        run: |
+          # 获取远程分支信息
+          git fetch origin master:refs/remotes/origin/master 2>/dev/null || true
+          
+          # 检查 release tag 指向的 commit 是否在 master 分支上
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          TAG_COMMIT=$(git rev-parse "$TAG_NAME")
+          echo "Tag: $TAG_NAME"
+          echo "Tag commit: $TAG_COMMIT"
+          
+          # 检查 commit 是否在 master 分支的历史中
+          if git branch -r --contains $TAG_COMMIT 2>/dev/null | grep -q "origin/master"; then
+            echo "✓ Tag commit exists in master branch"
+          else
+            echo "Error: Tag commit is not in master branch!"
+            echo "Available branches containing this commit:"
+            git branch -r --contains $TAG_COMMIT 2>/dev/null || echo "None"
+            exit 1
+          fi
+
+      - name: Verify version matches pyproject.toml
+        run: |
+          # 安装 tomli 用于读取 pyproject.toml（Python 3.11+ 可以使用 tomllib）
+          pip install tomli || true
+          python << EOF
+          import sys
+          import re
+          
+          # 尝试使用 tomllib (Python 3.11+)
+          try:
+              import tomllib
+              with open('pyproject.toml', 'rb') as f:
+                  data = tomllib.load(f)
+          except ImportError:
+              # 回退到 tomli
+              try:
+                  import tomli
+                  with open('pyproject.toml', 'rb') as f:
+                      data = tomli.load(f)
+              except ImportError:
+                  # 如果都不可用，使用正则表达式简单提取
+                  with open('pyproject.toml', 'r', encoding='utf-8') as f:
+                      content = f.read()
+                  match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
+                  if match:
+                      data = {'project': {'version': match.group(1)}}
+                  else:
+                      print("Error: Could not extract version from pyproject.toml")
+                      sys.exit(1)
+          
+          pyproject_version = data['project']['version']
+          tag_version = "${{ steps.tag_version.outputs.version }}"
+          
+          if pyproject_version != tag_version:
+              print(f"Error: Version mismatch!")
+              print(f"pyproject.toml version: {pyproject_version}")
+              print(f"Tag version: {tag_version}")
+              sys.exit(1)
+          
+          print(f"Version verified: {pyproject_version}")
+          EOF
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Check package
+        run: |
+          twine check dist/*
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$TWINE_PASSWORD" ]; then
+            echo "Error: PYPI_API_TOKEN secret is not configured"
+            echo "Please configure PYPI_API_TOKEN in repository settings:"
+            echo "Settings > Secrets and variables > Actions > New repository secret"
+            exit 1
+          fi
+          twine upload dist/*
