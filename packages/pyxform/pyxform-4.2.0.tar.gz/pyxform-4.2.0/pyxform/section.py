@@ -1,0 +1,355 @@
+"""
+Section survey element module.
+"""
+
+from collections.abc import Callable, Generator, Iterable
+from itertools import chain
+from typing import TYPE_CHECKING
+from xml.dom.minidom import Attr
+
+from pyxform import constants
+from pyxform.external_instance import ExternalInstance
+from pyxform.survey_element import SURVEY_ELEMENT_FIELDS, SurveyElement
+from pyxform.utils import node
+from pyxform.validators.pyxform import unique_names
+
+if TYPE_CHECKING:
+    from pyxform.question import Question
+    from pyxform.survey import Survey
+
+
+SECTION_EXTRA_FIELDS = (
+    constants.BIND,
+    constants.CHILDREN,
+    constants.CONTROL,
+    constants.HINT,
+    constants.MEDIA,
+    constants.TYPE,
+    "instance",
+    "flat",
+    "sms_field",
+)
+SECTION_FIELDS = (*SURVEY_ELEMENT_FIELDS, *SECTION_EXTRA_FIELDS)
+
+
+class Section(SurveyElement):
+    __slots__ = SECTION_EXTRA_FIELDS
+
+    @staticmethod
+    def get_slot_names() -> tuple[str, ...]:
+        return SECTION_FIELDS
+
+    def __init__(
+        self,
+        name: str,
+        type: str,
+        label: str | dict | None = None,
+        hint: str | dict | None = None,
+        bind: dict | None = None,
+        control: dict | None = None,
+        instance: dict | None = None,
+        media: dict | None = None,
+        flat: bool | None = None,
+        sms_field: str | None = None,
+        fields: tuple[str, ...] | None = None,
+        **kwargs,
+    ):
+        # Structure
+        self.bind: dict | None = bind
+        self.children: list[Section | Question] = []
+        self.control: dict | None = control
+        # instance is for custom instance attrs from survey e.g. instance::abc:xyz
+        self.instance: dict | None = instance
+        # TODO: is media valid for groups? No tests for it, but it behaves like Questions.
+        self.media: dict | None = media
+        self.type: str | None = type
+
+        # Group settings are generally put in bind/control dicts.
+        self.hint: str | dict | None = hint
+        self.flat: bool | None = flat
+        self.sms_field: str | None = sms_field
+
+        # Recursively creating child objects currently handled by the builder module.
+        kwargs.pop(constants.CHILDREN, None)
+        super().__init__(name=name, label=label, fields=fields, **kwargs)
+
+        self._link_children()
+
+    def _link_children(self):
+        for child in self.children:
+            child.parent = self
+
+    def add_child(self, child):
+        self.children.append(child)
+        child.parent = self
+
+    def add_children(self, children):
+        if isinstance(children, list | tuple):
+            for child in children:
+                self.add_child(child)
+        else:
+            self.add_child(children)
+
+    def validate(self):
+        super().validate()
+        for element in self.children:
+            element.validate()
+        self._validate_uniqueness_of_element_names()
+
+    def iter_descendants(
+        self,
+        condition: Callable[["SurveyElement"], bool] | None = None,
+        iter_into_section_items: bool = False,
+    ) -> Generator["SurveyElement", None, None]:
+        if condition is None:
+            yield self
+        elif condition(self):
+            yield self
+        if self.children:
+            for e in self.children:
+                yield from e.iter_descendants(
+                    condition=condition,
+                    iter_into_section_items=iter_into_section_items,
+                )
+
+    def _validate_uniqueness_of_element_names(self):
+        child_names = set()
+        child_names_lower = set()
+        warnings = []
+        for element in self.children:
+            unique_names.validate_question_group_repeat_name(
+                name=element.name,
+                seen_names=child_names,
+                seen_names_lower=child_names_lower,
+                warnings=warnings,
+                check_reserved=False,
+            )
+
+    def xml_instance(self, survey: "Survey", **kwargs):
+        """
+        Creates an xml representation of the section
+        """
+        append_template = kwargs.pop("append_template", False)
+
+        attributes = {}
+        attributes.update(kwargs)
+        if self.instance:
+            attributes.update(self.instance)
+        # Resolve field references in attributes
+        for key, value in attributes.items():
+            attributes[key] = survey.insert_xpaths(text=value, context=self)
+        result = node(self.name, **attributes)
+
+        for child in self.children:
+            repeating_template = None
+            if hasattr(child, "flat") and child.get("flat"):
+                for grandchild in child.xml_instance_array(survey=survey):
+                    result.appendChild(grandchild)
+            elif isinstance(child, ExternalInstance):
+                continue
+            else:
+                if isinstance(child, RepeatingSection) and not append_template:
+                    append_template = not append_template
+                    repeating_template = child.generate_repeating_template(survey=survey)
+                child_instance = child.xml_instance(
+                    survey=survey, append_template=append_template
+                )
+                if isinstance(child_instance, Attr):
+                    result.setAttributeNode(child_instance)
+                else:
+                    result.appendChild(child_instance)
+            if append_template and repeating_template:
+                append_template = not append_template
+                result.insertBefore(repeating_template, result._get_lastChild())
+        return result
+
+    def generate_repeating_template(self, survey: "Survey", **kwargs):
+        attributes = {"jr:template": ""}
+        result = node(self.name, **attributes)
+        for child in self.children:
+            if isinstance(child, RepeatingSection):
+                result.appendChild(child.template_instance(survey=survey))
+            else:
+                result.appendChild(child.xml_instance(survey=survey))
+        return result
+
+    def xml_instance_array(self, survey: "Survey"):
+        """
+        This method is used for generating flat instances.
+        """
+        for child in self.children:
+            if hasattr(child, "flat") and child.get("flat"):
+                yield from child.xml_instance_array(survey=survey)
+            else:
+                yield child.xml_instance(survey=survey)
+
+    def xml_control(self, survey: "Survey"):
+        """
+        Ideally, we'll have groups up and rolling soon, but for now
+        let's just yield controls from all the children of this section
+        """
+        for e in self.children:
+            control = e.xml_control(survey=survey)
+            if control is not None:
+                yield control
+
+
+class RepeatingSection(Section):
+    def __init__(
+        self,
+        name: str,
+        type: str = constants.REPEAT,
+        label: str | dict | None = None,
+        hint: str | dict | None = None,
+        bind: dict | None = None,
+        control: dict | None = None,
+        instance: dict | None = None,
+        media: dict | None = None,
+        flat: bool | None = None,
+        sms_field: str | None = None,
+        fields: tuple[str, ...] | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            name=name,
+            type=type,
+            label=label,
+            hint=hint,
+            bind=bind,
+            control=control,
+            instance=instance,
+            media=media,
+            flat=flat,
+            sms_field=sms_field,
+            fields=fields,
+            **kwargs,
+        )
+
+    def xml_control(self, survey: "Survey"):
+        """
+        <group>
+        <label>Fav Color</label>
+        <repeat nodeset="fav-color">
+          <select1 ref=".">
+            <label ref="jr:itext('fav')" />
+            <item><label ref="jr:itext('red')" /><value>red</value></item>
+            <item><label ref="jr:itext('green')" /><value>green</value></item>
+            <item><label ref="jr:itext('blue')" /><value>blue</value></item>
+          </select1>
+        </repeat>
+        </group>
+        """
+        # Resolve field references in attributes
+        if self.control:
+            control_dict = {
+                key: survey.insert_xpaths(text=value, context=self)
+                for key, value in self.control.items()
+            }
+            repeat_node = node("repeat", nodeset=self.get_xpath(), **control_dict)
+        else:
+            repeat_node = node("repeat", nodeset=self.get_xpath())
+
+        for n in Section.xml_control(self, survey=survey):
+            repeat_node.appendChild(n)
+
+        # Get setvalue nodes for all descendants of this repeat that have dynamic defaults
+        # and aren't nested in other repeats. Let nested repeats handle their own defaults
+        from pyxform.question import Question
+        from pyxform.survey_elements.attribute import Attribute
+
+        def condition(i, parent=self):
+            return isinstance(i, Attribute | Question) and (
+                i.parent is self
+                or parent
+                == next(
+                    i.iter_ancestors(condition=lambda j: isinstance(j, RepeatingSection)),
+                    (None, None),
+                )[0]
+            )
+
+        for e in self.iter_descendants(condition=condition):
+            for dynamic_default in e.xml_actions(survey=survey, in_repeat=True):
+                if dynamic_default:
+                    repeat_node.appendChild(dynamic_default)
+
+        label = self.xml_label(survey=survey)
+        if label:
+            return node("group", label, repeat_node, ref=self.get_xpath())
+        if self.control:
+            return node("group", repeat_node, ref=self.get_xpath(), **self.control)
+        else:
+            return node("group", repeat_node, ref=self.get_xpath())
+
+    # I'm anal about matching function signatures when overriding a function,
+    # but there's no reason for kwargs to be an argument
+    def template_instance(self, survey: "Survey", **kwargs):
+        return super().generate_repeating_template(survey=survey, **kwargs)
+
+
+class GroupedSection(Section):
+    def __init__(
+        self,
+        name: str,
+        type: str = constants.GROUP,
+        label: str | dict | None = None,
+        hint: str | dict | None = None,
+        bind: dict | None = None,
+        control: dict | None = None,
+        instance: dict | None = None,
+        media: dict | None = None,
+        flat: bool | None = None,
+        sms_field: str | None = None,
+        fields: tuple[str, ...] | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            name=name,
+            type=type,
+            label=label,
+            hint=hint,
+            bind=bind,
+            control=control,
+            instance=instance,
+            media=media,
+            flat=flat,
+            sms_field=sms_field,
+            fields=fields,
+            **kwargs,
+        )
+
+    def xml_control(self, survey: "Survey"):
+        if self.control and self.control.get("bodyless"):
+            return None
+
+        children = []
+
+        # Resolve field references in attributes
+        if self.control:
+            attributes = {
+                key: survey.insert_xpaths(text=value, context=self)
+                for key, value in self.control.items()
+            }
+            if "appearance" in self.control:
+                attributes["appearance"] = self.control["appearance"]
+        else:
+            attributes = {}
+
+        if not self.flat:
+            attributes["ref"] = self.get_xpath()
+
+        if self.label:
+            children.append(self.xml_label(survey=survey))
+        for n in Section.xml_control(self, survey=survey):
+            children.append(n)
+
+        return node("group", *children, **attributes)
+
+    def to_json_dict(self, delete_keys: Iterable[str] | None = None) -> dict:
+        to_delete = (constants.BIND,)
+        if delete_keys is not None:
+            to_delete = chain(to_delete, delete_keys)
+        result = super().to_json_dict(delete_keys=to_delete)
+        # This is quite hacky, might want to think about a smart way
+        # to approach this problem.
+        result["type"] = "group"
+        return result
