@@ -1,0 +1,339 @@
+Metadata-Version: 2.4
+Name: smf-mcp
+Version: 0.1.9
+Summary: Enterprise-grade MCP framework built on FastMCP
+Project-URL: Homepage, https://github.com/guinat/smf-mcp
+Project-URL: Repository, https://github.com/guinat/smf-mcp
+Project-URL: Issues, https://github.com/guinat/smf-mcp/issues
+Author: guinat
+License: MIT License
+        
+        Copyright (c) 2026 guinat
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+License-File: LICENSE
+Keywords: ai,enterprise,fastmcp,llm,mcp
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.11
+Requires-Dist: elasticsearch>=9.2.1
+Requires-Dist: fastmcp<3,>=2.11
+Requires-Dist: pydantic-settings<3,>=2
+Requires-Dist: pydantic<3,>=2
+Requires-Dist: pytest>=9.0.2
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: auth
+Requires-Dist: cryptography>=41.0.0; extra == 'auth'
+Requires-Dist: pyjwt>=2.8.0; extra == 'auth'
+Provides-Extra: dev
+Requires-Dist: black>=24; extra == 'dev'
+Requires-Dist: mypy>=1; extra == 'dev'
+Requires-Dist: pytest-asyncio>=1; extra == 'dev'
+Requires-Dist: pytest-cov>=5; extra == 'dev'
+Requires-Dist: pytest>=9; extra == 'dev'
+Requires-Dist: ruff>=0.4; extra == 'dev'
+Provides-Extra: elasticsearch
+Requires-Dist: elasticsearch>=9.2.1; extra == 'elasticsearch'
+Provides-Extra: observability
+Requires-Dist: opentelemetry-api>=1.20.0; extra == 'observability'
+Requires-Dist: opentelemetry-exporter-otlp>=1.20.0; extra == 'observability'
+Requires-Dist: opentelemetry-sdk>=1.20.0; extra == 'observability'
+Requires-Dist: prometheus-client>=0.18.0; extra == 'observability'
+Provides-Extra: testing
+Requires-Dist: pytest-asyncio>=1; extra == 'testing'
+Requires-Dist: pytest>=9; extra == 'testing'
+Provides-Extra: yaml
+Requires-Dist: pyyaml>=6.0.0; extra == 'yaml'
+Description-Content-Type: text/markdown
+
+# SMF - Enterprise MCP Framework
+
+**SMF** is a production-ready Python framework built on top of [FastMCP](https://fastmcp.wiki/) that makes it significantly simpler and more professional to create, structure, and deploy MCP (Model Context Protocol) servers in enterprise production environments.
+
+## Features
+
+- 🏗️ **High-level abstractions**: `ServerFactory` and `AppBuilder` for minimal boilerplate
+- 🔧 **Modular registration**: Filesystem conventions, explicit registries, and plugin discovery
+- ⚙️ **Production runtime**: Configuration system, structured logging, health endpoints, lifecycle management
+- 🔐 **Enterprise auth**: Pluggable authentication (JWT, OAuth, OIDC) and authorization policies
+- 🔄 **Middleware pipeline**: Chain of Responsibility pattern for logging, metrics, rate limiting, error handling
+- 🔌 **Plugin system**: Extensible architecture with stable interfaces
+- 📊 **Observability**: Prometheus metrics, OpenTelemetry tracing, structured logging
+- 🚀 **CLI & Templates**: Project scaffolding and code generation
+
+## Architecture
+
+```
+┌─────────────────────────────┐
+│   CLI & Templates           │
+├─────────────────────────────┤
+│ Integrations (AuthZ, AI SDK) │
+├─────────────────────────────┤
+│  Extensions & Middleware    │
+├─────────────────────────────┤
+│    Core SMF Layer          │
+├─────────────────────────────┤
+│    FastMCP (Upstream)        │
+└─────────────────────────────┘
+```
+
+SMF wraps FastMCP without modifying it, ensuring compatibility with FastMCP updates while adding enterprise features.
+
+## Quick Start
+
+### Installation
+
+```bash
+uv add smf fastmcp
+```
+
+### Simple Server
+
+```python
+from smf import create_server
+
+# Create server
+mcp = create_server("My Server")
+
+# Register a tool
+@mcp.tool
+def greet(name: str) -> str:
+    """Greet someone by name."""
+    return f"Hello, {name}!"
+
+if __name__ == "__main__":
+    mcp.run()
+```
+
+### Advanced Server with AppBuilder
+
+```python
+from smf import AppBuilder, Settings
+
+# Custom settings
+settings = Settings(
+    server_name="My Server",
+    structured_logging=True,
+    metrics_enabled=True,
+    rate_limit_enabled=True,
+)
+
+# Use AppBuilder
+with AppBuilder(settings=settings) as builder:
+    @builder.tool(tags=["math"])
+    def add(a: float, b: float) -> float:
+        """Add two numbers."""
+        return a + b
+    
+    mcp = builder.build()
+
+if __name__ == "__main__":
+    mcp.run(transport="http", port=8000)
+```
+
+## Configuration
+
+SMF uses Pydantic-based settings that can be loaded from:
+
+- Environment variables (prefix: `SMF_`)
+- `.env` files
+- YAML/JSON configuration files
+
+```yaml
+# smf.yaml
+server_name: "My Server"
+server_version: "1.0.0"
+transport: "http"
+host: "0.0.0.0"
+port: 8000
+structured_logging: true
+metrics_enabled: true
+rate_limit_enabled: true
+rate_limit_per_minute: 100
+auth_provider: "jwt"
+auth_config:
+  secret: "${JWT_SECRET}"
+```
+
+## CLI
+
+```bash
+# Initialize new project
+smf init my-server
+
+# Initialize project with Elasticsearch plugin
+smf init my-server --elasticsearch --es-index "products"
+
+# Add a tool
+smf add-tool my-tool --description "Tool description"
+
+# Validate configuration (syntax and values)
+smf validate --config smf.yaml
+
+# Validate with comprehensive tests
+smf validate --config smf.yaml --tests
+
+# Run server
+smf run server.py --transport http --port 8000
+
+# Inspect server (Official Web Inspector)
+smf inspector server.py
+```
+
+## Core Components
+
+### ServerFactory
+
+Creates configured FastMCP servers with defaults applied:
+
+```python
+from smf import ServerFactory, Settings
+
+factory = ServerFactory(settings=Settings())
+mcp = factory.create(name="My Server")
+```
+
+### AppBuilder
+
+Fluent interface for registering components:
+
+```python
+from smf import AppBuilder
+
+builder = AppBuilder()
+builder.tool(my_function)
+builder.resource(my_resource)
+mcp = builder.build()
+```
+
+### Settings
+
+Centralized configuration management:
+
+```python
+from smf import Settings
+
+settings = Settings(
+    server_name="My Server",
+    structured_logging=True,
+    metrics_enabled=True,
+)
+```
+
+## Middleware
+
+SMF provides built-in middleware:
+
+- **StructuredLoggingMiddleware**: JSON-structured logging
+- **TracingMiddleware**: OpenTelemetry distributed tracing
+- **RateLimitingMiddleware**: Token bucket rate limiting
+- **ErrorHandlingMiddleware**: Normalized error responses
+- **MetricsMiddleware**: Prometheus metrics collection
+
+## Authentication
+
+Pluggable authentication providers:
+
+```python
+from smf import Settings, AuthProvider
+
+settings = Settings(
+    auth_provider=AuthProvider.JWT,
+    auth_config={
+        "secret": "your-secret-key",
+        "algorithm": "HS256",
+    }
+)
+```
+
+Supported providers:
+- JWT
+- OAuth
+- OIDC (via TokenVerifier)
+- Custom providers
+
+## Plugins
+
+### Elasticsearch Plugin
+
+Create Elasticsearch-powered MCP servers:
+
+```bash
+# Create server with CLI
+smf init my-server --elasticsearch --es-index "products"
+
+# Or use in code
+from smf.plugins.elasticsearch import ElasticsearchClient, create_elasticsearch_tools
+
+es_client = ElasticsearchClient(hosts="http://localhost:9200")
+mcp = create_server("My Server")
+tools = create_elasticsearch_tools(es_client, index="products")
+for tool in tools:
+    mcp.tool(tool)
+```
+
+Install: `pip install smf-mcp[elasticsearch]`
+
+See [Elasticsearch Plugin Documentation](./src/docs/plugins-elasticsearch.md) for details.
+
+## Examples
+
+See `src/examples/` for:
+- `simple_server/`: Basic server setup
+- `advanced_server/`: Advanced patterns with custom settings
+
+## Documentation
+
+- [FastMCP Research](./src/docs/fastmcp-research.md): FastMCP API mapping
+- [Architecture](./help.md): Detailed architecture documentation
+
+## Requirements
+
+- Python 3.11+
+- FastMCP >= 2.11
+
+## Development
+
+```bash
+# Install dependencies
+uv sync --dev
+
+# Run tests
+pytest
+
+# Format code
+black src/
+
+# Type check
+mypy src/
+```
+
+## License
+
+MIT
+
+## Credits
+
+Built on [FastMCP](https://fastmcp.wiki/) by Prefect.
+
