@@ -1,0 +1,214 @@
+Metadata-Version: 2.4
+Name: wrfo
+Version: 1.0.2
+Summary: Tree Weighting, Accuracy and Diversity-Preserving Pruning for Random Forests
+Home-page: https://github.com/wajdidhifli/WRFO
+Author: Wajdi DHIFLI
+Author-email: wajdidhifli@gmail.com
+Project-URL: Homepage, https://github.com/wajdidhifli/WRFO
+Project-URL: Source, https://github.com/wajdidhifli/WRFO
+Project-URL: Bug Reports, https://github.com/wajdidhifli/WRFO/issues
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: pandas>=1.3.0
+Requires-Dist: scikit-learn>=1.0.0
+Requires-Dist: pyswarm>=0.6
+Requires-Dist: scipy>=1.7.0
+Requires-Dist: joblib>=1.0.0
+Requires-Dist: tqdm>=4.62.0
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: pytest-cov>=2.0; extra == "dev"
+Requires-Dist: black>=21.0; extra == "dev"
+Requires-Dist: flake8>=3.9; extra == "dev"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# WRFO: Weighted Random Forest Optimization
+
+WRFO (Weighted Random Forest Optimization) is a machine learning algorithm that enhances Random Forest classifiers through tree weighting, accuracy and diversity-preserving pruning using Particle Swarm Optimization (PSO). By optimizing tree weights based on a multi-objective function combining accuracy, diversity, and feature entropy, WRFO achieves improved performance while using fewer trees.
+
+**Paper**: "Towards Better Random Forests with Tree Weighting, Accuracy and Diversity-Preserving Pruning" (Expert Systems with Applications, under revision)
+
+## Key Features
+
+- **Multi-Objective Optimization**: Balances accuracy, ensemble diversity, and feature entropy
+- **Adaptive Tree Selection**: Automatically identifies and weights the most valuable trees
+- **Scikit-learn Compatible**: Drop-in replacement for sklearn's RandomForestClassifier
+- **Parallel Processing**: Efficient computation using joblib parallelization
+- **Research-Validated**: under revision in Expert Systems with Applications
+
+## Installation
+
+### From source
+
+```bash
+git clone https://github.com/wajdidhifli/WRFO.git
+cd WRFO
+pip install -r requirements.txt
+pip install -e .
+```
+
+### Requirements
+
+- Python >= 3.7
+- numpy >= 1.20.0
+- pandas >= 1.3.0
+- scikit-learn >= 1.0.0
+- pyswarm >= 0.6
+- scipy >= 1.7.0
+- joblib >= 1.0.0
+- tqdm >= 4.62.0
+
+## Quick Start
+
+```python
+from wrfo import WRFOClassifier
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+
+# Load data
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+
+# Train WRFO
+clf = WRFOClassifier(n_estimators=100, random_state=42)
+clf.fit(X_train, y_train)
+
+# Predict
+y_pred = clf.predict(X_test)
+print(f"Accuracy: {clf.score(X_test, y_test):.3f}")
+```
+
+## Usage
+
+### Basic Classification
+
+```python
+from wrfo import WRFOClassifier
+
+# Initialize with default parameters
+wrfo = WRFOClassifier(
+    n_estimators=100,      # Number of trees
+    swarm_size=10,         # PSO swarm size
+    max_iter=10,           # PSO iterations
+    random_state=42        # For reproducibility
+)
+
+# Fit and predict
+wrfo.fit(X_train, y_train)
+predictions = wrfo.predict(X_test)
+```
+
+### Advanced Configuration
+
+```python
+wrfo = WRFOClassifier(
+    n_estimators=100,
+    swarm_size=10,
+    max_iter=10,
+    accuracy_weight=0.6,    # Weight for accuracy in objective
+    diversity_weight=0.4,   # Weight for diversity in objective
+    entropy_weight=0.1,     # Weight for entropy in objective
+    val_split=0.2,          # Validation split for PSO optimization
+    random_state=42,
+    n_jobs=-1,              # Use all CPU cores
+    verbose=True            # Print progress
+)
+```
+
+### Access Optimized Weights
+
+```python
+# After fitting
+print(f"Optimized weights: {wrfo.weights_}")
+print(f"Trees selected: {sum(wrfo.weights_ > 0)}/{wrfo.n_estimators}")
+print(f"Diversity matrix shape: {wrfo.divmat_.shape}")
+```
+
+## Examples
+
+See the `examples/` directory for complete working examples:
+
+- `iris_classification.py`: Cross-validation example on Iris dataset
+- `custom_dataset_example.py`: Template for using WRFO with custom datasets
+
+Run an example:
+
+```bash
+cd examples
+python iris_classification.py
+```
+
+## How It Works
+
+WRFO improves upon standard Random Forest through three key steps:
+
+1. **Train Base Ensemble**: Creates a Random Forest with n_estimators trees
+2. **Compute Diversity Matrix**: Calculates pairwise Cohen's kappa diversity between all trees
+3. **Optimize Weights**: Uses PSO to find optimal tree weights that maximize:
+   - Classification accuracy (F1-score)
+   - Ensemble diversity (1 - weighted kappa)
+   - Feature entropy (Shannon entropy of root features)
+
+The multi-objective optimization allows WRFO to select a diverse, accurate subset of trees while maintaining interpretability through feature diversity.
+
+## Algorithm Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `n_estimators` | 100 | Number of trees in the random forest |
+| `swarm_size` | 10 | Number of particles in PSO swarm |
+| `max_iter` | 10 | Maximum PSO iterations |
+| `accuracy_weight` | 0.6 | Weight for accuracy component |
+| `diversity_weight` | 0.4 | Weight for diversity component |
+| `entropy_weight` | 0.1 | Weight for entropy component |
+| `val_split` | 0.2 | Validation split ratio for PSO |
+| `random_state` | None | Random seed for reproducibility |
+| `n_jobs` | -1 | Number of parallel jobs |
+| `verbose` | True | Whether to print progress |
+
+## Citation
+
+If you use WRFO in your research, please cite:
+
+```bibtex
+@article{wrfo2026,
+  title={Towards Better Random Forests with Tree Weighting, Accuracy and Diversity-Preserving Pruning},
+  author={Nour Elislem Karabadji, Ali Assi, Abdelaziz Amara Korba, Ahmed Abdulaziz Al Nuaim, Hassina Seridi, Mohamed Elati, Wajdi Dhifli},
+  journal={Expert Systems with Applications},
+  year={2026},
+  note={Under revision}
+}
+```
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Acknowledgments
+
+- Built on top of scikit-learn's RandomForestClassifier
+- PSO implementation from pyswarm package
+- Developed for research in ensemble learning optimization
