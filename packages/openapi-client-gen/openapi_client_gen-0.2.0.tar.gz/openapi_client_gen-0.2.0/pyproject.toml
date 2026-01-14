@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openapi-client-gen"
+version = "0.2.0"
+description = "Generate Python async clients from OpenAPI specs with ExternalService pattern"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.0",
+    "pydantic>=2.0",
+    "external_service",
+]
+
+[project.optional-dependencies]
+schemas = ["datamodel-code-generator>=0.25"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.1"]
+
+[project.scripts]
+openapi-client-gen = "openapi_client_gen.cli:main"
+
+[tool.hatch.build.targets.wheel]
+include = ["openapi_client_gen/templates/*.jinja2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
