@@ -1,0 +1,1 @@
+HERMES_VERSION = "6.1.7"
